@@ -299,11 +299,13 @@ final class RuntimeIngressController<C> {
             admittedBytes += message.bytes.length;
             nextMessage = releaseTask(task, reuseWorker);
         }
+        // Keep the wire-byte credit until functional completion without retaining the decoded message's input array.
+        long retainedMessageBytes = message.bytes.length;
         if (functionalCompletion.isDone()) {
-            completeFunctional(message, completionFailure(functionalCompletion));
+            completeFunctional(retainedMessageBytes, completionFailure(functionalCompletion));
         } else {
             functionalCompletion.whenComplete(
-                    (ignored, failure) -> completeFunctional(message, unwrap(failure)));
+                    (ignored, failure) -> completeFunctional(retainedMessageBytes, unwrap(failure)));
         }
         scheduleAvailable();
         return nextMessage;
@@ -349,7 +351,7 @@ final class RuntimeIngressController<C> {
         return nextMessage;
     }
 
-    private void completeFunctional(RuntimeMessage<C> message, Throwable failure) {
+    private void completeFunctional(long retainedMessageBytes, Throwable failure) {
         Runnable terminal;
         boolean capacityAvailable;
         Progress progress;
@@ -358,9 +360,9 @@ final class RuntimeIngressController<C> {
         synchronized (this) {
             boolean publishProgress = !discardPending;
             admittedMessages--;
-            admittedBytes -= message.bytes.length;
+            admittedBytes -= retainedMessageBytes;
             retainedMessages--;
-            retainedBytes -= message.bytes.length;
+            retainedBytes -= retainedMessageBytes;
             if (failure != null) {
                 accepting = false;
                 stopping = true;
