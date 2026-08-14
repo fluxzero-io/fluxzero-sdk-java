@@ -137,10 +137,13 @@ Explicit builder values take precedence over properties. Legacy `fluxzero.websoc
 unbounded or disable mode. Set message concurrency to one for serial decode, and result-completion concurrency to one
 only when functional callbacks must also be serial, while keeping protocol isolation.
 
-A retained session without a functional completion for one `pingTimeout` can emit
+With transport metrics enabled, a retained session without a functional completion for one `pingTimeout` emits
 `RUNTIME_INGRESS_STALLED`. An idle session without retained work is never stalled. The next completed message or an
-empty retained queue emits `RUNTIME_INGRESS_RECOVERED`. A stall is diagnostic by default and only closes the session
-when `runtimeIngressStallCloseTimeout` is configured to a positive duration.
+empty retained queue emits `RUNTIME_INGRESS_RECOVERED`. Independently of metric publication, a positive
+`runtimeIngressStallCloseTimeout` enables the progress watchdog and closes the session after that additional period
+without progress. The timeout is disabled by default. Normal ping-timeout detection remains active whenever receive
+demand is open. Peer close and transport I/O errors remain active during local backpressure; a silent connection
+failure during a persistent local pause is bounded only when the stall-close timeout is configured.
 
 Set `fluxzero.websocket.transportMetrics.enabled=true` to publish sparse transport diagnostics such as
 `RUNTIME_INGRESS_BACKPRESSURED`, `RUNTIME_INGRESS_STALLED`, `RUNTIME_INGRESS_RECOVERED`,

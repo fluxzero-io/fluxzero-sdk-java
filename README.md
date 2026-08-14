@@ -5663,14 +5663,16 @@ When either retained bound is reached, the JDK adapter stops requesting another 
 delivered during the capacity transition may be held as one uncopied `ByteBuffer` slice; it is admitted as soon as a
 functional completion releases capacity. Normal capacity pressure therefore pauses and resumes ingress without
 closing or reconnecting the session. Because the JDK does not deliver protocol frames while receive demand is paused,
-the SDK fences its ping deadline during this local pause and starts a fresh heartbeat after ingress resumes. Transport
-I/O errors remain independent of this fence and are reported immediately.
+the SDK fences its ping deadline during this local pause and starts a fresh heartbeat after ingress resumes. Normal
+ping-timeout detection remains active whenever receive demand is open. Peer close and transport I/O errors remain
+independent of this fence and are reported immediately; while local backpressure persists, a silent connection failure
+is bounded only when the stall-close timeout below is configured.
 
-A retained queue with no functional completion for one `pingTimeout` emits one `RUNTIME_INGRESS_STALLED` diagnostic.
-An idle session without retained work is never stalled. The next completed message, or an empty retained queue, emits
-`RUNTIME_INGRESS_RECOVERED` and starts a fresh progress window if work remains. Stalls do not close a session by
-default. Set a positive `runtimeIngressStallCloseTimeout` only when the application intentionally wants to reconnect
-after an additional period without progress.
+With transport metrics enabled, a retained queue with no functional completion for one `pingTimeout` emits one
+`RUNTIME_INGRESS_STALLED` diagnostic. An idle session without retained work is never stalled. The next completed
+message, or an empty retained queue, emits `RUNTIME_INGRESS_RECOVERED` and starts a fresh progress window if work
+remains. Independently of metric publication, a positive `runtimeIngressStallCloseTimeout` enables the progress
+watchdog and closes a session after that additional period without progress. The timeout is disabled by default.
 
 The limits can be tuned without disabling protocol isolation. The example below restates the Java 25+ defaults; omit
 `maxConcurrentRuntimeResultCompletions` to retain the runtime-specific default, or use eight on Java 21 through 24:
