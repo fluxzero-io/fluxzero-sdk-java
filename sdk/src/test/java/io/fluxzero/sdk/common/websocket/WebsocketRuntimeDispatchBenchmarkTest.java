@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.common.websocket;
 
 import io.fluxzero.common.api.StringResult;
+import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import org.junit.jupiter.api.Test;
@@ -88,6 +89,26 @@ class WebsocketRuntimeDispatchBenchmarkTest {
                 assertArrayEquals(second,
                                   WebsocketRuntimeDispatchBenchmark.compressedLoadPayload(compression, valueBytes));
             }
+        }
+    }
+
+    @Test
+    void calibratesValidPayloadByCompressedWireSize() throws Exception {
+        int targetBytes = 128 * 1024;
+
+        for (CompressionAlgorithm compression : List.of(CompressionAlgorithm.LZ4, CompressionAlgorithm.ZSTD)) {
+            WebsocketRuntimeDispatchBenchmark.SizedLoadPayload payload =
+                    WebsocketRuntimeDispatchBenchmark.compressedLoadPayloadNear(compression, targetBytes);
+
+            assertTrue(Math.abs(payload.bytes().length - targetBytes) <= targetBytes / 50,
+                       () -> "%s target %d compressed to %d bytes"
+                               .formatted(compression, targetBytes, payload.bytes().length));
+            ReadResult decoded = assertInstanceOf(
+                    ReadResult.class,
+                    WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
+                            .decode(compression.decompress(payload.bytes())));
+            assertEquals(payload.trackingMessages(), decoded.getMessageBatch().getMessages().size());
+            assertEquals(payload.valueBytes(), decoded.getMessageBatch().getBytes());
         }
     }
 }

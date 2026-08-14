@@ -22,10 +22,15 @@ import com.sun.management.ThreadMXBean;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.TaskScheduler;
 import io.fluxzero.common.ThrowingRunnable;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.StringResult;
+import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.api.tracking.Position;
+import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketTransportCodec;
@@ -36,6 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
 import java.net.URI;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
@@ -55,6 +62,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
@@ -72,7 +80,9 @@ import java.util.function.Consumer;
  * result-completion comparison contrasts a synthetic direct control with the bounded incremental dispatcher, using
  * the same deterministic manual executor for both paths. It is not a cross-version comparison. A focused small-result
  * load drives the full decode and result-completion path with compressed payloads matching observed production bursts,
- * without artificial callback work.</p>
+ * without artificial callback work. A large-message profile calibrates valid runtime responses to 20 and 35 MiB of
+ * compressed wire data, offers messages until protocol demand defers one, and compares backpressure, throughput and
+ * peak heap at 16, 64 and 128 MiB retained-byte limits.</p>
  */
 public class WebsocketRuntimeDispatchBenchmark {
     private static final int[] MESSAGE_SIZES = {128, 512, 1 << 10, 64 << 10, 1 << 20};
@@ -84,6 +94,10 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static final int METRIC_ITERATIONS = Integer.getInteger("metricIterations", 100_000);
     private static final int LOAD_ITERATIONS = Integer.getInteger("loadIterations", 3_000);
     private static final int SMALL_LOAD_ITERATIONS = Integer.getInteger("smallLoadIterations", 20_000);
+    private static final int LARGE_LOAD_ITERATIONS = Integer.getInteger("largeLoadIterations", 8);
+    private static final int LARGE_LOAD_WARMUPS = Integer.getInteger("largeLoadWarmups", 1);
+    private static final int LARGE_LOAD_TRACKING_MESSAGES = Integer.getInteger(
+            "largeLoadTrackingMessages", 64);
     private static final int LOAD_SESSION_COUNT = Integer.getInteger("loadSessions", 4);
     private static final int SMALL_LOAD_MAX_CONCURRENCY = Integer.getInteger(
             "smallLoadMaxConcurrency", JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
@@ -93,14 +107,23 @@ public class WebsocketRuntimeDispatchBenchmark {
             "resultConcurrency", Runtime.version().feature() >= 25 ? 32 : 8);
     private static final int LOAD_PAYLOAD_BYTES = Integer.getInteger("loadPayloadBytes", 64 << 10);
     private static final int[] SMALL_RESULT_VALUE_BYTES = {16, 320};
+    private static final int[] LARGE_LOAD_TARGET_COMPRESSED_BYTES = {
+            Math.multiplyExact(Integer.getInteger("largeLoadSmallMiB", 20), 1 << 20),
+            Math.multiplyExact(Integer.getInteger("largeLoadLargeMiB", 35), 1 << 20)};
+    private static final long[] LARGE_LOAD_RETAINED_BYTES = {16L << 20, 64L << 20, 128L << 20};
+    private static final CompressionAlgorithm LARGE_LOAD_COMPRESSION = CompressionAlgorithm.valueOf(
+            System.getProperty("largeLoadCompression", "LZ4"));
     private static final int COMPLETION_TARGET_RESULTS = Integer.getInteger(
             "completionTargetResults", 1_000_000);
     private static final long LOAD_WORK_NANOS = TimeUnit.MICROSECONDS.toNanos(
             Long.getLong("loadWorkMicros", 250L));
+    private static final long LARGE_LOAD_WORK_NANOS = TimeUnit.MILLISECONDS.toNanos(
+            Long.getLong("largeLoadWorkMillis", 25L));
     private static final int FRAGMENTS = Integer.getInteger("fragments", 4);
     private static final String BENCHMARK_MODE = System.getProperty("benchmarkMode", "all");
     private static final ThreadMXBean ALLOCATION_BEAN = allocationBean();
     private static final Map<LoadPayloadKey, byte[]> LOAD_PAYLOADS = new ConcurrentHashMap<>();
+    private static final Map<LargeLoadPayloadKey, SizedLoadPayload> LARGE_LOAD_PAYLOADS = new ConcurrentHashMap<>();
     private static volatile long blackhole;
 
     public static void main(String[] args) {
@@ -122,6 +145,9 @@ public class WebsocketRuntimeDispatchBenchmark {
         if (modeEnabled("small-load")) {
             runSmallResultLoadComparison();
         }
+        if (modeEnabled("large-load")) {
+            runLargeMessageLoadComparison();
+        }
         if (modeEnabled("metrics")) {
             runTransportMetricComparison();
         }
@@ -135,11 +161,12 @@ public class WebsocketRuntimeDispatchBenchmark {
         if ("all".equals(BENCHMARK_MODE) || mode.equals(BENCHMARK_MODE)) {
             return true;
         }
-        if (List.of("receive", "load", "small-load", "metrics", "completion").contains(BENCHMARK_MODE)) {
+        if (List.of("receive", "load", "small-load", "large-load", "metrics", "completion")
+                .contains(BENCHMARK_MODE)) {
             return false;
         }
         throw new IllegalArgumentException(
-                "benchmarkMode must be one of all, receive, load, small-load, metrics, or completion: "
+                "benchmarkMode must be one of all, receive, load, small-load, large-load, metrics, or completion: "
                 + BENCHMARK_MODE);
     }
 
@@ -221,6 +248,48 @@ public class WebsocketRuntimeDispatchBenchmark {
             }
             for (int sessions : loadSessionCounts(LOAD_SESSION_COUNT)) {
                 measureSmallResultLoad(valueBytes, CompressionAlgorithm.LZ4, sessions, true, true);
+            }
+        }
+    }
+
+    private static void runLargeMessageLoadComparison() {
+        for (int targetCompressedBytes : LARGE_LOAD_TARGET_COMPRESSED_BYTES) {
+            SizedLoadPayload payload = compressedLoadPayloadNear(LARGE_LOAD_COMPRESSION, targetCompressedBytes);
+            for (long maxRetainedBytes : LARGE_LOAD_RETAINED_BYTES) {
+                for (int i = 0; i < LARGE_LOAD_WARMUPS; i++) {
+                    try (LargeMessageLoadScenario warmup = new LargeMessageLoadScenario(
+                            payload, LARGE_LOAD_COMPRESSION, maxRetainedBytes)) {
+                        warmup.run(Math.min(LARGE_LOAD_ITERATIONS, 4));
+                    }
+                }
+                stabilizeHeap();
+                GcSnapshot gcBefore = GcSnapshot.capture();
+                HeapPeakSnapshot heapPeak = HeapPeakSnapshot.start();
+                try (LargeMessageLoadScenario scenario = new LargeMessageLoadScenario(
+                        payload, LARGE_LOAD_COMPRESSION, maxRetainedBytes)) {
+                    LargeLoadMeasurement measurement = scenario.measure(LARGE_LOAD_ITERATIONS);
+                    GcSnapshot gcDelta = GcSnapshot.capture().minus(gcBefore);
+                    long[] latencies = measurement.burstDrainLatencies();
+                    Arrays.sort(latencies);
+                    double compressedMiB = payload.bytes().length / (double) (1 << 20);
+                    System.out.printf(
+                            "runtime-large-message compression=%s targetCompressedBytes=%d compressedBytes=%d "
+                                    + "valueBytes=%d trackingMessagesPerResponse=%d maxRetainedMessages=%d "
+                                    + "maxRetainedBytes=%d workNanos=%d "
+                                    + "messages=%d backpressureEpisodes=%d: %.3f ms/message, %.2f messages/s, "
+                                    + "%.2f compressed-MiB/s, burstP50=%dns, burstP95=%dns, burstP99=%dns, "
+                                    + "heapPeakDeltaBytes=%d, gcCollections=%d, gcMillis=%d%n",
+                            LARGE_LOAD_COMPRESSION, payload.targetCompressedBytes(), payload.bytes().length,
+                            payload.valueBytes(), payload.trackingMessages(),
+                            JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
+                            maxRetainedBytes, LARGE_LOAD_WORK_NANOS, measurement.iterations(),
+                            measurement.backpressureEpisodes(),
+                            measurement.elapsedNanos() / 1_000_000d / measurement.iterations(),
+                            measurement.iterations() * 1_000_000_000d / measurement.elapsedNanos(),
+                            measurement.iterations() * compressedMiB * 1_000_000_000d / measurement.elapsedNanos(),
+                            percentile(latencies, 0.50), percentile(latencies, 0.95), percentile(latencies, 0.99),
+                            heapPeak.deltaBytes(), gcDelta.collections, gcDelta.millis);
+                }
             }
         }
     }
@@ -561,6 +630,127 @@ public class WebsocketRuntimeDispatchBenchmark {
         }
     }
 
+    private static class LargeMessageLoadScenario implements AutoCloseable {
+        private final SizedLoadPayload payload;
+        private final long maxRetainedBytes;
+        private final ExecutorService runtimeExecutor;
+        private final Semaphore processed = new Semaphore(0);
+        private final AtomicReference<Throwable> failure = new AtomicReference<>();
+        private final ResultLoadBenchmarkClient client;
+        private final JdkWebSocketSession session;
+        private final WebSocket.Listener listener;
+        private final BenchmarkWebSocket webSocket = new BenchmarkWebSocket();
+
+        private LargeMessageLoadScenario(
+                SizedLoadPayload payload, CompressionAlgorithm compression, long maxRetainedBytes) {
+            this.payload = payload;
+            this.maxRetainedBytes = maxRetainedBytes;
+            this.runtimeExecutor = Runtime.version().feature() >= 25
+                    ? Executors.newVirtualThreadPerTaskExecutor()
+                    : Executors.newFixedThreadPool(
+                            JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+            this.client = new ResultLoadBenchmarkClient(
+                    processed, failure, LARGE_LOAD_WORK_NANOS, false);
+            Map<String, Object> userProperties = new java.util.HashMap<>(userProperties(true, false));
+            userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY,
+                               JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+            userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY,
+                               JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
+            userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY,
+                               maxRetainedBytes);
+            userProperties.put(AbstractWebsocketClient.NEGOTIATED_SESSION_ID_USER_PROPERTY,
+                               "large_message_benchmark");
+            userProperties.put(AbstractWebsocketClient.RUNTIME_VERSION_USER_PROPERTY, "benchmark");
+            userProperties.put(AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY,
+                               compression);
+            userProperties.put(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
+                               io.fluxzero.common.websocket.WebSocketTransportFormat.JSON);
+            this.session = new JdkWebSocketSession(
+                    new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(client),
+                    new WebsocketConnectionOptions(
+                            Map.of(), userProperties, Duration.ofSeconds(1), List.of()),
+                    URI.create("ws://localhost/benchmark-large-message"),
+                    new JdkWebsocketConnector.CapturedHandshakeResponse(), Runnable::run, runtimeExecutor);
+            this.listener = session.createListener();
+            listener.onOpen(webSocket);
+        }
+
+        private void run(int iterations) {
+            execute(iterations, false);
+        }
+
+        private LargeLoadMeasurement measure(int iterations) {
+            return execute(iterations, true);
+        }
+
+        private LargeLoadMeasurement execute(int iterations, boolean captureLatencies) {
+            if (iterations < 1) {
+                throw new IllegalArgumentException("Large-load iterations must be positive");
+            }
+            int initialBackpressureEpisodes = client.backpressureEpisodes();
+            List<Long> latencies = captureLatencies ? new ArrayList<>() : List.of();
+            long started = System.nanoTime();
+            int remaining = iterations;
+            while (remaining > 0) {
+                long burstStarted = System.nanoTime();
+                CompletableFuture<?> finalFrame = CompletableFuture.completedFuture(null);
+                int burst = 0;
+                while (burst < remaining) {
+                    finalFrame = listener.onBinary(webSocket, ByteBuffer.wrap(payload.bytes()), true)
+                            .toCompletableFuture();
+                    burst++;
+                    if (!finalFrame.isDone()) {
+                        break;
+                    }
+                }
+                awaitProcessed(burst);
+                finalFrame.orTimeout(30, TimeUnit.SECONDS).join();
+                awaitRuntimeDataDrain();
+                if (captureLatencies) {
+                    latencies.add(System.nanoTime() - burstStarted);
+                }
+                remaining -= burst;
+            }
+            long elapsed = System.nanoTime() - started;
+            int backpressureEpisodes = client.backpressureEpisodes() - initialBackpressureEpisodes;
+            return new LargeLoadMeasurement(
+                    iterations, elapsed, latencies.stream().mapToLong(Long::longValue).toArray(),
+                    backpressureEpisodes);
+        }
+
+        private void awaitProcessed(int count) {
+            try {
+                if (!processed.tryAcquire(count, 30, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Timed out awaiting large-message result completion");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted awaiting large-message result completion", e);
+            }
+            Throwable endpointFailure = failure.get();
+            if (endpointFailure != null) {
+                throw new IllegalStateException("Large-message result completion failed", endpointFailure);
+            }
+        }
+
+        private void awaitRuntimeDataDrain() {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (session.runtimeDataState().retainedMessages() != 0) {
+                if (System.nanoTime() >= deadline) {
+                    throw new IllegalStateException("Timed out awaiting large-message runtime bookkeeping");
+                }
+                Thread.onSpinWait();
+            }
+        }
+
+        @Override
+        public void close() {
+            session.abort(new WebsocketCloseReason(WebsocketCloseReason.GOING_AWAY, "benchmark complete"));
+            runtimeExecutor.shutdownNow();
+            client.close();
+        }
+    }
+
     private static class BoundedLoadScenario implements AutoCloseable {
         private final int maxConcurrency;
         private final CompressionAlgorithm compression;
@@ -769,10 +959,94 @@ public class WebsocketRuntimeDispatchBenchmark {
                 key -> createCompressedLoadPayload(key.compression(), key.valueBytes())).clone();
     }
 
+    static SizedLoadPayload compressedLoadPayloadNear(CompressionAlgorithm compression, int targetCompressedBytes) {
+        if (targetCompressedBytes < 1) {
+            throw new IllegalArgumentException("Target compressed bytes must be positive");
+        }
+        return LARGE_LOAD_PAYLOADS.computeIfAbsent(
+                new LargeLoadPayloadKey(compression, targetCompressedBytes),
+                WebsocketRuntimeDispatchBenchmark::createSizedLoadPayload);
+    }
+
+    private static SizedLoadPayload createSizedLoadPayload(LargeLoadPayloadKey key) {
+        int sampleValueBytes = Math.min(key.targetCompressedBytes(), 1 << 20);
+        byte[] sample = createCompressedTrackingLoadPayload(
+                key.compression(), sampleValueBytes, LARGE_LOAD_TRACKING_MESSAGES);
+        int estimatedValueBytes = Math.max(1, Math.toIntExact(Math.round(
+                (double) key.targetCompressedBytes() * sampleValueBytes / sample.length)));
+        int tolerance = Math.max(1, key.targetCompressedBytes() / 50);
+        byte[] payload = null;
+        for (int attempt = 0; attempt < 8; attempt++) {
+            payload = createCompressedTrackingLoadPayload(
+                    key.compression(), estimatedValueBytes, LARGE_LOAD_TRACKING_MESSAGES);
+            if (Math.abs(payload.length - key.targetCompressedBytes()) <= tolerance) {
+                break;
+            }
+            int correctedValueBytes = Math.max(LARGE_LOAD_TRACKING_MESSAGES, Math.toIntExact(Math.round(
+                    (double) estimatedValueBytes * key.targetCompressedBytes() / payload.length)));
+            if (correctedValueBytes == estimatedValueBytes) {
+                correctedValueBytes += payload.length < key.targetCompressedBytes() ? 1 : -1;
+            }
+            estimatedValueBytes = correctedValueBytes;
+        }
+        if (payload == null || Math.abs(payload.length - key.targetCompressedBytes()) > tolerance) {
+            throw new IllegalStateException(
+                    "%s payload target %d compressed to %d bytes"
+                            .formatted(key.compression(), key.targetCompressedBytes(), payload.length));
+        }
+        return new SizedLoadPayload(
+                payload, estimatedValueBytes, key.targetCompressedBytes(), LARGE_LOAD_TRACKING_MESSAGES);
+    }
+
+    private static byte[] createCompressedTrackingLoadPayload(
+            CompressionAlgorithm compression, int valueBytes, int trackingMessages) {
+        if (trackingMessages < 1 || valueBytes < trackingMessages) {
+            throw new IllegalArgumentException(
+                    "Large-load value bytes must provide at least one byte per tracking message");
+        }
+        try {
+            List<SerializedMessage> messages = new ArrayList<>(trackingMessages);
+            int state = 0x13579bdf;
+            int remainingValueBytes = valueBytes;
+            for (int messageIndex = 0; messageIndex < trackingMessages; messageIndex++) {
+                int messageBytes = remainingValueBytes / (trackingMessages - messageIndex);
+                byte[] value = new byte[messageBytes];
+                for (int i = 0; i < messageBytes; i++) {
+                    state = state * 1_103_515_245 + 12_345;
+                    value[i] = (byte) (state >>> 24);
+                }
+                messages.add(new SerializedMessage(
+                        new Data<>(value, "benchmark.TrackingPayload", 0, "application/octet-stream"),
+                        Metadata.empty(), "benchmark-message-" + messageIndex, 1L));
+                remainingValueBytes -= messageBytes;
+            }
+            WebSocketTransportCodec codec = WebSocketTransportCodecs.json(
+                    AbstractWebsocketClient.defaultObjectMapper);
+            ReadResult result = new ReadResult(
+                    1L, new MessageBatch(new int[]{0, 128}, messages, (long) trackingMessages - 1,
+                                        Position.newPosition(), true));
+            String encoded = new String(codec.encode(result), StandardCharsets.UTF_8)
+                    .replaceAll("\"timestamp\":\\d+", "\"timestamp\":1");
+            return compression.compress(encoded.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            throw new IllegalStateException("Could not create large tracking-response payload", e);
+        }
+    }
+
     private record LoadPayloadKey(CompressionAlgorithm compression, int valueBytes) {
     }
 
+    private record LargeLoadPayloadKey(CompressionAlgorithm compression, int targetCompressedBytes) {
+    }
+
+    record SizedLoadPayload(byte[] bytes, int valueBytes, int targetCompressedBytes, int trackingMessages) {
+    }
+
     private record BoundedLoadMeasurement(int iterations, long elapsedNanos, long[] batchDrainLatencies) {
+    }
+
+    private record LargeLoadMeasurement(
+            int iterations, long elapsedNanos, long[] burstDrainLatencies, int backpressureEpisodes) {
     }
 
     private static Map<String, Object> userProperties(boolean isolated, boolean transportMetrics) {
@@ -924,6 +1198,7 @@ public class WebsocketRuntimeDispatchBenchmark {
         private final Semaphore processed;
         private final AtomicReference<Throwable> failure;
         private final long workNanos;
+        private final AtomicInteger backpressureEpisodes = new AtomicInteger();
 
         private ResultLoadBenchmarkClient(
                 Semaphore processed, AtomicReference<Throwable> failure, long workNanos,
@@ -951,10 +1226,30 @@ public class WebsocketRuntimeDispatchBenchmark {
         }
 
         @Override
+        void onRuntimeIngressBackpressure(
+                WebsocketSession session, boolean backpressured, RuntimeIngressController.State state) {
+            if (backpressured) {
+                backpressureEpisodes.incrementAndGet();
+            }
+            super.onRuntimeIngressBackpressure(session, backpressured, state);
+        }
+
+        private int backpressureEpisodes() {
+            return backpressureEpisodes.get();
+        }
+
+        @Override
         protected void handleResult(RequestResult result, String batchId, String sessionId,
                                     WebsocketResultDiagnostics.ResultTiming timing) {
             try {
-                blackhole += ((StringResult) result).getResult().length();
+                if (result instanceof StringResult stringResult) {
+                    blackhole += stringResult.getResult().length();
+                } else if (result instanceof ReadResult readResult) {
+                    blackhole += readResult.getMessageBatch().getBytes();
+                } else {
+                    throw new IllegalArgumentException(
+                            "Unexpected benchmark result type " + result.getClass().getName());
+                }
                 LockSupport.parkNanos(workNanos);
             } catch (Throwable e) {
                 failure.compareAndSet(null, e);
@@ -1119,6 +1414,22 @@ public class WebsocketRuntimeDispatchBenchmark {
         public void abort() {
             aborted = true;
             blackhole += requested;
+        }
+    }
+
+    private record HeapPeakSnapshot(long baselineBytes, List<MemoryPoolMXBean> pools) {
+        private static HeapPeakSnapshot start() {
+            List<MemoryPoolMXBean> pools = ManagementFactory.getMemoryPoolMXBeans().stream()
+                    .filter(pool -> pool.getType() == MemoryType.HEAP)
+                    .toList();
+            pools.forEach(MemoryPoolMXBean::resetPeakUsage);
+            return new HeapPeakSnapshot(
+                    pools.stream().mapToLong(pool -> pool.getUsage().getUsed()).sum(), pools);
+        }
+
+        private long deltaBytes() {
+            long peakBytes = pools.stream().mapToLong(pool -> pool.getPeakUsage().getUsed()).sum();
+            return Math.max(0L, peakBytes - baselineBytes);
         }
     }
 
