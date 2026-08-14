@@ -446,7 +446,7 @@
             <plugin>
                 <groupId>io.fluxzero</groupId>
                 <artifactId>lychee-maven-plugin</artifactId>
-                <version>0.2.7</version>
+                <version>0.2.8</version>
                 <inherited>false</inherited>
                 <configuration>
                     <scanDirectories>
