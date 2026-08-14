@@ -22,6 +22,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.common.handling.HandlerMethod;
+import io.fluxzero.sdk.MockException;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -31,6 +32,7 @@ import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.sdk.tracking.handling.MessageParameterResolver;
+import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -82,6 +85,79 @@ class ErrorReportingInterceptorTest {
         assertThrows(CompletionException.class, () -> result.toCompletableFuture().join());
         assertEquals(1, errorGateway.errors.size());
         assertInstanceOf(TechnicalException.class, errorGateway.errors.getFirst().getPayload());
+    }
+
+    @Test
+    void redactsWebRequestMetadataFromSynchronousErrors() {
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new ThrowingHandler(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = webMessage();
+
+        assertThrows(IllegalStateException.class, () -> wrapped.getHandlerMethodOrNull(message).invoke(message));
+
+        Message error = errorGateway.errors.getFirst();
+        assertEquals("POST", error.getMetadata().get(WebRequest.methodKey));
+        assertEquals("/auth/flow/registration/profile", error.getMetadata().get(WebRequest.urlKey));
+        assertTrue(error.getMetadata().containsKey("stackTrace"));
+        assertFalse(error.getMetadata().containsKey(WebRequest.headersKey));
+        assertFalse(error.getMetadata().containsKey(WebRequest.sessionIdKey));
+        assertFalse(error.getMetadata().containsKey("unsafe"));
+        String serializedError = error.getPayload().toString();
+        for (String secret : List.of("flow-secret", "cookie-secret", "authorization-secret", "context-secret",
+                                     "signature-secret", "session-secret", "metadata-secret", "payload-secret")) {
+            assertFalse(serializedError.contains(secret));
+        }
+    }
+
+    @Test
+    void redactsWebRequestMetadataFromFunctionalErrors() {
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new FunctionalThrowingHandler(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = webMessage();
+
+        assertThrows(MockException.class, () -> wrapped.getHandlerMethodOrNull(message).invoke(message));
+
+        Message error = errorGateway.errors.getFirst();
+        assertInstanceOf(MockException.class, error.getPayload());
+        assertEquals("/auth/flow/registration/profile", error.getMetadata().get(WebRequest.urlKey));
+        assertFalse(error.getMetadata().containsKey("stackTrace"));
+        assertFalse(error.getMetadata().containsKey(WebRequest.headersKey));
+        assertFalse(error.getMetadata().containsKey("unsafe"));
+    }
+
+    @Test
+    void redactsWebRequestMetadataFromAsyncErrors() {
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new AsyncThrowingHandler(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = webMessage();
+
+        CompletionStage<?> result = (CompletionStage<?>) wrapped.getHandlerMethodOrNull(message).invoke(message);
+        assertThrows(CompletionException.class, () -> result.toCompletableFuture().join());
+
+        Message error = errorGateway.errors.getFirst();
+        assertEquals("/auth/flow/registration/profile", error.getMetadata().get(WebRequest.urlKey));
+        assertFalse(error.getMetadata().containsKey(WebRequest.headersKey));
+        assertFalse(error.getMetadata().containsKey("unsafe"));
+    }
+
+    @Test
+    void preservesMetadataForNonWebRequestErrors() {
+        RecordingErrorGateway errorGateway = new RecordingErrorGateway();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new ThrowingHandler(), HandleEvent.class, List.of(new MessageParameterResolver()));
+        Handler<DeserializingMessage> wrapped = new ErrorReportingInterceptor(errorGateway).wrap(handler);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message("payload", Metadata.of("custom", "value")), MessageType.EVENT, null);
+
+        assertThrows(IllegalStateException.class, () -> wrapped.getHandlerMethodOrNull(message).invoke(message));
+
+        assertEquals("value", errorGateway.errors.getFirst().getMetadata().get("custom"));
     }
 
     @Test
@@ -153,10 +229,30 @@ class ErrorReportingInterceptorTest {
         return new DeserializingMessage(new Message(payload), MessageType.EVENT, null);
     }
 
+    private static DeserializingMessage webMessage() {
+        WebRequest request = WebRequest.post(
+                        "https://auth.example.test/auth/flow/registration/profile?flow=flow-secret")
+                .header("Cookie", "session=cookie-secret")
+                .header("Authorization", "Bearer authorization-secret")
+                .header("Fzc", "context-secret")
+                .header("Fzc-Sig", "signature-secret")
+                .metadata(Metadata.of(WebRequest.sessionIdKey, "session-secret", "unsafe", "metadata-secret"))
+                .body("payload-secret")
+                .build();
+        return new DeserializingMessage(request, MessageType.WEBREQUEST, null);
+    }
+
     private static class ThrowingHandler {
         @HandleEvent
         void handle(DeserializingMessage ignored) {
             throw new IllegalStateException("boom");
+        }
+    }
+
+    private static class FunctionalThrowingHandler {
+        @HandleEvent
+        void handle(DeserializingMessage ignored) {
+            throw new MockException();
         }
     }
 
