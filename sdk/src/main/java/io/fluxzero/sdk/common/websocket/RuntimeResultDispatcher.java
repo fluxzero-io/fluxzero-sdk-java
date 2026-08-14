@@ -18,12 +18,11 @@ package io.fluxzero.sdk.common.websocket;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -44,17 +43,16 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     private static final int MAX_SYNCHRONOUS_RESULTS_PER_TASK = 32;
     private final Executor executor;
     private final int maxConcurrency;
-    private final Map<Object, SessionQueue> sessionQueues = new HashMap<>();
-    private final ArrayDeque<Object> readySessions = new ArrayDeque<>();
-    private final ArrayDeque<Object> admissionReadySessions = new ArrayDeque<>();
+    private final List<WorkGroup> workGroups;
+    private final ArrayDeque<WorkGroup> readyWorkGroups = new ArrayDeque<>();
     private final ArrayDeque<ResultTask> availableTasks = new ArrayDeque<>();
-    private final Set<WorkGroup> workGroups = new HashSet<>();
-    private final Set<WorkGroup> pendingAdmissionWorkGroups = new HashSet<>();
     private final AtomicInteger schedulingWork = new AtomicInteger();
+    private Map<Object, SessionQueue> admissionSessionQueues;
+    private ArrayDeque<SessionQueue> admissionReadySessions;
     private int createdTaskCount;
-    private int activeTasks;
-    private int pendingResults;
-    private boolean closed;
+    private int runningTasks;
+    private int pendingAdmissions;
+    private volatile boolean closed;
 
     RuntimeResultDispatcher(Executor executor, int maxConcurrency) {
         if (maxConcurrency < 1) {
@@ -62,6 +60,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         }
         this.executor = Objects.requireNonNull(executor, "executor");
         this.maxConcurrency = maxConcurrency;
+        this.workGroups = new ArrayList<>(maxConcurrency);
     }
 
     CompletableFuture<Void> submit(Object sessionKey, Runnable result) {
@@ -107,73 +106,67 @@ final class RuntimeResultDispatcher implements AutoCloseable {
 
     private void admit(WorkGroup workGroup) {
         workGroups.add(workGroup);
-        pendingResults += workGroup.size();
-        SessionQueue sessionQueue = sessionQueues.computeIfAbsent(
-                workGroup.sessionKey, ignored -> new SessionQueue());
-        sessionQueue.workGroups.addLast(workGroup);
-        markReady(workGroup.sessionKey, sessionQueue);
+        markReady(workGroup);
     }
 
     private void queueForAdmission(WorkGroup workGroup) {
-        pendingAdmissionWorkGroups.add(workGroup);
-        SessionQueue sessionQueue = sessionQueues.computeIfAbsent(
-                workGroup.sessionKey, ignored -> new SessionQueue());
+        if (admissionSessionQueues == null) {
+            admissionSessionQueues = new HashMap<>();
+            admissionReadySessions = new ArrayDeque<>();
+        }
+        pendingAdmissions++;
+        SessionQueue sessionQueue = admissionSessionQueues.computeIfAbsent(
+                workGroup.sessionKey, SessionQueue::new);
         sessionQueue.pendingAdmissions.addLast(workGroup);
-        markAdmissionReady(workGroup.sessionKey, sessionQueue);
+        markAdmissionReady(sessionQueue);
     }
 
-    private void markReady(Object sessionKey, SessionQueue sessionQueue) {
-        if (!sessionQueue.ready && !sessionQueue.workGroups.isEmpty()) {
-            sessionQueue.ready = true;
-            readySessions.addLast(sessionKey);
+    private void markReady(WorkGroup workGroup) {
+        if (!workGroup.ready && workGroup.failure == null && workGroup.hasUnscheduled()) {
+            workGroup.ready = true;
+            readyWorkGroups.addLast(workGroup);
         }
     }
 
-    private void markAdmissionReady(Object sessionKey, SessionQueue sessionQueue) {
+    private void markAdmissionReady(SessionQueue sessionQueue) {
         if (!sessionQueue.admissionReady && !sessionQueue.pendingAdmissions.isEmpty()) {
             sessionQueue.admissionReady = true;
-            admissionReadySessions.addLast(sessionKey);
+            admissionReadySessions.addLast(sessionQueue);
         }
     }
 
     private WorkGroup admitNext() {
-        while (!closed && workGroups.size() < maxConcurrency && !admissionReadySessions.isEmpty()) {
-            Object sessionKey = admissionReadySessions.removeFirst();
-            SessionQueue sessionQueue = sessionQueues.get(sessionKey);
-            if (sessionQueue == null) {
-                continue;
-            }
+        while (!closed && workGroups.size() < maxConcurrency && pendingAdmissions > 0
+               && admissionReadySessions != null && !admissionReadySessions.isEmpty()) {
+            SessionQueue sessionQueue = admissionReadySessions.removeFirst();
             sessionQueue.admissionReady = false;
             WorkGroup workGroup = sessionQueue.pendingAdmissions.pollFirst();
-            if (workGroup != null && pendingAdmissionWorkGroups.remove(workGroup)) {
+            if (workGroup != null) {
+                pendingAdmissions--;
                 admit(workGroup);
-                removeSessionIfIdle(sessionKey, sessionQueue);
-                markAdmissionReady(sessionKey, sessionQueue);
+                removeSessionIfIdle(sessionQueue);
+                markAdmissionReady(sessionQueue);
                 return workGroup;
             }
-            removeSessionIfIdle(sessionKey, sessionQueue);
-            markAdmissionReady(sessionKey, sessionQueue);
+            removeSessionIfIdle(sessionQueue);
+            markAdmissionReady(sessionQueue);
         }
         return null;
     }
 
     private ResultTask takeAvailable(ResultTask reusableTask) {
-        while (!closed && activeTasks < maxConcurrency && !readySessions.isEmpty()) {
-            Object sessionKey = readySessions.removeFirst();
-            SessionQueue sessionQueue = sessionQueues.get(sessionKey);
-            if (sessionQueue == null) {
+        while (!closed && runningTasks < maxConcurrency && !readyWorkGroups.isEmpty()) {
+            WorkGroup workGroup = readyWorkGroups.removeFirst();
+            workGroup.ready = false;
+            if (workGroup.failure != null) {
                 continue;
             }
-            sessionQueue.ready = false;
-            WorkGroup workGroup = sessionQueue.workGroups.pollFirst();
-            if (workGroup == null || workGroup.failure != null) {
-                removeSessionIfIdle(sessionKey, sessionQueue);
-                markReady(sessionKey, sessionQueue);
+            int resultIndex = workGroup.claimNext();
+            if (resultIndex < 0) {
                 continue;
             }
-            pendingResults--;
             workGroup.activeTasks++;
-            activeTasks++;
+            runningTasks++;
             ResultTask task = reusableTask == null ? pollAvailableTask() : reusableTask;
             if (task == null) {
                 if (createdTaskCount >= maxConcurrency) {
@@ -183,29 +176,29 @@ final class RuntimeResultDispatcher implements AutoCloseable {
                 createdTaskCount++;
             }
             task.workGroup = workGroup;
-            workGroup.assignNext(task);
-            if (workGroup.hasUnscheduled()) {
-                sessionQueue.workGroups.addLast(workGroup);
-            }
-            removeSessionIfIdle(sessionKey, sessionQueue);
-            markReady(sessionKey, sessionQueue);
+            task.resultIndex = resultIndex;
+            markReady(workGroup);
             return task;
         }
         return null;
     }
 
-    private void removeSessionIfIdle(Object sessionKey, SessionQueue sessionQueue) {
-        if (sessionQueue.removeWhenIdle && !sessionQueue.ready && !sessionQueue.admissionReady
-            && sessionQueue.workGroups.isEmpty() && sessionQueue.pendingAdmissions.isEmpty()) {
-            sessionQueues.remove(sessionKey, sessionQueue);
+    private void removeSessionIfIdle(SessionQueue sessionQueue) {
+        if (!sessionQueue.admissionReady && sessionQueue.pendingAdmissions.isEmpty()) {
+            admissionSessionQueues.remove(sessionQueue.sessionKey, sessionQueue);
+            if (admissionSessionQueues.isEmpty()) {
+                admissionSessionQueues = null;
+                admissionReadySessions = null;
+            }
         }
     }
 
     synchronized void releaseSession(Object sessionKey) {
-        SessionQueue sessionQueue = sessionQueues.get(sessionKey);
-        if (sessionQueue != null) {
-            sessionQueue.removeWhenIdle = true;
-            removeSessionIfIdle(sessionKey, sessionQueue);
+        if (admissionSessionQueues != null) {
+            SessionQueue sessionQueue = admissionSessionQueues.get(sessionKey);
+            if (sessionQueue != null) {
+                removeSessionIfIdle(sessionQueue);
+            }
         }
     }
 
@@ -238,58 +231,66 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     }
 
     private void run(ResultTask task) {
+        WorkGroup workGroup = task.workGroup;
         for (int processed = 1; ; processed++) {
-            WorkGroup workGroup = task.workGroup;
-            Runnable callback = task.callback;
-            Object item = task.item;
-            Consumer<Object> itemHandler = task.itemHandler;
             Throwable failure = null;
             try {
                 if (shouldRun(workGroup)) {
-                    if (callback == null) {
-                        itemHandler.accept(item);
-                    } else {
-                        callback.run();
-                    }
+                    workGroup.run(task.resultIndex);
                 }
             } catch (Throwable e) {
                 failure = e;
             }
+            if (failure == null && processed < MAX_SYNCHRONOUS_RESULTS_PER_TASK && claimNext(task)) {
+                continue;
+            }
             if (!complete(task, failure, processed < MAX_SYNCHRONOUS_RESULTS_PER_TASK)) {
                 return;
             }
+            workGroup = task.workGroup;
         }
     }
 
-    private synchronized boolean shouldRun(WorkGroup workGroup) {
+    private boolean shouldRun(WorkGroup workGroup) {
         return !closed && workGroup.failure == null;
+    }
+
+    private boolean claimNext(ResultTask task) {
+        WorkGroup workGroup = task.workGroup;
+        if (!shouldRun(workGroup)) {
+            return false;
+        }
+        int resultIndex = workGroup.claimNext();
+        if (resultIndex < 0) {
+            return false;
+        }
+        task.resultIndex = resultIndex;
+        return true;
     }
 
     private boolean complete(ResultTask task, Throwable failure, boolean reuseWorker) {
         WorkGroup workGroup = task.workGroup;
         WorkGroup completed = null;
         WorkGroup admitted = null;
+        boolean reused = false;
         synchronized (this) {
-            activeTasks--;
+            runningTasks--;
             workGroup.activeTasks--;
             task.workGroup = null;
-            task.callback = null;
-            task.item = null;
-            task.itemHandler = null;
-            makeAvailable(task);
+            task.resultIndex = -1;
             if (failure != null && workGroup.failure == null) {
                 workGroup.failure = failure;
-                pendingResults -= workGroup.remaining();
-                SessionQueue sessionQueue = sessionQueues.get(workGroup.sessionKey);
-                if (sessionQueue != null) {
-                    sessionQueue.workGroups.removeIf(candidate -> candidate == workGroup);
-                    removeSessionIfIdle(workGroup.sessionKey, sessionQueue);
-                }
+                workGroup.discardUnscheduled();
             }
             if (workGroup.activeTasks == 0 && (workGroup.failure != null || !workGroup.hasUnscheduled())) {
                 workGroups.remove(workGroup);
                 completed = workGroup;
                 admitted = admitNext();
+            }
+            if (reuseWorker && takeAvailable(task) != null) {
+                reused = true;
+            } else {
+                availableTasks.addLast(task);
             }
         }
         if (completed != null) {
@@ -302,50 +303,23 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         if (admitted != null) {
             admitted.admission.complete(null);
         }
-        if (reuseWorker && reuse(task)) {
+        if (reused) {
             return true;
         }
         scheduleAvailable();
         return false;
     }
 
-    private boolean reuse(ResultTask task) {
-        synchronized (this) {
-            if (!task.available) {
-                return false;
-            }
-            task.available = false;
-            if (takeAvailable(task) == null) {
-                makeAvailable(task);
-                return false;
-            }
-            return true;
-        }
-    }
-
     private ResultTask pollAvailableTask() {
-        ResultTask task;
-        while ((task = availableTasks.pollFirst()) != null) {
-            task.queued = false;
-            if (task.available) {
-                task.available = false;
-                return task;
-            }
-        }
-        return null;
-    }
-
-    private void makeAvailable(ResultTask task) {
-        task.available = true;
-        if (!task.queued) {
-            task.queued = true;
-            availableTasks.addLast(task);
-        }
+        return availableTasks.pollFirst();
     }
 
     synchronized State state() {
-        return new State(workGroups.size(), pendingAdmissionWorkGroups.size(), activeTasks, pendingResults,
-                         maxConcurrency);
+        int unscheduledResults = 0;
+        for (WorkGroup workGroup : workGroups) {
+            unscheduledResults += workGroup.remainingUnscheduled();
+        }
+        return new State(workGroups.size(), pendingAdmissions, runningTasks, unscheduledResults, maxConcurrency);
     }
 
     @Override
@@ -358,16 +332,28 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             }
             closed = true;
             ClosedChannelException failure = new ClosedChannelException();
-            workGroups.forEach(workGroup -> workGroup.failure = failure);
-            pendingAdmissionWorkGroups.forEach(workGroup -> workGroup.failure = failure);
+            workGroups.forEach(workGroup -> {
+                workGroup.failure = failure;
+                workGroup.discardUnscheduled();
+            });
             admitted = List.copyOf(workGroups);
-            pendingAdmission = List.copyOf(pendingAdmissionWorkGroups);
+            pendingAdmission = new ArrayList<>(pendingAdmissions);
+            if (admissionSessionQueues != null) {
+                admissionSessionQueues.values().forEach(
+                        sessionQueue -> pendingAdmission.addAll(sessionQueue.pendingAdmissions));
+                pendingAdmission.forEach(workGroup -> workGroup.failure = failure);
+            }
             workGroups.clear();
-            pendingAdmissionWorkGroups.clear();
-            sessionQueues.clear();
-            readySessions.clear();
-            admissionReadySessions.clear();
-            pendingResults = 0;
+            readyWorkGroups.clear();
+            if (admissionSessionQueues != null) {
+                admissionSessionQueues.clear();
+            }
+            if (admissionReadySessions != null) {
+                admissionReadySessions.clear();
+            }
+            admissionSessionQueues = null;
+            admissionReadySessions = null;
+            pendingAdmissions = 0;
         }
         admitted.forEach(workGroup -> workGroup.completeExceptionally(new ClosedChannelException()));
         pendingAdmission.forEach(workGroup -> {
@@ -380,11 +366,13 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     }
 
     private final class SessionQueue {
-        private final ArrayDeque<WorkGroup> workGroups = new ArrayDeque<>();
+        private final Object sessionKey;
         private final ArrayDeque<WorkGroup> pendingAdmissions = new ArrayDeque<>();
-        private boolean ready;
         private boolean admissionReady;
-        private boolean removeWhenIdle;
+
+        private SessionQueue(Object sessionKey) {
+            this.sessionKey = sessionKey;
+        }
     }
 
     private final class WorkGroup extends CompletableFuture<Void>
@@ -393,10 +381,11 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         private final Runnable singleCallback;
         private final List<?> items;
         private final Consumer<Object> itemHandler;
+        private final AtomicInteger nextIndex = new AtomicInteger();
         private CompletableFuture<Void> admission;
-        private int nextIndex;
         private int activeTasks;
-        private Throwable failure;
+        private boolean ready;
+        private volatile Throwable failure;
 
         private WorkGroup(Object sessionKey, Runnable callback) {
             this.sessionKey = Objects.requireNonNull(sessionKey, "sessionKey");
@@ -423,38 +412,39 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             return this;
         }
 
-        private void assignNext(ResultTask task) {
-            if (singleCallback != null) {
-                if (nextIndex++ != 0) {
-                    throw new IllegalStateException("Single runtime result callback already scheduled");
-                }
-                task.callback = singleCallback;
-            } else {
-                task.item = items.get(nextIndex++);
-                task.itemHandler = itemHandler;
-            }
+        private int claimNext() {
+            int index = nextIndex.getAndIncrement();
+            return index < size() ? index : -1;
         }
 
         private boolean hasUnscheduled() {
-            return nextIndex < size();
+            return nextIndex.get() < size();
         }
 
-        private int remaining() {
-            return size() - nextIndex;
+        private void discardUnscheduled() {
+            nextIndex.set(size());
+        }
+
+        private int remainingUnscheduled() {
+            return Math.max(0, size() - Math.min(nextIndex.get(), size()));
         }
 
         private int size() {
             return singleCallback == null ? items.size() : 1;
         }
+
+        private void run(int resultIndex) {
+            if (singleCallback == null) {
+                itemHandler.accept(items.get(resultIndex));
+            } else {
+                singleCallback.run();
+            }
+        }
     }
 
     private final class ResultTask implements Runnable {
         private WorkGroup workGroup;
-        private Runnable callback;
-        private Object item;
-        private Consumer<Object> itemHandler;
-        private boolean available;
-        private boolean queued;
+        private int resultIndex = -1;
 
         @Override
         public void run() {

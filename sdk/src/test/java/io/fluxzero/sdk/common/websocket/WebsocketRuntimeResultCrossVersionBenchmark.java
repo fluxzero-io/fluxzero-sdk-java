@@ -18,30 +18,27 @@ package io.fluxzero.sdk.common.websocket;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
-import io.fluxzero.common.Registration;
-import io.fluxzero.common.TaskScheduler;
-import io.fluxzero.common.ThrowingRunnable;
-import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.StringResult;
-import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.http.WebSocket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -53,26 +50,33 @@ import java.util.concurrent.locks.LockSupport;
 /**
  * Cross-version benchmark for the complete JDK WebSocket, decode and SDK result-completion path.
  *
- * <p>This class intentionally uses only APIs present in SDK 1.239.0 so the exact same source can be compiled and run
- * against that release and a proposed replacement. Feed work in retained-capacity batches to avoid measuring a
- * different producer-side queue in either version. The default virtual-thread worker mode matches the SDK default on
- * supported Java versions, and the default two sessions match the normal event-sourcing, search, and key-value client
- * configuration. The default worker mode follows the SDK's Java 25 virtual-worker boundary; override it explicitly
- * to isolate executor effects. Use {@code -Dsessions=4} to exercise the client-wide result-completion bound and
+ * <p>This class intentionally uses only APIs present in SDK 1.212.3, with a narrow reflective adapter for the changed
+ * internal JDK session constructor, so the exact same source can be compiled and run against 1.212.3, 1.239.0 and a
+ * proposed replacement. Feed work in retained-capacity batches to avoid measuring a different producer-side queue in
+ * either version. {@code -DbatchSize=0} measures individual responses, while positive values encode an actual
+ * {@link ResultBatch}; the measured result count stays constant across batch sizes. Metrics are explicitly disabled;
+ * their current-version overhead is measured by the dedicated runtime-dispatch benchmark. The default virtual-thread
+ * worker mode matches the SDK default on supported Java versions, and the default two sessions match the normal
+ * event-sourcing, search, and key-value client configuration. Use {@code -Dsessions=4} to exercise the client-wide
+ * result-completion bound and
  * {@code -DcallbackWorkMicros=250} to model temporarily slower functional processing.</p>
  */
 public class WebsocketRuntimeResultCrossVersionBenchmark {
-    private static final int ITERATIONS = Integer.getInteger("iterations", 500_000);
+    private static final Method RUNTIME_STATE_METHOD = declaredMethod(JdkWebSocketSession.class, "runtimeDataState");
+    private static final Method RETAINED_MESSAGES_METHOD = RUNTIME_STATE_METHOD == null ? null
+            : declaredMethod(RUNTIME_STATE_METHOD.getReturnType(), "retainedMessages");
+    private static final int TARGET_RESULTS = Integer.getInteger(
+            "results", Integer.getInteger("iterations", 2_097_152));
     private static final int WARMUPS = Integer.getInteger("warmups", 5);
     private static final int SESSION_COUNT = Integer.getInteger("sessions", 2);
     private static final int RETAINED_MESSAGES = Integer.getInteger(
-            "retainedMessages", JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
+            "retainedMessages", 128);
+    private static final long RETAINED_BYTES = Long.getLong("retainedBytes", 16L << 20);
     private static final int VALUE_BYTES = Integer.getInteger("valueBytes", 320);
+    private static final int BATCH_SIZE = Integer.getInteger("batchSize", 0);
+    private static final int RESULTS_PER_MESSAGE = Math.max(1, BATCH_SIZE);
     private static final long CALLBACK_WORK_NANOS = TimeUnit.MICROSECONDS.toNanos(
             Long.getLong("callbackWorkMicros", 0L));
-    private static final boolean TRANSPORT_METRICS = Boolean.getBoolean("transportMetrics");
-    private static final boolean RUNTIME_PROGRESS = Boolean.parseBoolean(
-            System.getProperty("runtimeProgress", Boolean.toString(TRANSPORT_METRICS)));
     private static final String WORKER_MODE = System.getProperty(
             "workerMode", Runtime.version().feature() >= 25 ? "virtual" : "fixed");
     private static final int FIXED_WORKERS = Integer.getInteger(
@@ -82,34 +86,40 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
     private static final WebSocketClient.ClientConfig CLIENT_CONFIG = WebSocketClient.ClientConfig.builder()
             .runtimeBaseUrl("ws://localhost")
             .name("cross-version-result-benchmark")
+            .disableMetrics(true)
             .build();
     private static volatile long blackhole;
 
     public static void main(String[] args) {
+        if (BATCH_SIZE < 0) {
+            throw new IllegalArgumentException("batchSize must not be negative");
+        }
         try (Scenario scenario = new Scenario()) {
             for (int i = 0; i < WARMUPS; i++) {
-                scenario.run(ITERATIONS);
+                scenario.run(TARGET_RESULTS);
             }
             System.gc();
             long started = System.nanoTime();
-            int measuredIterations = scenario.run(ITERATIONS);
+            int measuredResults = scenario.run(TARGET_RESULTS);
             long elapsed = System.nanoTime() - started;
+            int measuredMessages = measuredResults / RESULTS_PER_MESSAGE;
             System.out.printf(
                     "runtime-result-cross-version java=%d valueBytes=%d compression=%s sessions=%d "
-                            + "metrics=%s runtimeProgress=%s workers=%s fixedWorkers=%d completionConcurrency=%d "
-                            + "compressedBytes=%d "
-                            + "callbackWorkNanos=%d iterations=%d: %.2f ns/op, %.1f ops/s%n",
-                    Runtime.version().feature(), VALUE_BYTES, COMPRESSION, SESSION_COUNT, TRANSPORT_METRICS,
-                    RUNTIME_PROGRESS, WORKER_MODE, FIXED_WORKERS,
-                    CLIENT_CONFIG.getMaxConcurrentRuntimeResultCompletions(), scenario.payload.length,
-                    CALLBACK_WORK_NANOS, measuredIterations, (double) elapsed / measuredIterations,
-                    measuredIterations * 1_000_000_000d / elapsed);
+                            + "workers=%s fixedWorkers=%d "
+                            + "resultBatchSize=%d resultsPerMessage=%d compressedBytes=%d "
+                            + "callbackWorkNanos=%d wireMessages=%d results=%d: "
+                            + "%.2f ns/result, %.1f results/s, %.1f messages/s%n",
+                    Runtime.version().feature(), VALUE_BYTES, COMPRESSION, SESSION_COUNT,
+                    WORKER_MODE, FIXED_WORKERS, BATCH_SIZE, RESULTS_PER_MESSAGE,
+                    scenario.payload.length, CALLBACK_WORK_NANOS, measuredMessages, measuredResults,
+                    (double) elapsed / measuredResults, measuredResults * 1_000_000_000d / elapsed,
+                    measuredMessages * 1_000_000_000d / elapsed);
         }
         System.out.println("blackhole=" + blackhole);
     }
 
     private static final class Scenario implements AutoCloseable {
-        private final byte[] payload = createPayload();
+        private final byte[] payload = createPayload(COMPRESSION, VALUE_BYTES, BATCH_SIZE);
         private final ExecutorService runtimeExecutor = runtimeExecutor();
         private final Semaphore processed = new Semaphore(0);
         private final AtomicReference<Throwable> failure = new AtomicReference<>();
@@ -121,28 +131,19 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
         private Scenario() {
             for (int i = 0; i < SESSION_COUNT; i++) {
                 Map<String, Object> properties = new java.util.HashMap<>();
-                properties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true);
-                properties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY, 3);
-                properties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY,
+                properties.put(JdkWebSocketSession.class.getName() + ".sdkRuntimeDataDispatch", true);
+                properties.put(JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxConcurrency", 3);
+                properties.put(JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxRetainedMessages",
                                RETAINED_MESSAGES);
-                properties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY,
-                               16L * 1024 * 1024);
+                properties.put(JdkWebSocketSession.class.getName() + ".sdkRuntimeDataMaxRetainedBytes",
+                               RETAINED_BYTES);
                 properties.put(AbstractWebsocketClient.NEGOTIATED_SESSION_ID_USER_PROPERTY, "benchmark_" + i);
                 properties.put(AbstractWebsocketClient.RUNTIME_VERSION_USER_PROPERTY, "benchmark");
                 properties.put(AbstractWebsocketClient.SELECTED_COMPRESSION_ALGORITHM_USER_PROPERTY, COMPRESSION);
                 properties.put(AbstractWebsocketClient.SELECTED_TRANSPORT_FORMAT_USER_PROPERTY,
                                io.fluxzero.common.websocket.WebSocketTransportFormat.JSON);
-                if (RUNTIME_PROGRESS) {
-                    properties.put(JdkWebSocketSession.class.getName() + ".sdkRuntimeIngressProgressEnabled", true);
-                }
-                if (TRANSPORT_METRICS) {
-                    properties.put(JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY, true);
-                }
-                JdkWebSocketSession session = new JdkWebSocketSession(
-                        new JdkWebsocketConnector(), new SdkRuntimeWebsocketEndpoint(client),
-                        new WebsocketConnectionOptions(Map.of(), properties, Duration.ofSeconds(1), List.of()),
-                        URI.create("ws://localhost/cross-version/" + i),
-                        new JdkWebsocketConnector.CapturedHandshakeResponse(), Runnable::run, runtimeExecutor);
+                JdkWebSocketSession session = createSession(
+                        client, properties, URI.create("ws://localhost/cross-version/" + i), runtimeExecutor);
                 BenchmarkWebSocket webSocket = new BenchmarkWebSocket();
                 WebSocket.Listener listener = session.createListener();
                 listener.onOpen(webSocket);
@@ -161,29 +162,40 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             };
         }
 
-        private int run(int requestedIterations) {
-            int batchSize = SESSION_COUNT * RETAINED_MESSAGES;
-            int iterations = Math.max(batchSize, requestedIterations / batchSize * batchSize);
-            int remaining = iterations;
-            while (remaining > 0) {
+        private int run(int requestedResults) {
+            int maxMessagesPerSession = messagesPerSession(RETAINED_MESSAGES, RETAINED_BYTES, payload.length);
+            int messages = messageIterations(requestedResults, RESULTS_PER_MESSAGE);
+            int remainingMessages = messages;
+            while (remainingMessages > 0) {
+                int offeredMessages = 0;
                 for (int sessionIndex = 0; sessionIndex < SESSION_COUNT; sessionIndex++) {
                     WebSocket.Listener listener = listeners.get(sessionIndex);
                     WebSocket webSocket = webSockets.get(sessionIndex);
-                    for (int i = 0; i < RETAINED_MESSAGES; i++) {
+                    int sessionMessages = Math.min(maxMessagesPerSession, remainingMessages);
+                    for (int i = 0; i < sessionMessages; i++) {
                         listener.onBinary(webSocket, ByteBuffer.wrap(payload), true);
                     }
+                    offeredMessages += sessionMessages;
+                    remainingMessages -= sessionMessages;
+                    if (remainingMessages == 0) {
+                        break;
+                    }
                 }
-                awaitProcessed(batchSize);
+                awaitProcessed(Math.multiplyExact(offeredMessages, RESULTS_PER_MESSAGE));
                 awaitDrain();
-                remaining -= batchSize;
             }
-            return iterations;
+            return Math.multiplyExact(messages, RESULTS_PER_MESSAGE);
         }
 
         private void awaitProcessed(int count) {
             try {
                 if (!processed.tryAcquire(count, 30, TimeUnit.SECONDS)) {
-                    throw new IllegalStateException("Timed out awaiting SDK result completion");
+                    throw new IllegalStateException(
+                                    "Timed out awaiting %d SDK results; available=%d, runtimeStates=%s"
+                                    .formatted(count, processed.availablePermits(),
+                                               sessions.stream().map(
+                                                       WebsocketRuntimeResultCrossVersionBenchmark::runtimeState)
+                                                       .toList()));
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -206,7 +218,7 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
 
         private boolean allSessionsDrained() {
             for (JdkWebSocketSession session : sessions) {
-                if (session.runtimeDataState().retainedMessages() != 0) {
+                if (retainedMessages(session) != 0) {
                     return false;
                 }
             }
@@ -222,22 +234,130 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
         }
     }
 
-    private static byte[] createPayload() {
+    private static JdkWebSocketSession createSession(
+            ResultClient client, Map<String, Object> properties, URI uri, ExecutorService runtimeExecutor) {
         try {
-            StringBuilder value = new StringBuilder(VALUE_BYTES);
-            int state = 0x13579bdf;
-            for (int i = 0; i < VALUE_BYTES; i++) {
-                state = state * 1_103_515_245 + 12_345;
-                value.append((char) (' ' + Math.floorMod(state, 95)));
+            JdkWebsocketConnector connector = new JdkWebsocketConnector();
+            WebsocketEndpoint endpoint = runtimeEndpoint(client);
+            WebsocketConnectionOptions options = new WebsocketConnectionOptions(
+                    Map.of(), properties, Duration.ofSeconds(1), List.of());
+            JdkWebsocketConnector.CapturedHandshakeResponse response =
+                    new JdkWebsocketConnector.CapturedHandshakeResponse();
+            Executor callbackExecutor = Runnable::run;
+            for (Constructor<?> constructor : JdkWebSocketSession.class.getDeclaredConstructors()) {
+                if (constructor.getParameterCount() == 7) {
+                    constructor.setAccessible(true);
+                    return (JdkWebSocketSession) constructor.newInstance(
+                            connector, endpoint, options, uri, response, callbackExecutor, runtimeExecutor);
+                }
+                if (constructor.getParameterCount() == 6) {
+                    constructor.setAccessible(true);
+                    return (JdkWebSocketSession) constructor.newInstance(
+                            connector, endpoint, options, uri, response, callbackExecutor);
+                }
+            }
+            throw new IllegalStateException("Unsupported JdkWebSocketSession constructor");
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not create cross-version JDK WebSocket session", e);
+        }
+    }
+
+    private static WebsocketEndpoint runtimeEndpoint(ResultClient client) throws ReflectiveOperationException {
+        try {
+            Class<?> endpointType = Class.forName(
+                    "io.fluxzero.sdk.common.websocket.SdkRuntimeWebsocketEndpoint");
+            Constructor<?> constructor = endpointType.getDeclaredConstructor(WebsocketEndpoint.class);
+            constructor.setAccessible(true);
+            return (WebsocketEndpoint) constructor.newInstance(client);
+        } catch (ClassNotFoundException ignored) {
+            return client;
+        }
+    }
+
+    private static int retainedMessages(JdkWebSocketSession session) {
+        Object state = runtimeState(session);
+        if (state == null || RETAINED_MESSAGES_METHOD == null) {
+            return 0;
+        }
+        try {
+            return (int) RETAINED_MESSAGES_METHOD.invoke(state);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not read retained runtime benchmark state", e);
+        }
+    }
+
+    private static Object runtimeState(JdkWebSocketSession session) {
+        if (RUNTIME_STATE_METHOD == null) {
+            return null;
+        }
+        try {
+            return RUNTIME_STATE_METHOD.invoke(session);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Could not read runtime benchmark state", e);
+        }
+    }
+
+    private static Method declaredMethod(Class<?> type, String name) {
+        try {
+            Method result = type.getDeclaredMethod(name);
+            result.setAccessible(true);
+            return result;
+        } catch (NoSuchMethodException ignored) {
+            return null;
+        }
+    }
+
+    static int messageIterations(int requestedResults, int resultsPerMessage) {
+        if (requestedResults < 1 || resultsPerMessage < 1) {
+            throw new IllegalArgumentException("Benchmark result values must be positive");
+        }
+        if (requestedResults % resultsPerMessage != 0) {
+            throw new IllegalArgumentException("Benchmark results must be divisible by results per message");
+        }
+        return requestedResults / resultsPerMessage;
+    }
+
+    static int messagesPerSession(int retainedMessages, long retainedBytes, int payloadBytes) {
+        if (retainedMessages < 1 || retainedBytes < 1 || payloadBytes < 1) {
+            throw new IllegalArgumentException("Benchmark capacity and payload values must be positive");
+        }
+        return Math.max(1, Math.min(retainedMessages, Math.toIntExact(
+                Math.min(Integer.MAX_VALUE, retainedBytes / payloadBytes))));
+    }
+
+    static byte[] createPayload(CompressionAlgorithm compression, int valueBytes, int batchSize) {
+        if (valueBytes < 0 || batchSize < 0) {
+            throw new IllegalArgumentException("Benchmark payload and batch sizes must not be negative");
+        }
+        try {
+            JsonType value;
+            if (batchSize == 0) {
+                value = new StringResult(1L, benchmarkValue(valueBytes, 1));
+            } else {
+                List<RequestResult> results = new ArrayList<>(batchSize);
+                for (int i = 0; i < batchSize; i++) {
+                    results.add(new StringResult(i + 1L, benchmarkValue(valueBytes, i + 1)));
+                }
+                value = new ResultBatch(results);
             }
             byte[] encoded = WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
-                    .encode(new StringResult(1L, value.toString()));
+                    .encode(value);
             String deterministic = new String(encoded, StandardCharsets.UTF_8)
-                    .replaceFirst("\"timestamp\":\\d+", "\"timestamp\":1");
-            return COMPRESSION.compress(deterministic.getBytes(StandardCharsets.UTF_8));
+                    .replaceAll("\"timestamp\":\\d+", "\"timestamp\":1");
+            return compression.compress(deterministic.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new IllegalStateException("Could not create cross-version payload", e);
         }
+    }
+
+    private static String benchmarkValue(int valueBytes, int salt) {
+        StringBuilder value = new StringBuilder(valueBytes);
+        int state = 0x13579bdf ^ salt * 0x9e3779b9;
+        for (int i = 0; i < valueBytes; i++) {
+            state = state * 1_103_515_245 + 12_345;
+            value.append((char) (' ' + Math.floorMod(state, 95)));
+        }
+        return value.toString();
     }
 
     private static final class ResultClient extends AbstractWebsocketClient {
@@ -252,10 +372,7 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
                       throw new UnsupportedOperationException("Benchmark connector must not connect");
                   }, URI.create("ws://localhost"),
                   WebSocketClient.newInstance(CLIENT_CONFIG),
-                  true, Duration.ofSeconds(1), defaultObjectMapper, 1,
-                  new SimplePropertySource(TRANSPORT_METRICS
-                                                   ? Map.of(TRANSPORT_METRICS_ENABLED_PROPERTY, "true") : Map.of()),
-                  (client, numberOfSessions) -> NoOpTaskScheduler.INSTANCE);
+                  true, Duration.ofSeconds(1), defaultObjectMapper, 1);
             this.processed = processed;
             this.failure = failure;
             this.logger = (Logger) LoggerFactory.getLogger(
@@ -292,11 +409,6 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
         }
 
         @Override
-        void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
-            blackhole += metric.hashCode() + metadata.hashCode();
-        }
-
-        @Override
         public void close() {
             try {
                 super.close();
@@ -304,31 +416,6 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
                 blackhole += consumedResultBytes.sum();
                 logger.setLevel(previousLogLevel);
             }
-        }
-    }
-
-    private enum NoOpTaskScheduler implements TaskScheduler {
-        INSTANCE;
-
-        private static final Clock CLOCK = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
-
-        @Override
-        public Registration schedule(long deadline, ThrowingRunnable task) {
-            return () -> {
-            };
-        }
-
-        @Override
-        public Clock clock() {
-            return CLOCK;
-        }
-
-        @Override
-        public void executeExpiredTasks() {
-        }
-
-        @Override
-        public void shutdown() {
         }
     }
 

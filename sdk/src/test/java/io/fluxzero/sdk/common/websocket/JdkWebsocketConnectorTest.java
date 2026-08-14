@@ -621,6 +621,11 @@ class JdkWebsocketConnectorTest {
                                    session, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                                    Duration.ofSeconds(5)),
                            () -> "Ingress did not stop at its retained bound: " + session.runtimeDataState());
+                assertTrue(awaitAdmittedMessages(
+                                   session, BlockingBurstResultCompletionClient.TEST_COMPLETION_CONCURRENCY,
+                                   Duration.ofSeconds(5)),
+                           () -> "Completion admission did not settle at its configured bound: "
+                                 + session.runtimeDataState());
 
                 JdkWebSocketSession.RuntimeDataState blockedState = session.runtimeDataState();
                 assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
@@ -668,6 +673,18 @@ class JdkWebsocketConnectorTest {
             JdkWebSocketSession session, int expected, Duration timeout) throws InterruptedException {
         long deadline = System.nanoTime() + timeout.toNanos();
         while (session.runtimeDataState().retainedMessages() != expected) {
+            if (System.nanoTime() >= deadline) {
+                return false;
+            }
+            TimeUnit.MILLISECONDS.sleep(1);
+        }
+        return true;
+    }
+
+    private static boolean awaitAdmittedMessages(
+            JdkWebSocketSession session, int expected, Duration timeout) throws InterruptedException {
+        long deadline = System.nanoTime() + timeout.toNanos();
+        while (session.runtimeDataState().admittedMessages() != expected) {
             if (System.nanoTime() >= deadline) {
                 return false;
             }
@@ -1280,10 +1297,10 @@ class JdkWebsocketConnectorTest {
             Thread runtimeWorker = Thread.ofPlatform().start(runtimeDataExecutor::runNext);
 
             assertTrue(client.resultHandlingStarted.await(1, TimeUnit.SECONDS));
-            assertEquals(1, session.runtimeDataState().retainedMessages());
-            assertEquals(0, session.runtimeDataState().inFlightMessages());
-            assertEquals(0, session.runtimeDataState().activeMessages());
-            assertEquals(1, session.runtimeDataState().admittedMessages());
+            JdkWebSocketSession.RuntimeDataState handlingState = session.runtimeDataState();
+            assertEquals(1, handlingState.retainedMessages());
+            assertEquals(1, handlingState.inFlightMessages() + handlingState.admittedMessages(),
+                         "The retained message may still be transitioning from decode to functional dispatch");
 
             client.allowResultHandlingToFinish.countDown();
             assertTrue(runtimeWorker.join(Duration.ofSeconds(1)));

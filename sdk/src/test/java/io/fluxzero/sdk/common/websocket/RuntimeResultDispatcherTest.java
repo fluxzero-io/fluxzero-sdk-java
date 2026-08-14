@@ -23,10 +23,15 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -55,6 +60,26 @@ class RuntimeResultDispatcherTest {
         assertTrue(submission.completion().isDone());
         assertEquals(Thread.currentThread(), callbackThread.get());
         assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
+    }
+
+    @Test
+    void uncontendedSubmissionDoesNotTouchSessionFairnessState() {
+        ManualExecutor executor = new ManualExecutor();
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
+        AtomicInteger sessionHashCalls = new AtomicInteger();
+        Object sessionKey = new Object() {
+            @Override
+            public int hashCode() {
+                sessionHashCalls.incrementAndGet();
+                return super.hashCode();
+            }
+        };
+
+        RuntimeIngressController.MessageDispatch submission = dispatcher.submitStaged(sessionKey, () -> {});
+        executor.runAll();
+
+        assertTrue(submission.completion().isDone());
+        assertEquals(0, sessionHashCalls.get(), "The uncontended path must not create per-session fairness state");
     }
 
     @Test
@@ -127,12 +152,12 @@ class RuntimeResultDispatcherTest {
 
         CompletableFuture<Void> completion = dispatcher.submit("session", results, completed::add);
 
-        assertEquals(3, reads.get());
+        assertEquals(0, reads.get(), "Submitting a batch must not read results before a completion worker runs");
         assertEquals(3, executor.size());
 
         executor.runNext();
 
-        assertEquals(35, reads.get(), "Worker reuse must not materialize the complete result batch");
+        assertEquals(32, reads.get(), "Worker reuse must not materialize the complete result batch");
         assertTrue(reads.get() < results.size());
         assertEquals(3, executor.size());
         executor.runAll();
@@ -158,6 +183,110 @@ class RuntimeResultDispatcherTest {
         assertTrue(second.isDone());
         assertTrue(third.isDone());
         assertEquals(5, order.size());
+    }
+
+    @Test
+    void manyMaximumTrackingBatchesKeepMakingProgress() throws Exception {
+        List<Integer> batch = java.util.stream.IntStream.range(0, 1_024).boxed().toList();
+        AtomicInteger completed = new AtomicInteger();
+        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+             RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 32)) {
+            CompletableFuture<?>[] completions = new CompletableFuture<?>[512];
+            for (int i = 0; i < completions.length; i++) {
+                completions[i] = dispatcher.submit("session-" + i % 4, batch, ignored -> completed.incrementAndGet());
+            }
+
+            CompletableFuture.allOf(completions).get(10, TimeUnit.SECONDS);
+
+            assertEquals(512 * 1_024, completed.get());
+            assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 32), dispatcher.state());
+        }
+    }
+
+    @Test
+    void fixedWorkersCompleteConcurrentBatchResultsExactlyOnceWithinBound() throws Exception {
+        int resultCount = 10_000;
+        AtomicInteger active = new AtomicInteger();
+        AtomicInteger maximumActive = new AtomicInteger();
+        AtomicIntegerArray completed = new AtomicIntegerArray(resultCount);
+        try (ExecutorService executor = Executors.newFixedThreadPool(8);
+             RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 3)) {
+            CompletableFuture<Void> completion = dispatcher.submit(
+                    "session", java.util.stream.IntStream.range(0, resultCount).boxed().toList(), result -> {
+                        int currentActive = active.incrementAndGet();
+                        maximumActive.accumulateAndGet(currentActive, Math::max);
+                        completed.incrementAndGet(result);
+                        Thread.onSpinWait();
+                        active.decrementAndGet();
+                    });
+
+            completion.get(10, TimeUnit.SECONDS);
+
+            assertTrue(maximumActive.get() <= 3);
+            for (int i = 0; i < resultCount; i++) {
+                assertEquals(1, completed.get(i), "Result callback " + i + " must run exactly once");
+            }
+            assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 3), dispatcher.state());
+        }
+    }
+
+    @Test
+    void concurrentCallbackFailureWaitsForActiveSiblingsAndPromotesPendingWork() throws Exception {
+        CountDownLatch callbacksEntered = new CountDownLatch(3);
+        CountDownLatch allowFailure = new CountDownLatch(1);
+        CountDownLatch failureReleased = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(3);
+             RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 3)) {
+            CompletableFuture<Void> failing = dispatcher.submit(
+                    "a", java.util.stream.IntStream.range(0, 100).boxed().toList(), result -> {
+                        callbacksEntered.countDown();
+                        await(callbacksEntered);
+                        if (result == 0) {
+                            await(allowFailure);
+                            failureReleased.countDown();
+                            throw new IllegalStateException("failed");
+                        }
+                        await(failureReleased);
+                    });
+            dispatcher.submitStaged("a", () -> {});
+            dispatcher.submitStaged("b", () -> {});
+            RuntimeIngressController.MessageDispatch waiting = dispatcher.submitStaged("c", () -> {});
+
+            assertTrue(callbacksEntered.await(10, TimeUnit.SECONDS));
+            assertFalse(waiting.admission().isDone());
+            allowFailure.countDown();
+            assertThrows(Exception.class, () -> failing.get(10, TimeUnit.SECONDS));
+            waiting.completion().get(10, TimeUnit.SECONDS);
+
+            assertTrue(waiting.admission().isDone());
+            assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 3), dispatcher.state());
+        }
+    }
+
+    @Test
+    void closeDuringConcurrentCallbacksDoesNotStartRetainedResults() throws Exception {
+        CountDownLatch callbacksEntered = new CountDownLatch(3);
+        CountDownLatch releaseCallbacks = new CountDownLatch(1);
+        AtomicInteger executed = new AtomicInteger();
+        try (ExecutorService executor = Executors.newFixedThreadPool(3);
+             RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 3)) {
+            CompletableFuture<Void> completion = dispatcher.submit(
+                    "session", java.util.stream.IntStream.range(0, 100).boxed().toList(), ignored -> {
+                        executed.incrementAndGet();
+                        callbacksEntered.countDown();
+                        await(releaseCallbacks);
+                    });
+
+            assertTrue(callbacksEntered.await(10, TimeUnit.SECONDS));
+            dispatcher.close();
+            releaseCallbacks.countDown();
+            assertThrows(Exception.class, () -> completion.get(10, TimeUnit.SECONDS));
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+
+            assertEquals(3, executed.get());
+            assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 3), dispatcher.state());
+        }
     }
 
     @Test
@@ -252,6 +381,17 @@ class RuntimeResultDispatcherTest {
             while (!tasks.isEmpty()) {
                 runNext();
             }
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(10, TimeUnit.SECONDS)) {
+                throw new AssertionError("Timed out awaiting concurrent dispatcher test latch");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted awaiting concurrent dispatcher test latch", e);
         }
     }
 }
