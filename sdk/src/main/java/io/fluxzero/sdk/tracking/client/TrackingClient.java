@@ -194,6 +194,30 @@ public interface TrackingClient extends AutoCloseable {
     CompletableFuture<Void> resetPosition(String consumer, long lastIndex, Guarantee guarantee);
 
     /**
+     * Deletes the tracking position of a retired consumer using {@link Guarantee#STORED}.
+     *
+     * @param consumer the retired consumer name
+     * @return a future indicating completion
+     */
+    default CompletableFuture<Void> deletePosition(String consumer) {
+        return deletePosition(consumer, Guarantee.STORED);
+    }
+
+    /**
+     * Deletes the tracking position of a retired consumer with a specific delivery guarantee.
+     * <p>
+     * The default keeps custom client implementations compatible by resetting to the semantic new-consumer position.
+     * Runtime-backed and local clients override this method to perform a physical deletion.
+     *
+     * @param consumer  the retired consumer name
+     * @param guarantee the delivery guarantee
+     * @return a future indicating completion
+     */
+    default CompletableFuture<Void> deletePosition(String consumer, Guarantee guarantee) {
+        return resetPosition(consumer, -1L, guarantee);
+    }
+
+    /**
      * Returns the current committed tracking position for the given consumer.
      *
      * @param consumer the name of the consumer

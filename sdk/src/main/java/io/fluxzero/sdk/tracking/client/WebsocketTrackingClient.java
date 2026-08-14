@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
+import io.fluxzero.common.api.tracking.DeletePosition;
 import io.fluxzero.common.api.tracking.DisconnectTracker;
 import io.fluxzero.common.api.tracking.GetPosition;
 import io.fluxzero.common.api.tracking.GetPositionResult;
@@ -116,6 +117,11 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
     @Override
     public CompletableFuture<Void> resetPosition(String consumer, long lastIndex, Guarantee guarantee) {
         return sendCommand(new ResetPosition(messageType, consumer, lastIndex, guarantee));
+    }
+
+    @Override
+    public CompletableFuture<Void> deletePosition(String consumer, Guarantee guarantee) {
+        return sendCommand(new DeletePosition(messageType, consumer, guarantee));
     }
 
     @Override

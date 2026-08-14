@@ -43,6 +43,7 @@ import io.fluxzero.common.api.scheduling.Schedule;
 import io.fluxzero.common.api.search.*;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
+import io.fluxzero.common.api.tracking.DeletePosition;
 import io.fluxzero.common.api.tracking.DisconnectTracker;
 import io.fluxzero.common.api.tracking.GetPosition;
 import io.fluxzero.common.api.tracking.GetPositionResult;
@@ -101,6 +102,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = ReadResult.class, name = "readResult"),
         @JsonSubTypes.Type(value = StorePosition.class, name = "storePosition"),
         @JsonSubTypes.Type(value = ResetPosition.class, name = "resetPosition"),
+        @JsonSubTypes.Type(value = DeletePosition.class, name = "deletePosition"),
         @JsonSubTypes.Type(value = DisconnectTracker.class, name = "disconnectTracker"),
         @JsonSubTypes.Type(value = ReadFromIndex.class, name = "readFromIndex"),
         @JsonSubTypes.Type(value = ReadFromIndexResult.class, name = "readFromIndexResult"),

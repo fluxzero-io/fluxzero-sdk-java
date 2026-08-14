@@ -42,6 +42,12 @@ public class InMemoryPositionStore implements PositionStore {
     }
 
     @Override
+    public CompletableFuture<Void> deletePosition(String consumer) {
+        positions.remove(consumer);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public Position position(String consumer) {
         return positions.computeIfAbsent(consumer, c -> Position.newPosition());
     }

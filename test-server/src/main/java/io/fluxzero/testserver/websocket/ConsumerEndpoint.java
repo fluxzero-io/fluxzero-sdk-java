@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
+import io.fluxzero.common.api.tracking.DeletePosition;
 import io.fluxzero.common.api.tracking.DisconnectTracker;
 import io.fluxzero.common.api.tracking.GetPosition;
 import io.fluxzero.common.api.tracking.GetPositionResult;
@@ -210,6 +211,11 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     @Handle
     CompletableFuture<Void> handle(ResetPosition resetPosition) {
         return positionStore.resetPosition(resetPosition.getConsumer(), resetPosition.getLastIndex());
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(DeletePosition deletePosition) {
+        return positionStore.deletePosition(deletePosition.getConsumer());
     }
 
     @Handle

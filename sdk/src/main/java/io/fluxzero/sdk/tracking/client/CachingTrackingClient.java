@@ -309,6 +309,11 @@ public class CachingTrackingClient implements TrackingClient {
     }
 
     @Override
+    public CompletableFuture<Void> deletePosition(String consumer, Guarantee guarantee) {
+        return delegate.deletePosition(consumer, guarantee);
+    }
+
+    @Override
     public Position getPosition(String consumer) {
         return delegate.getPosition(consumer);
     }

@@ -47,6 +47,19 @@ public interface PositionStore {
     CompletableFuture<Void> resetPosition(String consumer, long lastIndex);
 
     /**
+     * Deletes the stored position for a retired consumer.
+     * <p>
+     * The default preserves compatibility with existing custom stores by resetting to the semantic new-consumer
+     * position. Durable stores should override this method to physically remove their backing entry.
+     *
+     * @param consumer the retired consumer name
+     * @return a future that completes when the position is deleted
+     */
+    default CompletableFuture<Void> deletePosition(String consumer) {
+        return resetPosition(consumer, -1L);
+    }
+
+    /**
      * Retrieves the full multi-segment position for the given consumer.
      *
      * @param consumer the consumer name

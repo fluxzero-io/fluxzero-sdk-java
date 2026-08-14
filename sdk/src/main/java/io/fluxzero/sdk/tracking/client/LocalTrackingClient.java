@@ -194,6 +194,11 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     }
 
     @Override
+    public CompletableFuture<Void> deletePosition(String consumer, Guarantee guarantee) {
+        return positionStore.deletePosition(consumer);
+    }
+
+    @Override
     public Position getPosition(String consumer) {
         return positionStore.position(consumer);
     }

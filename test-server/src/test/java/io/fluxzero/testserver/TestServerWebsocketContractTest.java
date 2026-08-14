@@ -253,6 +253,11 @@ class TestServerWebsocketContractTest {
             assertArrayEquals(FULL_SEGMENT, claim.getSegment());
             assertEquals(42L, claim.getPosition().lowestIndexForSegment(claim.getSegment()).orElseThrow());
             await(tracking.disconnectTracker(consumer, "tracker-1", false, STORED));
+
+            await(tracking.deletePosition(consumer, STORED));
+            org.junit.jupiter.api.Assertions.assertTrue(tracking.getPosition(consumer).isNew(FULL_SEGMENT));
+            await(tracking.deletePosition(consumer, STORED));
+            org.junit.jupiter.api.Assertions.assertTrue(tracking.getPosition(consumer).isNew(FULL_SEGMENT));
         } finally {
             client.shutDown();
         }
