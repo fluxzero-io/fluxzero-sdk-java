@@ -184,8 +184,8 @@ public class WebSocketClient extends AbstractClient {
         static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
         static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES = 3;
-        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS = 8;
-        static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 19;
+        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS = 32;
+        static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 128;
         static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 16L * 1024 * 1024;
         static final String MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY =
                 "fluxzero.runtime.ingress.maxConcurrency";
@@ -279,7 +279,7 @@ public class WebSocketClient extends AbstractClient {
          * Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, executor
          * submission, pending work and active processing. The pending capacity is this value minus
          * {@link #maxConcurrentRuntimeWebSocketMessages}. Defaults to
-         * {@code fluxzero.runtime.ingress.maxRetainedMessages}, its legacy WebSocket aliases, or {@code 19} when
+         * {@code fluxzero.runtime.ingress.maxRetainedMessages}, its legacy WebSocket aliases, or {@code 128} when
          * unset.
          */
         @Default
@@ -302,8 +302,9 @@ public class WebSocketClient extends AbstractClient {
         /**
          * Maximum number of runtime request results whose SDK completion logic and synchronous customer future
          * continuations may run concurrently per client. Large result batches are submitted incrementally and share
-         * this bound with individual responses. Defaults to
-         * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.
+         * this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer
+         * and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to
+         * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 32} when unset.
          */
         @Default
         int maxConcurrentRuntimeResultCompletions = firstIntegerProperty(

@@ -36,9 +36,9 @@ class WebSocketClientConfigTest {
             WebSocketClient.ClientConfig config = clientConfig();
 
             assertEquals(3, config.getMaxConcurrentRuntimeWebSocketMessages());
-            assertEquals(19, config.getMaxRetainedRuntimeWebSocketMessages());
+            assertEquals(128, config.getMaxRetainedRuntimeWebSocketMessages());
             assertEquals(16L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
-            assertEquals(8, config.getMaxConcurrentRuntimeResultCompletions());
+            assertEquals(32, config.getMaxConcurrentRuntimeResultCompletions());
             assertEquals(Duration.ZERO, config.getRuntimeIngressStallCloseTimeout());
         });
     }

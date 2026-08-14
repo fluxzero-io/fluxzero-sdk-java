@@ -5626,9 +5626,9 @@ Key options include:
 | `supportedCompressionAlgorithms` | Preferred and fallback compression algorithms | ZSTD, then LZ4 |
 | `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health | 10s / 15s |
 | `maxConcurrentRuntimeWebSocketMessages` | Complete runtime messages processed concurrently per session | `fluxzero.runtime.ingress.maxConcurrency` or `3` |
-| `maxRetainedRuntimeWebSocketMessages` | Total assembling, pending, submitted, and active runtime messages per session | `fluxzero.runtime.ingress.maxRetainedMessages` or `19` |
+| `maxRetainedRuntimeWebSocketMessages` | Total assembling, pending, submitted, and active runtime messages per session | `fluxzero.runtime.ingress.maxRetainedMessages` or `128` |
 | `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `fluxzero.runtime.ingress.maxRetainedBytes` or 16 MiB |
-| `maxConcurrentRuntimeResultCompletions` | Result completions and their synchronous customer continuations processed concurrently per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `8` |
+| `maxConcurrentRuntimeResultCompletions` | Result completions and their synchronous customer continuations processed concurrently per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `32` |
 | `runtimeIngressStallCloseTimeout` | Opt-in close delay after ingress has been diagnosed as stalled | `fluxzero.runtime.ingress.stallCloseTimeout` or disabled |
 | `disableMetrics` | Whether to suppress all outgoing metrics | `false` |
 | `typeFilter` | Optional message type restriction | `null` |
@@ -5639,8 +5639,9 @@ Key options include:
 
 SDK clients route complete runtime messages through a bounded, transport-neutral ingress controller. With the default
 `JdkWebsocketConnector`, its executor is separate from the JDK WebSocket protocol callback workers. Protocol ingress
-remains ordered, while up to three complete messages from one session may be decoded concurrently. Single responses
-and `ResultBatch` responses then share a client-wide completion dispatcher with a default concurrency of eight. A
+remains ordered, while up to three complete messages from one session may be processed concurrently. That per-session
+permit is currently held through functional completion, including synchronous customer continuations. Single responses
+and `ResultBatch` responses then share a client-wide completion dispatcher with a default concurrency of 32. A
 large batch is submitted incrementally rather than creating one executor task per result. Applications must not rely
 on WebSocket arrival order or single-threaded result completion; request/result correlation remains based on request
 IDs.
@@ -5651,8 +5652,8 @@ path. The callback still reserves client-wide completion capacity and remains pa
 When capacity is occupied or older completion work is queued, the response enters the same fair bounded dispatcher;
 it cannot bypass earlier work or run on the WebSocket protocol callback worker.
 
-By default, the dispatcher retains at most 19 runtime messages or 16 MiB per session: up to three executor-submitted
-messages and up to 16 pending or being assembled. Pending capacity is always derived as
+By default, the dispatcher retains at most 128 runtime messages or 16 MiB per session: up to three executor-submitted
+messages and up to 125 pending or being assembled. Pending capacity is always derived as
 `maxRetainedRuntimeWebSocketMessages - maxConcurrentRuntimeWebSocketMessages`; it is not a separate setting.
 Submitted, running, and pending messages remain in that accounting until their functional processing fully completes.
 For a response this includes SDK result completion and synchronous customer continuations triggered by its
@@ -5679,9 +5680,9 @@ The limits can be tuned without disabling protocol isolation:
 ```java
 WebSocketClient.ClientConfig.builder()
         .maxConcurrentRuntimeWebSocketMessages(3)
-        .maxRetainedRuntimeWebSocketMessages(19)
+        .maxRetainedRuntimeWebSocketMessages(128)
         .maxRetainedRuntimeWebSocketBytes(16L * 1024 * 1024)
-        .maxConcurrentRuntimeResultCompletions(8)
+        .maxConcurrentRuntimeResultCompletions(32)
         .runtimeIngressStallCloseTimeout(Duration.ZERO)
         .build();
 ```
@@ -5699,13 +5700,20 @@ The canonical operation properties are `fluxzero.runtime.ingress.maxConcurrency`
 the three WebSocket capacity limits. Canonical names take precedence when both forms are set. Environment-variable
 normalization also allows the canonical properties to be supplied as `FLUXZERO_RUNTIME_INGRESS_*`.
 
-Increase retained messages for bursts of small responses and retained bytes for larger compressed responses. Increase
-concurrency only when decode or handling is the bottleneck and the process has CPU and heap headroom. These limits are
+Increase retained messages for bursts of small responses and retained bytes for larger compressed responses. A wider
+retained window does not add runtime-message workers, but can improve burst throughput by reducing receive-demand
+pauses and keeping existing workers supplied. Increase concurrency only when decode or handling is the bottleneck and the process
+has CPU and heap headroom. These limits are
 per physical WebSocket session, so account for the configured number of subsystem sessions. For tracking workloads,
 consider lowering fetch size or byte limits before substantially increasing the WebSocket retention envelope.
 Increasing retained limits raises the worst-case compressed ingress memory per session; increasing message or result
 completion concurrency raises simultaneous decode, allocation, CPU and customer-callback pressure. Tune from the
 sparse pressure diagnostics and load-test the resulting aggregate across all configured sessions.
+
+The worker model is unchanged by these limits. On Java 25 and newer, completion tasks use one virtual thread per task.
+On Java 21 through 24, they use the existing lazily populated fixed platform-thread pool, sized to the configured
+completion concurrency. Applications on those Java versions can configure a lower completion limit when their total
+number of WebSocket clients makes 32 potential platform workers per client undesirable.
 
 The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
 explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied

@@ -630,7 +630,9 @@ class JdkWebsocketConnectorTest {
                 assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES
                                      - JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                              blockedState.pendingMessages());
-                assertTrue(blockedState.retainedBytes() < 2_500L, blockedState::toString);
+                assertTrue(blockedState.retainedBytes()
+                                   < (long) JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES * 128,
+                           blockedState::toString);
                 assertTrue(session.isOpen());
                 assertNull(client.reportedError.get());
                 assertEquals(0, client.closeCount.get());
