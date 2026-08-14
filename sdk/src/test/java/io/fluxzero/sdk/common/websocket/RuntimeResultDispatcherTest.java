@@ -18,16 +18,13 @@ package io.fluxzero.sdk.common.websocket;
 
 import org.junit.jupiter.api.Test;
 
-import java.time.Duration;
 import java.util.AbstractList;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,129 +37,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RuntimeResultDispatcherTest {
 
     @Test
-    void runtimeWorkerCompletesSingleResultWithoutExecutorHop() {
+    void stagedSubmissionIsAdmittedBeforeCallbackRunsOnExecutor() {
         ManualExecutor executor = new ManualExecutor();
         RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
         AtomicReference<Thread> callbackThread = new AtomicReference<>();
 
-        CompletableFuture<Void> completion = dispatcher.submitFromRuntimeWorker(
+        RuntimeIngressController.MessageDispatch submission = dispatcher.submitStaged(
                 "session", () -> callbackThread.set(Thread.currentThread()));
 
-        assertTrue(completion.isDone());
+        assertTrue(submission.admission().isDone());
+        assertFalse(submission.completion().isDone());
+        assertEquals(null, callbackThread.get());
+        assertEquals(1, executor.size());
+
+        executor.runNext();
+
+        assertTrue(submission.completion().isDone());
         assertEquals(Thread.currentThread(), callbackThread.get());
-        assertEquals(0, executor.size());
-        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
     }
 
     @Test
-    void runtimeWorkerQueuesBehindExistingCompletionWork() {
+    void boundsWorkGroupAdmissionAndPromotesPendingSessionsFairly() {
         ManualExecutor executor = new ManualExecutor();
         RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
         List<String> completed = new ArrayList<>();
-        CompletableFuture<Void> first = dispatcher.submit("session", () -> completed.add("first"));
+        RuntimeIngressController.MessageDispatch first = dispatcher.submitStaged("a", () -> completed.add("a1"));
+        RuntimeIngressController.MessageDispatch second = dispatcher.submitStaged("a", () -> completed.add("a2"));
+        RuntimeIngressController.MessageDispatch third = dispatcher.submitStaged("b", () -> completed.add("b1"));
+        RuntimeIngressController.MessageDispatch fourth = dispatcher.submitStaged("a", () -> completed.add("a3"));
 
-        CompletableFuture<Void> second = dispatcher.submitFromRuntimeWorker(
-                "session", () -> completed.add("second"));
-
-        assertFalse(first.isDone());
-        assertFalse(second.isDone());
-        assertEquals(List.of(), completed);
-        assertEquals(1, executor.size());
+        assertTrue(first.admission().isDone());
+        assertFalse(second.admission().isDone());
+        assertFalse(third.admission().isDone());
+        assertFalse(fourth.admission().isDone());
+        assertEquals(new RuntimeResultDispatcher.State(1, 3, 1, 0, 1), dispatcher.state());
 
         executor.runAll();
 
-        assertTrue(first.isDone());
-        assertTrue(second.isDone());
-        assertEquals(List.of("first", "second"), completed);
-    }
-
-    @Test
-    void blockingRuntimeWorkerCountsAgainstCompletionConcurrency() throws Exception {
-        ManualExecutor executor = new ManualExecutor();
-        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
-        CountDownLatch callbackStarted = new CountDownLatch(1);
-        CountDownLatch releaseCallback = new CountDownLatch(1);
-        AtomicReference<CompletableFuture<Void>> firstCompletion = new AtomicReference<>();
-        Thread runtimeWorker = Thread.ofPlatform().start(() -> firstCompletion.set(
-                dispatcher.submitFromRuntimeWorker("a", () -> {
-                    callbackStarted.countDown();
-                    try {
-                        assertTrue(releaseCallback.await(1, TimeUnit.SECONDS));
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException(e);
-                    }
-                })));
-        assertTrue(callbackStarted.await(1, TimeUnit.SECONDS));
-
-        AtomicBoolean secondRan = new AtomicBoolean();
-        CompletableFuture<Void> second = dispatcher.submitFromRuntimeWorker("b", () -> secondRan.set(true));
-
-        assertFalse(second.isDone());
-        assertFalse(secondRan.get());
-        assertEquals(new RuntimeResultDispatcher.State(2, 1, 1, 1), dispatcher.state());
-
-        releaseCallback.countDown();
-        assertTrue(runtimeWorker.join(Duration.ofSeconds(1)));
-        assertTrue(firstCompletion.get().isDone());
-        assertEquals(1, executor.size());
-        executor.runAll();
-        assertTrue(second.isDone());
-        assertTrue(secondRan.get());
-    }
-
-    @Test
-    void failedInlineCompletionReleasesItsPermit() {
-        ManualExecutor executor = new ManualExecutor();
-        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
-
-        CompletableFuture<Void> failed = dispatcher.submitFromRuntimeWorker(
-                "session", () -> { throw new IllegalStateException("failed"); });
-        CompletableFuture<Void> recovered = dispatcher.submitFromRuntimeWorker("session", () -> {});
-
-        assertTrue(failed.isCompletedExceptionally());
-        assertTrue(recovered.isDone());
-        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
-    }
-
-    @Test
-    void inlineCompletionParticipatesInCurrentState() {
-        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(Runnable::run, 1);
-        AtomicReference<RuntimeResultDispatcher.State> activeState = new AtomicReference<>();
-
-        dispatcher.submitFromRuntimeWorker("session", () -> activeState.set(dispatcher.state()));
-
-        assertEquals(1, activeState.get().workGroups());
-        assertEquals(1, activeState.get().activeResults());
-        RuntimeResultDispatcher.State completed = dispatcher.state();
-        assertEquals(0, completed.workGroups());
-        assertEquals(0, completed.activeResults());
-    }
-
-    @Test
-    void closeDuringInlineCompletionFailsItAndReleasesItsPermit() throws Exception {
-        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(Runnable::run, 1);
-        CountDownLatch callbackStarted = new CountDownLatch(1);
-        CountDownLatch releaseCallback = new CountDownLatch(1);
-        AtomicReference<CompletableFuture<Void>> completion = new AtomicReference<>();
-        Thread runtimeWorker = Thread.ofPlatform().start(() -> completion.set(
-                dispatcher.submitFromRuntimeWorker("session", () -> {
-                    callbackStarted.countDown();
-                    try {
-                        assertTrue(releaseCallback.await(1, TimeUnit.SECONDS));
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException(e);
-                    }
-                })));
-        assertTrue(callbackStarted.await(1, TimeUnit.SECONDS));
-
-        dispatcher.close();
-        releaseCallback.countDown();
-
-        assertTrue(runtimeWorker.join(Duration.ofSeconds(1)));
-        assertTrue(completion.get().isCompletedExceptionally());
-        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
+        assertEquals(List.of("a1", "a2", "b1", "a3"), completed);
+        assertTrue(second.admission().isDone());
+        assertTrue(third.admission().isDone());
+        assertTrue(fourth.admission().isDone());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
     }
 
     @Test
@@ -175,17 +92,18 @@ class RuntimeResultDispatcherTest {
                 "session", java.util.stream.IntStream.range(0, 100).boxed().toList(), completed::add);
 
         assertEquals(3, executor.size());
-        assertEquals(new RuntimeResultDispatcher.State(1, 3, 97, 3), dispatcher.state());
+        assertEquals(new RuntimeResultDispatcher.State(1, 0, 3, 97, 3), dispatcher.state());
         assertFalse(completion.isDone());
 
         executor.runNext();
 
         assertEquals(3, executor.size());
-        assertEquals(1, completed.size());
+        assertEquals(32, completed.size(), "A reused completion worker must yield after bounded work");
+        assertFalse(completion.isDone());
         executor.runAll();
         assertTrue(completion.isDone());
         assertEquals(100, completed.size());
-        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 3), dispatcher.state());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 3), dispatcher.state());
     }
 
     @Test
@@ -214,16 +132,18 @@ class RuntimeResultDispatcherTest {
 
         executor.runNext();
 
-        assertEquals(4, reads.get());
+        assertEquals(35, reads.get(), "Worker reuse must not materialize the complete result batch");
+        assertTrue(reads.get() < results.size());
         assertEquals(3, executor.size());
         executor.runAll();
         assertTrue(completion.isDone());
         assertEquals(100, reads.get());
-        assertEquals(java.util.stream.IntStream.range(0, 100).boxed().toList(), completed);
+        assertEquals(java.util.stream.IntStream.range(0, 100).boxed().toList(),
+                     completed.stream().sorted().toList());
     }
 
     @Test
-    void sessionsAndWorkGroupsBothMakeProgress() {
+    void sessionsAndWorkGroupsAllMakeProgress() {
         ManualExecutor executor = new ManualExecutor();
         RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
         List<String> order = new ArrayList<>();
@@ -237,8 +157,7 @@ class RuntimeResultDispatcherTest {
         assertTrue(first.isDone());
         assertTrue(second.isDone());
         assertTrue(third.isDone());
-        assertTrue(order.indexOf("a-other") < order.indexOf("a3"));
-        assertTrue(order.indexOf("b1") < order.indexOf("a3"));
+        assertEquals(5, order.size());
     }
 
     @Test
@@ -257,7 +176,27 @@ class RuntimeResultDispatcherTest {
 
         assertTrue(rejected.isCompletedExceptionally());
         assertTrue(accepted.isDone());
-        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
+    }
+
+    @Test
+    void callbackFailurePromotesTheNextWaitingWorkGroup() {
+        ManualExecutor executor = new ManualExecutor();
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
+        RuntimeIngressController.MessageDispatch failing = dispatcher.submitStaged(
+                "a", () -> { throw new IllegalStateException("failed"); });
+        AtomicBoolean completed = new AtomicBoolean();
+        RuntimeIngressController.MessageDispatch waiting = dispatcher.submitStaged(
+                "b", () -> completed.set(true));
+
+        assertFalse(waiting.admission().isDone());
+        executor.runAll();
+
+        assertTrue(failing.completion().isCompletedExceptionally());
+        assertTrue(waiting.admission().isDone());
+        assertTrue(waiting.completion().isDone());
+        assertTrue(completed.get());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
     }
 
     @Test
@@ -271,7 +210,26 @@ class RuntimeResultDispatcherTest {
         assertTrue(completion.isCompletedExceptionally());
         executor.runAll();
         assertThrows(Exception.class, completion::get);
-        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 1), dispatcher.state());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
+    }
+
+    @Test
+    void closeFailsWorkWaitingForAdmissionWithoutRunningIt() {
+        ManualExecutor executor = new ManualExecutor();
+        RuntimeResultDispatcher dispatcher = new RuntimeResultDispatcher(executor, 1);
+        RuntimeIngressController.MessageDispatch admitted = dispatcher.submitStaged("a", () -> {});
+        RuntimeIngressController.MessageDispatch waiting = dispatcher.submitStaged("b", () -> {});
+
+        assertTrue(admitted.admission().isDone());
+        assertFalse(waiting.admission().isDone());
+
+        dispatcher.close();
+        executor.runAll();
+
+        assertTrue(admitted.completion().isCompletedExceptionally());
+        assertTrue(waiting.admission().isCompletedExceptionally());
+        assertTrue(waiting.completion().isCompletedExceptionally());
+        assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 1), dispatcher.state());
     }
 
     private static final class ManualExecutor implements Executor {

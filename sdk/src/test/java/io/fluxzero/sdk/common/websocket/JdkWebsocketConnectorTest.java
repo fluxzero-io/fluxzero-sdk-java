@@ -616,7 +616,7 @@ class JdkWebsocketConnectorTest {
                 server.sendFrame(true, 0xA, new byte[]{42});
 
                 assertTrue(client.activeResultsBlocked.await(5, TimeUnit.SECONDS),
-                           "All per-session runtime workers should be retained by customer callbacks");
+                           "All client-wide completion workers should be occupied by customer callbacks");
                 assertTrue(awaitRetainedMessages(
                                    session, JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                                    Duration.ofSeconds(5)),
@@ -626,9 +626,13 @@ class JdkWebsocketConnectorTest {
                 assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                              blockedState.retainedMessages());
                 assertEquals(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                             blockedState.inFlightMessages());
+                assertEquals(JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                              blockedState.activeMessages());
-                assertEquals(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES
-                                     - JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                assertEquals(BlockingBurstResultCompletionClient.TEST_COMPLETION_CONCURRENCY,
+                             blockedState.admittedMessages());
+                assertEquals(blockedState.retainedMessages() - blockedState.inFlightMessages()
+                                     - blockedState.admittedMessages(),
                              blockedState.pendingMessages());
                 assertTrue(blockedState.retainedBytes()
                                    < (long) JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES * 128,
@@ -708,7 +712,8 @@ class JdkWebsocketConnectorTest {
     @Test
     void boundedBurstFailureDiagnosticsIncludeProgressAndRuntimeState() {
         JdkWebSocketSession.RuntimeDataState state = new JdkWebSocketSession.RuntimeDataState(
-                1, 4L, 1, 4L, 0, 0L, 0, 0L, JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                1, 4L, 1, 4L, 0, 0L, 0, 0L, 0, 0L,
+                JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L, 12L);
 
@@ -879,7 +884,8 @@ class JdkWebsocketConnectorTest {
         int maxRetainedMessages = 5;
         ManuallyTriggeredExecutor runtimeDataExecutor = new ManuallyTriggeredExecutor();
         AbstractWebsocketClient client = mock(AbstractWebsocketClient.class);
-        when(client.dispatchRuntimeMessage(any())).thenReturn(CompletableFuture.completedFuture(null));
+        when(client.dispatchStagedRuntimeMessage(any(byte[].class), any(), any())).thenReturn(
+                RuntimeIngressController.MessageDispatch.admitted(CompletableFuture.completedFuture(null)));
         SdkRuntimeWebsocketEndpoint endpoint = new SdkRuntimeWebsocketEndpoint(client);
         JdkWebSocketSession session = new JdkWebSocketSession(
                 new JdkWebsocketConnector(), endpoint, sdkRuntimeOptions(2, maxRetainedMessages, 1_024L),
@@ -1275,7 +1281,9 @@ class JdkWebsocketConnectorTest {
 
             assertTrue(client.resultHandlingStarted.await(1, TimeUnit.SECONDS));
             assertEquals(1, session.runtimeDataState().retainedMessages());
-            assertEquals(1, session.runtimeDataState().activeMessages());
+            assertEquals(0, session.runtimeDataState().inFlightMessages());
+            assertEquals(0, session.runtimeDataState().activeMessages());
+            assertEquals(1, session.runtimeDataState().admittedMessages());
 
             client.allowResultHandlingToFinish.countDown();
             assertTrue(runtimeWorker.join(Duration.ofSeconds(1)));
@@ -2147,8 +2155,8 @@ class JdkWebsocketConnectorTest {
     }
 
     private static class BlockingBurstResultCompletionClient extends AbstractWebsocketClient {
-        private final CountDownLatch activeResultsBlocked = new CountDownLatch(
-                JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
+        private static final int TEST_COMPLETION_CONCURRENCY = Runtime.version().feature() >= 25 ? 32 : 8;
+        private final CountDownLatch activeResultsBlocked = new CountDownLatch(TEST_COMPLETION_CONCURRENCY);
         private final CountDownLatch allowResultHandlingToFinish = new CountDownLatch(1);
         private final CountDownLatch allResultsHandled;
         private final CountDownLatch pongHandled = new CountDownLatch(1);
@@ -2161,6 +2169,8 @@ class JdkWebsocketConnectorTest {
                   WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
                                                       .runtimeBaseUrl("ws://localhost")
                                                       .name("blocked-small-result-client")
+                                                      .maxConcurrentRuntimeResultCompletions(
+                                                              TEST_COMPLETION_CONCURRENCY)
                                                       .build()),
                   false, Duration.ofSeconds(1), defaultObjectMapper, 1);
             allResultsHandled = new CountDownLatch(resultCount);

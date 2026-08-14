@@ -31,6 +31,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WebSocketClientConfigTest {
 
     @Test
+    void runtimeResultCompletionDefaultFollowsTheRuntimeJavaFeature() {
+        assertEquals(8, WebSocketClient.ClientConfig.defaultMaxConcurrentRuntimeResultCompletions(21));
+        assertEquals(8, WebSocketClient.ClientConfig.defaultMaxConcurrentRuntimeResultCompletions(24));
+        assertEquals(32, WebSocketClient.ClientConfig.defaultMaxConcurrentRuntimeResultCompletions(25));
+        assertEquals(32, WebSocketClient.ClientConfig.defaultMaxConcurrentRuntimeResultCompletions(26));
+    }
+
+    @Test
     void defaultsToBoundedRuntimeWebSocketCapacity() {
         withProperties(Map.of(), () -> {
             WebSocketClient.ClientConfig config = clientConfig();
@@ -38,7 +46,9 @@ class WebSocketClientConfigTest {
             assertEquals(3, config.getMaxConcurrentRuntimeWebSocketMessages());
             assertEquals(128, config.getMaxRetainedRuntimeWebSocketMessages());
             assertEquals(16L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
-            assertEquals(32, config.getMaxConcurrentRuntimeResultCompletions());
+            assertEquals(WebSocketClient.ClientConfig.defaultMaxConcurrentRuntimeResultCompletions(
+                                 Runtime.version().feature()),
+                         config.getMaxConcurrentRuntimeResultCompletions());
             assertEquals(Duration.ZERO, config.getRuntimeIngressStallCloseTimeout());
         });
     }

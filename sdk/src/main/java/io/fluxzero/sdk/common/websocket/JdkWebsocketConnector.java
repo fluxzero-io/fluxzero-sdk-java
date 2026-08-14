@@ -176,7 +176,7 @@ public class JdkWebsocketConnector implements WebsocketConnector {
         return selectedRuntimeDataExecutor == callbackExecutor ? "shared-caller-owned" : "isolated-caller-owned";
     }
 
-    private static String defaultWorkerMode() {
+    static String defaultWorkerMode() {
         return supportsVirtualThreadWorkers() ? "virtual-thread-per-task" : "fixed-platform-pool";
     }
 

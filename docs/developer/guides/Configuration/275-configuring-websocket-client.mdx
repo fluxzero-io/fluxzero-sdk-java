@@ -63,10 +63,10 @@ Key options include:
 | `id`                                         | Unique client instance ID                                                        | `FLUXZERO_TASK_ID`, legacy alias, or UUID |
 | `supportedCompressionAlgorithms`             | Preferred and fallback compression algorithms                                   | ZSTD, then LZ4                           |
 | `pingDelay` / `pingTimeout`                  | Heartbeat intervals for WebSocket health                                         | 10s / 15s                                |
-| `maxConcurrentRuntimeWebSocketMessages`      | Complete runtime messages processed concurrently per session                    | `3`                                      |
-| `maxRetainedRuntimeWebSocketMessages`        | Total assembling, pending, submitted, and active messages retained per session  | `128`                                    |
+| `maxConcurrentRuntimeWebSocketMessages`      | Messages decoded or waiting for completion-dispatcher admission per session     | `3`                                      |
+| `maxRetainedRuntimeWebSocketMessages`        | Total assembling, compressed-pending, decode/admission, and active messages     | `128`                                    |
 | `maxRetainedRuntimeWebSocketBytes`           | Total compressed runtime wire bytes retained per session                        | 16 MiB                                   |
-| `maxConcurrentRuntimeResultCompletions`      | Result completions and synchronous continuations active per client              | `32`                                     |
+| `maxConcurrentRuntimeResultCompletions`      | Admitted groups and result completions/continuations per client                  | `32` on Java 25+, `8` on Java 21–24      |
 | `runtimeIngressStallCloseTimeout`            | Optional close delay after ingress is diagnosed as stalled                      | Disabled                                 |
 | `disableMetrics`                             | Whether to suppress all outgoing metrics                                         | `false`                                  |
 | `typeFilter`                                 | Optional message type restriction                                                | `null`                                   |
@@ -76,10 +76,11 @@ Key options include:
 ## Runtime ingress flow control
 
 Runtime responses are decoded outside the WebSocket protocol callback path. Up to three complete messages per session
-are processed concurrently by default, with each permit currently held through functional completion and synchronous
-customer continuations. A client-wide completion dispatcher then limits result completion and
-synchronous customer continuations to 32 active callbacks. This keeps pong handling independent from functional
-payload work while preserving bounded resource use.
+are decoded or wait for bounded dispatcher admission concurrently by default. A permit is released after safe
+admission, while the message remains retained until functional completion. A client-wide completion dispatcher admits
+and actively completes at most 32 message groups/results on Java 25 and newer or eight on Java 21 through 24 by
+default. Customer callbacks never run on a decode worker. This keeps pong and decode progress independent from slow
+functional continuations while preserving bounded resource use.
 
 The SDK retains at most 128 runtime messages or 16 MiB of compressed wire data per physical session by default. Messages
 remain retained until functional processing completes, including synchronous code triggered by completing a request
@@ -127,8 +128,8 @@ Operational properties use the following canonical names:
 
 Explicit builder values take precedence over properties. Legacy `fluxzero.websocket.runtime.*` and
 `FLUXZERO_WEBSOCKET_RUNTIME_MAX_*` aliases remain supported for the three WebSocket capacity settings. There is no
-unbounded or disable mode; set message concurrency to one when serial functional processing is required while keeping
-protocol isolation.
+unbounded or disable mode. Set message concurrency to one for serial decode, and result-completion concurrency to one
+only when functional callbacks must also be serial, while keeping protocol isolation.
 
 A retained session without a functional completion for one `pingTimeout` can emit
 `RUNTIME_INGRESS_STALLED`. An idle session without retained work is never stalled. The next completed message or an
@@ -138,15 +139,16 @@ when `runtimeIngressStallCloseTimeout` is configured to a positive duration.
 Set `fluxzero.websocket.transportMetrics.enabled=true` to publish sparse transport diagnostics such as
 `RUNTIME_INGRESS_BACKPRESSURED`, `RUNTIME_INGRESS_STALLED`, `RUNTIME_INGRESS_RECOVERED`,
 `RUNTIME_INGRESS_OVERFLOW`, `RUNTIME_EXECUTOR_REJECTED`, and `PING_TIMEOUT`. This diagnostic is disabled by default.
+Diagnostics report the effective transport and completion worker modes and both configured concurrency bounds.
 Increase retained messages to absorb verified bursts of small responses. A wider retained window does not add
 runtime-message workers, but can improve burst throughput by reducing receive-demand pauses and keeping existing
 workers supplied.
-Increasing retained limits raises worst-case memory use, while increasing concurrency raises simultaneous decode,
-allocation, CPU, and customer-callback pressure.
+Increasing retained limits raises worst-case memory use. Message concurrency controls simultaneous decode/allocation;
+result-completion concurrency separately controls admitted decoded work and customer-callback pressure.
 
-The executor policy itself does not change: Java 25 and newer use virtual completion workers, while Java 21 through 24
-use the existing lazily populated fixed platform-thread pool. On those earlier Java versions, configure a lower
-completion concurrency if 32 potential platform workers per WebSocket client is too high for the application.
+The executor policy itself does not change: Java 25 and newer use virtual completion workers with a default concurrency
+of 32, while Java 21 through 24 use the existing lazily populated fixed platform-thread pool with a safe default of
+eight. Explicit completion concurrency still wins on both routes.
 
 ---
 

@@ -20,6 +20,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,7 +42,8 @@ class RuntimeIngressControllerTest {
         List<RuntimeIngressController.Progress> progressEvents = new ArrayList<>();
         List<Long> progressSequences = new ArrayList<>();
         RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
-                executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) -> functionalCompletion,
+                executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) ->
+                        RuntimeIngressController.MessageDispatch.admitted(functionalCompletion),
                 failure -> {}, capacityNotifications::incrementAndGet,
                 (progress, retainedMessages, sequence) -> {
                     progressEvents.add(progress);
@@ -55,8 +57,9 @@ class RuntimeIngressControllerTest {
 
         RuntimeIngressController.State active = controller.state();
         assertEquals(1, active.retainedMessages());
-        assertEquals(1, active.inFlightMessages());
-        assertEquals(1, active.activeMessages());
+        assertEquals(0, active.inFlightMessages());
+        assertEquals(0, active.activeMessages());
+        assertEquals(1, active.admittedMessages());
         assertEquals(0, capacityNotifications.get());
 
         functionalCompletion.complete(null);
@@ -69,16 +72,137 @@ class RuntimeIngressControllerTest {
     }
 
     @Test
+    void functionalCompletionDoesNotRetainDecodeCapacityAfterDispatch() {
+        ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
+        CompletableFuture<Void> firstFunctionalCompletion = new CompletableFuture<>();
+        AtomicInteger handled = new AtomicInteger();
+        RuntimeIngressController<Object> controller = controller(
+                executor, 1, 3, 16,
+                (bytes, receiveTiming, dispatchTiming) -> handled.getAndIncrement() == 0
+                        ? firstFunctionalCompletion : CompletableFuture.completedFuture(null),
+                failure -> {}, () -> {});
+        controller.beginMessage("first", 2);
+        controller.dispatchAssembledMessage("first", new byte[2], null);
+        controller.beginMessage("second", 2);
+        controller.dispatchAssembledMessage("second", new byte[2], null);
+
+        executor.runNext();
+
+        assertEquals(2, handled.get(),
+                     "A functionally incomplete message must not keep the sole decode permit");
+        assertEquals(1, controller.state().retainedMessages(),
+                     "Functional work must remain retained after its decode permit is released");
+
+        firstFunctionalCompletion.complete(null);
+
+        assertEquals(0, controller.state().retainedMessages());
+    }
+
+    @Test
+    void pendingAdmissionsHoldExactlyTheDecodeConcurrencyBound() {
+        ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
+        List<CompletableFuture<Void>> admissions = List.of(
+                new CompletableFuture<>(), new CompletableFuture<>(), new CompletableFuture<>());
+        AtomicInteger handled = new AtomicInteger();
+        RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
+                executor, 3, 5, 32, (bytes, context, timing) -> {
+            int index = handled.getAndIncrement();
+            return index < admissions.size()
+                    ? RuntimeIngressController.MessageDispatch.of(
+                            admissions.get(index), CompletableFuture.completedFuture(null))
+                    : RuntimeIngressController.MessageDispatch.admitted(CompletableFuture.completedFuture(null));
+        }, failure -> {}, () -> {}, (progress, retainedMessages, sequence) -> {});
+        for (int i = 0; i < 4; i++) {
+            controller.beginMessage("stream-" + i, 2);
+            controller.dispatchAssembledMessage("stream-" + i, new byte[2], null);
+        }
+
+        executor.runAll();
+
+        assertEquals(3, handled.get());
+        assertEquals(3, controller.state().inFlightMessages());
+        assertEquals(3, controller.state().activeMessages());
+        assertEquals(1, controller.state().pendingMessages());
+
+        admissions.getFirst().complete(null);
+
+        assertEquals(3, handled.get(), "Admission completion must only schedule decode on its executor");
+        assertEquals(1, executor.pendingTaskCount());
+        executor.runAll();
+
+        assertEquals(4, handled.get());
+        assertEquals(2, controller.state().inFlightMessages());
+        assertEquals(0, controller.state().pendingMessages());
+
+        admissions.get(1).complete(null);
+        admissions.get(2).complete(null);
+        assertEquals(0, controller.state().retainedMessages());
+    }
+
+    @Test
+    void admissionFailureReleasesAccountingOnceAndStopsIngress() {
+        ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
+        CompletableFuture<Void> admission = new CompletableFuture<>();
+        AtomicReference<Throwable> reportedFailure = new AtomicReference<>();
+        RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
+                executor, 1, 2, 16,
+                (bytes, context, timing) -> RuntimeIngressController.MessageDispatch.of(
+                        admission, CompletableFuture.completedFuture(null)),
+                reportedFailure::set, () -> {}, (progress, retainedMessages, sequence) -> {});
+        controller.beginMessage("stream", 4);
+        controller.dispatchAssembledMessage("stream", new byte[4], null);
+        executor.runAll();
+        IllegalStateException failure = new IllegalStateException("admission failed");
+
+        admission.completeExceptionally(failure);
+
+        assertSame(failure, reportedFailure.get());
+        assertEquals(0, controller.state().retainedMessages());
+        assertEquals(0L, controller.state().retainedBytes());
+        assertEquals(0, controller.state().inFlightMessages());
+        assertFalse(controller.canBeginMessage());
+    }
+
+    @Test
+    void functionalFailureReleasesAdmittedAccountingAndStopsIngress() {
+        ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
+        CompletableFuture<Void> functionalCompletion = new CompletableFuture<>();
+        AtomicReference<Throwable> reportedFailure = new AtomicReference<>();
+        RuntimeIngressController<Object> controller = controller(
+                executor, 1, 2, 16, (bytes, context, timing) -> functionalCompletion,
+                reportedFailure::set, () -> {});
+        controller.beginMessage("stream", 4);
+        controller.dispatchAssembledMessage("stream", new byte[4], null);
+        executor.runAll();
+
+        assertEquals(1, controller.state().admittedMessages());
+        IllegalStateException failure = new IllegalStateException("functional completion failed");
+
+        functionalCompletion.completeExceptionally(failure);
+
+        assertSame(failure, reportedFailure.get());
+        assertEquals(0, controller.state().retainedMessages());
+        assertEquals(0L, controller.state().retainedBytes());
+        assertEquals(0, controller.state().admittedMessages());
+        assertFalse(controller.canBeginMessage());
+    }
+
+    @Test
     void coalescesCapacityNotificationAfterAdmissionActuallyWaited() {
         ManuallyTriggeredExecutor executor = new ManuallyTriggeredExecutor();
         CompletableFuture<Void> firstCompletion = new CompletableFuture<>();
+        CompletableFuture<Void> secondAdmission = new CompletableFuture<>();
         AtomicInteger handled = new AtomicInteger();
         AtomicInteger capacityNotifications = new AtomicInteger();
-        RuntimeIngressController<Object> controller = controller(
-                executor, 1, 2, 16,
-                (bytes, receiveTiming, dispatchTiming) -> handled.getAndIncrement() == 0
-                        ? firstCompletion : CompletableFuture.completedFuture(null),
-                failure -> {}, capacityNotifications::incrementAndGet);
+        RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
+                executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) -> {
+            if (handled.getAndIncrement() == 0) {
+                return RuntimeIngressController.MessageDispatch.admitted(firstCompletion);
+            }
+            return RuntimeIngressController.MessageDispatch.of(
+                    secondAdmission, CompletableFuture.completedFuture(null));
+        }, failure -> {}, capacityNotifications::incrementAndGet,
+                (progress, retainedMessages, sequence) -> {});
         controller.beginMessage("first", 2);
         controller.dispatchAssembledMessage("first", new byte[2], null);
         controller.beginMessage("second", 2);
@@ -91,10 +215,12 @@ class RuntimeIngressControllerTest {
         firstCompletion.complete(null);
 
         assertEquals(1, capacityNotifications.get());
-        assertEquals(1, handled.get(), "Async completion must not run pending work on the completing thread");
-        assertEquals(1, executor.pendingTaskCount());
-        executor.runAll();
         assertEquals(2, handled.get());
+        assertEquals(0, executor.pendingTaskCount());
+
+        secondAdmission.complete(null);
+
+        assertEquals(0, controller.state().retainedMessages());
         assertEquals(1, capacityNotifications.get());
     }
 
@@ -232,7 +358,8 @@ class RuntimeIngressControllerTest {
         AtomicInteger capacityNotifications = new AtomicInteger();
         List<RuntimeIngressController.Progress> progressEvents = new ArrayList<>();
         RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
-                executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) -> functionalCompletion,
+                executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) ->
+                        RuntimeIngressController.MessageDispatch.admitted(functionalCompletion),
                 failure -> {}, capacityNotifications::incrementAndGet,
                 (progress, retainedMessages, sequence) -> progressEvents.add(progress));
         controller.beginMessage("stream", 2);
@@ -258,7 +385,8 @@ class RuntimeIngressControllerTest {
         CompletableFuture<Void> functionalCompletion = new CompletableFuture<>();
         List<RuntimeIngressController.Progress> progressEvents = new ArrayList<>();
         RuntimeIngressController<Object> controller = new RuntimeIngressController<>(
-                executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) -> functionalCompletion,
+                executor, 1, 2, 16, (bytes, receiveTiming, dispatchTiming) ->
+                        RuntimeIngressController.MessageDispatch.admitted(functionalCompletion),
                 failure -> {}, () -> {},
                 (progress, retainedMessages, sequence) -> progressEvents.add(progress));
         controller.beginMessage("stream", 2);
@@ -274,12 +402,19 @@ class RuntimeIngressControllerTest {
 
     private static RuntimeIngressController<Object> controller(
             Executor executor, int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes,
-            RuntimeIngressController.MessageHandler<Object> handler,
+            FunctionalHandler<Object> handler,
             java.util.function.Consumer<Throwable> failureHandler,
             Runnable capacityHandler) {
         return new RuntimeIngressController<>(executor, maxConcurrency, maxRetainedMessages, maxRetainedBytes,
-                                              handler, failureHandler, capacityHandler,
+                                              (bytes, context, timing) -> RuntimeIngressController.MessageDispatch
+                                                      .admitted(handler.handle(bytes, context, timing)),
+                                              failureHandler, capacityHandler,
                                               (progress, retainedMessages, sequence) -> {});
+    }
+
+    @FunctionalInterface
+    private interface FunctionalHandler<C> {
+        CompletionStage<Void> handle(byte[] bytes, C context, RuntimeIngressController.DispatchTiming timing);
     }
 
     private static class ManuallyTriggeredExecutor implements Executor {

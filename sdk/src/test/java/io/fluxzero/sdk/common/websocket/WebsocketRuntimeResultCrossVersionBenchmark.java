@@ -48,6 +48,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.LockSupport;
 
 /**
  * Cross-version benchmark for the complete JDK WebSocket, decode and SDK result-completion path.
@@ -57,7 +58,8 @@ import java.util.concurrent.atomic.LongAdder;
  * different producer-side queue in either version. The default virtual-thread worker mode matches the SDK default on
  * supported Java versions, and the default two sessions match the normal event-sourcing, search, and key-value client
  * configuration. The default worker mode follows the SDK's Java 25 virtual-worker boundary; override it explicitly
- * to isolate executor effects. Use {@code -Dsessions=4} to exercise the client-wide result-completion bound.</p>
+ * to isolate executor effects. Use {@code -Dsessions=4} to exercise the client-wide result-completion bound and
+ * {@code -DcallbackWorkMicros=250} to model temporarily slower functional processing.</p>
  */
 public class WebsocketRuntimeResultCrossVersionBenchmark {
     private static final int ITERATIONS = Integer.getInteger("iterations", 500_000);
@@ -66,6 +68,8 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
     private static final int RETAINED_MESSAGES = Integer.getInteger(
             "retainedMessages", JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
     private static final int VALUE_BYTES = Integer.getInteger("valueBytes", 320);
+    private static final long CALLBACK_WORK_NANOS = TimeUnit.MICROSECONDS.toNanos(
+            Long.getLong("callbackWorkMicros", 0L));
     private static final boolean TRANSPORT_METRICS = Boolean.getBoolean("transportMetrics");
     private static final boolean RUNTIME_PROGRESS = Boolean.parseBoolean(
             System.getProperty("runtimeProgress", Boolean.toString(TRANSPORT_METRICS)));
@@ -75,6 +79,10 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             "fixedWorkers", Math.min(8, SESSION_COUNT * 3));
     private static final CompressionAlgorithm COMPRESSION = CompressionAlgorithm.valueOf(
             System.getProperty("compression", "LZ4"));
+    private static final WebSocketClient.ClientConfig CLIENT_CONFIG = WebSocketClient.ClientConfig.builder()
+            .runtimeBaseUrl("ws://localhost")
+            .name("cross-version-result-benchmark")
+            .build();
     private static volatile long blackhole;
 
     public static void main(String[] args) {
@@ -88,11 +96,13 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             long elapsed = System.nanoTime() - started;
             System.out.printf(
                     "runtime-result-cross-version java=%d valueBytes=%d compression=%s sessions=%d "
-                            + "metrics=%s runtimeProgress=%s workers=%s fixedWorkers=%d compressedBytes=%d "
-                            + "iterations=%d: %.2f ns/op, %.1f ops/s%n",
+                            + "metrics=%s runtimeProgress=%s workers=%s fixedWorkers=%d completionConcurrency=%d "
+                            + "compressedBytes=%d "
+                            + "callbackWorkNanos=%d iterations=%d: %.2f ns/op, %.1f ops/s%n",
                     Runtime.version().feature(), VALUE_BYTES, COMPRESSION, SESSION_COUNT, TRANSPORT_METRICS,
-                    RUNTIME_PROGRESS, WORKER_MODE, FIXED_WORKERS, scenario.payload.length,
-                    measuredIterations, (double) elapsed / measuredIterations,
+                    RUNTIME_PROGRESS, WORKER_MODE, FIXED_WORKERS,
+                    CLIENT_CONFIG.getMaxConcurrentRuntimeResultCompletions(), scenario.payload.length,
+                    CALLBACK_WORK_NANOS, measuredIterations, (double) elapsed / measuredIterations,
                     measuredIterations * 1_000_000_000d / elapsed);
         }
         System.out.println("blackhole=" + blackhole);
@@ -241,10 +251,7 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
             super((endpoint, options, uri) -> {
                       throw new UnsupportedOperationException("Benchmark connector must not connect");
                   }, URI.create("ws://localhost"),
-                  WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
-                                                      .runtimeBaseUrl("ws://localhost")
-                                                      .name("cross-version-result-benchmark")
-                                                      .build()),
+                  WebSocketClient.newInstance(CLIENT_CONFIG),
                   true, Duration.ofSeconds(1), defaultObjectMapper, 1,
                   new SimplePropertySource(TRANSPORT_METRICS
                                                    ? Map.of(TRANSPORT_METRICS_ENABLED_PROPERTY, "true") : Map.of()),
@@ -266,6 +273,7 @@ public class WebsocketRuntimeResultCrossVersionBenchmark {
                                     WebsocketResultDiagnostics.ResultTiming timing) {
             try {
                 consumedResultBytes.add(((StringResult) result).getResult().length());
+                LockSupport.parkNanos(CALLBACK_WORK_NANOS);
             } catch (Throwable e) {
                 failure.compareAndSet(null, e);
                 throw e;

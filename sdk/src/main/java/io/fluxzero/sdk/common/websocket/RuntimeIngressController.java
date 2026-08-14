@@ -32,9 +32,10 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 /**
  * Transport-neutral admission, retained-resource accounting and bounded runtime-message dispatch.
  *
- * <p>The transport owns framing and supplies an assembly key. A retained message is released only when the completion
- * stage returned by the functional handler finishes. Capacity notifications are advisory and may be coalesced; a
- * transport adapter must re-check admission and make its own resume operation idempotent.</p>
+ * <p>The transport owns framing and supplies an assembly key. Decode capacity is released when the decoded work is
+ * safely admitted by its functional dispatcher, while retained message and compressed-byte capacity is released only
+ * after functional completion. Capacity notifications are advisory and may be coalesced; a transport adapter must
+ * re-check admission and make its resume operation idempotent.</p>
  */
 final class RuntimeIngressController<C> {
     private static final int MAX_SYNCHRONOUS_MESSAGES_PER_TASK = 32;
@@ -57,6 +58,8 @@ final class RuntimeIngressController<C> {
     private long inFlightBytes;
     private int activeMessages;
     private long activeBytes;
+    private int admittedMessages;
+    private long admittedBytes;
     private long progressSequence;
     private boolean accepting = true;
     private boolean capacityNotificationPending;
@@ -224,38 +227,50 @@ final class RuntimeIngressController<C> {
         }
     }
 
-    private RuntimeMessage<C> process(
-            RuntimeTask task, RuntimeMessage<C> message, boolean allowWorkerReuse) {
+    private RuntimeMessage<C> process(RuntimeTask task, RuntimeMessage<C> message, boolean allowWorkerReuse) {
         if (!markActive(message)) {
-            return complete(task, message, false, null, allowWorkerReuse);
+            return discardBeforeAdmission(task, message, false, null, allowWorkerReuse);
         }
-        CompletableFuture<Void> future;
+        CompletableFuture<Void> admission;
+        CompletableFuture<Void> functionalCompletion;
         try {
             long startedNanos = captureDispatchTiming ? System.nanoTime() : 0L;
             DispatchTiming dispatchTiming = captureDispatchTiming
                     ? new DispatchTiming(
                             message.queuedTimestamp, System.currentTimeMillis(),
                             NANOSECONDS.toMillis(Math.max(0L, startedNanos - message.queuedNanos))) : null;
-            CompletionStage<Void> completion = Objects.requireNonNull(
+            MessageDispatch dispatch = Objects.requireNonNull(
                     messageHandler.handle(message.bytes, message.messageContext, dispatchTiming),
-                    "Runtime message completion");
-            future = Objects.requireNonNull(
-                    completion.toCompletableFuture(), "Runtime message completion future");
+                    "Runtime message dispatch");
+            admission = Objects.requireNonNull(dispatch.admission(), "Runtime message admission future");
+            functionalCompletion = Objects.requireNonNull(
+                    dispatch.completion(), "Runtime message completion future");
         } catch (Throwable e) {
-            return complete(task, message, true, unwrap(e), allowWorkerReuse);
+            return discardBeforeAdmission(task, message, true, unwrap(e), allowWorkerReuse);
         }
-        if (future.isDone()) {
-            Throwable failure = null;
-            try {
-                future.join();
-            } catch (Throwable e) {
-                failure = unwrap(e);
+        if (admission.isDone()) {
+            Throwable failure = completionFailure(admission);
+            return failure == null
+                    ? admit(task, message, functionalCompletion, allowWorkerReuse)
+                    : discardBeforeAdmission(task, message, true, failure, allowWorkerReuse);
+        }
+        admission.whenComplete((ignored, failure) -> {
+            Throwable unwrapped = unwrap(failure);
+            if (unwrapped == null) {
+                admit(task, message, functionalCompletion, false);
+            } else {
+                discardBeforeAdmission(task, message, true, unwrapped, false);
             }
-            return complete(task, message, true, failure, allowWorkerReuse);
-        } else {
-            future.whenComplete(
-                    (ignored, failure) -> complete(task, message, true, unwrap(failure), false));
+        });
+        return null;
+    }
+
+    private static Throwable completionFailure(CompletableFuture<Void> completion) {
+        try {
+            completion.join();
             return null;
+        } catch (Throwable e) {
+            return unwrap(e);
         }
     }
 
@@ -272,24 +287,78 @@ final class RuntimeIngressController<C> {
         return true;
     }
 
-    private RuntimeMessage<C> complete(
-            RuntimeTask task, RuntimeMessage<C> message, boolean active, Throwable failure,
-            boolean reuseWorker) {
-        Runnable terminal;
-        boolean scheduleMore;
-        boolean capacityAvailable;
-        Progress progress;
-        int progressRetainedMessages;
-        long currentProgressSequence;
+    private RuntimeMessage<C> admit(RuntimeTask task, RuntimeMessage<C> message,
+                                    CompletableFuture<Void> functionalCompletion, boolean reuseWorker) {
         RuntimeMessage<C> nextMessage;
         synchronized (this) {
-            boolean publishProgress = !discardPending;
+            inFlightMessages--;
+            inFlightBytes -= message.bytes.length;
+            activeMessages--;
+            activeBytes -= message.bytes.length;
+            admittedMessages++;
+            admittedBytes += message.bytes.length;
+            nextMessage = releaseTask(task, reuseWorker);
+        }
+        if (functionalCompletion.isDone()) {
+            completeFunctional(message, completionFailure(functionalCompletion));
+        } else {
+            functionalCompletion.whenComplete(
+                    (ignored, failure) -> completeFunctional(message, unwrap(failure)));
+        }
+        scheduleAvailable();
+        return nextMessage;
+    }
+
+    private RuntimeMessage<C> discardBeforeAdmission(
+            RuntimeTask task, RuntimeMessage<C> message, boolean active, Throwable failure, boolean reuseWorker) {
+        RuntimeMessage<C> nextMessage;
+        synchronized (this) {
             inFlightMessages--;
             inFlightBytes -= message.bytes.length;
             if (active) {
                 activeMessages--;
                 activeBytes -= message.bytes.length;
             }
+            retainedMessages--;
+            retainedBytes -= message.bytes.length;
+            if (failure != null) {
+                accepting = false;
+                stopping = true;
+            }
+            nextMessage = releaseTask(task, failure == null && reuseWorker);
+        }
+        if (failure != null) {
+            failureHandler.accept(failure);
+        } else {
+            scheduleAvailable();
+        }
+        return nextMessage;
+    }
+
+    private RuntimeMessage<C> releaseTask(RuntimeTask task, boolean reuseWorker) {
+        RuntimeMessage<C> nextMessage = reuseWorker && !discardPending && !stopping
+                ? pendingMessages.pollFirst() : null;
+        if (nextMessage == null) {
+            task.message = null;
+            availableTasks.addLast(task);
+        } else {
+            inFlightMessages++;
+            inFlightBytes += nextMessage.bytes.length;
+            task.message = nextMessage;
+        }
+        return nextMessage;
+    }
+
+    private void completeFunctional(RuntimeMessage<C> message, Throwable failure) {
+        Runnable terminal;
+        boolean capacityAvailable;
+        Progress progress;
+        int progressRetainedMessages;
+        long currentProgressSequence;
+        synchronized (this) {
+            boolean publishProgress = !discardPending;
+            admittedMessages--;
+            admittedBytes -= message.bytes.length;
             retainedMessages--;
             retainedBytes -= message.bytes.length;
             if (failure != null) {
@@ -303,18 +372,6 @@ final class RuntimeIngressController<C> {
             } else {
                 terminal = null;
             }
-            nextMessage = reuseWorker && failure == null && !discardPending && !stopping
-                    ? pendingMessages.pollFirst() : null;
-            if (nextMessage == null) {
-                task.message = null;
-                availableTasks.addLast(task);
-            } else {
-                inFlightMessages++;
-                inFlightBytes += nextMessage.bytes.length;
-                task.message = nextMessage;
-            }
-            scheduleMore = failure == null && !discardPending && !pendingMessages.isEmpty()
-                           && inFlightMessages < maxConcurrency;
             capacityAvailable = failure == null && accepting && !discardPending && capacityNotificationPending;
             if (capacityAvailable) {
                 capacityNotificationPending = false;
@@ -326,13 +383,10 @@ final class RuntimeIngressController<C> {
         }
         if (failure != null) {
             failureHandler.accept(failure);
-            return null;
+            return;
         }
         if (progress != null) {
             progressHandler.accept(progress, progressRetainedMessages, currentProgressSequence);
-        }
-        if (scheduleMore) {
-            scheduleAvailable();
         }
         if (capacityAvailable) {
             capacityAvailableHandler.run();
@@ -340,7 +394,6 @@ final class RuntimeIngressController<C> {
         if (terminal != null) {
             terminal.run();
         }
-        return nextMessage;
     }
 
     private synchronized State discardRejected(RuntimeTask task, RuntimeMessage<C> rejectedMessage) {
@@ -393,7 +446,8 @@ final class RuntimeIngressController<C> {
         int pendingMessageCount = pendingMessages.size() + assemblies.size();
         return new State(
                 retainedMessages, retainedBytes, inFlightMessages, inFlightBytes, activeMessages, activeBytes,
-                pendingMessageCount, retainedBytes - inFlightBytes, maxConcurrency,
+                admittedMessages, admittedBytes, pendingMessageCount,
+                retainedBytes - inFlightBytes - admittedBytes, maxConcurrency,
                 maxRetainedMessages, maxRetainedBytes);
     }
 
@@ -429,8 +483,37 @@ final class RuntimeIngressController<C> {
     }
 
     record State(int retainedMessages, long retainedBytes, int inFlightMessages, long inFlightBytes,
-                 int activeMessages, long activeBytes, int pendingMessages, long pendingBytes,
-                 int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes) {
+                 int activeMessages, long activeBytes, int admittedMessages, long admittedBytes,
+                 int pendingMessages, long pendingBytes, int maxConcurrency, int maxRetainedMessages,
+                 long maxRetainedBytes) {
+    }
+
+    interface MessageDispatch {
+        CompletableFuture<Void> admission();
+
+        CompletableFuture<Void> completion();
+
+        static MessageDispatch of(CompletionStage<Void> admission, CompletionStage<Void> completion) {
+            return new DefaultMessageDispatch(admission.toCompletableFuture(), completion.toCompletableFuture());
+        }
+
+        static MessageDispatch admitted(CompletionStage<Void> completion) {
+            return new DefaultMessageDispatch(
+                    CompletableFuture.completedFuture(null), completion.toCompletableFuture());
+        }
+
+        static MessageDispatch failed(Throwable failure) {
+            CompletableFuture<Void> failed = CompletableFuture.failedFuture(failure);
+            return new DefaultMessageDispatch(failed, failed);
+        }
+    }
+
+    private record DefaultMessageDispatch(
+            CompletableFuture<Void> admission, CompletableFuture<Void> completion) implements MessageDispatch {
+        private DefaultMessageDispatch {
+            Objects.requireNonNull(admission, "admission");
+            Objects.requireNonNull(completion, "completion");
+        }
     }
 
     static final class IngressException extends RejectedExecutionException {
@@ -473,7 +556,7 @@ final class RuntimeIngressController<C> {
 
     @FunctionalInterface
     interface MessageHandler<C> {
-        CompletionStage<Void> handle(byte[] bytes, C messageContext, DispatchTiming dispatchTiming);
+        MessageDispatch handle(byte[] bytes, C messageContext, DispatchTiming dispatchTiming);
     }
 
     @FunctionalInterface

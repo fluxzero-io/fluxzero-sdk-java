@@ -33,8 +33,9 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
         this.delegate = delegate;
     }
 
-    CompletionStage<Void> onRuntimeMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming,
-                                           RuntimeDispatchTiming dispatchTiming) {
+    RuntimeIngressController.MessageDispatch onRuntimeMessage(
+            byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming,
+            RuntimeDispatchTiming dispatchTiming) {
         if (dispatchTiming == null) {
             return dispatchRuntimeMessage(bytes, session, receiveTiming);
         }
@@ -51,13 +52,13 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
         }
     }
 
-    private CompletionStage<Void> dispatchRuntimeMessage(
+    private RuntimeIngressController.MessageDispatch dispatchRuntimeMessage(
             byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
         if (delegate instanceof AbstractWebsocketClient client) {
-            return client.dispatchRuntimeMessage(() -> delegate.onMessage(bytes, session, receiveTiming));
+            return client.dispatchStagedRuntimeMessage(bytes, session, receiveTiming);
         }
         delegate.onMessage(bytes, session, receiveTiming);
-        return COMPLETED;
+        return RuntimeIngressController.MessageDispatch.admitted(COMPLETED);
     }
 
     RuntimeDispatchTiming currentDispatchTiming() {

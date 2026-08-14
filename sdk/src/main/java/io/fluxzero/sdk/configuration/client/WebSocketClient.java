@@ -184,7 +184,8 @@ public class WebSocketClient extends AbstractClient {
         static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
         static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES = 3;
-        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS = 32;
+        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS =
+                defaultMaxConcurrentRuntimeResultCompletions(Runtime.version().feature());
         static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 128;
         static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 16L * 1024 * 1024;
         static final String MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY =
@@ -265,9 +266,11 @@ public class WebSocketClient extends AbstractClient {
                                                            DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES);
 
         /**
-         * Maximum number of complete SDK runtime messages decoded or handled concurrently per WebSocket session.
+         * Maximum number of complete SDK runtime messages decoded or waiting for bounded result-dispatcher admission
+         * concurrently per WebSocket session.
          * Defaults to {@code fluxzero.runtime.ingress.maxConcurrency}, its legacy WebSocket aliases, or {@code 3}
-         * when unset. Use {@code 1} for serial application callbacks while retaining protocol-liveness isolation.
+         * when unset. This limit does not serialize result completions; configure
+         * {@link #maxConcurrentRuntimeResultCompletions} separately for that.
          */
         @Default
         int maxConcurrentRuntimeWebSocketMessages = firstIntegerProperty(
@@ -276,9 +279,8 @@ public class WebSocketClient extends AbstractClient {
                 MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY);
 
         /**
-         * Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, executor
-         * submission, pending work and active processing. The pending capacity is this value minus
-         * {@link #maxConcurrentRuntimeWebSocketMessages}. Defaults to
+         * Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, compressed
+         * pending work, decode/admission and admitted functional processing. Defaults to
          * {@code fluxzero.runtime.ingress.maxRetainedMessages}, its legacy WebSocket aliases, or {@code 128} when
          * unset.
          */
@@ -304,7 +306,8 @@ public class WebSocketClient extends AbstractClient {
          * continuations may run concurrently per client. Large result batches are submitted incrementally and share
          * this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer
          * and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to
-         * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 32} when unset.
+         * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 32} on Java 25 and newer and {@code 8}
+         * on Java 21 through 24 when unset.
          */
         @Default
         int maxConcurrentRuntimeResultCompletions = firstIntegerProperty(
@@ -460,6 +463,10 @@ public class WebSocketClient extends AbstractClient {
         private static Duration firstDurationProperty(Duration defaultValue, String... names) {
             String value = getFirstAvailableProperty(names);
             return value == null ? defaultValue : Duration.parse(value.trim());
+        }
+
+        static int defaultMaxConcurrentRuntimeResultCompletions(int javaFeatureVersion) {
+            return javaFeatureVersion >= 25 ? 32 : 8;
         }
 
         private static Map<MessageType, Integer> defaultGatewaySessions() {

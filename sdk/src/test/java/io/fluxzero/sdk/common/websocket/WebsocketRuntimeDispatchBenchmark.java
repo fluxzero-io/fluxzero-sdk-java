@@ -69,8 +69,8 @@ import java.util.function.Consumer;
  * measure effective per-session concurrency with one through three runtime workers. Its latency percentiles represent
  * the time to drain one full retained-capacity batch, not an amortized per-message latency. An anomaly comparison
  * measures metric construction, fallback serialization, and hand-off to a local sink without network variance. The
- * result-completion comparison contrasts the previous single/direct and batch/eager submission behavior with the
- * bounded incremental dispatcher, using the same deterministic manual executor for both paths. A focused small-result
+ * result-completion comparison contrasts a synthetic direct control with the bounded incremental dispatcher, using
+ * the same deterministic manual executor for both paths. It is not a cross-version comparison. A focused small-result
  * load drives the full decode and result-completion path with compressed payloads matching observed production bursts,
  * without artificial callback work.</p>
  */
@@ -89,7 +89,8 @@ public class WebsocketRuntimeDispatchBenchmark {
             "smallLoadMaxConcurrency", JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES);
     private static final int SMALL_LOAD_MAX_RETAINED_MESSAGES = Integer.getInteger(
             "smallLoadMaxRetainedMessages", JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
-    private static final int RESULT_COMPLETION_CONCURRENCY = Integer.getInteger("resultConcurrency", 32);
+    private static final int RESULT_COMPLETION_CONCURRENCY = Integer.getInteger(
+            "resultConcurrency", Runtime.version().feature() >= 25 ? 32 : 8);
     private static final int LOAD_PAYLOAD_BYTES = Integer.getInteger("loadPayloadBytes", 64 << 10);
     private static final int[] SMALL_RESULT_VALUE_BYTES = {16, 320};
     private static final int COMPLETION_TARGET_RESULTS = Integer.getInteger(
@@ -462,7 +463,7 @@ public class WebsocketRuntimeDispatchBenchmark {
                 return;
             }
             if (batchSize == 1) {
-                CompletableFuture<Void> completion = dispatcher.submitFromRuntimeWorker(
+                CompletableFuture<Void> completion = dispatcher.submit(
                         "benchmark-session", () -> consumeResult(0));
                 executor.runAll();
                 completion.join();
@@ -793,7 +794,7 @@ public class WebsocketRuntimeDispatchBenchmark {
         private static final JdkWebSocketSession.RuntimeDataDispatchException ANOMALY =
                 JdkWebSocketSession.RuntimeDataDispatchException.overflow(
                         new JdkWebSocketSession.RuntimeDataState(
-                                2, 4_096L, 2, 4_096L, 2, 4_096L, 0, 0L,
+                                2, 4_096L, 2, 4_096L, 2, 4_096L, 0, 0L, 0, 0L,
                                 JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L, 0L));

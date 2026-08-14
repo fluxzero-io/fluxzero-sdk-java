@@ -627,7 +627,7 @@ class JdkWebSocketSession implements WebsocketSession {
         return true;
     }
 
-    private CompletionStage<Void> dispatchBinaryMessage(
+    private RuntimeIngressController.MessageDispatch dispatchBinaryMessage(
             byte[] bytes, WebsocketEndpoint.ReceiveTiming receiveTiming,
             RuntimeIngressController.DispatchTiming ingressDispatchTiming) {
         SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming runtimeDispatchTiming = ingressDispatchTiming == null
@@ -641,7 +641,7 @@ class JdkWebSocketSession implements WebsocketSession {
         } else {
             endpoint.onMessage(bytes, this, receiveTiming);
         }
-        return CompletableFuture.completedFuture(null);
+        return RuntimeIngressController.MessageDispatch.admitted(CompletableFuture.completedFuture(null));
     }
 
     private void failRuntimeDataDispatch(Throwable error) {
@@ -713,8 +713,9 @@ class JdkWebSocketSession implements WebsocketSession {
     static RuntimeDataState runtimeDataState(RuntimeIngressController.State state) {
         return new RuntimeDataState(
                 state.retainedMessages(), state.retainedBytes(), state.inFlightMessages(), state.inFlightBytes(),
-                state.activeMessages(), state.activeBytes(), state.pendingMessages(), state.pendingBytes(),
-                state.maxConcurrency(), state.maxRetainedMessages(), state.maxRetainedBytes(),
+                state.activeMessages(), state.activeBytes(), state.admittedMessages(), state.admittedBytes(),
+                state.pendingMessages(), state.pendingBytes(), state.maxConcurrency(), state.maxRetainedMessages(),
+                state.maxRetainedBytes(),
                 0L, 0L);
     }
 
@@ -1071,20 +1072,21 @@ class JdkWebSocketSession implements WebsocketSession {
     }
 
     record RuntimeDataState(int retainedMessages, long retainedBytes, int inFlightMessages, long inFlightBytes,
-                            int activeMessages, long activeBytes, int pendingMessages, long pendingBytes,
-                            int maxConcurrency, int maxRetainedMessages, long maxRetainedBytes,
+                            int activeMessages, long activeBytes, int admittedMessages, long admittedBytes,
+                            int pendingMessages, long pendingBytes, int maxConcurrency, int maxRetainedMessages,
+                            long maxRetainedBytes,
                             long deferredFrameBytes, long lastInboundAgeMillis) {
         static RuntimeDataState empty() {
             return new RuntimeDataState(
-                    0, 0L, 0, 0L, 0, 0L, 0, 0L, DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
+                    0, 0L, 0, 0L, 0, 0L, 0, 0L, 0, 0L, DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                     DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES, DEFAULT_MAX_RETAINED_RUNTIME_BYTES, 0L, 0L);
         }
 
         RuntimeDataState withTransportState(long deferredFrameBytes, long lastInboundAgeMillis) {
             return new RuntimeDataState(
                     retainedMessages, retainedBytes, inFlightMessages, inFlightBytes, activeMessages, activeBytes,
-                    pendingMessages, pendingBytes, maxConcurrency, maxRetainedMessages, maxRetainedBytes,
-                    deferredFrameBytes, lastInboundAgeMillis);
+                    admittedMessages, admittedBytes, pendingMessages, pendingBytes, maxConcurrency,
+                    maxRetainedMessages, maxRetainedBytes, deferredFrameBytes, lastInboundAgeMillis);
         }
 
         RuntimeDataState withLastInboundAgeMillis(long lastInboundAgeMillis) {

@@ -200,7 +200,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void isolatedRuntimeWorkerCompletesSingleAndOneResultBatchWithoutSecondExecutorHop() throws Exception {
+    void isolatedRuntimeWorkerNeverRunsCustomerResultCompletionInline() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -236,8 +236,8 @@ class AbstractWebsocketClientTest {
                 return Thread.currentThread();
             }).get(1, TimeUnit.SECONDS);
 
-            assertEquals(runtimeDataThread, handlingThreads.get(1L));
-            assertEquals(runtimeDataThread, handlingThreads.get(2L));
+            assertNotEquals(runtimeDataThread, handlingThreads.get(1L));
+            assertNotEquals(runtimeDataThread, handlingThreads.get(2L));
         } finally {
             runtimeDataExecutor.shutdownNow();
             client.close();
@@ -1104,14 +1104,18 @@ class AbstractWebsocketClientTest {
             client.sendPing(session);
             ThrowingRunnable staleTimeout = taskScheduler.dequeue();
 
-            client.onRuntimeIngressBackpressure(session, true, runtimeIngressState(19));
+            client.onRuntimeIngressBackpressure(
+                    session, true,
+                    runtimeIngressState(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES));
             staleTimeout.run();
 
             verify(session, never()).closeAsync(any());
             verify(session, times(1)).sendPing(any());
             assertEquals(0, taskScheduler.pendingTaskCount());
 
-            client.onRuntimeIngressBackpressure(session, false, runtimeIngressState(18));
+            client.onRuntimeIngressBackpressure(
+                    session, false,
+                    runtimeIngressState(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES - 1));
 
             assertEquals(1, taskScheduler.pendingTaskCount());
         } finally {
@@ -1146,8 +1150,12 @@ class AbstractWebsocketClientTest {
             assertEquals(1, taskScheduler.pendingTaskCount());
 
             for (int i = 0; i < 100; i++) {
-                client.onRuntimeIngressBackpressure(session, true, runtimeIngressState(19));
-                client.onRuntimeIngressBackpressure(session, false, runtimeIngressState(18));
+                client.onRuntimeIngressBackpressure(
+                        session, true,
+                        runtimeIngressState(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES));
+                client.onRuntimeIngressBackpressure(
+                        session, false,
+                        runtimeIngressState(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES - 1));
             }
 
             assertEquals(1, taskScheduler.pendingTaskCount(),
@@ -1377,6 +1385,8 @@ class AbstractWebsocketClientTest {
             assertEquals(4_096L, metric.inFlightBytes());
             assertEquals(2, metric.activeMessages());
             assertEquals(4_096L, metric.activeBytes());
+            assertEquals(0, metric.admittedMessages());
+            assertEquals(0L, metric.admittedBytes());
             assertEquals(0, metric.pendingMessages());
             assertEquals(0L, metric.pendingBytes());
             assertEquals(clientConfig.getMaxConcurrentRuntimeWebSocketMessages(), metric.maxConcurrency());
@@ -1385,6 +1395,7 @@ class AbstractWebsocketClientTest {
             assertEquals(0L, metric.deferredFrameBytes());
             assertFalse(metric.ingressBackpressured());
             assertEquals(0, metric.completionWorkGroups());
+            assertEquals(0, metric.pendingCompletionAdmissions());
             assertEquals(0, metric.activeResultCompletions());
             assertEquals(0, metric.pendingResultCompletions());
             assertEquals(clientConfig.getMaxConcurrentRuntimeResultCompletions(),
@@ -1392,6 +1403,10 @@ class AbstractWebsocketClientTest {
             assertEquals(0L, metric.stallCloseTimeoutMillis());
             assertEquals(Runtime.version().feature(), metric.javaFeatureVersion());
             assertEquals("custom-connector", metric.workerMode());
+            assertEquals(Runtime.version().feature() >= 25
+                                 ? "sdk-default-virtual-thread-per-task"
+                                 : "sdk-default-fixed-platform-pool",
+                         metric.completionWorkerMode());
             assertEquals("9.8.7", metric.runtimeVersion());
         } finally {
             client.close();
@@ -1411,7 +1426,9 @@ class AbstractWebsocketClientTest {
         WebsocketSession session = mockSession("client123_runtime456");
 
         try {
-            client.onRuntimeIngressBackpressure(session, true, runtimeIngressState(19));
+            client.onRuntimeIngressBackpressure(
+                    session, true,
+                    runtimeIngressState(JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES));
 
             assertTrue(client.transportMetricPublished.await(1, TimeUnit.SECONDS));
             WebsocketTransportMetric metric = client.transportMetric.get();
@@ -1672,6 +1689,7 @@ class AbstractWebsocketClientTest {
                 retainedMessages, retainedBytes, inFlightMessages,
                 inFlightMessages == 0 ? 0L : retainedBytes,
                 inFlightMessages, inFlightMessages == 0 ? 0L : retainedBytes,
+                0, 0L,
                 pendingMessages, pendingMessages == 0 ? 0L : retainedBytes,
                 maxConcurrency, maxRetainedMessages, maxRetainedBytes, 0L, 0L);
     }
@@ -1679,7 +1697,7 @@ class AbstractWebsocketClientTest {
     private static RuntimeIngressController.State runtimeIngressState(int retainedMessages) {
         return new RuntimeIngressController.State(
                 retainedMessages, retainedMessages, retainedMessages, retainedMessages,
-                retainedMessages, retainedMessages, 0, 0L,
+                retainedMessages, retainedMessages, 0, 0L, 0, 0L,
                 JdkWebSocketSession.DEFAULT_MAX_CONCURRENT_RUNTIME_MESSAGES,
                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES,
                 JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_BYTES);

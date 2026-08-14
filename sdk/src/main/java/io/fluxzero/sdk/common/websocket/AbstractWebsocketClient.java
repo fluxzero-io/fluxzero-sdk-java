@@ -137,6 +137,8 @@ import static java.util.Optional.ofNullable;
  */
 public abstract class AbstractWebsocketClient implements WebsocketEndpoint, AutoCloseable {
     private static final CompletionStage<Void> COMPLETED_RUNTIME_MESSAGE = CompletableFuture.completedFuture(null);
+    private static final RuntimeIngressController.MessageDispatch COMPLETED_RUNTIME_DISPATCH =
+            RuntimeIngressController.MessageDispatch.admitted(COMPLETED_RUNTIME_MESSAGE);
     static final String TRANSPORT_METRICS_ENABLED_PROPERTY =
             "fluxzero.websocket.transportMetrics.enabled";
     private static final Duration CLOSE_HANDSHAKE_TIMEOUT = Duration.ofSeconds(1);
@@ -192,7 +194,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final boolean monitorRuntimeIngressProgress;
     private final WebsocketResultDiagnostics resultDiagnostics;
     private final SdkRuntimeWebsocketEndpoint sdkRuntimeEndpoint = new SdkRuntimeWebsocketEndpoint(this);
-    private final ThreadLocal<CompletionStage<Void>> runtimeMessageCompletion = new ThreadLocal<>();
+    private final ThreadLocal<RuntimeMessageDispatchCapture> runtimeMessageDispatch = new ThreadLocal<>();
 
     @Getter(value = AccessLevel.PROTECTED, lazy = true)
     private final Serializer fallbackSerializer = new JacksonSerializer();
@@ -560,8 +562,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         } catch (Exception e) {
             log().error("Could not parse input. Expected a {} websocket message.",
                         getTransportFormat(session), e);
-            if (runtimeMessageCompletion.get() != null) {
-                runtimeMessageCompletion.set(CompletableFuture.failedFuture(e));
+            RuntimeMessageDispatchCapture dispatchCapture = runtimeMessageDispatch.get();
+            if (dispatchCapture != null && dispatchCapture.active) {
+                dispatchCapture.dispatch = RuntimeIngressController.MessageDispatch.failed(e);
             }
             return;
         }
@@ -569,39 +572,39 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         long decodeDuration = decodeStartedNanos == 0L ? 0L : TimeUnit.NANOSECONDS.toMillis(
                 Math.max(0L, resultDiagnostics.monotonicTimestamp() - decodeStartedNanos));
         String sessionId = getNegotiatedSessionId(session);
-        CompletionStage<Void> completion;
+        RuntimeIngressController.MessageDispatch submission;
         if (value instanceof ResultBatch batch) {
             String batchId = Fluxzero.generateId();
             long callbackQueuedTimestamp = resultDiagnostics.timestamp();
             List<RequestResult> results = batch.getResults();
             if (results.size() == 1) {
                 RequestResult result = results.getFirst();
-                completion = submitRuntimeResult(sessionId, () -> handleResult(
+                submission = submitRuntimeResult(sessionId, () -> handleResult(
                         result, batchId, sessionId,
                         resultDiagnostics.resultTiming(
                                 frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
                                 resultDiagnostics.timestamp())));
             } else {
-                completion = runtimeResultDispatcher.submit(sessionId, results, result -> handleResult(
+                submission = runtimeResultDispatcher.submitStaged(sessionId, results, result -> handleResult(
                         result, batchId, sessionId,
                         resultDiagnostics.resultTiming(
                                 frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
                                 resultDiagnostics.timestamp())));
             }
         } else {
-            completion = submitRuntimeResult(
+            submission = submitRuntimeResult(
                     sessionId, resultCallback((RequestResult) value, null, sessionId,
                                                frameTiming, decodedTimestamp, decodeDuration));
         }
-        if (runtimeMessageCompletion.get() != null) {
-            runtimeMessageCompletion.set(completion);
+        RuntimeMessageDispatchCapture dispatchCapture = runtimeMessageDispatch.get();
+        if (dispatchCapture != null && dispatchCapture.active) {
+            dispatchCapture.dispatch = submission;
         }
     }
 
-    private CompletableFuture<Void> submitRuntimeResult(String sessionId, Runnable resultCallback) {
-        return runtimeMessageCompletion.get() == null
-                ? runtimeResultDispatcher.submit(sessionId, resultCallback)
-                : runtimeResultDispatcher.submitFromRuntimeWorker(sessionId, resultCallback);
+    private RuntimeIngressController.MessageDispatch submitRuntimeResult(
+            String sessionId, Runnable resultCallback) {
+        return runtimeResultDispatcher.submitStaged(sessionId, resultCallback);
     }
 
     private Runnable resultCallback(RequestResult result, String batchId, String sessionId,
@@ -616,15 +619,45 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     CompletionStage<Void> dispatchRuntimeMessage(Runnable messageCallback) {
-        CompletionStage<Void> previousCompletion = runtimeMessageCompletion.get();
-        runtimeMessageCompletion.set(COMPLETED_RUNTIME_MESSAGE);
+        return dispatchStagedRuntimeMessage(messageCallback).completion();
+    }
+
+    RuntimeIngressController.MessageDispatch dispatchStagedRuntimeMessage(Runnable messageCallback) {
+        RuntimeMessageDispatchCapture dispatchCapture = runtimeMessageDispatch.get();
+        if (dispatchCapture == null) {
+            dispatchCapture = new RuntimeMessageDispatchCapture();
+            runtimeMessageDispatch.set(dispatchCapture);
+        }
+        boolean previousActive = dispatchCapture.active;
+        RuntimeIngressController.MessageDispatch previousDispatch = dispatchCapture.dispatch;
+        dispatchCapture.active = true;
+        dispatchCapture.dispatch = COMPLETED_RUNTIME_DISPATCH;
         try {
             messageCallback.run();
-            return runtimeMessageCompletion.get();
+            return dispatchCapture.dispatch;
         } finally {
-            // Retain the empty ThreadLocal slot on reusable SDK workers to avoid allocating a new map entry per
-            // message. Restoring also keeps nested dispatches from losing their outer completion context.
-            runtimeMessageCompletion.set(previousCompletion);
+            dispatchCapture.active = previousActive;
+            dispatchCapture.dispatch = previousDispatch;
+        }
+    }
+
+    RuntimeIngressController.MessageDispatch dispatchStagedRuntimeMessage(
+            byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
+        RuntimeMessageDispatchCapture dispatchCapture = runtimeMessageDispatch.get();
+        if (dispatchCapture == null) {
+            dispatchCapture = new RuntimeMessageDispatchCapture();
+            runtimeMessageDispatch.set(dispatchCapture);
+        }
+        boolean previousActive = dispatchCapture.active;
+        RuntimeIngressController.MessageDispatch previousDispatch = dispatchCapture.dispatch;
+        dispatchCapture.active = true;
+        dispatchCapture.dispatch = COMPLETED_RUNTIME_DISPATCH;
+        try {
+            onMessage(bytes, session, receiveTiming);
+            return dispatchCapture.dispatch;
+        } finally {
+            dispatchCapture.active = previousActive;
+            dispatchCapture.dispatch = previousDispatch;
         }
     }
 
@@ -1158,14 +1191,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             WebsocketTransportMetric metric = new WebsocketTransportMetric(
                     event, getClass().getSimpleName(), getRuntimeVersion(session).orElse(null),
                     Runtime.version().feature(), transportWorkerMode(session),
+                    "sdk-default-" + JdkWebsocketConnector.defaultWorkerMode(),
                     state.retainedMessages(), state.retainedBytes(), state.inFlightMessages(),
                     state.inFlightBytes(), state.activeMessages(), state.activeBytes(),
-                    state.pendingMessages(), state.pendingBytes(), state.maxConcurrency(),
+                    state.admittedMessages(), state.admittedBytes(), state.pendingMessages(), state.pendingBytes(),
+                    state.maxConcurrency(),
                     state.maxRetainedMessages(), state.maxRetainedBytes(),
                     state.deferredFrameBytes(),
                     runtimeIngressBackpressured.contains(getNegotiatedSessionId(session)),
-                    completionState.workGroups(), completionState.activeResults(), completionState.pendingResults(),
-                    completionState.maxConcurrency(),
+                    completionState.workGroups(), completionState.pendingAdmissions(),
+                    completionState.activeResults(), completionState.pendingResults(), completionState.maxConcurrency(),
                     clientConfig.getRuntimeIngressStallCloseTimeout().toMillis(),
                     state.lastInboundAgeMillis());
             publishTransportMetric(metric, metricsMetadata().with(
@@ -1344,15 +1379,19 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected WebSocketTransportFormat getTransportFormat(WebsocketSession session) {
-        return ofNullable(session.getUserProperties().get(SELECTED_TRANSPORT_FORMAT_USER_PROPERTY))
-                .filter(WebSocketTransportFormat.class::isInstance)
-                .map(WebSocketTransportFormat.class::cast)
-                .orElse(WebSocketTransportFormat.JSON);
+        Object configured = session.getUserProperties().get(SELECTED_TRANSPORT_FORMAT_USER_PROPERTY);
+        return configured instanceof WebSocketTransportFormat format ? format : WebSocketTransportFormat.JSON;
     }
 
     protected WebSocketTransportCodec transportCodec(WebsocketSession session) {
-        return transportCodecs.computeIfAbsent(getTransportFormat(session),
-                                               format -> WebSocketTransportCodecs.forFormat(format, objectMapper));
+        WebSocketTransportFormat format = getTransportFormat(session);
+        WebSocketTransportCodec cached = transportCodecs.get(format);
+        if (cached != null) {
+            return cached;
+        }
+        WebSocketTransportCodec created = WebSocketTransportCodecs.forFormat(format, objectMapper);
+        WebSocketTransportCodec raced = transportCodecs.putIfAbsent(format, created);
+        return raced == null ? created : raced;
     }
 
     protected Optional<String> getRuntimeVersion(WebsocketSession session) {
@@ -1362,6 +1401,11 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected record ConnectionSetup(WebsocketConnectionOptions options, ClientHandshakeConfigurator configurator) {
+    }
+
+    private static final class RuntimeMessageDispatchCapture {
+        private boolean active;
+        private RuntimeIngressController.MessageDispatch dispatch;
     }
 
     @FunctionalInterface

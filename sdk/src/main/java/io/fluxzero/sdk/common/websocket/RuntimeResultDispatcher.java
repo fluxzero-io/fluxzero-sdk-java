@@ -19,7 +19,7 @@ package io.fluxzero.sdk.common.websocket;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,23 +33,26 @@ import java.util.function.Consumer;
 /**
  * Bounded client-wide dispatcher for completing runtime results.
  *
- * <p>One submitted work group represents one retained runtime transport message. Groups are scheduled round-robin
- * between sessions and within each session, while at most {@code maxConcurrency} result callbacks are active. A
- * single result can reuse its already isolated runtime-data worker when no older work is queued; queued callbacks use
- * the backing executor. A large result batch therefore cannot create an executor task for every result up front.</p>
+ * <p>One submitted work group represents one retained runtime transport message. At most {@code maxConcurrency}
+ * groups are admitted at once and at most the same number of result callbacks are active. Additional groups wait for
+ * admission, fairly between sessions. Callbacks always run on the backing executor, so decode workers never execute
+ * customer continuations. A large result batch is submitted incrementally and cannot create one task per result up
+ * front.</p>
  */
 final class RuntimeResultDispatcher implements AutoCloseable {
     private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
+    private static final int MAX_SYNCHRONOUS_RESULTS_PER_TASK = 32;
     private final Executor executor;
     private final int maxConcurrency;
     private final Map<Object, SessionQueue> sessionQueues = new HashMap<>();
     private final ArrayDeque<Object> readySessions = new ArrayDeque<>();
+    private final ArrayDeque<Object> admissionReadySessions = new ArrayDeque<>();
     private final ArrayDeque<ResultTask> availableTasks = new ArrayDeque<>();
-    private final Set<WorkGroup> workGroups = new LinkedHashSet<>();
+    private final Set<WorkGroup> workGroups = new HashSet<>();
+    private final Set<WorkGroup> pendingAdmissionWorkGroups = new HashSet<>();
     private final AtomicInteger schedulingWork = new AtomicInteger();
     private int createdTaskCount;
     private int activeTasks;
-    private int activeInlineWorkGroups;
     private int pendingResults;
     private boolean closed;
 
@@ -62,67 +65,47 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     }
 
     CompletableFuture<Void> submit(Object sessionKey, Runnable result) {
-        return submit(new WorkGroup(sessionKey, result));
+        return submitStaged(sessionKey, result).completion();
     }
 
-    /**
-     * Completes a single result on the already isolated runtime-data worker when capacity is immediately available.
-     * Otherwise, it enters the regular fair completion queue. The caller must only use this method from an SDK
-     * runtime-data dispatch, never from a protocol callback.
-     */
-    CompletableFuture<Void> submitFromRuntimeWorker(Object sessionKey, Runnable result) {
-        Objects.requireNonNull(sessionKey, "sessionKey");
-        Objects.requireNonNull(result, "result");
-        WorkGroup queuedWork = null;
-        boolean scheduleQueuedWork = false;
-        synchronized (this) {
-            if (closed) {
-                return CompletableFuture.failedFuture(new ClosedChannelException());
-            }
-            if (activeTasks >= maxConcurrency || pendingResults != 0 || !readySessions.isEmpty()) {
-                queuedWork = new WorkGroup(sessionKey, result);
-                enqueue(queuedWork);
-                scheduleQueuedWork = activeTasks < maxConcurrency;
-            } else {
-                activeTasks++;
-                activeInlineWorkGroups++;
-            }
-        }
-        if (queuedWork != null) {
-            if (scheduleQueuedWork) {
-                scheduleAvailable();
-            }
-            return queuedWork.completion;
-        }
-
-        Throwable failure = null;
-        try {
-            result.run();
-        } catch (Throwable e) {
-            failure = e;
-        }
-        return completeInline(failure);
+    RuntimeIngressController.MessageDispatch submitStaged(Object sessionKey, Runnable result) {
+        return submitStaged(new WorkGroup(sessionKey, result));
     }
 
     <T> CompletableFuture<Void> submit(Object sessionKey, List<T> results, Consumer<? super T> resultHandler) {
-        if (results.isEmpty()) {
-            return CompletableFuture.completedFuture(null);
-        }
-        return submit(new WorkGroup(sessionKey, results, resultHandler));
+        return submitStaged(sessionKey, results, resultHandler).completion();
     }
 
-    private CompletableFuture<Void> submit(WorkGroup workGroup) {
+    <T> RuntimeIngressController.MessageDispatch submitStaged(
+            Object sessionKey, List<T> results, Consumer<? super T> resultHandler) {
+        if (results.isEmpty()) {
+            return RuntimeIngressController.MessageDispatch.admitted(COMPLETED);
+        }
+        return submitStaged(new WorkGroup(sessionKey, results, resultHandler));
+    }
+
+    private RuntimeIngressController.MessageDispatch submitStaged(WorkGroup workGroup) {
+        boolean admitted;
         synchronized (this) {
             if (closed) {
-                return CompletableFuture.failedFuture(new ClosedChannelException());
+                return RuntimeIngressController.MessageDispatch.failed(new ClosedChannelException());
             }
-            enqueue(workGroup);
+            admitted = workGroups.size() < maxConcurrency;
+            if (admitted) {
+                workGroup.admission = COMPLETED;
+                admit(workGroup);
+            } else {
+                workGroup.admission = new CompletableFuture<>();
+                queueForAdmission(workGroup);
+            }
         }
-        scheduleAvailable();
-        return workGroup.completion;
+        if (admitted) {
+            scheduleAvailable();
+        }
+        return workGroup;
     }
 
-    private void enqueue(WorkGroup workGroup) {
+    private void admit(WorkGroup workGroup) {
         workGroups.add(workGroup);
         pendingResults += workGroup.size();
         SessionQueue sessionQueue = sessionQueues.computeIfAbsent(
@@ -131,21 +114,12 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         markReady(workGroup.sessionKey, sessionQueue);
     }
 
-    private CompletableFuture<Void> completeInline(Throwable callbackFailure) {
-        Throwable completionFailure = callbackFailure;
-        boolean scheduleQueuedWork;
-        synchronized (this) {
-            activeTasks--;
-            activeInlineWorkGroups--;
-            if (completionFailure == null && closed) {
-                completionFailure = new ClosedChannelException();
-            }
-            scheduleQueuedWork = !readySessions.isEmpty();
-        }
-        if (scheduleQueuedWork) {
-            scheduleAvailable();
-        }
-        return completionFailure == null ? COMPLETED : CompletableFuture.failedFuture(completionFailure);
+    private void queueForAdmission(WorkGroup workGroup) {
+        pendingAdmissionWorkGroups.add(workGroup);
+        SessionQueue sessionQueue = sessionQueues.computeIfAbsent(
+                workGroup.sessionKey, ignored -> new SessionQueue());
+        sessionQueue.pendingAdmissions.addLast(workGroup);
+        markAdmissionReady(workGroup.sessionKey, sessionQueue);
     }
 
     private void markReady(Object sessionKey, SessionQueue sessionQueue) {
@@ -155,7 +129,35 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         }
     }
 
-    private ResultTask takeAvailable() {
+    private void markAdmissionReady(Object sessionKey, SessionQueue sessionQueue) {
+        if (!sessionQueue.admissionReady && !sessionQueue.pendingAdmissions.isEmpty()) {
+            sessionQueue.admissionReady = true;
+            admissionReadySessions.addLast(sessionKey);
+        }
+    }
+
+    private WorkGroup admitNext() {
+        while (!closed && workGroups.size() < maxConcurrency && !admissionReadySessions.isEmpty()) {
+            Object sessionKey = admissionReadySessions.removeFirst();
+            SessionQueue sessionQueue = sessionQueues.get(sessionKey);
+            if (sessionQueue == null) {
+                continue;
+            }
+            sessionQueue.admissionReady = false;
+            WorkGroup workGroup = sessionQueue.pendingAdmissions.pollFirst();
+            if (workGroup != null && pendingAdmissionWorkGroups.remove(workGroup)) {
+                admit(workGroup);
+                removeSessionIfIdle(sessionKey, sessionQueue);
+                markAdmissionReady(sessionKey, sessionQueue);
+                return workGroup;
+            }
+            removeSessionIfIdle(sessionKey, sessionQueue);
+            markAdmissionReady(sessionKey, sessionQueue);
+        }
+        return null;
+    }
+
+    private ResultTask takeAvailable(ResultTask reusableTask) {
         while (!closed && activeTasks < maxConcurrency && !readySessions.isEmpty()) {
             Object sessionKey = readySessions.removeFirst();
             SessionQueue sessionQueue = sessionQueues.get(sessionKey);
@@ -172,7 +174,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             pendingResults--;
             workGroup.activeTasks++;
             activeTasks++;
-            ResultTask task = availableTasks.pollFirst();
+            ResultTask task = reusableTask == null ? pollAvailableTask() : reusableTask;
             if (task == null) {
                 if (createdTaskCount >= maxConcurrency) {
                     throw new IllegalStateException("Missing reusable runtime result task");
@@ -193,7 +195,8 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     }
 
     private void removeSessionIfIdle(Object sessionKey, SessionQueue sessionQueue) {
-        if (sessionQueue.removeWhenIdle && !sessionQueue.ready && sessionQueue.workGroups.isEmpty()) {
+        if (sessionQueue.removeWhenIdle && !sessionQueue.ready && !sessionQueue.admissionReady
+            && sessionQueue.workGroups.isEmpty() && sessionQueue.pendingAdmissions.isEmpty()) {
             sessionQueues.remove(sessionKey, sessionQueue);
         }
     }
@@ -215,7 +218,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             ResultTask task;
             while (true) {
                 synchronized (this) {
-                    task = takeAvailable();
+                    task = takeAvailable(null);
                 }
                 if (task == null) {
                     break;
@@ -230,37 +233,42 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         try {
             executor.execute(task);
         } catch (RejectedExecutionException e) {
-            complete(task, e);
+            complete(task, e, false);
         }
     }
 
     private void run(ResultTask task) {
-        WorkGroup workGroup = task.workGroup;
-        Runnable callback = task.callback;
-        Object item = task.item;
-        Consumer<Object> itemHandler = task.itemHandler;
-        Throwable failure = null;
-        try {
-            if (shouldRun(workGroup)) {
-                if (callback == null) {
-                    itemHandler.accept(item);
-                } else {
-                    callback.run();
+        for (int processed = 1; ; processed++) {
+            WorkGroup workGroup = task.workGroup;
+            Runnable callback = task.callback;
+            Object item = task.item;
+            Consumer<Object> itemHandler = task.itemHandler;
+            Throwable failure = null;
+            try {
+                if (shouldRun(workGroup)) {
+                    if (callback == null) {
+                        itemHandler.accept(item);
+                    } else {
+                        callback.run();
+                    }
                 }
+            } catch (Throwable e) {
+                failure = e;
             }
-        } catch (Throwable e) {
-            failure = e;
+            if (!complete(task, failure, processed < MAX_SYNCHRONOUS_RESULTS_PER_TASK)) {
+                return;
+            }
         }
-        complete(task, failure);
     }
 
     private synchronized boolean shouldRun(WorkGroup workGroup) {
         return !closed && workGroup.failure == null;
     }
 
-    private void complete(ResultTask task, Throwable failure) {
+    private boolean complete(ResultTask task, Throwable failure, boolean reuseWorker) {
         WorkGroup workGroup = task.workGroup;
-        CompletableFuture<Void> completed = null;
+        WorkGroup completed = null;
+        WorkGroup admitted = null;
         synchronized (this) {
             activeTasks--;
             workGroup.activeTasks--;
@@ -268,7 +276,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             task.callback = null;
             task.item = null;
             task.itemHandler = null;
-            availableTasks.addLast(task);
+            makeAvailable(task);
             if (failure != null && workGroup.failure == null) {
                 workGroup.failure = failure;
                 pendingResults -= workGroup.remaining();
@@ -280,7 +288,8 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             }
             if (workGroup.activeTasks == 0 && (workGroup.failure != null || !workGroup.hasUnscheduled())) {
                 workGroups.remove(workGroup);
-                completed = workGroup.completion;
+                completed = workGroup;
+                admitted = admitNext();
             }
         }
         if (completed != null) {
@@ -290,17 +299,59 @@ final class RuntimeResultDispatcher implements AutoCloseable {
                 completed.completeExceptionally(workGroup.failure);
             }
         }
+        if (admitted != null) {
+            admitted.admission.complete(null);
+        }
+        if (reuseWorker && reuse(task)) {
+            return true;
+        }
         scheduleAvailable();
+        return false;
+    }
+
+    private boolean reuse(ResultTask task) {
+        synchronized (this) {
+            if (!task.available) {
+                return false;
+            }
+            task.available = false;
+            if (takeAvailable(task) == null) {
+                makeAvailable(task);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    private ResultTask pollAvailableTask() {
+        ResultTask task;
+        while ((task = availableTasks.pollFirst()) != null) {
+            task.queued = false;
+            if (task.available) {
+                task.available = false;
+                return task;
+            }
+        }
+        return null;
+    }
+
+    private void makeAvailable(ResultTask task) {
+        task.available = true;
+        if (!task.queued) {
+            task.queued = true;
+            availableTasks.addLast(task);
+        }
     }
 
     synchronized State state() {
-        return new State(workGroups.size() + (closed ? 0 : activeInlineWorkGroups),
-                         activeTasks, pendingResults, maxConcurrency);
+        return new State(workGroups.size(), pendingAdmissionWorkGroups.size(), activeTasks, pendingResults,
+                         maxConcurrency);
     }
 
     @Override
     public void close() {
-        List<CompletableFuture<Void>> completions;
+        List<WorkGroup> admitted;
+        List<WorkGroup> pendingAdmission;
         synchronized (this) {
             if (closed) {
                 return;
@@ -308,30 +359,41 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             closed = true;
             ClosedChannelException failure = new ClosedChannelException();
             workGroups.forEach(workGroup -> workGroup.failure = failure);
-            completions = workGroups.stream().map(workGroup -> workGroup.completion).toList();
+            pendingAdmissionWorkGroups.forEach(workGroup -> workGroup.failure = failure);
+            admitted = List.copyOf(workGroups);
+            pendingAdmission = List.copyOf(pendingAdmissionWorkGroups);
             workGroups.clear();
+            pendingAdmissionWorkGroups.clear();
             sessionQueues.clear();
             readySessions.clear();
+            admissionReadySessions.clear();
             pendingResults = 0;
         }
-        completions.forEach(completion -> completion.completeExceptionally(new ClosedChannelException()));
+        admitted.forEach(workGroup -> workGroup.completeExceptionally(new ClosedChannelException()));
+        pendingAdmission.forEach(workGroup -> {
+            workGroup.admission.completeExceptionally(new ClosedChannelException());
+            workGroup.completeExceptionally(new ClosedChannelException());
+        });
     }
 
-    record State(int workGroups, int activeResults, int pendingResults, int maxConcurrency) {
+    record State(int workGroups, int pendingAdmissions, int activeResults, int pendingResults, int maxConcurrency) {
     }
 
     private final class SessionQueue {
         private final ArrayDeque<WorkGroup> workGroups = new ArrayDeque<>();
+        private final ArrayDeque<WorkGroup> pendingAdmissions = new ArrayDeque<>();
         private boolean ready;
+        private boolean admissionReady;
         private boolean removeWhenIdle;
     }
 
-    private final class WorkGroup {
+    private final class WorkGroup extends CompletableFuture<Void>
+            implements RuntimeIngressController.MessageDispatch {
         private final Object sessionKey;
         private final Runnable singleCallback;
         private final List<?> items;
         private final Consumer<Object> itemHandler;
-        private final CompletableFuture<Void> completion = new CompletableFuture<>();
+        private CompletableFuture<Void> admission;
         private int nextIndex;
         private int activeTasks;
         private Throwable failure;
@@ -349,6 +411,16 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             this.singleCallback = null;
             this.items = Objects.requireNonNull(items, "items");
             this.itemHandler = (Consumer<Object>) Objects.requireNonNull(itemHandler, "itemHandler");
+        }
+
+        @Override
+        public CompletableFuture<Void> admission() {
+            return admission;
+        }
+
+        @Override
+        public CompletableFuture<Void> completion() {
+            return this;
         }
 
         private void assignNext(ResultTask task) {
@@ -381,6 +453,8 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         private Runnable callback;
         private Object item;
         private Consumer<Object> itemHandler;
+        private boolean available;
+        private boolean queued;
 
         @Override
         public void run() {

@@ -5625,10 +5625,10 @@ Key options include:
 | `id` | Unique client instance ID | `FLUXZERO_TASK_ID`, `FLUX_TASK_ID`, or UUID |
 | `supportedCompressionAlgorithms` | Preferred and fallback compression algorithms | ZSTD, then LZ4 |
 | `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health | 10s / 15s |
-| `maxConcurrentRuntimeWebSocketMessages` | Complete runtime messages processed concurrently per session | `fluxzero.runtime.ingress.maxConcurrency` or `3` |
-| `maxRetainedRuntimeWebSocketMessages` | Total assembling, pending, submitted, and active runtime messages per session | `fluxzero.runtime.ingress.maxRetainedMessages` or `128` |
+| `maxConcurrentRuntimeWebSocketMessages` | Runtime messages decoded or waiting for completion-dispatcher admission per session | `fluxzero.runtime.ingress.maxConcurrency` or `3` |
+| `maxRetainedRuntimeWebSocketMessages` | Total assembling, compressed-pending, decode/admission, and functionally active messages per session | `fluxzero.runtime.ingress.maxRetainedMessages` or `128` |
 | `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `fluxzero.runtime.ingress.maxRetainedBytes` or 16 MiB |
-| `maxConcurrentRuntimeResultCompletions` | Result completions and their synchronous customer continuations processed concurrently per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `32` |
+| `maxConcurrentRuntimeResultCompletions` | Admitted runtime-message groups and result completions, including synchronous customer continuations, per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `32` on Java 25+, `8` on Java 21–24 |
 | `runtimeIngressStallCloseTimeout` | Opt-in close delay after ingress has been diagnosed as stalled | `fluxzero.runtime.ingress.stallCloseTimeout` or disabled |
 | `disableMetrics` | Whether to suppress all outgoing metrics | `false` |
 | `typeFilter` | Optional message type restriction | `null` |
@@ -5640,22 +5640,19 @@ Key options include:
 SDK clients route complete runtime messages through a bounded, transport-neutral ingress controller. With the default
 `JdkWebsocketConnector`, its executor is separate from the JDK WebSocket protocol callback workers. Protocol ingress
 remains ordered, while up to three complete messages from one session may be processed concurrently. That per-session
-permit is currently held through functional completion, including synchronous customer continuations. Single responses
-and `ResultBatch` responses then share a client-wide completion dispatcher with a default concurrency of 32. A
-large batch is submitted incrementally rather than creating one executor task per result. Applications must not rely
-on WebSocket arrival order or single-threaded result completion; request/result correlation remains based on request
-IDs.
+permit is released as soon as the decoded message group has been safely admitted by the client-wide completion
+dispatcher. Slow customer continuations therefore do not occupy decode capacity. Single responses and `ResultBatch`
+responses share that dispatcher, which admits and actively completes at most 32 message groups/results on Java 25 and
+newer or eight on Java 21 through 24 by default. Customer callbacks always run on its completion executor, never on a
+runtime-data decode worker. A large batch is submitted incrementally rather than creating one executor task per result.
+Applications must not rely on WebSocket arrival order or single-threaded result completion; request/result correlation
+remains based on request IDs.
 
-For a single response, including a one-result batch, the dispatcher reuses the already isolated runtime-data worker
-when completion capacity is immediately available. This avoids a second executor hand-off on the common small-result
-path. The callback still reserves client-wide completion capacity and remains part of retained ingress accounting.
-When capacity is occupied or older completion work is queued, the response enters the same fair bounded dispatcher;
-it cannot bypass earlier work or run on the WebSocket protocol callback worker.
-
-By default, the dispatcher retains at most 128 runtime messages or 16 MiB per session: up to three executor-submitted
-messages and up to 125 pending or being assembled. Pending capacity is always derived as
-`maxRetainedRuntimeWebSocketMessages - maxConcurrentRuntimeWebSocketMessages`; it is not a separate setting.
-Submitted, running, and pending messages remain in that accounting until their functional processing fully completes.
+By default, the dispatcher retains at most 128 runtime messages or 16 MiB per session. This envelope includes messages
+being assembled, compressed pending messages, up to three messages decoding or waiting for completion-dispatcher
+admission, and admitted messages whose functional work is still incomplete. The admitted group bound is client-wide
+and shared across that client's sessions. Messages and compressed wire bytes remain retained until their functional
+processing fully completes.
 For a response this includes SDK result completion and synchronous customer continuations triggered by its
 `CompletableFuture`. A single larger message may proceed when it is the only retained message, but no later message is
 admitted alongside it. Fragment reassembly reserves one retained message slot and its accumulated compressed bytes
@@ -5691,7 +5688,8 @@ An explicit builder value takes precedence over the corresponding environment va
 property, which in turn takes precedence over the SDK default. Concurrency must be at least one, retained messages
 must be at least concurrency, and retained bytes must be positive; invalid combinations are rejected when the
 `WebSocketClient` is constructed. There is no disable or unbounded mode. Set message concurrency to one for serial
-runtime-message decode while retaining liveness isolation.
+runtime-message decode while retaining liveness isolation; set result-completion concurrency to one only when
+functional result callbacks must also be serial.
 
 The canonical operation properties are `fluxzero.runtime.ingress.maxConcurrency`,
 `fluxzero.runtime.ingress.maxRetainedMessages`, `fluxzero.runtime.ingress.maxRetainedBytes`,
@@ -5702,18 +5700,20 @@ normalization also allows the canonical properties to be supplied as `FLUXZERO_R
 
 Increase retained messages for bursts of small responses and retained bytes for larger compressed responses. A wider
 retained window does not add runtime-message workers, but can improve burst throughput by reducing receive-demand
-pauses and keeping existing workers supplied. Increase concurrency only when decode or handling is the bottleneck and the process
+pauses and keeping existing workers supplied. Increase message concurrency only when decode/admission is the
+bottleneck; increase result-completion concurrency only when functional callbacks are the bottleneck and the process
 has CPU and heap headroom. These limits are
 per physical WebSocket session, so account for the configured number of subsystem sessions. For tracking workloads,
 consider lowering fetch size or byte limits before substantially increasing the WebSocket retention envelope.
-Increasing retained limits raises the worst-case compressed ingress memory per session; increasing message or result
-completion concurrency raises simultaneous decode, allocation, CPU and customer-callback pressure. Tune from the
+Increasing retained limits raises the worst-case compressed ingress memory per session; increasing message
+concurrency raises simultaneous decode and allocation, while result-completion concurrency raises callback and decoded
+work-group pressure. Tune from the
 sparse pressure diagnostics and load-test the resulting aggregate across all configured sessions.
 
 The worker model is unchanged by these limits. On Java 25 and newer, completion tasks use one virtual thread per task.
 On Java 21 through 24, they use the existing lazily populated fixed platform-thread pool, sized to the configured
-completion concurrency. Applications on those Java versions can configure a lower completion limit when their total
-number of WebSocket clients makes 32 potential platform workers per client undesirable.
+completion concurrency. The default is eight on those Java versions, so the SDK does not introduce 32 potential
+platform workers per concrete client. Explicit configuration still wins when an application has measured headroom.
 
 The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
 explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied
@@ -5722,10 +5722,11 @@ single-thread executor therefore does not promise the same isolation.
 Transport anomaly metrics remain disabled by default. Set
 `fluxzero.websocket.transportMetrics.enabled=true` to emit sparse diagnostics for ping timeout, ingress
 backpressure/stall/recovery, an unrecoverable accounting overflow, or runtime-data executor rejection. They contain the
-client type, runtime and Java versions, actual executor isolation/ownership and worker mode, retained,
-executor-submitted, active, pending and one deferred-frame byte counts, all effective ingress and result-completion
-limits, current result-completion queue state, the opt-in stall-close timeout and last inbound age, but no session or
-ping IDs. Transport metrics do not add per-message completion clocks or historical high-watermark bookkeeping.
+client type, runtime and Java versions, actual transport and completion executor worker modes, retained, decode/admission,
+admitted-functional, compressed-pending and one deferred-frame byte counts, all effective ingress and
+result-completion limits, admitted and admission-pending completion groups, current result-completion queue state, the
+opt-in stall-close timeout and last inbound age, but no session or ping IDs. Transport metrics do not add per-message
+completion clocks or historical high-watermark bookkeeping.
 Enabling this diagnostic also records the last native inbound activity using monotonic time; the default listener
 performs no corresponding clock reads. Ping-timeout close starts before best-effort metric publication is dispatched.
 Transport metrics follow
