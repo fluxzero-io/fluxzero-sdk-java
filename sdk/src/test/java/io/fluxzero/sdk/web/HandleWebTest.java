@@ -679,7 +679,7 @@ public class HandleWebTest {
                                     MessageType.WEBREQUEST,
                                     c -> c.toBuilder().errorHandler(errorHandler).build()),
                                new Handler())
-                    .whenGet("/users/abc")
+                    .whenGet("/users/abc?token=query-secret")
                     .expectWebResponse(r -> r.getStatus() == 403)
                     .expectThat(fc -> assertEquals(
                             "Handler \"Handler\" failed to handle a web request GET /users/abc",
@@ -2522,6 +2522,29 @@ public class HandleWebTest {
                     return request.getCookie("foo").orElseThrow().getValue();
                 }
             }).withCookie("foo", "bar").whenGet("/checkCookie").expectResult("bar");
+        }
+
+        @Test
+        void testWithRepeatedCookieHeaders() {
+            TestFixture.create(new Object() {
+                        @HandleGet("/checkCookies")
+                        List<String> check(WebRequest request) {
+                            return request.getCookies().stream()
+                                    .map(cookie -> cookie.getName() + "=" + cookie.getValue()).toList();
+                        }
+                    }).withHeader("Cookie", "first=one", "second=two")
+                    .whenGet("/checkCookies").expectResult(List.of("first=one", "second=two"));
+        }
+
+        @Test
+        void cookieParamFindsCookieInLaterHeader() {
+            TestFixture.create(new Object() {
+                        @HandleGet("/checkCookieParam")
+                        String check(@CookieParam("second") String second) {
+                            return second;
+                        }
+                    }).withHeader("Cookie", "first=one", "second=two")
+                    .whenGet("/checkCookieParam").expectResult("two");
         }
 
         @Test

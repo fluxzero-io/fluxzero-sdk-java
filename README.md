@@ -1308,6 +1308,13 @@ Your `UserProvider` implementation can also support testing and system behavior 
 
 This ensures your custom user logic is consistently applied, even in automated tests and background execution.
 
+With `fluxzero.defaults.version >= 2026.08.04`, `AbstractUserProvider` stores `User.getName()` in its metadata field for
+regular users and `$system` for the system user, instead of serializing the complete user. On receipt, `$system` resolves
+through `getSystemUser()` and other IDs through `getUserById(...)`; complete user objects from older messages remain
+readable. Applications using compatibility defaults keep the complete-user format. Set
+`fluxzero.auth.useUserIdMetadata` explicitly to `true` or `false` to select either format independently of the defaults
+version.
+
 ---
 
 ### 🔧 Registering your UserProvider
@@ -2420,6 +2427,41 @@ exclude a package, class, method, parameter, field, record component, or type us
 disabling the runtime endpoint or model. Use `@ApiDocInfo.security` for top-level security requirements and
 `@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI components such as reusable responses or
 security schemes when automatic inference is not enough.
+
+#### Request Cookies
+
+[HTTP/2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.3) and
+[HTTP/3](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2.1) can split one logical `Cookie` field over multiple
+field lines for compression. `WebRequest` parses all received `Cookie` values in logical wire order, whether the HTTP
+layer preserves those field lines or combines them with `; `. Commas are cookie-value data, not cookie-pair separators.
+
+```java
+List<HttpCookie> allCookies = request.getCookies();
+List<HttpCookie> sessions = request.getCookies("session");
+Optional<HttpCookie> firstSession = request.getCookie("session");
+```
+
+`getCookies()` returns every cookie without collapsing duplicate names. `getCookies(name)` uses an exact,
+case-sensitive name match. HTTP header names remain case-insensitive, so `Cookie` and `cookie` identify the same header;
+cookie names such as `Session` and `session` remain distinct.
+
+`getCookie(name)` retains its existing first-match behavior and uses `CookieValueConflictPolicy.DEFAULT`, which is
+`ALLOW_CONFLICTING_VALUES` in this release. It now also finds a first match in a later cookie field. Callers that need
+every value should use `getCookies(name)` instead of splitting raw headers.
+
+For security-sensitive cookies, reject conflicting values explicitly:
+
+```java
+HttpCookie session = request
+        .getCookie("session", CookieValueConflictPolicy.REJECT_CONFLICTING_VALUES)
+        .orElseThrow();
+```
+
+`REJECT_CONFLICTING_VALUES` accepts repeated cookies when their parsed values are exactly equal and throws a redacted
+`CookieConflictException` when any value differs. The exception contains no cookie name or value. Use this policy for
+session, authentication, authorization, flow-binding, and CSRF cookies so different processing layers cannot select
+different values from the same request. Cookie headers and values are excluded from `WebRequest` and builder
+`toString()` output.
 
 #### Other Parameter Annotations
 
@@ -5025,6 +5067,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+| `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
 
 For example:
 
@@ -5035,7 +5078,7 @@ fluxzero.defaults.version=2026.05.21
 This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
 explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
 `fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
-and implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
 
 ### Encrypted Values
 
@@ -5555,7 +5598,7 @@ To configure and instantiate a WebSocket-backed client:
 ```java
 WebSocketClient client = WebSocketClient.newInstance(
         WebSocketClient.ClientConfig.builder()
-                .serviceBaseUrl("wss://my.flux.host")
+                .runtimeBaseUrl("wss://my.flux.host")
                 .name("my-service")
                 .build());
 
@@ -5563,7 +5606,7 @@ Fluxzero flux = Fluxzero.builder().build(client);
 ```
 
 This is the most common setup for production and shared environments. It connects to a remote Fluxzero Runtime via the
-service base URL, which must point to the desired deployment.
+runtime base URL, which must point to the desired deployment.
 
 ---
 
@@ -5574,16 +5617,76 @@ and can be created or extended using the `toBuilder()` pattern.
 
 Key options include:
 
-| Setting                     | Description                                                  | Default                          |
-|-----------------------------|--------------------------------------------------------------|----------------------------------|
-| `serviceBaseUrl`            | Base URL for all subsystems <br/>(e.g. `wss://my.flux.host`) | `FLUX_BASE_URL` property         |
-| `name`                      | Name of the application                                      | `FLUX_APPLICATION_NAME` property |
-| `applicationId`             | Optional app ID                                              | `FLUX_APPLICATION_ID` property   |
-| `id`                        | Unique client instance ID                                    | `FLUX_TASK_ID` property or UUID  |
-| `compression`               | Compression algorithm                                        | `LZ4`                            |
-| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health                     | 10s / 5s                         |
-| `disableMetrics`            | Whether to suppress all outgoing metrics                     | `false`                          |
-| `typeFilter`                | Optional message type restriction                            | `null`                           |
+| Setting | Description | Default |
+|---|---|---|
+| `runtimeBaseUrl` | Base URL for all subsystems, e.g. `wss://my.flux.host` | `FLUXZERO_BASE_URL` or `FLUX_BASE_URL` |
+| `name` | Name of the application | `FLUXZERO_APPLICATION_NAME` or `FLUX_APPLICATION_NAME` |
+| `applicationId` | Optional application ID | `FLUXZERO_APPLICATION_ID` or `FLUX_APPLICATION_ID` |
+| `id` | Unique client instance ID | `FLUXZERO_TASK_ID`, `FLUX_TASK_ID`, or UUID |
+| `supportedCompressionAlgorithms` | Preferred and fallback compression algorithms | ZSTD, then LZ4 |
+| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health | 10s / 15s |
+| `maxConcurrentRuntimeWebSocketMessages` | Complete runtime messages processed concurrently per session | `FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY` or `3` |
+| `maxRetainedRuntimeWebSocketMessages` | Total assembling, pending, submitted, and active runtime messages per session | `FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES` or `19` |
+| `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES` or 16 MiB |
+| `disableMetrics` | Whether to suppress all outgoing metrics | `false` |
+| `typeFilter` | Optional message type restriction | `null` |
+
+---
+
+### Runtime Data Dispatch Isolation
+
+SDK clients route complete runtime messages through a bounded dispatcher. With the default `JdkWebsocketConnector`, its
+executor is separate from the JDK WebSocket protocol callback workers. Protocol ingress remains ordered, while up to
+three complete messages from one session may be processed concurrently. Slow decode or result handling therefore does
+not occupy the default callback executor that acknowledges an already delivered pong, and independent runtime results
+can again complete in parallel. Applications must not rely on WebSocket arrival order or single-threaded result
+completion; request/result correlation remains based on request IDs.
+
+By default, the dispatcher retains at most 19 runtime messages or 16 MiB per session: up to three executor-submitted
+messages and up to 16 pending or being assembled. Pending capacity is always derived as
+`maxRetainedRuntimeWebSocketMessages - maxConcurrentRuntimeWebSocketMessages`; it is not a separate setting.
+Submitted, running, and pending messages remain in that accounting until their processing fully completes. A single
+larger message may proceed when it is the only retained message, but no later message is accepted alongside it.
+WebSocket demand remains open at the bound so a subsequent pong can still reach the protocol handler. If the next
+frame starts another data message instead, the SDK fails that session with a runtime-ingress overflow before copying
+its payload; reconnect then occurs rather than buffering beyond the bound. Fragment reassembly reserves one retained
+message slot and its accumulated compressed bytes count toward the same bound. The byte bound applies to compressed
+wire payloads and does not cap the size of decompressed object graphs.
+
+The limits can be tuned without disabling protocol isolation:
+
+```java
+WebSocketClient.ClientConfig.builder()
+        .maxConcurrentRuntimeWebSocketMessages(3)
+        .maxRetainedRuntimeWebSocketMessages(19)
+        .maxRetainedRuntimeWebSocketBytes(16L * 1024 * 1024)
+        .build();
+```
+
+An explicit builder value takes precedence over the corresponding environment variable or system/application
+property, which in turn takes precedence over the SDK default. Concurrency must be at least one, retained messages
+must be at least concurrency, and retained bytes must be positive; invalid combinations are rejected when the
+`WebSocketClient` is constructed. There is no disable or unbounded mode. Set concurrency to one for serial runtime
+message callbacks while retaining the liveness isolation.
+
+Increase retained messages for bursts of small responses and retained bytes for larger compressed responses. Increase
+concurrency only when decode or handling is the bottleneck and the process has CPU and heap headroom. These limits are
+per physical WebSocket session, so account for the configured number of subsystem sessions. For tracking workloads,
+consider lowering fetch size or byte limits before substantially increasing the WebSocket retention envelope.
+
+The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
+explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied
+single-thread executor therefore does not promise the same isolation.
+
+Transport anomaly metrics remain disabled by default. Set
+`fluxzero.websocket.transportMetrics.enabled=true` to emit a metric only for ping timeout, runtime-ingress overflow, or
+runtime-data executor rejection. They contain the client type, runtime and Java versions, actual executor
+isolation/ownership and worker mode, retained, executor-submitted, active, and dispatcher-pending message/byte counts,
+the active-concurrency and retained message/byte limits, and last inbound age, but no session or ping IDs. Enabling
+this diagnostic also records the last native inbound activity using monotonic time; the default listener performs no
+corresponding clock reads. Ping-timeout close starts before best-effort metric publication is dispatched. Transport
+metrics follow
+`disableMetrics` and are suppressed on the metrics WebSocket itself to avoid recursive publication.
 
 ---
 

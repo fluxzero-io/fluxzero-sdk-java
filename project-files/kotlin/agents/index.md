@@ -2,8 +2,12 @@
 
 **CRITICAL: Start by reading [Guidelines](rules/guidelines.md).**
 
-These files are the **absolute source of truth** for this project. The Guidelines manual contains a 
-**Task Decision Tree** to help you find specific implementation details in the other manuals as you need them.
+These files are the **source of truth for Fluxzero SDK behavior at the version used by this project**. They are
+synchronized from the matching SDK release. Use `fluxzero-docs` for current SDK guidance and compare its advertised
+version with the effective project version before applying version-sensitive advice. The installed Fluxzero CLI is the
+source of truth for its evolving commands and dev-server configuration; see [Local Development](rules/development.md).
+The Guidelines manual contains a **Task Decision Tree** to help you find specific implementation details in the other
+manuals as you need them.
 
 ## Recommended Reading Strategy
 
@@ -27,6 +31,7 @@ Check the folder `{project-root}/.fluxzero/agents/rules` for:
 - **[Runtime Interaction](rules/runtime-interaction.md)**: Cross-app message flow, delivery semantics, and scaling model.
 - **[Search](rules/search.md)**: Document store and search indexing.
 - **[Testing](rules/testing.md)**: Verification using `TestFixture`.
+- **[Local Development](rules/development.md)**: Version-aligned CLI, dev-server, and `dev.yaml` guidance.
 - **[Validation](rules/validation.md)**: Security, authorization, and payload validation.
 - **[Serialization](rules/serialization.md)**: Versioning and upcasting.
 - **[Configuration](rules/configuration.md)**: SDK and application setup.

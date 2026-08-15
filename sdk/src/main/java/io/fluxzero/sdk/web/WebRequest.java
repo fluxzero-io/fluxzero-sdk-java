@@ -88,6 +88,7 @@ import static io.fluxzero.common.api.Data.JSON_FORMAT;
 public class WebRequest extends Message {
 
     public static final String urlKey = "url", methodKey = "method", headersKey = "headers", sessionIdKey = "sessionId";
+    private static final int MAX_LOGGED_PATH_LENGTH = 512;
 
     /**
      * Creates a new {@link Builder} instance for constructing a {@link WebRequest}.
@@ -141,12 +142,16 @@ public class WebRequest extends Message {
     Map<String, List<String>> headers;
 
     /**
-     * Lazily parsed list of HTTP cookies, derived from the "Cookie" header.
+     * Returns all request cookies from every {@code Cookie} header value in logical wire order.
+     * <p>
+     * Each header value is parsed as a semicolon-separated sequence. Cookies with the same name are not collapsed.
+     * Header names are case-insensitive, while cookie names remain case-sensitive.
+     *
+     * @return all request cookies, or an empty list when none are present
      */
     @Getter(lazy = true)
     @JsonIgnore
-    List<HttpCookie> cookies = Optional.ofNullable(getHeader("Cookie"))
-            .map(WebUtils::parseRequestCookieHeader).orElse(Collections.emptyList());
+    List<HttpCookie> cookies = parseCookieHeaders(getHeaders("Cookie"));
 
     private WebRequest(Builder builder) {
         super(builder.payload(), builder.metadata.with(urlKey, builder.url(), methodKey, builder.method(),
@@ -271,13 +276,59 @@ public class WebRequest extends Message {
     }
 
     /**
-     * Finds a cookie by name.
+     * Finds the first cookie with the given name in logical wire order.
+     * <p>
+     * This method retains its first-match behavior and is equivalent to calling
+     * {@link #getCookie(String, CookieValueConflictPolicy)} with {@link CookieValueConflictPolicy#DEFAULT}. Cookies in
+     * later {@code Cookie} header values are now included in the lookup.
      *
-     * @param name the cookie name
-     * @return optional cookie
+     * @param name the case-sensitive cookie name
+     * @return the first matching cookie, or empty if it is absent
      */
     public Optional<HttpCookie> getCookie(String name) {
-        return getCookies().stream().filter(c -> Objects.equals(name, c.getName())).findFirst();
+        return getCookie(name, CookieValueConflictPolicy.DEFAULT);
+    }
+
+    /**
+     * Finds a cookie with the given name using the requested conflict policy.
+     * <p>
+     * Identical repeated values are accepted by both policies. {@link CookieValueConflictPolicy#REJECT_CONFLICTING_VALUES}
+     * throws a redacted {@link CookieConflictException} when at least one matching value differs.
+     *
+     * @param name           the case-sensitive cookie name
+     * @param conflictPolicy the policy for matching cookies with different values
+     * @return the first matching cookie, or empty if it is absent
+     * @throws CookieConflictException if conflicting values are present and rejection is requested
+     */
+    public Optional<HttpCookie> getCookie(String name, CookieValueConflictPolicy conflictPolicy) {
+        CookieValueConflictPolicy requestedPolicy = Objects.requireNonNull(conflictPolicy, "conflictPolicy");
+        CookieValueConflictPolicy resolvedPolicy = requestedPolicy == CookieValueConflictPolicy.DEFAULT
+                ? CookieValueConflictPolicy.ALLOW_CONFLICTING_VALUES : requestedPolicy;
+        HttpCookie first = null;
+        for (HttpCookie cookie : getCookies()) {
+            if (!Objects.equals(name, cookie.getName())) {
+                continue;
+            }
+            if (first == null) {
+                first = cookie;
+                if (resolvedPolicy == CookieValueConflictPolicy.ALLOW_CONFLICTING_VALUES) {
+                    return Optional.of(cookie);
+                }
+            } else if (!Objects.equals(first.getValue(), cookie.getValue())) {
+                throw new CookieConflictException();
+            }
+        }
+        return Optional.ofNullable(first);
+    }
+
+    /**
+     * Returns all cookies with the given name in logical wire order, without collapsing duplicates.
+     *
+     * @param name the case-sensitive cookie name
+     * @return all matching cookies, possibly empty
+     */
+    public List<HttpCookie> getCookies(String name) {
+        return getCookies().stream().filter(c -> Objects.equals(name, c.getName())).toList();
     }
 
     /**
@@ -296,7 +347,7 @@ public class WebRequest extends Message {
     }
 
     /**
-     * The HTTP headers as a case-sensitive map. Header values are lists to support repeated headers.
+     * The HTTP headers as a case-insensitive map. Header values are lists to support repeated headers.
      */
     public @NonNull Map<String, List<String>> getHeaders() {
         return headers;
@@ -319,6 +370,39 @@ public class WebRequest extends Message {
     public static String getUrl(Metadata metadata) {
         return Optional.ofNullable(metadata.get(urlKey)).map(u -> u.startsWith("/") || u.contains("://") ? u : "/" + u)
                 .orElseThrow(() -> new IllegalStateException("WebRequest is malformed: url is missing"));
+    }
+
+    /**
+     * Extracts a bounded request path that is safe to include in logs, metrics and error reports.
+     * <p>
+     * The origin, query string and fragment are intentionally omitted because they may contain credentials or
+     * ceremony state. Use {@link #getUrl(Metadata)} when the complete request target is required for request handling.
+     *
+     * @param metadata the request metadata
+     * @return the path without origin, query string or fragment, limited to 512 characters
+     */
+    public static String getPathForLogging(Metadata metadata) {
+        String url = getUrl(metadata);
+        int start = 0;
+        int schemeSeparator = url.indexOf("://");
+        if (url.startsWith("//")) {
+            int firstPathSeparator = url.indexOf('/', 2);
+            start = firstPathSeparator < 0 ? url.length() : firstPathSeparator;
+        } else if (!url.startsWith("/") && schemeSeparator >= 0) {
+            int firstPathSeparator = url.indexOf('/', schemeSeparator + 3);
+            start = firstPathSeparator < 0 ? url.length() : firstPathSeparator;
+        }
+        int querySeparator = url.indexOf('?', start);
+        int fragmentSeparator = url.indexOf('#', start);
+        int end = querySeparator < 0 ? url.length() : querySeparator;
+        if (fragmentSeparator >= 0 && fragmentSeparator < end) {
+            end = fragmentSeparator;
+        }
+        String path = start == url.length() ? "/" : url.substring(start, end);
+        if (path.isEmpty()) {
+            path = "/";
+        }
+        return path.length() <= MAX_LOGGED_PATH_LENGTH ? path : path.substring(0, MAX_LOGGED_PATH_LENGTH);
     }
 
     /**
@@ -351,9 +435,17 @@ public class WebRequest extends Message {
      * Retrieves the first cookie with the given name from the provided Metadata object.
      */
     public static Optional<HttpCookie> getCookie(Metadata metadata, String name) {
-        return getHeaders(metadata).getOrDefault("Cookie", Collections.emptyList())
-                .stream().findFirst().map(WebUtils::parseRequestCookieHeader).orElseGet(Collections::emptyList)
+        return parseCookieHeaders(getHeaders(metadata).getOrDefault("Cookie", Collections.emptyList()))
                 .stream().filter(c -> Objects.equals(c.getName(), name)).findFirst();
+    }
+
+    static List<HttpCookie> parseCookieHeaders(List<String> cookieHeaders) {
+        return switch (cookieHeaders.size()) {
+            case 0 -> List.of();
+            case 1 -> WebUtils.parseRequestCookieHeader(cookieHeaders.getFirst());
+            default -> cookieHeaders.stream()
+                    .flatMap(header -> WebUtils.parseRequestCookieHeader(header).stream()).toList();
+        };
     }
 
     /**
@@ -375,6 +467,7 @@ public class WebRequest extends Message {
      * Fluent builder for {@link WebRequest}. Use {@link #builder()} to start building.
      */
     @Data
+    @ToString(exclude = {"headers", "cookies", "metadata"})
     @NoArgsConstructor
     @Accessors(fluent = true, chain = true)
     @FieldDefaults(level = AccessLevel.PRIVATE)
@@ -394,11 +487,7 @@ public class WebRequest extends Message {
         protected Builder(Metadata metadata) {
             method(WebRequest.getMethod(metadata));
             url(WebRequest.getUrl(metadata));
-            WebRequest.getHeaders(metadata).forEach((k, v) -> headers.put(k, new ArrayList<>(v)));
             headers(WebRequest.getHeaders(metadata));
-            cookies.addAll(WebUtils.parseRequestCookieHeader(
-                    Optional.ofNullable(headers.remove("Cookie")).orElseGet(List::of)
-                            .stream().findFirst().orElse(null)));
         }
 
         protected Builder(WebRequest request) {
@@ -406,9 +495,6 @@ public class WebRequest extends Message {
             url(request.getPath());
             payload(request.getPayload());
             headers(request.getHeaders());
-            cookies.addAll(WebUtils.parseRequestCookieHeader(
-                    Optional.ofNullable(headers.remove("Cookie")).orElseGet(List::of)
-                            .stream().findFirst().orElse(null)));
             metadata = request.getMetadata();
         }
 
@@ -433,7 +519,7 @@ public class WebRequest extends Message {
         }
 
         public Builder headers(Map<String, List<String>> headers) {
-            this.headers.putAll(headers);
+            headers.forEach((key, values) -> this.headers.put(key, new ArrayList<>(values)));
             return this;
         }
 
@@ -443,8 +529,16 @@ public class WebRequest extends Message {
         }
 
         public Builder cookie(HttpCookie cookie) {
-            cookies.add(cookie);
+            cookies().add(cookie);
             return this;
+        }
+
+        public List<HttpCookie> cookies() {
+            List<String> cookieHeaders = headers.remove("Cookie");
+            if (cookieHeaders != null) {
+                cookies.addAll(parseCookieHeaders(cookieHeaders));
+            }
+            return cookies;
         }
 
         public Builder contentType(String contentType) {

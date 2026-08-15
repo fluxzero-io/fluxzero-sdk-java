@@ -62,21 +62,37 @@ enum WebsocketResultDiagnostics {
         }
 
         @Override
-        FrameTiming frameTiming(WebsocketEndpoint.ReceiveTiming timing) {
-            if (timing == null) {
-                return FrameTiming.none();
-            }
-            return new FrameTiming(timing.frameReceivedTimestamp(), timing.frameDispatchQueuedTimestamp(),
-                                   timing.frameDispatchStartedTimestamp());
+        long monotonicTimestamp() {
+            return System.nanoTime();
         }
 
         @Override
-        ResultTiming resultTiming(FrameTiming frameTiming, long decodedTimestamp, long callbackQueuedTimestamp,
-                                  long callbackStartedTimestamp) {
+        FrameTiming frameTiming(WebsocketEndpoint.ReceiveTiming timing) {
+            return frameTiming(timing, null);
+        }
+
+        @Override
+        FrameTiming frameTiming(WebsocketEndpoint.ReceiveTiming timing,
+                                SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming runtimeTiming) {
+            if (timing == null) {
+                return FrameTiming.none();
+            }
+            long runtimeQueuedTimestamp = runtimeTiming == null ? 0L : runtimeTiming.queuedTimestamp();
+            long runtimeStartedTimestamp = runtimeTiming == null ? 0L : runtimeTiming.startedTimestamp();
+            long runtimeQueueDuration = runtimeTiming == null ? 0L : runtimeTiming.queueDuration();
+            return new FrameTiming(timing.frameReceivedTimestamp(), timing.frameDispatchQueuedTimestamp(),
+                                   timing.frameDispatchStartedTimestamp(), runtimeQueuedTimestamp,
+                                   runtimeStartedTimestamp, runtimeQueueDuration);
+        }
+
+        @Override
+        ResultTiming resultTiming(FrameTiming frameTiming, long decodedTimestamp, long decodeDuration,
+                                  long callbackQueuedTimestamp, long callbackStartedTimestamp) {
             FrameTiming timing = frameTiming == null ? FrameTiming.none() : frameTiming;
             return new ResultTiming(timing.frameReceivedTimestamp(), timing.frameDispatchQueuedTimestamp(),
-                                    timing.frameDispatchStartedTimestamp(), decodedTimestamp, callbackQueuedTimestamp,
-                                    callbackStartedTimestamp);
+                                    timing.frameDispatchStartedTimestamp(), timing.runtimeDispatchQueuedTimestamp(),
+                                    timing.runtimeDispatchStartedTimestamp(), timing.runtimeQueueDuration(),
+                                    decodedTimestamp, decodeDuration, callbackQueuedTimestamp, callbackStartedTimestamp);
         }
 
         @Override
@@ -119,9 +135,24 @@ enum WebsocketResultDiagnostics {
     }
 
     /**
+     * Returns a monotonic timestamp for duration measurements, or {@code 0} when timings are disabled.
+     */
+    long monotonicTimestamp() {
+        return 0L;
+    }
+
+    /**
      * Converts endpoint receive timing into frame timing metadata input.
      */
     FrameTiming frameTiming(WebsocketEndpoint.ReceiveTiming timing) {
+        return FrameTiming.none();
+    }
+
+    /**
+     * Converts transport and runtime-dispatch timing into metadata input.
+     */
+    FrameTiming frameTiming(WebsocketEndpoint.ReceiveTiming timing,
+                            SdkRuntimeWebsocketEndpoint.RuntimeDispatchTiming runtimeTiming) {
         return FrameTiming.none();
     }
 
@@ -130,6 +161,14 @@ enum WebsocketResultDiagnostics {
      */
     ResultTiming resultTiming(FrameTiming frameTiming, long decodedTimestamp, long callbackQueuedTimestamp,
                               long callbackStartedTimestamp) {
+        return resultTiming(frameTiming, decodedTimestamp, 0L, callbackQueuedTimestamp, callbackStartedTimestamp);
+    }
+
+    /**
+     * Combines frame, runtime queue, decode, and callback timings into result metadata input.
+     */
+    ResultTiming resultTiming(FrameTiming frameTiming, long decodedTimestamp, long decodeDuration,
+                              long callbackQueuedTimestamp, long callbackStartedTimestamp) {
         return ResultTiming.none();
     }
 
@@ -163,7 +202,11 @@ enum WebsocketResultDiagnostics {
                 "clientFrameReceivedTimestamp", timing.frameReceivedTimestamp(),
                 "clientFrameDispatchQueuedTimestamp", timing.frameDispatchQueuedTimestamp(),
                 "clientFrameDispatchStartedTimestamp", timing.frameDispatchStartedTimestamp(),
+                "clientRuntimeDispatchQueuedTimestamp", timing.runtimeDispatchQueuedTimestamp(),
+                "clientRuntimeDispatchStartedTimestamp", timing.runtimeDispatchStartedTimestamp(),
+                "clientRuntimeQueueDuration", timing.runtimeQueueDuration(),
                 "clientDecodedTimestamp", timing.decodedTimestamp(),
+                "clientDecodeDuration", timing.decodeDuration(),
                 "clientCallbackQueuedTimestamp", timing.callbackQueuedTimestamp(),
                 "clientCallbackStartedTimestamp", timing.callbackStartedTimestamp());
     }
@@ -202,9 +245,12 @@ enum WebsocketResultDiagnostics {
     record FrameTiming(
             long frameReceivedTimestamp,
             long frameDispatchQueuedTimestamp,
-            long frameDispatchStartedTimestamp
+            long frameDispatchStartedTimestamp,
+            long runtimeDispatchQueuedTimestamp,
+            long runtimeDispatchStartedTimestamp,
+            long runtimeQueueDuration
     ) {
-        private static final FrameTiming NONE = new FrameTiming(0L, 0L, 0L);
+        private static final FrameTiming NONE = new FrameTiming(0L, 0L, 0L, 0L, 0L, 0L);
 
         static FrameTiming none() {
             return NONE;
@@ -218,11 +264,15 @@ enum WebsocketResultDiagnostics {
             long frameReceivedTimestamp,
             long frameDispatchQueuedTimestamp,
             long frameDispatchStartedTimestamp,
+            long runtimeDispatchQueuedTimestamp,
+            long runtimeDispatchStartedTimestamp,
+            long runtimeQueueDuration,
             long decodedTimestamp,
+            long decodeDuration,
             long callbackQueuedTimestamp,
             long callbackStartedTimestamp
     ) {
-        private static final ResultTiming NONE = new ResultTiming(0L, 0L, 0L, 0L, 0L, 0L);
+        private static final ResultTiming NONE = new ResultTiming(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
 
         static ResultTiming none() {
             return NONE;

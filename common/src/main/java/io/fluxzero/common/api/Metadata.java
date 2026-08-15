@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.serialization.NullCollectionsAsEmptyModule;
 import lombok.NonNull;
@@ -33,10 +34,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
+import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS;
 import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS;
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
@@ -379,6 +382,26 @@ public class Metadata {
         return Optional.ofNullable(get(key));
     }
 
+    private static boolean hasObjectEncoding(String value) {
+        int start = skipWhitespace(value, 0);
+        if (start == value.length()) {
+            return false;
+        }
+        int end = value.length() - 1;
+        while (end > start && Character.isWhitespace(value.charAt(end))) {
+            end--;
+        }
+        return value.charAt(start) == '{' && value.charAt(end) == '}'
+               || value.charAt(start) == '[' && value.charAt(end) == ']';
+    }
+
+    private static int skipWhitespace(String value, int offset) {
+        while (offset < value.length() && Character.isWhitespace(value.charAt(offset))) {
+            offset++;
+        }
+        return offset;
+    }
+
     /**
      * Retrieves the value associated with the given key and attempts to deserialize it into the specified type.
      *
@@ -404,6 +427,43 @@ public class Metadata {
         }
         try {
             return objectMapper.readValue(value, type);
+        } catch (IOException e) {
+            throw new IllegalStateException(format("Failed to deserialize value %s to a %s for key %s",
+                                                   value, type.getSimpleName(), key), e);
+        }
+    }
+
+    /**
+     * Retrieves an object value or maps a raw string value to the requested type.
+     * <p>
+     * Values enclosed by matching object or array delimiters are first deserialized using this metadata instance's
+     * object mapper. If such a value is not syntactically valid JSON, or if it is not enclosed by those delimiters, it
+     * is passed to {@code stringMapper}. A mapping failure for valid JSON remains a deserialization error. Missing and
+     * explicitly null values return {@code null}.
+     *
+     * @param key          the key whose value should be retrieved
+     * @param type         the object type to deserialize
+     * @param stringMapper maps a raw string value to the requested type
+     * @param <T>          the requested type
+     * @return the deserialized or mapped value, or {@code null} if the value is missing or explicitly null
+     * @throws IllegalStateException if a valid JSON value cannot be mapped to the requested type
+     */
+    public <T> T get(Object key, Class<? extends T> type, Function<String, ? extends T> stringMapper) {
+        String value = get(key);
+        if (value == null || "null".equals(value)) {
+            return null;
+        }
+        if (!hasObjectEncoding(value)) {
+            return stringMapper.apply(value);
+        }
+        JsonNode tree;
+        try {
+            tree = objectMapper.reader().with(FAIL_ON_TRAILING_TOKENS).readTree(value);
+        } catch (IOException e) {
+            return stringMapper.apply(value);
+        }
+        try {
+            return objectMapper.treeToValue(tree, type);
         } catch (IOException e) {
             throw new IllegalStateException(format("Failed to deserialize value %s to a %s for key %s",
                                                    value, type.getSimpleName(), key), e);

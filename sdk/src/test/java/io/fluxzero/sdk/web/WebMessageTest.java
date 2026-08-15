@@ -14,14 +14,44 @@
 
 package io.fluxzero.sdk.web;
 
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import org.junit.jupiter.api.Test;
 
 import java.net.HttpCookie;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
+import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebMessageTest {
+
+    @Test
+    void pathForLoggingOmitsOriginQueryAndFragment() {
+        Metadata metadata = Metadata.of(WebRequest.urlKey,
+                                        "https://auth.example.test/auth/flow?flow=query-secret#fragment-secret");
+
+        assertEquals("/auth/flow", WebRequest.getPathForLogging(metadata));
+        assertEquals("/auth/flow", WebRequest.getPathForLogging(Metadata.of(
+                WebRequest.urlKey, "/auth/flow?return=https://example.test/query-secret")));
+        assertEquals("/auth/flow", WebRequest.getPathForLogging(Metadata.of(
+                WebRequest.urlKey, "//auth.example.test/auth/flow?flow=query-secret")));
+    }
+
+    @Test
+    void pathForLoggingHandlesOriginWithoutPathAndBoundsResult() {
+        assertEquals("/", WebRequest.getPathForLogging(
+                Metadata.of(WebRequest.urlKey, "https://auth.example.test?flow=query-secret")));
+
+        String result = WebRequest.getPathForLogging(Metadata.of(WebRequest.urlKey, "/" + "a".repeat(600)));
+        assertEquals(512, result.length());
+        assertTrue(result.startsWith("/aaa"));
+    }
 
     @Test
     void testConvertComplexResponseViaBuilder() {
@@ -49,5 +79,65 @@ class WebMessageTest {
         assertEquals((Object) input.getPayload(), converted.getPayload());
         assertEquals(input.getMetadata(), converted.getMetadata());
         assertFalse(input.getHeaders("Cookie").isEmpty());
+    }
+
+    @Test
+    void existingCookieContractIsCaseSensitiveAndFirstMatch() {
+        WebRequest request = WebRequest.get("/test")
+                .header("cOoKiE", "Session=upper; session=first; session=second")
+                .build();
+
+        assertEquals(List.of("Session=upper", "session=first", "session=second"),
+                     request.getCookies().stream().map(c -> c.getName() + "=" + c.getValue()).toList());
+        assertEquals("upper", request.getCookie("Session").orElseThrow().getValue());
+        assertEquals("first", request.getCookie("session").orElseThrow().getValue());
+        assertEquals(List.of("Session=upper; session=first; session=second"), request.getHeaders("COOKIE"));
+    }
+
+    @Test
+    void repeatedCookieHeaderValuesSurviveMetadataSerialization() {
+        WebRequest input = WebRequest.get("/test")
+                .header("Cookie", "first=one")
+                .header("Cookie", "second=two")
+                .payload(Map.of("body", "value"))
+                .build();
+
+        assertEquals(List.of("first=one", "second=two"), input.getHeaders("cookie"));
+        assertEquals(input.getHeaders("Cookie"), WebRequest.getHeaders(input.getMetadata()).get("COOKIE"));
+
+        JacksonSerializer serializer = new JacksonSerializer();
+        WebRequest copy = (WebRequest) serializer.deserializeMessage(input.serialize(serializer), WEBREQUEST)
+                .toMessage();
+        assertEquals(input.getHeaders("Cookie"), copy.getHeaders("cookie"));
+    }
+
+    @Test
+    void rawHeaderMapRetainsCaseInsensitiveReplacementSemantics() {
+        Map<String, List<String>> rawHeaders = new LinkedHashMap<>();
+        rawHeaders.put("cookie", List.of("first=one"));
+        rawHeaders.put("COOKIE", List.of("second=two"));
+        rawHeaders.put("X-Test", List.of("old"));
+        rawHeaders.put("x-test", List.of("new"));
+        Metadata metadata = Metadata.empty().with(
+                WebRequest.urlKey, "/test", WebRequest.methodKey, HttpRequestMethod.GET,
+                WebRequest.headersKey, rawHeaders);
+
+        assertEquals(List.of("second=two"), WebRequest.getHeaders(metadata).get("Cookie"));
+        assertEquals(List.of("new"), WebRequest.getHeaders(metadata).get("X-Test"));
+    }
+
+    @Test
+    void builderCookieListRetainsMutableContract() {
+        WebRequest.Builder builder = WebRequest.get("/test").cookie(new HttpCookie("first", "one"));
+        List<HttpCookie> cookies = builder.cookies();
+        assertSame(cookies, builder.cookies());
+
+        cookies.add(new HttpCookie("second", "two"));
+        cookies.getFirst().setValue("updated");
+
+        WebRequest request = builder.build();
+        assertEquals(List.of("first=updated; second=two"), request.getHeaders("Cookie"));
+        assertEquals(List.of("updated", "two"),
+                     request.getCookies().stream().map(HttpCookie::getValue).toList());
     }
 }

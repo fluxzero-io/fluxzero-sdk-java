@@ -34,6 +34,7 @@ import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.application.DefaultPropertySource;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
 import io.fluxzero.common.websocket.WebSocketTransportCodec;
@@ -82,6 +83,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE;
 import static com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS;
+import static io.fluxzero.common.Guarantee.NONE;
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.METRICS;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
@@ -132,6 +134,9 @@ import static java.util.Optional.ofNullable;
  * @see ResultBatch
  */
 public abstract class AbstractWebsocketClient implements WebsocketEndpoint, AutoCloseable {
+    static final String TRANSPORT_METRICS_ENABLED_PROPERTY =
+            "fluxzero.websocket.transportMetrics.enabled";
+    private static final Duration CLOSE_HANDSHAKE_TIMEOUT = Duration.ofSeconds(1);
     protected static final Duration CONNECTION_TIMEOUT_FAILSAFE_GRACE = Duration.ofSeconds(5);
     protected static final int CONNECTION_RETRY_LOG_INTERVAL = 10;
     protected static final String CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY =
@@ -176,7 +181,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final ExecutorService reconnectExecutor;
     private final Semaphore inFlightWebSocketBytes;
     private final boolean allowMetrics;
+    private final boolean transportMetricsEnabled;
     private final WebsocketResultDiagnostics resultDiagnostics;
+    private final SdkRuntimeWebsocketEndpoint sdkRuntimeEndpoint = new SdkRuntimeWebsocketEndpoint(this);
 
     @Getter(value = AccessLevel.PROTECTED, lazy = true)
     private final Serializer fallbackSerializer = new JacksonSerializer();
@@ -225,20 +232,34 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     public AbstractWebsocketClient(WebsocketConnector connector, URI endpointUri, WebSocketClient client,
                                    boolean allowMetrics, Duration reconnectDelay, ObjectMapper objectMapper,
                                    int numberOfSessions) {
+        this(connector, endpointUri, client, allowMetrics, reconnectDelay, objectMapper, numberOfSessions,
+             DefaultPropertySource.getInstance(), AbstractWebsocketClient::createPingScheduler);
+    }
+
+    AbstractWebsocketClient(WebsocketConnector connector, URI endpointUri, WebSocketClient client,
+                            boolean allowMetrics, Duration reconnectDelay, ObjectMapper objectMapper,
+                            int numberOfSessions, PropertySource propertySource,
+                            PingSchedulerFactory pingSchedulerFactory) {
         this.client = client;
         this.clientConfig = client.getClientConfig();
         this.objectMapper = objectMapper;
         this.allowMetrics = allowMetrics;
-        this.resultDiagnostics = WebsocketResultDiagnostics.from(DefaultPropertySource.getInstance());
+        this.resultDiagnostics = WebsocketResultDiagnostics.from(propertySource);
+        this.transportMetricsEnabled = allowMetrics && !clientConfig.isDisableMetrics()
+                                       && transportMetricsEnabled(propertySource);
         this.inFlightWebSocketBytes = new Semaphore(Math.max(1, clientConfig.getMaxInFlightWebSocketBytes()));
-        this.pingScheduler = new InMemoryTaskScheduler(this + "-pingScheduler",
-                                                       ObjectUtils.newWorkerPool(this + "-ping",
-                                                                                 Math.max(1, numberOfSessions)));
+        this.pingScheduler = pingSchedulerFactory.create(this, numberOfSessions);
         this.resultExecutor = newWorkerPool(this + "-onMessage", 8);
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
-        this.sessionPool = new SessionPool(numberOfSessions, () -> retryOnFailure(
-                () -> connectToServer(connector, endpointUri),
+        this.sessionPool = new SessionPool(numberOfSessions, previousSession -> retryOnFailure(
+                () -> connectToServer(connector, endpointUri, previousSession),
                 createConnectionRetryConfiguration(endpointUri, reconnectDelay)));
+    }
+
+    private static TaskScheduler createPingScheduler(AbstractWebsocketClient client, int numberOfSessions) {
+        return new InMemoryTaskScheduler(client + "-pingScheduler",
+                                         ObjectUtils.newWorkerPool(client + "-ping",
+                                                                   Math.max(1, numberOfSessions)));
     }
 
     protected RetryConfiguration createConnectionRetryConfiguration(URI endpointUri, Duration reconnectDelay) {
@@ -274,9 +295,23 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected WebsocketSession connectToServer(WebsocketConnector connector, URI endpointUri) throws Exception {
-        ConnectionSetup connectionSetup = createConnectionSetup(clientConfig);
+        return connectToServer(connector, endpointUri, null);
+    }
+
+    protected WebsocketSession connectToServer(WebsocketConnector connector, URI endpointUri,
+                                               WebsocketSession previousSession) throws Exception {
+        String replacedSessionId = null;
+        if (previousSession != null) {
+            try {
+                replacedSessionId = getNegotiatedSessionId(previousSession);
+            } catch (RuntimeException e) {
+                log().debug("Could not determine the replaced websocket session id", e);
+            }
+        }
+        ConnectionSetup connectionSetup = createConnectionSetup(
+                clientConfig, replacedSessionId, transportMetricsEnabled);
         return TimingUtils.callAndWait(
-                () -> connector.connect(this, connectionSetup.options(), endpointUri),
+                () -> connector.connect(sdkRuntimeEndpoint, connectionSetup.options(), endpointUri),
                 clientConfig.getConnectionTimeout().plus(getConnectionTimeoutFailsafeGrace()));
     }
 
@@ -500,7 +535,9 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected void handleMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
-        WebsocketResultDiagnostics.FrameTiming frameTiming = resultDiagnostics.frameTiming(receiveTiming);
+        WebsocketResultDiagnostics.FrameTiming frameTiming =
+                resultDiagnostics.frameTiming(receiveTiming, sdkRuntimeEndpoint.currentDispatchTiming());
+        long decodeStartedNanos = resultDiagnostics.monotonicTimestamp();
         JsonType value;
         try {
             value = transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
@@ -510,6 +547,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             return;
         }
         long decodedTimestamp = resultDiagnostics.timestamp();
+        long decodeDuration = decodeStartedNanos == 0L ? 0L : TimeUnit.NANOSECONDS.toMillis(
+                Math.max(0L, resultDiagnostics.monotonicTimestamp() - decodeStartedNanos));
         String sessionId = getNegotiatedSessionId(session);
         if (value instanceof ResultBatch) {
             String batchId = Fluxzero.generateId();
@@ -518,7 +557,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 executeResultCallback("result", () -> handleResult(
                         r, batchId, sessionId,
                         resultDiagnostics.resultTiming(
-                                frameTiming, decodedTimestamp, callbackQueuedTimestamp,
+                                frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
                                 resultDiagnostics.timestamp())));
             });
         } else {
@@ -530,7 +569,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             long callbackQueuedTimestamp = resultDiagnostics.timestamp();
             handleResult((RequestResult) value, null, sessionId,
                          resultDiagnostics.resultTiming(
-                                 frameTiming, decodedTimestamp, callbackQueuedTimestamp,
+                                 frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
                                  resultDiagnostics.timestamp()));
         }
     }
@@ -599,60 +638,120 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             if (v != null) {
                 v.cancel();
             }
-            return !closed.get() ? new PingRegistration(
-                    pingScheduler.schedule(clientConfig.getPingDelay(), () -> sendPing(session))) : null;
+            return newScheduledPing(session);
         });
+    }
+
+    private PingRegistration newScheduledPing(WebsocketSession session) {
+        return !closed.get() && session.isOpen() ? new PingRegistration(
+                pingScheduler.schedule(clientConfig.getPingDelay(), () -> sendPing(session))) : null;
     }
 
     @SneakyThrows
     protected void sendPing(WebsocketSession session) {
         if (!closed.get()) {
             if (session.isOpen()) {
-                var registration = pingDeadlines.compute(getNegotiatedSessionId(session), (k, v) -> {
+                String sessionId = getNegotiatedSessionId(session);
+                var registration = pingDeadlines.compute(sessionId, (k, v) -> {
                     if (v != null) {
                         v.cancel();
                     }
-                    return new PingRegistration(pingScheduler.schedule(clientConfig.getPingTimeout(), () -> {
-                        log().warn("Failed to get a ping response in time for session {}. Resetting connection",
-                                   getNegotiatedSessionId(session));
-                        abort(session, "Ping failed");
-                    }));
+                    if (closed.get() || !session.isOpen()) {
+                        return null;
+                    }
+                    String pingId = Fluxzero.generateId();
+                    return new PingRegistration(pingId, pingScheduler.schedule(
+                            clientConfig.getPingTimeout(), () -> handlePingTimeout(session, sessionId, pingId)));
                 });
-                try {
-                    session.sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
-                } catch (Exception e) {
-                    log().warn("Failed to send ping message", e);
+                if (registration != null) {
+                    try {
+                        session.sendPing(ByteBuffer.wrap(registration.getId().getBytes()));
+                    } catch (Exception e) {
+                        log().warn("Failed to send ping message", e);
+                    }
                 }
             }
         }
     }
 
+    private void handlePingTimeout(WebsocketSession session, String sessionId, String pingId) {
+        PingRegistration current = pingDeadlines.get(sessionId);
+        if (current != null && current.getId().equals(pingId) && pingDeadlines.remove(sessionId, current)) {
+            JdkWebSocketSession.RuntimeDataState metricState = shouldEmitTransportMetrics()
+                    ? transportMetricState(session, null) : null;
+            log().warn("Failed to get a ping response in time for session {}. Resetting connection", sessionId);
+            abort(session, "Ping failed");
+            emitTransportMetricAsync(WebsocketTransportMetric.Event.PING_TIMEOUT, session, metricState);
+        }
+    }
+
     public void onPong(ByteBuffer message, WebsocketSession session) {
+        acknowledgePong(session);
         executeResultCallback("pong", () -> handlePong(session));
     }
 
-    protected void handlePong(WebsocketSession session) {
-        pingDeadlines.compute(getNegotiatedSessionId(session), (k, v) -> {
-            if (v == null) {
+    private void acknowledgePong(WebsocketSession session) {
+        pingDeadlines.compute(getNegotiatedSessionId(session), (key, current) -> {
+            if (current == null) {
                 return null;
             }
-            v.cancel();
-            return schedulePing(session);
+            current.cancel();
+            return newScheduledPing(session);
         });
+    }
+
+    /**
+     * Invoked asynchronously after the pong deadline has been acknowledged on the protocol callback path.
+     * Subclasses may override this method for observation but should not perform liveness bookkeeping themselves.
+     */
+    protected void handlePong(WebsocketSession session) {
     }
 
     @Value
     protected static class PingRegistration implements Registration {
-        String id = Fluxzero.generateId();
+        String id;
         @Delegate
         Registration delegate;
+
+        public PingRegistration(Registration delegate) {
+            this(Fluxzero.generateId(), delegate);
+        }
+
+        PingRegistration(String id, Registration delegate) {
+            this.id = id;
+            this.delegate = delegate;
+        }
     }
 
     @SneakyThrows
     protected void abort(WebsocketSession session, String reason) {
         WebsocketCloseReason closeReason = new WebsocketCloseReason(WebsocketCloseReason.UNEXPECTED_CONDITION, reason);
-        log().warn("Aborting session {} due to {}", getNegotiatedSessionId(session), reason);
-        session.abort(closeReason);
+        log().warn("Closing session {} due to {}", getNegotiatedSessionId(session), reason);
+        CompletableFuture<Void> closeFuture;
+        try {
+            closeFuture = session.closeAsync(closeReason);
+        } catch (Throwable e) {
+            log().warn("Failed to start an orderly close for session {}. Aborting transport.",
+                       getNegotiatedSessionId(session), e);
+            session.abort(closeReason);
+            return;
+        }
+        if (closeFuture == null) {
+            session.abort(closeReason);
+            return;
+        }
+        closeFuture.orTimeout(getCloseHandshakeTimeout().toMillis(), TimeUnit.MILLISECONDS)
+                .whenComplete((ignored, error) -> {
+                    if (error != null) {
+                        log().warn("Orderly close did not complete for session {}. Aborting transport.",
+                                   getNegotiatedSessionId(session), error);
+                        session.abort(closeReason);
+                    }
+                });
+    }
+
+    protected Duration getCloseHandshakeTimeout() {
+        return CLOSE_HANDSHAKE_TIMEOUT;
     }
 
     @Override
@@ -717,6 +816,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected void handleError(WebsocketSession session, Throwable e) {
+        if (e instanceof JdkWebSocketSession.RuntimeDataDispatchException dispatchException) {
+            JdkWebSocketSession.RuntimeDataState state = dispatchException.state();
+            emitTransportMetric(
+                    dispatchException.reason() == JdkWebSocketSession.RuntimeDataDispatchException.Reason.OVERFLOW
+                            ? WebsocketTransportMetric.Event.RUNTIME_INGRESS_OVERFLOW
+                            : WebsocketTransportMetric.Event.RUNTIME_EXECUTOR_REJECTED,
+                    session, state);
+        }
         log().error("Client side error for web socket session {}, connected to endpoint {}",
                     getNegotiatedSessionId(session), session.getRequestURI(), e);
     }
@@ -800,6 +907,87 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
+    private void emitTransportMetric(WebsocketTransportMetric.Event event, WebsocketSession session,
+                                     JdkWebSocketSession.RuntimeDataState knownState) {
+        if (!shouldEmitTransportMetrics()) {
+            return;
+        }
+        emitTransportMetricSnapshot(event, session, transportMetricState(session, knownState));
+    }
+
+    private void emitTransportMetricSnapshot(WebsocketTransportMetric.Event event, WebsocketSession session,
+                                             JdkWebSocketSession.RuntimeDataState state) {
+        if (!shouldEmitTransportMetrics()) {
+            return;
+        }
+        try {
+            WebsocketTransportMetric metric = new WebsocketTransportMetric(
+                    event, getClass().getSimpleName(), getRuntimeVersion(session).orElse(null),
+                    Runtime.version().feature(), transportWorkerMode(session),
+                    state.retainedMessages(), state.retainedBytes(), state.inFlightMessages(),
+                    state.inFlightBytes(), state.activeMessages(), state.activeBytes(),
+                    state.pendingMessages(), state.pendingBytes(), state.maxConcurrency(),
+                    state.maxRetainedMessages(), state.maxRetainedBytes(),
+                    state.lastInboundAgeMillis());
+            publishTransportMetric(metric, metricsMetadata().with(
+                    "transportFormat", getTransportFormat(session),
+                    "compression", getCompressionAlgorithm(session)));
+        } catch (Exception e) {
+            if (!closed.get()) {
+                log().warn("Failed to emit websocket transport metric", e);
+            }
+        }
+    }
+
+    private void emitTransportMetricAsync(WebsocketTransportMetric.Event event, WebsocketSession session,
+                                          JdkWebSocketSession.RuntimeDataState state) {
+        if (state == null || !shouldEmitTransportMetrics()) {
+            return;
+        }
+        try {
+            resultExecutor.execute(() -> emitTransportMetricSnapshot(event, session, state));
+        } catch (RejectedExecutionException e) {
+            if (!closed.get()) {
+                log().warn("Failed to schedule websocket transport metric publication", e);
+            }
+        }
+    }
+
+    private JdkWebSocketSession.RuntimeDataState transportMetricState(
+            WebsocketSession session, JdkWebSocketSession.RuntimeDataState knownState) {
+        JdkWebSocketSession.RuntimeDataState observedState = session instanceof JdkWebSocketSession jdkSession
+                ? jdkSession.runtimeDataState() : JdkWebSocketSession.RuntimeDataState.empty();
+        return knownState == null ? observedState
+                : knownState.withLastInboundAgeMillis(observedState.lastInboundAgeMillis());
+    }
+
+    private String transportWorkerMode(WebsocketSession session) {
+        return session instanceof JdkWebSocketSession jdkSession
+                ? jdkSession.runtimeDataWorkerMode() : "custom-connector";
+    }
+
+    private boolean shouldEmitTransportMetrics() {
+        return transportMetricsEnabled && allowMetrics && !clientConfig.isDisableMetrics() && !closed.get();
+    }
+
+    void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+        try {
+            Fluxzero.getOptionally().ifPresentOrElse(
+                    f -> publishMetrics(metric, metadata),
+                    () -> client.getGatewayClient(METRICS).append(
+                            NONE, asMessage(metric).addMetadata(metadata).serialize(getFallbackSerializer())));
+        } catch (SessionPool.ClientClosedException ignored) {
+        } catch (GatewayException e) {
+            if (!closed.get() && !(e.getCause() instanceof SessionPool.ClientClosedException)) {
+                log().warn("Failed to publish websocket transport metric", e);
+            }
+        } catch (Exception e) {
+            if (!closed.get()) {
+                log().warn("Failed to publish websocket transport metric", e);
+            }
+        }
+    }
+
     protected Metadata metricsMetadata() {
         return Metadata.empty();
     }
@@ -844,13 +1032,39 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected static ConnectionSetup createConnectionSetup(ClientConfig clientConfig) {
+        return createConnectionSetup(clientConfig, null);
+    }
+
+    protected static ConnectionSetup createConnectionSetup(ClientConfig clientConfig, String replacedSessionId) {
+        PropertySource propertySource = DefaultPropertySource.getInstance();
+        return createConnectionSetup(clientConfig, replacedSessionId,
+                                     !clientConfig.isDisableMetrics() && transportMetricsEnabled(propertySource));
+    }
+
+    static ConnectionSetup createConnectionSetup(ClientConfig clientConfig, String replacedSessionId,
+                                                  boolean transportMetricsEnabled) {
         ClientHandshakeConfigurator configurator = new ClientHandshakeConfigurator(
-                WebSocketCapabilities.newShortSessionId(), clientConfig);
+                WebSocketCapabilities.newShortSessionId(), clientConfig, replacedSessionId);
         Map<String, List<String>> headers = new java.util.LinkedHashMap<>();
         configurator.beforeRequest(headers);
-        Map<String, Object> userProperties = Map.of(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY, configurator);
+        Map<String, Object> userProperties = new java.util.LinkedHashMap<>();
+        userProperties.put(CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY, configurator);
+        userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_DISPATCH_USER_PROPERTY, true);
+        userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_CONCURRENCY_USER_PROPERTY,
+                           clientConfig.getMaxConcurrentRuntimeWebSocketMessages());
+        userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_MESSAGES_USER_PROPERTY,
+                           clientConfig.getMaxRetainedRuntimeWebSocketMessages());
+        userProperties.put(JdkWebSocketSession.SDK_RUNTIME_DATA_MAX_RETAINED_BYTES_USER_PROPERTY,
+                           clientConfig.getMaxRetainedRuntimeWebSocketBytes());
+        if (transportMetricsEnabled) {
+            userProperties.put(JdkWebSocketSession.SDK_TRANSPORT_METRICS_ENABLED_USER_PROPERTY, true);
+        }
         return new ConnectionSetup(new WebsocketConnectionOptions(
                 headers, userProperties, clientConfig.getConnectionTimeout(), List.of()), configurator);
+    }
+
+    static boolean transportMetricsEnabled(PropertySource propertySource) {
+        return propertySource.getBoolean(TRANSPORT_METRICS_ENABLED_PROPERTY);
     }
 
     protected String getNegotiatedSessionId(WebsocketSession session) {
@@ -896,11 +1110,17 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected record ConnectionSetup(WebsocketConnectionOptions options, ClientHandshakeConfigurator configurator) {
     }
 
+    @FunctionalInterface
+    interface PingSchedulerFactory {
+        TaskScheduler create(AbstractWebsocketClient client, int numberOfSessions);
+    }
+
     @RequiredArgsConstructor
     protected static class ClientHandshakeConfigurator {
         @Getter
         private final String clientSessionId;
         private final ClientConfig clientConfig;
+        private final String replacedSessionId;
         @Getter
         private volatile String runtimeSessionId;
         @Getter
@@ -912,6 +1132,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
         public void beforeRequest(Map<String, List<String>> headers) {
             headers.put(WebSocketCapabilities.CLIENT_SESSION_ID_HEADER, new ArrayList<>(List.of(clientSessionId)));
+            if (replacedSessionId != null && !replacedSessionId.isBlank()) {
+                headers.put(WebSocketCapabilities.REPLACES_SESSION_ID_HEADER,
+                            new ArrayList<>(List.of(replacedSessionId)));
+            }
             SdkVersion.version().ifPresent(sdkVersion ->
                                                    headers.put(WebSocketCapabilities.CLIENT_SDK_VERSION_HEADER,
                                                                new ArrayList<>(List.of(sdkVersion))));

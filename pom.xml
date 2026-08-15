@@ -42,7 +42,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <jetty.version>12.1.11</jetty.version>
+        <jetty.version>12.1.12</jetty.version>
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
         <jakarta.validation.version>3.1.1</jakarta.validation.version>
         <kotlin.version>2.4.10</kotlin.version>
@@ -50,7 +50,7 @@
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.18</slf4j.version>
-        <fluxzero.maven.plugin.version>1.11.2</fluxzero.maven.plugin.version>
+        <fluxzero.maven.plugin.version>1.15.0</fluxzero.maven.plugin.version>
         <fluxzero.package.base-image>gcr.io/distroless/java25-debian13:nonroot@sha256:9ccf2b8bce700d9f450523e2055afabe4d4ee795e6d69a0647a2dcd6e180e411</fluxzero.package.base-image>
         <argLine/>
     </properties>
@@ -76,7 +76,7 @@
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
-                <version>6.1.2</version>
+                <version>6.1.3</version>
                 <scope>import</scope>
                 <type>pom</type>
             </dependency>
@@ -446,7 +446,7 @@
             <plugin>
                 <groupId>io.fluxzero</groupId>
                 <artifactId>lychee-maven-plugin</artifactId>
-                <version>0.2.6</version>
+                <version>0.2.7</version>
                 <inherited>false</inherited>
                 <configuration>
                     <scanDirectories>
