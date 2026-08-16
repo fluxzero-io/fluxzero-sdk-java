@@ -47,8 +47,10 @@ public class ModelCommitTarget {
      * Sequence number observed immediately before this transition, or {@code -1} when the model
      * did not exist.
      * <p>
-     * A {@code null} value denotes a legacy client. The runtime can use an explicit {@code -1} to
-     * avoid a point read for an independent create on the default single-writer path.
+     * A {@code null} value omits the target-level sequence assertion. This supports legacy clients and current clients
+     * that instead protect the target through the commit-wide {@code readStateIndex}/{@code readModelIds} boundary,
+     * such as a document-loaded model whose document does not contain its stream head. The runtime can use an explicit
+     * {@code -1} to avoid a point read for an independent create on the default single-writer path.
      */
     Long expectedSequenceNumber;
 

@@ -31,6 +31,7 @@ import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import io.fluxzero.common.api.Metadata;
+import jakarta.annotation.Nullable;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
@@ -116,6 +117,16 @@ class TestFixtureModelApiTest {
                 .andThen()
                 .whenApplying(ignored -> handled.get())
                 .expectResult(1);
+    }
+
+    @Test
+    void givenEventsUpdateTheSameUncachedDocumentModelSynchronously() {
+        TestFixture.create()
+                .givenEvents(new UpdateUncachedDocument("document-1", 1),
+                             new UpdateUncachedDocument("document-1", 2))
+                .whenApplying(ignored -> Fluxzero.loadModel(
+                        "document-1", UncachedDocument.class).get())
+                .expectResult(new UncachedDocument("document-1", 3));
     }
 
     @Test
@@ -241,6 +252,17 @@ class TestFixtureModelApiTest {
         @Apply
         FixtureModel apply() {
             return new FixtureModel(id);
+        }
+    }
+
+    @Model(eventSourced = false, cached = false, searchable = true)
+    private record UncachedDocument(@EntityId String id, int value) {
+    }
+
+    private record UpdateUncachedDocument(String id, int delta) {
+        @Apply
+        UncachedDocument apply(@Nullable UncachedDocument current) {
+            return new UncachedDocument(id, (current == null ? 0 : current.value()) + delta);
         }
     }
 

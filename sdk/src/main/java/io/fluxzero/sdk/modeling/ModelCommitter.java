@@ -968,7 +968,7 @@ final class ModelCommitter {
         return new ModelCommitTarget(
                 transition.modelId(),
                 effective.plan().modelTypeName(),
-                transition.beforeSequenceNumber(),
+                expectedSequenceNumber(effective),
                 effective.storeEvent(),
                 effective.updateState(),
                 effective.updateState()
@@ -981,6 +981,21 @@ final class ModelCommitter {
                 relationships.update(),
                 relationships.relationships(),
                 aliases);
+    }
+
+    private static Long expectedSequenceNumber(
+            EffectiveTransition transition) {
+        ModelCommitEngine.Transition model =
+                transition.transition();
+        /*
+         * A directly loaded document contains the model value but no stream head. For an existing document, -1 would
+         * falsely claim that this is a create and force every update through conflict rebase. The commit-wide pinned
+         * read boundary already protects the target through readModelIds, so omit only this redundant target-level
+         * assertion. Retain explicit -1 for creates: it is both exact and enables the Runtime's missing-head fast path.
+         */
+        return !transition.plan().model().eventSourced()
+               && model.before() != null
+                ? null : model.beforeSequenceNumber();
     }
 
     private SerializedMessage serialize(

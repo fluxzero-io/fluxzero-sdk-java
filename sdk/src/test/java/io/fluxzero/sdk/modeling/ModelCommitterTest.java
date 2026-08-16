@@ -302,10 +302,10 @@ class ModelCommitterTest {
                                 orderId, Order.class, null, order,
                                 UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), order));
-        assertNull(
-                committer.prepare("commit-ordinary", ordinary)
-                        .commit().getSubsteps().getFirst().getTargets().getFirst()
-                        .getAliases());
+        var ordinaryTarget = committer.prepare("commit-ordinary", ordinary)
+                .commit().getSubsteps().getFirst().getTargets().getFirst();
+        assertNull(ordinaryTarget.getAliases());
+        assertEquals(-1L, ordinaryTarget.getExpectedSequenceNumber());
     }
 
     @Test
@@ -338,6 +338,7 @@ class ModelCommitterTest {
         assertTrue(commit.getSubsteps().getFirst().isPublishEvent());
         var target = commit.getSubsteps().getFirst().getTargets().getFirst();
         assertEquals(orderId.toString(), target.getModelId());
+        assertNull(target.getExpectedSequenceNumber());
         assertTrue(target.isStoreEvent());
         assertNotNull(target.getDocument());
         assertEquals(
