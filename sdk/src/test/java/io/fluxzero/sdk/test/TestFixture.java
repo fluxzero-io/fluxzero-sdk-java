@@ -32,6 +32,7 @@ import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
@@ -145,7 +146,6 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.isWebsocket;
 import static java.util.Collections.emptyList;
 import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
@@ -374,7 +374,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final boolean productionUserProvider;
     private Registration registration = Registration.noOp();
 
-    private final Map<ActiveConsumer, List<Message>> consumers = new ConcurrentHashMap<>();
+    private final Map<ActiveConsumer, PendingConsumer> consumers = new ConcurrentHashMap<>();
     private final Map<HandlerConsumerKey, Set<ConsumerIdentity>> handlerConsumers = new ConcurrentHashMap<>();
     private final Set<String> requestDispatches = ConcurrentHashMap.newKeySet();
     private final ThreadLocal<Deque<ActiveHandler>> activeHandlers = ThreadLocal.withInitial(ArrayDeque::new);
@@ -1669,7 +1669,7 @@ public class TestFixture implements Given<TestFixture>, When {
                          + "This may cause your test to fail. Waiting consumers: {}",
                          consumers.entrySet().stream()
                                  .filter(e -> !e.getValue().isEmpty())
-                                 .map(e -> e.getKey() + " : " + e.getValue().stream()
+                                 .map(e -> e.getKey() + " : " + e.getValue().messages()
                                          .map(m -> m.getPayload() == null
                                                  ? "Void" : m.getPayload().getClass().getSimpleName()).collect(
                                                  Collectors.joining(", "))).collect(toList()));
@@ -2143,7 +2143,7 @@ public class TestFixture implements Given<TestFixture>, When {
         }
         synchronized (consumers) {
             //either all consumer messages have been processed (aka removed), or they're schedules firing in the future
-            if (consumers.values().stream().allMatch(l -> l.stream().allMatch(
+            if (consumers.values().stream().allMatch(c -> c.messages().allMatch(
                     m -> {
                         if (m instanceof Schedule s) {
                             //ensure schedule isn't canceled or expired
@@ -2165,30 +2165,36 @@ public class TestFixture implements Given<TestFixture>, When {
         private TestFixture testFixture;
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
-        private final Set<InterceptedMessage> interceptedMessages = new CopyOnWriteArraySet<>();
+        private final Map<InterceptedMessage, DispatchOrigin> dispatchOrigins = new ConcurrentHashMap<>();
         private final ConcurrentLinkedQueue<Message> storedEvents = new ConcurrentLinkedQueue<>();
 
         protected void interceptClientDispatch(MessageType messageType, String topic,
                                                String namespace, List<SerializedMessage> messages) {
             boolean dispatchStoredEvent = testFixture.synchronous && messageType == EVENT
                                           && testFixture.fluxzero.eventGateway() instanceof DefaultEventGateway;
-            if (testFixture.fixtureResult.isCollectingResults() || dispatchStoredEvent) {
+            for (SerializedMessage serializedMessage : messages) {
+                InterceptedMessage key = new InterceptedMessage(
+                        messageType, topic, serializedMessage.getMessageId());
+                if (dispatchOrigins.remove(key, DispatchOrigin.SDK)) {
+                    recordStoredPosition(messageType, topic, serializedMessage);
+                    continue;
+                }
                 try {
-                    testFixture.fluxzero.serializer()
-                            .deserializeMessages(messages.stream()
-                                                         .filter(m -> !interceptedMessages.remove(
-                                                                 new InterceptedMessage(messageType, topic,
-                                                                                        m.getMessageId()))),
-                                                 messageType)
-                            .map(DeserializingMessage::toMessage)
-                            .forEach(m -> {
-                                if (dispatchStoredEvent) {
-                                    storedEvents.add(m);
-                                } else {
-                                    monitorDispatch(m, messageType, topic, namespace, false);
-                                }
-                            });
+                    DeserializingMessage message = testFixture.fluxzero.serializer()
+                            .deserializeMessages(Stream.of(serializedMessage), messageType).findFirst().orElseThrow();
+                    if (dispatchStoredEvent) {
+                        storedEvents.add(message.toMessage());
+                        continue;
+                    }
+                    DispatchOrigin previous = dispatchOrigins.putIfAbsent(key, DispatchOrigin.STORED);
+                    if (previous == DispatchOrigin.SDK) {
+                        dispatchOrigins.remove(key, DispatchOrigin.SDK);
+                        recordStoredPosition(messageType, topic, serializedMessage);
+                    } else if (previous == null) {
+                        monitorStoredDispatch(message, messageType, topic, namespace);
+                    }
                 } catch (Exception ignored) {
+                    dispatchOrigins.remove(key, DispatchOrigin.STORED);
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
             }
@@ -2210,14 +2216,33 @@ public class TestFixture implements Given<TestFixture>, When {
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                     boolean request) {
+            InterceptedMessage key = new InterceptedMessage(messageType, topic, message.getMessageId());
+            DispatchOrigin previous = dispatchOrigins.putIfAbsent(key, DispatchOrigin.SDK);
+            if (previous == DispatchOrigin.STORED) {
+                dispatchOrigins.remove(key, DispatchOrigin.STORED);
+                return;
+            }
+            if (previous == DispatchOrigin.SDK) {
+                return;
+            }
+            monitorDispatch(message, messageType, topic, namespace, request, null, null);
+        }
+
+        private void monitorStoredDispatch(DeserializingMessage message, MessageType messageType, String topic,
+                                           String namespace) {
+            SerializedMessage serializedMessage = message.getSerializedObject();
+            monitorDispatch(message.toMessage(), messageType, topic, namespace, false,
+                            serializedMessage.getSegment(), serializedMessage.getIndex());
+        }
+
+        private void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                     boolean request, Integer segment, Long index) {
             testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
             testFixture.recordObservation(TestFixtureObservation.dispatch(message, messageType, topic, namespace));
             testFixture.registerAutomaticHandler(message);
             if (request) {
                 testFixture.requestDispatches.add(message.getMessageId());
             }
-
-            interceptedMessages.add(new InterceptedMessage(messageType, topic, message.getMessageId()));
 
             if (messageType == SCHEDULE) {
                 addMessage(publishedSchedules, (Schedule) message);
@@ -2245,7 +2270,7 @@ public class TestFixture implements Given<TestFixture>, When {
                                     && Objects.equals(consumerNamespace, namespace)
 
                             );
-                        }).forEach(e -> addMessage(e.getValue(), message));
+                        }).forEach(e -> e.getValue().add(message, segment, index));
             }
 
             if (captureMessage(message, messageType, topic)) {
@@ -2281,10 +2306,10 @@ public class TestFixture implements Given<TestFixture>, When {
                     .computeIfAbsent(document.getCollection(), ignored -> new CopyOnWriteArraySet<>())
                     .add(document.getId()));
             synchronized (testFixture.consumers) {
-                testFixture.consumers.forEach((consumer, messages) -> {
+                testFixture.consumers.forEach((consumer, pending) -> {
                     if (consumer.getMessageType() == DOCUMENT) {
                         ofNullable(messageIdsByTopic.get(consumer.getTopic()))
-                                .ifPresent(messageIds -> messages.removeIf(
+                                .ifPresent(messageIds -> pending.removeIf(
                                         message -> messageIds.contains(message.getMessageId())));
                     }
                 });
@@ -2311,31 +2336,38 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
-            List<Message> messages;
+            PendingConsumer pending;
             synchronized (testFixture.consumers) {
-                messages = testFixture.consumers.computeIfAbsent(
+                pending = testFixture.consumers.computeIfAbsent(
                         new ActiveConsumer(tracker.getConfiguration(), tracker.getMessageType(), tracker.getTopic()),
-                        c -> (c.getMessageType() == SCHEDULE
+                        c -> new PendingConsumer((c.getMessageType() == SCHEDULE
                                 ? publishedSchedules : Collections.<Message>emptyList()).stream().filter(
                                         m -> ofNullable(c.getConfiguration().getTypeFilter())
                                                 .map(f -> m.getPayload().getClass()
-                                                        .getName().matches(f)).orElse(true))
-                                .collect(toCollection(CopyOnWriteArrayList::new)));
+                                                        .getName().matches(f)).orElse(true)).toList()));
             }
             return b -> {
                 consumer.accept(b);
-                Collection<String> messageIds =
-                        b.getMessages().stream().map(SerializedMessage::getMessageId).collect(toSet());
                 synchronized (testFixture.consumers) {
                     b.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
                             .filter(e -> e.getKey().getMessageType() == tracker.getMessageType()
                                          && Objects.equals(e.getKey().getTopic(), tracker.getTopic())
                                          && isOutsideBounds(e.getKey().getConfiguration(), m.getIndex()))
-                            .forEach(e -> e.getValue().removeIf(m2 -> m.getMessageId().equals(m2.getMessageId()))));
-                    messages.removeIf(m -> messageIds.contains(m.getMessageId()));
+                            .forEach(e -> e.getValue().removeMessage(m.getMessageId())));
+                    pending.complete(b);
                     testFixture.checkConsumers();
                 }
             };
+        }
+
+        private void recordStoredPosition(MessageType messageType, String topic, SerializedMessage message) {
+            synchronized (testFixture.consumers) {
+                testFixture.consumers.entrySet().stream()
+                        .filter(e -> e.getKey().getMessageType() == messageType
+                                     && Objects.equals(e.getKey().getTopic(), topic))
+                        .forEach(e -> e.getValue().recordStoredPosition(
+                                message.getMessageId(), message.getSegment(), message.getIndex()));
+            }
         }
 
         private boolean isOutsideBounds(ConsumerConfiguration configuration, Long index) {
@@ -2381,8 +2413,7 @@ public class TestFixture implements Given<TestFixture>, When {
                             synchronized (testFixture.consumers) {
                                 testFixture.consumers.entrySet().stream()
                                         .filter(t -> t.getKey().getMessageType() == m.getMessageType())
-                                        .forEach(e -> e.getValue().removeIf(
-                                                m2 -> m2.getMessageId().equals(m.getMessageId())));
+                                        .forEach(e -> e.getValue().removeMessage(m.getMessageId()));
                             }
                             testFixture.checkConsumers();
                         }
@@ -2520,6 +2551,79 @@ public class TestFixture implements Given<TestFixture>, When {
         String messageDescription() {
             return "%s %s".formatted(messageType, simpleTypeName(payloadType));
         }
+    }
+
+    protected static class PendingConsumer {
+        private final List<PendingMessage> messages = new ArrayList<>();
+        private Position completedPosition = Position.newPosition();
+
+        PendingConsumer(Collection<? extends Message> initialMessages) {
+            initialMessages.forEach(message -> add(message, null, null));
+        }
+
+        boolean isEmpty() {
+            return messages.isEmpty();
+        }
+
+        Stream<Message> messages() {
+            return messages.stream().map(PendingMessage::message);
+        }
+
+        void add(Message message, Integer segment, Long index) {
+            if (isCompleted(segment, index)) {
+                return;
+            }
+            if (message instanceof Schedule schedule) {
+                messages.removeIf(pending -> pending.message() instanceof Schedule existing
+                                                     && existing.getScheduleId().equals(schedule.getScheduleId()));
+            }
+            messages.add(new PendingMessage(message, segment, index));
+        }
+
+        void recordStoredPosition(String messageId, Integer segment, Long index) {
+            if (segment == null || index == null) {
+                return;
+            }
+            if (isCompleted(segment, index)) {
+                removeMessage(messageId);
+                return;
+            }
+            for (int i = 0; i < messages.size(); i++) {
+                PendingMessage pending = messages.get(i);
+                if (Objects.equals(messageId, pending.message().getMessageId())) {
+                    messages.set(i, new PendingMessage(pending.message(), segment, index));
+                }
+            }
+        }
+
+        void complete(MessageBatch batch) {
+            if (batch.getLastIndex() != null) {
+                completedPosition = completedPosition.merge(new Position(batch.getSegment(), batch.getLastIndex()));
+            }
+            Set<String> messageIds = batch.getMessages().stream()
+                    .map(SerializedMessage::getMessageId).collect(toSet());
+            messages.removeIf(pending -> messageIds.contains(pending.message().getMessageId())
+                                         || isCompleted(pending.segment(), pending.index()));
+        }
+
+        void removeMessage(String messageId) {
+            messages.removeIf(pending -> Objects.equals(messageId, pending.message().getMessageId()));
+        }
+
+        void removeIf(Predicate<? super Message> predicate) {
+            messages.removeIf(pending -> predicate.test(pending.message()));
+        }
+
+        private boolean isCompleted(Integer segment, Long index) {
+            return segment != null && index != null && !completedPosition.isNewIndex(segment, index);
+        }
+
+        private record PendingMessage(Message message, Integer segment, Long index) {
+        }
+    }
+
+    private enum DispatchOrigin {
+        SDK, STORED
     }
 
     @Value
