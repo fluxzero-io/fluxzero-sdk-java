@@ -152,7 +152,9 @@ public final class MaterializedGraphParameterResolver
                 start, end, manifest, rootType,
                 documentSerializer,
                 repositorySupplier, modelTypesSupplier.get(),
-                pathOverrides);
+                pathOverrides,
+                parseLong(message.getMetadata().get(
+                        ModelGraphDocumentManifest.PREVIOUS_STATE_INDEX_METADATA_KEY)));
     }
 
     private static Long parseLong(Object value) {

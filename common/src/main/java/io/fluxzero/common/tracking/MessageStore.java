@@ -133,6 +133,16 @@ public interface MessageStore extends AutoCloseable, Monitored<List<SerializedMe
     }
 
     /**
+     * Scans messages with optional document tombstones. Stores that do not maintain typed graph tombstones retain
+     * their ordinary scan behavior.
+     */
+    default MessageStoreBatch scanBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes,
+                                        Predicate<? super SerializedMessage> filter,
+                                        boolean includeDocumentTombstones) {
+        return scanBatch(minIndex, maxSize, inclusive, maxBytes, filter);
+    }
+
+    /**
      * Sets the retention period for messages. Messages older than this duration may be removed depending on
      * the implementation.
      *

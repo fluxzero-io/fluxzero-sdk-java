@@ -49,6 +49,12 @@ public record ModelGraphDocumentManifest(
     /** Internal facet marker that lets document trackers avoid inspecting ordinary document payloads. */
     public static final String FACET_NAME = "$fluxzeroModelGraph";
 
+    /** Reserved metadata marker for a deleted materialized graph root. */
+    public static final String TOMBSTONE_METADATA_KEY = "$fluxzeroModelGraphTombstone";
+
+    /** Reserved tombstone metadata containing the last materialized state boundary before deletion. */
+    public static final String PREVIOUS_STATE_INDEX_METADATA_KEY = "$fluxzeroModelGraphPreviousStateIndex";
+
     public ModelGraphDocumentManifest(
             long stateIndex,
             List<String> types,

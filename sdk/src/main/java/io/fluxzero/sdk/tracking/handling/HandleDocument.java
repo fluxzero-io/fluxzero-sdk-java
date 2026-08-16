@@ -120,6 +120,11 @@ public @interface HandleDocument {
      * stateful document handler needs to maintain a local view over complete model graphs rather than over
      * independently stored root documents.
      * <p>
+     * When a materialized root graph is deleted, this handler receives a typed empty graph. The graph retains its
+     * identity, type and deletion boundary, while {@code previous()} returns the complete last materialized graph.
+     * Deletion records are exclusive to handlers using {@code modelGraph}; ordinary document handlers for the same
+     * collection do not receive them.
+     * <p>
      * An explicit {@link #value()} takes precedence. Otherwise this attribute takes precedence over
      * {@link #documentClass()} and inference from the first handler parameter.
      */

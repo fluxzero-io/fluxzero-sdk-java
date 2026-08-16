@@ -203,6 +203,13 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                     : maxFetchBytes);
 
     /**
+     * Internal document-tracking option enabled automatically for consumers containing typed model-graph handlers.
+     * Ordinary document consumers leave this disabled.
+     */
+    @Default
+    boolean includeDocumentTombstones = false;
+
+    /**
      * Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or
      * segment claim are available.
      */

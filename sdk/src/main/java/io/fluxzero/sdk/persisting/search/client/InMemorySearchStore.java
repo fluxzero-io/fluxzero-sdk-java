@@ -17,6 +17,7 @@ package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
@@ -54,8 +55,10 @@ import io.fluxzero.sdk.tracking.IndexUtils;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -694,6 +697,7 @@ public class InMemorySearchStore implements SearchClient {
                                 Map::putAll);
         Map<String, SerializedDocument> indexed =
                 new LinkedHashMap<>();
+        List<SerializedMessage> tombstones = new ArrayList<>();
         for (String rootId : rootIds) {
             String projectionKey =
                     asIdentifier(
@@ -715,11 +719,19 @@ public class InMemorySearchStore implements SearchClient {
                                             .getRootCollection(),
                                     rootId));
             if (root == null) {
-                documents.remove(
-                        projectionKey);
+                SerializedDocument previous = documents.remove(projectionKey);
                 modelGraphProjectionStateIndices.put(
                         projectionKey,
                         stateIndex);
+                if (previous != null
+                    || !hasGraphTombstone(configuration.getCollection(), rootId)) {
+                    tombstones.add(asGraphTombstone(
+                            rootId, configuration.getRootModelType(), stateIndex,
+                            previous == null ? null
+                                    : ModelGraphDocumentManifest.from(previous)
+                                            .map(ModelGraphDocumentManifest::stateIndex)
+                                            .orElse(null)));
+                }
                 continue;
             }
             List<ModelGraphEdge> edges =
@@ -806,6 +818,7 @@ public class InMemorySearchStore implements SearchClient {
                     stateIndex);
         }
         storeMessages(indexed);
+        storeMessages(configuration.getCollection(), tombstones);
     }
 
     private void trimModelSnapshots(
@@ -857,12 +870,22 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     public Stream<SerializedMessage> openStream(String collection, Long lastIndex, int maxSize) {
+        return openStream(collection, lastIndex, maxSize, false);
+    }
+
+    public Stream<SerializedMessage> openStream(
+            String collection, Long lastIndex, int maxSize,
+            boolean includeDocumentTombstones) {
         var map = messageLogs.get(collection);
         if (map == null) {
             return Stream.empty();
         }
         lastIndex = lastIndex == null ? -1L : lastIndex;
-        return map.tailMap(lastIndex, false).values().stream().limit(maxSize);
+        return map.tailMap(lastIndex, false).values().stream()
+                .filter(message -> includeDocumentTombstones
+                        || message.getMetadata().get(
+                                ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY) == null)
+                .limit(maxSize);
     }
 
     public synchronized void truncateCollection(String collection) {
@@ -879,13 +902,7 @@ public class InMemorySearchStore implements SearchClient {
                     = updates.values().stream().collect(groupingBy(SerializedDocument::getCollection, mapping(
                     this::asSerializedMessage, toList())));
             try {
-                byCollection.forEach((collection, messages) -> {
-                    var log = messageLogs.computeIfAbsent(collection, c -> new ConcurrentSkipListMap<>());
-                    messages.forEach(m -> {
-                        log.values().removeIf(mOld -> mOld.getMessageId().equals(m.getMessageId()));
-                        log.put(m.getIndex(), m);
-                    });
-                });
+                byCollection.forEach(this::storeMessagesInLog);
                 if (retentionTime != null) {
                     purgeExpiredMessages(retentionTime);
                 }
@@ -893,6 +910,58 @@ public class InMemorySearchStore implements SearchClient {
                 byCollection.forEach(this::notifyMonitors);
             }
         }
+    }
+
+    private synchronized void storeMessages(String collection, List<SerializedMessage> messages) {
+        if (messages.isEmpty() || monitors.isEmpty()) {
+            return;
+        }
+        try {
+            storeMessagesInLog(collection, messages);
+            if (retentionTime != null) {
+                purgeExpiredMessages(retentionTime);
+            }
+        } finally {
+            notifyMonitors(collection, messages);
+        }
+    }
+
+    private void storeMessagesInLog(String collection, List<SerializedMessage> messages) {
+        var log = messageLogs.computeIfAbsent(collection, c -> new ConcurrentSkipListMap<>());
+        messages.forEach(message -> {
+            log.values().removeIf(old -> old.getMessageId().equals(message.getMessageId()));
+            log.put(message.getIndex(), message);
+        });
+    }
+
+    private boolean hasGraphTombstone(String collection, String rootId) {
+        var log = messageLogs.get(collection);
+        return log != null && log.values().stream().anyMatch(
+                message -> Objects.equals(rootId, message.getMessageId())
+                           && message.getMetadata().get(
+                                   ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY) != null);
+    }
+
+    private SerializedMessage asGraphTombstone(
+            String rootId, String rootType, long stateIndex,
+            Long previousStateIndex) {
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                stateIndex, List.of(rootType), List.of(),
+                List.of(new ModelGraphDocumentManifest.Node(rootId, 0, -1, -1, 0)));
+        Metadata metadata = Metadata.of(
+                ModelGraphDocumentManifest.METADATA_KEY, manifest.serialize(),
+                ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY, true);
+        if (previousStateIndex != null) {
+            metadata = metadata.with(
+                    ModelGraphDocumentManifest.PREVIOUS_STATE_INDEX_METADATA_KEY,
+                    previousStateIndex);
+        }
+        long timestamp = System.currentTimeMillis();
+        SerializedMessage result = new SerializedMessage(
+                new Data<>("null".getBytes(StandardCharsets.UTF_8), rootType, 0),
+                metadata, rootId, timestamp);
+        result.setIndex(nextIndex.updateAndGet(IndexUtils::nextIndex));
+        return result;
     }
 
     protected SerializedMessage asSerializedMessage(SerializedDocument document) {

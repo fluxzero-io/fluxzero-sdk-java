@@ -154,7 +154,8 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
             do {
                 position = position(tracker, newSegment);
                 batch = scanBatch(newSegment, position, batchSize, tracker.getMaxBytes(),
-                                  filterPredicate(newSegment, position, tracker));
+                                  filterPredicate(newSegment, position, tracker),
+                                  tracker.includeDocumentTombstones());
 
                 if (batch.scannedSize() > 0 && batch.messages().isEmpty()) {
                     long batchIndex = batch.lastScannedIndex();
@@ -244,15 +245,38 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
 
     protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
                                           Predicate<? super SerializedMessage> filter) {
+        return scanBatchFromSource(segment, position, batchSize, maxBytes, filter, false);
+    }
+
+    protected MessageStoreBatch scanBatch(int[] segment, Position position, int batchSize, long maxBytes,
+                                          Predicate<? super SerializedMessage> filter,
+                                          boolean includeDocumentTombstones) {
+        if (!includeDocumentTombstones) {
+            return scanBatch(segment, position, batchSize, maxBytes, filter);
+        }
+        return scanBatchFromSource(segment, position, batchSize, maxBytes, filter, true);
+    }
+
+    private MessageStoreBatch scanBatchFromSource(
+            int[] segment, Position position, int batchSize, long maxBytes,
+            Predicate<? super SerializedMessage> filter, boolean includeDocumentTombstones) {
         FluxzeroJfr.Batch event = startTrackingBatch("message-scan", 0);
         if (event == null) {
-            return source.scanBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize, false, maxBytes,
-                                    filter);
+            return includeDocumentTombstones
+                    ? source.scanBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize, false,
+                                       maxBytes, filter, true)
+                    : source.scanBatch(position.lowestIndexForSegment(segment).orElse(null), batchSize, false,
+                                       maxBytes, filter);
         }
         long started = System.nanoTime();
         try {
-            MessageStoreBatch result = source.scanBatch(
-                    position.lowestIndexForSegment(segment).orElse(null), batchSize, false, maxBytes, filter);
+            MessageStoreBatch result = includeDocumentTombstones
+                    ? source.scanBatch(
+                            position.lowestIndexForSegment(segment).orElse(null), batchSize, false,
+                            maxBytes, filter, true)
+                    : source.scanBatch(
+                            position.lowestIndexForSegment(segment).orElse(null), batchSize, false,
+                            maxBytes, filter);
             event.itemCount = result.scannedSize();
             event.outputItemCount = result.messages().size();
             event.storageNanos = System.nanoTime() - started;

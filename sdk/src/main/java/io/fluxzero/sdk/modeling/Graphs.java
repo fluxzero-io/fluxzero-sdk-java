@@ -241,8 +241,28 @@ public final class Graphs {
     public static <T> Graph<T> mapValues(
             Graph<T> graph,
             Function<? super Graph<?>, ?> mapper) {
-        return new MappedContext(Objects.requireNonNull(mapper, "mapper"), List.of(), false)
+        return new MappedContext(Objects.requireNonNull(mapper, "mapper"),
+                                 List.of(), false, UnaryOperator.identity())
                 .view(Objects.requireNonNull(graph, "graph"));
+    }
+
+    /**
+     * Returns an immutable graph view whose direct relationship paths are replaced by the supplied mappings.
+     * Model values and graph nodes are shared with the original graph; creating the view performs no model loads.
+     */
+    public static <T> Graph<T> remapPaths(
+            Graph<T> graph,
+            Map<String, String> pathOverrides) {
+        Objects.requireNonNull(graph, "graph");
+        Objects.requireNonNull(pathOverrides, "pathOverrides");
+        if (pathOverrides.isEmpty()) {
+            return graph;
+        }
+        Map<String, String> overrides = Map.copyOf(pathOverrides);
+        return new MappedContext(
+                Graph::get, List.of(), false,
+                path -> path == null ? null : overrides.getOrDefault(path, path))
+                .view(graph);
     }
 
     /** Returns an immutable graph view carrying response-wide typed context. */
@@ -254,7 +274,8 @@ public final class Graphs {
         if (values.isEmpty()) {
             return graph;
         }
-        return new MappedContext(Graph::get, values, false).view(graph);
+        return new MappedContext(
+                Graph::get, values, false, UnaryOperator.identity()).view(graph);
     }
 
     /** Returns a graph view containing matching branches and the ancestors required to reach them. */
@@ -283,7 +304,7 @@ public final class Graphs {
         });
         return new MappedContext(
                 node -> retained.contains(node) ? node.get() : null,
-                List.of(), true).view(graph);
+                List.of(), true, UnaryOperator.identity()).view(graph);
     }
 
     /** Returns a lazy immutable view containing only selected serialized relationship paths. */
@@ -1464,15 +1485,22 @@ public final class Graphs {
         private final Function<? super Graph<?>, ?> mapper;
         private final List<?> values;
         private final boolean hideEmptyValues;
+        private final UnaryOperator<String> relationshipPathMapper;
         private final Map<Graph<?>, MappedGraph<?>> views = new IdentityHashMap<>();
 
         private MappedContext(
                 Function<? super Graph<?>, ?> mapper,
                 Collection<?> values,
-                boolean hideEmptyValues) {
+                boolean hideEmptyValues,
+                UnaryOperator<String> relationshipPathMapper) {
             this.mapper = mapper;
             this.values = List.copyOf(values);
             this.hideEmptyValues = hideEmptyValues;
+            this.relationshipPathMapper = relationshipPathMapper;
+        }
+
+        private String relationshipPath(String path) {
+            return relationshipPathMapper.apply(path);
         }
 
         private <C> Optional<C> value(Class<C> contextType) {
@@ -1527,7 +1555,9 @@ public final class Graphs {
             Objects.requireNonNull(contextType, "contextType");
             return context.value(contextType).or(() -> delegate.context(contextType));
         }
-        @Override public String relationshipPath() { return delegate.relationshipPath(); }
+        @Override public String relationshipPath() {
+            return context.relationshipPath(delegate.relationshipPath());
+        }
         @Override public long stateIndex() { return delegate.stateIndex(); }
         @Override public long revisionStateIndex() { return delegate.revisionStateIndex(); }
         @Override public String lastEventId() { return delegate.lastEventId(); }
@@ -1553,16 +1583,20 @@ public final class Graphs {
                     .filter(graph -> !context.hideEmptyValues || graph.isPresent())
                     .toList();
         }
-        @Override public List<String> childPaths() { return delegate.childPaths(); }
+        @Override public List<String> childPaths() {
+            return delegate.childPaths().stream()
+                    .map(context::relationshipPath).distinct().toList();
+        }
         @Override public <C> List<Graph<C>> children(Class<C> childType) {
             return delegate.children(childType).stream().map(context::view)
                     .filter(graph -> !context.hideEmptyValues || graph.isPresent())
                     .toList();
         }
         @Override public <C> List<Graph<C>> children(String path, Class<C> childType) {
-            return delegate.children(path, childType).stream().map(context::view)
-                    .filter(graph -> !context.hideEmptyValues || graph.isPresent())
-                    .toList();
+            return children().stream()
+                    .filter(graph -> Objects.equals(path, graph.relationshipPath()))
+                    .filter(graph -> childType.isAssignableFrom(graph.type()))
+                    .map(Graphs::<C>cast).toList();
         }
         @Override public <D> List<Graph<D>> descendants(Class<D> descendantType) {
             return delegate.descendants(descendantType).stream().map(context::view)
@@ -1570,9 +1604,24 @@ public final class Graphs {
                     .toList();
         }
         @Override public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
-            return delegate.descendants(path, descendantType).stream().map(context::view)
-                    .filter(graph -> !context.hideEmptyValues || graph.isPresent())
-                    .toList();
+            List<Graph<D>> result = new ArrayList<>();
+            Deque<PathGraph> remaining = new ArrayDeque<>();
+            children().forEach(child -> remaining.addLast(
+                    new PathGraph(child, child.relationshipPath())));
+            while (!remaining.isEmpty()) {
+                PathGraph candidate = remaining.removeFirst();
+                if (Objects.equals(path, candidate.path)
+                    && descendantType.isAssignableFrom(candidate.graph.type())) {
+                    result.add(cast(candidate.graph));
+                }
+                candidate.graph.children().forEach(child ->
+                        remaining.addLast(new PathGraph(
+                                child, candidate.path == null
+                                       || child.relationshipPath() == null
+                                        ? null : candidate.path + "/"
+                                                 + child.relationshipPath())));
+            }
+            return List.copyOf(result);
         }
         @Override public Graph<T> apply(Object update) { return context.view(delegate.apply(update)); }
         @Override public Graph<T> apply(Object update, Metadata metadata) {
@@ -1613,6 +1662,9 @@ public final class Graphs {
                 result = result.previous();
             }
             return Optional.ofNullable(result);
+        }
+
+        private record PathGraph(Graph<?> graph, String path) {
         }
     }
 

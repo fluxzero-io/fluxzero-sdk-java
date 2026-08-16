@@ -227,6 +227,27 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
+    void binaryTrackingCodecPreservesDocumentTombstoneReads() throws Exception {
+        Read read = new Read(
+                MessageType.DOCUMENT, "consumer", "tracker", 32, 4096L, 100L, null,
+                false, false, false, false, true, null, null);
+        RequestBatch<Read> batch = new RequestBatch<>(List.of(read));
+
+        for (WebSocketTransportCodec codec : List.of(binaryCodec, nativeBinaryCodec)) {
+            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class, roundTrip(codec, batch));
+            assertTrue(assertInstanceOf(Read.class, decoded.getRequests().getFirst())
+                               .isIncludeDocumentTombstones());
+        }
+
+        byte[] nativeBytes = TrackingWireCodec.tryEncodeNative(batch);
+        assertNotNull(nativeBytes);
+        RequestBatch<?> nativeDecoded = assertInstanceOf(
+                RequestBatch.class, TrackingWireCodec.tryDecodeNative(nativeBytes));
+        assertTrue(assertInstanceOf(Read.class, nativeDecoded.getRequests().getFirst())
+                           .isIncludeDocumentTombstones());
+    }
+
+    @Test
     void nativeBinaryModelCommitCodecRetainsEventEnvelope() throws Exception {
         SerializedMessage event = serializedMessage();
         CommitModels commit = new CommitModels(
@@ -332,7 +353,7 @@ class WebSocketTransportCodecsTest {
     void cborRoundTripsRequestAndResultBatches() throws Exception {
         Append append = new Append(MessageType.EVENT, List.of(serializedMessage()), Guarantee.STORED);
         Read read = new Read(MessageType.EVENT, "consumer", "tracker", 32, 4096L, 100L, null,
-                             false, false, false, false, null, null);
+                             false, false, false, false, true, null, null);
         RequestBatch<JsonType> requestBatch = new RequestBatch<>(List.of(append, read));
 
         RequestBatch<?> decodedRequests = assertInstanceOf(RequestBatch.class, roundTrip(cborCodec, requestBatch));
@@ -343,6 +364,8 @@ class WebSocketTransportCodecsTest {
                      assertInstanceOf(Read.class, decodedRequests.getRequests().get(1)).getRequestId());
         assertEquals(read.getMaxBytes(),
                      assertInstanceOf(Read.class, decodedRequests.getRequests().get(1)).getMaxBytes());
+        assertTrue(assertInstanceOf(Read.class, decodedRequests.getRequests().get(1))
+                           .isIncludeDocumentTombstones());
 
         VoidResult voidResult = new VoidResult(append.getRequestId());
         voidResult.setRequestReceivedTimestamp(111L);
@@ -374,6 +397,7 @@ class WebSocketTransportCodecsTest {
                 ReadFromIndex.class, objectMapper.readValue(readFromIndexJson, JsonType.class));
 
         assertEquals(0L, read.getMaxBytes());
+        assertFalse(read.isIncludeDocumentTombstones());
         assertEquals(0L, readFromIndex.getMaxBytes());
     }
 

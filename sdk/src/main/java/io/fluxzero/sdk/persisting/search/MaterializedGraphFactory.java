@@ -26,6 +26,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 
@@ -65,7 +66,7 @@ final class MaterializedGraphFactory {
         Context context = new Context(
                 document, documentSerializer,
                 repositorySupplier, registeredModelTypes,
-                pathOverrides, manifest);
+                pathOverrides, manifest, null);
         Graph<?> root = context.view(0);
         if (!rootType.isAssignableFrom(root.type())) {
             throw new IllegalArgumentException(
@@ -88,11 +89,28 @@ final class MaterializedGraphFactory {
             Supplier<ModelRepository> repositorySupplier,
             Collection<Class<?>> registeredModelTypes,
             Map<String, String> pathOverrides) {
+        return create(document, documentId, collection, timestamp, end, manifest, rootType,
+                      documentSerializer, repositorySupplier, registeredModelTypes, pathOverrides, null);
+    }
+
+    static <T> Graph<T> create(
+            JsonNode document,
+            String documentId,
+            String collection,
+            Long timestamp,
+            Long end,
+            ModelGraphDocumentManifest manifest,
+            Class<T> rootType,
+            DocumentSerializer documentSerializer,
+            Supplier<ModelRepository> repositorySupplier,
+            Collection<Class<?>> registeredModelTypes,
+            Map<String, String> pathOverrides,
+            Long previousStateIndex) {
         Context context = new Context(
                 document, documentId, collection,
                 timestamp, end, documentSerializer,
                 repositorySupplier, registeredModelTypes,
-                pathOverrides, manifest);
+                pathOverrides, manifest, previousStateIndex);
         Graph<?> root = context.view(0);
         if (!rootType.isAssignableFrom(root.type())) {
             throw new IllegalArgumentException(
@@ -112,6 +130,8 @@ final class MaterializedGraphFactory {
         private final ModelRepository repository;
         private final Supplier<JsonNode> jsonSupplier;
         private final long stateIndex;
+        private final Long previousStateIndex;
+        private final Map<String, String> pathOverrides;
         private final List<Node> nodes;
         private final Map<String, List<Node>> nodesById;
         private final Map<Class<?>, List<String>> declaredPaths;
@@ -123,11 +143,12 @@ final class MaterializedGraphFactory {
                 Supplier<ModelRepository> repositorySupplier,
                 Collection<Class<?>> registeredModelTypes,
                 Map<String, String> pathOverrides,
-                ModelGraphDocumentManifest manifest) {
+                ModelGraphDocumentManifest manifest,
+                Long previousStateIndex) {
             this(document.getId(), document.getCollection(),
                  document.getTimestamp(), document.getEnd(),
                  documentSerializer, repositorySupplier,
-                 registeredModelTypes, pathOverrides, manifest,
+                 registeredModelTypes, pathOverrides, manifest, previousStateIndex,
                  () -> documentSerializer.fromDocument(
                          document, JsonNode.class));
         }
@@ -142,10 +163,11 @@ final class MaterializedGraphFactory {
                 Supplier<ModelRepository> repositorySupplier,
                 Collection<Class<?>> registeredModelTypes,
                 Map<String, String> pathOverrides,
-                ModelGraphDocumentManifest manifest) {
+                ModelGraphDocumentManifest manifest,
+                Long previousStateIndex) {
             this(documentId, collection, timestamp, end,
                  documentSerializer, repositorySupplier,
-                 registeredModelTypes, pathOverrides, manifest,
+                 registeredModelTypes, pathOverrides, manifest, previousStateIndex,
                  () -> document);
         }
 
@@ -159,6 +181,7 @@ final class MaterializedGraphFactory {
                 Collection<Class<?>> registeredModelTypes,
                 Map<String, String> pathOverrides,
                 ModelGraphDocumentManifest manifest,
+                Long previousStateIndex,
                 Supplier<JsonNode> jsonSupplier) {
             this.documentId = Objects.requireNonNull(
                     documentId, "documentId");
@@ -172,6 +195,8 @@ final class MaterializedGraphFactory {
             this.jsonSupplier = Objects.requireNonNull(
                     jsonSupplier, "jsonSupplier");
             this.stateIndex = manifest.stateIndex();
+            this.previousStateIndex = previousStateIndex;
+            this.pathOverrides = Map.copyOf(pathOverrides);
             this.declaredPaths = declaredPaths(
                     registeredModelTypes, pathOverrides);
             List<Node> mutable = new ArrayList<>(manifest.nodes().size());
@@ -293,6 +318,10 @@ final class MaterializedGraphFactory {
                         "Materialized graph history and updates require a model repository");
             }
             return repository;
+        }
+
+        private <T> Graph<T> remap(Graph<T> graph) {
+            return graph == null ? null : Graphs.remapPaths(graph, pathOverrides);
         }
 
         private static Map<Class<?>, List<String>> declaredPaths(
@@ -577,17 +606,30 @@ final class MaterializedGraphFactory {
         @Override public Graph<T> assertAndApply(Object update, Metadata metadata) {
             return durable().assertAndApply(update, metadata);
         }
-        @Override public Graph<T> previous() { return durable().previous(); }
+        @Override public Graph<T> previous() {
+            if (context.previousStateIndex != null && node.manifest.parent() < 0) {
+                return context.remap(
+                        context.repository().loadGraphAt(
+                                id().toString(), type(), context.previousStateIndex,
+                                Options.DEFAULT));
+            }
+            return context.remap(durable().previous());
+        }
         @Override public Graph<T> atStateIndex(long stateIndex) {
-            return context.repository().loadGraphAt(
-                    id().toString(), type(), stateIndex, Options.DEFAULT);
+            return context.remap(context.repository().loadGraphAt(
+                    id().toString(), type(), stateIndex, Options.DEFAULT));
         }
         @Override public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
-            return durable().playBackToEvent(eventIndex, eventId);
+            return durable().playBackToEvent(eventIndex, eventId).map(context::remap);
         }
         @Override public Optional<Graph<T>> playBackToCondition(
                 Predicate<Graph<T>> condition) {
-            return durable().playBackToCondition(condition);
+            Objects.requireNonNull(condition, "condition");
+            Graph<T> result = this;
+            while (result != null && !condition.test(result)) {
+                result = result.previous();
+            }
+            return Optional.ofNullable(result);
         }
 
         private Graph<T> durable() {

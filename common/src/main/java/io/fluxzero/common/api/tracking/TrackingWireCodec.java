@@ -279,7 +279,8 @@ public final class TrackingWireCodec {
             int flags = (read.isFilterMessageTarget() ? 1 : 0)
                         | (read.isIgnoreSegment() ? 1 << 1 : 0)
                         | (read.isSingleTracker() ? 1 << 2 : 0)
-                        | (read.isClientControlledIndex() ? 1 << 3 : 0);
+                        | (read.isClientControlledIndex() ? 1 << 3 : 0)
+                        | (read.isIncludeDocumentTombstones() ? 1 << 4 : 0);
             output.writeByte(flags);
             output.writeNullableLong(read.getLastIndex());
             output.writeNullableLong(read.getPurgeTimeout());
@@ -347,6 +348,7 @@ public final class TrackingWireCodec {
             reads.add(new Read(requestId, messageType, consumer, trackerId, maxSize, maxBytes, maxTimeout,
                                typeFilter, (flags & 1) != 0, (flags & (1 << 1)) != 0,
                                (flags & (1 << 2)) != 0, (flags & (1 << 3)) != 0,
+                               (flags & (1 << 4)) != 0,
                                input.readNullableLong(), input.readNullableLong()));
         }
         return direct ? reads.getFirst() : new RequestBatch<>(reads);

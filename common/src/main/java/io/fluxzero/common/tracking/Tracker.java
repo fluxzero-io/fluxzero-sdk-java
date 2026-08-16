@@ -138,6 +138,13 @@ public interface Tracker extends Comparable<Tracker> {
     }
 
     /**
+     * @return whether typed model-graph deletion records should be included while scanning document collections
+     */
+    default boolean includeDocumentTombstones() {
+        return false;
+    }
+
+    /**
      * Returns a predicate for filtering messages based on their type (class name).
      *
      * @return a type filter predicate. By default, allows all types.

@@ -55,6 +55,8 @@ public class WebSocketTracker implements Tracker {
     @Accessors(fluent = true)
     private final boolean singleTracker;
     @Accessors(fluent = true)
+    private final boolean includeDocumentTombstones;
+    @Accessors(fluent = true)
     private final long maxTimeout;
 
     public WebSocketTracker(Read read, MessageType messageType, String clientId, String sessionId) {
@@ -75,6 +77,7 @@ public class WebSocketTracker implements Tracker {
         this.ignoreSegment = read.isIgnoreSegment() || messageType == MessageType.NOTIFICATION;
         this.clientControlledIndex = read.isClientControlledIndex() || messageType == MessageType.NOTIFICATION;
         this.singleTracker = read.isSingleTracker();
+        this.includeDocumentTombstones = read.isIncludeDocumentTombstones();
     }
 
     @Override

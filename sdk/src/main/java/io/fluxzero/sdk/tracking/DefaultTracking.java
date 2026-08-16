@@ -45,6 +45,7 @@ import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
@@ -228,6 +229,7 @@ public class DefaultTracking implements Tracking {
     @SuppressWarnings("unchecked")
     private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes) {
         Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fluxzero, handlers);
+        assignedHandlers = enableDocumentTombstones(assignedHandlers);
         assignedHandlers.forEach((configuration, targets) ->
                 targets.forEach(target -> handlerInitializer.accept(target, configuration)));
         Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
@@ -256,6 +258,31 @@ public class DefaultTracking implements Tracking {
         Registration registration = registrationWithHandlerTypes(handlerRegistration, handlerTypes);
         shutdownFunction.updateAndGet(r -> r.merge(registration));
         return registration;
+    }
+
+    private Map<ConsumerConfiguration, List<Object>> enableDocumentTombstones(
+            Map<ConsumerConfiguration, List<Object>> assignedHandlers) {
+        if (messageType != MessageType.DOCUMENT) {
+            return assignedHandlers;
+        }
+        LinkedHashMap<ConsumerConfiguration, List<Object>> result = new LinkedHashMap<>();
+        assignedHandlers.forEach((configuration, targets) -> {
+            boolean includeTombstones = configuration.isIncludeDocumentTombstones()
+                    || targets.stream()
+                    .map(target -> target instanceof Handler<?> handler
+                            ? handler.getTargetClass() : ReflectionUtils.asClass(target))
+                    .filter(Objects::nonNull)
+                    .flatMap(type -> ReflectionUtils.getAnnotatedMethods(type, HandleDocument.class).stream())
+                    .flatMap(method -> ReflectionUtils
+                            .<HandleDocument>getMethodAnnotation(method, HandleDocument.class).stream())
+                    .anyMatch(annotation -> annotation.modelGraph() != Void.class);
+            ConsumerConfiguration effective = includeTombstones
+                    ? configuration.toBuilder().includeDocumentTombstones(true).build()
+                    : configuration;
+            result.merge(effective, targets, (left, right) ->
+                    Stream.concat(left.stream(), right.stream()).distinct().toList());
+        });
+        return result;
     }
 
     private Registration registrationWithHandlerTypes(Registration handlerRegistration, Set<Class<?>> handlerTypes) {

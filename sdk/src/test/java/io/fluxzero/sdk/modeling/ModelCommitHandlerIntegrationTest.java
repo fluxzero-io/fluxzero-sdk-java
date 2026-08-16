@@ -1484,6 +1484,50 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void handleDocumentReceivesTypedGraphTombstoneWithCompletePreviousGraph() {
+        ProjectionRootId rootId = new ProjectionRootId("deleted-root");
+        ProjectionChildId childId = new ProjectionChildId("deleted-child");
+        AtomicReference<Graph<ProjectionRoot>> deletion = new AtomicReference<>();
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .registerHandlers(new Object() {
+                    @HandleDocument(modelGraph = ProjectionRoot.class)
+                    void handle(Graph<ProjectionRoot> graph) {
+                        if (graph.isEmpty()) {
+                            deletion.set(graph);
+                        }
+                    }
+
+                    @HandleDocument("projectionRoots")
+                    void handleOrdinaryDocument(DeserializingMessage message) {
+                        assertFalse(message.getMetadata().containsKey(
+                                io.fluxzero.common.search.ModelGraphDocumentManifest
+                                        .TOMBSTONE_METADATA_KEY));
+                    }
+                })
+                .givenCommands(
+                        new CreateProjectionRoot(rootId),
+                        new CreateProjectionChild(childId, rootId))
+                .whenCommand(new DeleteProjectionRoot(rootId))
+                .expectNoErrors()
+                .expectThat(ignored -> {
+                    Graph<ProjectionRoot> tombstone = deletion.get();
+                    assertTrue(tombstone.isEmpty());
+                    assertEquals(rootId.toString(), tombstone.id());
+                    assertEquals(ProjectionRoot.class, tombstone.type());
+                    Graph<ProjectionRoot> previous = tombstone.previous();
+                    assertTrue(tombstone.stateIndex() > previous.stateIndex());
+                    assertEquals(rootId, previous.get().projectionRootId());
+                    assertEquals(childId, previous.childModels(
+                            "projectedChildren", ProjectionChild.class)
+                            .getFirst().projectionChildId());
+                });
+    }
+
+    @Test
     void typedMaterializedGraphSerializesDeclaredEmptyChildPaths() {
         ProjectionRootId populatedRoot =
                 new ProjectionRootId("populated");
@@ -3234,6 +3278,14 @@ class ModelCommitHandlerIntegrationTest {
         ProjectionRoot apply() {
             return new ProjectionRoot(
                     projectionRootId);
+        }
+    }
+
+    private record DeleteProjectionRoot(
+            ProjectionRootId projectionRootId) {
+        @Apply
+        ProjectionRoot apply(ProjectionRoot current) {
+            return null;
         }
     }
 

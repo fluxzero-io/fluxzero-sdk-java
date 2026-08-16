@@ -85,7 +85,8 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                         configuration.effectiveMaxFetchBytes(), configuration.getMaxWaitDuration().toMillis(),
                 configuration.getTypeFilter(),
                 configuration.filterMessageTarget(), configuration.ignoreSegment(),
-                configuration.singleTracker(), configuration.clientControlledIndex(), lastIndex,
+                configuration.singleTracker(), configuration.clientControlledIndex(),
+                configuration.isIncludeDocumentTombstones(), lastIndex,
                 Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
                 .thenApply(result -> {
                     recordReadStages(result.getMessageBatch(), "read-future-complete");

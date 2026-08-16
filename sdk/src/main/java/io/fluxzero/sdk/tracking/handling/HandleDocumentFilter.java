@@ -24,6 +24,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.util.Objects;
 
+import static io.fluxzero.common.search.ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY;
+
 /**
  * A {@link MessageFilter} that routes {@link DeserializingMessage} instances to methods annotated with
  * {@link HandleDocument}, based on the message's topic.
@@ -44,8 +46,10 @@ public class HandleDocumentFilter implements MessageFilter<DeserializingMessage>
     @Override
     public boolean test(DeserializingMessage message, Executable executable,
                         Class<? extends Annotation> handlerAnnotation, Class<?> targetClass) {
-        return ReflectionUtils.getAnnotation(executable, HandleDocument.class).map(
-                        handleDocument -> ClientUtils.getTopic(handleDocument, executable))
+        return ReflectionUtils.getAnnotation(executable, HandleDocument.class)
+                .filter(handleDocument -> message.getMetadata().get(TOMBSTONE_METADATA_KEY) == null
+                        || handleDocument.modelGraph() != Void.class)
+                .map(handleDocument -> ClientUtils.getTopic(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);
     }
