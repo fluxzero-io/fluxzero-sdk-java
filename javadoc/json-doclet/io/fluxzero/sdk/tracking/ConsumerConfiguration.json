@@ -363,7 +363,7 @@
     "type" : "java.lang.Long",
     "modifiers" : [ ],
     "annotations" : [ ],
-    "documentation" : " Optional minimum index to start processing messages from.\n",
+    "documentation" : " Optional inclusive minimum index to start processing messages from.\n",
     "constantValue" : null
   }, {
     "name" : "name",
