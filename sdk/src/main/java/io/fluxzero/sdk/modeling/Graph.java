@@ -530,7 +530,13 @@ public interface Graph<T> {
     /** Verifies that the supplied update is legal and returns this graph. */
     <E extends Exception> Graph<T> assertLegal(Object update) throws E;
 
-    /** Verifies and applies the supplied update. */
+    /**
+     * Verifies and applies the supplied update. For an independent {@link Model}, this enters the regular model
+     * pipeline and returns after the selected model commit is durable; payload IDs do not replace this graph's explicit
+     * identity. Interceptor payload transformations retain that identity, while returning an explicit
+     * {@link io.fluxzero.sdk.common.Message} starts a separately routed update. Aggregate-backed graphs retain their
+     * surrounding aggregate lifecycle.
+     */
     Graph<T> assertAndApply(Object update);
 
     /** Verifies and applies the supplied update with explicit metadata. */

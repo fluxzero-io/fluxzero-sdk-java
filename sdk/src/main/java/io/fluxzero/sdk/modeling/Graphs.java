@@ -78,6 +78,18 @@ public final class Graphs {
     }
 
     /**
+     * Creates a detached graph for an exact persisted model identity. Unlike {@link #lazy(Object, Class,
+     * ModelRepository)}, this does not interpret the supplied value as a functional ID and therefore does not apply
+     * {@link EntityId} affixes or parent scoping a second time.
+     */
+    public static <T> Graph<T> lazyRepositoryId(
+            String repositoryId,
+            Class<T> modelType,
+            ModelRepository repository) {
+        return new IdentityGraph<>(repositoryId, repositoryId, modelType, repository);
+    }
+
+    /**
      * Creates a detached graph for a parent-scoped model without eagerly loading its source value.
      */
     public static <T> Graph<T> lazy(
@@ -229,7 +241,7 @@ public final class Graphs {
     public static <T> Graph<T> mapValues(
             Graph<T> graph,
             Function<? super Graph<?>, ?> mapper) {
-        return new MappedContext(Objects.requireNonNull(mapper, "mapper"), List.of())
+        return new MappedContext(Objects.requireNonNull(mapper, "mapper"), List.of(), false)
                 .view(Objects.requireNonNull(graph, "graph"));
     }
 
@@ -242,7 +254,7 @@ public final class Graphs {
         if (values.isEmpty()) {
             return graph;
         }
-        return new MappedContext(Graph::get, values).view(graph);
+        return new MappedContext(Graph::get, values, false).view(graph);
     }
 
     /** Returns a graph view containing matching branches and the ancestors required to reach them. */
@@ -269,7 +281,9 @@ public final class Graphs {
                 }
             }
         });
-        return mapValues(graph, node -> retained.contains(node) ? node.get() : null);
+        return new MappedContext(
+                node -> retained.contains(node) ? node.get() : null,
+                List.of(), true).view(graph);
     }
 
     /** Returns a lazy immutable view containing only selected serialized relationship paths. */
@@ -922,11 +936,19 @@ public final class Graphs {
 
         @Override
         public Graph<T> assertAndApply(Object update) {
+            if (Fluxzero.getOptionally().isPresent()
+                && ModelMetadata.of(type()).isModel()) {
+                return Fluxzero.assertAndApply(this, update);
+            }
             return unstaged(current -> current.assertAndApply(update));
         }
 
         @Override
         public Graph<T> assertAndApply(Object update, Metadata metadata) {
+            if (Fluxzero.getOptionally().isPresent()
+                && ModelMetadata.of(type()).isModel()) {
+                return Fluxzero.assertAndApply(this, update, metadata);
+            }
             return unstaged(current -> current.assertAndApply(update, metadata));
         }
 
@@ -1438,11 +1460,16 @@ public final class Graphs {
     private static final class MappedContext {
         private final Function<? super Graph<?>, ?> mapper;
         private final List<?> values;
+        private final boolean hideEmptyValues;
         private final Map<Graph<?>, MappedGraph<?>> views = new IdentityHashMap<>();
 
-        private MappedContext(Function<? super Graph<?>, ?> mapper, Collection<?> values) {
+        private MappedContext(
+                Function<? super Graph<?>, ?> mapper,
+                Collection<?> values,
+                boolean hideEmptyValues) {
             this.mapper = mapper;
             this.values = List.copyOf(values);
+            this.hideEmptyValues = hideEmptyValues;
         }
 
         private <C> Optional<C> value(Class<C> contextType) {
@@ -1519,20 +1546,30 @@ public final class Graphs {
         }
         @Override public List<Graph<?>> children() {
             return delegate.children().stream()
-                    .<Graph<?>>map(context::view).toList();
+                    .<Graph<?>>map(context::view)
+                    .filter(graph -> !context.hideEmptyValues || graph.isPresent())
+                    .toList();
         }
         @Override public List<String> childPaths() { return delegate.childPaths(); }
         @Override public <C> List<Graph<C>> children(Class<C> childType) {
-            return delegate.children(childType).stream().map(context::view).toList();
+            return delegate.children(childType).stream().map(context::view)
+                    .filter(graph -> !context.hideEmptyValues || graph.isPresent())
+                    .toList();
         }
         @Override public <C> List<Graph<C>> children(String path, Class<C> childType) {
-            return delegate.children(path, childType).stream().map(context::view).toList();
+            return delegate.children(path, childType).stream().map(context::view)
+                    .filter(graph -> !context.hideEmptyValues || graph.isPresent())
+                    .toList();
         }
         @Override public <D> List<Graph<D>> descendants(Class<D> descendantType) {
-            return delegate.descendants(descendantType).stream().map(context::view).toList();
+            return delegate.descendants(descendantType).stream().map(context::view)
+                    .filter(graph -> !context.hideEmptyValues || graph.isPresent())
+                    .toList();
         }
         @Override public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
-            return delegate.descendants(path, descendantType).stream().map(context::view).toList();
+            return delegate.descendants(path, descendantType).stream().map(context::view)
+                    .filter(graph -> !context.hideEmptyValues || graph.isPresent())
+                    .toList();
         }
         @Override public Graph<T> apply(Object update) { return context.view(delegate.apply(update)); }
         @Override public Graph<T> apply(Object update, Metadata metadata) {

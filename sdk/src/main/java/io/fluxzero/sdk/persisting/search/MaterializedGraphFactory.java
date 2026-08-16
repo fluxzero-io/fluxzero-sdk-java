@@ -109,10 +109,11 @@ final class MaterializedGraphFactory {
         private final Long timestamp;
         private final Long end;
         private final DocumentSerializer documentSerializer;
-        private final Supplier<ModelRepository> repositorySupplier;
+        private final ModelRepository repository;
         private final Supplier<JsonNode> jsonSupplier;
         private final long stateIndex;
         private final List<Node> nodes;
+        private final Map<String, List<Node>> nodesById;
         private final Map<Class<?>, List<String>> declaredPaths;
         private volatile JsonNode json;
 
@@ -166,8 +167,8 @@ final class MaterializedGraphFactory {
             this.end = end;
             this.documentSerializer = Objects.requireNonNull(
                     documentSerializer, "documentSerializer");
-            this.repositorySupplier = Objects.requireNonNull(
-                    repositorySupplier, "repositorySupplier");
+            this.repository = Objects.requireNonNull(
+                    repositorySupplier, "repositorySupplier").get();
             this.jsonSupplier = Objects.requireNonNull(
                     jsonSupplier, "jsonSupplier");
             this.stateIndex = manifest.stateIndex();
@@ -213,6 +214,11 @@ final class MaterializedGraphFactory {
             }
             mutable.forEach(Node::freeze);
             this.nodes = List.copyOf(mutable);
+            Map<String, List<Node>> byId = new LinkedHashMap<>();
+            mutable.forEach(node -> byId.computeIfAbsent(
+                    node.manifest.id(), ignored -> new ArrayList<>()).add(node));
+            byId.replaceAll((ignored, matches) -> List.copyOf(matches));
+            this.nodesById = Map.copyOf(byId);
         }
 
         private Graph<?> view(int index) {
@@ -227,6 +233,13 @@ final class MaterializedGraphFactory {
                 }
             }
             return result;
+        }
+
+        private List<Graph<?>> views(String modelId, Class<?> modelType) {
+            return nodesById.getOrDefault(modelId, List.of()).stream()
+                    .filter(candidate -> modelType.isAssignableFrom(candidate.type))
+                    .<Graph<?>>map(candidate -> view(candidate.index))
+                    .toList();
         }
 
         private JsonNode json() {
@@ -275,12 +288,11 @@ final class MaterializedGraphFactory {
         }
 
         private ModelRepository repository() {
-            ModelRepository result = repositorySupplier.get();
-            if (result == null) {
+            if (repository == null) {
                 throw new IllegalStateException(
                         "Materialized graph history and updates require a model repository");
             }
-            return result;
+            return repository;
         }
 
         private static Map<Class<?>, List<String>> declaredPaths(
@@ -402,39 +414,88 @@ final class MaterializedGraphFactory {
         }
         @Override public Optional<Graph<?>> parent() {
             return node.manifest.parent() < 0
-                    ? durable().parent()
+                    ? hasExternalParents() ? durable().parent() : Optional.empty()
                     : Optional.of(context.view(node.manifest.parent()));
         }
         @Override public List<Graph<?>> parents() {
-            if (node.manifest.parent() < 0) {
-                return durable().parents();
-            }
-            Graph<?> placedParent = context.view(node.manifest.parent());
             LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
-            result.put(placedParent.type().getName() + ':' + placedParent.id(), placedParent);
-            durable().parents().forEach(parent -> result.putIfAbsent(
-                    parent.type().getName() + ':' + parent.id(), parent));
+            if (node.manifest.parent() >= 0) {
+                addParent(result, context.view(node.manifest.parent()));
+            }
+            boolean unresolved = false;
+            T model = get();
+            if (model != null) {
+                for (ModelMetadata.ParentReference reference :
+                        ModelMetadata.of(type()).parentReferences()) {
+                    Object parentId = reference.read(model);
+                    Class<?> parentType = reference.parentModelType();
+                    if (parentId == null) {
+                        continue;
+                    }
+                    if (parentType == null) {
+                        unresolved = true;
+                        continue;
+                    }
+                    List<Graph<?>> internal = context.views(
+                            reference.repositoryId(parentId), parentType);
+                    if (internal.isEmpty()) {
+                        unresolved = true;
+                    } else {
+                        internal.forEach(parent -> addParent(result, parent));
+                    }
+                }
+            }
+            if (unresolved) {
+                durable().parents().forEach(parent -> addParent(result, parent));
+            }
             return List.copyOf(result.values());
         }
         @Override public <P> Optional<Graph<P>> parent(Class<P> parentType) {
+            Objects.requireNonNull(parentType, "parentType");
             if (node.manifest.parent() >= 0) {
                 Graph<?> placedParent = context.view(node.manifest.parent());
                 if (parentType.isAssignableFrom(placedParent.type())) {
                     return Optional.of(cast(placedParent));
                 }
             }
-            return durable().parent(parentType);
+            List<Graph<P>> matches = parents().stream()
+                    .filter(candidate -> parentType.isAssignableFrom(candidate.type()))
+                    .map(MaterializedGraphFactory::<P>cast)
+                    .toList();
+            if (matches.size() > 1) {
+                throw new IllegalStateException(
+                        "Model %s has multiple parents assignable to %s"
+                                .formatted(id(), parentType.getName()));
+            }
+            return matches.stream().findFirst();
         }
         @Override public <A> Optional<Graph<A>> ancestor(Class<A> ancestorType) {
-            Graph<?> candidate = this;
-            while (candidate != null) {
-                if (ancestorType.isAssignableFrom(candidate.type())) {
-                    return Optional.of(cast(candidate));
+            Objects.requireNonNull(ancestorType, "ancestorType");
+            List<Graph<?>> level = List.of(this);
+            LinkedHashSet<String> visited = new LinkedHashSet<>();
+            while (!level.isEmpty()) {
+                List<Graph<A>> matches = level.stream()
+                        .filter(candidate -> ancestorType.isAssignableFrom(candidate.type()))
+                        .map(MaterializedGraphFactory::<A>cast)
+                        .toList();
+                if (matches.size() > 1) {
+                    throw new IllegalStateException(
+                            "Model %s has multiple ancestors assignable to %s"
+                                    .formatted(id(), ancestorType.getName()));
                 }
-                int parent = ((MaterializedGraph<?>) candidate).node.manifest.parent();
-                candidate = parent < 0 ? null : context.view(parent);
+                if (!matches.isEmpty()) {
+                    return Optional.of(matches.getFirst());
+                }
+                List<Graph<?>> next = new ArrayList<>();
+                for (Graph<?> candidate : level) {
+                    String key = candidate.type().getName() + ':' + candidate.id();
+                    if (visited.add(key)) {
+                        next.addAll(candidate.parents());
+                    }
+                }
+                level = List.copyOf(next);
             }
-            return durable().ancestor(ancestorType);
+            return Optional.empty();
         }
         @Override public List<Graph<?>> children() {
             return node.children.stream().<Graph<?>>map(context::view).toList();
@@ -546,6 +607,17 @@ final class MaterializedGraphFactory {
                 }
             }
             return result;
+        }
+
+        private boolean hasExternalParents() {
+            return node.manifest.parent() < 0
+                   && !ModelMetadata.of(type()).parentReferences().isEmpty();
+        }
+
+        private static void addParent(
+                Map<String, Graph<?>> parents, Graph<?> parent) {
+            parents.putIfAbsent(
+                    parent.type().getName() + ':' + parent.id(), parent);
         }
 
         private record PathGraph(Graph<?> graph, String path) {

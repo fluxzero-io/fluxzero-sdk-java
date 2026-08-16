@@ -38,6 +38,11 @@ import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
 import io.fluxzero.sdk.tracking.root.RootConsumerModelCommand;
+import lombok.EqualsAndHashCode;
+import lombok.Value;
+import lombok.experimental.NonFinal;
+import lombok.experimental.SuperBuilder;
+import lombok.extern.jackson.Jacksonized;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
 
@@ -99,6 +104,147 @@ class ModelCommitHandlerIntegrationTest {
                     assertEquals(new Account(accountId, 42),
                                  fluxzero.modelRepository().load(accountId).get());
                 });
+    }
+
+    @Test
+    void graphAssertAndApplyRetainsTheSelectedIdentityAcrossInterception() {
+        AccountId payloadId = new AccountId("targeted-payload");
+        AccountId selectedId = new AccountId("targeted-selected");
+        ApplyTargetedCredit event = new ApplyTargetedCredit(payloadId, 1);
+
+        TestFixture.create(Account.class)
+                .givenCommands(
+                        new CreateAccount(payloadId, 10),
+                        new CreateAccount(selectedId, 20))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(selectedId)
+                        .assertAndApply(new TargetedCredit(payloadId, 1)))
+                .expectEvents(event)
+                .expectThat(fluxzero -> {
+                    assertEquals(new Account(payloadId, 10),
+                                 fluxzero.modelRepository().load(payloadId).get());
+                    assertEquals(new Account(selectedId, 21),
+                                 fluxzero.modelRepository().load(selectedId).get());
+                });
+    }
+
+    @Test
+    void graphAssertAndApplyPrefetchRetainsTheSelectedIdentityForAnIdlessInterceptorOutput() {
+        AccountId selectedId = new AccountId("targeted-idless-selected");
+        ApplyTargetedCreditWithoutId event = new ApplyTargetedCreditWithoutId(2);
+
+        TestFixture.create(Account.class)
+                .givenCommands(new CreateAccount(selectedId, 20))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(selectedId)
+                        .assertAndApply(new TargetedCreditWithoutId(2)))
+                .expectEvents(event)
+                .expectThat(fluxzero -> assertEquals(
+                        new Account(selectedId, 22),
+                        fluxzero.modelRepository().load(selectedId).get()));
+    }
+
+    @Test
+    void explicitInterceptorMessageStartsANewRoutingBoundary() {
+        AccountId routedId = new AccountId("targeted-rerouted-payload");
+        AccountId selectedId = new AccountId("targeted-rerouted-selected");
+        ApplyTargetedCredit event = new ApplyTargetedCredit(routedId, 1);
+
+        TestFixture.create(Account.class)
+                .givenCommands(
+                        new CreateAccount(routedId, 10),
+                        new CreateAccount(selectedId, 20))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(selectedId)
+                        .assertAndApply(new ReroutedTargetedCredit(routedId, 1)))
+                .expectEvents(event)
+                .expectThat(fluxzero -> {
+                    assertEquals(new Account(routedId, 11),
+                                 fluxzero.modelRepository().load(routedId).get());
+                    assertEquals(new Account(selectedId, 20),
+                                 fluxzero.modelRepository().load(selectedId).get());
+                });
+    }
+
+    @Test
+    void graphAssertAndApplyRetainsTheSelectedSubtypeForBaseModelApply() {
+        IncrementBaseCounter event = new IncrementBaseCounter("payload", 2);
+
+        TestFixture.create(SpecialCounter.class)
+                .givenCommands(new CreateSpecialCounter("selected", 3))
+                .whenExecuting(ignored -> Fluxzero.loadGraph("selected", SpecialCounter.class)
+                        .assertAndApply(event))
+                .expectEvents(event)
+                .expectThat(fluxzero -> assertEquals(
+                        SpecialCounter.builder().counterId("selected").value(5).marker("special").build(),
+                        fluxzero.modelRepository().load("selected", SpecialCounter.class).get()));
+    }
+
+    @Test
+    void baseModelApplyPersistsTheConcreteTypeOfANewModel() {
+        TestFixture.create(BaseCounter.class)
+                .whenCommand(new CreateSpecialThroughBase("new-special", 4))
+                .expectThat(fluxzero -> assertEquals(
+                        SpecialCounter.builder()
+                                .counterId("new-special").value(4).marker("special").build(),
+                        fluxzero.modelRepository()
+                                .load("new-special", SpecialCounter.class).get()));
+    }
+
+    @Test
+    void typedSubtypeIdNarrowsABaseModelApplyTarget() {
+        SpecialCounterId counterId = new SpecialCounterId("typed-special");
+
+        TestFixture.create(BaseCounter.class)
+                .whenCommand(new CreateTypedSpecial(counterId, 6))
+                .expectThat(fluxzero -> assertEquals(
+                        SpecialCounter.builder()
+                                .counterId(counterId.getId()).value(6).marker("special").build(),
+                        fluxzero.modelRepository().load(counterId).get()));
+    }
+
+    @Test
+    void explicitEmptySubtypeGraphRunsBaseModelInterceptorsAndApply() {
+        SpecialCounterId counterId = new SpecialCounterId("explicit-new-special");
+        CreateTypedSpecial event = new CreateTypedSpecial(counterId, 7);
+
+        TestFixture.create(BaseCounter.class)
+                .whenExecuting(ignored -> Fluxzero.loadGraph(counterId)
+                        .assertAndApply(event))
+                .expectEvents(event)
+                .expectThat(fluxzero -> assertEquals(
+                        SpecialCounter.builder()
+                                .counterId(counterId.getId()).value(7).marker("special").build(),
+                        fluxzero.modelRepository().load(counterId).get()));
+    }
+
+    @Test
+    void graphAssertAndApplyReloadsAnAffixedRepositoryIdentityExactlyOnce() {
+        AffixedRootId rootId = new AffixedRootId("targeted-affixed");
+
+        TestFixture.create(AffixedRoot.class)
+                .givenCommands(new CreateAffixedRoot(rootId))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(rootId)
+                        .assertAndApply(new TouchAffixedRoot()))
+                .expectThat(ignored -> assertEquals(
+                        new AffixedRoot(rootId),
+                        Fluxzero.loadGraph(rootId).get()));
+    }
+
+    @Test
+    void graphAssertAndApplyReloadsAParentScopedRepositoryIdentityWithoutParentContext() {
+        FamilyRootId rootId = new FamilyRootId("targeted-scoped");
+
+        TestFixture.create(ScopedNote.class)
+                .givenCommands(
+                        new CreateFamilyRoot(rootId, "root"),
+                        new CreateScopedNote("note", rootId, 1))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(
+                                rootId, FamilyRoot.class,
+                                "note", ScopedNote.class)
+                        .assertAndApply(new IncrementScopedNote(2)))
+                .expectThat(ignored -> assertEquals(
+                        new ScopedNote("note", rootId, 3),
+                        Fluxzero.loadGraph(
+                                rootId, FamilyRoot.class,
+                                "note", ScopedNote.class).get()));
     }
 
     @Test
@@ -1995,6 +2141,111 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
+    private record TargetedCredit(AccountId accountId, int amount) {
+        @InterceptApply
+        ApplyTargetedCredit intercept(Account account) {
+            return new ApplyTargetedCredit(accountId, amount);
+        }
+    }
+
+    private record ApplyTargetedCredit(AccountId accountId, int amount) {
+        @Apply
+        Account apply(Account account) {
+            return new Account(account.accountId(), account.balance() + amount);
+        }
+    }
+
+    private record TargetedCreditWithoutId(int amount) {
+        @InterceptApply
+        ApplyTargetedCreditWithoutId intercept(Account account) {
+            return new ApplyTargetedCreditWithoutId(amount);
+        }
+    }
+
+    private record ApplyTargetedCreditWithoutId(int amount) {
+        @Apply
+        Account apply(Account account) {
+            return new Account(account.accountId(), account.balance() + amount);
+        }
+    }
+
+    private record ReroutedTargetedCredit(AccountId accountId, int amount) {
+        @InterceptApply
+        Message intercept(Account account) {
+            return new Message(new ApplyTargetedCredit(accountId, amount));
+        }
+    }
+
+    @Value
+    @NonFinal
+    @SuperBuilder(toBuilder = true)
+    @Jacksonized
+    @Model
+    private static class BaseCounter {
+        @EntityId String counterId;
+        int value;
+    }
+
+    @Value
+    @EqualsAndHashCode(callSuper = true)
+    @SuperBuilder(toBuilder = true)
+    @Jacksonized
+    @Model
+    private static class SpecialCounter extends BaseCounter {
+        String marker;
+    }
+
+    private static final class SpecialCounterId extends Id<SpecialCounter> {
+        private SpecialCounterId(String id) {
+            super(id);
+        }
+    }
+
+    private record CreateSpecialCounter(String counterId, int value) {
+        @Apply
+        SpecialCounter apply() {
+            return SpecialCounter.builder()
+                    .counterId(counterId).value(value).marker("special").build();
+        }
+    }
+
+    private record CreateSpecialThroughBase(String counterId, int value) {
+        @Apply
+        BaseCounter apply() {
+            return SpecialCounter.builder()
+                    .counterId(counterId).value(value).marker("special").build();
+        }
+    }
+
+    private record CreateTypedSpecial(SpecialCounterId counterId, int value) {
+        @InterceptApply
+        CreateTypedSpecial intercept(Graph<BaseCounter> graph) {
+            return graph.isEmpty() ? this : null;
+        }
+
+        @Apply
+        BaseCounter apply(@io.fluxzero.sdk.tracking.handling.Association("counterId")
+                          Graph<BaseCounter> graph) {
+            if (!graph.type().equals(SpecialCounter.class)) {
+                throw new IllegalStateException(
+                        "Typed subtype ID did not retain its model type");
+            }
+            return SpecialCounter.builder()
+                    .counterId(counterId.getId()).value(value).marker("special").build();
+        }
+    }
+
+    private record IncrementBaseCounter(String counterId, int amount) {
+        @Apply
+        BaseCounter apply(Graph<BaseCounter> graph) {
+            BaseCounter current = graph.get();
+            if (current instanceof SpecialCounter special) {
+                return special.toBuilder().value(special.getValue() + amount).build();
+            }
+            return current.toBuilder().value(current.getValue() + amount).build();
+        }
+    }
+
     private static final AtomicReference<String> ASYNC_COMMIT_METADATA =
             new AtomicReference<>();
 
@@ -2556,6 +2807,40 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         AffixedRoot apply() {
             return new AffixedRoot(affixedRootId);
+        }
+    }
+
+    private record TouchAffixedRoot() {
+        @Apply
+        AffixedRoot apply(Graph<AffixedRoot> graph) {
+            return graph.get();
+        }
+    }
+
+    @Model
+    private record ScopedNote(
+            @EntityId(parentScoped = true) String noteId,
+            @ParentId(path = "notes") FamilyRootId familyRootId,
+            int value) {
+    }
+
+    private record CreateScopedNote(
+            String noteId,
+            FamilyRootId familyRootId,
+            int value) {
+        @Apply
+        ScopedNote apply() {
+            return new ScopedNote(noteId, familyRootId, value);
+        }
+    }
+
+    private record IncrementScopedNote(int amount) {
+        @Apply
+        ScopedNote apply(Graph<ScopedNote> graph) {
+            ScopedNote note = graph.get();
+            return new ScopedNote(
+                    note.noteId(), note.familyRootId(),
+                    note.value() + amount);
         }
     }
 

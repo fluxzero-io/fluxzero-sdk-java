@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -101,6 +102,8 @@ class MaterializedGraphFactoryTest {
         ModelRepository repository = mock(ModelRepository.class);
         Graph<CountingChild> durable = mock(Graph.class);
         Graph<CountingRoot> parent = mock(Graph.class);
+        when(parent.type()).thenReturn(CountingRoot.class);
+        when(parent.id()).thenReturn("root");
         when(repository.loadGraphAt(
                 "child", CountingChild.class, 41L, Graph.Options.DEFAULT))
                 .thenReturn(durable);
@@ -118,6 +121,128 @@ class MaterializedGraphFactoryTest {
         assertEquals(List.of(parent), graph.parents());
         assertEquals(Optional.of(parent), graph.parent(CountingRoot.class));
         assertEquals(Optional.of(parent), graph.ancestor(CountingRoot.class));
+    }
+
+    @Test
+    void resolvesAlternateParentsInsideTheMaterializedGraphWithoutRepositoryLoads() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ObjectNode json = serializer.getObjectMapper().createObjectNode()
+                .put("id", "root");
+        ObjectNode primary = json.putArray("primaryParents").addObject()
+                .put("id", "primary").put("rootId", "root");
+        primary.putArray("children").addObject()
+                .put("id", "child")
+                .put("primaryId", "primary")
+                .put("secondaryId", "secondary")
+                .put("alternatePrimaryId", "alternate-primary");
+        json.withArray("primaryParents").addObject()
+                .put("id", "alternate-primary").put("rootId", "root");
+        json.putArray("secondaryParents").addObject()
+                .put("id", "secondary").put("rootId", "root");
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L,
+                List.of(MultiParentRoot.class.getName(),
+                        PrimaryParent.class.getName(),
+                        SecondaryParent.class.getName(),
+                        MultiParentChild.class.getName()),
+                List.of("primaryParents", "secondaryParents", "children"),
+                List.of(
+                        new ModelGraphDocumentManifest.Node(
+                                "root", 0, -1, -1, 0),
+                        new ModelGraphDocumentManifest.Node(
+                                "primary", 1, 0, 0, 0),
+                        new ModelGraphDocumentManifest.Node(
+                                "child", 3, 1, 2, 0),
+                        new ModelGraphDocumentManifest.Node(
+                                "secondary", 2, 0, 1, 0),
+                        new ModelGraphDocumentManifest.Node(
+                                "alternate-primary", 1, 0, 0, 1)));
+        SerializedDocument document = serializer.toDocument(
+                json, "root", "multi-parent-root-graphs", null, null,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                            manifest.serialize()));
+        ModelRepository repository = mock(ModelRepository.class);
+
+        Graph<MultiParentRoot> graph = MaterializedGraphFactory.create(
+                document, MultiParentRoot.class, serializer,
+                () -> repository,
+                List.of(MultiParentRoot.class, PrimaryParent.class,
+                        SecondaryParent.class, MultiParentChild.class),
+                Map.of());
+        Graph<MultiParentChild> child = graph.descendants(
+                "primaryParents/children", MultiParentChild.class).getFirst();
+
+        assertEquals("primary", child.parent().orElseThrow().id());
+        assertEquals(List.of("primary", "secondary", "alternate-primary"),
+                     child.parents().stream().map(Graph::id).toList());
+        assertEquals("primary",
+                     child.parent(PrimaryParent.class).orElseThrow().id());
+        assertEquals("secondary",
+                     child.parent(SecondaryParent.class).orElseThrow().id());
+        assertEquals("secondary",
+                     child.ancestor(SecondaryParent.class).orElseThrow().id());
+        org.mockito.Mockito.verifyNoInteractions(repository);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void retainsTheRepositoryThatCreatedTheMaterializedGraph() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ObjectNode json = serializer.getObjectMapper().createObjectNode()
+                .put("id", "child").put("rootId", "root");
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L, List.of(CountingChild.class.getName()), List.of(),
+                List.of(new ModelGraphDocumentManifest.Node(
+                        "child", 0, -1, -1, 0)));
+        SerializedDocument document = serializer.toDocument(
+                json, "child", "child-graphs", null, null,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                            manifest.serialize()));
+        ModelRepository original = mock(ModelRepository.class);
+        ModelRepository replacement = mock(ModelRepository.class);
+        Graph<CountingChild> durable = mock(Graph.class);
+        when(original.loadGraphAt(
+                "child", CountingChild.class, 41L, Graph.Options.DEFAULT))
+                .thenReturn(durable);
+        AtomicReference<ModelRepository> repository =
+                new AtomicReference<>(original);
+
+        Graph<CountingChild> graph = MaterializedGraphFactory.create(
+                document, CountingChild.class, serializer,
+                repository::get,
+                List.of(CountingRoot.class, CountingChild.class), Map.of());
+        repository.set(replacement);
+
+        assertEquals(durable.revisionStateIndex(), graph.revisionStateIndex());
+        org.mockito.Mockito.verify(original).loadGraphAt(
+                "child", CountingChild.class, 41L, Graph.Options.DEFAULT);
+        org.mockito.Mockito.verifyNoInteractions(replacement);
+    }
+
+    @Test
+    void rootWithoutParentReferencesDoesNotLoadTheRepository() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ObjectNode json = serializer.getObjectMapper().createObjectNode()
+                .put("id", "root");
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L, List.of(CountingRoot.class.getName()), List.of(),
+                List.of(new ModelGraphDocumentManifest.Node(
+                        "root", 0, -1, -1, 0)));
+        SerializedDocument document = serializer.toDocument(
+                json, "root", "root-graphs", null, null,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                            manifest.serialize()));
+        ModelRepository repository = mock(ModelRepository.class);
+
+        Graph<CountingRoot> graph = MaterializedGraphFactory.create(
+                document, CountingRoot.class, serializer,
+                () -> repository,
+                List.of(CountingRoot.class, CountingChild.class), Map.of());
+
+        assertEquals(Optional.empty(), graph.parent());
+        assertEquals(List.of(), graph.parents());
+        assertEquals(Optional.empty(), graph.parent(CountingChild.class));
+        org.mockito.Mockito.verifyNoInteractions(repository);
     }
 
     @Test
@@ -156,6 +281,35 @@ class MaterializedGraphFactoryTest {
         private CountingChild {
             constructions.incrementAndGet();
         }
+    }
+
+    @Model
+    private record MultiParentRoot(@EntityId String id) {
+    }
+
+    @Model
+    private record PrimaryParent(
+            @EntityId String id,
+            @ParentId(value = MultiParentRoot.class, path = "primaryParents")
+            String rootId) {
+    }
+
+    @Model
+    private record SecondaryParent(
+            @EntityId String id,
+            @ParentId(value = MultiParentRoot.class, path = "secondaryParents")
+            String rootId) {
+    }
+
+    @Model
+    private record MultiParentChild(
+            @EntityId String id,
+            @ParentId(value = PrimaryParent.class, path = "children")
+            String primaryId,
+            @ParentId(value = SecondaryParent.class)
+            String secondaryId,
+            @ParentId(value = PrimaryParent.class)
+            String alternatePrimaryId) {
     }
 
     private static final class InvalidHandler {

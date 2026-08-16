@@ -589,6 +589,44 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Runs and commits an update against the explicitly selected model graph, independently of any model ID carried by
+     * the update payload. Interceptors, assertions, applies, event publication, conflict handling and commit guarantees
+     * are otherwise identical to {@link #assertAndApply(Object)}.
+     * <p>
+     * Prefer {@link Graph#assertAndApply(Object)} in application code. This overload owns the direct model-pipeline
+     * bridge used by that convenience.
+     *
+     * @param target explicitly selected model graph
+     * @param update update payload or message to assert and apply
+     * @return the freshly loaded graph after the durable commit
+     */
+    static <T> Graph<T> assertAndApply(Graph<T> target, Object update) {
+        Objects.requireNonNull(target, "target");
+        String repositoryId = target.id().toString();
+        awaitModelCommit(get().executeModelCommit(
+                modelMessage(update), repositoryId, target.type()));
+        return io.fluxzero.sdk.modeling.Graphs.lazyRepositoryId(
+                repositoryId, target.type(), currentModelRepository());
+    }
+
+    /**
+     * Runs and commits an update with additional metadata against the explicitly selected model graph.
+     *
+     * @see #assertAndApply(Graph, Object)
+     */
+    static <T> Graph<T> assertAndApply(
+            Graph<T> target, Object update, Metadata metadata) {
+        Objects.requireNonNull(target, "target");
+        String repositoryId = target.id().toString();
+        Message message = modelMessage(update);
+        awaitModelCommit(get().executeModelCommit(
+                message.withMetadata(message.getMetadata().with(metadata)),
+                repositoryId, target.type()));
+        return io.fluxzero.sdk.modeling.Graphs.lazyRepositoryId(
+                repositoryId, target.type(), currentModelRepository());
+    }
+
+    /**
      * Runs the model assertions, apply interceptors, and applies declared for the given update without blocking the
      * caller, and completes after the resulting model commit has been durably stored.
      * <p>
@@ -1780,6 +1818,17 @@ public interface Fluxzero extends AutoCloseable {
     default CompletableFuture<Void> executeModelCommit(Message update) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
                 "This Fluxzero implementation does not support direct model commits"));
+    }
+
+    /**
+     * Executes one model commit against an explicitly selected persisted model identity. This is the infrastructure
+     * extension used by {@link Graph#assertAndApply(Object)}; custom implementations supporting independent models may
+     * override it alongside {@link #executeModelCommit(Message)}.
+     */
+    default CompletableFuture<Void> executeModelCommit(
+            Message update, String modelId, Class<?> modelType) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support targeted model commits"));
     }
 
     /**

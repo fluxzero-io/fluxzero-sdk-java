@@ -265,6 +265,18 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return assertAndApply(update, null, -1);
     }
 
+    /** Executes an update against one explicitly selected persisted model. */
+    public CompletableFuture<Void> assertAndApply(
+            Message update, String modelId, Class<?> modelType) {
+        Objects.requireNonNull(modelId, "modelId");
+        Objects.requireNonNull(modelType, "modelType");
+        DeserializingMessage message = new DeserializingMessage(
+                Objects.requireNonNull(update, "update"), MessageType.COMMAND, serializer)
+                .putContext(ExplicitModelTarget.class,
+                            new ExplicitModelTarget(modelId, modelType));
+        return assertAndApply(message, null, -1);
+    }
+
     /**
      * Executes independent updates concurrently and batches only the transport of commits that become ready together.
      * Each update keeps its own commit, conflict handling, and durability completion.
@@ -312,17 +324,24 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             Message update,
             ModelCommitter.CommitBatch transportBatch,
             int transportSlot) {
+        return assertAndApply(new DeserializingMessage(
+                Objects.requireNonNull(update, "update"),
+                MessageType.COMMAND, serializer), transportBatch, transportSlot);
+    }
+
+    private CompletableFuture<Void> assertAndApply(
+            DeserializingMessage message,
+            ModelCommitter.CommitBatch transportBatch,
+            int transportSlot) {
         try {
-            Objects.requireNonNull(update, "update");
-            DeserializingMessage message =
-                    new DeserializingMessage(update, MessageType.COMMAND, serializer);
             if (!hasModelApplies(
                     message.getPayloadClass())) {
                 return evaluateExplicit(
                         message, () -> {
                             ModelCommitEngine.CommitEvaluation evaluation =
                                     evaluateExplicitMessage(message);
-                            if (evaluation.transitions().isEmpty()) {
+                            if (evaluation.transitions().isEmpty()
+                                && !evaluation.substeps().isEmpty()) {
                                 log.warn(
                                         "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this "
                                         + "application has no locally reachable model @Apply handler. No model changes "
@@ -1602,6 +1621,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private ModelCommitEngine.CommitEvaluation evaluate(DeserializingMessage initialMessage) {
+        if (initialMessage.getContext(ExplicitModelTarget.class).isPresent()) {
+            return evaluateGeneric(initialMessage);
+        }
         return evaluateKnown(
                 initialMessage,
                 prefetchInput(initialMessage));
@@ -1943,6 +1965,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             Long lastEventIndex) {
     }
 
+    record ExplicitModelTarget(String modelId, Class<?> modelType) {
+    }
+
     private final class CommitLoader implements ModelCommitEngine.SubstepResolver {
         private final Long pinnedStateIndex;
         private final boolean applyOnly;
@@ -1982,9 +2007,18 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             CommitPlan plan = planFor(substep.getPayloadClass());
             List<ModelMetadata.HandlerMethod> handlers =
                     applyOnly || pinnedStateIndex != null ? plan.applies() : plan.handlers();
+            ExplicitModelTarget explicitTarget = substep.getContext(
+                    ExplicitModelTarget.class).orElse(null);
             ModelTargetResolver.Resolution resolution =
-                    targetPlan(substep.getPayloadClass(), plan, pinnedStateIndex != null)
+                    targetPlan(
+                            substep.getPayloadClass(), plan,
+                            pinnedStateIndex != null, explicitTarget)
                             .resolve(substep.getPayload());
+            if (explicitTarget != null) {
+                resolution = retarget(
+                        resolution, explicitTarget,
+                        substep.getPayloadClass(), handlers);
+            }
             AncestorPlanKey planKey = resolution.hasAncestorDependencies()
                     ? ancestorPlanKey(resolution, stagedValues) : null;
             List<ModelTargetResolver.ResolvedModel> effectiveTargets = planKey == null
@@ -2024,6 +2058,70 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     ModelCommitContext.create(stateIndex, effectiveResolution, selected), handlers);
         }
 
+        private ModelTargetResolver.Resolution retarget(
+                ModelTargetResolver.Resolution resolution,
+                ExplicitModelTarget explicitTarget,
+                Class<?> payloadType,
+                List<ModelMetadata.HandlerMethod> handlers) {
+            List<ModelTargetResolver.ResolvedModel> matches = resolution.models().stream()
+                    .filter(target -> compatibleModelTypes(
+                            target.modelType(), explicitTarget.modelType()))
+                    .toList();
+            if (matches.isEmpty()) {
+                boolean referenced = handlers.stream().anyMatch(handler ->
+                        compatibleModelTypes(
+                                handler.receiverModelType(), explicitTarget.modelType())
+                        || handler.modelParameters().stream().anyMatch(parameter ->
+                                compatibleModelTypes(
+                                        parameter.modelType(), explicitTarget.modelType()))
+                        || handler.targetModelTypes().stream().anyMatch(targetType ->
+                                compatibleModelTypes(
+                                        targetType, explicitTarget.modelType())));
+                if (!referenced) {
+                    return resolution;
+                }
+                List<String> sourceProperties = handlers.stream()
+                        .flatMap(handler -> handler.modelParameters().stream())
+                        .filter(parameter -> compatibleModelTypes(
+                                parameter.modelType(), explicitTarget.modelType()))
+                        .map(ModelMetadata.ModelParameter::associationProperty)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList();
+                List<ModelTargetResolver.ResolvedModel> retargeted =
+                        new ArrayList<>(resolution.models());
+                retargeted.add(new ModelTargetResolver.ResolvedModel(
+                        explicitTarget.modelId(), explicitTarget.modelType(),
+                        ModelTargetResolver.Access.READ_WRITE, sourceProperties));
+                return new ModelTargetResolver.Resolution(
+                        retargeted, resolution.deferredWrites(),
+                        resolution.ancestorDependencies());
+            }
+            if (matches.size() > 1) {
+                throw new IllegalStateException(
+                        "Explicit %s graph target is ambiguous for %s: resolved %s"
+                                .formatted(explicitTarget.modelType().getName(), payloadType.getName(),
+                                           matches.stream().map(ModelTargetResolver.ResolvedModel::modelId).toList()));
+            }
+            ModelTargetResolver.ResolvedModel match = matches.getFirst();
+            List<ModelTargetResolver.ResolvedModel> retargeted = resolution.models().stream()
+                    .map(target -> target == match
+                            ? new ModelTargetResolver.ResolvedModel(
+                                    explicitTarget.modelId(), explicitTarget.modelType(),
+                                    target.access(), target.sourceProperties())
+                            : target)
+                    .toList();
+            return new ModelTargetResolver.Resolution(
+                    retargeted, resolution.deferredWrites(),
+                    resolution.ancestorDependencies());
+        }
+
+        private boolean compatibleModelTypes(Class<?> resolved, Class<?> explicit) {
+            return resolved != null
+                   && (resolved.isAssignableFrom(explicit)
+                       || explicit.isAssignableFrom(resolved));
+        }
+
         @Override
         public ModelCommitEngine.ResolvedSubstep resolveGraph(
                 String modelId,
@@ -2060,8 +2158,21 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             for (DeserializingMessage message : messages) {
                 Object payload = message.getPayload();
                 CommitPlan plan = planFor(payload.getClass());
+                List<ModelMetadata.HandlerMethod> handlers =
+                        applyOnly || pinnedStateIndex != null
+                                ? plan.applies() : plan.handlers();
+                ExplicitModelTarget explicitTarget = message.getContext(
+                        ExplicitModelTarget.class).orElse(null);
                 ModelTargetResolver.Resolution resolution =
-                        targetPlan(payload.getClass(), plan, false).resolve(payload);
+                        targetPlan(
+                                payload.getClass(), plan,
+                                pinnedStateIndex != null, explicitTarget)
+                                .resolve(payload);
+                if (explicitTarget != null) {
+                    resolution = retarget(
+                            resolution, explicitTarget,
+                            payload.getClass(), handlers);
+                }
                 if (resolution.hasAncestorDependencies()) {
                     AncestorPlanKey key = ancestorPlanKey(resolution, stagedValues);
                     if (!ancestorPlans.containsKey(key)) {
@@ -2162,6 +2273,18 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private ModelTargetResolver.TargetPlan targetPlan(
             Class<?> payloadType, CommitPlan plan, boolean appliesOnly) {
         return plan.targetPlan(payloadType, appliesOnly);
+    }
+
+    private ModelTargetResolver.TargetPlan targetPlan(
+            Class<?> payloadType,
+            CommitPlan plan,
+            boolean appliesOnly,
+            ExplicitModelTarget explicitTarget) {
+        return explicitTarget == null
+                ? targetPlan(payloadType, plan, appliesOnly)
+                : plan.targetPlan(
+                        payloadType, appliesOnly,
+                        explicitTarget.modelType());
     }
 
     private void clearPlans() {
@@ -2289,6 +2412,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         private final ModelCommitEngine.DirectSingleTargetApply directApply;
         private volatile ModelTargetResolver.TargetPlan targetPlan;
         private volatile ModelTargetResolver.TargetPlan applyTargetPlan;
+        private final ConcurrentHashMap<Class<?>, ModelTargetResolver.TargetPlan>
+                explicitTargetPlans = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<?>, ModelTargetResolver.TargetPlan>
+                explicitApplyTargetPlans = new ConcurrentHashMap<>();
         private volatile ModelCommitPolicy commitPolicy;
 
         private CommitPlan(
@@ -2342,6 +2469,20 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 }
                 return current;
             }
+        }
+
+        private ModelTargetResolver.TargetPlan targetPlan(
+                Class<?> payloadType,
+                boolean appliesOnly,
+                Class<?> explicitModelType) {
+            return (appliesOnly
+                    ? explicitApplyTargetPlans
+                    : explicitTargetPlans).computeIfAbsent(
+                            explicitModelType,
+                            type -> ModelTargetResolver.plan(
+                                    payloadType,
+                                    appliesOnly ? applies : handlers,
+                                    type));
         }
 
     }

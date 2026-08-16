@@ -148,6 +148,33 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void explicitlySuppressedUpdateDoesNotWarnAboutAMissingApply() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        stubModelLoads(repository);
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        Logger logger = (Logger) LoggerFactory.getLogger(
+                ModelCommitHandlerRegistry.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            subject.assertAndApply(new Message(
+                    new SuppressedCrossApplicationCommand())).join();
+
+            assertEquals(0, appender.list.stream()
+                    .filter(event -> event.getFormattedMessage()
+                            .contains("no locally reachable model @Apply handler"))
+                    .count());
+            verify(eventStoreClient, never()).commitModels(any());
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+            subject.close();
+        }
+    }
+
+    @Test
     void explicitBulkAssertAndApplyBatchesTransportButCompletesEachDurableCommit() throws Exception {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
         stubModelLoads(repository);
@@ -1538,6 +1565,13 @@ class ModelCommitHandlerRegistryTest {
                 throw new IllegalArgumentException(
                         "ID must not be blank");
             }
+        }
+    }
+
+    private record SuppressedCrossApplicationCommand() {
+        @InterceptApply
+        Object intercept() {
+            return null;
         }
     }
 

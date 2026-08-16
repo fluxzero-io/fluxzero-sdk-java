@@ -46,6 +46,10 @@ import java.lang.annotation.Target;
  *   <li>a modified copy – if only a subset of the value should be shown</li>
  *   <li>{@code null} – if the value should be completely hidden</li>
  * </ul>
+ * When the filtered root is a {@link Graph}, its root model may instead return an immutable Graph view such as
+ * {@link Graph#filterBranches(java.util.function.Predicate)}. The view is applied once before individual model values
+ * are filtered, allowing a complete response graph to be selected without copying models or repeatedly traversing
+ * every descendant branch.
  *
  * <p><strong>Recursive filtering:</strong> Filtering is automatically applied to nested objects, collections, and maps.
  * When filtering results in {@code null} for an item inside a collection or map:
@@ -90,4 +94,12 @@ import java.lang.annotation.Target;
 @Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface FilterContent {
+
+    /**
+     * Applies a model graph root's filter to every descendant node as well. The method may inject the current
+     * {@link Graph} node and return {@link Graph#get()} to retain it, a replacement value, or {@code null} to remove
+     * that node and its branch. A descendant's own content filter is applied afterwards. This setting is unnecessary
+     * for a root filter that returns an immutable Graph view.
+     */
+    boolean descendants() default false;
 }

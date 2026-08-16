@@ -84,6 +84,27 @@ class GraphJsonSerializerTest {
     }
 
     @Test
+    void rootFilterCanRemoveDescendantBranches() {
+        Graph<Root> filtered = serializer.filterContent(graph(), new MockUser("limited"));
+
+        assertEquals(List.of("root/visible"), filtered.childModels(Child.class).stream()
+                .map(Child::value).toList());
+    }
+
+    @Test
+    void rootFilterCanSelectAnImmutableGraphViewOnce() {
+        Graph<ViewRoot> graph = graphView();
+        ViewRoot.filterInvocations.set(0);
+
+        Graph<ViewRoot> filtered = serializer.filterContent(graph, new MockUser("limited"));
+
+        assertSame(graph.get(), filtered.get());
+        assertEquals(1, ViewRoot.filterInvocations.get());
+        assertEquals(List.of("visible/filtered"), filtered.childModels(ViewChild.class).stream()
+                .map(ViewChild::value).toList());
+    }
+
+    @Test
     void selectsAnImmutableRelationshipViewWithoutCopyingModels() {
         Graph<Root> graph = graph();
 
@@ -120,6 +141,8 @@ class GraphJsonSerializerTest {
 
         assertSame(graph.get(), filtered.get());
         assertSame(graph.childModels(Child.class).getFirst(), filtered.childModels(Child.class).getFirst());
+        assertEquals(1, filtered.descendants(Leaf.class).size());
+        assertTrue(filtered.descendants(Leaf.class).getFirst().isEmpty());
         assertEquals(List.of(), filtered.descendantModels(Leaf.class));
         JsonNode document = serializer.getObjectMapper().valueToTree(filtered);
         assertEquals(0, document.path("children").get(0).path("details").path("leaves").size());
@@ -138,7 +161,11 @@ class GraphJsonSerializerTest {
         assertEquals(4, evaluations.get());
         assertSame(graph.get(), filtered.get());
         assertSame(graph.childModels(Child.class).getFirst(), filtered.childModels(Child.class).getFirst());
+        assertEquals(1, filtered.children(Child.class).size());
         assertEquals(1, filtered.childModels(Child.class).size());
+        assertEquals(1, filtered.descendants(Child.class).size());
+        assertEquals(3, filtered.stream().count());
+        assertTrue(filtered.find("sibling-id").isEmpty());
         assertSame(graph.descendantModels(Leaf.class).getFirst(), filtered.descendantModels(Leaf.class).getFirst());
         assertTrue(graph.filterBranches(node -> false).isEmpty());
     }
@@ -199,6 +226,23 @@ class GraphJsonSerializerTest {
                 mock(ModelRepository.class), false);
     }
 
+    private static Graph<ViewRoot> graphView() {
+        ViewRoot rootValue = new ViewRoot("view-root");
+        ViewChild visible = new ViewChild("visible-child", rootValue.id(), "visible");
+        ViewChild hidden = new ViewChild("hidden-child", rootValue.id(), "hidden");
+        return Graphs.compose(
+                rootValue.id(), 7L,
+                Map.of(rootValue.id(), entity(rootValue.id(), ViewRoot.class, rootValue),
+                       visible.id(), entity(visible.id(), ViewChild.class, visible),
+                       hidden.id(), entity(hidden.id(), ViewChild.class, hidden)),
+                List.of(
+                        new ModelGraphEdge(visible.id(), rootValue.id(), ViewRoot.class.getName(),
+                                           "children", 0L, null),
+                        new ModelGraphEdge(hidden.id(), rootValue.id(), ViewRoot.class.getName(),
+                                           "children", 0L, null)),
+                mock(ModelRepository.class), false);
+    }
+
     @SuppressWarnings("unchecked")
     private static <T> Entity<T> entity(String id, Class<T> type, T value) {
         Entity<T> entity = mock(Entity.class);
@@ -216,9 +260,11 @@ class GraphJsonSerializerTest {
             return graph.childModels(Child.class).size();
         }
 
-        @FilterContent
-        Root filter(User user) {
-            return user.hasRole("hidden") ? null : this;
+        @FilterContent(descendants = true)
+        Object filter(User user, Graph<?> graph) {
+            return user.hasRole("hidden")
+                    || user.hasRole("limited") && "sibling-id".equals(graph.id())
+                    ? null : graph.get();
         }
     }
 
@@ -252,5 +298,29 @@ class GraphJsonSerializerTest {
     }
 
     private record DerivedContext(String value) {
+    }
+
+    @Model
+    private record ViewRoot(@EntityId String id) {
+        private static final AtomicInteger filterInvocations = new AtomicInteger();
+
+        @FilterContent
+        Graph<ViewRoot> filter(User user, Graph<ViewRoot> graph) {
+            filterInvocations.incrementAndGet();
+            return user.hasRole("all") ? graph : graph.filterBranches(
+                    node -> node.get() instanceof ViewChild child && "visible".equals(child.value()));
+        }
+    }
+
+    @Model
+    private record ViewChild(
+            @EntityId String id,
+            @ParentId(value = ViewRoot.class, path = "children") String rootId,
+            String value) {
+
+        @FilterContent
+        ViewChild filter() {
+            return new ViewChild(id, rootId, value + "/filtered");
+        }
     }
 }

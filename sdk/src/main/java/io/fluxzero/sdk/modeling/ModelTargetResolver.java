@@ -67,6 +67,16 @@ public final class ModelTargetResolver {
      */
     public static TargetPlan plan(
             Class<?> payloadType, Collection<ModelMetadata.HandlerMethod> handlerMethods) {
+        return plan(payloadType, handlerMethods, null);
+    }
+
+    /**
+     * Compiles a target plan while leaving one model type to an explicit graph selection owned by the caller.
+     */
+    static TargetPlan plan(
+            Class<?> payloadType,
+            Collection<ModelMetadata.HandlerMethod> handlerMethods,
+            Class<?> explicitModelType) {
         Objects.requireNonNull(payloadType, "payloadType");
         Objects.requireNonNull(handlerMethods, "handlerMethods");
         PayloadMetadata payload = PayloadMetadata.of(payloadType);
@@ -76,7 +86,8 @@ public final class ModelTargetResolver {
         for (ModelMetadata.HandlerMethod handler : handlerMethods) {
             compileHandler(
                     payload, handler, slots,
-                    deferredWrites, ancestorDependencies);
+                    deferredWrites, ancestorDependencies,
+                    explicitModelType);
         }
         List<SlotPlan> compiledSlots = slots.stream().map(MutableSlot::freeze).toList();
         Map<MutableSlot, Integer> slotIndexes = new IdentityHashMap<>();
@@ -217,15 +228,20 @@ public final class ModelTargetResolver {
             ModelMetadata.HandlerMethod handler,
             List<MutableSlot> allSlots,
             List<MutableDeferredWrite> allDeferredWrites,
-            List<AncestorDependency> allAncestorDependencies) {
+            List<AncestorDependency> allAncestorDependencies,
+            Class<?> explicitModelType) {
         List<MutableSlot> handlerSlots = new ArrayList<>();
-        if (handler.receiverModelType() != null) {
+        if (handler.receiverModelType() != null
+            && !compatible(handler.receiverModelType(), explicitModelType)) {
             handlerSlots.add(new MutableSlot(
                     handler.receiverModelType(), Source.RECEIVER,
                     payload.resolve(handler.receiverModelType(), null, false),
                     READ, handler.executable().toGenericString()));
         }
         for (ModelMetadata.ModelParameter parameter : handler.modelParameters()) {
+            if (compatible(parameter.modelType(), explicitModelType)) {
+                continue;
+            }
             PayloadProperty direct = payload.resolveIfDirect(
                     parameter.modelType(),
                     parameter.associationProperty());
@@ -246,6 +262,9 @@ public final class ModelTargetResolver {
 
         if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
             for (Class<?> targetType : handler.targetModelTypes()) {
+                if (compatible(targetType, explicitModelType)) {
+                    continue;
+                }
                 MutableSlot receiver = handlerSlots.stream()
                         .filter(slot -> slot.source == Source.RECEIVER && slot.modelType.equals(targetType))
                         .findFirst().orElse(null);
@@ -286,6 +305,14 @@ public final class ModelTargetResolver {
             }
         }
         allSlots.addAll(handlerSlots);
+    }
+
+    private static boolean compatible(
+            Class<?> candidate,
+            Class<?> explicitModelType) {
+        return explicitModelType != null
+               && (candidate.isAssignableFrom(explicitModelType)
+                   || explicitModelType.isAssignableFrom(candidate));
     }
 
     private static Object payloadValue(Object payload) {
@@ -624,7 +651,14 @@ public final class ModelTargetResolver {
         }
 
         private SlotPlan freeze() {
-            return new SlotPlan(modelType, ModelMetadata.of(modelType), property, access, handler);
+            Class<?> effectiveType = ModelMetadata.inferIdTarget(
+                            property.type, property.genericType)
+                    .filter(modelType::isAssignableFrom)
+                    .filter(type -> ModelMetadata.of(type).isModel())
+                    .orElse(modelType);
+            return new SlotPlan(
+                    effectiveType, ModelMetadata.of(effectiveType),
+                    property, access, handler);
         }
     }
 

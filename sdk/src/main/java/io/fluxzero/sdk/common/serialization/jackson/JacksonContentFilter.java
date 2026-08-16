@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.handling.HandlerInspector;
+import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -50,6 +51,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.AbstractMap;
@@ -57,6 +59,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -93,6 +96,15 @@ public class JacksonContentFilter implements ContentFilter {
             type -> HandlerInspector.inspect(type, List.of(new CurrentUserParameterResolver(),
                                                            new GraphParameterResolver(),
                                                            new InputParameterResolver()), FilterContent.class));
+    private final Function<Class<?>, HandlerMatcher<Object, Object>> descendantGraphMatcherCache = memoize(
+            type -> HandlerInspector.inspect(
+                    type, List.of(new CurrentUserParameterResolver(),
+                                  new GraphParameterResolver(), new InputParameterResolver()),
+                    HandlerConfiguration.builder().methodAnnotation(FilterContent.class)
+                            .handlerFilter((ignored, method) -> ReflectionUtils
+                                    .<FilterContent>getMethodAnnotation(method, FilterContent.class)
+                                    .map(FilterContent::descendants).orElse(false))
+                            .build()));
 
     /**
      * Creates a new content filter using the provided {@link ObjectMapper}.
@@ -168,9 +180,37 @@ public class JacksonContentFilter implements ContentFilter {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private Graph<?> filterGraph(Graph<?> graph, User viewer) {
-        Graph<?> root = graph.root();
-        Graph<?> filtered = Graphs.mapValues((Graph) graph, node -> filterGraphValue(node, root, viewer));
+        Graph<?> selected = filterGraphView(graph, viewer);
+        if (selected == null) {
+            return null;
+        }
+        Graph<?> root = selected.root();
+        Graph<?> filtered = Graphs.mapValues((Graph) selected, node -> filterGraphValue(node, root, viewer));
         return filtered.isEmpty() ? null : filtered;
+    }
+
+    @SneakyThrows
+    private Graph<?> filterGraphView(Graph<?> graph, User viewer) {
+        Object value = graph.get();
+        if (value == null) {
+            return graph;
+        }
+        Optional<HandlerInvoker> invoker = graphMatcherCache.apply(value.getClass()).getInvoker(value, graph);
+        if (invoker.isEmpty() || !returnsGraph(invoker.get())) {
+            return graph;
+        }
+        Object result = viewer == null ? invoker.get().invoke() : viewer.apply(invoker.get()::invoke);
+        if (result == null) {
+            return null;
+        }
+        if (!(result instanceof Graph<?> filtered)
+            || !Objects.equals(graph.id(), filtered.id())
+            || graph.type() != filtered.type()
+            || graph.stateIndex() != filtered.stateIndex()) {
+            throw new IllegalStateException(
+                    "A graph content filter must return a view of the graph it filters");
+        }
+        return filtered;
     }
 
     @SuppressWarnings("unchecked")
@@ -185,11 +225,21 @@ public class JacksonContentFilter implements ContentFilter {
         FilteringSerializer.rootValue.set(root);
         FilteringSerializer.currentGraph.set(graph);
         try {
-            Optional<HandlerInvoker> invoker = graphMatcherCache.apply(value.getClass()).getInvoker(value, root);
-            if (invoker.isEmpty()) {
-                return value;
+            if (graph != root) {
+                Object rootValue = root.get();
+                Optional<HandlerInvoker> rootInvoker = rootValue == null ? Optional.empty()
+                        : descendantGraphMatcherCache.apply(rootValue.getClass()).getInvoker(rootValue, root);
+                if (rootInvoker.isPresent()) {
+                    value = viewer == null ? rootInvoker.get().invoke() : viewer.apply(rootInvoker.get()::invoke);
+                    if (value == null) {
+                        return null;
+                    }
+                }
             }
-            return viewer == null ? invoker.get().invoke() : viewer.apply(invoker.get()::invoke);
+            Optional<HandlerInvoker> invoker = graphMatcherCache.apply(value.getClass()).getInvoker(value, root);
+            return invoker.isEmpty()
+                    || returnsGraph(invoker.get()) ? value
+                    : viewer == null ? invoker.get().invoke() : viewer.apply(invoker.get()::invoke);
         } finally {
             restore(FilteringSerializer.currentGraph, previousGraph);
             restore(FilteringSerializer.rootValue, previousRoot);
@@ -202,6 +252,11 @@ public class JacksonContentFilter implements ContentFilter {
         } else {
             context.set(previous);
         }
+    }
+
+    private static boolean returnsGraph(HandlerInvoker invoker) {
+        return invoker.getMethod() instanceof Method method
+               && Graph.class.isAssignableFrom(method.getReturnType());
     }
 
     /**

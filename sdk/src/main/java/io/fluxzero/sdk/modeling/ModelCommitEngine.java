@@ -422,13 +422,24 @@ final class ModelCommitEngine {
                         "Apply %s returned model '%s', which is not a resolved write target"
                                 .formatted(handler.executable().toGenericString(), targetId));
             }
+            Class<?> resolvedTargetType = target.target().modelType();
+            if (result != null && !resolvedTargetType.isInstance(result)) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s instead of the resolved target type %s"
+                                .formatted(handler.executable().toGenericString(),
+                                           result.getClass().getName(), resolvedTargetType.getName()));
+            }
+            Object current = target.entity().get();
+            Class<?> persistedTargetType = current != null
+                    ? current.getClass()
+                    : result != null ? result.getClass() : resolvedTargetType;
             Transition transition = new Transition(
-                    targetId, targetType,
+                    targetId, persistedTargetType,
                     target.entity() instanceof ModelRoot<?> modelRoot
                             ? modelRoot.sequenceNumber() : -1L,
                     target.entity() instanceof ModelRoot<?> modelRoot
                             ? modelRoot.lastEventIndex() : null,
-                    target.entity().get(), result,
+                    current, result,
                     handler.executable());
             if (transitions == null) {
                 transitions = new LinkedHashMap<>();
@@ -778,7 +789,8 @@ final class ModelCommitEngine {
         if (output instanceof HasMessage hasMessage) {
             Message emitted = hasMessage.toMessage();
             return source.withMessage(emitted.withMetadata(
-                    source.getMetadata().with(emitted.getMetadata())));
+                            source.getMetadata().with(emitted.getMetadata())))
+                    .withoutContext(ModelCommitHandlerRegistry.ExplicitModelTarget.class);
         }
         if (preserveSourceIdentity) {
             return source.withPayload(output);

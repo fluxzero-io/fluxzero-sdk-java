@@ -449,6 +449,19 @@ public class DeserializingMessage implements HasMessage {
     }
 
     /**
+     * Returns this message after removing one framework context value using copy-on-write semantics. Other messages
+     * derived from the same source retain their context.
+     */
+    @Synchronized
+    public DeserializingMessage withoutContext(Class<?> contextKey) {
+        if (context != null && context.containsKey(contextKey)) {
+            context = new ConcurrentHashMap<>(context);
+            context.remove(contextKey);
+        }
+        return this;
+    }
+
+    /**
      * Returns the current {@link DeserializingMessage} being processed in this thread, or {@code null} if none is set.
      *
      * <p>This method provides direct (nullable) access to the thread-local message context. Prefer {@link #getOptionally()}
