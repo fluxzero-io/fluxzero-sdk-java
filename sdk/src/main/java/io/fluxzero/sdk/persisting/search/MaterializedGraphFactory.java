@@ -500,6 +500,17 @@ final class MaterializedGraphFactory {
         }
         @Override public <A> Optional<Graph<A>> ancestor(Class<A> ancestorType) {
             Objects.requireNonNull(ancestorType, "ancestorType");
+            Graph<?> placement = this;
+            while (placement instanceof MaterializedGraph<?> materialized) {
+                if (ancestorType.isAssignableFrom(placement.type())) {
+                    return Optional.of(cast(placement));
+                }
+                int parent = materialized.node.manifest.parent();
+                if (parent < 0) {
+                    break;
+                }
+                placement = materialized.context.view(parent);
+            }
             List<Graph<?>> level = List.of(this);
             LinkedHashSet<String> visited = new LinkedHashSet<>();
             while (!level.isEmpty()) {

@@ -222,7 +222,10 @@ public interface Graph<T> {
         return parent(parentType).map(Graph::get);
     }
 
-    /** Returns the closest ancestor, including the current graph, assignable to the requested type. */
+    /**
+     * Returns the closest ancestor, including the current graph, assignable to the requested type. The concrete graph
+     * placement is searched before alternate parent branches.
+     */
     <A> Optional<Graph<A>> ancestor(Class<A> ancestorType);
 
     /** Returns the value of the closest ancestor, including the current model, assignable to the requested type. */

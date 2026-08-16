@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -181,6 +182,45 @@ class MaterializedGraphFactoryTest {
                      child.parent(SecondaryParent.class).orElseThrow().id());
         assertEquals("secondary",
                      child.ancestor(SecondaryParent.class).orElseThrow().id());
+        org.mockito.Mockito.verifyNoInteractions(repository);
+    }
+
+    @Test
+    void resolvesPlacedAncestorBeforeUnrelatedExternalParents() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ObjectNode json = serializer.getObjectMapper().createObjectNode()
+                .put("id", "primary").put("rootId", "root");
+        json.putArray("children").addObject()
+                .put("id", "child")
+                .put("primaryId", "primary")
+                .put("secondaryId", "secondary")
+                .put("alternatePrimaryId", "external-primary");
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L,
+                List.of(PrimaryParent.class.getName(),
+                        MultiParentChild.class.getName()),
+                List.of("children"),
+                List.of(
+                        new ModelGraphDocumentManifest.Node(
+                                "primary", 0, -1, -1, 0),
+                        new ModelGraphDocumentManifest.Node(
+                                "child", 1, 0, 0, 0)));
+        SerializedDocument document = serializer.toDocument(
+                json, "primary", "primary-parent-graphs", null, null,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                            manifest.serialize()));
+        ModelRepository repository = mock(ModelRepository.class);
+
+        Graph<PrimaryParent> graph = MaterializedGraphFactory.create(
+                document, PrimaryParent.class, serializer,
+                () -> repository,
+                List.of(MultiParentRoot.class, PrimaryParent.class,
+                        SecondaryParent.class, MultiParentChild.class),
+                Map.of());
+        Graph<MultiParentChild> child = graph.children(
+                "children", MultiParentChild.class).getFirst();
+
+        assertSame(graph, child.ancestor(PrimaryParent.class).orElseThrow());
         org.mockito.Mockito.verifyNoInteractions(repository);
     }
 
