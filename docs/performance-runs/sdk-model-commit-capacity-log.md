@@ -2549,3 +2549,67 @@ Evidence SHA-256: E789 `c8e2d1fbaa37b27f75d5f3026c98a1621f239a77f6d6d5b279f74a91
 `45cf3860fc65d3d1b278d1cf6624031c103e26994f22572add601b3dc83d2492`, E795
 `3dd06b7c5e2c8550a8b1a7ddbe886a1f06f13fe2b67da3b8ec218703de622a6a`, E796
 `b38b9182fbab0aa9296811b9c6e8b194e8d572e15cb72b71d7808173773474a4`.
+
+### S57 — final graph-scoped handling checkpoint under unstable host load
+
+SDK `a3dce65bfe8` completes the Flowmaps graph-scoped handling work on direct parent `c9e280daeac`. It adds an explicit
+graph target only when `Graph.assertAndApply(...)` supplies one. The ordinary B0 route retains its compiled direct
+single-target plan; its only new registry operation is one empty message-context lookup before selecting that existing
+path. Apply-result validation reuses the already required current value and does not add another model load or ID
+reflection. Graph traversal, materialized-graph composition and graph filtering are absent from B0.
+
+E797-E800 initially appeared to show a severe regression. They used the complete 65,536-model, 262,144-warmup and
+4,194,304-command route in candidate-parent-candidate-parent order. Every run was exact, but candidate geometric mean
+was 137,685/s versus 175,083/s parent, or -21.36%. This was not accepted as causal because the host was already far
+below the clean P5 pin and process-to-process warmup and measured capacity moved independently.
+
+E801-E804 then overlaid the direct-parent registry, engine and target-resolver class clusters independently onto the
+candidate. None restored a stable parent level. In particular, the target-resolver overlay reached 177,553/s, after
+which the unmodified candidate immediately reached 196,131/s. These overlays therefore exclude a single obvious class
+cluster but are not production acceptance measurements.
+
+E805-E807 form an adjacent candidate-parent-candidate bracket on the unchanged 14-processor configuration. Candidate
+observations were 196,131 and 126,153/s around a 159,666/s parent. Their geometric candidate interpolation is
+157,298/s, only **-1.48%** versus parent despite a 55.47% spread between the two candidate processes. This directly
+shows that binary identity did not cause the earlier 21.36% gap.
+
+E808-E811 deliberately reduce only JVM-visible processors from fourteen to eight to lower thermal saturation, then
+run a balanced parent-candidate-candidate-parent sequence. The full durable route and every count remain unchanged.
+Parent observations were 130,702 and 220,999/s; candidate observations were 233,509 and 180,793/s. Geometric means are
+169,956/s parent and 205,467/s candidate, or **+20.89% candidate**. The wide controls still prohibit a new absolute pin
+or speedup claim, but the balanced order and the independent 14-processor bracket jointly reject a material regression
+against the direct parent. The historical clean-host P5 **425,606/s** remains the only absolute model-E2E pin.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E797 | canonical | full command -> model -> event + result | SDK `c9e280daeac` | SDK `a3dce65bfe8`, long pair 1 | 4,194,304 | 262,144 | none | 195,699/s following parent | 136,304/s | false | loaded-host observation; require causal screen | diagnostic-only |
+| E798 | canonical | full command -> model -> event + result | SDK `c9e280daeac` | direct-parent control, long pair 1 | 4,194,304 | 262,144 | none | 195,699/s | n/a | false | loaded-host control | diagnostic-only |
+| E799 | canonical | full command -> model -> event + result | SDK `c9e280daeac` | SDK `a3dce65bfe8`, long pair 2 | 4,194,304 | 262,144 | none | 156,639/s following parent | 139,080/s | false | apparent aggregate -21.36%; not causal under moving host | diagnostic-only |
+| E800 | canonical | full command -> model -> event + result | SDK `c9e280daeac` | direct-parent control, long pair 2 | 4,194,304 | 262,144 | none | 156,639/s | n/a | false | loaded-host control | diagnostic-only |
+| E801 | smoke | full command -> model -> event + result | SDK `c9e280daeac` | complete SDK `a3dce65bfe8` control | 1,048,576 | 262,144 | none | n/a | 164,125/s | false | ablation control | diagnostic-only |
+| E802 | smoke | full command -> model -> event + result | SDK `c9e280daeac` | parent registry class overlay | 1,048,576 | 262,144 | none | n/a | 150,980/s | false | registry overlay does not restore capacity | diagnostic-only |
+| E803 | smoke | full command -> model -> event + result | SDK `c9e280daeac` | parent engine class overlay | 1,048,576 | 262,144 | none | n/a | 169,951/s | false | small apparent gain is below host movement | diagnostic-only |
+| E804 | smoke | full command -> model -> event + result | SDK `c9e280daeac` | parent target-resolver class overlay | 1,048,576 | 262,144 | none | n/a | 177,553/s | false | immediately disproved by faster unmodified candidate | diagnostic-only |
+| E805 | smoke | full command -> model -> event + result | SDK `c9e280daeac` | SDK `a3dce65bfe8`, bracket A | 1,048,576 | 262,144 | none | 159,666/s following parent | 196,131/s | false | first candidate side of adjacent bracket | accepted |
+| E806 | smoke | full command -> model -> event + result | SDK `c9e280daeac` | direct-parent bracket control | 1,048,576 | 262,144 | none | 159,666/s | n/a | false | candidate interpolation differs by only -1.48% | diagnostic-only |
+| E807 | smoke | full command -> model -> event + result | SDK `c9e280daeac` | SDK `a3dce65bfe8`, bracket B | 1,048,576 | 262,144 | none | 159,666/s preceding parent | 126,153/s | false | second candidate side; bracket rejects earlier large binary effect | accepted |
+| E808 | smoke | full command -> model -> event + result, 8 JVM processors | SDK `c9e280daeac` | direct-parent P1 | 1,048,576 | 262,144 | none | 130,702/s | n/a | false | balanced reduced-thermal control | diagnostic-only |
+| E809 | smoke | full command -> model -> event + result, 8 JVM processors | SDK `c9e280daeac` | SDK `a3dce65bfe8`, C1 | 1,048,576 | 262,144 | none | 130,702/s preceding parent | 233,509/s | false | balanced sequence candidate | accepted |
+| E810 | smoke | full command -> model -> event + result, 8 JVM processors | SDK `c9e280daeac` | SDK `a3dce65bfe8`, C2 | 1,048,576 | 262,144 | none | 220,999/s following parent | 180,793/s | false | balanced sequence candidate | accepted |
+| E811 | smoke | full command -> model -> event + result, 8 JVM processors | SDK `c9e280daeac` | direct-parent P2 | 1,048,576 | 262,144 | none | 220,999/s | n/a | false | +20.89% geometric candidate; no-regression only | diagnostic-only |
+
+Evidence SHA-256: E797 `3de2b077be915a6445688210ea139a8cc5563cf36294a1c34eb980fe349e4eac`, E798
+`f0d32e56d02dd85ad9f3f43d25d0121ff13c6d624c3210089fa75dee24b85e93`, E799
+`37a0074b681fad95815349d61bc73bf4966bbf887411899f2a08f2165b58d91f`, E800
+`f565e5d65acfbc5c9d27196d0500231d11c6adbb9d54d470996a60d00fa01788`, E801
+`dd60681672ce3086662089e673ca6ff8f2c3e4521b45ed050babb62bb5015cc5`, E802
+`2740d52a6832165b51479d8259d6079d78085a1034e17c5b8b06ab7113ffd21f`, E803
+`3bbfc1d5cc958b34fbadf8b47e011109f0bbab99b2a6adbc6c1e65a6fd13046f`, E804
+`7146e0939635b578785a293a9aad9a0038f415f3391a79a0bbc15a645432d9ed`, E805
+`e26d2a3b9e1757ff2ecd3f177f7d327f5e75a71c85ab13abe07cb042c05d6cc9`, E806
+`e5db65fc7adc0e3bfbe7e0e4001310ee3976300cd3978589cd50ac957c0ffafe`, E807
+`c1c2027a277cf9c3aabbd95a290b5e3ffd6810b893c71d89e7b3017596b2b8a0`, E808
+`69d6f0b1d69b3636128d0004903124cc8dd29d6cb686a043e8dcdfa4579664b2`, E809
+`a6545e0f53cf478ac3fa07e4fcda0e956aa8e3bca9b5c10cc7c2696a6ff9f903`, E810
+`dea4b745fd32e2f1a5a0fd1c0b245cac0f5390e35163cda0f3f8c7ca1befcf8d`, E811
+`1c547a75ca957c97dc4e45637236c7e0f9349e2cabaddde391e469108b3e15a6`.
