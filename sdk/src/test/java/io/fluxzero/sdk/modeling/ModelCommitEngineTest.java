@@ -107,9 +107,10 @@ class ModelCommitEngineTest {
     }
 
     @Test
-    void genericDeleteContractStagesLogicalDelete() {
-        DeleteOrderContract command = new DeleteOrderContract(new OrderId("1"));
-        List<ModelMetadata.HandlerMethod> handlers = ModelMetadata.of(DeleteOrderContract.class).handlerMethods();
+    void explicitNoArgumentDeleteStagesLogicalDelete() {
+        DeleteOrderWithoutState command = new DeleteOrderWithoutState(new OrderId("1"));
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(DeleteOrderWithoutState.class).handlerMethods();
         Entity<Order> order = entity(command.orderId(), new Order(command.orderId(), "pending"));
         ModelCommitContext begin = context(command, handlers, order);
 
@@ -939,7 +940,11 @@ class ModelCommitEngineTest {
         }
     }
 
-    private record DeleteOrderContract(OrderId orderId) implements DeleteModel<Order> {
+    private record DeleteOrderWithoutState(OrderId orderId) {
+        @Apply
+        Order delete() {
+            return null;
+        }
     }
 
     private record CreateOrder(OrderId orderId) {

@@ -280,11 +280,11 @@ class ModelMetadataTest {
 
     @Test
     void resolvesApplyTargetFromGenericHandlerContract() {
-        ModelMetadata.HandlerMethod handler = ModelMetadata.of(DeleteParentModel.class)
+        ModelMetadata.HandlerMethod handler = ModelMetadata.of(GenericParentUpdate.class)
                 .applyMethods().getFirst();
 
         assertEquals(List.of(ParentModel.class), handler.targetModelTypes());
-        assertEquals(DeleteModel.class, handler.executable().getDeclaringClass());
+        assertEquals(GenericUpdate.class, handler.executable().getDeclaringClass());
     }
 
     @Test
@@ -580,7 +580,14 @@ class ModelMetadataTest {
         }
     }
 
-    private record DeleteParentModel(ParentModelId parentId) implements DeleteModel<ParentModel> {
+    private interface GenericUpdate<T> {
+        @Apply
+        default T apply() {
+            return null;
+        }
+    }
+
+    private record GenericParentUpdate(ParentModelId parentId) implements GenericUpdate<ParentModel> {
     }
 
     @Model

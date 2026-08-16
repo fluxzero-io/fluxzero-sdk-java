@@ -3244,11 +3244,15 @@ stored and published. `@Model` defaults `eventPublication` to `IF_MODIFIED`, so 
 produce an event; use `ALWAYS` explicitly for intentional no-op domain notifications. Direct searchable documents are
 synchronous with model-commit completion.
 
-For an update whose sole model transition is deletion, implement `DeleteModel<T>` instead of repeating an
-`@Apply` method that returns `null`:
+Keep deletion explicit in the update by returning `null` from an ordinary `@Apply` method with the model as its
+declared return type:
 
 ```java
-record DeleteUser(UserId userId) implements DeleteModel<User> {
+record DeleteUser(UserId userId) {
+    @Apply
+    User delete() {
+        return null;
+    }
 }
 ```
 
