@@ -181,27 +181,26 @@ public @interface Model {
     boolean searchable() default false;
 
     /**
-     * Optional asynchronous materialized whole-graph search document.
+     * Advanced configuration for the model's direct search document.
      * <p>
-     * Enabling this requires {@link #searchable()} so the root keeps its synchronous direct document. Only the
+     * This configuration does not enable indexing by itself; set {@link #searchable()} to {@code true}. Defaults to
+     * the model's simple class name as collection and to event timestamps when no timestamp paths are configured.
+     */
+    Searchable searchProjection() default @Searchable;
+
+    /**
+     * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
+     * <p>
+     * Materialization requires {@link #searchable()} so the root keeps its synchronous direct document. Only the
      * separately named graph collection is allowed to lag; its high-watermark is exposed through the model repository.
-     * An explicit {@link GraphProjection} enables it and derives {@code <resolved model collection>-graphs} unless a
-     * custom collection is supplied.
+     * The collection defaults to {@code <resolved direct-model collection>-graphs}.
      */
-    GraphProjection graphProjection() default @GraphProjection(enabled = false);
+    boolean materializeGraph() default false;
 
     /**
-     * Collection in which the model is indexed. Defaults to the model class name when blank.
+     * Advanced configuration for the materialized whole-graph search document.
+     * <p>
+     * This configuration does not enable materialization by itself; set {@link #materializeGraph()} to {@code true}.
      */
-    String collection() default "";
-
-    /**
-     * Property path containing the main timestamp used for search indexing.
-     */
-    String timestampPath() default "";
-
-    /**
-     * Optional property path containing the end timestamp used for search indexing.
-     */
-    String endPath() default "";
+    GraphProjection graphProjection() default @GraphProjection;
 }

@@ -27,6 +27,7 @@ import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.search.SearchTest.SomeDocument;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -271,8 +272,8 @@ public class HandleDocumentTest {
 
     @Model(
             searchable = true,
-            collection = "graph-roots",
-            graphProjection = @GraphProjection)
+            searchProjection = @Searchable(collection = "graph-roots"),
+            materializeGraph = true)
     record GraphRoot(@EntityId String id) {
     }
 

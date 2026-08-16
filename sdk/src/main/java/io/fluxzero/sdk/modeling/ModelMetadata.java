@@ -596,7 +596,7 @@ public final class ModelMetadata {
     private void validateGraphProjection(Model annotation) {
         GraphProjection projection =
                 annotation.graphProjection();
-        if (!projection.enabled()) {
+        if (!annotation.materializeGraph()) {
             return;
         }
         if (!annotation.searchable()) {
@@ -1128,6 +1128,7 @@ public final class ModelMetadata {
             EventPublicationStrategy publicationStrategy,
             AggregateEventRouting eventRouting,
             boolean searchable,
+            boolean materializeGraph,
             GraphProjection graphProjection,
             String collection,
             String timestampPath,
@@ -1140,8 +1141,9 @@ public final class ModelMetadata {
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
-                    annotation.searchable(), annotation.graphProjection(), annotation.collection(),
-                    annotation.timestampPath(), annotation.endPath());
+                    annotation.searchable(), annotation.materializeGraph(), annotation.graphProjection(),
+                    annotation.searchProjection().collection(), annotation.searchProjection().timestampPath(),
+                    annotation.searchProjection().endPath());
         }
 
         private static RootConfiguration from(Aggregate annotation) {
@@ -1151,7 +1153,7 @@ public final class ModelMetadata {
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
-                    annotation.searchable(), null, annotation.collection(), annotation.timestampPath(),
+                    annotation.searchable(), false, null, annotation.collection(), annotation.timestampPath(),
                     annotation.endPath());
         }
     }

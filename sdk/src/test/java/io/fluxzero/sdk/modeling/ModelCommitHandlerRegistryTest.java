@@ -1707,6 +1707,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Model(
             searchable = true,
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "retryRoots"))
     private record RetryRoot(
@@ -2082,6 +2083,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Model(
             searchable = true,
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "awaited-graphs",
                     completion = GraphProjectionCompletion.AWAIT))
@@ -2105,6 +2107,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Model(
             searchable = true,
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "default-graphs"))
     private record DefaultProjectionRoot(
@@ -2113,6 +2116,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Model(
             searchable = true,
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "async-graphs",
                     completion = GraphProjectionCompletion.ASYNC))

@@ -35,6 +35,7 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -1227,7 +1228,8 @@ class ModelCommitterTest {
     }
 
     @Revision(7)
-    @Model(eventSourced = false, searchable = true, collection = "orders", timestampPath = "changedAt")
+    @Model(eventSourced = false, searchable = true,
+            searchProjection = @Searchable(collection = "orders", timestampPath = "changedAt"))
     private record Order(
             @EntityId OrderId orderId,
             @ParentId(value = Customer.class, path = "orders") CustomerId customerId,
@@ -1319,7 +1321,7 @@ class ModelCommitterTest {
     @Model(
             eventSourced = false,
             searchable = true,
-            collection = "privateDocuments",
+            searchProjection = @Searchable(collection = "privateDocuments"),
             eventPublication = EventPublication.NEVER)
     private record PrivateDocument(@EntityId PrivateDocumentId documentId, String value) {
     }

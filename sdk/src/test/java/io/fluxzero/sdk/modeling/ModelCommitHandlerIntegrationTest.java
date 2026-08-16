@@ -3256,6 +3256,7 @@ class ModelCommitHandlerIntegrationTest {
 
     @Model(
             searchable = true,
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "projectionRoots",
                     pathOverrides = @GraphPathOverride(

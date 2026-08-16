@@ -3225,17 +3225,18 @@ Enable the durable materialized form directly on its searchable root:
 ```java
 @Model(
         searchable = true,
-        collection = "users",
-        graphProjection = @GraphProjection)
+        searchProjection = @Searchable(collection = "users"),
+        materializeGraph = true)
 public record User(@EntityId UserId userId, String name) {
 }
 ```
 
-The graph collection is `users-graphs` by default. Set `GraphProjection.collection` only when a custom durable name is
-needed. Projection is asynchronous unless completion is explicitly configured otherwise. Both live and materialized
-composition follow the complete finite graph by default; lower-level `ModelGraphComposition` maxima are optional
-advanced guardrails and use `UNBOUNDED` (`-1`) when absent. An explicit guardrail fails instead of publishing a partial
-graph.
+`searchable` and `materializeGraph` are the simple activation switches. Use `searchProjection = @Searchable(...)` or
+`graphProjection = @GraphProjection(...)` only for advanced configuration. The graph collection is `users-graphs` by
+default. Set `GraphProjection.collection` only when a custom durable name is needed. Projection is asynchronous unless
+completion is explicitly configured otherwise. Both live and materialized composition follow the complete finite graph
+by default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use `UNBOUNDED` (`-1`) when
+absent. An explicit guardrail fails instead of publishing a partial graph.
 
 Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
 lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
@@ -4432,11 +4433,14 @@ public record UserAccount(@EntityId UserId userId,
 ```
 
 By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
-unless explicitly overridden via an annotation like `@Model`, `@Stateful` or `@Searchable` or in the search/index
-call:
+unless explicitly overridden through `Model.searchProjection`, `@Stateful`, `@Searchable` or in the search/index call:
 
 ```java
-@Model(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+@Model(
+        searchable = true,
+        searchProjection = @Searchable(
+                collection = "users",
+                timestampPath = "profile/createdAt"))
 ```
 
 ---

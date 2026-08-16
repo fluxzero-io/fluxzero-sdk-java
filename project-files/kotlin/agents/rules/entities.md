@@ -33,13 +33,14 @@ Important settings:
 - `eventSourced`: controls the current-state load route. Events are still stored when `false`.
 - `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
   model's own collection; an explicit `@ParentId(path = "...")` still retains a private graph-component document.
-- `collection`: stable direct search collection name.
+- `searchProjection`: optional `Searchable` configuration for the direct collection and timestamp paths.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `STORE_AND_PUBLISH`, `STORE_ONLY`, `PUBLISH_ONLY` or `NEVER`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
 - `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
-- `graphProjection`: optional durable whole-tree read model. Opt in with `GraphProjection()`; its collection defaults to
+- `materializeGraph`: enables the optional durable whole-tree read model.
+- `graphProjection`: optional advanced `GraphProjection` configuration; its collection defaults to
   `<resolved model collection>-graphs` and materializes the complete finite graph without implicit size limits.
 
 `eventSourced = false` does not disable event storage or publication. It means current state loads from the direct
@@ -306,7 +307,7 @@ Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
 `searchGraph(Root::class.java).fetchGraphs(...)` for complete typed lazy `Graph<Root>` results. It reads a configured
 `@GraphProjection` by default and otherwise stitches current direct documents live; pass `true` as the second argument
 to force live composition. Use `fetchJsonGraphs(...)` for explicit raw JSON. Enable materialization with
-`@Model(searchable = true, graphProjection = GraphProjection())`. A blank projection collection derives
+`@Model(searchable = true, materializeGraph = true)`. A blank projection collection derives
 `<resolved model collection>-graphs`; explicit lower-level composition limits fail rather than returning a partial
 graph.
 

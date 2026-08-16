@@ -55,7 +55,9 @@ To enable search for a model or any object, use the appropriate annotation.
 
 [//]: # (@formatter:off)
 ```java
-@Model(searchable = true, collection = "active_projects")
+@Model(
+        searchable = true,
+        searchProjection = @Searchable(collection = "active_projects"))
 public record Project(...) {}
 
 @Searchable(collection = "custom_docs")

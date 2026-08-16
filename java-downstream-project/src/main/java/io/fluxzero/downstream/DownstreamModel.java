@@ -24,10 +24,12 @@ import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.search.Searchable;
 
 import java.util.List;
 
-@Model(eventSourced = false, searchable = true, collection = "downstream-models")
+@Model(eventSourced = false, searchable = true,
+        searchProjection = @Searchable(collection = "downstream-models"))
 public record DownstreamModel(@EntityId String id, String value, @Member List<Part> parts) {
 
     @Apply

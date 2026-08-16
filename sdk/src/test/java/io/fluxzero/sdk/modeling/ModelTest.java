@@ -20,6 +20,7 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -57,10 +58,10 @@ class ModelTest {
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
         assertFalse(model.searchable());
-        assertFalse(model.graphProjection().enabled());
-        assertEquals("", model.collection());
-        assertEquals("", model.timestampPath());
-        assertEquals("", model.endPath());
+        assertFalse(model.materializeGraph());
+        assertEquals("", model.searchProjection().collection());
+        assertEquals("", model.searchProjection().timestampPath());
+        assertEquals("", model.searchProjection().endPath());
     }
 
     @Test
@@ -93,9 +94,9 @@ class ModelTest {
         assertEquals(ModelConflictPolicy.FAIL, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DISABLED, model.automaticHandling());
         assertTrue(model.searchable());
-        assertEquals("configured-models", model.collection());
-        assertEquals("createdAt", model.timestampPath());
-        assertEquals("expiresAt", model.endPath());
+        assertEquals("configured-models", model.searchProjection().collection());
+        assertEquals("createdAt", model.searchProjection().timestampPath());
+        assertEquals("expiresAt", model.searchProjection().endPath());
     }
 
     @Test
@@ -109,16 +110,19 @@ class ModelTest {
                 Set.of(
                         "automaticHandling",
                         "conflictPolicy",
-                        "graphProjection"),
+                        "graphProjection",
+                        "materializeGraph",
+                        "searchProjection"),
                 modelSettings.stream()
                         .filter(setting ->
                                         !aggregateSettings
                                                 .contains(setting))
                         .collect(
                                 Collectors.toSet()));
-        assertTrue(
-                modelSettings.containsAll(
-                        aggregateSettings));
+        assertEquals(Set.of("collection", "timestampPath", "endPath"),
+                     aggregateSettings.stream()
+                             .filter(setting -> !modelSettings.contains(setting))
+                             .collect(Collectors.toSet()));
         assertFalse(modelSettings.contains("name"));
     }
 
@@ -128,17 +132,25 @@ class ModelTest {
 
         assertNotNull(annotation);
         assertTrue(annotation.searchable());
-        assertEquals("base-models", annotation.collection());
+        assertEquals("base-models", annotation.searchProjection().collection());
     }
 
     @Test
-    void projectsSearchConfigurationThroughSearchableMetaAnnotation() {
+    void resolvesNestedSearchProjectionConfiguration() {
         SearchParameters searchable = ClientUtils.getSearchParameters(ConfiguredModel.class);
 
         assertTrue(searchable.isSearchable());
         assertEquals("configured-models", searchable.getCollection());
         assertEquals("createdAt", searchable.getTimestampPath());
         assertEquals("expiresAt", searchable.getEndPath());
+    }
+
+    @Test
+    void searchProjectionConfigurationDoesNotEnableSearch() {
+        SearchParameters searchable = ClientUtils.getSearchParameters(ConfiguredUnsearchableModel.class);
+
+        assertFalse(searchable.isSearchable());
+        assertEquals("inactive-models", searchable.getCollection());
     }
 
     @Test
@@ -194,14 +206,19 @@ class ModelTest {
             conflictPolicy = ModelConflictPolicy.FAIL,
             automaticHandling = AutomaticModelHandling.DISABLED,
             searchable = true,
-            collection = "configured-models",
-            timestampPath = "createdAt",
-            endPath = "expiresAt")
+            searchProjection = @Searchable(
+                    collection = "configured-models",
+                    timestampPath = "createdAt",
+                    endPath = "expiresAt"))
     private static class ConfiguredModel {
     }
 
-    @Model(searchable = true, collection = "base-models")
+    @Model(searchable = true, searchProjection = @Searchable(collection = "base-models"))
     private static class BaseModel {
+    }
+
+    @Model(searchProjection = @Searchable(collection = "inactive-models"))
+    private static class ConfiguredUnsearchableModel {
     }
 
     private static class InheritedModel extends BaseModel {

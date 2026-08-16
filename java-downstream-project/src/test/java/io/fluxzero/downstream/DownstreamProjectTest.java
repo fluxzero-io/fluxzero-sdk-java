@@ -67,7 +67,7 @@ class DownstreamProjectTest {
         assertNotNull(model);
         assertFalse(model.eventSourced());
         assertTrue(model.searchable());
-        assertEquals("downstream-models", model.collection());
+        assertEquals("downstream-models", model.searchProjection().collection());
         assertNotNull(typedParent);
         assertNotNull(untypedParent);
         assertEquals("children", typedParent.path());

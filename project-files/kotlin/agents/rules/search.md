@@ -54,7 +54,10 @@ data through a unified document store, leveraging automatic indexing and a rich 
 To enable search for a model or any object, use the appropriate annotation.
 
 ```kotlin
-@Model(searchable = true, collection = "active_projects")
+@Model(
+    searchable = true,
+    searchProjection = Searchable(collection = "active_projects"),
+)
 data class Project(...)
 
 @Searchable(collection = "custom_docs")

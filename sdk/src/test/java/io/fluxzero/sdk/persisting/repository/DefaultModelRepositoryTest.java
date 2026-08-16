@@ -61,6 +61,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -1788,7 +1789,8 @@ class DefaultModelRepositoryTest {
     private record CommitEvent(Object payload, String targetId) {
     }
 
-    @Model(eventSourced = false, searchable = true, collection = "products")
+    @Model(eventSourced = false, searchable = true,
+            searchProjection = @Searchable(collection = "products"))
     private record Product(@EntityId ProductId productId, String name) {
     }
 
@@ -1835,7 +1837,7 @@ class DefaultModelRepositoryTest {
 
     @Model(
             eventSourced = false, searchable = true,
-            collection = "aliasedAccounts")
+            searchProjection = @Searchable(collection = "aliasedAccounts"))
     private record AliasedAccount(
             @EntityId AliasedAccountId accountId,
             int balance) {
@@ -1969,7 +1971,7 @@ class DefaultModelRepositoryTest {
     @Model(
             eventSourced = false,
             searchable = true,
-            collection = "documentInventory")
+            searchProjection = @Searchable(collection = "documentInventory"))
     private record DocumentInventory(
             @EntityId DocumentInventoryId inventoryId,
             int available) {

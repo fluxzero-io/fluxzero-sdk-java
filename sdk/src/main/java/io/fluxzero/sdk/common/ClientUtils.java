@@ -29,6 +29,7 @@ import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -458,6 +459,16 @@ public class ClientUtils {
      * Defaults to a collection name matching the class’s simple name if not explicitly set.
      */
     public static SearchParameters getSearchParameters(Class<?> type) {
+        Model model = type.getAnnotation(Model.class);
+        if (model != null) {
+            Searchable configuration = model.searchProjection();
+            String collection = configuration.collection().isEmpty()
+                    ? type.getSimpleName()
+                    : configuration.collection();
+            return new SearchParameters(model.searchable(), collection,
+                                        configuration.timestampPath(), configuration.endPath())
+                    .substituteProperties();
+        }
         return getAnnotationAs(type, Searchable.class, SearchParameters.class)
                 .map(SearchParameters::substituteProperties)
                 .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)

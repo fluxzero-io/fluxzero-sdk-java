@@ -2615,14 +2615,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private Entity<?> loadDocumentUnchecked(
             String modelId, Class<?> modelType, ModelMetadata metadata, Model annotation) {
         String collection = annotation.searchable()
-                ? Optional.of(annotation.collection())
+                ? Optional.of(annotation.searchProjection().collection())
                         .filter(value -> !value.isEmpty())
                         .map(ApplicationProperties::substituteProperties)
                         .orElse(modelType.getSimpleName())
                 : metadata.participatesInGraphComposition()
                         ? ModelDocumentMutation
                                 .GRAPH_COMPONENT_COLLECTION
-                        : Optional.of(annotation.collection())
+                        : Optional.of(annotation.searchProjection().collection())
                                 .filter(value -> !value.isEmpty())
                                 .map(ApplicationProperties::substituteProperties)
                                 .orElse(modelType.getSimpleName());

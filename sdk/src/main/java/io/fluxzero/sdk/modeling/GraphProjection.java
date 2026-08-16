@@ -20,23 +20,16 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Configures an opt-in asynchronous materialized search document containing a complete model graph.
+ * Configures an asynchronous materialized search document containing a complete model graph.
  * <p>
- * When enabled without an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model
- * collection. An explicit collection remains available when that durable public search contract needs a custom name.
+ * Configure this through {@link Model#graphProjection()} and enable it with {@link Model#materializeGraph()}. Without
+ * an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model collection. An
+ * explicit collection remains available when that durable public search contract needs a custom name.
  */
 @Documented
 @Target({})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface GraphProjection {
-
-    /**
-     * Whether this materialized graph projection is enabled.
-     * <p>
-     * Explicit {@code @GraphProjection} declarations enable projection by default. The enclosing
-     * {@link Model#graphProjection()} default disables it for models that do not opt in.
-     */
-    boolean enabled() default true;
 
     /**
      * Default result-completion behavior for commits affecting this root projection.

@@ -45,7 +45,7 @@ public final class ModelGraphProjections {
         if (model.kind()
             != ModelMetadata.RootKind.MODEL
             || model.graphProjection() == null
-            || !model.graphProjection().enabled()) {
+            || !model.materializeGraph()) {
             return Optional.empty();
         }
         GraphProjection projection =

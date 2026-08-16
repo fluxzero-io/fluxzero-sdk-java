@@ -1,6 +1,7 @@
 package io.fluxzero.sdk.modeling
 
 import io.fluxzero.sdk.persisting.eventsourcing.Apply
+import io.fluxzero.sdk.persisting.search.Searchable
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -15,12 +16,16 @@ class ModelKotlinTest {
         assertNotNull(annotation)
         assertFalse(annotation.eventSourced)
         assertTrue(annotation.searchable)
-        assertEquals("kotlin-models", annotation.collection)
+        assertEquals("kotlin-models", annotation.searchProjection.collection)
         assertEquals(1, KotlinModel("model", emptyList()).rename(RenameKotlinModel("new")).parts.size)
     }
 }
 
-@Model(eventSourced = false, searchable = true, collection = "kotlin-models")
+@Model(
+    eventSourced = false,
+    searchable = true,
+    searchProjection = Searchable(collection = "kotlin-models"),
+)
 data class KotlinModel(
     @EntityId val id: String,
     @Member val parts: List<KotlinModelPart>,

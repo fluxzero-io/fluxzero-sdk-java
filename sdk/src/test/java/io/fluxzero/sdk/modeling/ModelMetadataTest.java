@@ -19,6 +19,7 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.web.ApiDoc;
 import org.junit.jupiter.api.Test;
@@ -158,6 +159,7 @@ class ModelMetadataTest {
                 ModelGraphProjections.configuration(DefaultProjectedModel.class)
                         .orElseThrow().getCollection());
         assertTrue(ModelGraphProjections.configuration(ParentModel.class).isEmpty());
+        assertTrue(ModelGraphProjections.configuration(ConfiguredUnmaterializedModel.class).isEmpty());
         assertThrows(
                 IllegalStateException.class,
                 () -> ModelGraphProjections.configuration(ConflictingProjectionCollection.class));
@@ -183,17 +185,23 @@ class ModelMetadataTest {
                 .filter(name -> !"kind".equals(name))
                 .collect(toSet());
 
-        assertEquals(
-                aggregateSettings,
-                modelSettings.stream()
-                        .filter(name ->
-                                        !Set.of(
-                                                "automaticHandling",
-                                                "conflictPolicy",
-                                                "graphProjection")
-                                                .contains(name))
-                        .collect(toSet()));
-        assertEquals(modelSettings, configurationSettings);
+        Set<String> expectedSharedSettings = new java.util.HashSet<>(aggregateSettings);
+        expectedSharedSettings.removeAll(Set.of("collection", "timestampPath", "endPath"));
+        assertEquals(expectedSharedSettings,
+                     modelSettings.stream()
+                             .filter(name ->
+                                             !Set.of(
+                                                     "automaticHandling",
+                                                     "conflictPolicy",
+                                                     "graphProjection",
+                                                     "materializeGraph",
+                                                     "searchProjection")
+                                                     .contains(name))
+                             .collect(toSet()));
+        Set<String> expectedConfiguration = new java.util.HashSet<>(modelSettings);
+        expectedConfiguration.remove("searchProjection");
+        expectedConfiguration.addAll(Set.of("collection", "timestampPath", "endPath"));
+        assertEquals(expectedConfiguration, configurationSettings);
     }
 
     @Test
@@ -409,13 +417,15 @@ class ModelMetadataTest {
     private record ParentModel(@EntityId ParentModelId parentId) {
     }
 
-    @Model(eventSourced = false, searchable = true, collection = "models")
+    @Model(eventSourced = false, searchable = true,
+            searchProjection = @Searchable(collection = "models"))
     private record ConfiguredModel(@EntityId String id) {
     }
 
     @Model(
             searchable = true,
-            collection = "projected-models",
+            searchProjection = @Searchable(collection = "projected-models"),
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "projected-graphs",
                     pathOverrides = @GraphPathOverride(
@@ -426,6 +436,7 @@ class ModelMetadataTest {
     }
 
     @Model(
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "invalid-graphs"))
     private record UnsearchableProjectedModel(
@@ -434,15 +445,23 @@ class ModelMetadataTest {
 
     @Model(
             searchable = true,
-            collection = "default-projected-models",
-            graphProjection = @GraphProjection)
+            searchProjection = @Searchable(collection = "default-projected-models"),
+            materializeGraph = true)
     private record DefaultProjectedModel(
             @EntityId String id) {
     }
 
     @Model(
             searchable = true,
-            collection = "same-collection",
+            graphProjection = @GraphProjection(collection = "ignored-graphs"))
+    private record ConfiguredUnmaterializedModel(
+            @EntityId String id) {
+    }
+
+    @Model(
+            searchable = true,
+            searchProjection = @Searchable(collection = "same-collection"),
+            materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "same-collection"))
     private record ConflictingProjectionCollection(

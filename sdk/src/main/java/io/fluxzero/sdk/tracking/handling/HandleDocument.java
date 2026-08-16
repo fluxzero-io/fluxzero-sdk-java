@@ -113,9 +113,9 @@ public @interface HandleDocument {
     /**
      * Optional independent-model root whose materialized graph projection should be handled.
      * <p>
-     * The effective collection is resolved from {@link Model#graphProjection()}, including its derived
-     * {@code <model collection>-graphs} default and any explicit collection override. The model must have an enabled
-     * {@link GraphProjection}. A handler may inject {@code Graph<RootModel>}; node values are materialized lazily and
+     * The model must enable {@link Model#materializeGraph()}. The effective collection is resolved from
+     * {@link Model#graphProjection()}, including its derived {@code <model collection>-graphs} default and any explicit
+     * collection override. A handler may inject {@code Graph<RootModel>}; node values are materialized lazily and
      * parent, root, child and descendant navigation stays within the projected state boundary. This is useful when a
      * stateful document handler needs to maintain a local view over complete model graphs rather than over
      * independently stored root documents.
