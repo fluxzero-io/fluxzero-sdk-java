@@ -15,6 +15,14 @@ Production is Runtime `0c23c91f` (`perf(modeling): reduce stream locator commit 
 scoped to model work. Command and ordinary result paths remain present only in the canonical E2E acceptance route and
 are not optimization targets.
 
+This is the current technical entry point for the model-capacity campaign. Earlier campaign runs and the acceptance
+protocol remain in
+[`../model-e2e-throughput-campaign.md`](../model-e2e-throughput-campaign.md); practical feature costs and their exact
+correctness status are maintained in
+[`sdk-model-feature-characterization-log.md`](sdk-model-feature-characterization-log.md). The corresponding CSV files
+remain the machine-readable run registers. Application-specific downstream evidence belongs to its owning repository
+and is intentionally not duplicated here.
+
 ## Route definitions
 
 ### Low-level SDK model-update round trip
@@ -2150,12 +2158,12 @@ Log SHA-256 in run order: `b96afe84ad64f68b9a25ff5275f1dfaacc7dd2cde7deca7b29cd3
 
 ### S40 follow-up: handler-awaited dependent commit tail
 
-Flowmaps exposed one circular wait after S40. `ImportEnecoMeters` dispatched and awaited an `UpsertConnection` and a
-dependent `UpsertMeters` from one handler batch. The dependent command correctly waited for the predecessor's durable
-commit, but that predecessor was still retained in the ready WebSocket transport tail until the enclosing handler batch
-closed. The enclosing handler could not close while it was awaiting the dependent command. An exact downstream A/B
-confirmed the regression: the isolated three-test `EnecoTest$ManualMeterPolling` timed out with SDK `c2976a4480c`, passed
-with its direct parent `bd1a58182f5`, and passed again after the fix.
+A downstream integration test exposed one circular wait after S40. An outer handler dispatched and awaited two
+causally dependent model commands from one handler batch. The dependent command correctly waited for its predecessor's
+durable commit, but that predecessor was still retained in the ready WebSocket transport tail until the enclosing
+handler batch closed. The enclosing handler could not close while awaiting the dependent command. An exact downstream
+A/B confirmed the regression: the focused test timed out with SDK `c2976a4480c`, passed with its direct parent
+`bd1a58182f5`, and passed again after the fix.
 
 The follow-up flushes only the ready handler-time transport tail immediately before an actually dependent command is
 detached from that transport batch. It does not change independent commands, full transport chunks, explicit
@@ -2166,9 +2174,8 @@ complete in order.
 Verification:
 
 - full SDK `./mvnw -B install`: success;
-- isolated downstream `EnecoTest$ManualMeterPolling`: 3 tests, 0 failures/errors;
-- full Flowmaps `./mvnw -B test`: app 555 tests (14 skipped), Rebound 1 test and reporting 14 tests (7 skipped),
-  0 failures/errors;
+- focused downstream regression: 3 tests, 0 failures/errors;
+- complete downstream reactor: 0 failures/errors;
 - three full-route runs each verified exactly 4,194,304 results, stored model events and global events plus all 65,536
   final model states.
 
@@ -2187,7 +2194,7 @@ immediately preceding S40 checkpoint. The historical P5 425,606/s pin remains un
 
 Evidence SHA-256: downstream failing candidate `a31824c1dec0f79c6b6dba882cb364ba0fc09175227e633eb84e9356c0ece3b7`,
 passing parent control `7fb9b6309c5ea6badb967ef2bb0f20981696237bb9440bcb87d773b779c39b42`, passing fixed
-downstream test `73874fa989f911fcabef568c42a7dc7a813187169f38786b1a39a20b4c59322f`, full Flowmaps suite
+downstream test `73874fa989f911fcabef568c42a7dc7a813187169f38786b1a39a20b4c59322f`, complete downstream suite
 `5578d0be48f7a09d4df62b8b1abe5801076a9a8d02e94761c3da07538adfd9cb`, full SDK install
 `9be0af7105b6260be4da20c2c4f0eb6cbf327f3ae901d459d837a3fa049f5e0c`. Benchmark logs in run order:
 `9735ab783e7ef95f68f107b532bcf5eb422624f4a3a0f62e1395c4ade976330b`,
@@ -2370,9 +2377,9 @@ returned traversal is consumed. SDK `70aa36d7918` separately releases a lookup w
 corresponding cache entry is evicted; its extra branch executes only in the existing eviction listener and does not
 change the cache-hit, model-apply or model-commit path.
 
-The Java 25 full SDK reactor completed all nine modules and 2,170 SDK tests. The downstream Flowmaps reactor completed
-565 app tests plus Rebound, reporting and frontend after replacing normal injected `Entity<T>` history/context usage
-with `Graph<T>` and making connection moves a generation-fenced stateful process.
+The Java 25 full SDK reactor completed all nine modules and 2,170 SDK tests. A representative downstream application
+also completed its full backend, utility, reporting and frontend reactor after replacing normal injected `Entity<T>`
+history/context usage with `Graph<T>` and moving long-running orchestration out of passive core models.
 
 E759-E762 attempted a direct-parent comparison against SDK `a871fe2f7cf` with Runtime `f274bee8`. Every run completed
 exactly 4,194,304 results, stored model events and global events plus 65,536 final states, with JFR disabled and the
@@ -2510,7 +2517,7 @@ Evidence SHA-256: E769 `fd88c6886346b93c810b9b2225007380f56e507d05753d9411d9c4e7
 `bbc24760e694b1bae34010dc53eabd731f272c992af7c1f2b4f47d968fbb69d2`, E785-E788
 `bf20737c4bb234c31731b2a00f839cf40abdbd4a9039f6a0da040c68361068d9`.
 
-### S57 — complete typed-Graph Flowmaps rebuild
+### S57 — complete typed-Graph downstream rebuild
 
 F18 makes typed graphs identity-lazy, adds opt-in parent-scoped child identity, exposes response-wide typed graph context
 and discovers registered model relationship declarations for stable empty arrays. The full B0 route does not navigate a
@@ -2552,11 +2559,12 @@ Evidence SHA-256: E789 `c8e2d1fbaa37b27f75d5f3026c98a1621f239a77f6d6d5b279f74a91
 
 ### S57 — final graph-scoped handling checkpoint under unstable host load
 
-SDK `a3dce65bfe8` completes the Flowmaps graph-scoped handling work on direct parent `c9e280daeac`. It adds an explicit
-graph target only when `Graph.assertAndApply(...)` supplies one. The ordinary B0 route retains its compiled direct
-single-target plan; its only new registry operation is one empty message-context lookup before selecting that existing
-path. Apply-result validation reuses the already required current value and does not add another model load or ID
-reflection. Graph traversal, materialized-graph composition and graph filtering are absent from B0.
+SDK `a3dce65bfe8` completes graph-scoped handling validated by a representative downstream application on direct parent
+`c9e280daeac`. It adds an explicit graph target only when `Graph.assertAndApply(...)` supplies one. The ordinary B0
+route retains its compiled direct single-target plan; its only new registry operation is one empty message-context
+lookup before selecting that existing path. Apply-result validation reuses the already required current value and does
+not add another model load or ID reflection. Graph traversal, materialized-graph composition and graph filtering are
+absent from B0.
 
 E797-E800 initially appeared to show a severe regression. They used the complete 65,536-model, 262,144-warmup and
 4,194,304-command route in candidate-parent-candidate-parent order. Every run was exact, but candidate geometric mean

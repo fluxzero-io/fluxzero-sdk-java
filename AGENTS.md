@@ -119,6 +119,9 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Avoid adding dependencies casually. If a dependency is needed, manage versions from the root POM or the relevant BOM/module pattern.
 - When changing message handling, tracking, scheduling, websocket, persistence, serialization, or reflection behavior, add focused tests in the owning module and consider both synchronous and asynchronous `TestFixture` paths.
 - Do not commit build outputs from `target/`, generated local artifacts, or release-only zips.
+- Keep this repository customer-neutral. Do not add customer or downstream-application names, captured production data,
+  fixtures, logs, or application-specific diagnostics. Preserve generally applicable SDK evidence here and keep
+  downstream-specific proof in the repository that owns that application.
 
 ## Commit Messages
 
