@@ -464,8 +464,14 @@ public final class ModelMetadata {
                                       .formatted(parameter, parameter.getDeclaringExecutable().toGenericString()));
             }
         }
+        if (parameterType.collectionWrapped() && associationProperty == null) {
+            throw invalid("Collection model parameter %s in %s requires @Association(\"payloadProperty\") "
+                                  .formatted(parameter, parameter.getDeclaringExecutable().toGenericString())
+                          + "to select its ordered ID collection.");
+        }
         return Optional.of(new ModelParameter(
                 parameter, parameterType.modelType(), parameterType.entityWrapped(), parameterType.graphWrapped(),
+                parameterType.collectionWrapped(),
                 associationProperty,
                 association != null
                 && association.excludeMetadata()));
@@ -818,7 +824,23 @@ public final class ModelMetadata {
 
     private static Optional<ParameterType> modelParameterType(Parameter parameter) {
         if (isModelType(parameter.getType())) {
-            return Optional.of(new ParameterType(parameter.getType(), false, false));
+            return Optional.of(new ParameterType(parameter.getType(), false, false, false));
+        }
+        if (List.class.equals(parameter.getType()) || Collection.class.equals(parameter.getType())) {
+            List<Type> collectionArguments = ReflectionUtils.getTypeArguments(parameter.getParameterizedType());
+            if (collectionArguments.size() != 1
+                || !(collectionArguments.getFirst() instanceof ParameterizedType elementType)
+                || !Graph.class.isAssignableFrom(ReflectionUtils.rawClass(elementType.getRawType()))) {
+                return Optional.empty();
+            }
+            List<Type> graphArguments = ReflectionUtils.getTypeArguments(elementType);
+            if (graphArguments.size() != 1) {
+                return Optional.empty();
+            }
+            Class<?> modelType = concreteType(graphArguments.getFirst());
+            return isModelType(modelType)
+                    ? Optional.of(new ParameterType(modelType, false, true, true))
+                    : Optional.empty();
         }
         boolean entity = Entity.class.isAssignableFrom(parameter.getType());
         boolean graph = Graph.class.isAssignableFrom(parameter.getType());
@@ -831,7 +853,7 @@ public final class ModelMetadata {
         }
         Class<?> entityType = concreteType(arguments.getFirst());
         return isModelType(entityType)
-                ? Optional.of(new ParameterType(entityType, entity, graph))
+                ? Optional.of(new ParameterType(entityType, entity, graph, false))
                 : Optional.empty();
     }
 
@@ -1016,13 +1038,15 @@ public final class ModelMetadata {
     }
 
     /**
-     * A model value or {@code Entity<Model>} parameter needed by a handler.
+     * A model value, {@code Entity<Model>}, {@code Graph<Model>} or ordered graph collection parameter needed by a
+     * handler.
      *
      * @param associationProperty explicit payload/metadata property qualifier, or {@code null} for automatic matching
      * @param associationExcludeMetadata whether the explicit qualifier must ignore message metadata
      */
     public record ModelParameter(
             Parameter parameter, Class<?> modelType, boolean entityWrapped, boolean graphWrapped,
+            boolean collectionWrapped,
             String associationProperty,
             boolean associationExcludeMetadata) {
     }
@@ -1088,7 +1112,8 @@ public final class ModelMetadata {
     private record ParentProperty(Property property, ParentId annotation) {
     }
 
-    private record ParameterType(Class<?> modelType, boolean entityWrapped, boolean graphWrapped) {
+    private record ParameterType(
+            Class<?> modelType, boolean entityWrapped, boolean graphWrapped, boolean collectionWrapped) {
     }
 
     private static final class ParentGraphValidation {

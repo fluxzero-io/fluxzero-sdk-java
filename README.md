@@ -3260,6 +3260,20 @@ document, custom and web handlers use one current handler load context. Event-so
 repository boundary; document-loaded targets remain current-only direct-document reads. Use
 `@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
 `@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
+An ordered ID collection can be loaded at that same pinned boundary without an application-side repository loop:
+
+```java
+void handle(
+        RefreshOrganisations command,
+        @Association("organisationIds") List<Graph<Organisation>> organisations) {
+    // Input order and duplicates are preserved; physical model loads are deduplicated.
+}
+```
+
+The list itself is immutable. A missing ID produces an empty typed graph at its original position, and an empty or
+`null` source collection produces an empty list. Each graph remains relationship-lazy just like singular `Graph<T>`
+injection; requesting several full descendant trees does not silently pretend that the runtime has a bulk graph
+transport.
 
 `Graph<T>` is the public context view around a model. A typed `loadGraph` is source-lazy: typed ancestor resolution
 need not load the source value or intermediate parents. A typed `Id` or explicit parent-scoped load also makes `id()`

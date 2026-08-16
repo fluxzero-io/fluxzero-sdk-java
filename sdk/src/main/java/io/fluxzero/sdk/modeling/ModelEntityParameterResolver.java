@@ -76,11 +76,15 @@ public class ModelEntityParameterResolver
                 plan(parameter.getDeclaringExecutable());
         ModelMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
-        return modelParameter == null ? null : input ->
-                nullDirectReference(input, modelParameter) && isNullable(parameter)
-                        ? null
-                        : value(parameter, modelParameter,
-                                resolveEntity(input, plan, modelParameter), input, plan);
+        return modelParameter == null ? null : input -> {
+            if (modelParameter.collectionWrapped()) {
+                return collectionValue(parameter, modelParameter, input, plan);
+            }
+            return nullDirectReference(input, modelParameter) && isNullable(parameter)
+                    ? null
+                    : value(parameter, modelParameter,
+                            resolveEntity(input, plan, modelParameter), input, plan);
+        };
     }
 
     @Override
@@ -94,6 +98,22 @@ public class ModelEntityParameterResolver
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
             return false;
+        }
+        if (modelParameter.collectionWrapped()) {
+            ModelTargetResolver.DirectModelReferences references =
+                    directReferences(input, modelParameter);
+            if (!references.present()) {
+                return false;
+            }
+            if (references.modelIds().isEmpty()) {
+                return true;
+            }
+            Optional<ModelCommitContext> context = commitContext(input);
+            if (context.isPresent()) {
+                return references.modelIds().stream().allMatch(id -> context.get().entry(id) != null);
+            }
+            return input instanceof DeserializingMessage message
+                   && resolvedPlan(message, plan).isPresent();
         }
         if (nullDirectReference(input, modelParameter)) {
             return isNullable(parameter);
@@ -126,6 +146,20 @@ public class ModelEntityParameterResolver
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
             return null;
+        }
+        if (modelParameter.collectionWrapped()) {
+            ModelTargetResolver.DirectModelReferences references =
+                    directReferences(input, modelParameter);
+            if (!references.present()) {
+                return null;
+            }
+            if (!references.modelIds().isEmpty()
+                && commitContext(input).isEmpty()
+                && (!(input instanceof DeserializingMessage message)
+                    || resolvedPlan(message, plan).isEmpty())) {
+                return null;
+            }
+            return invocation -> collectionValue(parameter, modelParameter, invocation, plan);
         }
         if (nullDirectReference(input, modelParameter)) {
             return isNullable(parameter) ? ignored -> null : null;
@@ -201,6 +235,45 @@ public class ModelEntityParameterResolver
         return entity.get();
     }
 
+    private static List<Graph<?>> collectionValue(
+            Parameter parameter,
+            ModelMetadata.ModelParameter modelParameter,
+            Object input,
+            HandlerPlan plan) {
+        ModelTargetResolver.DirectModelReferences references = directReferences(input, modelParameter);
+        if (!references.present()) {
+            throw new IllegalStateException(
+                    "Graph collection parameter %s in %s has no payload property '%s'"
+                            .formatted(parameter, parameter.getDeclaringExecutable().toGenericString(),
+                                       modelParameter.associationProperty()));
+        }
+        if (references.modelIds().isEmpty()) {
+            return List.of();
+        }
+        ModelCommitContext context = commitContext(input)
+                .orElseGet(() -> input instanceof DeserializingMessage message
+                        ? context(message, plan) : null);
+        if (context == null) {
+            throw new IllegalStateException(
+                    "No coherent model context is available for graph collection parameter " + parameter);
+        }
+        DeserializingMessage message = input instanceof DeserializingMessage deserializingMessage
+                ? deserializingMessage : DeserializingMessage.getOptionally().orElse(null);
+        ModelRepository repository = message == null
+                ? Fluxzero.get().modelRepository() : currentRepository(message);
+        List<Graph<?>> result = new java.util.ArrayList<>(references.modelIds().size());
+        for (String modelId : references.modelIds()) {
+            ModelCommitContext.Entry entry = context.entry(modelId);
+            if (entry == null) {
+                throw new IllegalStateException(
+                        "Model context does not contain '%s' required by graph collection parameter %s"
+                                .formatted(modelId, parameter));
+            }
+            result.add(Graphs.lazy(entry.entity(), context, repository));
+        }
+        return List.copyOf(result);
+    }
+
     private static Entity<?> resolveEntity(
             Object input,
             HandlerPlan plan,
@@ -222,6 +295,9 @@ public class ModelEntityParameterResolver
     private static boolean nullDirectReference(
             Object input,
             ModelMetadata.ModelParameter parameter) {
+        if (parameter.collectionWrapped()) {
+            return false;
+        }
         DeserializingMessage message = input instanceof DeserializingMessage direct
                 ? direct : DeserializingMessage.getOptionally().orElse(null);
         if (message == null) {
@@ -230,6 +306,49 @@ public class ModelEntityParameterResolver
         ModelTargetResolver.DirectModelReference reference =
                 directReference(message, parameter);
         return reference.present() && reference.modelId() == null;
+    }
+
+    private static ModelTargetResolver.DirectModelReferences directReferences(
+            Object input,
+            ModelMetadata.ModelParameter parameter) {
+        DeserializingMessage message = input instanceof DeserializingMessage direct
+                ? direct : DeserializingMessage.getOptionally().orElse(null);
+        if (message == null) {
+            return new ModelTargetResolver.DirectModelReferences(false, List.of());
+        }
+        return cache(message).collectionReferences.computeIfAbsent(
+                parameter, ignored -> computeDirectReferences(message, parameter));
+    }
+
+    private static ModelTargetResolver.DirectModelReferences computeDirectReferences(
+            DeserializingMessage message,
+            ModelMetadata.ModelParameter parameter) {
+        String association = parameter.associationProperty();
+        if (association != null
+            && !parameter.associationExcludeMetadata()
+            && message.getMetadata() != null
+            && message.getMetadata().containsKey(association)) {
+            Object metadataValue = message.getMetadata().get(association);
+            if (metadataValue == null) {
+                return new ModelTargetResolver.DirectModelReferences(true, List.of());
+            }
+            if (!(metadataValue instanceof java.util.Collection<?> collection)) {
+                throw new IllegalArgumentException(
+                        "Metadata property '%s' must contain a model ID collection, but found %s"
+                                .formatted(association, metadataValue.getClass().getName()));
+            }
+            List<String> ids = new java.util.ArrayList<>(collection.size());
+            for (Object id : collection) {
+                if (id == null) {
+                    throw new IllegalArgumentException(
+                            "Metadata property '%s' contains a null model ID".formatted(association));
+                }
+                ids.add(id.toString());
+            }
+            return new ModelTargetResolver.DirectModelReferences(true, ids);
+        }
+        return ModelTargetResolver.resolveDirectModelReferences(
+                message.getPayload(), parameter.modelType(), association);
     }
 
     private static Optional<ModelCommitContext>
@@ -344,7 +463,25 @@ public class ModelEntityParameterResolver
             LinkedHashSet<ModelTargetResolver
                     .AncestorDependency> ancestors =
                     new LinkedHashSet<>();
+            boolean resolvedEmptyCollection = false;
             for (ModelMetadata.ModelParameter parameter : parameters.values()) {
+                if (parameter.collectionWrapped()) {
+                    ModelTargetResolver.DirectModelReferences references =
+                            directReferences(message, parameter);
+                    if (!references.present()) {
+                        continue;
+                    }
+                    resolvedEmptyCollection |= references.modelIds().isEmpty();
+                    for (String modelId : references.modelIds()) {
+                        ModelTargetResolver.merge(
+                                targets,
+                                new ModelTargetResolver.ResolvedModel(
+                                        modelId, parameter.modelType(),
+                                        ModelTargetResolver.Access.READ_ONLY,
+                                        List.of(parameter.associationProperty())));
+                    }
+                    continue;
+                }
                 String association =
                         parameter.associationProperty();
                 ModelTargetResolver.DirectModelReference direct =
@@ -377,7 +514,7 @@ public class ModelEntityParameterResolver
                 ModelTargetResolver.resolveReferencedModels(message.getPayload())
                         .forEach(anchor -> ModelTargetResolver.merge(targets, anchor));
             }
-            if (targets.isEmpty()) {
+            if (targets.isEmpty() && !resolvedEmptyCollection) {
                 return Optional.empty();
             }
             return Optional.of(
@@ -453,6 +590,9 @@ public class ModelEntityParameterResolver
     private static final class ResolutionCache {
         private final Map<Executable,
                 Optional<ResolvedHandlerPlan>> plans =
+                new ConcurrentHashMap<>();
+        private final Map<ModelMetadata.ModelParameter,
+                ModelTargetResolver.DirectModelReferences> collectionReferences =
                 new ConcurrentHashMap<>();
     }
 }

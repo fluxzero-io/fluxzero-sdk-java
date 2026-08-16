@@ -261,6 +261,32 @@ class ModelEntityParameterResolverTest {
     }
 
     @Test
+    void injectsOrderedGraphCollectionFromOneCoherentBulkContext() throws Exception {
+        AccountId first = new AccountId("collection-first");
+        AccountId second = new AccountId("collection-second");
+        AccountId missing = new AccountId("collection-missing");
+        Method handler = Handler.class.getDeclaredMethod(
+                "onGraphs", InspectAccounts.class, List.class);
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(first, 10),
+                        new CreateAccount(second, 20))
+                .whenApplying(fluxzero -> new DeserializingMessage(
+                        new Message(new InspectAccounts(List.of(second, missing, first, second))),
+                        MessageType.COMMAND, fluxzero.serializer()).apply(message -> {
+                    @SuppressWarnings("unchecked")
+                    List<Graph<Account>> graphs = (List<Graph<Account>>) resolve(
+                            message, handler, handler.getParameters()[1]);
+                    return new GraphCollectionResolution(
+                            graphs.stream().map(graph -> graph.map(Account::balance).orElse(-1)).toList(),
+                            graphs.stream().map(Graph::stateIndex).distinct().count());
+                }))
+                .expectResult(new GraphCollectionResolution(
+                        List.of(20, -1, 10, 20), 1L));
+    }
+
+    @Test
     void injectsCurrentModelsIntoEveryNonEventHandlerKind()
             throws Exception {
         AccountId accountId =
@@ -953,6 +979,10 @@ class ModelEntityParameterResolverTest {
             Account current, Account previous, long stateIndex) {
     }
 
+    private record GraphCollectionResolution(
+            List<Integer> balances, long distinctStateIndices) {
+    }
+
     @Model
     private record Account(
             @EntityId AccountId accountId, int balance) {
@@ -998,6 +1028,9 @@ class ModelEntityParameterResolverTest {
     }
 
     private record InspectAccount(AccountId accountId) {
+    }
+
+    private record InspectAccounts(List<AccountId> accountIds) {
     }
 
     private record InspectUnrelated(
@@ -1205,6 +1238,12 @@ class ModelEntityParameterResolverTest {
         void onGraph(
                 InspectAccount command,
                 Graph<Account> account) {
+        }
+
+        @HandleCommand
+        void onGraphs(
+                InspectAccounts command,
+                @Association("accountIds") List<Graph<Account>> accounts) {
         }
 
         @HandleQuery

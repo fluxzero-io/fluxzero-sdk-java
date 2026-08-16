@@ -274,6 +274,22 @@ class ModelMetadataTest {
         assertSame(ParentModel.class, dependency.modelType());
         assertFalse(dependency.entityWrapped());
         assertTrue(dependency.graphWrapped());
+        assertFalse(dependency.collectionWrapped());
+    }
+
+    @Test
+    void recognizesAssociatedGraphCollectionAsOneLazyModelDependency() throws Exception {
+        var parameter = GraphDependency.class
+                .getDeclaredMethod("handleMany", List.class)
+                .getParameters()[0];
+
+        ModelMetadata.ModelParameter dependency =
+                ModelMetadata.inspectModelParameter(parameter).orElseThrow();
+
+        assertSame(ParentModel.class, dependency.modelType());
+        assertTrue(dependency.graphWrapped());
+        assertTrue(dependency.collectionWrapped());
+        assertEquals("parentIds", dependency.associationProperty());
     }
 
     @Test
@@ -284,6 +300,10 @@ class ModelMetadataTest {
     private static class GraphDependency {
         @SuppressWarnings("unused")
         void handle(Graph<ParentModel> graph) {
+        }
+
+        @SuppressWarnings("unused")
+        void handleMany(@Association("parentIds") List<Graph<ParentModel>> graphs) {
         }
     }
 

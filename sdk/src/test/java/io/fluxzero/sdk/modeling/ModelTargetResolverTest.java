@@ -109,6 +109,22 @@ class ModelTargetResolverTest {
     }
 
     @Test
+    void resolvesAssociatedGraphCollectionInOrderAndDeduplicatesPhysicalTargets() {
+        ProductId first = new ProductId("first");
+        ProductId second = new ProductId("second");
+
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+                new CheckProducts(List.of(second, first, second)),
+                ModelMetadata.of(CheckProducts.class).handlerMethods());
+
+        assertEquals(List.of("product-second", "product-first"),
+                     resolution.models().stream().map(ModelTargetResolver.ResolvedModel::modelId).toList());
+        assertTrue(resolution.models().stream().allMatch(model -> model.access() == READ_ONLY));
+        assertTrue(resolution.models().stream()
+                           .allMatch(model -> model.sourceProperties().equals(List.of("productIds"))));
+    }
+
+    @Test
     void resolvesWriteOnlyCreationTarget() {
         CreateProduct command = new CreateProduct(new ProductId("new"));
 
@@ -397,6 +413,12 @@ class ModelTargetResolverTest {
                 @Association("sourceId") Account source,
                 @Association("destinationId") Account destination) {
             return destination;
+        }
+    }
+
+    private record CheckProducts(List<ProductId> productIds) {
+        @AssertLegal
+        void check(@Association("productIds") List<Graph<Product>> products) {
         }
     }
 
