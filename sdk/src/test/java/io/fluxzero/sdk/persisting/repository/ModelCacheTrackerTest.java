@@ -38,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -461,6 +462,83 @@ class ModelCacheTrackerTest {
             assertNull(lookup.get(1L, TimeUnit.SECONDS));
         } finally {
             continueRefresh.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void cacheMissBeforeRefreshReleasesStaleLookup()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        AtomicBoolean missing = new AtomicBoolean();
+        CountDownLatch missObserved = new CountDownLatch(1);
+        Cache cache = new AdaptiveObjectCache() {
+            @Override
+            public boolean containsKey(Object id) {
+                if (missing.get()) {
+                    missObserved.countDown();
+                    return false;
+                }
+                return super.containsKey(id);
+            }
+        };
+        Entity<?> before = entity(SampleModel.class);
+        cache.put("sample-1", before);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) ->
+                                     new ModelCacheTracker
+                                             .RefreshedBatch(
+                                                     safeStateIndex))) {
+            tracker.loaded(
+                    "sample-1",
+                    SampleModel.class,
+                    10L);
+            CompletableFuture<TrackModelUpdatesResult> firstPoll =
+                    awaitNext(polls);
+            assertSame(
+                    before,
+                    awaitCurrent(
+                            tracker, "sample-1",
+                            SampleModel.class));
+
+            missing.set(true);
+            firstPoll.complete(
+                    new TrackModelUpdatesResult(
+                            1L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "commit-1", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelCommitTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            assertTrue(
+                    missObserved.await(
+                            5L, TimeUnit.SECONDS));
+
+            CompletableFuture<Entity<?>> lookup =
+                    new CompletableFuture<>();
+            Thread.ofVirtual().start(() -> {
+                try {
+                    lookup.complete(
+                            tracker.current(
+                                    "sample-1",
+                                    SampleModel.class));
+                } catch (Throwable failure) {
+                    lookup.completeExceptionally(failure);
+                }
+            });
+            assertNull(
+                    lookup.get(
+                            1L, TimeUnit.SECONDS));
+        } finally {
             cache.close();
         }
     }
