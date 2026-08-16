@@ -67,6 +67,16 @@ public @interface ParentId {
     Class<?> value() default void.class;
 
     /**
+     * Explicit possible parent model types for a polymorphic {@link Id} property.
+     * <p>
+     * At runtime the concrete {@code Id} subtype selects exactly one of these model types through
+     * {@link Id#getType()}. This keeps graph validation, API documentation, cascade deletion and cycle detection
+     * statically knowable while allowing one domain property such as {@code Id<?> nominee} to refer to different
+     * model types. This attribute and {@link #value()} are mutually exclusive.
+     */
+    Class<?>[] types() default {};
+
+    /**
      * Optional slash-separated, non-reserved collection path relative to the parent document.
      */
     String path() default "";

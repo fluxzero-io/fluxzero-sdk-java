@@ -3180,6 +3180,24 @@ that explicitly needs raw `ObjectNode` documents. Graph constraints have the sam
 routes. `searchable = false` suppresses only the address's own search collection: an explicit
 `@ParentId(path = "...")` still gives graph composition an internal current document.
 
+One relationship property may deliberately accept several parent model types. Declare those possibilities statically
+and keep the domain value as a typed `Id`; the concrete `Id` subtype selects the relationship at runtime:
+
+```java
+@Model
+record Authorisation(
+        @EntityId AuthorisationId id,
+        @ParentId(
+                types = {UserProfile.class, Organisation.class},
+                path = "receivedAuthorisations")
+        Id<?> nominee) {
+}
+```
+
+Fluxzero writes the concrete parent type into the relationship, validates cycles and cascade ownership against every
+declared possibility, and exposes the child path in the documented graph of either parent. `value` remains the concise
+form for one explicitly typed parent; `value` and `types` are mutually exclusive.
+
 When a child identifier is only unique within its owning parent, use `@EntityId(parentScoped = true)`. Fluxzero keeps
 the field's functional value unchanged but composes a collision-safe persisted identity from the selected parent and
 child IDs. Automatic apply routing uses the deepest non-null parent relation in the payload, graph-local

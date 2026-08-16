@@ -452,10 +452,10 @@ public final class Graphs {
                         ModelMetadata.of(known.type()).parentReferences()) {
                     Object parentId = parent.read(value);
                     if (parentId != null) {
+                        Class<?> parentType = parent.parentModelType(parentId);
                         mergedEdges.add(new ModelGraphEdge(
                                 modelId, parent.repositoryId(parentId),
-                                parent.parentModelType() == null
-                                        ? null : parent.parentModelType().getName(),
+                                parentType == null ? null : parentType.getName(),
                                 parent.path().isEmpty() ? null : parent.path(), -1L, null));
                     }
                 }
@@ -668,9 +668,12 @@ public final class Graphs {
             }
             LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
             for (ModelMetadata.ParentReference reference : ModelMetadata.of(type()).parentReferences()) {
-                Class<?> parentType = reference.parentModelType();
                 Object parentId = reference.read(value);
-                if (parentId == null || parentType == null) {
+                if (parentId == null) {
+                    continue;
+                }
+                Class<?> parentType = reference.parentModelType(parentId);
+                if (parentType == null) {
                     continue;
                 }
                 String persistedParentId = reference.repositoryId(parentId);

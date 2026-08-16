@@ -1409,12 +1409,13 @@ class ModelCommitHandlerRegistryTest {
                     }
                     for (ModelMetadata.ParentReference parent :
                             ModelMetadata.validate(child.getClass()).parentReferences()) {
-                        if (parent.parentModelType() == null
+                        Object parentId = parent.read(child);
+                        Class<?> parentModelType = parentId == null ? null : parent.parentModelType(parentId);
+                        if (parentModelType == null
                             || !dependency.modelType().isAssignableFrom(
-                                    parent.parentModelType())) {
+                                    parentModelType)) {
                             continue;
                         }
-                        Object parentId = parent.read(child);
                         if (parentId != null) {
                             ModelTargetResolver.merge(
                                     targets,

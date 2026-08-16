@@ -309,13 +309,13 @@ final class MaterializedGraphFactory {
                 }
                 for (ModelMetadata.ParentReference reference :
                         metadata.parentReferences()) {
-                    Class<?> parentType = reference.parentModelType();
                     String path = reference.path();
-                    if (parentType != null && path != null
-                        && !path.isBlank()) {
-                        mutable.computeIfAbsent(parentType,
-                                                ignored -> new LinkedHashSet<>())
-                                .add(pathOverrides.getOrDefault(path, path));
+                    if (path != null && !path.isBlank()) {
+                        for (Class<?> parentType : reference.parentModelTypes()) {
+                            mutable.computeIfAbsent(parentType,
+                                                    ignored -> new LinkedHashSet<>())
+                                    .add(pathOverrides.getOrDefault(path, path));
+                        }
                     }
                 }
             }
@@ -428,10 +428,10 @@ final class MaterializedGraphFactory {
                 for (ModelMetadata.ParentReference reference :
                         ModelMetadata.of(type()).parentReferences()) {
                     Object parentId = reference.read(model);
-                    Class<?> parentType = reference.parentModelType();
                     if (parentId == null) {
                         continue;
                     }
+                    Class<?> parentType = reference.parentModelType(parentId);
                     if (parentType == null) {
                         unresolved = true;
                         continue;

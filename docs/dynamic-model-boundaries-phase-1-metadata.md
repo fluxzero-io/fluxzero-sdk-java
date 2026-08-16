@@ -18,6 +18,7 @@ worktrees are deliberately not production code.
 - `@ParentId` is child-owned and may occur on multiple properties:
   - `Id<T>` supplies the parent model type;
   - `@ParentId(Parent.class)` supplies it for a `String` or other untyped ID;
+  - `@ParentId(types = {...}) Id<?>` declares a polymorphic relation whose concrete typed ID selects one parent type;
   - inferred and explicit types must agree and must refer to `@Model`;
   - `path` is optional and is the explicit opt-in to automatic graph-document composition;
   - a path on an untyped relationship requires an explicit parent model type;

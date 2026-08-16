@@ -1056,11 +1056,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             .parentReferences()) {
                 Object parentId = parent.read(value);
                 if (parentId != null) {
+                    Class<?> parentType = parent.parentModelType(parentId);
                     edges.add(new ModelGraphEdge(
                             model.modelId(), parent.repositoryId(parentId),
-                            parent.parentModelType() == null
-                                    ? null
-                                    : parent.parentModelType().getName(),
+                            parentType == null ? null : parentType.getName(),
                             parent.path().isEmpty() ? null : parent.path(), -1L, null));
                 }
             }
@@ -2087,11 +2086,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                   + parent.property().name()
                                   + " returned a null ID string");
                     requestRoots.add(parentIdString);
+                    Class<?> parentType = parent.parentModelType(parentId);
                     stagedEdges.add(new ModelGraphEdge(
                             entry.getKey(), parentIdString,
-                            parent.parentModelType() == null
-                                    ? null
-                                    : parent.parentModelType().getName(),
+                            parentType == null ? null : parentType.getName(),
                             parent.path().isEmpty()
                                     ? null : parent.path(),
                             -1L, null));

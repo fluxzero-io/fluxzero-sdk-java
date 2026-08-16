@@ -509,6 +509,31 @@ class ModelCommitterTest {
     }
 
     @Test
+    void selectsTheConcreteParentTypeForAPolymorphicRelationship() {
+        AlternateCustomerId parentId = new AlternateCustomerId("alternate");
+        PolymorphicContact after = new PolymorphicContact("contact-1", parentId);
+        var evaluation = evaluation(
+                List.of("contact-1", parentId.toString()),
+                substep(new CreatePolymorphicContact(),
+                        new ModelCommitEngine.Transition(
+                                "contact-1", PolymorphicContact.class, -1L,
+                                null, after, null)),
+                Map.of("contact-1", after));
+
+        CommitModels commit = committer.prepare("polymorphic-parent", evaluation).commit();
+
+        var target = commit.getSubsteps().stream()
+                .flatMap(step -> step.getTargets().stream())
+                .filter(candidate -> "contact-1".equals(candidate.getModelId()))
+                .findFirst().orElseThrow();
+        assertEquals(1, target.getRelationships().size());
+        assertEquals(parentId.toString(), target.getRelationships().getFirst().getParentId());
+        assertEquals(AlternateCustomer.class.getName(),
+                     target.getRelationships().getFirst().getParentType());
+        assertEquals("contacts", target.getRelationships().getFirst().getPath());
+    }
+
+    @Test
     void rejectedCommitDoesNotWriteDirectSearchDocuments() throws Exception {
         OrderId orderId = new OrderId("1");
         Order before = new Order(orderId, null, "pending", Instant.parse("2026-01-01T00:00:00Z"));
@@ -1223,6 +1248,25 @@ class ModelCommitterTest {
         CustomerId(String id) {
             super(id, "customer-");
         }
+    }
+
+    @Model
+    private record AlternateCustomer(@EntityId AlternateCustomerId customerId) {
+    }
+
+    private static class AlternateCustomerId extends Id<AlternateCustomer> {
+        AlternateCustomerId(String id) {
+            super(id, "alternate-customer-");
+        }
+    }
+
+    @Model(eventSourced = false)
+    private record PolymorphicContact(
+            @EntityId String id,
+            @ParentId(types = {Customer.class, AlternateCustomer.class}, path = "contacts") Id<?> parentId) {
+    }
+
+    private record CreatePolymorphicContact() {
     }
 
     private record UpdateCustomer(

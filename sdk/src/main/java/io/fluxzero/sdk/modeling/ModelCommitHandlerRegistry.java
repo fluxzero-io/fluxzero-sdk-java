@@ -2311,7 +2311,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 Objects.requireNonNull(
                                         parent.repositoryId(parentId),
                                         "Parent ID string"),
-                                parent.parentModelType(),
+                                parent.parentModelType(parentId),
                                 parent.path()));
                     }
                 }

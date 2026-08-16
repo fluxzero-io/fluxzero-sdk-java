@@ -179,7 +179,7 @@ public final class ModelMetadata {
                 throw invalid("@EntityId(parentScoped = true) on %s requires at least one @ParentId"
                                       .formatted(type.getName()));
             }
-            if (parentReferences.stream().anyMatch(reference -> reference.parentModelType() == null)) {
+            if (parentReferences.stream().anyMatch(reference -> reference.parentModelTypes().isEmpty())) {
                 throw invalid("Every @ParentId on parent-scoped model %s must declare or infer its parent model type"
                                       .formatted(type.getName()));
             }
@@ -285,8 +285,10 @@ public final class ModelMetadata {
         Objects.requireNonNull(parentId, "Parent ID must not be null");
         List<ParentValue> matches = parentReferences.stream()
                 .filter(reference -> parentType == null
-                        || reference.parentModelType().equals(parentType))
-                .map(reference -> new ParentValue(reference, parentId))
+                        || reference.supports(parentType))
+                .map(reference -> new ParentValue(
+                        reference, parentId,
+                        parentType == null ? reference.parentModelType(parentId) : parentType))
                 .toList();
         if (matches.size() != 1) {
             throw new IllegalArgumentException(
@@ -314,14 +316,16 @@ public final class ModelMetadata {
                     ? reference.read(source)
                     : ReflectionUtils.readProperty(reference.property().name(), source).orElse(null);
             if (value != null) {
-                result.add(new ParentValue(reference, value));
+                result.add(new ParentValue(reference, value, reference.parentModelType(value)));
             }
         }
         List<ParentValue> candidates = List.copyOf(result);
         return candidates.size() < 2 ? candidates : candidates.stream()
                 .filter(candidate -> candidates.stream().noneMatch(other -> other != candidate
-                        && isAncestor(candidate.reference().parentModelType(),
-                                      other.reference().parentModelType(), new LinkedHashSet<>())))
+                        && candidate.parentModelType() != null
+                        && other.parentModelType() != null
+                        && isAncestor(candidate.parentModelType(),
+                                      other.parentModelType(), new LinkedHashSet<>())))
                 .toList();
     }
 
@@ -332,10 +336,11 @@ public final class ModelMetadata {
             return false;
         }
         for (ParentReference parent : ModelMetadata.of(descendant).parentReferences()) {
-            Class<?> parentType = parent.parentModelType();
-            if (candidateAncestor.equals(parentType)
-                || parentType != null && isAncestor(candidateAncestor, parentType, visited)) {
-                return true;
+            for (Class<?> parentType : parent.parentModelTypes()) {
+                if (candidateAncestor.equals(parentType)
+                    || isAncestor(candidateAncestor, parentType, visited)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -348,14 +353,15 @@ public final class ModelMetadata {
                             .formatted(type.getName(), parents.size()));
         }
         ParentValue parent = parents.getFirst();
-        String parentType = parent.reference().parentModelType().getName();
+        String parentType = Objects.requireNonNull(parent.parentModelType(),
+                                                   "Parent model type must be known for scoped identity").getName();
         String parentId = parent.reference().repositoryId(parent.value());
         String childId = unscopedRepositoryId(functionalId);
         return "@%d:%s:%d:%s:%s".formatted(
                 parentType.length(), parentType, parentId.length(), parentId, childId);
     }
 
-    private record ParentValue(ParentReference reference, Object value) {
+    private record ParentValue(ParentReference reference, Object value, Class<?> parentModelType) {
     }
 
     private String nestedRepositoryId(Object functionalId) {
@@ -492,23 +498,49 @@ public final class ModelMetadata {
             Class<?> inferredType = inferIdTarget(
                     parentProperty.property().type(), parentProperty.property().genericType()).orElse(null);
             Class<?> explicitType = void.class.equals(annotation.value()) ? null : annotation.value();
-            if (inferredType != null && explicitType != null && !inferredType.equals(explicitType)) {
+            List<Class<?>> explicitTypes = List.of(annotation.types());
+            if (explicitType != null && !explicitTypes.isEmpty()) {
+                throw invalid("@ParentId %s.%s may declare either value or types, but not both"
+                                      .formatted(type.getName(), parentProperty.property().name()));
+            }
+            LinkedHashSet<Class<?>> parentTypes = new LinkedHashSet<>(explicitTypes);
+            if (parentTypes.size() != explicitTypes.size()) {
+                throw invalid("@ParentId %s.%s declares duplicate parent model types"
+                                      .formatted(type.getName(), parentProperty.property().name()));
+            }
+            if (parentTypes.remove(void.class)) {
+                throw invalid("@ParentId %s.%s types must not contain void"
+                                      .formatted(type.getName(), parentProperty.property().name()));
+            }
+            if (explicitType != null) {
+                parentTypes.add(explicitType);
+            } else if (parentTypes.isEmpty() && inferredType != null) {
+                parentTypes.add(inferredType);
+            }
+            if (inferredType != null && !parentTypes.isEmpty() && !parentTypes.contains(inferredType)) {
                 throw invalid("@ParentId %s.%s explicitly refers to %s but its ID type refers to %s"
                                       .formatted(type.getName(), parentProperty.property().name(),
-                                                 explicitType.getName(), inferredType.getName()));
+                                                 parentTypes.stream().map(Class::getName).toList(),
+                                                 inferredType.getName()));
             }
-            Class<?> parentModelType = explicitType == null ? inferredType : explicitType;
-            if (parentModelType != null && !isModelType(parentModelType)) {
+            for (Class<?> parentModelType : parentTypes) {
+                if (isModelType(parentModelType)) {
+                    continue;
+                }
                 throw invalid("@ParentId %s.%s refers to %s, which is not annotated with @Model"
                                       .formatted(type.getName(), parentProperty.property().name(),
                                                  parentModelType.getName()));
             }
-            if (!path.isEmpty() && parentModelType == null) {
+            if (parentTypes.size() > 1 && !Id.class.isAssignableFrom(parentProperty.property().type())) {
+                throw invalid("Polymorphic @ParentId %s.%s requires an Id property so its runtime parent type is unambiguous"
+                                      .formatted(type.getName(), parentProperty.property().name()));
+            }
+            if (!path.isEmpty() && parentTypes.isEmpty()) {
                 throw invalid("@ParentId path '%s' on %s.%s requires a typed Id<T> or an explicit parent model type"
                                       .formatted(path, type.getName(), parentProperty.property().name()));
             }
             result.add(new ParentReference(
-                    parentProperty.property(), path, parentModelType, annotation.apiDoc(),
+                    parentProperty.property(), path, List.copyOf(parentTypes), annotation.apiDoc(),
                     annotation.deleteOnParentDeletion()));
         }
         return List.copyOf(result);
@@ -776,8 +808,8 @@ public final class ModelMetadata {
         visited.put(current, VisitState.VISITING);
         path.add(current);
         for (ParentReference reference : of(current).parentReferences) {
-            if (reference.parentModelType() != null) {
-                validateParentGraph(reference.parentModelType(), visited, path);
+            for (Class<?> parentType : reference.parentModelTypes()) {
+                validateParentGraph(parentType, visited, path);
             }
         }
         path.removeLast();
@@ -888,22 +920,67 @@ public final class ModelMetadata {
      * One outgoing parent relationship declared by a child model.
      *
      * @param path            optional parent-relative automatic composition path
-     * @param parentModelType inferred or explicitly declared parent model type, or {@code null} for an untyped ID
+     * @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID
      * @param apiDoc          optional documentation for the list-valued automatic composition path
      * @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle
      */
     public record ParentReference(
             Property property,
             String path,
-            Class<?> parentModelType,
+            List<Class<?>> parentModelTypes,
             ApiDoc apiDoc,
             boolean deleteOnParentDeletion) {
+        public ParentReference {
+            parentModelTypes = List.copyOf(parentModelTypes);
+        }
+
         public Object read(Object target) {
             return property.read(target);
         }
 
+        /** Returns the statically unique parent type, or {@code null} for untyped and polymorphic references. */
+        public Class<?> parentModelType() {
+            return parentModelTypes.size() == 1 ? parentModelTypes.getFirst() : null;
+        }
+
+        /** Returns whether this reference can point to the supplied parent model type. */
+        public boolean supports(Class<?> parentType) {
+            return parentModelTypes.stream().anyMatch(candidate -> candidate.equals(parentType));
+        }
+
+        /**
+         * Resolves the concrete parent model type for one runtime parent ID.
+         */
+        public Class<?> parentModelType(Object parentId) {
+            if (parentModelTypes.size() < 2) {
+                return parentModelType();
+            }
+            if (!(parentId instanceof Id<?> id)) {
+                throw new IllegalArgumentException(
+                        "Polymorphic @ParentId %s requires a typed Id value, but found %s"
+                                .formatted(property.name(), parentId == null ? "null" : parentId.getClass().getName()));
+            }
+            Class<?> runtimeType = id.getType();
+            List<Class<?>> exact = parentModelTypes.stream().filter(runtimeType::equals).toList();
+            if (exact.size() == 1) {
+                return exact.getFirst();
+            }
+            List<Class<?>> compatible = parentModelTypes.stream()
+                    .filter(candidate -> candidate.isAssignableFrom(runtimeType)
+                            || runtimeType.isAssignableFrom(candidate))
+                    .toList();
+            if (compatible.size() == 1) {
+                return compatible.getFirst();
+            }
+            throw new IllegalArgumentException(
+                    "Typed parent ID %s refers to %s, which does not select exactly one of %s"
+                            .formatted(parentId, runtimeType.getName(),
+                                       parentModelTypes.stream().map(Class::getName).toList()));
+        }
+
         /** Returns the parent's exact persisted identity for a functional parent ID value. */
         public String repositoryId(Object parentId) {
+            Class<?> parentModelType = parentModelType(parentId);
             return parentModelType == null
                     ? Objects.requireNonNull(parentId, "Parent ID must not be null").toString()
                     : ModelMetadata.of(parentModelType).repositoryId(parentId);

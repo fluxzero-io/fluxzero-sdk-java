@@ -293,14 +293,26 @@ public class OpenApiProcessor extends AbstractProcessor {
                 continue;
             }
             TypeMirror explicitParent = typeValue(values.get("value"));
-            TypeMirror parentType = isNoResponseType(explicitParent)
-                    ? inferModelIdType(memberType(member), new LinkedHashSet<>()).orElse(null)
-                    : explicitParent;
-            if (parentType == null) {
+            List<TypeMirror> parentTypes = typeList(values.get("types"));
+            if (!isNoResponseType(explicitParent) && !parentTypes.isEmpty()) {
+                messager.printMessage(
+                        Diagnostic.Kind.ERROR,
+                        "@ParentId may declare either value or types, but not both",
+                        member, parentId);
                 continue;
             }
-            modelGraphRelations.add(new ModelGraphRelation(
-                    childType, parentType, path, annotationMirror(values.get("apiDoc"))));
+            if (!isNoResponseType(explicitParent)) {
+                parentTypes = List.of(explicitParent);
+            } else if (parentTypes.isEmpty()) {
+                parentTypes = inferModelIdType(memberType(member), new LinkedHashSet<>()).stream().toList();
+            }
+            if (parentTypes.isEmpty()) {
+                continue;
+            }
+            for (TypeMirror parentType : parentTypes) {
+                modelGraphRelations.add(new ModelGraphRelation(
+                        childType, parentType, path, annotationMirror(values.get("apiDoc"))));
+            }
         }
     }
 
@@ -1981,6 +1993,20 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private TypeMirror typeValue(AnnotationValue value) {
         return value != null && value.getValue() instanceof TypeMirror type ? type : null;
+    }
+
+    private List<TypeMirror> typeList(AnnotationValue value) {
+        if (value == null || !(value.getValue() instanceof List<?> list)) {
+            return List.of();
+        }
+        List<TypeMirror> result = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof AnnotationValue annotationValue
+                && annotationValue.getValue() instanceof TypeMirror type) {
+                result.add(type);
+            }
+        }
+        return List.copyOf(result);
     }
 
     private List<AnnotationMirror> annotationList(AnnotationValue value) {

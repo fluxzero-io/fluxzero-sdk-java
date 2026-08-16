@@ -180,6 +180,13 @@ class OpenApiProcessorTest {
         assertEquals("array", connections.path("type").asText());
         assertEquals("Location connections", connections.path("description").asText());
         assertEquals("#/components/schemas/ProcessorConnection", connections.path("items").path("$ref").asText());
+        JsonNode contacts = graphSchemas.path("ProcessorOrganisation").path("properties").path("contacts");
+        assertEquals("array", contacts.path("type").asText());
+        assertEquals("#/components/schemas/ProcessorContact", contacts.path("items").path("$ref").asText());
+        JsonNode alternateContacts = graphSchemas.path("ProcessorAlternateRoot").path("properties").path("contacts");
+        assertEquals("array", alternateContacts.path("type").asText());
+        assertEquals("#/components/schemas/ProcessorContact",
+                     alternateContacts.path("items").path("$ref").asText());
         assertEquals(ProcessorOrganisationInfo.class.getName(),
                      graphSchemas.path("ProcessorOrganisationInfo")
                              .path(OpenApiRenderer.JAVA_TYPE_EXTENSION).asText());
@@ -268,6 +275,13 @@ class OpenApiProcessorTest {
                 modelGraphPaths = "children/leaves")
         @HandleGet("/selected-model-graph")
         JsonNode selectedModelGraph() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = ProcessorAlternateRoot.class)
+        @HandleGet("/alternate-model-graph")
+        JsonNode alternateModelGraph() {
             return null;
         }
 
@@ -395,6 +409,17 @@ class OpenApiProcessorTest {
             @ParentId(value = ProcessorLocation.class, path = "assets/connections",
                     apiDoc = @ApiDoc(description = "Location connections"))
             String locationId) {
+    }
+
+    @Model
+    record ProcessorAlternateRoot(@EntityId String id) {
+    }
+
+    @Model
+    record ProcessorContact(
+            @EntityId String id,
+            @ParentId(types = {ProcessorOrganisation.class, ProcessorAlternateRoot.class}, path = "contacts")
+            Id<?> parentId) {
     }
 
     @Model

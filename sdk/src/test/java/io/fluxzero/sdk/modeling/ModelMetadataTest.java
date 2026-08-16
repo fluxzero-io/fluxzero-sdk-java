@@ -207,6 +207,21 @@ class ModelMetadataTest {
     }
 
     @Test
+    void resolvesPolymorphicParentFromConcreteTypedId() {
+        ModelMetadata.ParentReference parent = ModelMetadata.validate(PolymorphicChildModel.class)
+                .parentReferences().getFirst();
+        ParentModelId parentId = new ParentModelId("parent");
+        AlternateParentModelId alternateId = new AlternateParentModelId("alternate");
+
+        assertEquals(List.of(ParentModel.class, AlternateParentModel.class), parent.parentModelTypes());
+        assertNull(parent.parentModelType());
+        assertSame(ParentModel.class, parent.parentModelType(parentId));
+        assertSame(AlternateParentModel.class, parent.parentModelType(alternateId));
+        assertEquals("parent-parent", parent.repositoryId(parentId));
+        assertEquals("alternate-alternate", parent.repositoryId(alternateId));
+    }
+
+    @Test
     void capturesApplyTargetsAndDependenciesForAllModelHandlerKinds() {
         ModelMetadata metadata = ModelMetadata.of(ModelHandlers.class);
 
@@ -306,6 +321,9 @@ class ModelMetadataTest {
         assertMessage(InvalidTypedParentModel.class, "which is not annotated with @Model");
         assertMessage(InvalidExplicitParentModel.class, "which is not annotated with @Model");
         assertMessage(MismatchedParentModel.class, "explicitly refers to", "but its ID type refers to");
+        assertMessage(ConflictingPolymorphicParentModel.class, "either value or types");
+        assertMessage(UntypedPolymorphicParentModel.class, "requires an Id property");
+        assertMessage(InvalidPolymorphicParentModel.class, "which is not annotated with @Model");
     }
 
     @Test
@@ -394,6 +412,22 @@ class ModelMetadataTest {
         ParentModelId(String id) {
             super(id, "parent-");
         }
+    }
+
+    @Model
+    private record AlternateParentModel(@EntityId AlternateParentModelId parentId) {
+    }
+
+    private static class AlternateParentModelId extends Id<AlternateParentModel> {
+        AlternateParentModelId(String id) {
+            super(id, "alternate-");
+        }
+    }
+
+    @Model
+    private record PolymorphicChildModel(
+            @EntityId String id,
+            @ParentId(types = {ParentModel.class, AlternateParentModel.class}, path = "children") Id<?> parentId) {
     }
 
     @Model
@@ -610,6 +644,24 @@ class ModelMetadataTest {
     @Model
     private record MismatchedParentModel(
             @EntityId String id, @ParentId(value = ChildModel.class) ParentModelId parentId) {
+    }
+
+    @Model
+    private record ConflictingPolymorphicParentModel(
+            @EntityId String id,
+            @ParentId(value = ParentModel.class, types = AlternateParentModel.class) Id<?> parentId) {
+    }
+
+    @Model
+    private record UntypedPolymorphicParentModel(
+            @EntityId String id,
+            @ParentId(types = {ParentModel.class, AlternateParentModel.class}) String parentId) {
+    }
+
+    @Model
+    private record InvalidPolymorphicParentModel(
+            @EntityId String id,
+            @ParentId(types = {ParentModel.class, NotAModel.class}) Id<?> parentId) {
     }
 
     private static class AmbiguousTransfer {

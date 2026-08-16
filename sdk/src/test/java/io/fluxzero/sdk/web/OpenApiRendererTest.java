@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProperty;
+import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
@@ -235,7 +236,7 @@ class OpenApiRendererTest {
         ApiDocCatalog extracted = ApiDocExtractor.extract(ModelGraphHandler.class);
         ApiDocCatalog catalog = new ApiDocCatalog(
                 extracted.endpoints(), List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class,
-                                               ContractModel.class));
+                                               ContractModel.class, ContactModel.class));
 
         JsonNode document = OpenApiRenderer.render(catalog);
         JsonNode responseSchema = document.path("paths").path("/organisations/{id}").path("get")
@@ -277,6 +278,9 @@ class OpenApiRendererTest {
         assertEquals("array", connections.path("type").asText());
         assertEquals("Physical connections at this location", connections.path("description").asText());
         assertEquals("#/components/schemas/ConnectionModel", connections.path("items").path("$ref").asText());
+        JsonNode contacts = organisation.path("properties").path("contacts");
+        assertEquals("array", contacts.path("type").asText());
+        assertEquals("#/components/schemas/ContactModel", contacts.path("items").path("$ref").asText());
         assertFalse(organisation.path("properties").has("contracts"));
         assertFalse(schemas.has("ContractModel"));
     }
@@ -472,6 +476,17 @@ class OpenApiRendererTest {
             @EntityId String id,
             @ParentId(value = OrganisationModel.class, path = "contracts",
                     apiDoc = @ApiDoc(exclude = true)) String organisationId) {
+    }
+
+    @Model
+    record AlternateRootModel(@EntityId String id) {
+    }
+
+    @Model
+    record ContactModel(
+            @EntityId String id,
+            @ParentId(types = {OrganisationModel.class, AlternateRootModel.class}, path = "contacts")
+            Id<?> parentId) {
     }
 
     static class FormHandler {
