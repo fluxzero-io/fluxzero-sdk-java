@@ -79,15 +79,6 @@ final class ModelConflictPolicies {
     private static ModelConflictPolicy transitionPolicy(
             ModelCommitEngine.Transition transition,
             ModelConflictPolicy application) {
-        if (transition.before() == null
-            && transition.beforeSequenceNumber() < 0L) {
-            /*
-             * A newly created identity has no meaningful state on which an ACCEPT rebase can apply. Re-running a
-             * creation against a concurrently created model would silently turn create into overwrite, so identity
-             * collisions always fail the complete atomic commit.
-             */
-            return ModelConflictPolicy.FAIL;
-        }
         Apply apply = transition.handler() == null
                 ? null
                 : transition.handler().getAnnotation(Apply.class);
@@ -98,7 +89,20 @@ final class ModelConflictPolicies {
             policy = modelPolicy(
                     transition.modelType());
         }
-        return inherit(policy, application);
+        ModelConflictPolicy resolved =
+                inherit(policy, application);
+        if (transition.before() == null
+            && transition.beforeSequenceNumber() < 0L
+            && resolved == ModelConflictPolicy.ACCEPT) {
+            /*
+             * A newly created identity has no meaningful state on which an ACCEPT rebase can apply. Retrying is
+             * safe: the complete action is evaluated again against the concurrently created value, so create-only
+             * assertions still fail while upserts may deliberately update it. Silent ACCEPT must never turn the
+             * original create into an overwrite without rerunning application logic.
+             */
+            return ModelConflictPolicy.FAIL;
+        }
+        return resolved;
     }
 
     private static ModelConflictPolicy modelPolicy(

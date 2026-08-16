@@ -195,6 +195,10 @@ If evaluation fails, no target is committed. Conflict handling applies to the co
 - `RETRY` rolls it back and performs a bounded complete reevaluation against freshly loaded models;
 - `DEFAULT` inherits the application policy and ultimately falls back to `ACCEPT`.
 
+A concurrent claim of the same new model identity is never silently `ACCEPT`-rebased into an overwrite. An explicit
+`RETRY` instead reevaluates the complete action at the conflict boundary: create-only assertions still reject the
+existing identity, while deliberate upserts may continue from its freshly reconstructed value.
+
 Configure a default through `FluxzeroBuilder` or `fluxzero.model.conflictPolicy`, and override it on `@Model` or an
 individual `@Apply`.
 

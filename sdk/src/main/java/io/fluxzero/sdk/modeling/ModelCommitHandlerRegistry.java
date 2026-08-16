@@ -1181,10 +1181,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                                 effectiveConflictPolicy,
                                                 conflictResolver,
                                                 maxConflictRetries,
-                                                () -> reload(
-                                                        message,
-                                                        evaluation
-                                                                .readModelIds()),
+                                                (conflict, currentEvaluation) ->
+                                                        reload(
+                                                                message,
+                                                                currentEvaluation,
+                                                                conflict),
                                                 transportBatch,
                                                 transportSlot);
                         if (awaitedGraphProjections.isEmpty()) {
@@ -1455,16 +1456,41 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private CompletableFuture<ModelCommitEngine.CommitEvaluation> reload(
-            DeserializingMessage message, List<String> staleModelIds) {
-        repository.invalidateModels(staleModelIds);
+            DeserializingMessage message,
+            ModelCommitEngine.CommitEvaluation staleEvaluation,
+            CommitModelsResult conflict) {
+        repository.invalidateModels(
+                staleEvaluation.readModelIds());
+        long retryStateIndex =
+                retryStateIndex(
+                        staleEvaluation,
+                        conflict);
         try {
             return CompletableFuture.completedFuture(
                     MessageBatchModelView.withMessageDependency(
                             message,
-                            () -> evaluate(message)));
+                            () -> expandCascadeDeletes(
+                                    engine.evaluate(
+                                            message,
+                                            new CommitLoader(
+                                                    retryStateIndex)))));
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
+    }
+
+    private static long retryStateIndex(
+            ModelCommitEngine.CommitEvaluation evaluation,
+            CommitModelsResult conflict) {
+        long result = evaluation.readStateIndex();
+        for (var current : conflict.getConflicts()) {
+            result = Math.max(
+                    result,
+                    Math.max(
+                            current.getCurrentStateIndex(),
+                            current.getCurrentRelationStateIndex()));
+        }
+        return result;
     }
 
     private CompletableFuture<Void> afterCommitBatch(
@@ -1755,7 +1781,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 .filter(message -> !(message.getPayload()
                                         instanceof CascadedModelDeletion))
                                 .toList(),
-                        new CommitLoader(stateIndex))));
+                        new CommitLoader(stateIndex, true))));
     }
 
     /**
@@ -2009,18 +2035,18 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             Long boundary = requestedStateIndex == null ? pinnedStateIndex : requestedStateIndex;
             if (pinnedStateIndex != null && !pinnedStateIndex.equals(boundary)) {
                 throw new IllegalStateException(
-                        "Apply-only rebase moved from state index %d to %d"
+                        "Pinned model evaluation moved from state index %d to %d"
                                 .formatted(pinnedStateIndex, boundary));
             }
             CommitPlan plan = planFor(substep.getPayloadClass());
             List<ModelMetadata.HandlerMethod> handlers =
-                    applyOnly || pinnedStateIndex != null ? plan.applies() : plan.handlers();
+                    applyOnly ? plan.applies() : plan.handlers();
             ExplicitModelTarget explicitTarget = substep.getContext(
                     ExplicitModelTarget.class).orElse(null);
             ModelTargetResolver.Resolution resolution =
                     targetPlan(
                             substep.getPayloadClass(), plan,
-                            pinnedStateIndex != null, explicitTarget)
+                            applyOnly, explicitTarget)
                             .resolve(substep.getPayload());
             if (explicitTarget != null) {
                 resolution = retarget(
@@ -2168,14 +2194,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 Object payload = message.getPayload();
                 CommitPlan plan = planFor(payload.getClass());
                 List<ModelMetadata.HandlerMethod> handlers =
-                        applyOnly || pinnedStateIndex != null
-                                ? plan.applies() : plan.handlers();
+                        applyOnly ? plan.applies() : plan.handlers();
                 ExplicitModelTarget explicitTarget = message.getContext(
                         ExplicitModelTarget.class).orElse(null);
                 ModelTargetResolver.Resolution resolution =
                         targetPlan(
                                 payload.getClass(), plan,
-                                pinnedStateIndex != null, explicitTarget)
+                                applyOnly, explicitTarget)
                                 .resolve(payload);
                 if (explicitTarget != null) {
                     resolution = retarget(

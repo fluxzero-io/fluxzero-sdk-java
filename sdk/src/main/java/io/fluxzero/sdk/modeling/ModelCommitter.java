@@ -60,6 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -449,6 +450,24 @@ final class ModelCommitter {
             Supplier<CompletableFuture<ModelCommitEngine.CommitEvaluation>> reload,
             CommitBatch batch,
             int batchSlot) {
+        return commit(
+                commitId, evaluation, conflictPolicy,
+                conflictResolver, maxRetries,
+                (ignoredConflict, ignoredEvaluation) -> reload.get(),
+                batch, batchSlot);
+    }
+
+    CompletableFuture<Optional<CommitModelsResult>> commit(
+            String commitId,
+            ModelCommitEngine.CommitEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy,
+            ModelConflictResolver conflictResolver,
+            int maxRetries,
+            BiFunction<CommitModelsResult,
+                    ModelCommitEngine.CommitEvaluation,
+                    CompletableFuture<ModelCommitEngine.CommitEvaluation>> reload,
+            CommitBatch batch,
+            int batchSlot) {
         Objects.requireNonNull(conflictResolver, "conflictResolver");
         Objects.requireNonNull(reload, "reload");
         if (maxRetries < 0) {
@@ -468,7 +487,9 @@ final class ModelCommitter {
             ModelConflictPolicy conflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxRetries,
-            Supplier<CompletableFuture<ModelCommitEngine.CommitEvaluation>> reload,
+            BiFunction<CommitModelsResult,
+                    ModelCommitEngine.CommitEvaluation,
+                    CompletableFuture<ModelCommitEngine.CommitEvaluation>> reload,
             ThreadLocalContext.Snapshot context,
             int retries,
             CommitBatch batch,
@@ -501,7 +522,9 @@ final class ModelCommitter {
                         }
                         return invokeAsync(
                                 context,
-                                reload,
+                                () -> reload.apply(
+                                        conflict,
+                                        evaluation),
                                 "Model conflict reload returned null")
                                 .thenCompose(next -> commit(
                                 commitId, next,

@@ -22,6 +22,8 @@ import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.serialization.RegisterType;
@@ -48,11 +50,13 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -170,6 +174,105 @@ class ModelCommitHandlerRegistryTest {
         } finally {
             logger.detachAppender(appender);
             appender.stop();
+            subject.close();
+        }
+    }
+
+    @Test
+    void retryReevaluatesAllHandlersAtTheConflictBoundary() {
+        DefaultModelRepository repository =
+                mock(DefaultModelRepository.class);
+        when(repository.beginLocalCommit(any()))
+                .thenReturn(() -> {
+                });
+        when(repository.loadContext(
+                any(ModelTargetResolver.Resolution.class),
+                nullable(Long.class), anyMap(), anyBoolean()))
+                .thenAnswer(invocation -> {
+                    ModelTargetResolver.Resolution resolution =
+                            invocation.getArgument(0);
+                    Long boundary = invocation.getArgument(1);
+                    RetryBoundaryModel value = boundary == null
+                            ? null
+                            : new RetryBoundaryModel(
+                                    "retry-boundary",
+                                    "winner");
+                    Entity<?> entity =
+                            ImmutableModelRoot
+                                    .<RetryBoundaryModel>builder()
+                                    .id("retry-boundary")
+                                    .type(RetryBoundaryModel.class)
+                                    .idProperty("id")
+                                    .value(value)
+                                    .sequenceNumber(-1L)
+                                    .stateIndex(
+                                            boundary == null
+                                                    ? 5L
+                                                    : boundary)
+                                    .build();
+                    return ModelCommitContext.create(
+                            boundary == null ? 5L : boundary,
+                            resolution,
+                            Map.of(
+                                    "retry-boundary",
+                                    entity));
+                });
+        EventStoreClient eventStoreClient =
+                mock(EventStoreClient.class);
+        AtomicInteger attempts =
+                new AtomicInteger();
+        when(eventStoreClient.commitModels(any()))
+                .thenAnswer(invocation -> {
+                    CommitModels request =
+                            invocation.getArgument(0);
+                    if (attempts.getAndIncrement() == 0) {
+                        return CompletableFuture.completedFuture(
+                                CommitModelsResult.conflict(
+                                        request.getRequestId(),
+                                        request.getCommitId(),
+                                        List.of(
+                                                new ModelCommitConflict(
+                                                        "retry-boundary",
+                                                        7L, -1L)),
+                                        true));
+                    }
+                    return CompletableFuture.completedFuture(
+                            acceptedResult(request));
+                });
+        JacksonSerializer serializer =
+                new JacksonSerializer();
+        ModelCommitHandlerRegistry subject =
+                new ModelCommitHandlerRegistry(
+                        repository,
+                        eventStoreClient,
+                        serializer,
+                        serializer,
+                        mock(DocumentSerializer.class),
+                        DispatchInterceptor.noOp,
+                        "test",
+                        List.of(),
+                        HandlerDecorator.noOp,
+                        ModelConflictPolicy.ACCEPT,
+                        ModelConflictResolver.retryIfAllowed(),
+                        1,
+                        AutomaticModelHandling.ENABLED,
+                        GraphProjectionCompletion.ASYNC);
+        RetryBoundaryCommand.observations.clear();
+        try {
+            subject.assertAndApply(
+                    new Message(
+                            new RetryBoundaryCommand(
+                                    "retry-boundary")))
+                    .join();
+
+            assertEquals(
+                    List.of("missing", "winner"),
+                    List.copyOf(
+                            RetryBoundaryCommand.observations));
+            assertEquals(2, attempts.get());
+            verify(repository).invalidateModels(
+                    List.of("retry-boundary"));
+        } finally {
             subject.close();
         }
     }
@@ -1616,6 +1719,38 @@ class ModelCommitHandlerRegistryTest {
         @Apply(eventPublication = EventPublication.ALWAYS)
         ReceiverModel apply(ReceiverCommand command) {
             return new ReceiverModel(command.id());
+        }
+    }
+
+    @Model(eventSourced = false)
+    private record RetryBoundaryModel(
+            @EntityId String id,
+            String value) {
+    }
+
+    private record RetryBoundaryCommand(
+            String id) {
+        private static final ConcurrentLinkedQueue<String> observations =
+                new ConcurrentLinkedQueue<>();
+
+        @InterceptApply
+        RetryBoundaryCommand intercept(
+                @jakarta.annotation.Nullable RetryBoundaryModel model) {
+            observations.add(
+                    model == null
+                            ? "missing"
+                            : model.value());
+            return this;
+        }
+
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+        RetryBoundaryModel apply(
+                @jakarta.annotation.Nullable RetryBoundaryModel model) {
+            return new RetryBoundaryModel(
+                    id,
+                    model == null
+                            ? "created"
+                            : model.value() + "-retried");
         }
     }
 
