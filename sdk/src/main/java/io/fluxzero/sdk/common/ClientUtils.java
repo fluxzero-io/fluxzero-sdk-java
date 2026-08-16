@@ -29,13 +29,12 @@ import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.client.Client;
-import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
@@ -46,7 +45,6 @@ import org.slf4j.MarkerFactory;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
-import java.lang.reflect.Parameter;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -57,7 +55,6 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.Temporal;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalUnit;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
@@ -77,7 +74,6 @@ import java.util.stream.Collectors;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedMethods;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static java.time.temporal.ChronoUnit.DAYS;
@@ -459,20 +455,7 @@ public class ClientUtils {
      * Defaults to a collection name matching the class’s simple name if not explicitly set.
      */
     public static SearchParameters getSearchParameters(Class<?> type) {
-        Model model = type.getAnnotation(Model.class);
-        if (model != null) {
-            Searchable configuration = model.searchProjection();
-            String collection = configuration.collection().isEmpty()
-                    ? type.getSimpleName()
-                    : configuration.collection();
-            return new SearchParameters(model.searchable(), collection,
-                                        configuration.timestampPath(), configuration.endPath())
-                    .substituteProperties();
-        }
-        return getAnnotationAs(type, Searchable.class, SearchParameters.class)
-                .map(SearchParameters::substituteProperties)
-                .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)
-                .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null));
+        return SearchParameters.forType(type);
     }
 
     /**
@@ -525,20 +508,7 @@ public class ClientUtils {
      * @return the topic as a String, or {@code null} if no valid topic is determined.
      */
     public static String getTopic(HandleDocument handleDocument, Executable executable) {
-        return Optional.ofNullable(handleDocument)
-                .filter(h -> !h.disabled())
-                .flatMap(h -> Optional.ofNullable(h.value()).filter(s -> !s.isBlank())
-                        .or(() -> Void.class.equals(h.modelGraph()) ? Optional.empty() :
-                                Optional.of(ModelGraphProjections.configuration(h.modelGraph())
-                                                    .orElseThrow(() -> new IllegalArgumentException(
-                                                            "%s does not enable a materialized model graph projection"
-                                                                    .formatted(h.modelGraph().getName())))
-                                                    .getCollection()))
-                        .or(() -> Void.class.equals(h.documentClass()) ? Optional.empty() :
-                                Optional.of(ClientUtils.determineSearchCollection(h.documentClass()))))
-                .or(() -> Arrays.stream(executable.getParameters()).findFirst().map(Parameter::getType).map(
-                        ClientUtils::determineSearchCollection))
-                .filter(s -> !s.isBlank()).orElse(null);
+        return DocumentHandlerTopics.resolve(handleDocument, executable);
     }
 
     /**

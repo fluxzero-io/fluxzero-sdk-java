@@ -174,7 +174,6 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     public List<CompletableFuture<SerializedMessage>> sendRequests(List<SerializedMessage> requests,
                                                                    Consumer<List<SerializedMessage>> requestSender,
                                                                    Duration timeout) {
-        long started = Boolean.getBoolean("fluxzero.requestDispatchDiagnostics") ? System.nanoTime() : 0L;
         ensureStarted();
         if (requests.isEmpty()) {
             return List.of();
@@ -187,20 +186,11 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
             requestIds[i] = prepared.requestId();
             futures.add(prepared.result());
         }
-        long preparedAt = started == 0L ? 0L : System.nanoTime();
         if (!effectiveTimeout.isNegative()) {
             scheduleBatchTimeout(requests, requestIds, futures, effectiveTimeout);
         }
-        long scheduledAt = started == 0L ? 0L : System.nanoTime();
         requestSender.accept(requests);
         recordRequestStages(requests, "request-dispatched");
-        if (started != 0L) {
-            System.out.printf("RequestHandler registered %,d requests: prepare %.3f ms, timeout %.3f ms, send %.3f ms%n",
-                              requests.size(),
-                              (preparedAt - started) / 1_000_000.0,
-                              (scheduledAt - preparedAt) / 1_000_000.0,
-                              (System.nanoTime() - scheduledAt) / 1_000_000.0);
-        }
         return futures;
     }
 
@@ -290,7 +280,6 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     }
 
     private void processResults(List<SerializedMessage> messages) {
-        long started = Boolean.getBoolean("fluxzero.resultProcessingDiagnostics") ? System.nanoTime() : 0L;
         messages.stream().filter(m -> m.getRequestId() != null).forEach(response -> {
             var callback = callbacks.get(response.getRequestId());
             if (callback == null) {
@@ -302,10 +291,6 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
             recordTraceStage(response, "result-received");
             callback.process(response, responseExecutor);
         });
-        if (started != 0L) {
-            System.out.printf("Processed %,d request results in %.3f ms%n", messages.size(),
-                              (System.nanoTime() - started) / 1_000_000.0);
-        }
     }
 
     /**

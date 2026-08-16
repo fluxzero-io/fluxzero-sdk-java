@@ -22,6 +22,8 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
 import io.fluxzero.common.api.publishing.Truncate;
+import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
+import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 
@@ -67,6 +69,11 @@ import static io.fluxzero.common.MessageType.METRICS;
  * @see io.fluxzero.sdk.Fluxzero
  */
 public class WebsocketGatewayClient extends AbstractWebsocketClient implements GatewayClient {
+
+    @Override
+    protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
+        return List.of(TrackingWebSocketCodec.INSTANCE);
+    }
 
     private final Set<Consumer<List<SerializedMessage>>> monitors = new CopyOnWriteArraySet<>();
 

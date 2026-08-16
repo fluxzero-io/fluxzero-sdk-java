@@ -72,6 +72,7 @@ import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
+import io.fluxzero.common.api.modeling.ModelWebSocketCodec;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
@@ -94,6 +95,7 @@ import io.fluxzero.common.api.tracking.Read;
 import io.fluxzero.common.api.tracking.ReadFromIndex;
 import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.api.tracking.TrackingWireCodec;
+import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
 import io.fluxzero.common.serialization.JsonUtils;
 import org.junit.jupiter.api.Test;
 
@@ -129,8 +131,11 @@ class WebSocketTransportCodecsTest {
 
     private final WebSocketTransportCodec jsonCodec = WebSocketTransportCodecs.json(objectMapper);
     private final WebSocketTransportCodec cborCodec = WebSocketTransportCodecs.cbor(objectMapper);
-    private final WebSocketTransportCodec binaryCodec = WebSocketTransportCodecs.binary(objectMapper);
-    private final WebSocketTransportCodec nativeBinaryCodec = WebSocketTransportCodecs.binaryV2(objectMapper);
+    private final List<WebSocketPayloadCodec> payloadCodecs = List.of(
+            TrackingWebSocketCodec.INSTANCE, ModelWebSocketCodec.INSTANCE);
+    private final WebSocketTransportCodec binaryCodec = WebSocketTransportCodecs.binary(objectMapper, payloadCodecs);
+    private final WebSocketTransportCodec nativeBinaryCodec =
+            WebSocketTransportCodecs.binaryV2(objectMapper, payloadCodecs);
 
     @Test
     void forFormatDefaultsToJson() {

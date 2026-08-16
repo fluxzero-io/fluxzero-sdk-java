@@ -32,6 +32,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
+
 /**
  * A {@link HandlerDecorator} that intercepts handler methods annotated with {@link HandleDocument} and synchronizes
  * their return values with a {@link DocumentStore}.
@@ -82,7 +83,7 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                     .flatMap(i -> !i.isPassive() && i.getMethod() instanceof Method m
                                   && m.getReturnType().isAssignableFrom(message.getPayloadClass())
                             ? ReflectionUtils.<HandleDocument>getMethodAnnotation(i.getMethod(), HandleDocument.class)
-                                    .map(annotation -> ClientUtils.getTopic(annotation, i.getMethod()))
+                                    .map(annotation -> DocumentHandlerTopics.resolve(annotation, i.getMethod()))
                             .map(topic -> new DocumentHandlerInvoker(i, topic, message)) : Optional.of(i));
         }
 

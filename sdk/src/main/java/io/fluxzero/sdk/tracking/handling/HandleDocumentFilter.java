@@ -17,7 +17,6 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.handling.MessageFilter;
 import io.fluxzero.common.reflection.ReflectionUtils;
-import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.lang.annotation.Annotation;
@@ -34,12 +33,12 @@ import static io.fluxzero.common.search.ModelGraphDocumentManifest.TOMBSTONE_MET
  * whether the resolved topic from the annotation matches the topic of the incoming message. If both conditions are met,
  * the message will be considered eligible for handling by the method.
  *
- * <p>The resolved topic is derived using {@link ClientUtils#getTopic(HandleDocument, Executable)},
+ * <p>The resolved topic is derived using {@link DocumentHandlerTopics#resolve(HandleDocument, Executable)},
  * which supports dynamic resolution based on annotation configuration and handler context.
  *
  * @see HandleDocument
  * @see DeserializingMessage
- * @see ClientUtils#getTopic(HandleDocument, Executable)
+ * @see DocumentHandlerTopics#resolve(HandleDocument, Executable)
  */
 public class HandleDocumentFilter implements MessageFilter<DeserializingMessage> {
 
@@ -49,7 +48,7 @@ public class HandleDocumentFilter implements MessageFilter<DeserializingMessage>
         return ReflectionUtils.getAnnotation(executable, HandleDocument.class)
                 .filter(handleDocument -> message.getMetadata().get(TOMBSTONE_METADATA_KEY) == null
                         || handleDocument.modelGraph() != Void.class)
-                .map(handleDocument -> ClientUtils.getTopic(handleDocument, executable))
+                .map(handleDocument -> DocumentHandlerTopics.resolve(handleDocument, executable))
                 .map(handlerCollection -> Objects.equals(message.getTopic(), handlerCollection))
                 .orElse(false);
     }

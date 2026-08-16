@@ -57,9 +57,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -78,16 +76,6 @@ import static io.fluxzero.common.SearchUtils.parseTimeProperty;
  */
 final class ModelCommitter {
     private static final int MAX_ACCEPT_REBASE_ATTEMPTS = 10;
-    private static final boolean COMMIT_TIMING_DIAGNOSTICS =
-            Boolean.getBoolean("fluxzero.modelCommitDetailedTimingDiagnostics");
-    private static final AtomicLong PREPARED = new AtomicLong();
-    private static final LongAdder PREPARE_NANOS = new LongAdder();
-    private static final AtomicLong RESULT_BATCHES = new AtomicLong();
-    private static final LongAdder RESULT_ITEMS = new LongAdder();
-    private static final LongAdder RESULT_MATCH_NANOS = new LongAdder();
-    private static final LongAdder RESULT_PROCESS_NANOS = new LongAdder();
-    private static final LongAdder RESULT_REMOVE_NANOS = new LongAdder();
-
     private final EventStoreClient eventStoreClient;
     private final Serializer serializer;
     private final Serializer snapshotSerializer;
@@ -327,7 +315,6 @@ final class ModelCommitter {
         if (pendingCommits == null) {
             return CompletableFuture.completedFuture(null);
         }
-        long started = COMMIT_TIMING_DIAGNOSTICS ? System.nanoTime() : 0L;
         List<CommittedCommit> committed = new ArrayList<>(
                 results.size());
         for (CommitModelsResult result : results) {
@@ -355,31 +342,9 @@ final class ModelCommitter {
                                 result));
             }
         }
-        long matchedAt = COMMIT_TIMING_DIAGNOSTICS ? System.nanoTime() : 0L;
-        CompletableFuture<Void> processed = committed.isEmpty()
+        return committed.isEmpty()
                 ? CompletableFuture.completedFuture(null)
                 : processCommits(committed);
-        long processedAt = COMMIT_TIMING_DIAGNOSTICS ? System.nanoTime() : 0L;
-        if (!COMMIT_TIMING_DIAGNOSTICS) {
-            return processed;
-        }
-        return processed.whenComplete((ignored, failure) -> {
-            long completed = System.nanoTime();
-            RESULT_ITEMS.add(results.size());
-            RESULT_MATCH_NANOS.add(matchedAt - started);
-            RESULT_PROCESS_NANOS.add(processedAt - matchedAt);
-            RESULT_REMOVE_NANOS.add(completed - processedAt);
-            long batches = RESULT_BATCHES.incrementAndGet();
-            if ((batches & 63L) == 0L) {
-                long items = RESULT_ITEMS.sum();
-                System.out.printf(
-                        "SDK model result batches: batches=%d items=%d average=%.1f match=%.3f us/item process=%.3f us/item remove=%.3f us/item%n",
-                        batches, items, items / (double) batches,
-                        RESULT_MATCH_NANOS.sum() / 1_000.0 / items,
-                        RESULT_PROCESS_NANOS.sum() / 1_000.0 / items,
-                        RESULT_REMOVE_NANOS.sum() / 1_000.0 / items);
-            }
-        });
     }
 
     CommitBatch beginBatch(int producers) {
@@ -559,24 +524,9 @@ final class ModelCommitter {
             ModelCommitEngine.CommitEvaluation evaluation,
             ModelConflictPolicy conflictPolicy) {
         recordCommitStage(evaluation, "model-commit-prepare-start");
-        long started = COMMIT_TIMING_DIAGNOSTICS
-                ? System.nanoTime() : 0L;
-        try {
-            PreparedCommit result = doPrepare(commitId, evaluation, conflictPolicy);
-            recordCommitStage(evaluation, "model-commit-prepare-complete");
-            return result;
-        } finally {
-            if (COMMIT_TIMING_DIAGNOSTICS) {
-                PREPARE_NANOS.add(System.nanoTime() - started);
-                long count = PREPARED.incrementAndGet();
-                if ((count & 65_535L) == 0L) {
-                    System.out.printf(
-                            "SDK model prepare cumulative: count=%d cpu=%.3f ms average=%.3f us%n",
-                            count, PREPARE_NANOS.sum() / 1_000_000.0,
-                            PREPARE_NANOS.sum() / 1_000.0 / count);
-                }
-            }
-        }
+        PreparedCommit result = doPrepare(commitId, evaluation, conflictPolicy);
+        recordCommitStage(evaluation, "model-commit-prepare-complete");
+        return result;
     }
 
     private static void recordCommitStage(

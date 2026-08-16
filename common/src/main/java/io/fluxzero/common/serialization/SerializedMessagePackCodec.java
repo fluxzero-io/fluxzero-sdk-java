@@ -58,21 +58,8 @@ public final class SerializedMessagePackCodec {
         return decode(bytes, 0, bytes.length);
     }
 
-    /**
-     * Decodes a zero-copy slice containing consecutive serialized messages.
-     */
+    /** Decodes consecutive serialized messages from a zero-copy byte range. */
     public static List<SerializedMessage> decode(
-            ModelStreamBatchDecoder.EmbeddedPayloads payloads) {
-        if (payloads == null || payloads.length() == 0) {
-            return List.of();
-        }
-        return decode(
-                payloads.data(),
-                payloads.offset(),
-                payloads.length());
-    }
-
-    private static List<SerializedMessage> decode(
             byte[] bytes, int offset, int length) {
         if (SerializedMessage.isEnvelope(bytes, offset, length)) {
             try {

@@ -20,6 +20,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
 import io.fluxzero.common.api.publishing.Truncate;
+import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
 import io.fluxzero.common.tracking.DefaultTrackingStrategy;
 import io.fluxzero.common.tracking.InMemoryPositionStore;
 import io.fluxzero.common.tracking.MessageLogMaintenance;
@@ -28,6 +29,7 @@ import io.fluxzero.common.tracking.PositionStore;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -40,6 +42,11 @@ public class ProducerEndpoint extends WebsocketEndpoint {
     private final MessageLogMaintenance maintenance;
     private final MessageType messageType;
     private final String topic;
+
+    @Override
+    protected List<TrackingWebSocketCodec> payloadCodecs() {
+        return List.of(TrackingWebSocketCodec.INSTANCE);
+    }
 
     public ProducerEndpoint(MessageStore store) {
         this(newMaintenance(store), null, null);

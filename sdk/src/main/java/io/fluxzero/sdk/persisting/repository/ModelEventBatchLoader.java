@@ -25,7 +25,7 @@ import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelHeadState;
-import io.fluxzero.common.serialization.ModelStreamBatchDecoder;
+import io.fluxzero.common.api.modeling.ModelStreamBatchDecoder;
 import io.fluxzero.common.serialization.SerializedMessagePackCodec;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
@@ -351,7 +351,6 @@ final class ModelEventBatchLoader {
             Map<String, ModelHeadState> knownHeads,
             int perStreamLimit,
             long maxPayloadBytes) {
-        long started = System.nanoTime();
         List<ModelEventStream> responseStreams =
                 Objects.requireNonNull(
                         response.getStreams(),
@@ -409,7 +408,6 @@ final class ModelEventBatchLoader {
                         .map(
                                 ModelEventBatchLoader::decodeCompactBlock)
                         .toList();
-        long decodedAt = System.nanoTime();
         for (DecodedCompactBlock block :
                 decodedBlocks) {
             List<ModelStreamBatchDecoder.Entry> entries =
@@ -605,23 +603,10 @@ final class ModelEventBatchLoader {
                             head,
                             List.copyOf(events)));
         }
-        CompactPage result = new CompactPage(
+        return new CompactPage(
                 response.getStateIndex(),
                 List.copyOf(streams),
                 eventCount);
-        if (Boolean.getBoolean(
-                    "fluxzero.modelReconstructionDiagnostics")
-            && requests.size() >= 1_000) {
-            System.out.printf(
-                    "Compact model page: %,d streams, %,d events, decode %.3f ms, select/validate %.3f ms%n",
-                    requests.size(),
-                    eventCount,
-                    (decodedAt - started)
-                    / 1_000_000.0,
-                    (System.nanoTime() - decodedAt)
-                    / 1_000_000.0);
-        }
-        return result;
     }
 
     private static DecodedCompactBlock decodeCompactBlock(
@@ -634,7 +619,9 @@ final class ModelEventBatchLoader {
         }
         List<SerializedMessage> events =
                 SerializedMessagePackCodec.decode(
-                        block.embeddedPayloads());
+                        block.embeddedPayloads().data(),
+                        block.embeddedPayloads().offset(),
+                        block.embeddedPayloads().length());
         if (events.size() != block.entries().size()) {
             throw invalid(
                     "Compact model stream block contains %d events for %d memberships"

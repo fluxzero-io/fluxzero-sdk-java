@@ -34,14 +34,11 @@ import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.RetryAwareRequest;
 import io.fluxzero.common.api.ResultBatch;
-import io.fluxzero.common.api.modeling.CommitModels;
-import io.fluxzero.common.api.modeling.CommitModelsResult;
-import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
-import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.common.websocket.WebSocketTransportCodec;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
@@ -495,16 +492,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private CompletableFuture<Void> sendBatchAsync(List<Request> requests, WebsocketSession session) {
-        if (requests.size() > GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE
-                && !requests.stream().allMatch(CommitModels.class::isInstance)) {
+        int maxBatchSize = Math.max(1, maxRequestBatchSize(requests));
+        if (requests.size() > maxBatchSize) {
             CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
-            for (int offset = 0; offset < requests.size(); offset += GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE) {
+            for (int offset = 0; offset < requests.size(); offset += maxBatchSize) {
                 List<Request> chunk =
                         requests.subList(
                                 offset,
                                 Math.min(
                                         requests.size(),
-                                        offset + GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE));
+                                        offset + maxBatchSize));
                 result = result.thenCompose(ignored -> sendBatchChunkAsync(chunk, session));
             }
             return result;
@@ -514,27 +511,15 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     private CompletableFuture<Void> sendBatchChunkAsync(
             List<Request> requests, WebsocketSession session) {
-        boolean modelCommitBatch = FluxzeroJfr.batchEnabled()
-                && requests.stream().allMatch(CommitModels.class::isInstance);
-        boolean containsModelCommit = FluxzeroJfr.requestStageEnabled()
-                && requests.stream().anyMatch(CommitModels.class::isInstance);
-        FluxzeroJfr.Batch batchEvent = modelCommitBatch
-                ? FluxzeroJfr.startBatch(
-                        "sdk.websocket-request", "send", "commit-models",
-                        requests.size(), 0L, 0L, 0L)
-                : null;
-        if (containsModelCommit) {
-            recordModelCommitStages(requests, "request-send-start");
-        }
+        FluxzeroJfr.Batch batchEvent = startRequestBatchEvent(requests);
+        recordRequestStages(requests, "request-send-start");
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
             byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(object));
             if (batchEvent != null) {
                 batchEvent.bytes = bytes.length;
             }
-            if (containsModelCommit) {
-                recordModelCommitStages(requests, "request-send-complete");
-            }
+            recordRequestStages(requests, "request-send-complete");
             if (session.isOpen()) {
                 CompletableFuture<Void> result = sendEncodedBatch(session, object, bytes);
                 FluxzeroJfr.finish(batchEvent, null);
@@ -553,25 +538,18 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
-    private static void recordModelCommitStages(List<Request> requests, String stage) {
-        int batchSize = requests.size();
-        for (Request request : requests) {
-            try {
-                CommitModels commit = (CommitModels) request;
-                Long traceId = sourceTraceId(commit);
-                if (traceId != null) {
-                    FluxzeroJfr.requestStage(
-                            traceId, "sdk.model-transport", stage,
-                            batchSize, traceId);
-                }
-            } catch (RuntimeException ignored) {
-                // Diagnostics must not affect transport validation or custom decoded requests.
-            }
-        }
+    /** Returns the maximum transport chunk for the supplied requests. */
+    protected int maxRequestBatchSize(List<Request> requests) {
+        return GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE;
     }
 
-    private static Long sourceTraceId(CommitModels commit) {
-        return FluxzeroJfr.resolveTraceCorrelation(commit.getCommitId());
+    /** Starts an optional request-batch event owned by the concrete protocol client. */
+    protected FluxzeroJfr.Batch startRequestBatchEvent(List<Request> requests) {
+        return null;
+    }
+
+    /** Records specialized request stages without coupling the transport to a request domain. */
+    protected void recordRequestStages(List<Request> requests, String stage) {
     }
 
     private CompletableFuture<Void> sendEncodedBatch(WebsocketSession session, JsonType object, byte[] bytes)
@@ -697,17 +675,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 "sdk.websocket", "decode-result", "RESULT", 0, bytes.length, 0L, 0L);
         long decodeStarted = decodeEvent == null ? 0L : System.nanoTime();
         try {
-            long decompressionStarted = System.nanoTime();
-            byte[] decompressed =
-                    getCompressionAlgorithm(session).decompress(bytes);
-            if (Boolean.getBoolean("fluxzero.modelEventWireDiagnostics")
-                && decompressed.length >= 1024 * 1024) {
-                System.out.printf(
-                        "Large websocket result decompression: %,d -> %,d bytes in %.3f ms%n",
-                        bytes.length, decompressed.length,
-                        (System.nanoTime() - decompressionStarted)
-                        / 1_000_000.0);
-            }
+            byte[] decompressed = getCompressionAlgorithm(session).decompress(bytes);
             value = transportCodec(session).decode(decompressed);
         } catch (Exception e) {
             FluxzeroJfr.finish(decodeEvent, e);
@@ -827,33 +795,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
-    static String jfrResultType(List<RequestResult> results) {
-        if (results.isEmpty()) {
-            return "RESULT";
-        }
-        RequestResult firstResult = results.getFirst();
-        if (firstResult == null) {
-            return "RESULT";
-        }
-        Class<?> resultType = firstResult.getClass();
-        String resultLabel;
-        if (resultType == CommitModelsResult.class) {
-            resultLabel = "MODEL_COMMIT";
-        } else if (resultType == TrackModelUpdatesResult.class) {
-            resultLabel = "MODEL_UPDATE";
-        } else {
-            return "RESULT";
-        }
-        for (int index = 1; index < results.size(); index++) {
-            RequestResult result = results.get(index);
-            if (result == null || result.getClass() != resultType) {
-                return "RESULT";
-            }
-        }
-        return resultLabel;
+    /** Classifies decoded results for optional protocol-specific JFR diagnostics. */
+    protected String jfrResultType(List<RequestResult> results) {
+        return "RESULT";
     }
 
-    private static void recordPreparationCompletion(
+    private void recordPreparationCompletion(
             List<RequestResult> results, CompletableFuture<Void> preparation) {
         if (!FluxzeroJfr.requestStageEnabled()) {
             return;
@@ -865,46 +812,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         });
     }
 
-    private static void recordResultStages(List<RequestResult> results, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        int resultBatchSize = results.size();
-        for (RequestResult result : results) {
-            if (result instanceof CommitModelsResult commit) {
-                Long traceId = FluxzeroJfr.resolveTraceCorrelation(commit.getCommitId());
-                if (traceId != null) {
-                    FluxzeroJfr.requestStage(
-                            traceId, "sdk.websocket-input.MODEL", stage,
-                            resultBatchSize, traceId);
-                }
-                continue;
-            }
-            if (!(result instanceof ReadResult readResult)) {
-                continue;
-            }
-            List<io.fluxzero.common.api.SerializedMessage> messages =
-                    readResult.getMessageBatch().getMessages();
-            int messageBatchSize = messages.size();
-            for (io.fluxzero.common.api.SerializedMessage message : messages) {
-                Long boxedIndex = message.getIndex();
-                long traceId = message.getMetadataLongValue(
-                        "$traceId", Long.MIN_VALUE);
-                String component = "sdk.websocket-input.RESULT";
-                if (traceId == Long.MIN_VALUE) {
-                    if (boxedIndex == null) {
-                        continue;
-                    }
-                    traceId = boxedIndex;
-                    component = "sdk.websocket-input.COMMAND";
-                }
-                if (FluxzeroJfr.requestTraceSampled(traceId)) {
-                    FluxzeroJfr.requestStage(
-                            traceId, component, stage,
-                            messageBatchSize, boxedIndex == null ? -1L : boxedIndex);
-                }
-            }
-        }
+    /** Records specialized result stages without coupling the transport to a result domain. */
+    protected void recordResultStages(List<RequestResult> results, String stage) {
     }
 
     CompletableFuture<Void> prepareResultGroup(
@@ -1423,7 +1332,13 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     protected WebSocketTransportCodec transportCodec(WebsocketSession session) {
         return transportCodecs.computeIfAbsent(getTransportFormat(session),
-                                               format -> WebSocketTransportCodecs.forFormat(format, objectMapper));
+                                               format -> WebSocketTransportCodecs.forFormat(
+                                                       format, objectMapper, payloadCodecs()));
+    }
+
+    /** Returns compact payload codecs owned by this concrete protocol client. */
+    protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
+        return List.of();
     }
 
     protected Optional<String> getRuntimeVersion(WebsocketSession session) {

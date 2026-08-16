@@ -18,12 +18,15 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import org.junit.jupiter.api.Test;
@@ -37,8 +40,24 @@ import java.util.Optional;
 import static io.fluxzero.common.Guarantee.STORED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.Mockito.mock;
 
 class WebSocketEventStoreClientTest {
+
+    @Test
+    void preservesModelResultJfrClassificationInConcreteClient() {
+        RecordingEventStoreClient subject = new RecordingEventStoreClient();
+        try {
+            assertEquals("MODEL_COMMIT", subject.resultType(List.of(
+                    mock(CommitModelsResult.class), mock(CommitModelsResult.class))));
+            assertEquals("MODEL_UPDATE", subject.resultType(List.of(mock(TrackModelUpdatesResult.class))));
+            assertEquals("RESULT", subject.resultType(List.of(
+                    mock(CommitModelsResult.class), mock(TrackModelUpdatesResult.class))));
+            assertEquals("RESULT", subject.resultType(List.of()));
+        } finally {
+            subject.close();
+        }
+    }
 
     @Test
     void readyModelCommitBatchSendsFullChunksAndFlushesItsTail() {
@@ -118,6 +137,10 @@ class WebSocketEventStoreClientTest {
         protected void sendPreparedRequests(
                 List<? extends PreparedRequest<?>> preparedRequests) {
             sentBatchSizes.add(preparedRequests.size());
+        }
+
+        private String resultType(List<RequestResult> results) {
+            return jfrResultType(results);
         }
     }
 }

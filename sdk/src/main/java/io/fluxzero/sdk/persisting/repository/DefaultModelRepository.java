@@ -2771,7 +2771,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 List<ModelTargetResolver.ResolvedModel> targets,
             ModelEventBatchLoader.Boundary boundary,
             boolean cacheAtBoundary) {
-            long started = System.nanoTime();
             if (targets.isEmpty()) {
                 long stateBoundary = eventLoader.load(
                         Map.of(), boundary,
@@ -2801,7 +2800,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                     page, states),
                             page -> applyCompactPage(
                                     page, states));
-            long loadedAt = System.nanoTime();
             List<FinalizedReconstruction> finalized =
                     targets.stream()
                             .map(target -> {
@@ -2864,14 +2862,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 reconstructed.put(new ViewKey(
                         target.modelId(), target.modelType(), loaded.stateIndex(),
                         null, Integer.MAX_VALUE, loaded.stateIndex()), entity);
-            }
-            if (Boolean.getBoolean("fluxzero.modelReconstructionDiagnostics")
-                && targets.size() >= 1_000) {
-                System.out.printf(
-                        "Model reconstruction total: %,d targets, load/apply %.3f ms, finalize %.3f ms%n",
-                        targets.size(),
-                        (loadedAt - started) / 1_000_000.0,
-                        (System.nanoTime() - loadedAt) / 1_000_000.0);
             }
             return new ReconstructionBatch(loaded.stateIndex(), result);
         }
@@ -2971,7 +2961,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private void applyPage(
                 GetModelEventsResult page,
                 Map<String, MutableReconstruction> states) {
-            long started = System.nanoTime();
             page.getStreams().forEach(
                     stream -> resolveTarget(
                             stream.getModelId(), stream.getHead(), states));
@@ -2985,7 +2974,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                                       stream,
                                                       states,
                                                       payloads));
-            long classified = System.nanoTime();
             if (independent) {
                 page.getStreams().parallelStream()
                         .forEach(stream ->
@@ -3004,21 +2992,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 deserializedEvents.clear();
             }
             preparedReplays.clear();
-            if (Boolean.getBoolean("fluxzero.modelReconstructionDiagnostics")
-                && page.getStreams().size() >= 1_000) {
-                System.out.printf(
-                        "Model reconstruction: %,d streams, independent=%s, classify %.3f ms, apply %.3f ms%n",
-                        page.getStreams().size(),
-                        independent,
-                        (classified - started) / 1_000_000.0,
-                        (System.nanoTime() - classified) / 1_000_000.0);
-            }
         }
 
         private void applyCompactPage(
                 ModelEventBatchLoader.CompactPage page,
                 Map<String, MutableReconstruction> states) {
-            long started = System.nanoTime();
             page.streams().forEach(
                     stream -> resolveTarget(
                             stream.modelId(), stream.head(), states));
@@ -3029,7 +3007,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                               isIndependent(
                                                       stream,
                                                       states));
-            long classified = System.nanoTime();
             if (independent) {
                 page.streams().parallelStream()
                         .forEach(stream ->
@@ -3041,18 +3018,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                                    applyCompactStream(
                                                            stream,
                                                            states));
-            }
-            if (Boolean.getBoolean(
-                        "fluxzero.modelReconstructionDiagnostics")
-                && page.streams().size() >= 1_000) {
-                System.out.printf(
-                        "Compact model reconstruction: %,d streams, independent=%s, classify %.3f ms, apply %.3f ms%n",
-                        page.streams().size(),
-                        independent,
-                        (classified - started)
-                        / 1_000_000.0,
-                        (System.nanoTime() - classified)
-                        / 1_000_000.0);
             }
         }
 

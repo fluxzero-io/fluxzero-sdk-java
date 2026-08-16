@@ -57,9 +57,12 @@ import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
+import io.fluxzero.common.api.modeling.ModelWebSocketCodec;
+import io.fluxzero.common.api.modeling.ModelStreamBatchDecoder;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.serialization.SerializedMessagePackCodec;
-import io.fluxzero.common.serialization.ModelStreamBatchDecoder;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
@@ -113,6 +116,77 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
     private final int fetchBatchSize;
     private final List<Function<List<CommitModelsResult>, CompletableFuture<Void>>>
             modelCommitResultProcessors = new CopyOnWriteArrayList<>();
+
+    @Override
+    protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
+        return List.of(ModelWebSocketCodec.INSTANCE);
+    }
+
+    @Override
+    protected int maxRequestBatchSize(List<Request> requests) {
+        return requests.stream().allMatch(CommitModels.class::isInstance)
+                ? Integer.MAX_VALUE
+                : super.maxRequestBatchSize(requests);
+    }
+
+    @Override
+    protected FluxzeroJfr.Batch startRequestBatchEvent(List<Request> requests) {
+        return FluxzeroJfr.batchEnabled()
+                && requests.stream().allMatch(CommitModels.class::isInstance)
+                ? FluxzeroJfr.startBatch(
+                        "sdk.websocket-request", "send", "commit-models",
+                        requests.size(), 0L, 0L, 0L)
+                : null;
+    }
+
+    @Override
+    protected String jfrResultType(List<RequestResult> results) {
+        if (results.isEmpty() || results.getFirst() == null) {
+            return "RESULT";
+        }
+        Class<?> type = results.getFirst().getClass();
+        String label = type == CommitModelsResult.class
+                ? "MODEL_COMMIT"
+                : type == TrackModelUpdatesResult.class ? "MODEL_UPDATE" : "RESULT";
+        if ("RESULT".equals(label)) {
+            return label;
+        }
+        return results.stream().allMatch(result -> result != null && result.getClass() == type)
+                ? label : "RESULT";
+    }
+
+    @Override
+    protected void recordRequestStages(List<Request> requests, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        int batchSize = requests.size();
+        requests.stream().filter(CommitModels.class::isInstance)
+                .map(CommitModels.class::cast)
+                .forEach(commit -> recordCommitStage(
+                        commit.getCommitId(), "sdk.model-transport", stage, batchSize));
+    }
+
+    @Override
+    protected void recordResultStages(List<RequestResult> results, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        int batchSize = results.size();
+        results.stream().filter(CommitModelsResult.class::isInstance)
+                .map(CommitModelsResult.class::cast)
+                .forEach(commit -> recordCommitStage(
+                        commit.getCommitId(), "sdk.websocket-input.MODEL", stage, batchSize));
+    }
+
+    private static void recordCommitStage(
+            String commitId, String component, String stage, int batchSize) {
+        Long traceId = FluxzeroJfr.resolveTraceCorrelation(commitId);
+        if (traceId != null) {
+            FluxzeroJfr.requestStage(
+                    traceId, component, stage, batchSize, traceId);
+        }
+    }
 
     /**
      * Creates a new {@code WebSocketEventStoreClient} with a default batch size of 8192.
@@ -411,7 +485,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             throw new IllegalStateException(
                     "Compact model-event payloads have no state-index mapping");
         }
-        long started = System.nanoTime();
         List<ModelEventPayload> expanded =
                 new ArrayList<>(
                         result.getPayloads().size() + stateIndices.length);
@@ -511,19 +584,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                                 .formatted(selected, eventIndices.length));
             }
         }
-        if (Boolean.getBoolean("fluxzero.modelEventWireDiagnostics")
-            && stateIndices.length >= 1_000) {
-            System.out.printf(
-                    "Compact model payload expand: %,d events, %,d bytes in %.3f ms%n",
-                    stateIndices.length,
-                    (compactPayloads == null ? 0 : compactPayloads.length)
-                    + (compactBlocks == null
-                            ? 0
-                            : compactBlocks.stream()
-                                    .mapToInt(block -> block.getData().length)
-                                    .sum()),
-                    (System.nanoTime() - started) / 1_000_000.0);
-        }
         List<ModelEventStream> streams =
                 expandCompactMemberships(
                         request, result, compactMembershipBlocks,
@@ -560,7 +620,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             GetModelEvents request,
             GetModelEventsResult result,
             List<ModelEventDataBlock> compactBlocks) {
-        long started = System.nanoTime();
         List<ModelStreamBatchDecoder.DecodedBlock> decodedBlocks =
                 compactBlocks.size() < 8
                         ? compactBlocks.stream()
@@ -589,7 +648,9 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                     block.entries();
             List<SerializedMessage> events =
                     SerializedMessagePackCodec.decode(
-                            block.embeddedPayloads());
+                            block.embeddedPayloads().data(),
+                            block.embeddedPayloads().offset(),
+                            block.embeddedPayloads().length());
             if (events.size() != entries.size()) {
                 throw new IllegalStateException(
                         "Embedded model stream block contains %d events for %d memberships"
@@ -686,15 +747,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                 result.getResponseQueuedTimestamp());
         expanded.setResponseSendStartTimestamp(
                 result.getResponseSendStartTimestamp());
-        if (Boolean.getBoolean("fluxzero.modelEventWireDiagnostics")
-            && request.getRequests().size() >= 1_000) {
-            System.out.printf(
-                    "Embedded model stream expand: %,d blocks, %,d events in %.3f ms%n",
-                    compactBlocks.size(),
-                    payloads.size(),
-                    (System.nanoTime() - started)
-                    / 1_000_000.0);
-        }
         return expanded;
     }
 
@@ -706,7 +758,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
         if (compactBlocks == null || compactBlocks.isEmpty()) {
             return result.getStreams();
         }
-        long started = System.nanoTime();
         Map<String, ModelEventStreamRequest> requestsByModel =
                 new HashMap<>();
         request.getRequests().forEach(
@@ -771,18 +822,7 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                             existing.getHead(),
                             List.copyOf(selected)));
         }
-        List<ModelEventStream> answer = List.copyOf(expanded);
-        if (Boolean.getBoolean("fluxzero.modelEventWireDiagnostics")
-            && request.getRequests().size() >= 1_000) {
-            System.out.printf(
-                    "Compact model membership expand: %,d blocks, %,d memberships in %.3f ms%n",
-                    compactBlocks.size(),
-                    answer.stream()
-                            .mapToLong(stream -> stream.getMemberships().size())
-                            .sum(),
-                    (System.nanoTime() - started) / 1_000_000.0);
-        }
-        return answer;
+        return List.copyOf(expanded);
     }
 
     private static DecodedPayloadBlock decodePayloadBlock(

@@ -44,9 +44,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
 
 /**
@@ -62,16 +60,6 @@ final class ModelCacheTracker implements AutoCloseable {
     private static final Runnable NO_OP = () -> {
     };
 
-    private static final boolean CACHE_DIAGNOSTICS =
-            Boolean.getBoolean("fluxzero.modelCacheDiagnostics");
-    private static final ConcurrentHashMap<String, LongAdder> CACHE_OUTCOMES =
-            new ConcurrentHashMap<>();
-    private static final AtomicLong CACHE_LOOKUPS = new AtomicLong();
-    private static final AtomicLong TRACKED_TARGETS = new AtomicLong();
-    private static final ConcurrentHashMap<String, LongAdder> TRACKED_OUTCOMES =
-            new ConcurrentHashMap<>();
-    private static final LongAdder REFRESHED_TARGETS = new LongAdder();
-    private static final AtomicInteger REFRESH_SAMPLES = new AtomicInteger();
     private static final int TRACK_BATCH_SIZE = Math.max(
             1,
             Integer.getInteger(
@@ -191,7 +179,6 @@ final class ModelCacheTracker implements AutoCloseable {
     void supplyCurrentVersions(
             Iterable<? extends DefaultModelRepository.CurrentModelLookup> lookups) {
         if (!healthy || unsupported || closed.get()) {
-            cacheOutcome("unhealthy");
             return;
         }
         List<BatchCandidate> candidates =
@@ -201,7 +188,6 @@ final class ModelCacheTracker implements AutoCloseable {
             String modelId = lookup.modelId();
             Entry entry = entries.get(modelId);
             if (entry == null) {
-                cacheOutcome("no-entry");
                 continue;
             }
             if (entry.stale) {
@@ -246,13 +232,11 @@ final class ModelCacheTracker implements AutoCloseable {
                 }
                 Entity<?> cached = candidate.cached;
                 if (cached == null) {
-                    cacheOutcome("cache-missing");
                     entries.remove(modelId, entry);
                     continue;
                 }
                 if (!candidate.lookup.modelType()
                         .equals(cached.type())) {
-                    cacheOutcome("type-mismatch");
                     continue;
                 }
                 long modelStateIndex =
@@ -260,13 +244,11 @@ final class ModelCacheTracker implements AutoCloseable {
                                 ? model.stateIndex() : -1L;
                 if (modelStateIndex
                     > candidate.validThrough) {
-                    cacheOutcome("ahead-of-proof");
                     continue;
                 }
                 entry.validThrough = Math.max(
                         entry.validThrough,
                         candidate.validThrough);
-                cacheOutcome("hit");
                 candidate.lookup.accept(
                         cached,
                         candidate.validThrough,
@@ -280,19 +262,15 @@ final class ModelCacheTracker implements AutoCloseable {
             Class<?> modelType,
             DefaultModelRepository.CurrentModelSink sink) {
         if (!healthy || unsupported || closed.get()) {
-            cacheOutcome("unhealthy");
             return null;
         }
         Entry entry = entries.get(modelId);
         if (entry == null) {
-            cacheOutcome("no-entry");
             return null;
         }
         if (entry.stale) {
-            cacheOutcome("stale");
             if (entry.latestUpdate
                 > materializedCursor) {
-                cacheOutcome("stale-unmaterialized");
                 return null;
             }
             if (entry.pendingLocalCommits.get() > 0) {
@@ -302,7 +280,6 @@ final class ModelCacheTracker implements AutoCloseable {
                  * processing the same message batch wait on its own commit. Bypass the cache until the authoritative
                  * local result has been published; the repository's message-batch view can still supply staged values.
                  */
-                cacheOutcome("stale-pending-local");
                 return null;
             }
             staleModelIds.add(modelId);
@@ -313,12 +290,10 @@ final class ModelCacheTracker implements AutoCloseable {
                 try {
                     refresh.join();
                 } catch (CompletionException ignored) {
-                    cacheOutcome("refresh-failed");
                     return null;
                 }
             }
             if (entry.stale) {
-                cacheOutcome("stale-after-refresh");
                 return null;
             }
         }
@@ -328,19 +303,16 @@ final class ModelCacheTracker implements AutoCloseable {
             }
             Entity<?> cached = cache.get(modelId);
             if (cached == null) {
-                cacheOutcome("cache-missing");
                 entries.remove(modelId, entry);
                 return null;
             }
             if (!modelType.equals(cached.type())) {
-                cacheOutcome("type-mismatch");
                 return null;
             }
             long modelStateIndex =
                     cached instanceof ModelRoot<?> model
                             ? model.stateIndex() : -1L;
             if (modelStateIndex > entry.validThrough) {
-                cacheOutcome("ahead-of-proof");
                 /*
                  * Cache replacement and tracker publication are deliberately separate operations.
                  * Refuse the tiny intervening window instead of assigning an older proof to a newer value.
@@ -356,7 +328,6 @@ final class ModelCacheTracker implements AutoCloseable {
              */
             entry.validThrough = Math.max(
                     entry.validThrough, cursor);
-            cacheOutcome("hit");
             if (sink != null) {
                 sink.accept(
                         cached,
@@ -368,17 +339,6 @@ final class ModelCacheTracker implements AutoCloseable {
                     cached,
                     entry.validThrough,
                     modelStateIndex);
-        }
-    }
-
-    private static void cacheOutcome(String outcome) {
-        if (!CACHE_DIAGNOSTICS) {
-            return;
-        }
-        CACHE_OUTCOMES.computeIfAbsent(outcome, ignored -> new LongAdder()).increment();
-        long lookups = CACHE_LOOKUPS.incrementAndGet();
-        if ((lookups & 8_191L) == 0L) {
-            System.out.printf("Model cache outcomes after %,d lookups: %s%n", lookups, CACHE_OUTCOMES);
         }
     }
 
@@ -886,7 +846,6 @@ final class ModelCacheTracker implements AutoCloseable {
                 entries.get(
                         modelId);
         if (entry == null) {
-            trackedOutcome("no-entry");
             return false;
         }
         if (!target.isHistoryComplete()
@@ -901,7 +860,6 @@ final class ModelCacheTracker implements AutoCloseable {
                     modelId,
                     entry);
             staleModelIds.remove(modelId);
-            trackedOutcome("history-incomplete");
             return false;
         }
         if (entry.loaded
@@ -914,7 +872,6 @@ final class ModelCacheTracker implements AutoCloseable {
              * monitor nor another pending-local lookup.
              */
             entry.latestUpdate = stateIndex;
-            trackedOutcome("local-current");
             return false;
         }
         boolean stale;
@@ -937,34 +894,10 @@ final class ModelCacheTracker implements AutoCloseable {
         }
         if (!stale
             || entry.pendingLocalCommits.get() > 0) {
-            trackedOutcome(!stale ? "current" : "pending-local");
             return false;
         }
         staleModelIds.add(modelId);
-        if (CACHE_DIAGNOSTICS
-            && REFRESH_SAMPLES.getAndIncrement() < 20) {
-            System.out.printf(
-                    "Model cache refresh race model=%s update=%d validThrough=%d latest=%d local=%d loaded=%s pending=%s%n",
-                    modelId, stateIndex, entry.validThrough,
-                    entry.latestUpdate, entry.latestLocalCommit,
-                    entry.loaded,
-                    entry.pendingLocalCommits.get());
-        }
-        trackedOutcome("refresh-needed");
         return true;
-    }
-
-    private static void trackedOutcome(String outcome) {
-        if (!CACHE_DIAGNOSTICS) {
-            return;
-        }
-        TRACKED_OUTCOMES.computeIfAbsent(outcome, ignored -> new LongAdder()).increment();
-        long tracked = TRACKED_TARGETS.incrementAndGet();
-        if ((tracked & 65_535L) == 0L) {
-            System.out.printf(
-                    "Model cache tracked outcomes after %,d targets: %s, refreshed=%,d%n",
-                    tracked, TRACKED_OUTCOMES, REFRESHED_TARGETS.sum());
-        }
     }
 
     private void scheduleRefresh() {
@@ -1030,7 +963,6 @@ final class ModelCacheTracker implements AutoCloseable {
                 }
             }
             if (!targets.isEmpty()) {
-                REFRESHED_TARGETS.add(targets.size());
                 RefreshedBatch refreshed = refresh(
                         Map.copyOf(targets),
                         refreshBoundary);

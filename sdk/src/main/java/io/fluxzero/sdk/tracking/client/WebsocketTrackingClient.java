@@ -18,6 +18,7 @@ package io.fluxzero.sdk.tracking.client;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
@@ -32,7 +33,9 @@ import io.fluxzero.common.api.tracking.ReadFromIndexResult;
 import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
+import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
 import io.fluxzero.common.jfr.FluxzeroJfr;
+import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
@@ -66,6 +69,11 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
     private final String topic;
     private final Metadata metricsMetadata;
 
+    @Override
+    protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
+        return List.of(TrackingWebSocketCodec.INSTANCE);
+    }
+
     public WebsocketTrackingClient(String endPointUrl, WebSocketClient client, MessageType type, String topic) {
         this(URI.create(endPointUrl), client, type, topic, type != METRICS);
     }
@@ -90,27 +98,18 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                 Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
                 .thenApply(result -> {
                     recordReadStages(result.getMessageBatch(), "read-future-complete");
-                    if (Boolean.getBoolean("fluxzero.trackingReadDiagnostics")
-                        && !result.getMessageBatch().getMessages().isEmpty()) {
-                        long received = result.getRequestReceivedTimestamp();
-                        long created = result.getTimestamp();
-                        long queued = result.getResponseQueuedTimestamp();
-                        long sendStarted = result.getResponseSendStartTimestamp();
-                        System.out.printf(
-                                "Tracking %s read %,d messages segment=%s last=%s position=%s caughtUp=%s: store=%dms queue=%dms send=%dms wire+decode=%dms%n",
-                                messageType,
-                                result.getMessageBatch().getMessages().size(),
-                                java.util.Arrays.toString(result.getMessageBatch().getSegment()),
-                                result.getMessageBatch().getLastIndex(),
-                                result.getMessageBatch().getPosition(),
-                                result.getMessageBatch().isCaughtUp(),
-                                created - received,
-                                queued - created,
-                                sendStarted - queued,
-                                System.currentTimeMillis() - sendStarted);
-                    }
                     return result.getMessageBatch();
                 });
+    }
+
+    @Override
+    protected void recordResultStages(List<RequestResult> results, String stage) {
+        if (!FluxzeroJfr.requestStageEnabled()) {
+            return;
+        }
+        results.stream().filter(ReadResult.class::isInstance)
+                .map(ReadResult.class::cast)
+                .forEach(result -> recordReadStages(result.getMessageBatch(), stage));
     }
 
     private void recordReadStages(MessageBatch batch, String stage) {

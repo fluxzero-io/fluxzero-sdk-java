@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package io.fluxzero.common.serialization;
+package io.fluxzero.common.api.modeling;
 
-import io.fluxzero.common.api.modeling.ModelEventDataBlock;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import lombok.SneakyThrows;
 import org.msgpack.core.MessagePack;

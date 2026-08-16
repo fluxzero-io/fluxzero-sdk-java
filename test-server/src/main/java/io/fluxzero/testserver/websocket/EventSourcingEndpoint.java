@@ -41,6 +41,7 @@ import io.fluxzero.common.api.modeling.GetRelationshipsResult;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelWebSocketCodec;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
@@ -52,6 +53,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -60,6 +62,11 @@ import java.util.stream.Collectors;
 public class EventSourcingEndpoint extends WebsocketEndpoint {
 
     private final EventStoreClient eventStore;
+
+    @Override
+    protected List<ModelWebSocketCodec> payloadCodecs() {
+        return List.of(ModelWebSocketCodec.INSTANCE);
+    }
 
     public EventSourcingEndpoint(EventStoreClient eventStore, CommandIdempotencyStore commandIdempotencyStore) {
         super(commandIdempotencyStore);

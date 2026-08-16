@@ -17,6 +17,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
@@ -77,6 +78,31 @@ public class SearchParameters implements Substitutable<SearchParameters> {
      * unspecified, the {@code timestampPath} is used as both start and end.
      */
     String endPath;
+
+    /**
+     * Resolves the effective search configuration for a model or searchable document type.
+     *
+     * <p>Models own their direct-document projection through {@link Model#searchProjection()}; other document types
+     * continue to use {@link Searchable}. An unspecified collection resolves to the type's simple name.</p>
+     */
+    public static SearchParameters forType(Class<?> type) {
+        Model model = type.getAnnotation(Model.class);
+        if (model != null) {
+            Searchable configuration = model.searchProjection();
+            String collection = configuration.collection().isEmpty()
+                    ? type.getSimpleName()
+                    : configuration.collection();
+            return new SearchParameters(model.searchable(), collection,
+                                        configuration.timestampPath(), configuration.endPath())
+                    .substituteProperties();
+        }
+        return io.fluxzero.common.reflection.ReflectionUtils
+                .getAnnotationAs(type, Searchable.class, SearchParameters.class)
+                .map(SearchParameters::substituteProperties)
+                .map(parameters -> parameters.getCollection() == null
+                        ? parameters.withCollection(type.getSimpleName()) : parameters)
+                .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null));
+    }
 
     @Override
     public SearchParameters substituteProperties() {

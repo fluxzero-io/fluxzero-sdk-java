@@ -22,7 +22,7 @@ import io.fluxzero.common.api.modeling.ModelEventDataBlock;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
-import io.fluxzero.common.serialization.ModelStreamBatchDecoder;
+import io.fluxzero.common.api.modeling.ModelStreamBatchDecoder;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
@@ -46,8 +46,6 @@ import java.util.concurrent.locks.LockSupport;
  */
 final class ModelEventRequestBatcher {
 
-    private static final boolean DIAGNOSTICS =
-            Boolean.getBoolean("fluxzero.modelReadBatchDiagnostics");
     private static final long COALESCING_DELAY_NANOS = 200_000L;
     private static final int MAX_SHARED_COMPACT_CALLERS = 4;
     private static final int DIRECT_COMPACT_REQUEST_SIZE = 1_024;
@@ -233,7 +231,6 @@ final class ModelEventRequestBatcher {
 
         private void execute(EventStoreClient eventStoreClient) {
             try {
-                long started = System.nanoTime();
                 GetModelEvents combinedRequest =
                         new GetModelEvents(
                                 List.copyOf(
@@ -271,14 +268,6 @@ final class ModelEventRequestBatcher {
                     response =
                             eventStoreClient.getModelEvents(
                                     combinedRequest);
-                }
-                if (DIAGNOSTICS) {
-                    System.out.printf(
-                            "Model read batch: %,d callers, %,d streams, %,d payloads in %.3f ms%n",
-                            reads.size(), streams.size(),
-                            response.getPayloads().size(),
-                            (System.nanoTime() - started)
-                            / 1_000_000.0);
                 }
                 if (reads.size() == 1) {
                     reads.getFirst().result().complete(response);

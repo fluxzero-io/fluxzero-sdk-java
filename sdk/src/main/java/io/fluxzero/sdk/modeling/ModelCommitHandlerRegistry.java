@@ -68,8 +68,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -86,33 +84,6 @@ import java.util.stream.Stream;
 public final class ModelCommitHandlerRegistry implements HandlerRegistry, HandlerFactory, AutoCloseable {
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
-    private static final boolean BATCH_DIAGNOSTICS =
-            Boolean.getBoolean(
-                    "fluxzero.modelCommitBatchGateDiagnostics");
-    private static final boolean BATCH_TIMING_DIAGNOSTICS =
-            Boolean.getBoolean(
-                    "fluxzero.modelCommitBatchTimingDiagnostics");
-    private static final boolean DETAILED_TIMING_DIAGNOSTICS =
-            Boolean.getBoolean(
-                    "fluxzero.modelCommitDetailedTimingDiagnostics");
-    private static final AtomicLong AFTER_COMMITTED =
-            new AtomicLong();
-    private static final LongAdder AFTER_COMMIT_NANOS =
-            new LongAdder();
-    private static final LongAdder AFTER_COMMIT_ASSEMBLY_NANOS =
-            new LongAdder();
-    private static final LongAdder AFTER_COMMIT_REPOSITORY_NANOS =
-            new LongAdder();
-    private static final AtomicLong POST_COMMIT_BATCHES =
-            new AtomicLong();
-    private static final boolean PIPELINE_DIAGNOSTICS =
-            Boolean.getBoolean("fluxzero.modelCommitPipelineDiagnostics");
-    private static final AtomicLong SELECTED_COMMANDS = new AtomicLong();
-    private static final AtomicLong STARTED_COMMANDS = new AtomicLong();
-    private static final AtomicLong EVALUATED_COMMANDS = new AtomicLong();
-    private static final AtomicLong COMPLETED_COMMANDS = new AtomicLong();
-    private static final LongAdder POST_COMMIT_ITEMS =
-            new LongAdder();
     private static final boolean DISABLE_BATCH_GATES =
             Boolean.getBoolean(
                     "fluxzero.disableModelCommitBatchGates");
@@ -788,7 +759,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 : evaluatePrefetched(
                                         message, prefetch, batchTicket));
         recordModelRequestStage(message, "model-evaluation-complete", 1);
-        pipelineDiagnostic("evaluated", EVALUATED_COMMANDS);
         if (batchTicket != null) {
             batchTicket.stage(initialEvaluation);
         }
@@ -1495,8 +1465,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Void> afterCommitBatch(
             List<ModelCommitter.CommittedCommit> committed) {
-        long repositoryStarted = DETAILED_TIMING_DIAGNOSTICS
-                ? System.nanoTime() : 0L;
         List<DefaultModelRepository.CommittedModel> committedModels =
                 new ArrayList<>(committed.size());
         for (ModelCommitter.CommittedCommit item : committed) {
@@ -1504,48 +1472,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     item, committedModels);
         }
         repository.updateAfterCommit(committedModels);
-        if (DETAILED_TIMING_DIAGNOSTICS) {
-            AFTER_COMMIT_REPOSITORY_NANOS.add(
-                    System.nanoTime() - repositoryStarted);
-            POST_COMMIT_ITEMS.add(committed.size());
-            long batches = POST_COMMIT_BATCHES.incrementAndGet();
-            if ((batches & 63L) == 0L) {
-                System.out.printf(
-                        "SDK model post-commit batches: batches=%d items=%d average=%.1f repository=%.3f ms%n",
-                        batches,
-                        POST_COMMIT_ITEMS.sum(),
-                        POST_COMMIT_ITEMS.sum() / (double) batches,
-                        AFTER_COMMIT_REPOSITORY_NANOS.sum()
-                        / 1_000_000.0);
-            }
-        }
         return CompletableFuture.completedFuture(null);
     }
 
     private void appendCommittedModels(
             ModelCommitter.CommittedCommit committed,
             List<DefaultModelRepository.CommittedModel> target) {
-        long started = DETAILED_TIMING_DIAGNOSTICS
-                ? System.nanoTime() : 0L;
-        try {
-            createCommittedModels(committed, target);
-        } finally {
-            if (DETAILED_TIMING_DIAGNOSTICS) {
-                long elapsed = System.nanoTime() - started;
-                AFTER_COMMIT_NANOS.add(elapsed);
-                AFTER_COMMIT_ASSEMBLY_NANOS.add(elapsed);
-                long count = AFTER_COMMITTED.incrementAndGet();
-                if ((count & 65_535L) == 0L) {
-                    System.out.printf(
-                            "SDK model afterCommit cumulative: count=%d cpu=%.3f ms average=%.3f us assembly=%.3f ms repository=%.3f ms%n",
-                            count,
-                            AFTER_COMMIT_NANOS.sum() / 1_000_000.0,
-                            AFTER_COMMIT_NANOS.sum() / 1_000.0 / count,
-                            AFTER_COMMIT_ASSEMBLY_NANOS.sum() / 1_000_000.0,
-                            AFTER_COMMIT_REPOSITORY_NANOS.sum() / 1_000_000.0);
-                }
-            }
-        }
+        createCommittedModels(committed, target);
     }
 
     private void createCommittedModels(
@@ -2593,23 +2526,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     && DeserializingMessage.getCurrent() != null
                             ? handlerCommitTicket(message)
                             : null;
-            pipelineDiagnostic("selected", SELECTED_COMMANDS);
             return new HandlerInvoker.DelegatingHandlerInvoker(
                     HandlerInvoker.call(
                             () -> {
-                                pipelineDiagnostic("started", STARTED_COMMANDS);
-                                Object result = execute(
+                                return execute(
                                         message, commitPolicy,
                                         batchTicket, handlerTicket);
-                                if (PIPELINE_DIAGNOSTICS) {
-                                    if (result instanceof CompletableFuture<?> future) {
-                                        future.whenComplete((ignored, failure) ->
-                                                pipelineDiagnostic("completed", COMPLETED_COMMANDS));
-                                    } else {
-                                        pipelineDiagnostic("completed", COMPLETED_COMMANDS);
-                                    }
-                                }
-                                return result;
                             })) {
                 @Override
                 public boolean requiresBatchSegmentOrder() {
@@ -2686,16 +2608,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return result;
     }
 
-    private static void pipelineDiagnostic(String phase, AtomicLong counter) {
-        if (!PIPELINE_DIAGNOSTICS) {
-            return;
-        }
-        long count = counter.incrementAndGet();
-        if ((count & 8_191L) == 0L) {
-            System.out.printf("SDK model pipeline %s: %,d%n", phase, count);
-        }
-    }
-
     private BatchCommitTicket batchCommitTicket(
             DeserializingMessage message,
             ModelCommitPolicy commitPolicy) {
@@ -2730,19 +2642,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Void> startBatch(
             List<BatchCommitTicket> batch) {
-        long started = System.nanoTime();
-        if (BATCH_TIMING_DIAGNOSTICS
-            || FluxzeroJfr.batchEnabled()) {
+        long started = FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L;
+        if (started != 0L) {
             batch.stream()
                     .map(BatchCommitTicket::gates)
                     .filter(Objects::nonNull)
                     .distinct()
                     .forEach(gates -> gates.markBacklogStart(started));
-        }
-        if (BATCH_DIAGNOSTICS) {
-            System.out.printf(
-                    "SDK model commit backlog flush: tickets=%d%n",
-                    batch.size());
         }
         boolean batchModelView = batch.stream()
                 .map(BatchCommitTicket::gates)
@@ -2820,8 +2726,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private static void markBatchStarted(
             List<BatchCommitTicket> batch,
             long started) {
-        if (!BATCH_TIMING_DIAGNOSTICS
-            && !FluxzeroJfr.batchEnabled()) {
+        if (!FluxzeroJfr.batchEnabled()) {
             return;
         }
         long completed = System.nanoTime();
@@ -3158,7 +3063,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     transportBatch.fail(failure);
                 }
                 snapshot.forEach(ticket -> ticket.fail(failure));
-                finishDiagnostics(snapshot, failure);
+                finishJfr(snapshot, failure);
                 return;
             }
             if (transportBatch != null) {
@@ -3173,11 +3078,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     completion);
             if (jfrEvent != null || FluxzeroJfr.requestStageEnabled()) {
                 completion.whenComplete((ignored, completionFailure) ->
-                        finishDiagnostics(snapshot, completionFailure));
+                        finishJfr(snapshot, completionFailure));
             }
         }
 
-        private void finishDiagnostics(
+        private void finishJfr(
                 List<HandlerCommitTicket> snapshot, Throwable failure) {
             if (jfrEvent != null) {
                 jfrEvent.itemCount = snapshot.size();
@@ -3185,9 +3090,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 jfrEvent.storageNanos = Math.max(0L, System.nanoTime() - createdNanos);
             }
             snapshot.forEach(ticket -> {
-                if (ticket.diagnosticMessage != null) {
+                if (ticket.traceMessage != null) {
                     recordModelRequestStage(
-                            ticket.diagnosticMessage, "model-commit-complete", snapshot.size());
+                            ticket.traceMessage, "model-commit-complete", snapshot.size());
                 }
             });
             FluxzeroJfr.finish(jfrEvent, failure);
@@ -3196,11 +3101,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private static final class HandlerCommitTicket
             extends BatchCommitTicket {
-        private final DeserializingMessage diagnosticMessage;
+        private final DeserializingMessage traceMessage;
         private final AtomicBoolean started = new AtomicBoolean();
 
         private HandlerCommitTicket(
-                DeserializingMessage diagnosticMessage,
+                DeserializingMessage traceMessage,
                 DeserializingMessage message,
                 ModelCommitter.CommitBatch transportBatch,
                 int transportSlot,
@@ -3210,7 +3115,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     null, message,
                     ThreadLocalContext.capture(),
                     commitPolicy, transportSlot);
-            this.diagnosticMessage = diagnosticMessage;
+            this.traceMessage = traceMessage;
             modelView(modelView);
             transport(transportBatch, transportSlot);
         }
@@ -3241,9 +3146,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             }
             startedExecution.whenComplete((result, failure) -> {
                 if (failure == null) {
-                    if (diagnosticMessage != null) {
+                    if (traceMessage != null) {
                         recordModelRequestStage(
-                                diagnosticMessage, "model-execution-complete", 1);
+                                traceMessage, "model-execution-complete", 1);
                     }
                     complete(result);
                 } else {
@@ -3282,7 +3187,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         private Throwable failure;
         private final long createdNanos;
         private final FluxzeroJfr.Batch jfrEvent;
-        private final AtomicBoolean diagnosticsCompleted = new AtomicBoolean();
+        private final AtomicBoolean jfrCompleted = new AtomicBoolean();
         private volatile long backlogStartNanos;
         private volatile long commitsStartedNanos;
         private BatchModelView modelView;
@@ -3398,14 +3303,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 closed = true;
                 this.failure = failure;
                 batch = List.copyOf(tickets);
-                if (BATCH_DIAGNOSTICS) {
-                    System.out.printf(
-                            "SDK model commit gates close: registered=%d resolved=%d waves=%d failure=%s%n",
-                            registered, resolved, waves.size(),
-                            failure == null
-                                    ? "none"
-                                    : failure.getClass().getSimpleName());
-                }
                 if (failure != null) {
                     waves.values()
                             .forEach(gate ->
@@ -3420,11 +3317,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             if (failure != null) {
                 batch.forEach(ticket ->
                                       ticket.fail(failure));
-                completeDiagnostics(failure, 0);
+                completeJfr(failure, 0);
                 return;
             }
             if (batch.isEmpty()) {
-                completeDiagnostics(null, 0);
+                completeJfr(null, 0);
                 return;
             }
             commitBacklog.addAllUntracked(batch);
@@ -3458,31 +3355,21 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                     .toArray(CompletableFuture[]::new))
                     .whenComplete((ignored, failure) -> {
                         long completed = System.nanoTime();
-                        if (BATCH_TIMING_DIAGNOSTICS) {
-                            System.out.printf(
-                                    "SDK model commit wave timing: tickets=%d trackingToBacklog=%.3f ms prepareAndApply=%.3f ms commitAndAfter=%.3f ms total=%.3f ms failure=%s%n",
-                                    tickets.size(),
-                                    (backlogStartNanos - createdNanos) / 1_000_000.0,
-                                    preparationNanos / 1_000_000.0,
-                                    (completed - commitsStartedNanos) / 1_000_000.0,
-                                    (completed - createdNanos) / 1_000_000.0,
-                                    failure == null ? "none" : failure.getClass().getSimpleName());
-                        }
                         if (jfrEvent != null) {
                             jfrEvent.queueWaitNanos = Math.max(0L, backlogStartNanos - createdNanos);
                             jfrEvent.preparationNanos = preparationNanos;
                             jfrEvent.storageNanos = Math.max(0L, completed - commitsStartedNanos);
                         }
-                        completeDiagnostics(failure, tickets.size());
+                        completeJfr(failure, tickets.size());
                     });
         }
 
         private boolean timingEnabled() {
-            return BATCH_TIMING_DIAGNOSTICS || jfrEvent != null;
+            return jfrEvent != null;
         }
 
-        private void completeDiagnostics(Throwable failure, int batchSize) {
-            if (!diagnosticsCompleted.compareAndSet(false, true)) {
+        private void completeJfr(Throwable failure, int batchSize) {
+            if (!jfrCompleted.compareAndSet(false, true)) {
                 return;
             }
             tickets.forEach(ticket ->
@@ -3566,10 +3453,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             closed = true;
             if (readyToDispatch()) {
                 dispatch();
-            } else if (BATCH_DIAGNOSTICS) {
-                System.out.printf(
-                        "SDK model commit gate waiting: expected=%d arrived=%d%n",
-                        tickets.size(), arrived.get());
             }
         }
 
@@ -3597,11 +3480,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             }
             Throwable batchFailure = failure;
             Runnable completion = afterStart;
-            if (BATCH_DIAGNOSTICS) {
-                System.out.printf(
-                        "SDK model commit gate: expected=%d%n",
-                        tickets.size());
-            }
             if (batchFailure != null) {
                 batch.forEach(commit -> {
                     commit.fail(batchFailure);

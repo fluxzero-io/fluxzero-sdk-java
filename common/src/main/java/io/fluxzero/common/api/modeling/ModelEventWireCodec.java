@@ -207,7 +207,6 @@ public final class ModelEventWireCodec {
 
     private static byte[] encodeResults(
             ResultBatch batch, int magic) {
-        long started = System.nanoTime();
         Writer output = new Writer(encodedResultSize(batch));
         output.writeInt(magic);
         output.writeByte(VERSION);
@@ -291,26 +290,11 @@ public final class ModelEventWireCodec {
             output.writeLong(result.getResponseQueuedTimestamp());
             output.writeLong(result.getResponseSendStartTimestamp());
         }
-        byte[] result = output.toByteArray();
-        GetModelEventsResult first =
-                (GetModelEventsResult) batch.getResults().getFirst();
-        if (Boolean.getBoolean("fluxzero.modelEventWireDiagnostics")
-            && first.getStreams().size() >= 1_000) {
-            System.out.printf(
-                    "Compact model result encode: %,d streams, %,d memberships, %,d bytes in %.3f ms%n",
-                    first.getStreams().size(),
-                    first.getStreams().stream()
-                            .mapToLong(stream -> stream.getMemberships().size())
-                            .sum(),
-                    result.length,
-                    (System.nanoTime() - started) / 1_000_000.0);
-        }
-        return result;
+        return output.toByteArray();
     }
 
     private static ResultBatch decodeResults(
             Reader input, int version) throws IOException {
-        long started = System.nanoTime();
         int size = input.readSize(MAX_BATCH_SIZE, "batch");
         List<RequestResult> results = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -382,20 +366,7 @@ public final class ModelEventWireCodec {
             result.setResponseSendStartTimestamp(input.readLong());
             results.add(result);
         }
-        ResultBatch result = new ResultBatch(results);
-        GetModelEventsResult first =
-                (GetModelEventsResult) results.getFirst();
-        if (Boolean.getBoolean("fluxzero.modelEventWireDiagnostics")
-            && first.getStreams().size() >= 1_000) {
-            System.out.printf(
-                    "Compact model result decode: %,d streams, %,d memberships in %.3f ms%n",
-                    first.getStreams().size(),
-                    first.getStreams().stream()
-                            .mapToLong(stream -> stream.getMemberships().size())
-                            .sum(),
-                    (System.nanoTime() - started) / 1_000_000.0);
-        }
-        return result;
+        return new ResultBatch(results);
     }
 
     private static int readInt(byte[] bytes, int offset) {

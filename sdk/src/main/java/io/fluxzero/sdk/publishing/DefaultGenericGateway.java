@@ -190,7 +190,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private CompletableFuture<Void> sendAndForgetParallel(
             Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
             Message[] messages, int from, int until) {
-        long diagnosticsStarted = Boolean.getBoolean("fluxzero.dispatchDiagnostics") ? System.nanoTime() : 0L;
         List<Message> externalMessages = new ArrayList<>(until - from);
         for (int index = from; index < until; index++) {
             Message candidate = messages[index];
@@ -211,7 +210,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 }
             }
         }
-        long prepared = diagnosticsStarted == 0L ? 0L : System.nanoTime();
         FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
                 "sdk.command-gateway", "serialize", messageType.name(),
                 externalMessages.size(), 0L, 0L, 0L);
@@ -223,7 +221,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             FluxzeroJfr.finish(serializationEvent, failure);
             throw failure;
         }
-        long serializedAt = diagnosticsStarted == 0L ? 0L : System.nanoTime();
         SerializedMessage[] finalMessages = new SerializedMessage[serializedMessages.size()];
         int resultSize = 0;
         for (int i = 0; i < serializedMessages.size(); i++) {
@@ -239,13 +236,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         }
         if (resultSize == 0) {
             return CompletableFuture.completedFuture(null);
-        }
-        if (diagnosticsStarted != 0L) {
-            System.out.printf("Dispatch %,d messages: prepare %.3f ms, serialize %.3f ms, modify %.3f ms%n",
-                              until - from,
-                              (prepared - diagnosticsStarted) / 1_000_000.0,
-                              (serializedAt - prepared) / 1_000_000.0,
-                              (System.nanoTime() - serializedAt) / 1_000_000.0);
         }
         return AsyncCompletionScope.register(gatewayClient.append(
                 guarantee, resultSize == finalMessages.length
@@ -275,7 +265,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private List<PendingRequest> prepareRequests(Message[] messages) {
-        long started = Boolean.getBoolean("fluxzero.requestDispatchDiagnostics") ? System.nanoTime() : 0L;
         PendingRequest[] requests = new PendingRequest[messages.length];
         List<Message> externalMessages = new ArrayList<>(messages.length);
         int[] externalIndices = new int[messages.length];
@@ -299,7 +288,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 externalMessages.add(message);
             }
         }
-        long preparedAt = started == 0L ? 0L : System.nanoTime();
         FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
                 "sdk.command-gateway", "serialize", messageType.name(),
                 externalMessages.size(), 0L, 0L, 0L);
@@ -311,7 +299,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             FluxzeroJfr.finish(serializationEvent, failure);
             throw failure;
         }
-        long serializedAt = started == 0L ? 0L : System.nanoTime();
         for (int i = 0; i < externalSize; i++) {
             int requestIndex = externalIndices[i];
             Message message = externalMessages.get(i);
@@ -320,13 +307,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             requests[requestIndex] = serializedMessage == null
                     ? PendingRequest.completed(emptyReturnMessage())
                     : PendingRequest.external(serializedMessage, externalTimeouts[requestIndex]);
-        }
-        if (started != 0L) {
-            System.out.printf("Prepared %,d requests: intercept %.3f ms, serialize %.3f ms, finalize %.3f ms%n",
-                              messages.length,
-                              (preparedAt - started) / 1_000_000.0,
-                              (serializedAt - preparedAt) / 1_000_000.0,
-                              (System.nanoTime() - serializedAt) / 1_000_000.0);
         }
         return java.util.Arrays.asList(requests);
     }
@@ -491,7 +471,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private List<CompletableFuture<Message>> completeRequests(List<PendingRequest> requests) {
-        long started = Boolean.getBoolean("fluxzero.requestDispatchDiagnostics") ? System.nanoTime() : 0L;
         List<PendingRequest> externalRequests = new ArrayList<>();
         boolean allExternal = true;
         for (PendingRequest request : requests) {
@@ -511,10 +490,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             for (PendingRequest request : requests) {
                 results.add(request.isExternal() ? sentRequests.get(externalIndex++) : request.result());
             }
-        }
-        if (started != 0L) {
-            System.out.printf("Registered and sent %,d requests in %.3f ms%n", requests.size(),
-                              (System.nanoTime() - started) / 1_000_000.0);
         }
         return results;
     }
