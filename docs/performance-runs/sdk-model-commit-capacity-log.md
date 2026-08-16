@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh unchanged E668/E671 controls average **420,348/s** | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Sole acceptance gate for the 500k target |
+| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh unchanged E668/E671 controls average **420,348/s** | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Accepted current S60 release pin; higher throughput is a future stretch goal |
 | Synthetic tracked SDK apply -> model + event durability | Best **834,806/s** without JFR / **846,441/s** with batch JFR; fresh E694/E696 **812,491 / 816,815/s** | `commit-packed-update` | Best **0.995M/s** in E589; fresh **0.955 / 0.967M/s** | SDK-inclusive model upper-bound diagnostic without command/result logs |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` without tracked context | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
@@ -15,8 +15,12 @@ Production is Runtime `0c23c91f` (`perf(modeling): reduce stream locator commit 
 scoped to model work. Command and ordinary result paths remain present only in the canonical E2E acceptance route and
 are not optimization targets.
 
-This is the current technical entry point for the model-capacity campaign. Earlier campaign runs and the acceptance
-protocol remain in
+Campaign decision 2026-08-16: the exact approximately 400k/s full command -> model -> event + result level is accepted
+for the current `@Model` release phase. The historical 500k and 1M targets remain useful future stretch goals, but are
+no longer merge gates for S60.
+
+This is the current technical entry point for the model-capacity campaign. Earlier campaign runs and the historical
+acceptance protocol remain in
 [`../model-e2e-throughput-campaign.md`](../model-e2e-throughput-campaign.md); practical feature costs and their exact
 correctness status are maintained in
 [`sdk-model-feature-characterization-log.md`](sdk-model-feature-characterization-log.md). The corresponding CSV files

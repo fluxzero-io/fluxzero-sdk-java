@@ -1805,10 +1805,10 @@ important complementary byte-throughput profile, but may not substitute for this
 - [x] Prevent adaptive-cache memory-pressure eviction from deadlocking model-prefetch work: select and remove entries
   under the internal cache lock, deliver eviction callbacks only after releasing it, and cover the former lock inversion
   with a deterministic regression test. Completed in SDK commit `806d4dba308`.
-- [~] Measure the runtime-wide opaque-message-envelope backlog item against this exact E2E profile. If the retained JFR
-  attribution holds, keep payload and metadata as serialized `Data<byte[]>` through runtime storage and routing and
-  deserialize them only in the consuming SDK. Preserve runtime-owned routing headers, upcasting, metadata mutation
-  extension points and wire/stored compatibility explicitly; do not count a metadata-free synthetic message as proof.
+- [x] Measure and retain the runtime-wide opaque-message-envelope path against this exact E2E profile. Payload and
+  metadata remain serialized through runtime storage and routing and materialize only when an SDK consumer requests
+  them. Runtime-owned fixed headers, upcasting, metadata mutation, old wire/stored reads and exact complete-envelope
+  byte accounting remain covered. The full evidence is recorded in Phase 21d and the model-capacity campaign.
 - [ ] Preserve ordinary aggregate, notification, event-handler and custom consumer behavior; model throughput work may
   not globally change established delivery or batching semantics without focused compatibility evidence.
 

@@ -1,7 +1,7 @@
 # JDBC message staging cleanup — S47
 
-Status: Runtime checkpoint `5d9dac9e`; functional and storage-maintenance acceptance complete, clean-host canonical
-throughput repin still pending.
+Status: complete. Runtime checkpoint `5d9dac9e` is accepted for correctness, storage maintenance and the S60 release;
+a future clean-host throughput repin is optional rather than a closing gate.
 
 ## Scope and source identity
 
@@ -75,8 +75,9 @@ active model-store capacity in those profiles improved from approximately 211,58
 the no-model ABBA result was neutral. This contradictory direction tracks the observed host-daemon swings and does
 not identify a checkpoint mechanism that slows the model store.
 
-Decision: accept the correctness and maintenance checkpoint, but do not replace the healthy historical no-model
-~1M/s or model 425,606/s pins. Repeat the exact no-JFR control/checkpoint routes on a clean host before closing S47.
+Decision: accept the correctness and maintenance checkpoint without replacing the healthy historical no-model ~1M/s
+or model 425,606/s pins. S47 is complete as part of S60; an exact clean-host control/checkpoint repetition may still be
+useful as future characterization but is not required for closure.
 
 ## Verification
 
@@ -89,7 +90,7 @@ Decision: accept the correctness and maintenance checkpoint, but do not replace 
 - Full install evidence:
   `/private/tmp/s47-runtime-final-install.log#c6ed5f3a56a6e687deb3500e17e6707ac63abbb9051b893b3c230ff7bf515084`.
 
-## Remaining clean-host gate
+## Optional clean-host follow-up
 
 Run the same alternating pairs after `mds`, `mds_stores` and `mediaanalysisd` return to idle:
 
