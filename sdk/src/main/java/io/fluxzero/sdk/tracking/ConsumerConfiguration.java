@@ -328,7 +328,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     ConsumerHandlingMode handlingMode = ConsumerHandlingMode.DEFAULT;
 
     /**
-     * Optional minimum index to start processing messages from.
+     * Optional inclusive minimum index to start processing messages from.
      */
     Long minIndex;
 
