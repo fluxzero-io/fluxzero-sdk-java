@@ -26,6 +26,9 @@ worktrees are deliberately not production code.
 - `@Apply`, `@AssertLegal`, and `@InterceptApply` descriptors record commit-scoped model value/`Entity<T>`
   dependencies. Multiple dependencies of the same model type require unique parameter-level
   `@Association("payloadProperty")` qualifiers.
+- An `@Apply` may return one model, an ordered typed model collection, or a runtime-validated heterogeneous
+  `Collection<Object>`. Collection results remain one atomic substep; null elements and duplicate persisted identities
+  are invalid.
 - A model-targeting `void @Apply` is invalid. Model registration will enforce this without changing legacy mutable
   aggregate behavior.
 - `ModelRoot` owns persisted-root stream/version/time vocabulary; `AggregateRoot` remains a compatibility

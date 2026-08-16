@@ -1347,6 +1347,30 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         modelRelationStateIndices.getOrDefault(modelId, -1L)));
             }
         }
+        for (ModelCommitStep substep : commit.getSubsteps()) {
+            for (ModelCommitTarget target : substep.getTargets()) {
+                Long expectedSequence =
+                        target.getExpectedSequenceNumber();
+                if (expectedSequence == null) {
+                    continue;
+                }
+                ModelStreamHead head =
+                        modelHeads.get(target.getModelId());
+                long currentSequence = head == null
+                        ? -1L : head.sequenceNumber();
+                if (expectedSequence != currentSequence) {
+                    long currentStateIndex = head == null
+                            ? -1L : head.stateIndex();
+                    conflicts.putIfAbsent(
+                            target.getModelId(),
+                            new ModelCommitConflict(
+                                    target.getModelId(),
+                                    currentStateIndex,
+                                    modelRelationStateIndices.getOrDefault(
+                                            target.getModelId(), -1L)));
+                }
+            }
+        }
         if (conflicts.isEmpty()) {
             return null;
         }

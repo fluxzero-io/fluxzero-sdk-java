@@ -464,8 +464,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     planFor(payloadType).handlers()) {
                 if (handler.kind()
                     == ModelMetadata.HandlerKind.APPLY
-                    && !handler.targetModelTypes()
-                            .isEmpty()
+                    && handler.hasApplyResult()
                     && !automaticHandlingEnabled(
                             handler)) {
                     return false;
@@ -546,6 +545,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         try {
             for (ModelMetadata.HandlerMethod handler : planFor(payloadType).handlers()) {
                 if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
+                    if (handler.dynamicApplyResult()) {
+                        /*
+                         * The participating model policies are unknowable until after invocation. Use the strongest
+                         * lifecycle guarantee so a runtime-selected model can never weaken its declared completion
+                         * contract. Typed collection results retain their normal model-derived policy.
+                         */
+                        policies.add(
+                                ModelCommitPolicy.SYNC_AFTER_HANDLER);
+                    }
                     handler.targetModelTypes().stream()
                             .map(ModelMetadata::of)
                             .map(ModelMetadata::model)
@@ -2076,7 +2084,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                         parameter.modelType(), explicitTarget.modelType()))
                         || handler.targetModelTypes().stream().anyMatch(targetType ->
                                 compatibleModelTypes(
-                                        targetType, explicitTarget.modelType())));
+                                        targetType, explicitTarget.modelType()))
+                        || handler.dynamicApplyResult());
                 if (!referenced) {
                     return resolution;
                 }
@@ -2349,7 +2358,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             List<ModelMetadata.HandlerMethod> handlers = planFor(payloadType).handlers();
             if (handlers.stream().anyMatch(handler ->
                     handler.kind() == ModelMetadata.HandlerKind.APPLY
-                    && !handler.targetModelTypes().isEmpty())) {
+                    && handler.hasApplyResult())) {
                 return true;
             }
             List<ModelMetadata.HandlerMethod> interceptors = handlers.stream()
@@ -2972,7 +2981,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         CommitPlan plan = planFor(message.getPayloadClass());
         if (plan.handlers().size() != 1
             || plan.applies().size() != 1
-            || plan.applies().getFirst().targetModelTypes().size() != 1) {
+            || plan.applies().getFirst().targetModelTypes().size() != 1
+            || plan.applies().getFirst().collectionApplyResult()
+            || plan.applies().getFirst().dynamicApplyResult()) {
             return null;
         }
         ModelTargetResolver.TargetPlan targetPlan =

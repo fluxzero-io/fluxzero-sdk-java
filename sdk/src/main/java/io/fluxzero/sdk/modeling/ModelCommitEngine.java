@@ -241,6 +241,12 @@ final class ModelCommitEngine {
                         resolved.handlers(), applyHandlers);
                 for (Transition transition : evaluation.transitions()) {
                     stagedValues.put(transition.modelId(), transition.after());
+                    if (transition.unresolvedCreation()) {
+                        readModelIds.add(transition.modelId());
+                        readModelTypes.putIfAbsent(
+                                transition.modelId(),
+                                transition.modelType());
+                    }
                 }
                 appliedSubsteps.add(new AppliedSubstep(
                         current.message(), evaluation.transitions()));
@@ -401,10 +407,11 @@ final class ModelCommitEngine {
 
         Map<String, Transition> transitions = null;
         for (ModelMetadata.HandlerMethod handler : plan.applies()) {
-            if (handler.targetModelTypes().isEmpty()) {
+            if (!handler.hasApplyResult()) {
                 continue;
             }
-            if (handler.targetModelTypes().size() != 1) {
+            if (!handler.dynamicApplyResult()
+                && handler.targetModelTypes().size() != 1) {
                 throw new IllegalStateException(
                         "Apply %s targets more than one model type".formatted(handler.executable()));
             }
@@ -412,44 +419,20 @@ final class ModelCommitEngine {
             if (invoker == null) {
                 continue;
             }
-            Class<?> targetType = handler.targetModelTypes().getFirst();
             Object result = invoker.invoke();
-            String targetId = resolveWriteTarget(handler, targetType, result, beginState);
-            ModelCommitContext.Entry target = beginState.entry(targetId);
-            if (target == null || !beginState.mayWrite(
-                    targetId, targetType, handler.executable())) {
-                throw new IllegalStateException(
-                        "Apply %s returned model '%s', which is not a resolved write target"
-                                .formatted(handler.executable().toGenericString(), targetId));
+            if (!handler.collectionApplyResult()) {
+                transitions = addApplyResult(
+                        transitions, handler, result, 0,
+                        beginState);
+                continue;
             }
-            Class<?> resolvedTargetType = target.target().modelType();
-            if (result != null && !resolvedTargetType.isInstance(result)) {
-                throw new IllegalStateException(
-                        "Apply %s returned %s instead of the resolved target type %s"
-                                .formatted(handler.executable().toGenericString(),
-                                           result.getClass().getName(), resolvedTargetType.getName()));
-            }
-            Object current = target.entity().get();
-            Class<?> persistedTargetType = current != null
-                    ? current.getClass()
-                    : result != null ? result.getClass() : resolvedTargetType;
-            Transition transition = new Transition(
-                    targetId, persistedTargetType,
-                    target.entity() instanceof ModelRoot<?> modelRoot
-                            ? modelRoot.sequenceNumber() : -1L,
-                    target.entity() instanceof ModelRoot<?> modelRoot
-                            ? modelRoot.lastEventIndex() : null,
-                    current, result,
-                    handler.executable());
-            if (transitions == null) {
-                transitions = new LinkedHashMap<>();
-            }
-            Transition previous = transitions.putIfAbsent(targetId, transition);
-            if (previous != null) {
-                throw new IllegalStateException(
-                        "Model '%s' is written by both %s and %s in one substep"
-                                .formatted(targetId, previous.handler().toGenericString(),
-                                           handler.executable().toGenericString()));
+            List<?> results = collectionApplyResults(
+                    handler, result);
+            for (int resultIndex = 0; resultIndex < results.size(); resultIndex++) {
+                transitions = addApplyResult(
+                        transitions, handler,
+                        results.get(resultIndex), resultIndex,
+                        beginState);
             }
         }
         List<Transition> transitionList;
@@ -548,6 +531,8 @@ final class ModelCommitEngine {
             Class<?> payloadType) {
         if (handler.kind() != ModelMetadata.HandlerKind.APPLY
             || handler.targetModelTypes().size() != 1
+            || handler.collectionApplyResult()
+            || handler.dynamicApplyResult()
             || !handler.modelParameters().isEmpty()
             || !(handler.executable() instanceof Method method)
             || method.getParameterCount() != 1) {
@@ -593,7 +578,9 @@ final class ModelCommitEngine {
             ModelMetadata.HandlerMethod handler,
             String expectedTargetId) {
         if (handler.kind() != ModelMetadata.HandlerKind.APPLY
-            || handler.targetModelTypes().size() != 1) {
+            || handler.targetModelTypes().size() != 1
+            || handler.collectionApplyResult()
+            || handler.dynamicApplyResult()) {
             throw new IllegalArgumentException(
                     "Single-target replay requires one apply target");
         }
@@ -754,6 +741,139 @@ final class ModelCommitEngine {
         throw new IllegalStateException(
                 "Apply %s returned null but its %s delete target is ambiguous"
                         .formatted(handler.executable().toGenericString(), targetType.getName()));
+    }
+
+    private static Map<String, Transition> addApplyResult(
+            Map<String, Transition> transitions,
+            ModelMetadata.HandlerMethod handler,
+            Object value,
+            int resultIndex,
+            ModelCommitContext beginState) {
+        Class<?> targetType = applyTargetType(
+                handler, value, resultIndex);
+        String targetId = resolveWriteTarget(
+                handler, targetType, value, beginState);
+        ModelCommitContext.Entry target =
+                beginState.entry(targetId);
+        boolean creation = target == null && value != null
+                           && (handler.collectionApplyResult()
+                               || handler.dynamicApplyResult());
+        if (!creation && (target == null || !beginState.mayWrite(
+                targetId, targetType,
+                handler.executable()))) {
+            throw new IllegalStateException(
+                    "Apply %s returned model '%s', which is not a resolved write target"
+                            .formatted(
+                                    handler.executable().toGenericString(),
+                                    targetId));
+        }
+        Class<?> resolvedTargetType = target == null
+                ? value.getClass() : target.target().modelType();
+        if (value != null
+            && !resolvedTargetType.isInstance(value)) {
+            throw new IllegalStateException(
+                    "Apply %s returned %s instead of the resolved target type %s"
+                            .formatted(
+                                    handler.executable().toGenericString(),
+                                    value.getClass().getName(),
+                                    resolvedTargetType.getName()));
+        }
+        Object current = target == null
+                ? null : target.entity().get();
+        Class<?> persistedTargetType = current != null
+                ? current.getClass()
+                : value != null ? value.getClass()
+                : resolvedTargetType;
+        Transition transition = new Transition(
+                targetId, persistedTargetType,
+                target != null
+                && target.entity() instanceof ModelRoot<?> modelRoot
+                        ? modelRoot.sequenceNumber() : -1L,
+                target != null
+                && target.entity() instanceof ModelRoot<?> modelRoot
+                        ? modelRoot.lastEventIndex() : null,
+                current, value, handler.executable(),
+                null, false, creation);
+        Map<String, Transition> result = transitions;
+        if (result == null) {
+            result = new LinkedHashMap<>();
+        }
+        Transition previous = result.putIfAbsent(
+                targetId, transition);
+        if (previous != null) {
+            throw new IllegalStateException(
+                    "Model '%s' is written by both %s and %s in one substep"
+                            .formatted(
+                                    targetId,
+                                    previous.handler().toGenericString(),
+                                    handler.executable().toGenericString()));
+        }
+        return result;
+    }
+
+    private static List<?> collectionApplyResults(
+            ModelMetadata.HandlerMethod handler,
+            Object result) {
+        if (result == null) {
+            throw new IllegalStateException(
+                    "Apply %s returned null instead of a model collection"
+                            .formatted(handler.executable().toGenericString()));
+        }
+        if (!(result instanceof Collection<?> collection)) {
+            throw new IllegalStateException(
+                    "Apply %s returned %s instead of a model collection"
+                            .formatted(handler.executable().toGenericString(),
+                                       result.getClass().getName()));
+        }
+        List<Object> snapshot = new ArrayList<>(collection.size());
+        int index = 0;
+        for (Object value : collection) {
+            if (value == null) {
+                throw new IllegalStateException(
+                        "Apply %s returned a null model at collection index %d; use Graph.delete() for deletion"
+                                .formatted(handler.executable().toGenericString(), index));
+            }
+            snapshot.add(value);
+            index++;
+        }
+        return snapshot;
+    }
+
+    private static Class<?> applyTargetType(
+            ModelMetadata.HandlerMethod handler,
+            Object result,
+            int resultIndex) {
+        if (!handler.dynamicApplyResult()) {
+            Class<?> targetType = handler.targetModelTypes().getFirst();
+            if (result != null && !targetType.isInstance(result)) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s instead of %s%s"
+                                .formatted(
+                                        handler.executable().toGenericString(),
+                                        result.getClass().getName(),
+                                        targetType.getName(),
+                                        handler.collectionApplyResult()
+                                                ? " at collection index " + resultIndex : ""));
+            }
+            return targetType;
+        }
+        if (result == null) {
+            throw new IllegalStateException(
+                    "Apply %s returned null for a dynamically typed model result"
+                            .formatted(handler.executable().toGenericString()));
+        }
+        ModelMetadata metadata = ModelMetadata.validate(
+                result.getClass());
+        if (!metadata.isModel()) {
+            throw new IllegalStateException(
+                    "Apply %s returned %s%s, which is not annotated with @Model"
+                            .formatted(
+                                    handler.executable().toGenericString(),
+                                    result.getClass().getName(),
+                                    handler.collectionApplyResult()
+                                            ? " at collection index " + resultIndex : ""));
+        }
+        return result.getClass();
     }
 
     private static int compareHandlers(
@@ -1045,7 +1165,8 @@ final class ModelCommitEngine {
             Object after,
             Executable handler,
             Graphs.StagedReplay stagedReplay,
-            boolean cascadedDeletion) {
+            boolean cascadedDeletion,
+            boolean unresolvedCreation) {
         Transition(
                 String modelId,
                 Class<?> modelType,
@@ -1056,7 +1177,8 @@ final class ModelCommitEngine {
                 Executable handler) {
             this(
                     modelId, modelType, beforeSequenceNumber,
-                    beforeLastEventIndex, before, after, handler, null, false);
+                    beforeLastEventIndex, before, after, handler,
+                    null, false, false);
         }
 
         Transition(
@@ -1071,7 +1193,23 @@ final class ModelCommitEngine {
             this(
                     modelId, modelType, beforeSequenceNumber,
                     beforeLastEventIndex, before, after, handler,
-                    null, cascadedDeletion);
+                    null, cascadedDeletion, false);
+        }
+
+        Transition(
+                String modelId,
+                Class<?> modelType,
+                long beforeSequenceNumber,
+                Long beforeLastEventIndex,
+                Object before,
+                Object after,
+                Executable handler,
+                Graphs.StagedReplay stagedReplay,
+                boolean cascadedDeletion) {
+            this(
+                    modelId, modelType, beforeSequenceNumber,
+                    beforeLastEventIndex, before, after, handler,
+                    stagedReplay, cascadedDeletion, false);
         }
 
         Transition(
@@ -1083,7 +1221,8 @@ final class ModelCommitEngine {
                 Executable handler) {
             this(
                     modelId, modelType, beforeSequenceNumber,
-                    null, before, after, handler, null, false);
+                    null, before, after, handler,
+                    null, false, false);
         }
     }
 

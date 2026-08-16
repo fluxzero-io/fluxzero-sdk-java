@@ -50,8 +50,13 @@ import java.lang.annotation.Target;
  * and/or published according to the configured publication settings.
  * <p>
  * For independently stored {@link Model models}, the return value identifies the target model and its resulting state.
- * A {@code void} apply is therefore invalid for a model. Legacy mutable entities inside aggregates may continue to use
- * {@code void}, although immutable return values are strongly preferred.
+ * An apply may also return an ordered {@link java.util.Collection} of models; every value then joins the same atomic
+ * model commit. A typed collection is validated against its declared element type. {@code Collection<Object>} is
+ * supported when heterogeneous model types are useful and validates every returned value as a model at runtime.
+ * Collection elements must be non-null and each persisted model identity may occur only once. Use
+ * {@link io.fluxzero.sdk.modeling.Graph#delete()} for deletion instead of a null collection element. A {@code void}
+ * apply is invalid for a model. Legacy mutable entities inside aggregates may continue to use {@code void}, although
+ * immutable return values are strongly preferred.
  * <p>
  * When the entity is part of a larger aggregate, Fluxzero automatically routes the update to the correct entity
  * instance using matching identifier fields, typically annotated with {@link EntityId}.
@@ -68,7 +73,7 @@ import java.lang.annotation.Target;
  *     <li>The full {@link io.fluxzero.sdk.common.Message} or its {@link io.fluxzero.common.api.Metadata}</li>
  *     <li>Other context such as the {@link io.fluxzero.sdk.tracking.handling.authentication.User} performing the update</li>
  * </ul>
- * Injected models are read inputs. Only a model returned by an apply is targeted by that apply.
+ * Injected models are read inputs. Only models returned by an apply are targeted by that apply.
  *
  * <p>
  * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter

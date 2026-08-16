@@ -680,7 +680,8 @@ public final class ModelMetadata {
     private void addHandlers(List<HandlerMethod> result, List<Executable> methods, HandlerKind kind) {
         for (Executable executable : methods) {
             List<ModelParameter> parameters = inspectModelParameters(executable);
-            List<Class<?>> targets = kind == HandlerKind.APPLY ? inspectApplyTargets(executable) : List.of();
+            ApplyResult applyResult = kind == HandlerKind.APPLY
+                    ? inspectApplyResult(executable) : ApplyResult.NONE;
             List<Class<?>> emittedPayloadTypes =
                     kind == HandlerKind.INTERCEPT_APPLY
                             ? inspectInterceptOutputs(executable) : List.of();
@@ -693,19 +694,48 @@ public final class ModelMetadata {
             }
             validateParameterAmbiguity(executable, parameters);
             result.add(new HandlerMethod(
-                    executable, kind, receiverModelType, targets,
+                    executable, kind, receiverModelType,
+                    applyResult.targetModelTypes(),
+                    applyResult.collection(), applyResult.dynamic(),
                     parameters, emittedPayloadTypes));
         }
     }
 
-    private List<Class<?>> inspectApplyTargets(Executable executable) {
-        Class<?> resultType = switch (executable) {
-            case Constructor<?> constructor -> constructor.getDeclaringClass();
-            case Method method -> ReflectionUtils.rawClass(GenericTypeResolver.resolve(
-                    method.getGenericReturnType(), type, method.getDeclaringClass()));
-            default -> Object.class;
-        };
-        return isModelType(resultType) ? List.of(resultType) : List.of();
+    private ApplyResult inspectApplyResult(Executable executable) {
+        if (executable instanceof Constructor<?> constructor) {
+            Class<?> resultType = constructor.getDeclaringClass();
+            return isModelType(resultType)
+                    ? new ApplyResult(List.of(resultType), false, false)
+                    : ApplyResult.NONE;
+        }
+        if (!(executable instanceof Method method)) {
+            return ApplyResult.NONE;
+        }
+        Type result = GenericTypeResolver.resolve(
+                method.getGenericReturnType(), type,
+                method.getDeclaringClass());
+        Class<?> resultType = ReflectionUtils.rawClass(result);
+        if (Collection.class.isAssignableFrom(resultType)) {
+            List<Type> arguments = ReflectionUtils.getTypeArguments(result);
+            if (arguments.size() != 1) {
+                return ApplyResult.NONE;
+            }
+            Class<?> elementType = concreteType(arguments.getFirst());
+            if (isModelType(elementType)) {
+                return new ApplyResult(
+                        List.of(elementType), true, false);
+            }
+            return Object.class.equals(elementType)
+                    ? new ApplyResult(List.of(), true, true)
+                    : ApplyResult.NONE;
+        }
+        if (isModelType(resultType)) {
+            return new ApplyResult(
+                    List.of(resultType), false, false);
+        }
+        return Object.class.equals(resultType)
+                ? new ApplyResult(List.of(), false, true)
+                : ApplyResult.NONE;
     }
 
     private static List<Class<?>> inspectInterceptOutputs(
@@ -1020,6 +1050,8 @@ public final class ModelMetadata {
      * @param kind              model-aware handler annotation kind
      * @param receiverModelType model type of a non-static handler receiver, or {@code null}
      * @param targetModelTypes  model types targeted by an apply return value
+     * @param collectionApplyResult whether the apply returns an ordered collection of models
+     * @param dynamicApplyResult whether returned model types require runtime validation
      * @param modelParameters   injected model value or {@link Entity} dependencies
      * @param emittedPayloadTypes statically known payload types emitted by an interceptor
      */
@@ -1028,12 +1060,32 @@ public final class ModelMetadata {
             HandlerKind kind,
             Class<?> receiverModelType,
             List<Class<?>> targetModelTypes,
+            boolean collectionApplyResult,
+            boolean dynamicApplyResult,
             List<ModelParameter> modelParameters,
             List<Class<?>> emittedPayloadTypes) {
         public HandlerMethod {
             targetModelTypes = List.copyOf(targetModelTypes);
             modelParameters = List.copyOf(modelParameters);
             emittedPayloadTypes = List.copyOf(emittedPayloadTypes);
+        }
+
+        /** Whether this handler has a statically or dynamically typed model return value. */
+        public boolean hasApplyResult() {
+            return !targetModelTypes.isEmpty()
+                   || dynamicApplyResult;
+        }
+    }
+
+    private record ApplyResult(
+            List<Class<?>> targetModelTypes,
+            boolean collection,
+            boolean dynamic) {
+        private static final ApplyResult NONE =
+                new ApplyResult(List.of(), false, false);
+
+        private ApplyResult {
+            targetModelTypes = List.copyOf(targetModelTypes);
         }
     }
 

@@ -62,6 +62,9 @@ phase, not the central abstraction.
 - `@InterceptApply` expansions are ordered substeps. Later substeps observe committed-in-memory results from earlier
   substeps, while the complete handler commit still commits or rolls back as one unit.
 - Only a model returned by an `@Apply` is a target of that event in a model stream.
+- An `@Apply` may return an ordered typed model collection or a runtime-validated heterogeneous
+  `Collection<Object>`. Every returned identity is one target in the same atomic substep; duplicates, null elements,
+  non-model runtime values, and creation collisions fail the complete operation.
 - A non-null return upserts the target model and stores the event according to its publication strategy.
 - A `null` return logically deletes the target model and still stores/publishes that original event according to its
   publication strategy.

@@ -56,7 +56,9 @@ public final class ModelEventReplayer {
             Collection<ModelMetadata.HandlerMethod> handlers,
             String targetModelId) {
         Objects.requireNonNull(targetModelId, "targetModelId");
-        if (handlers.size() == 1) {
+        if (handlers.size() == 1
+            && !handlers.iterator().next().collectionApplyResult()
+            && !handlers.iterator().next().dynamicApplyResult()) {
             ModelCommitEngine.SingleTargetEvaluation evaluation =
                     engine.evaluateSingleTarget(
                             event,
@@ -97,6 +99,8 @@ public final class ModelEventReplayer {
             Class<?> modelType) {
         if (handler.kind() != ModelMetadata.HandlerKind.APPLY
             || handler.targetModelTypes().size() != 1
+            || handler.collectionApplyResult()
+            || handler.dynamicApplyResult()
             || handler.modelParameters().size() != 0
             || !compatible(
                     handler.targetModelTypes().getFirst(),

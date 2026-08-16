@@ -237,6 +237,31 @@ class ModelMetadataTest {
     }
 
     @Test
+    void capturesTypedAndRuntimeValidatedCollectionApplyResults() {
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(CollectionApplyResults.class)
+                        .applyMethods();
+
+        ModelMetadata.HandlerMethod typed = handlers.stream()
+                .filter(handler -> handler.executable().getName()
+                        .equals("typed"))
+                .findFirst().orElseThrow();
+        assertEquals(List.of(ParentModel.class), typed.targetModelTypes());
+        assertTrue(typed.collectionApplyResult());
+        assertFalse(typed.dynamicApplyResult());
+        assertTrue(typed.hasApplyResult());
+
+        ModelMetadata.HandlerMethod dynamic = handlers.stream()
+                .filter(handler -> handler.executable().getName()
+                        .equals("dynamic"))
+                .findFirst().orElseThrow();
+        assertTrue(dynamic.targetModelTypes().isEmpty());
+        assertTrue(dynamic.collectionApplyResult());
+        assertTrue(dynamic.dynamicApplyResult());
+        assertTrue(dynamic.hasApplyResult());
+    }
+
+    @Test
     void capturesModelConstructorAsApplyTarget() {
         ModelMetadata.HandlerMethod constructor = ModelMetadata.of(ConstructorModel.class).applyMethods().getFirst();
 
@@ -588,6 +613,18 @@ class ModelMetadataTest {
                 @Association("sourceId") ParentModel source,
                 @Association("destinationId") Entity<ParentModel> destination) {
             return source;
+        }
+    }
+
+    private static class CollectionApplyResults {
+        @Apply
+        List<ParentModel> typed() {
+            return List.of();
+        }
+
+        @Apply
+        List<Object> dynamic() {
+            return List.of();
         }
     }
 

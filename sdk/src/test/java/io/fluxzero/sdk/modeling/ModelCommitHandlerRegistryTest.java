@@ -289,6 +289,58 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void heterogeneousCollectionApplyCommitsAllCreatedModelsAtomically() {
+        DefaultModelRepository repository =
+                mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient =
+                mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> captured =
+                new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any()))
+                .thenAnswer(invocation -> {
+                    CommitModels commit = invocation.getArgument(0);
+                    captured.complete(commit);
+                    List<io.fluxzero.common.api.modeling.ModelCommitStepResult> substeps =
+                            new java.util.ArrayList<>();
+                    long stateIndex = 1L;
+                    for (var step : commit.getSubsteps()) {
+                        substeps.add(new io.fluxzero.common.api.modeling.ModelCommitStepResult(
+                                stateIndex++, step.getEvent() == null ? null : stateIndex,
+                                step.getTargets().stream()
+                                        .map(target -> new io.fluxzero.common.api.modeling.ModelCommitTargetResult(
+                                                target.getModelId(), 0L, true))
+                                        .toList()));
+                    }
+                    return CompletableFuture.completedFuture(
+                            CommitModelsResult.accepted(
+                                    commit.getRequestId(),
+                                    commit.getCommitId(), substeps));
+                });
+        ModelCommitHandlerRegistry subject =
+                subject(repository, eventStoreClient);
+
+        try {
+            subject.assertAndApply(new Message(
+                    new CreateCollectionModels("first", "second")))
+                    .join();
+
+            CommitModels commit = captured.join();
+            assertEquals(1, commit.getSubsteps().size());
+            assertEquals(
+                    List.of("first", "second"),
+                    commit.getSubsteps().getFirst().getTargets().stream()
+                            .map(io.fluxzero.common.api.modeling.ModelCommitTarget::getModelId)
+                            .toList());
+            assertEquals(List.of("first", "second"),
+                         commit.getReadModelIds());
+            verify(eventStoreClient, times(1)).commitModels(any());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void storedEventApplyParticipatesInTheCurrentMessageBatchView()
             throws Exception {
         DefaultModelRepository repository =
@@ -558,6 +610,17 @@ class ModelCommitHandlerRegistryTest {
         assertEquals(
                 ModelCommitPolicy.SYNC_AFTER_HANDLER,
                 subject.commitPolicyFor(MixedPolicyCommand.class));
+    }
+
+    @Test
+    void runtimeTypedApplyUsesTheStrongestCompletionGuarantee() {
+        ModelCommitHandlerRegistry subject =
+                subject(AutomaticModelHandling.ENABLED);
+
+        assertEquals(
+                ModelCommitPolicy.SYNC_AFTER_HANDLER,
+                subject.commitPolicyFor(
+                        CreateCollectionModels.class));
     }
 
     @Test
@@ -1625,6 +1688,27 @@ class ModelCommitHandlerRegistryTest {
         @Apply
         TimingModel apply() {
             return new TimingModel(id);
+        }
+    }
+
+    @Model
+    private record CollectionModelA(
+            @EntityId String id) {
+    }
+
+    @Model
+    private record CollectionModelB(
+            @EntityId String id) {
+    }
+
+    private record CreateCollectionModels(
+            String first,
+            String second) {
+        @Apply
+        List<Object> apply() {
+            return List.of(
+                    new CollectionModelA(first),
+                    new CollectionModelB(second));
         }
     }
 

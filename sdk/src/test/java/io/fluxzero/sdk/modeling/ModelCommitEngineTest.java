@@ -136,6 +136,91 @@ class ModelCommitEngineTest {
     }
 
     @Test
+    void createsAnOrderedCollectionOfModelsInOneSubstep() {
+        CreateOrders command = new CreateOrders(List.of(
+                new OrderId("first"), new OrderId("second")));
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(CreateOrders.class).handlerMethods();
+        ModelCommitContext begin = context(command, handlers);
+
+        ModelCommitEngine.Evaluation result =
+                engine.evaluate(message(command), begin, handlers);
+
+        assertEquals(
+                List.of("order-first", "order-second"),
+                result.transitions().stream()
+                        .map(ModelCommitEngine.Transition::modelId)
+                        .toList());
+        assertTrue(result.transitions().stream()
+                           .allMatch(transition -> transition.before() == null
+                                                   && transition.beforeSequenceNumber() == -1L));
+    }
+
+    @Test
+    void createsHeterogeneousRuntimeValidatedModels() {
+        CreateMixedModels command = new CreateMixedModels(
+                new OrderId("one"), new InventoryId("one"));
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(CreateMixedModels.class).handlerMethods();
+
+        ModelCommitEngine.Evaluation result = engine.evaluate(
+                message(command), context(command, handlers), handlers);
+
+        assertEquals(
+                List.of("order-one", "inventory-one"),
+                result.transitions().stream()
+                        .map(ModelCommitEngine.Transition::modelId)
+                        .toList());
+        assertEquals(
+                List.of(Order.class, Inventory.class),
+                result.transitions().stream()
+                        .map(ModelCommitEngine.Transition::modelType)
+                        .toList());
+    }
+
+    @Test
+    void createsOneRuntimeValidatedObjectResult() {
+        CreateDynamicModel command =
+                new CreateDynamicModel(new OrderId("dynamic"));
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(CreateDynamicModel.class)
+                        .handlerMethods();
+
+        ModelCommitEngine.Evaluation result = engine.evaluate(
+                message(command), context(command, handlers), handlers);
+
+        assertEquals(1, result.transitions().size());
+        assertEquals("order-dynamic",
+                     result.transitions().getFirst().modelId());
+        assertEquals(Order.class,
+                     result.transitions().getFirst().modelType());
+    }
+
+    @Test
+    void rejectsDuplicateNullAndNonModelCollectionResults() {
+        assertTrue(collectionFailure(
+                new InvalidModelCollection(InvalidCollectionResult.DUPLICATE))
+                           .getMessage().contains("written by both"));
+        assertTrue(collectionFailure(
+                new InvalidModelCollection(InvalidCollectionResult.NULL))
+                           .getMessage().contains("null model at collection index 1"));
+        assertTrue(collectionFailure(
+                new InvalidModelCollection(InvalidCollectionResult.NON_MODEL))
+                           .getMessage().contains("not annotated with @Model"));
+    }
+
+    private IllegalStateException collectionFailure(
+            InvalidModelCollection command) {
+        List<ModelMetadata.HandlerMethod> handlers =
+                ModelMetadata.of(InvalidModelCollection.class)
+                        .handlerMethods();
+        return assertThrows(
+                IllegalStateException.class,
+                () -> engine.evaluate(
+                        message(command), context(command, handlers), handlers));
+    }
+
+    @Test
     void skipsInapplicableInterceptorWithMissingModelAndStillCreatesTarget() {
         ConditionalCreateOrder command = new ConditionalCreateOrder(new OrderId("new"));
         List<ModelMetadata.HandlerMethod> handlers =
@@ -861,6 +946,55 @@ class ModelCommitEngineTest {
         @Apply
         Order create() {
             return new Order(orderId, "created");
+        }
+    }
+
+    private record CreateOrders(List<OrderId> orderIds) {
+        @Apply
+        List<Order> create() {
+            return orderIds.stream()
+                    .map(id -> new Order(
+                            id, "created-" + id.getFunctionalId()))
+                    .toList();
+        }
+    }
+
+    private record CreateMixedModels(
+            OrderId orderId,
+            InventoryId inventoryId) {
+        @Apply
+        List<Object> create() {
+            return List.of(
+                    new Order(orderId, "created"),
+                    new Inventory(inventoryId, 1));
+        }
+    }
+
+    private record CreateDynamicModel(
+            OrderId orderId) {
+        @Apply
+        Object create() {
+            return new Order(orderId, "created");
+        }
+    }
+
+    private enum InvalidCollectionResult {
+        DUPLICATE,
+        NULL,
+        NON_MODEL
+    }
+
+    private record InvalidModelCollection(
+            InvalidCollectionResult result) {
+        @Apply
+        List<Object> create() {
+            Order order = new Order(
+                    new OrderId("duplicate"), "created");
+            return switch (result) {
+                case DUPLICATE -> List.of(order, order);
+                case NULL -> java.util.Arrays.asList(order, null);
+                case NON_MODEL -> List.of(order, "not-a-model");
+            };
         }
     }
 

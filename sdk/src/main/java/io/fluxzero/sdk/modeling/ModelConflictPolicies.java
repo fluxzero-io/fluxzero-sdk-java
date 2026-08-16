@@ -79,6 +79,15 @@ final class ModelConflictPolicies {
     private static ModelConflictPolicy transitionPolicy(
             ModelCommitEngine.Transition transition,
             ModelConflictPolicy application) {
+        if (transition.before() == null
+            && transition.beforeSequenceNumber() < 0L) {
+            /*
+             * A newly created identity has no meaningful state on which an ACCEPT rebase can apply. Re-running a
+             * creation against a concurrently created model would silently turn create into overwrite, so identity
+             * collisions always fail the complete atomic commit.
+             */
+            return ModelConflictPolicy.FAIL;
+        }
         Apply apply = transition.handler() == null
                 ? null
                 : transition.handler().getAnnotation(Apply.class);

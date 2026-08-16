@@ -86,6 +86,23 @@ class ModelConflictPoliciesTest {
                         ModelConflictPolicy.RETRY));
     }
 
+    @Test
+    void newIdentityAlwaysFailsInsteadOfRebasingIntoAnOverwrite()
+            throws Exception {
+        ModelCommitEngine.Transition creation =
+                new ModelCommitEngine.Transition(
+                        "new", DefaultModel.class,
+                        -1L, null, null,
+                        new DefaultModel("new"),
+                        method("accept"));
+
+        assertEquals(
+                ModelConflictPolicy.FAIL,
+                ModelConflictPolicies.resolve(
+                        evaluation(creation),
+                        ModelConflictPolicy.ACCEPT));
+    }
+
     private static ModelCommitEngine.CommitEvaluation evaluation(
             ModelCommitEngine.Transition... transitions) {
         return evaluation(

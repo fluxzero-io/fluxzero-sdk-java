@@ -3927,8 +3927,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 Class<?> payloadType, Class<?> modelType) {
             LinkedHashSet<ModelMetadata.HandlerMethod> result = new LinkedHashSet<>();
             ModelMetadata.of(payloadType).applyMethods().stream()
-                    .filter(handler -> handler.targetModelTypes().stream()
-                            .anyMatch(target -> compatible(target, modelType)))
+                    .filter(handler -> handler.dynamicApplyResult()
+                                       || handler.targetModelTypes().stream()
+                                               .anyMatch(target -> compatible(target, modelType)))
                     .forEach(result::add);
             ModelMetadata.of(modelType).applyMethods().stream()
                     .filter(handler -> ModelMetadata.acceptsPayload(handler, payloadType))

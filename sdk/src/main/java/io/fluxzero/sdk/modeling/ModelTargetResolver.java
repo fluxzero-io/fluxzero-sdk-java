@@ -317,6 +317,14 @@ public final class ModelTargetResolver {
         }
 
         if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
+            if (handler.dynamicApplyResult()) {
+                /*
+                 * Object-returning applies deliberately choose their concrete model targets at runtime. Every
+                 * explicitly injected model is therefore a possible update target; values not present in this
+                 * context are validated as new models by the evaluator.
+                 */
+                handlerSlots.forEach(slot -> slot.access |= WRITE);
+            }
             for (Class<?> targetType : handler.targetModelTypes()) {
                 if (compatible(targetType, explicitModelType)) {
                     continue;
@@ -336,6 +344,13 @@ public final class ModelTargetResolver {
                     continue;
                 }
                 if (matchingParameters.isEmpty()) {
+                    if (handler.collectionApplyResult()) {
+                        /*
+                         * A collection apply may consist entirely of newly created models. Unlike a scalar apply it
+                         * has no single payload identity that can be resolved before invocation.
+                         */
+                        continue;
+                    }
                     handlerSlots.add(new MutableSlot(
                             targetType, Source.RETURN_TARGET, payload.resolve(targetType, null, false),
                             false, WRITE, handler.executable().toGenericString()));

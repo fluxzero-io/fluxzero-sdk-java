@@ -125,6 +125,23 @@ class ModelTargetResolverTest {
     }
 
     @Test
+    void collectionApplyMakesEveryInjectedGraphAWritableTarget() {
+        ProductId first = new ProductId("first");
+        ProductId second = new ProductId("second");
+
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+                new RenameProducts(List.of(second, first, second)),
+                ModelMetadata.of(RenameProducts.class).handlerMethods());
+
+        assertEquals(List.of("product-second", "product-first"),
+                     resolution.models().stream()
+                             .map(ModelTargetResolver.ResolvedModel::modelId)
+                             .toList());
+        assertTrue(resolution.models().stream()
+                           .allMatch(model -> model.access() == READ_WRITE));
+    }
+
+    @Test
     void resolvesWriteOnlyCreationTarget() {
         CreateProduct command = new CreateProduct(new ProductId("new"));
 
@@ -419,6 +436,15 @@ class ModelTargetResolverTest {
     private record CheckProducts(List<ProductId> productIds) {
         @AssertLegal
         void check(@Association("productIds") List<Graph<Product>> products) {
+        }
+    }
+
+    private record RenameProducts(List<ProductId> productIds) {
+        @Apply
+        List<Product> rename(
+                @Association("productIds")
+                List<Graph<Product>> products) {
+            return products.stream().map(Graph::get).toList();
         }
     }
 

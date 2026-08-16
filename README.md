@@ -3275,6 +3275,25 @@ The list itself is immutable. A missing ID produces an empty typed graph at its 
 injection; requesting several full descendant trees does not silently pretend that the runtime has a bulk graph
 transport.
 
+An `@Apply` may return all updated or newly created models as one ordered collection. Every element becomes one target
+of the same atomic model commit:
+
+```java
+@Apply
+List<Account> apply(
+        @Association("accountIds") List<Graph<Account>> accounts) {
+    return accounts.stream()
+            .map(Graph::get)
+            .map(this::update)
+            .toList();
+}
+```
+
+`List<Object>` is also supported for a genuinely heterogeneous result; Fluxzero validates each element's `@Model`
+type and identity at runtime. Input/result order is preserved, duplicate persisted identities and null elements fail
+the complete operation, and a collision while creating a new identity never rebases into an overwrite. Stage a
+`Graph.delete()` through the graph/interceptor flow when the same commit must delete a model.
+
 `Graph<T>` is the public context view around a model. A typed `loadGraph` is source-lazy: typed ancestor resolution
 need not load the source value or intermediate parents. A typed `Id` or explicit parent-scoped load also makes `id()`
 available immediately; an alias lookup resolves the source before reporting its true primary ID. `get()` returns the value; `parent()`, `root()`, `children(...)`

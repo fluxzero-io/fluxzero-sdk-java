@@ -58,6 +58,37 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InMemoryEventStoreModelCommitTest {
 
     @Test
+    void expectedSequenceCollisionRejectsASecondCreate() {
+        InMemoryEventStore store = denseStore();
+        ModelCommitTarget creation = storedTarget("model-1")
+                .toBuilder()
+                .expectedSequenceNumber(-1L)
+                .build();
+        store.commitModels(commit(
+                "first-create",
+                ModelCommitStep.builder()
+                        .event(event("first"))
+                        .targets(List.of(creation))
+                        .build())).join();
+
+        CommitModelsResult conflict = store.commitModels(commit(
+                "second-create", 0L,
+                ModelConflictPolicy.FAIL,
+                ModelCommitStep.builder()
+                        .event(event("second"))
+                        .targets(List.of(creation))
+                        .build())).join();
+
+        assertFalse(conflict.isAccepted());
+        assertEquals(List.of("model-1"),
+                     conflict.getConflicts().stream()
+                             .map(io.fluxzero.common.api.modeling.ModelCommitConflict::getModelId)
+                             .toList());
+        assertEquals(1, modelStream(store, "model-1")
+                .getMemberships().size());
+    }
+
+    @Test
     void resolvesAndAtomicallyReplacesIndependentModelAliases() {
         InMemoryEventStore store = denseStore();
         store.commitModels(commit(

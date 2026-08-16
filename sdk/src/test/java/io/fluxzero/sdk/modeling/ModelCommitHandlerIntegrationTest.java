@@ -33,6 +33,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.Tracker;
+import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
@@ -675,6 +676,93 @@ class ModelCommitHandlerIntegrationTest {
                 .expectResult(List.of(
                         new Account(first, 41),
                         new Account(second, 43)));
+    }
+
+    @Test
+    void oneCollectionApplyUpdatesAllInjectedGraphsAtomicallyAndInOrder() {
+        AccountId first = new AccountId("collection-first");
+        AccountId second = new AccountId("collection-second");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(first, 10),
+                        new CreateAccount(second, 20))
+                .whenApplying(fluxzero -> {
+                    Fluxzero.assertAndApply(new UpdateAccounts(
+                            List.of(second, first), 3));
+                    fluxzero.cache().clear();
+                    return List.of(
+                            fluxzero.modelRepository().load(second).get(),
+                            fluxzero.modelRepository().load(first).get());
+                })
+                .expectResult(List.of(
+                        new Account(second, 23),
+                        new Account(first, 13)))
+                .expectThat(fluxzero -> {
+                    assertEquals(2L, fluxzero.eventStore()
+                            .getEvents(first.toString()).count());
+                    assertEquals(2L, fluxzero.eventStore()
+                            .getEvents(second.toString()).count());
+                });
+    }
+
+    @Test
+    void collectionApplyCreatesModelsAndRejectsAnExistingIdentity() {
+        AccountId first = new AccountId("created-first");
+        AccountId second = new AccountId("created-second");
+        /*
+         * Conflict resolution deliberately completes asynchronously. Use the production-like fixture so this test
+         * waits for that completion instead of relying on a common-pool task winning a zero-timeout race.
+         */
+        TestFixture fixture = TestFixture.createAsync();
+
+        fixture.whenApplying(ignored ->
+                        Fluxzero.assertAndApplyAsync(new CreateAccounts(
+                                List.of(first, second), 5)))
+                .expectTrue(fluxzero ->
+                                    new Account(first, 5).equals(
+                                            fluxzero.modelRepository()
+                                                    .load(first).get()))
+                .expectTrue(fluxzero ->
+                                    new Account(second, 5).equals(
+                                            fluxzero.modelRepository()
+                                                    .load(second).get()))
+                .andThen()
+                .whenApplying(ignored ->
+                        Fluxzero.assertAndApplyAsync(new CreateAccounts(
+                                List.of(new AccountId("third"), second), 9)))
+                .expectExceptionalResult(
+                        ModelCommitConflictException.class)
+                .expectTrue(fluxzero ->
+                                    fluxzero.modelRepository()
+                                            .load(new AccountId("third"))
+                                            .isEmpty())
+                .expectTrue(fluxzero ->
+                                    new Account(second, 5).equals(
+                                            fluxzero.modelRepository()
+                                                    .load(second).get()));
+    }
+
+    @Test
+    void objectCollectionApplyReplaysEveryRuntimeValidatedModelType() {
+        AccountId accountId = new AccountId("mixed-account");
+        CollectionPeerId peerId =
+                new CollectionPeerId("mixed-peer");
+
+        TestFixture.create()
+                .whenCommand(new CreateMixedCollection(
+                        accountId, peerId))
+                .expectThat(fluxzero -> {
+                    fluxzero.cache().clear();
+                    assertEquals(
+                            new Account(accountId, 7),
+                            fluxzero.modelRepository()
+                                    .load(accountId).get());
+                    assertEquals(
+                            new CollectionPeer(peerId, "created"),
+                            fluxzero.modelRepository()
+                                    .load(peerId).get());
+                });
     }
 
     @Test
@@ -2124,6 +2212,58 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         Account apply() {
             return new Account(accountId, balance);
+        }
+    }
+
+    private record UpdateAccounts(
+            List<AccountId> accountIds,
+            int amount) {
+        @Apply
+        List<Account> apply(
+                @Association("accountIds")
+                List<Graph<Account>> accounts) {
+            return accounts.stream()
+                    .map(Graph::get)
+                    .map(account -> new Account(
+                            account.accountId(),
+                            account.balance() + amount))
+                    .toList();
+        }
+    }
+
+    private record CreateAccounts(
+            List<AccountId> accountIds,
+            int balance) {
+        @Apply
+        List<Account> apply() {
+            return accountIds.stream()
+                    .map(accountId -> new Account(
+                            accountId, balance))
+                    .toList();
+        }
+    }
+
+    @Model
+    private record CollectionPeer(
+            @EntityId CollectionPeerId id,
+            String value) {
+    }
+
+    private static final class CollectionPeerId
+            extends Id<CollectionPeer> {
+        private CollectionPeerId(String id) {
+            super(id, "collection-peer-");
+        }
+    }
+
+    private record CreateMixedCollection(
+            AccountId accountId,
+            CollectionPeerId peerId) {
+        @Apply
+        List<Object> apply() {
+            return List.of(
+                    new Account(accountId, 7),
+                    new CollectionPeer(peerId, "created"));
         }
     }
 
