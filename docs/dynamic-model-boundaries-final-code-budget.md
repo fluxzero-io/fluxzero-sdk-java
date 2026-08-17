@@ -11,7 +11,8 @@ Date: 2026-08-17
 | S60 start (`f19e3db42c8` / `610a7060`) | 168,771 | 42,038 | — | accepted control |
 | CP1 canonical binary (`7c62c608352` / `0661533f`) | **168,082** | **42,037** | **690** | accepted; no-model neutral, full model +0.27% |
 | CP2 shared binary primitives (`ddc1b73d718` / `0661533f`) | **167,723** | **42,037** | **1,049** | accepted; no-model +11.42%, full model +2.21% |
-| Required final ceiling | **136,000** | **32,000** | **41,760 still to remove** | pending |
+| CP3 unified lazy message state (`e669a148e36` / `0661533f`) | **167,411** | **42,037** | **1,361** | accepted; no-model +3.98%, full model +0.48% |
+| Required final ceiling | **136,000** | **32,000** | **41,448 still to remove** | pending |
 
 ## Objective
 
@@ -91,6 +92,32 @@ zero-copy views.
 The complete SDK and Runtime reactors passed against the final source. Focused tests additionally cover primitive
 growth, exact-size validation, malformed booleans, truncation, Unicode strings, nullable values, arrays, zero-copy
 envelope views and rejection of the removed model-event preview versions.
+
+## Accepted checkpoint CP3 — one lazy message and metadata state
+
+`Metadata` previously presented one public value while internally delegating to a map-shaped second state machine with
+separate decoded-map, compact-array and opaque-data ownership. `SerializedMessage` separately retained its own UTF-8
+length, comparison and primitive access code. CP3 gives `Metadata` one tagged representation owner, materializes only
+the requested component and shares the validated cursor and UTF-8 primitives with the envelope. Direct metadata,
+target and type lookups remain allocation-free; opaque `Data<byte[]>` identity, chunk flags and wire bytes remain
+stable. Public `Metadata` bytecode signatures are unchanged.
+
+The first reduced implementation encoded a map of metadata changes into a second temporary wire value before merging
+it. Its full-model ABBA was consistently **-0.84%** (184,402/s control versus 182,862/s candidate), so it was rejected.
+The final implementation merges string maps directly into the original byte view, retaining the simpler ownership
+without the second wire allocation.
+
+| Qualifying route | CP2 control | CP3 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| no-model command -> durable result, ABBA geometric mean | 606,259/s | 630,398/s | **+3.98%** | exact 10,485,760 results per run; zero events |
+| command -> `@Apply` -> model commit -> event + result, ABBA geometric mean | 174,044/s | 174,879/s | **+0.48%** | exact 1,048,576 results, model events and global events; 8,192 exact states |
+
+Spotlight and MediaAnalysis changed host capacity materially during this series. The ABBA endpoints deliberately
+bracket that movement: full-model controls were 158,297/s and 191,357/s around candidates of 174,631/s and 175,127/s;
+no-model controls were 671,858/s and 547,065/s around candidates of 652,779/s and 608,785/s. An earlier no-model
+candidate phase fell from a 707,860/s warmup to 564,099/s measured throughput while the following control recovered to
+788,554/s; it is recorded as diagnostic-only and excluded from the final implementation comparison. Both complete
+Maven reactors passed after the direct-merge correction.
 
 ## What caused the growth
 
