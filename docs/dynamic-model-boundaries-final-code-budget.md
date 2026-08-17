@@ -10,7 +10,8 @@ Date: 2026-08-17
 | --- | ---: | ---: | ---: | --- |
 | S60 start (`f19e3db42c8` / `610a7060`) | 168,771 | 42,038 | — | accepted control |
 | CP1 canonical binary (`7c62c608352` / `0661533f`) | **168,082** | **42,037** | **690** | accepted; no-model neutral, full model +0.27% |
-| Required final ceiling | **136,000** | **32,000** | **42,119 still to remove** | pending |
+| CP2 shared binary primitives (`ddc1b73d718` / `0661533f`) | **167,723** | **42,037** | **1,049** | accepted; no-model +11.42%, full model +2.21% |
+| Required final ceiling | **136,000** | **32,000** | **41,760 still to remove** | pending |
 
 ## Objective
 
@@ -73,6 +74,23 @@ SDK downstream Java/Kotlin projects passed after the final hot-path ordering cha
 Six earlier no-model runs are explicitly non-canonical because the required 1,048,576-entry command cache pin was
 omitted. They exercised the known 65,536-entry cache cliff and ranged from 542,018/s to 784,956/s; they are retained in
 the run registry as diagnostic-only evidence and were not used for either the performance decision or checkpoint.
+
+## Accepted checkpoint CP2 — shared compact binary primitives
+
+Tracking, model commits and model-event reads previously carried three private implementations of byte growth,
+primitive encoding, UTF-8, nullability and bounds validation. CP2 replaces them with one allocation-bounded primitive.
+The final model-event wire format also rejects its four unreleased preview versions and writes ordinary event payloads
+as the same lazy reusable envelope used elsewhere. Compact payload and membership blocks retain their existing
+zero-copy views.
+
+| Qualifying route | CP1 control | CP2 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| no-model command -> durable result, ABBA geometric mean | 697,145/s | 776,738/s | **+11.42%** | exact 10,485,760 results per run; zero events |
+| command -> `@Apply` -> model commit -> event + result, ABBA geometric mean | 178,732/s | 182,688/s | **+2.21%** | exact 1,048,576 results, model events and global events; 8,192 exact states |
+
+The complete SDK and Runtime reactors passed against the final source. Focused tests additionally cover primitive
+growth, exact-size validation, malformed booleans, truncation, Unicode strings, nullable values, arrays, zero-copy
+envelope views and rejection of the removed model-event preview versions.
 
 ## What caused the growth
 
