@@ -23,6 +23,7 @@ import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -31,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelEventWireCodecTest {
 
@@ -135,6 +138,7 @@ class ModelEventWireCodecTest {
         assertEquals(1, decoded.getPayloads().size());
         SerializedMessage decodedRegular =
                 decoded.getPayloads().getFirst().getEvent();
+        assertTrue(decodedRegular.isReusable());
         assertArrayEquals(
                 regular.getData().getValue(),
                 decodedRegular.getData().getValue());
@@ -191,6 +195,15 @@ class ModelEventWireCodecTest {
         assertArrayEquals(
                 result.getCompactPayloadEventIndices(),
                 direct.getCompactPayloadEventIndices());
+    }
+
+    @Test
+    void rejectsUnreleasedPreviewVersions() throws Exception {
+        byte[] encoded = ModelEventWireCodec.tryEncode(compactResult("first", "second"));
+
+        encoded[Integer.BYTES]--;
+
+        assertThrows(IOException.class, () -> ModelEventWireCodec.tryDecode(encoded));
     }
 
     @Test

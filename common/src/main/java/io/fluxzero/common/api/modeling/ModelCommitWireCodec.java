@@ -20,6 +20,9 @@ import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
+import io.fluxzero.common.api.internal.BinaryWire.Reader;
+import io.fluxzero.common.api.internal.BinaryWire.Writer;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -75,12 +78,12 @@ public final class ModelCommitWireCodec {
         if (bytes.length < Integer.BYTES + 1) {
             return null;
         }
-        int magic = readInt(bytes, 0);
+        int magic = BinaryWire.peekInt(bytes, 0);
         if (magic != REQUEST_MAGIC && magic != RESULT_MAGIC) {
             return null;
         }
         try {
-            BinaryReader input = new BinaryReader(bytes);
+            Reader input = new Reader(bytes, MAX_VALUE_BYTES);
             input.readInt();
             int version = input.readUnsignedByte();
             if (version != VERSION) {
@@ -142,7 +145,7 @@ public final class ModelCommitWireCodec {
     private static byte[] encodeRequests(RequestBatch<?> batch) throws IOException {
         RequestEncodingPlan plan = RequestEncodingPlan.of(batch);
         RequestBatchDescriptor descriptor = plan.descriptor();
-        BinaryWriter output = new BinaryWriter(plan.encodedSize());
+        Writer output = new Writer(plan.encodedSize(), MAX_VALUE_BYTES);
         output.writeInt(REQUEST_MAGIC);
         output.writeByte(VERSION);
         output.writeInt(batch.getRequests().size());
@@ -152,11 +155,11 @@ public final class ModelCommitWireCodec {
             writeCommit(output, (CommitModels) batch.getRequests().get(index), descriptor,
                         plan.messages()[index]);
         }
-        return output.toByteArray();
+        return output.toExactByteArray();
     }
 
     private static void writeCommit(
-            BinaryWriter output, CommitModels commit, RequestBatchDescriptor descriptor,
+            Writer output, CommitModels commit, RequestBatchDescriptor descriptor,
             SerializedMessage message) {
         output.writeLong(commit.getRequestId());
         writeString(output, commit.getCommitId());
@@ -169,7 +172,7 @@ public final class ModelCommitWireCodec {
         output.writeBoolean(Boolean.FALSE.equals(commit.getPossibleDuplicate()));
 
         ModelCommitStep step = commit.getSubsteps().getFirst();
-        writeEnvelope(output, message);
+        output.writeEnvelope(message);
 
         ModelCommitTarget target = step.getTargets().getFirst();
         writeString(output, target.getModelId());
@@ -182,14 +185,7 @@ public final class ModelCommitWireCodec {
         output.writeBoolean(target.isDelete());
     }
 
-    private static void writeEnvelope(BinaryWriter output, SerializedMessage message) {
-        output.writeInt(message.envelopeSize());
-        output.ensureCapacity(message.envelopeSize());
-        message.copyEnvelopeTo(output.bytes, output.position);
-        output.position += message.envelopeSize();
-    }
-
-    private static RequestBatch<CommitModels> decodeRequests(BinaryReader input) throws IOException {
+    private static RequestBatch<CommitModels> decodeRequests(Reader input) throws IOException {
         int size = readSize(input, MAX_BATCH_SIZE, "batch");
         RequestBatchDescriptor descriptor = RequestBatchDescriptor.read(input);
         List<CommitModels> commits = new ArrayList<>(size);
@@ -248,7 +244,7 @@ public final class ModelCommitWireCodec {
             encodedSize = addSize(encodedSize, Long.BYTES * 6 + 1 + nullableLongSize(
                     result.getSingleTargetEventIndex()));
         }
-        BinaryWriter output = new BinaryWriter(encodedSize);
+        Writer output = new Writer(encodedSize, MAX_VALUE_BYTES);
         output.writeInt(RESULT_MAGIC);
         output.writeByte(VERSION);
         output.writeInt(batch.getResults().size());
@@ -263,10 +259,10 @@ public final class ModelCommitWireCodec {
             output.writeLong(result.getResponseQueuedTimestamp());
             output.writeLong(result.getResponseSendStartTimestamp());
         }
-        return output.toByteArray();
+        return output.toExactByteArray();
     }
 
-    private static ResultBatch decodeResults(BinaryReader input) throws IOException {
+    private static ResultBatch decodeResults(Reader input) throws IOException {
         int size = readSize(input, MAX_BATCH_SIZE, "batch");
         List<CommitModelsResult> results = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -292,14 +288,14 @@ public final class ModelCommitWireCodec {
         return new ResultBatch(new ArrayList<>(results));
     }
 
-    private static void writeStrings(BinaryWriter output, List<String> values) {
+    private static void writeStrings(Writer output, List<String> values) {
         output.writeInt(values.size());
         for (String value : values) {
             writeString(output, value);
         }
     }
 
-    private static List<String> readStrings(BinaryReader input) throws IOException {
+    private static List<String> readStrings(Reader input) throws IOException {
         int size = readSize(input, MAX_COLLECTION_SIZE, "string collection");
         List<String> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -308,26 +304,26 @@ public final class ModelCommitWireCodec {
         return result;
     }
 
-    private static void writeString(BinaryWriter output, String value) {
+    private static void writeString(Writer output, String value) {
         output.writeString(value);
     }
 
-    private static String readString(BinaryReader input) throws IOException {
+    private static String readString(Reader input) throws IOException {
         return input.readString();
     }
 
-    private static void writeNullableLong(BinaryWriter output, Long value) {
+    private static void writeNullableLong(Writer output, Long value) {
         output.writeBoolean(value != null);
         if (value != null) {
             output.writeLong(value);
         }
     }
 
-    private static Long readNullableLong(BinaryReader input) throws IOException {
+    private static Long readNullableLong(Reader input) throws IOException {
         return input.readBoolean() ? input.readLong() : null;
     }
 
-    private static int readSize(BinaryReader input, int maximum, String description) throws IOException {
+    private static int readSize(Reader input, int maximum, String description) throws IOException {
         int size = input.readInt();
         if (size < 0 || size > maximum) {
             throw new IOException("Invalid compact model commit " + description + " size " + size);
@@ -340,13 +336,6 @@ public final class ModelCommitWireCodec {
             throw new IOException("Invalid compact model commit " + description + " " + ordinal);
         }
         return values[ordinal];
-    }
-
-    private static int readInt(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xff) << 24
-                | (bytes[offset + 1] & 0xff) << 16
-                | (bytes[offset + 2] & 0xff) << 8
-                | bytes[offset + 3] & 0xff;
     }
 
     private static int commitSize(
@@ -473,7 +462,7 @@ public final class ModelCommitWireCodec {
             return new RequestBatchDescriptor(flags, modelType);
         }
 
-        private static RequestBatchDescriptor read(BinaryReader input) throws IOException {
+        private static RequestBatchDescriptor read(Reader input) throws IOException {
             int flags = input.readUnsignedByte();
             int supportedFlags = SHARED_MODEL_TYPE | READ_TARGET_ONLY;
             if ((flags & ~supportedFlags) != 0) {
@@ -484,7 +473,7 @@ public final class ModelCommitWireCodec {
                     has(flags, SHARED_MODEL_TYPE) ? readString(input) : null);
         }
 
-        private void writeSharedValues(BinaryWriter output) {
+        private void writeSharedValues(Writer output) {
             if (sharedModelType()) {
                 writeString(output, modelType);
             }
@@ -504,171 +493,6 @@ public final class ModelCommitWireCodec {
 
         private static boolean has(int flags, int flag) {
             return (flags & flag) != 0;
-        }
-    }
-
-    private static final class BinaryWriter {
-        private byte[] bytes;
-        private int position;
-
-        private BinaryWriter(int initialCapacity) {
-            bytes = new byte[initialCapacity];
-        }
-
-        private void writeBoolean(boolean value) {
-            writeByte(value ? 1 : 0);
-        }
-
-        private void writeByte(int value) {
-            ensureCapacity(1);
-            bytes[position++] = (byte) value;
-        }
-
-        private void writeInt(int value) {
-            ensureCapacity(Integer.BYTES);
-            bytes[position++] = (byte) (value >>> 24);
-            bytes[position++] = (byte) (value >>> 16);
-            bytes[position++] = (byte) (value >>> 8);
-            bytes[position++] = (byte) value;
-        }
-
-        private void writeLong(long value) {
-            ensureCapacity(Long.BYTES);
-            bytes[position++] = (byte) (value >>> 56);
-            bytes[position++] = (byte) (value >>> 48);
-            bytes[position++] = (byte) (value >>> 40);
-            bytes[position++] = (byte) (value >>> 32);
-            bytes[position++] = (byte) (value >>> 24);
-            bytes[position++] = (byte) (value >>> 16);
-            bytes[position++] = (byte) (value >>> 8);
-            bytes[position++] = (byte) value;
-        }
-
-        private void write(byte[] value) {
-            ensureCapacity(value.length);
-            System.arraycopy(value, 0, bytes, position, value.length);
-            position += value.length;
-        }
-
-        private void writeString(String value) {
-            if (value == null) {
-                writeInt(-1);
-                return;
-            }
-            int length = value.length();
-            int start = position;
-            writeInt(length);
-            ensureCapacity(length);
-            for (int index = 0; index < length; index++) {
-                char current = value.charAt(index);
-                if (current > 0x7f) {
-                    position = start;
-                    byte[] encoded = value.getBytes(StandardCharsets.UTF_8);
-                    writeInt(encoded.length);
-                    write(encoded);
-                    return;
-                }
-                bytes[position++] = (byte) current;
-            }
-        }
-
-        private byte[] toByteArray() {
-            if (position != bytes.length) {
-                throw new IllegalStateException(
-                        "Compact model commit size mismatch: expected " + bytes.length + ", wrote " + position);
-            }
-            return bytes;
-        }
-
-        private void ensureCapacity(int additionalBytes) {
-            int required = position + additionalBytes;
-            if (required < 0) {
-                throw new IllegalArgumentException("Compact model commit batch exceeds maximum byte array size");
-            }
-            if (required > bytes.length) {
-                throw new IllegalStateException(
-                        "Compact model commit size estimate was too small: " + bytes.length + " < " + required);
-            }
-        }
-    }
-
-    private static final class BinaryReader {
-        private final byte[] bytes;
-        private int position;
-
-        private BinaryReader(byte[] bytes) {
-            this.bytes = bytes;
-        }
-
-        private boolean readBoolean() throws EOFException {
-            return readUnsignedByte() != 0;
-        }
-
-        private byte readByte() throws EOFException {
-            require(1);
-            return bytes[position++];
-        }
-
-        private int readUnsignedByte() throws EOFException {
-            require(1);
-            return bytes[position++] & 0xff;
-        }
-
-        private int readInt() throws EOFException {
-            require(Integer.BYTES);
-            int result = ModelCommitWireCodec.readInt(bytes, position);
-            position += Integer.BYTES;
-            return result;
-        }
-
-        private long readLong() throws EOFException {
-            require(Long.BYTES);
-            long result =
-                    (long) (bytes[position] & 0xff) << 56
-                            | (long) (bytes[position + 1] & 0xff) << 48
-                            | (long) (bytes[position + 2] & 0xff) << 40
-                            | (long) (bytes[position + 3] & 0xff) << 32
-                            | (long) (bytes[position + 4] & 0xff) << 24
-                            | (long) (bytes[position + 5] & 0xff) << 16
-                            | (long) (bytes[position + 6] & 0xff) << 8
-                            | bytes[position + 7] & 0xffL;
-            position += Long.BYTES;
-            return result;
-        }
-
-        private SerializedMessage readEnvelope() throws IOException {
-            int size = readInt();
-            if (size < SerializedMessage.HEADER_SIZE || size > MAX_VALUE_BYTES) {
-                throw new IOException("Invalid model commit envelope size " + size);
-            }
-            require(size);
-            SerializedMessage result = SerializedMessage.decodeView(bytes, position, size);
-            position += size;
-            return result;
-        }
-
-        private String readString() throws IOException {
-            int size = readInt();
-            if (size == -1) {
-                return null;
-            }
-            if (size < 0 || size > MAX_VALUE_BYTES) {
-                throw new IOException("Invalid compact model commit string size " + size);
-            }
-            require(size);
-            String result = new String(bytes, position, size, StandardCharsets.UTF_8);
-            position += size;
-            return result;
-        }
-
-        private int available() {
-            return bytes.length - position;
-        }
-
-        private void require(int size) throws EOFException {
-            if (size < 0 || position > bytes.length - size) {
-                throw new EOFException();
-            }
         }
     }
 

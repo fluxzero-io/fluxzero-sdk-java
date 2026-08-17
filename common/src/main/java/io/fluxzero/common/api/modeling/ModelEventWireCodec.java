@@ -16,17 +16,17 @@
 
 package io.fluxzero.common.api.modeling;
 
-import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.JsonType;
-import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
+import io.fluxzero.common.api.internal.BinaryWire.Reader;
+import io.fluxzero.common.api.internal.BinaryWire.Writer;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,8 +43,7 @@ public final class ModelEventWireCodec {
     private static final int RESULT_MAGIC = 0x465A4552; // FZER
     private static final int DIRECT_REQUEST_MAGIC = 0x465A4571; // FZEq
     private static final int DIRECT_RESULT_MAGIC = 0x465A4572; // FZEr
-    private static final int VERSION = 4;
-    private static final int MINIMUM_SUPPORTED_VERSION = 2;
+    private static final int VERSION = 5;
     private static final int MAX_BATCH_SIZE = 1_000_000;
     private static final int MAX_COLLECTION_SIZE = 2_000_000;
     private static final int MAX_VALUE_BYTES = 512 * 1024 * 1024;
@@ -84,18 +83,17 @@ public final class ModelEventWireCodec {
         if (bytes.length < Integer.BYTES + 1) {
             return null;
         }
-        int magic = readInt(bytes, 0);
+        int magic = BinaryWire.peekInt(bytes, 0);
         if (magic != REQUEST_MAGIC && magic != RESULT_MAGIC
             && magic != DIRECT_REQUEST_MAGIC
             && magic != DIRECT_RESULT_MAGIC) {
             return null;
         }
         try {
-            Reader input = new Reader(bytes);
+            Reader input = new Reader(bytes, MAX_VALUE_BYTES);
             input.readInt();
             int version = input.readUnsignedByte();
-            if (version < MINIMUM_SUPPORTED_VERSION
-                || version > VERSION) {
+            if (version != VERSION) {
                 throw new IOException("Unsupported compact model-event wire version " + version);
             }
             JsonType result;
@@ -105,7 +103,7 @@ public final class ModelEventWireCodec {
                         ? decoded.getRequests().getFirst()
                         : decoded;
             } else {
-                ResultBatch decoded = decodeResults(input, version);
+                ResultBatch decoded = decodeResults(input);
                 result = magic == DIRECT_RESULT_MAGIC
                         ? (JsonType) decoded.getResults().getFirst()
                         : decoded;
@@ -153,7 +151,7 @@ public final class ModelEventWireCodec {
 
     private static byte[] encodeRequests(
             RequestBatch<?> batch, int magic) {
-        Writer output = new Writer(Math.max(256, batch.getRequests().size() * 128));
+        Writer output = new Writer(Math.max(256, batch.getRequests().size() * 128), MAX_VALUE_BYTES);
         output.writeInt(magic);
         output.writeByte(VERSION);
         output.writeInt(batch.getRequests().size());
@@ -207,7 +205,7 @@ public final class ModelEventWireCodec {
 
     private static byte[] encodeResults(
             ResultBatch batch, int magic) {
-        Writer output = new Writer(encodedResultSize(batch));
+        Writer output = new Writer(encodedResultSize(batch), MAX_VALUE_BYTES);
         output.writeInt(magic);
         output.writeByte(VERSION);
         output.writeInt(batch.getResults().size());
@@ -218,7 +216,7 @@ public final class ModelEventWireCodec {
             output.writeInt(result.getPayloads().size());
             for (ModelEventPayload payload : result.getPayloads()) {
                 output.writeLong(payload.getStateIndex());
-                output.writeMessage(payload.getEvent());
+                output.writeEnvelope(payload.getEvent());
             }
             output.writeInt(result.getStreams().size());
             String sharedModelType =
@@ -290,11 +288,10 @@ public final class ModelEventWireCodec {
             output.writeLong(result.getResponseQueuedTimestamp());
             output.writeLong(result.getResponseSendStartTimestamp());
         }
-        return output.toByteArray();
+        return output.toExactByteArray();
     }
 
-    private static ResultBatch decodeResults(
-            Reader input, int version) throws IOException {
+    private static ResultBatch decodeResults(Reader input) throws IOException {
         int size = input.readSize(MAX_BATCH_SIZE, "batch");
         List<RequestResult> results = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -305,19 +302,12 @@ public final class ModelEventWireCodec {
             for (int payload = 0; payload < payloadCount; payload++) {
                 payloads.add(
                         new ModelEventPayload(
-                                input.readLong(), input.readMessage()));
+                                input.readLong(), input.readEnvelope()));
             }
             int streamCount = input.readSize(MAX_COLLECTION_SIZE, "stream collection");
-            String sharedModelType =
-                    version >= 3 && input.readBoolean()
-                            ? input.readString()
-                            : null;
-            String modelIdPrefix =
-                    version >= 4 ? input.readString() : "";
-            Long sharedSequenceNumber =
-                    version >= 4 && input.readBoolean()
-                            ? input.readLong()
-                            : null;
+            String sharedModelType = input.readBoolean() ? input.readString() : null;
+            String modelIdPrefix = input.readString();
+            Long sharedSequenceNumber = input.readBoolean() ? input.readLong() : null;
             List<ModelEventStream> streams = new ArrayList<>(streamCount);
             for (int streamIndex = 0; streamIndex < streamCount; streamIndex++) {
                 String modelId =
@@ -357,10 +347,10 @@ public final class ModelEventWireCodec {
                             payloads,
                             streams,
                             input.readBytes(),
-                            input.readLongs(),
-                            input.readPayloadBlocks(),
-                            input.readLongs(),
-                            input.readByteBlocks());
+                            input.readLongs(MAX_COLLECTION_SIZE),
+                            readPayloadBlocks(input),
+                            input.readLongs(MAX_COLLECTION_SIZE),
+                            readByteBlocks(input));
             result.setRequestReceivedTimestamp(input.readLong());
             result.setResponseQueuedTimestamp(input.readLong());
             result.setResponseSendStartTimestamp(input.readLong());
@@ -369,11 +359,45 @@ public final class ModelEventWireCodec {
         return new ResultBatch(results);
     }
 
-    private static int readInt(byte[] bytes, int offset) {
-        return (bytes[offset] & 0xff) << 24
-               | (bytes[offset + 1] & 0xff) << 16
-               | (bytes[offset + 2] & 0xff) << 8
-               | bytes[offset + 3] & 0xff;
+    private static List<ModelEventPayloadBlock> readPayloadBlocks(Reader input) throws IOException {
+        int size = input.readInt();
+        if (size == -1) {
+            return null;
+        }
+        if (size < 0 || size > MAX_COLLECTION_SIZE) {
+            throw new IOException("Invalid compact model-event payload block count " + size);
+        }
+        List<ModelEventPayloadBlock> result = new ArrayList<>(size);
+        for (int index = 0; index < size; index++) {
+            try {
+                result.add(new ModelEventPayloadBlock(
+                        input.readLong(), input.readInt(), input.readBoolean(), input.readBytes()));
+            } catch (IllegalArgumentException e) {
+                throw new IOException("Invalid compact model-event payload block", e);
+            }
+        }
+        return result;
+    }
+
+    private static List<ModelEventDataBlock> readByteBlocks(Reader input) throws IOException {
+        int size = input.readInt();
+        if (size == -1) {
+            return null;
+        }
+        if (size < 0 || size > MAX_COLLECTION_SIZE) {
+            throw new IOException("Invalid compact model-event membership block count " + size);
+        }
+        List<ModelEventDataBlock> result = new ArrayList<>(size);
+        for (int index = 0; index < size; index++) {
+            int length = input.readInt();
+            if (length <= 0 || length > MAX_VALUE_BYTES) {
+                throw new IOException("Compact model-event membership block must not be empty");
+            }
+            input.require(length);
+            result.add(new ModelEventDataBlock(input.bytes(), input.position(), length));
+            input.skip(length);
+        }
+        return result;
     }
 
     private static int encodedResultSize(ResultBatch batch) {
@@ -504,26 +528,11 @@ public final class ModelEventWireCodec {
     }
 
     private static int encodedMessageSize(SerializedMessage message) {
-        Data<byte[]> data = message.getData();
-        long size = encodedBytesSize(data.getValue())
-                + encodedStringSize(data.getType())
-                + Integer.BYTES
-                + encodedStringSize(data.getFormat());
-        size += (message.getMetadata() == null ? Metadata.empty() : message.getMetadata())
-                .toData().getValue().length;
-        size += encodedNullableIntSize(message.getSegment())
-                + encodedNullableLongSize(message.getIndex())
-                + encodedStringSize(message.getSource())
-                + encodedStringSize(message.getTarget())
-                + encodedNullableIntSize(message.getRequestId())
-                + encodedNullableLongSize(message.getTimestamp())
-                + encodedStringSize(message.getMessageId());
-        return Math.toIntExact(size);
+        return Math.addExact(Integer.BYTES, SerializedMessage.encode(message).envelopeSize());
     }
 
     private static int encodedStringSize(String value) {
-        return encodedBytesSize(
-                value == null ? null : value.getBytes(StandardCharsets.UTF_8));
+        return Integer.BYTES + (value == null ? 0 : BinaryWire.utf8Length(value));
     }
 
     private static int encodedBytesSize(byte[] value) {
@@ -536,335 +545,4 @@ public final class ModelEventWireCodec {
                 + (values == null ? 0L : (long) values.length * Long.BYTES));
     }
 
-    private static int encodedNullableIntSize(Integer value) {
-        return 1 + (value == null ? 0 : Integer.BYTES);
-    }
-
-    private static int encodedNullableLongSize(Long value) {
-        return 1 + (value == null ? 0 : Long.BYTES);
-    }
-
-    private static final class Writer {
-        private byte[] bytes;
-        private int position;
-
-        private Writer(int initialSize) {
-            bytes = new byte[initialSize];
-        }
-
-        private void writeByte(int value) {
-            ensure(1);
-            bytes[position++] = (byte) value;
-        }
-
-        private void writeBoolean(boolean value) {
-            writeByte(value ? 1 : 0);
-        }
-
-        private void writeInt(int value) {
-            ensure(Integer.BYTES);
-            bytes[position++] = (byte) (value >>> 24);
-            bytes[position++] = (byte) (value >>> 16);
-            bytes[position++] = (byte) (value >>> 8);
-            bytes[position++] = (byte) value;
-        }
-
-        private void writeLong(long value) {
-            ensure(Long.BYTES);
-            bytes[position++] = (byte) (value >>> 56);
-            bytes[position++] = (byte) (value >>> 48);
-            bytes[position++] = (byte) (value >>> 40);
-            bytes[position++] = (byte) (value >>> 32);
-            bytes[position++] = (byte) (value >>> 24);
-            bytes[position++] = (byte) (value >>> 16);
-            bytes[position++] = (byte) (value >>> 8);
-            bytes[position++] = (byte) value;
-        }
-
-        private void writeNullableInt(Integer value) {
-            writeBoolean(value != null);
-            if (value != null) {
-                writeInt(value);
-            }
-        }
-
-        private void writeNullableLong(Long value) {
-            writeBoolean(value != null);
-            if (value != null) {
-                writeLong(value);
-            }
-        }
-
-        private void writeString(String value) {
-            writeBytes(value == null ? null : value.getBytes(StandardCharsets.UTF_8));
-        }
-
-        private void writeBytes(byte[] value) {
-            if (value == null) {
-                writeInt(-1);
-                return;
-            }
-            writeInt(value.length);
-            ensure(value.length);
-            System.arraycopy(value, 0, bytes, position, value.length);
-            position += value.length;
-        }
-
-        private void writeRaw(byte[] value) {
-            ensure(value.length);
-            System.arraycopy(value, 0, bytes, position, value.length);
-            position += value.length;
-        }
-
-        private void writeBytes(
-                byte[] value, int offset, int length) {
-            writeInt(length);
-            ensure(length);
-            System.arraycopy(
-                    value, offset, bytes, position, length);
-            position += length;
-        }
-
-        private void writeLongs(long[] values) {
-            if (values == null) {
-                writeInt(-1);
-                return;
-            }
-            writeInt(values.length);
-            ensure(Math.multiplyExact(values.length, Long.BYTES));
-            for (long value : values) {
-                writeLong(value);
-            }
-        }
-
-        private void writeMessage(SerializedMessage message) {
-            Data<byte[]> data = message.getData();
-            writeBytes(data.getValue());
-            writeString(data.getType());
-            writeInt(data.getRevision());
-            writeString(data.getFormat());
-            writeRaw((message.getMetadata() == null ? Metadata.empty() : message.getMetadata())
-                             .toData().getValue());
-            writeNullableInt(message.getSegment());
-            writeNullableLong(message.getIndex());
-            writeString(message.getSource());
-            writeString(message.getTarget());
-            writeNullableInt(message.getRequestId());
-            writeNullableLong(message.getTimestamp());
-            writeString(message.getMessageId());
-        }
-
-        private void ensure(int additional) {
-            int required = Math.addExact(position, additional);
-            if (required > bytes.length) {
-                int next = Math.max(required, Math.multiplyExact(bytes.length, 2));
-                bytes = java.util.Arrays.copyOf(bytes, next);
-            }
-        }
-
-        private byte[] toByteArray() {
-            return position == bytes.length
-                    ? bytes : java.util.Arrays.copyOf(bytes, position);
-        }
-    }
-
-    private static final class Reader {
-        private final byte[] bytes;
-        private int position;
-
-        private Reader(byte[] bytes) {
-            this.bytes = bytes;
-        }
-
-        private int available() {
-            return bytes.length - position;
-        }
-
-        private int readUnsignedByte() throws EOFException {
-            require(1);
-            return bytes[position++] & 0xff;
-        }
-
-        private boolean readBoolean() throws IOException {
-            int value = readUnsignedByte();
-            if (value > 1) {
-                throw new IOException("Invalid compact model-event boolean " + value);
-            }
-            return value == 1;
-        }
-
-        private int readInt() throws EOFException {
-            require(Integer.BYTES);
-            int result = ModelEventWireCodec.readInt(bytes, position);
-            position += Integer.BYTES;
-            return result;
-        }
-
-        private long readLong() throws EOFException {
-            require(Long.BYTES);
-            long result =
-                    (long) (bytes[position] & 0xff) << 56
-                    | (long) (bytes[position + 1] & 0xff) << 48
-                    | (long) (bytes[position + 2] & 0xff) << 40
-                    | (long) (bytes[position + 3] & 0xff) << 32
-                    | (long) (bytes[position + 4] & 0xff) << 24
-                    | (long) (bytes[position + 5] & 0xff) << 16
-                    | (long) (bytes[position + 6] & 0xff) << 8
-                    | bytes[position + 7] & 0xffL;
-            position += Long.BYTES;
-            return result;
-        }
-
-        private Integer readNullableInt() throws IOException {
-            return readBoolean() ? readInt() : null;
-        }
-
-        private Long readNullableLong() throws IOException {
-            return readBoolean() ? readLong() : null;
-        }
-
-        private String readString() throws IOException {
-            byte[] value = readBytes();
-            return value == null ? null : new String(value, StandardCharsets.UTF_8);
-        }
-
-        private byte[] readBytes() throws IOException {
-            int size = readInt();
-            if (size == -1) {
-                return null;
-            }
-            if (size < 0 || size > MAX_VALUE_BYTES) {
-                throw new IOException("Invalid compact model-event byte value size " + size);
-            }
-            require(size);
-            byte[] result = java.util.Arrays.copyOfRange(bytes, position, position + size);
-            position += size;
-            return result;
-        }
-
-        private long[] readLongs() throws IOException {
-            int size = readInt();
-            if (size == -1) {
-                return null;
-            }
-            if (size < 0 || size > MAX_COLLECTION_SIZE) {
-                throw new IOException("Invalid compact model-event long collection size " + size);
-            }
-            require(Math.multiplyExact(size, Long.BYTES));
-            long[] result = new long[size];
-            for (int i = 0; i < size; i++) {
-                result[i] = readLong();
-            }
-            return result;
-        }
-
-        private List<ModelEventPayloadBlock> readPayloadBlocks() throws IOException {
-            int size = readInt();
-            if (size == -1) {
-                return null;
-            }
-            if (size < 0 || size > MAX_COLLECTION_SIZE) {
-                throw new IOException(
-                        "Invalid compact model-event payload block count " + size);
-            }
-            List<ModelEventPayloadBlock> result = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                long firstIndex = readLong();
-                int messageCount = readInt();
-                boolean compressed = readBoolean();
-                byte[] data = readBytes();
-                try {
-                    result.add(
-                            new ModelEventPayloadBlock(
-                                    firstIndex, messageCount, compressed, data));
-                } catch (IllegalArgumentException e) {
-                    throw new IOException("Invalid compact model-event payload block", e);
-                }
-            }
-            return result;
-        }
-
-        private List<ModelEventDataBlock> readByteBlocks() throws IOException {
-            int size = readInt();
-            if (size == -1) {
-                return null;
-            }
-            if (size < 0 || size > MAX_COLLECTION_SIZE) {
-                throw new IOException(
-                        "Invalid compact model-event membership block count " + size);
-            }
-            List<ModelEventDataBlock> result = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                int length = readInt();
-                if (length <= 0 || length > MAX_VALUE_BYTES) {
-                    throw new IOException(
-                            "Compact model-event membership block must not be empty");
-                }
-                require(length);
-                result.add(
-                        new ModelEventDataBlock(
-                                bytes,
-                                position,
-                                length));
-                position += length;
-            }
-            return result;
-        }
-
-        private int readSize(int maximum, String description) throws IOException {
-            int size = readInt();
-            if (size < 0 || size > maximum) {
-                throw new IOException(
-                        "Invalid compact model-event " + description + " size " + size);
-            }
-            return size;
-        }
-
-        private SerializedMessage readMessage() throws IOException {
-            Data<byte[]> data =
-                    new Data<>(
-                            readBytes(),
-                            readString(),
-                            readInt(),
-                            readString());
-            Metadata metadata = readMetadata();
-            return new SerializedMessage(
-                    data,
-                    metadata,
-                    readNullableInt(),
-                    readNullableLong(),
-                    readString(),
-                    readString(),
-                    readNullableInt(),
-                    readNullableLong(),
-                    readString(),
-                    null);
-        }
-
-        private Metadata readMetadata() throws IOException {
-            int start = position;
-            int size = readSize(MAX_COLLECTION_SIZE, "metadata");
-            for (int i = 0; i < size; i++) {
-                skipMetadataString();
-                skipMetadataString();
-            }
-            return Metadata.fromData(new Data<>(java.util.Arrays.copyOfRange(bytes, start, position),
-                                                Metadata.DATA_TYPE, 0, Metadata.DATA_FORMAT));
-        }
-
-        private void skipMetadataString() throws IOException {
-            int size = readInt();
-            if (size < 0 || size > MAX_VALUE_BYTES) {
-                throw new IOException("Invalid compact model-event metadata string size " + size);
-            }
-            require(size);
-            position += size;
-        }
-
-        private void require(int count) throws EOFException {
-            if (count < 0 || count > available()) {
-                throw new EOFException();
-            }
-        }
-    }
 }

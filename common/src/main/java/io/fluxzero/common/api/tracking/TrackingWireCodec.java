@@ -23,11 +23,13 @@ import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
+import io.fluxzero.common.api.internal.BinaryWire.Reader;
+import io.fluxzero.common.api.internal.BinaryWire.Writer;
 import io.fluxzero.common.api.publishing.Append;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -106,11 +108,11 @@ public final class TrackingWireCodec {
      * Decodes this codec's representation, or returns {@code null} for another transport representation.
      */
     public static JsonType tryDecode(byte[] bytes) throws IOException {
-        if (bytes.length < Integer.BYTES + 2 || readInt(bytes, 0) != MAGIC) {
+        if (bytes.length < Integer.BYTES + 2 || BinaryWire.peekInt(bytes, 0) != MAGIC) {
             return null;
         }
         try {
-            Reader input = new Reader(bytes);
+            Reader input = new Reader(bytes, MAX_VALUE_BYTES);
             input.readInt();
             int version = input.readUnsignedByte();
             if (version != VERSION) {
@@ -147,7 +149,7 @@ public final class TrackingWireCodec {
             output.writeByte(append.getGuarantee().ordinal());
             output.writeInt(append.getMessages().size());
             for (SerializedMessage message : append.getMessages()) {
-                writeEnvelope(output, message);
+                output.writeEnvelope(message);
             }
         }
         return output.toByteArray();
@@ -283,7 +285,7 @@ public final class TrackingWireCodec {
             output.writeInt(segment[1]);
             output.writeInt(batch.getMessages().size());
             for (SerializedMessage message : batch.getMessages()) {
-                writeEnvelope(output, message);
+                output.writeEnvelope(message);
             }
             output.writeNullableLong(batch.getLastIndex());
             writePosition(output, batch.getPosition());
@@ -321,14 +323,6 @@ public final class TrackingWireCodec {
         return direct ? (JsonType) results.getFirst() : new ResultBatch(results);
     }
 
-    private static void writeEnvelope(Writer output, SerializedMessage message) {
-        SerializedMessage envelope = SerializedMessage.encode(message);
-        output.writeInt(envelope.envelopeSize());
-        output.ensure(envelope.envelopeSize());
-        envelope.copyEnvelopeTo(output.bytes, output.position);
-        output.position += envelope.envelopeSize();
-    }
-
     private static void writePosition(Writer output, Position position) {
         if (position == null) {
             output.writeInt(-1);
@@ -362,7 +356,7 @@ public final class TrackingWireCodec {
         long exactSize = valueSize < 0 ? -1 : Integer.BYTES + 2L + valueSize;
         int initialSize = exactSize < 0 || exactSize > MAX_VALUE_BYTES
                 ? 256 : (int) Math.max(256L, exactSize);
-        Writer output = new Writer(initialSize);
+        Writer output = new Writer(initialSize, MAX_VALUE_BYTES);
         output.writeInt(MAGIC);
         output.writeByte(VERSION);
         output.writeByte(kind);
@@ -445,188 +439,4 @@ public final class TrackingWireCodec {
         return values[ordinal];
     }
 
-    private static int readInt(byte[] bytes, int offset) {
-        return ((bytes[offset] & 0xff) << 24)
-               | ((bytes[offset + 1] & 0xff) << 16)
-               | ((bytes[offset + 2] & 0xff) << 8)
-               | (bytes[offset + 3] & 0xff);
-    }
-
-    private static final class Writer {
-        private byte[] bytes;
-        private int position;
-
-        private Writer(int initialSize) {
-            bytes = new byte[initialSize];
-        }
-
-        private void writeByte(int value) {
-            ensure(1);
-            bytes[position++] = (byte) value;
-        }
-
-        private void writeBoolean(boolean value) {
-            writeByte(value ? 1 : 0);
-        }
-
-        private void writeInt(int value) {
-            ensure(Integer.BYTES);
-            bytes[position++] = (byte) (value >>> 24);
-            bytes[position++] = (byte) (value >>> 16);
-            bytes[position++] = (byte) (value >>> 8);
-            bytes[position++] = (byte) value;
-        }
-
-        private void writeLong(long value) {
-            ensure(Long.BYTES);
-            for (int shift = 56; shift >= 0; shift -= 8) {
-                bytes[position++] = (byte) (value >>> shift);
-            }
-        }
-
-        private void writeNullableInt(Integer value) {
-            writeBoolean(value != null);
-            if (value != null) {
-                writeInt(value);
-            }
-        }
-
-        private void writeNullableLong(Long value) {
-            writeBoolean(value != null);
-            if (value != null) {
-                writeLong(value);
-            }
-        }
-
-        private void writeString(String value) {
-            if (value == null) {
-                writeInt(-1);
-                return;
-            }
-            int length = value.length();
-            for (int index = 0; index < length; index++) {
-                if (value.charAt(index) > 0x7f) {
-                    writeBytes(value.getBytes(StandardCharsets.UTF_8));
-                    return;
-                }
-            }
-            writeInt(length);
-            ensure(length);
-            for (int index = 0; index < value.length(); index++) {
-                bytes[position++] = (byte) value.charAt(index);
-            }
-        }
-
-        private void writeBytes(byte[] value) {
-            if (value == null) {
-                writeInt(-1);
-                return;
-            }
-            writeInt(value.length);
-            ensure(value.length);
-            System.arraycopy(value, 0, bytes, position, value.length);
-            position += value.length;
-        }
-
-        private void ensure(int additional) {
-            int required = Math.addExact(position, additional);
-            if (required > bytes.length) {
-                int grown = Math.max(required, Math.min(MAX_VALUE_BYTES, bytes.length + (bytes.length >>> 1) + 1));
-                if (grown < required || grown > MAX_VALUE_BYTES) {
-                    throw new IllegalArgumentException("Tracking wire value exceeds maximum size");
-                }
-                bytes = java.util.Arrays.copyOf(bytes, grown);
-            }
-        }
-
-        private byte[] toByteArray() {
-            return position == bytes.length ? bytes : java.util.Arrays.copyOf(bytes, position);
-        }
-    }
-
-    private static final class Reader {
-        private final byte[] bytes;
-        private int position;
-
-        private Reader(byte[] bytes) {
-            this.bytes = bytes;
-        }
-
-        private int available() {
-            return bytes.length - position;
-        }
-
-        private int readUnsignedByte() throws EOFException {
-            require(1);
-            return bytes[position++] & 0xff;
-        }
-
-        private boolean readBoolean() throws IOException {
-            int value = readUnsignedByte();
-            if (value > 1) {
-                throw new IOException("Invalid tracking wire boolean " + value);
-            }
-            return value == 1;
-        }
-
-        private int readInt() throws EOFException {
-            require(Integer.BYTES);
-            int value = TrackingWireCodec.readInt(bytes, position);
-            position += Integer.BYTES;
-            return value;
-        }
-
-        private long readLong() throws EOFException {
-            require(Long.BYTES);
-            long value = 0L;
-            for (int i = 0; i < Long.BYTES; i++) {
-                value = (value << 8) | (bytes[position++] & 0xffL);
-            }
-            return value;
-        }
-
-        private Integer readNullableInt() throws IOException {
-            return readBoolean() ? readInt() : null;
-        }
-
-        private Long readNullableLong() throws IOException {
-            return readBoolean() ? readLong() : null;
-        }
-
-        private String readString() throws IOException {
-            int length = readInt();
-            if (length < 0) {
-                return null;
-            }
-            if (length > MAX_VALUE_BYTES) {
-                throw new IOException("Tracking wire value exceeds maximum size");
-            }
-            require(length);
-            String value = new String(bytes, position, length, StandardCharsets.UTF_8);
-            position += length;
-            return value;
-        }
-
-        private SerializedMessage readEnvelope() throws IOException {
-            int length = readSize(MAX_VALUE_BYTES, "message envelope");
-            require(length);
-            SerializedMessage result = SerializedMessage.decodeView(bytes, position, length);
-            position += length;
-            return result;
-        }
-
-        private int readSize(int maximum, String label) throws IOException {
-            int size = readInt();
-            if (size < 0 || size > maximum) {
-                throw new IOException("Invalid " + label + " size " + size);
-            }
-            return size;
-        }
-
-        private void require(int length) throws EOFException {
-            if (length < 0 || available() < length) {
-                throw new EOFException();
-            }
-        }
-    }
 }
