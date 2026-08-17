@@ -18,6 +18,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 8
+  }, {
     "name" : "DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES",
     "type" : "int",
@@ -40,7 +48,7 @@
     "modifiers" : [ "final", "static" ],
     "annotations" : [ ],
     "documentation" : null,
-    "constantValue" : 16777216
+    "constantValue" : 67108864
   }, {
     "name" : "DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES",
@@ -48,7 +56,31 @@
     "modifiers" : [ "final", "static" ],
     "annotations" : [ ],
     "documentation" : null,
-    "constantValue" : 19
+    "constantValue" : 128
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxConcurrency"
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxCompletionConcurrency"
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.websocket.runtime.maxConcurrency"
   }, {
     "name" : "MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
@@ -66,6 +98,30 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES"
   }, {
+    "name" : "MAX_RETAINED_RUNTIME_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxRetainedBytes"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxRetainedMessages"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.websocket.runtime.maxRetainedBytes"
+  }, {
     "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY",
     "type" : "java.lang.String",
@@ -74,6 +130,14 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES"
   }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.websocket.runtime.maxRetainedMessages"
+  }, {
     "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
     "type" : "java.lang.String",
@@ -81,6 +145,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES"
+  }, {
+    "name" : "RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.stallCloseTimeout"
   }, {
     "name" : "applicationId",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.applicationId",
@@ -159,6 +231,17 @@
     "documentation" : " Number of WebSocket sessions allocated for the key-value store subsystem. Defaults to {@code 2}.\n",
     "constantValue" : null
   }, {
+    "name" : "maxConcurrentRuntimeResultCompletions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxConcurrentRuntimeResultCompletions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of runtime request results whose SDK completion logic and synchronous customer future\n continuations may run concurrently per client. Large result batches are submitted incrementally and share\n this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer\n and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to\n {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.\n",
+    "constantValue" : null
+  }, {
     "name" : "maxConcurrentRuntimeWebSocketMessages",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxConcurrentRuntimeWebSocketMessages",
     "type" : "int",
@@ -167,7 +250,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Maximum number of complete SDK runtime messages decoded or handled concurrently per WebSocket session.\n Defaults to {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY}, or {@code 3} when unset. Use {@code 1} for\n serial application callbacks while retaining protocol-liveness isolation.\n",
+    "documentation" : " Maximum number of complete SDK runtime messages decoded or waiting for bounded result-dispatcher admission\n concurrently per WebSocket session.\n Defaults to {@code fluxzero.runtime.ingress.maxConcurrency}, its legacy WebSocket aliases, or {@code 3}\n when unset. This limit does not serialize result completions; configure\n {@link #maxConcurrentRuntimeResultCompletions} separately for that.\n",
     "constantValue" : null
   }, {
     "name" : "maxInFlightWebSocketBytes",
@@ -189,7 +272,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Maximum compressed wire bytes retained by the SDK runtime-data dispatcher per WebSocket session. A single\n larger message may proceed while it is the only retained message. Defaults to\n {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES}, or 16 MiB when unset.\n",
+    "documentation" : " Maximum compressed wire bytes retained by the SDK runtime-data dispatcher per WebSocket session. A single\n larger message may proceed while it is the only retained message. Defaults to\n {@code fluxzero.runtime.ingress.maxRetainedBytes}, its legacy WebSocket aliases, or 64 MiB when unset.\n",
     "constantValue" : null
   }, {
     "name" : "maxRetainedRuntimeWebSocketMessages",
@@ -200,7 +283,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, executor\n submission, pending work and active processing. The pending capacity is this value minus\n {@link #maxConcurrentRuntimeWebSocketMessages}. Defaults to\n {@code FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES}, or {@code 19} when unset.\n",
+    "documentation" : " Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, compressed\n pending work, decode/admission and admitted functional processing. Defaults to\n {@code fluxzero.runtime.ingress.maxRetainedMessages}, its legacy WebSocket aliases, or {@code 128} when\n unset.\n",
     "constantValue" : null
   }, {
     "name" : "maxWebSocketFragmentBytes",
@@ -273,6 +356,17 @@
       "values" : {}
     } ],
     "documentation" : " The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property\n {@code FLUXZERO_BASE_URL}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "runtimeIngressStallCloseTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.runtimeIngressStallCloseTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Optional duration without functional runtime-ingress completion after which a locally stalled session is\n closed. {@link Duration#ZERO} (the default) disables stall-triggered close; local backpressure itself never\n closes a healthy session. The property value uses ISO-8601 duration syntax, for example {@code PT30S}.\n",
     "constantValue" : null
   }, {
     "name" : "searchSessions",
@@ -370,6 +464,69 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "firstDurationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstDurationProperty",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "defaultValue",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "firstIntegerProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstIntegerProperty",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "defaultValue",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "firstLongProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstLongProperty",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "defaultValue",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
     "documentation" : null
   }, {
     "name" : "getPreferredCompressionAlgorithm",

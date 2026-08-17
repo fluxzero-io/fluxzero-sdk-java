@@ -13,6 +13,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.Registration" ],
   "fields" : [ {
+    "name" : "awaitingPong",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration.awaitingPong",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "delegate",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PingRegistration.delegate",
     "type" : "io.fluxzero.common.Registration",
@@ -61,6 +69,11 @@
     }, {
       "name" : "delegate",
       "type" : "io.fluxzero.common.Registration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "awaitingPong",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

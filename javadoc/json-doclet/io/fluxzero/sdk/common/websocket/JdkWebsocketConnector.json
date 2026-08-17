@@ -315,7 +315,7 @@
     "name" : "defaultWorkerMode",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector#defaultWorkerMode",
     "returnType" : "java.lang.String",
-    "modifiers" : [ "private", "static" ],
+    "modifiers" : [ "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ ],
