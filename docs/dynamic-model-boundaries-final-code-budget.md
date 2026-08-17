@@ -14,7 +14,8 @@ Date: 2026-08-17
 | CP3 unified lazy message state (`e669a148e36` / `0661533f`) | **167,411** | **42,037** | **1,361** | accepted; no-model +3.98%, full model +0.48% |
 | CP4 shared graph views (`79ae96a3961` / `0661533f`) | **167,195** | **42,037** | **1,577** | accepted; full model +10.27% |
 | CP5 final stream previews (`19ae14899ed` / `9f74e3d0`) | **166,033** | **41,696** | **3,080** | accepted; full model -0.51%, sustained reconstruction +14.65% |
-| Required final ceiling | **136,000** | **32,000** | **39,729 still to remove** | pending |
+| CP6 stable batch metrics (`32ccf7b0c575` / `ecdd6d5a9fff`) | **165,457** | **41,471** | **3,881** | accepted; full model -0.26% amid bidirectional host drift |
+| Required final ceiling | **136,000** | **32,000** | **38,928 still to remove** | pending |
 
 ## Objective
 
@@ -174,6 +175,30 @@ full-reactor Proxy attempt hit the existing five-second external-socket timeout 
 isolated Proxy suite passed 83/83. CP5 removes 1,162 SDK and 341 Runtime production Java lines. The four pre-measurement
 or pathological diagnostics with a missing cache pin or deliberately cache-thrashing L1 shape are excluded from the
 registry; every completed comparison is retained there.
+
+## Accepted checkpoint CP6 — stable batch metrics only
+
+The performance campaign had placed a deterministically sampled `RequestStage` JFR event and request-correlation
+state throughout generic websocket, tracking, request/result, model-commit and JDBC paths. Those stages were valuable
+while decomposing the route, but were branch-internal diagnostics rather than product behavior. They also forced
+generic foundations to know command, result and model protocols. CP6 removes that campaign layer while retaining the
+stable `FluxzeroJfr.Batch` boundary event, including batch size, bytes, queue depth and phase/resource timings.
+
+The long full-model route was run in control-candidate-candidate-control-candidate-control order because Spotlight
+capacity changed during the series. Every run completed exactly 4,194,304 results, stored model events and global
+events and verified all 8,192 final model states. The first ABBA favored control by 3.13%; the following reverse pair
+favored the candidate by 5.72%. Across all three order-balanced comparisons the mean ratio was -0.18%; geometric means
+were 173,257/s for control and 172,799/s for the candidate (**-0.26%**). This is neutral inside the directly observed
+host movement, not a hidden throughput claim.
+
+| Qualifying route | CP5 control | CP6 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| command -> `@Apply` -> model commit -> event + result, three long matched comparisons | 173,257/s | 172,799/s | -0.26% | exact 4,194,304 results, model events and global events per run; 8,192 exact states |
+
+Both complete Maven reactors passed, including SDK downstream projects and 733 Runtime tests. CP6 removes 576 SDK and
+225 Runtime production Java lines and deletes the protocol-specific hooks from `AbstractWebsocketClient` and the
+Runtime websocket foundation. Archived campaign recordings remain readable by the benchmark-side summary tool; new
+recordings expose the supported Batch boundaries only.
 
 ## What caused the growth
 
