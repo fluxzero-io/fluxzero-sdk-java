@@ -17,12 +17,15 @@
 package io.fluxzero.sdk.common.websocket;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * Internal adapter that marks SDK runtime endpoints and exposes runtime-dispatch timing while delegating the public
  * low-level endpoint contract.
  */
 final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
+    private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
     private final WebsocketEndpoint delegate;
     private final ThreadLocal<RuntimeDispatchTiming> runtimeDispatchTiming = new ThreadLocal<>();
 
@@ -30,12 +33,16 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
         this.delegate = delegate;
     }
 
-    void onRuntimeMessage(byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming,
-                          RuntimeDispatchTiming dispatchTiming) {
+    RuntimeIngressController.MessageDispatch onRuntimeMessage(
+            byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming,
+            RuntimeDispatchTiming dispatchTiming) {
+        if (dispatchTiming == null) {
+            return dispatchRuntimeMessage(bytes, session, receiveTiming);
+        }
         RuntimeDispatchTiming previousTiming = runtimeDispatchTiming.get();
         runtimeDispatchTiming.set(dispatchTiming);
         try {
-            delegate.onMessage(bytes, session, receiveTiming);
+            return dispatchRuntimeMessage(bytes, session, receiveTiming);
         } finally {
             if (previousTiming == null) {
                 runtimeDispatchTiming.remove();
@@ -45,8 +52,32 @@ final class SdkRuntimeWebsocketEndpoint implements WebsocketEndpoint {
         }
     }
 
+    private RuntimeIngressController.MessageDispatch dispatchRuntimeMessage(
+            byte[] bytes, WebsocketSession session, ReceiveTiming receiveTiming) {
+        if (delegate instanceof AbstractWebsocketClient client) {
+            return client.dispatchStagedRuntimeMessage(bytes, session, receiveTiming);
+        }
+        delegate.onMessage(bytes, session, receiveTiming);
+        return RuntimeIngressController.MessageDispatch.admitted(COMPLETED);
+    }
+
     RuntimeDispatchTiming currentDispatchTiming() {
         return runtimeDispatchTiming.get();
+    }
+
+    void onRuntimeIngressBackpressure(WebsocketSession session, boolean backpressured,
+                                      RuntimeIngressController.State state) {
+        if (delegate instanceof AbstractWebsocketClient client) {
+            client.onRuntimeIngressBackpressure(session, backpressured, state);
+        }
+    }
+
+    void onRuntimeIngressProgress(
+            WebsocketSession session, RuntimeIngressController.Progress progress, int retainedMessages,
+            long sequence) {
+        if (delegate instanceof AbstractWebsocketClient client) {
+            client.onRuntimeIngressProgress(session, progress, retainedMessages, sequence);
+        }
     }
 
     @Override

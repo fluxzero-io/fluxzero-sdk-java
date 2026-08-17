@@ -27,22 +27,36 @@ record WebsocketTransportMetric(
         String runtimeVersion,
         int javaFeatureVersion,
         String workerMode,
+        String completionWorkerMode,
         int retainedMessages,
         long retainedBytes,
         int inFlightMessages,
         long inFlightBytes,
         int activeMessages,
         long activeBytes,
+        int admittedMessages,
+        long admittedBytes,
         int pendingMessages,
         long pendingBytes,
         int maxConcurrency,
         int maxRetainedMessages,
         long maxRetainedBytes,
+        long deferredFrameBytes,
+        boolean ingressBackpressured,
+        int completionWorkGroups,
+        int pendingCompletionAdmissions,
+        int activeResultCompletions,
+        int pendingResultCompletions,
+        int maxCompletionConcurrency,
+        long stallCloseTimeoutMillis,
         long lastInboundAgeMillis
 ) implements JsonType {
 
     enum Event {
         PING_TIMEOUT,
+        RUNTIME_INGRESS_BACKPRESSURED,
+        RUNTIME_INGRESS_STALLED,
+        RUNTIME_INGRESS_RECOVERED,
         RUNTIME_INGRESS_OVERFLOW,
         RUNTIME_EXECUTOR_REJECTED
     }
