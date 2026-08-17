@@ -12,7 +12,8 @@ Date: 2026-08-17
 | CP1 canonical binary (`7c62c608352` / `0661533f`) | **168,082** | **42,037** | **690** | accepted; no-model neutral, full model +0.27% |
 | CP2 shared binary primitives (`ddc1b73d718` / `0661533f`) | **167,723** | **42,037** | **1,049** | accepted; no-model +11.42%, full model +2.21% |
 | CP3 unified lazy message state (`e669a148e36` / `0661533f`) | **167,411** | **42,037** | **1,361** | accepted; no-model +3.98%, full model +0.48% |
-| Required final ceiling | **136,000** | **32,000** | **41,448 still to remove** | pending |
+| CP4 shared graph views (`79ae96a3961` / `0661533f`) | **167,195** | **42,037** | **1,577** | accepted; full model +10.27% |
+| Required final ceiling | **136,000** | **32,000** | **41,232 still to remove** | pending |
 
 ## Objective
 
@@ -118,6 +119,27 @@ no-model controls were 671,858/s and 547,065/s around candidates of 652,779/s an
 candidate phase fell from a 707,860/s warmup to 564,099/s measured throughput while the following control recovered to
 788,554/s; it is recorded as diagnostic-only and excluded from the final implementation comparison. Both complete
 Maven reactors passed after the direct-merge correction.
+
+## Accepted checkpoint CP4 — one forwarding contract for graph views
+
+Four internal `Graph<T>` views independently forwarded nearly the complete public graph contract. CP4 moves that
+unchanged delegation, history traversal and operation-result handling into one private `ForwardingGraph<T>`. Identity,
+mapped, change and selected views retain only their actual differences: lazy identity resolution, mapped context,
+current/previous graph pairing and path selection. The identity-only view deliberately keeps its empty context and
+optimized ancestor/descendant behavior; mapped and selected operation results retain their transformed view.
+
+The first ordinary-length ABBA was excluded from the decision because host capacity changed faster than its measured
+phases: controls were 139,875/s and 168,230/s while candidates were 159,833/s and 130,588/s. A second ABBA increased
+the measured command count to 4,194,304 per run so each sample averaged the same host variation over a longer phase.
+
+| Qualifying route | CP3 control | CP4 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| command -> `@Apply` -> model commit -> event + result, long ABBA geometric mean | 157,285/s | 173,438/s | **+10.27%** | exact 4,194,304 results, model events and global events per run; 8,192 exact states |
+
+The complete SDK reactor passed. Focused graph/repository tests passed, and the standalone Proxy suite passed 83/83;
+an earlier Proxy run overlapped another Maven reactor in the same worktree and hit an existing five-second websocket
+test timeout, so that contaminated run is not treated as product evidence. CP4 removes 216 production Java lines,
+introduces no public API and adds no graph object or allocation.
 
 ## What caused the growth
 
