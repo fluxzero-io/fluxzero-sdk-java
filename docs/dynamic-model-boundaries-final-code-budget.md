@@ -2,7 +2,7 @@
 
 Status: active S60 release blocker
 
-Date: 2026-08-17
+Date: 2026-08-18
 
 ## Living scoreboard
 
@@ -15,7 +15,8 @@ Date: 2026-08-17
 | CP4 shared graph views (`79ae96a3961` / `0661533f`) | **167,195** | **42,037** | **1,577** | accepted; full model +10.27% |
 | CP5 final stream previews (`19ae14899ed` / `9f74e3d0`) | **166,033** | **41,696** | **3,080** | accepted; full model -0.51%, sustained reconstruction +14.65% |
 | CP6 stable batch metrics (`32ccf7b0c575` / `ecdd6d5a9fff`) | **165,457** | **41,471** | **3,881** | accepted; full model -0.26% amid bidirectional host drift |
-| Required final ceiling | **136,000** | **32,000** | **38,928 still to remove** | pending |
+| CP7 unified batch model state (`8180b01df0e4` / `ecdd6d5a9fff`) | **165,141** | **41,471** | **4,197** | accepted; full model +2.08%, fewer scheduler allocations |
+| Required final ceiling | **136,000** | **32,000** | **38,612 still to remove** | pending |
 
 ## Objective
 
@@ -200,6 +201,36 @@ Both complete Maven reactors passed, including SDK downstream projects and 733 R
 Runtime websocket foundation. Archived campaign recordings remain readable by the benchmark-side summary tool; new
 recordings expose the supported Batch boundaries only.
 
+## Accepted checkpoint CP7 — one message-batch model state
+
+Automatic model handlers previously maintained a private speculative `BatchModelView` alongside the general
+`MessageBatchModelView`. The same registry also owned a second commit-wave scheduler consisting of gates, pending
+commit wrappers and separate producer lifecycle state. CP7 uses the message-batch resource as the single owner of
+staged model values and reduces commit release to dependency-aware tickets. Exact repository-ID lookups scan the
+already present batch slots directly; ordinary alias-aware and graph loads retain the generic lazy alias index.
+
+The first collapsed implementation accidentally forced the automatic exact-ID route to materialize that full generic
+index. Its initial long runs ranged from 157,179/s to 170,141/s while nearby controls ranged from 183,776/s to
+187,055/s. Two scheduler hypotheses were then rejected: chunk-parallel release measured 164,694/s, and removing the
+late dynamic dependency pass measured 171,658/s without restoring a stable advantage. Neither intermediate was
+checkpointed. A full sampling profile showed that the collapsed ownership itself already removed substantial future
+and heap pressure, after which the direct exact-slot lookup removed the unnecessary alias-index work.
+
+| Qualifying route | CP6 control | CP7 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| command -> `@Apply` -> model commit -> event + result, two long matched comparisons | 156,731/s | 159,985/s | **+2.08%** | exact 4,194,304 results, model events and global events per run; 8,192 exact states |
+
+The two final comparisons were 158,667 -> 164,792/s and 154,818 -> 155,319/s. A final sampling recording ran during a
+slower host interval and is therefore not used for throughput, but still measured 716 MiB of `CompletableFuture`
+allocation versus 1,228 MiB in the CP6 recording (**-42%**) and a 5,193 MiB maximum heap versus 5,507 MiB (**-5.7%**).
+Its total allocation estimate is deliberately not used because that recording alone included 888 MiB of one-time JDK
+classfile constant-pool allocation.
+
+The complete SDK reactor passed, including proxy, annotation processor and Java/Kotlin downstream projects. One first
+reactor attempt observed a pathless cascade child before deletion completion; the exact public regression passed 20/20
+isolated repetitions and the immediately repeated complete reactor passed. CP7 removes 316 production Java lines,
+adds no public API and leaves Runtime production code unchanged.
+
 ## What caused the growth
 
 The growth is not proportional to added product behavior.
@@ -215,17 +246,17 @@ The largest concrete expansions since the reduction checkpoint are:
 
 | Responsibility | Reduction shape | Current shape | Net observation |
 | --- | ---: | ---: | ---: |
-| handler/commit orchestration | action registry + engine + committer: 2,484 | commit registry + engine + committer: 7,100 | **+4,616** |
+| handler/commit orchestration | action registry + engine + committer: 2,484 | commit registry + engine + committer: 6,562 | **+4,078** |
 | graph value/view | `ModelGraph`: 85 | `Graph` + `Graphs`: 2,722 | **+2,637** |
 | model repository | `DefaultModelRepository`: 2,341 | 4,428 | **+2,087** |
 | native message state | `SerializedMessage` + `Metadata`: 722 | 3,489 | **+2,767** |
 | model/tracking wire codecs | none | three handwritten codecs: 2,835 | **+2,835** |
 
-The handler registry now also owns a complete batch scheduler, keyed dependency graph, speculative model view,
-prefetcher, commit-policy state machine and transport producer lifecycle. `MessageBatchModelView` separately owns a
-second staged batch view. The repository separately implements ordinary replay, compact replay, direct replay,
-historical graph boundaries and graph overlays. These are fast, but their control flow is multiplied rather than
-compiled into one path.
+The handler registry still owns a dependency scheduler, prefetcher, commit-policy state machine and transport producer
+lifecycle. CP7 made `MessageBatchModelView` the single staged-state owner and collapsed the second gate scheduler, but
+the remaining handler and repository pipelines are still much larger than their reduction-checkpoint counterparts.
+The repository separately implements ordinary replay, compact replay, direct replay, historical graph boundaries and
+graph overlays. These are fast, but their control flow is still multiplied rather than compiled into one path.
 
 ### Runtime
 
