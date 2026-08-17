@@ -13,7 +13,8 @@ Date: 2026-08-17
 | CP2 shared binary primitives (`ddc1b73d718` / `0661533f`) | **167,723** | **42,037** | **1,049** | accepted; no-model +11.42%, full model +2.21% |
 | CP3 unified lazy message state (`e669a148e36` / `0661533f`) | **167,411** | **42,037** | **1,361** | accepted; no-model +3.98%, full model +0.48% |
 | CP4 shared graph views (`79ae96a3961` / `0661533f`) | **167,195** | **42,037** | **1,577** | accepted; full model +10.27% |
-| Required final ceiling | **136,000** | **32,000** | **41,232 still to remove** | pending |
+| CP5 final stream previews (`19ae14899ed` / `9f74e3d0`) | **166,033** | **41,696** | **3,080** | accepted; full model -0.51%, sustained reconstruction +14.65% |
+| Required final ceiling | **136,000** | **32,000** | **39,729 still to remove** | pending |
 
 ## Objective
 
@@ -140,6 +141,39 @@ The complete SDK reactor passed. Focused graph/repository tests passed, and the 
 an earlier Proxy run overlapped another Maven reactor in the same worktree and hit an existing five-second websocket
 test timeout, so that contaminated run is not treated as product evidence. CP4 removes 216 production Java lines,
 introduces no public API and adds no graph object or allocation.
+
+## Accepted checkpoint CP5 — one final model-stream preview
+
+The persisted model-stream block still carried five unreleased preview readers and an optional embedded-payload form.
+No Runtime writer constructed that form: every stored membership block referenced the separately packed global event
+payload. The SDK nevertheless retained a second reconstruction API, decoder, page validator and apply loop for it.
+CP5 advances the unreleased block to one final version and removes that dormant representation end to end. The active
+route remains unchanged: compact membership blocks plus packed event payloads, expanded into the single ordinary replay
+cursor.
+
+The first reduction also removed a useful scheduling rule because it happened to be expressed as part of the old
+`getCompactModelEvents` API. Four already-large 1,024-stream requests were then coalesced on one batcher thread instead
+of leaving in parallel. The cold reconstruction profile exposed the regression immediately: controls sustained
+72,517 and 72,024 models/s, while the intermediate candidate sustained only 45,802 and 46,615 models/s. That
+intermediate was rejected. The final implementation restores the rule generically: a native request of at least 1,024
+streams bypasses fine-grained coalescing, independent of payload representation.
+
+| Qualifying route | CP4 control | CP5 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| command -> `@Apply` -> model commit -> event + result, long ABBA geometric mean | 173,696/s | 172,814/s | -0.51% | exact 4,194,304 results, model events and global events per run; 8,192 exact states |
+| sustained disjoint cold reconstruction, 100 measured iterations with JFR | 86,119 models/s | 98,733 models/s | **+14.65%** | 409,600 models and 4,096,000 replayed events; eight active processors |
+
+The short reconstruction series remained host-sensitive after the correction: the first fixed ABBA measured 71,614
+models/s for the candidate and 73,146/s for control, while a reverse BAAB contained one 56,215/s candidate outlier
+between otherwise 69,990-78,506/s samples. The longer profile amortized that scheduler movement and showed the final
+candidate ahead. Its hot stacks no longer contain the removed version-4 decoder; the remaining work is ordinary JDBC
+read, envelope decode, model deserialization and replay.
+
+The complete Runtime reactor passed 733 tests. The complete SDK reactor passed all changed and downstream modules; one
+full-reactor Proxy attempt hit the existing five-second external-socket timeout under host load, after which the
+isolated Proxy suite passed 83/83. CP5 removes 1,162 SDK and 341 Runtime production Java lines. The four pre-measurement
+or pathological diagnostics with a missing cache pin or deliberately cache-thrashing L1 shape are excluded from the
+registry; every completed comparison is retained there.
 
 ## What caused the growth
 
