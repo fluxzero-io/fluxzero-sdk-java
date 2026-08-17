@@ -679,7 +679,7 @@ public class HandleWebTest {
                                     MessageType.WEBREQUEST,
                                     c -> c.toBuilder().errorHandler(errorHandler).build()),
                                new Handler())
-                    .whenGet("/users/abc")
+                    .whenGet("/users/abc?token=query-secret")
                     .expectWebResponse(r -> r.getStatus() == 403)
                     .expectThat(fc -> assertEquals(
                             "Handler \"Handler\" failed to handle a web request GET /users/abc",

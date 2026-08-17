@@ -88,6 +88,7 @@ import static io.fluxzero.common.api.Data.JSON_FORMAT;
 public class WebRequest extends Message {
 
     public static final String urlKey = "url", methodKey = "method", headersKey = "headers", sessionIdKey = "sessionId";
+    private static final int MAX_LOGGED_PATH_LENGTH = 512;
 
     /**
      * Creates a new {@link Builder} instance for constructing a {@link WebRequest}.
@@ -369,6 +370,39 @@ public class WebRequest extends Message {
     public static String getUrl(Metadata metadata) {
         return Optional.ofNullable(metadata.get(urlKey)).map(u -> u.startsWith("/") || u.contains("://") ? u : "/" + u)
                 .orElseThrow(() -> new IllegalStateException("WebRequest is malformed: url is missing"));
+    }
+
+    /**
+     * Extracts a bounded request path that is safe to include in logs, metrics and error reports.
+     * <p>
+     * The origin, query string and fragment are intentionally omitted because they may contain credentials or
+     * ceremony state. Use {@link #getUrl(Metadata)} when the complete request target is required for request handling.
+     *
+     * @param metadata the request metadata
+     * @return the path without origin, query string or fragment, limited to 512 characters
+     */
+    public static String getPathForLogging(Metadata metadata) {
+        String url = getUrl(metadata);
+        int start = 0;
+        int schemeSeparator = url.indexOf("://");
+        if (url.startsWith("//")) {
+            int firstPathSeparator = url.indexOf('/', 2);
+            start = firstPathSeparator < 0 ? url.length() : firstPathSeparator;
+        } else if (!url.startsWith("/") && schemeSeparator >= 0) {
+            int firstPathSeparator = url.indexOf('/', schemeSeparator + 3);
+            start = firstPathSeparator < 0 ? url.length() : firstPathSeparator;
+        }
+        int querySeparator = url.indexOf('?', start);
+        int fragmentSeparator = url.indexOf('#', start);
+        int end = querySeparator < 0 ? url.length() : querySeparator;
+        if (fragmentSeparator >= 0 && fragmentSeparator < end) {
+            end = fragmentSeparator;
+        }
+        String path = start == url.length() ? "/" : url.substring(start, end);
+        if (path.isEmpty()) {
+            path = "/";
+        }
+        return path.length() <= MAX_LOGGED_PATH_LENGTH ? path : path.substring(0, MAX_LOGGED_PATH_LENGTH);
     }
 
     /**

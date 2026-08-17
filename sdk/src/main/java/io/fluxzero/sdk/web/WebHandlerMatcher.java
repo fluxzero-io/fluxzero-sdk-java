@@ -198,26 +198,19 @@ public class WebHandlerMatcher implements HandlerMatcher<Object, DeserializingMe
     }
 
     static void putWebRequestDescription(DeserializingMessage message, DefaultWebRequestContext context) {
-        message.putContext(MessageDescription.class, new MessageDescription(describeWebRequest(context)));
+        message.putContext(MessageDescription.class, new MessageDescription(
+                describeWebRequest(context, WebRequest.getPathForLogging(message.getMetadata()))));
     }
 
-    static String describeWebRequest(DefaultWebRequestContext context) {
+    static String describeWebRequest(DefaultWebRequestContext context, String safeRequestPath) {
         String method = context.getMethod();
-        String target = requestTarget(context);
         if (WS_HANDSHAKE.equals(method)) {
-            return "websocket handshake " + target;
+            return "websocket handshake " + safeRequestPath;
         }
         if (isWebsocket(method)) {
-            return "websocket request %s %s".formatted(method, target);
+            return "websocket request %s %s".formatted(method, safeRequestPath);
         }
-        return "web request %s %s".formatted(method, target);
-    }
-
-    private static String requestTarget(DefaultWebRequestContext context) {
-        String query = context.getUri().getRawQuery();
-        return query == null || query.isBlank()
-                ? context.getRequestPath()
-                : context.getRequestPath() + "?" + query;
+        return "web request %s %s".formatted(method, safeRequestPath);
     }
 
     private Optional<WebRouteHandler> automaticOptionsMatcher(DefaultWebRequestContext context) {

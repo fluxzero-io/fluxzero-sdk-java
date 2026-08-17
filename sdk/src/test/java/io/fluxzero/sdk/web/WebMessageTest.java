@@ -27,8 +27,31 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebMessageTest {
+
+    @Test
+    void pathForLoggingOmitsOriginQueryAndFragment() {
+        Metadata metadata = Metadata.of(WebRequest.urlKey,
+                                        "https://auth.example.test/auth/flow?flow=query-secret#fragment-secret");
+
+        assertEquals("/auth/flow", WebRequest.getPathForLogging(metadata));
+        assertEquals("/auth/flow", WebRequest.getPathForLogging(Metadata.of(
+                WebRequest.urlKey, "/auth/flow?return=https://example.test/query-secret")));
+        assertEquals("/auth/flow", WebRequest.getPathForLogging(Metadata.of(
+                WebRequest.urlKey, "//auth.example.test/auth/flow?flow=query-secret")));
+    }
+
+    @Test
+    void pathForLoggingHandlesOriginWithoutPathAndBoundsResult() {
+        assertEquals("/", WebRequest.getPathForLogging(
+                Metadata.of(WebRequest.urlKey, "https://auth.example.test?flow=query-secret")));
+
+        String result = WebRequest.getPathForLogging(Metadata.of(WebRequest.urlKey, "/" + "a".repeat(600)));
+        assertEquals(512, result.length());
+        assertTrue(result.startsWith("/aaa"));
+    }
 
     @Test
     void testConvertComplexResponseViaBuilder() {

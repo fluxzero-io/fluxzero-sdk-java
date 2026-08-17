@@ -173,7 +173,7 @@ public class HandlerMonitor implements HandlerInterceptor {
             try {
                 var webPatterns = getWebPatterns(handler.getTargetClass(), null, handler.getMethod());
                 String uriPattern = webPatterns.size() == 1
-                        ? webPatterns.getFirst().getUri() : WebRequest.getUrl(message.getMetadata());
+                        ? webPatterns.getFirst().getUri() : WebRequest.getPathForLogging(message.getMetadata());
                 return "%s %s".formatted(WebRequest.getMethod(message.getMetadata()), uriPattern);
             } catch (Exception ignored) {}
         }

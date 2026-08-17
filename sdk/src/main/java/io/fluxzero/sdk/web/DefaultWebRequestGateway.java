@@ -81,12 +81,12 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
             currentThread().interrupt();
             throw new GatewayException(FluxzeroErrors.threadInterrupted(
                     "the web response", request.getMessageId(),
-                    request.getMethod() + " " + WebRequest.getUrl(request.getMetadata())), e);
+                    request.getMethod() + " " + WebRequest.getPathForLogging(request.getMetadata())), e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             if (cause instanceof java.util.concurrent.TimeoutException) {
                 throw new TimeoutException(FluxzeroErrors.requestTimedOut(
-                        "web request", request.getMethod() + " " + WebRequest.getUrl(request.getMetadata()),
+                        "web request", request.getMethod() + " " + WebRequest.getPathForLogging(request.getMetadata()),
                         request.getMessageId(), null, MessageType.WEBRESPONSE.name(),
                         settings.getTimeout().plusMillis(5_000L)));
             }

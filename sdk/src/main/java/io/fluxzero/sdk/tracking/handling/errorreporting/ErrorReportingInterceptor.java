@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling.errorreporting;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInput;
@@ -25,6 +26,7 @@ import io.fluxzero.sdk.common.exception.TechnicalException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.publishing.ErrorGateway;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
+import io.fluxzero.sdk.web.WebRequest;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -154,13 +156,30 @@ public class ErrorReportingInterceptor implements HandlerInterceptor {
 
     protected void reportError(Throwable e, HandlerDescriptor invoker, DeserializingMessage cause) {
         e = unwrapException(e);
-        Metadata metadata = cause.getMetadata();
+        Metadata metadata = errorMetadata(cause);
         if (!(e instanceof FunctionalException || e instanceof TechnicalException)) {
             metadata = metadata.with("stackTrace", stackTrace(e));
             e = new TechnicalException(FluxzeroErrors.handlerInvocationFailed(
-                    invoker.getTargetClass().getName(), cause.toString(), e));
+                    invoker.getTargetClass().getName(), errorCauseDescription(cause), e));
         }
         errorGateway.report(new Message(e, metadata));
+    }
+
+    private static Metadata errorMetadata(DeserializingMessage cause) {
+        if (cause.getMessageType() != MessageType.WEBREQUEST) {
+            return cause.getMetadata();
+        }
+        Metadata requestMetadata = cause.getMetadata();
+        return Metadata.of(WebRequest.methodKey, WebRequest.getMethod(requestMetadata),
+                           WebRequest.urlKey, WebRequest.getPathForLogging(requestMetadata));
+    }
+
+    private static String errorCauseDescription(DeserializingMessage cause) {
+        if (cause.getMessageType() != MessageType.WEBREQUEST) {
+            return cause.toString();
+        }
+        Metadata metadata = cause.getMetadata();
+        return "%s %s".formatted(WebRequest.getMethod(metadata), WebRequest.getPathForLogging(metadata));
     }
 
     private record HandlerErrorPolicy(boolean localHandler, boolean reportSelfHandlers) {
