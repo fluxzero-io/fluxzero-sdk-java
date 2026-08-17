@@ -2172,7 +2172,7 @@ class JdkWebsocketConnectorTest {
     }
 
     private static class BlockingBurstResultCompletionClient extends AbstractWebsocketClient {
-        private static final int TEST_COMPLETION_CONCURRENCY = Runtime.version().feature() >= 25 ? 32 : 8;
+        private static final int TEST_COMPLETION_CONCURRENCY = 8;
         private final CountDownLatch activeResultsBlocked = new CountDownLatch(TEST_COMPLETION_CONCURRENCY);
         private final CountDownLatch allowResultHandlingToFinish = new CountDownLatch(1);
         private final CountDownLatch allResultsHandled;
@@ -2186,8 +2186,6 @@ class JdkWebsocketConnectorTest {
                   WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
                                                       .runtimeBaseUrl("ws://localhost")
                                                       .name("blocked-small-result-client")
-                                                      .maxConcurrentRuntimeResultCompletions(
-                                                              TEST_COMPLETION_CONCURRENCY)
                                                       .build()),
                   false, Duration.ofSeconds(1), defaultObjectMapper, 1);
             allResultsHandled = new CountDownLatch(resultCount);

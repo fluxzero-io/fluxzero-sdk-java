@@ -5628,7 +5628,7 @@ Key options include:
 | `maxConcurrentRuntimeWebSocketMessages` | Runtime messages decoded or waiting for completion-dispatcher admission per session | `fluxzero.runtime.ingress.maxConcurrency` or `3` |
 | `maxRetainedRuntimeWebSocketMessages` | Total assembling, compressed-pending, decode/admission, and functionally active messages per session | `fluxzero.runtime.ingress.maxRetainedMessages` or `128` |
 | `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `fluxzero.runtime.ingress.maxRetainedBytes` or 64 MiB |
-| `maxConcurrentRuntimeResultCompletions` | Admitted runtime-message groups and result completions, including synchronous customer continuations, per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `32` on Java 25+, `8` on Java 21–24 |
+| `maxConcurrentRuntimeResultCompletions` | Admitted runtime-message groups and result completions, including synchronous customer continuations, per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `8` |
 | `runtimeIngressStallCloseTimeout` | Opt-in close delay after ingress has been diagnosed as stalled | `fluxzero.runtime.ingress.stallCloseTimeout` or disabled |
 | `disableMetrics` | Whether to suppress all outgoing metrics | `false` |
 | `typeFilter` | Optional message type restriction | `null` |
@@ -5642,8 +5642,8 @@ SDK clients route complete runtime messages through a bounded, transport-neutral
 remains ordered, while up to three complete messages from one session may be processed concurrently. That per-session
 permit is released as soon as the decoded message group has been safely admitted by the client-wide completion
 dispatcher. Slow customer continuations therefore do not occupy decode capacity. Single responses and `ResultBatch`
-responses share that dispatcher, which admits and actively completes at most 32 message groups/results on Java 25 and
-newer or eight on Java 21 through 24 by default. Customer callbacks always run on its completion executor, never on a
+responses share that dispatcher, which admits and actively completes at most eight message groups/results per client
+by default. Customer callbacks always run on its completion executor, never on a
 runtime-data decode worker. A large batch is submitted incrementally rather than creating one executor task per result.
 Applications must not rely on WebSocket arrival order or single-threaded result completion; request/result correlation
 remains based on request IDs.
@@ -5674,15 +5674,14 @@ message, or an empty retained queue, emits `RUNTIME_INGRESS_RECOVERED` and start
 remains. Independently of metric publication, a positive `runtimeIngressStallCloseTimeout` enables the progress
 watchdog and closes a session after that additional period without progress. The timeout is disabled by default.
 
-The limits can be tuned without disabling protocol isolation. The example below restates the Java 25+ defaults; omit
-`maxConcurrentRuntimeResultCompletions` to retain the runtime-specific default, or use eight on Java 21 through 24:
+The limits can be tuned without disabling protocol isolation. The example below restates the defaults:
 
 ```java
 WebSocketClient.ClientConfig.builder()
         .maxConcurrentRuntimeWebSocketMessages(3)
         .maxRetainedRuntimeWebSocketMessages(128)
         .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
-        .maxConcurrentRuntimeResultCompletions(32)
+        .maxConcurrentRuntimeResultCompletions(8)
         .runtimeIngressStallCloseTimeout(Duration.ZERO)
         .build();
 ```
@@ -5720,8 +5719,8 @@ sparse pressure diagnostics and load-test the resulting aggregate across all con
 
 The worker model is unchanged by these limits. On Java 25 and newer, completion tasks use one virtual thread per task.
 On Java 21 through 24, they use the existing lazily populated fixed platform-thread pool, sized to the configured
-completion concurrency. The default is eight on those Java versions, so the SDK does not introduce 32 potential
-platform workers per concrete client. Explicit configuration still wins when an application has measured headroom.
+completion concurrency. Both routes default to eight. Explicit configuration still wins when an application has
+measured headroom; for example, Java 25 applications can opt into 32 virtual completion workers.
 
 The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
 explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied

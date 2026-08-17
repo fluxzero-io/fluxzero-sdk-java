@@ -184,8 +184,7 @@ public class WebSocketClient extends AbstractClient {
         static final int DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES = 16 * 1024 * 1024;
         static final String MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY = "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES";
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES = 3;
-        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS =
-                defaultMaxConcurrentRuntimeResultCompletions(Runtime.version().feature());
+        static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS = 8;
         static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 128;
         static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 64L * 1024 * 1024;
         static final String MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY =
@@ -306,8 +305,7 @@ public class WebSocketClient extends AbstractClient {
          * continuations may run concurrently per client. Large result batches are submitted incrementally and share
          * this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer
          * and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to
-         * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 32} on Java 25 and newer and {@code 8}
-         * on Java 21 through 24 when unset.
+         * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.
          */
         @Default
         int maxConcurrentRuntimeResultCompletions = firstIntegerProperty(
@@ -463,10 +461,6 @@ public class WebSocketClient extends AbstractClient {
         private static Duration firstDurationProperty(Duration defaultValue, String... names) {
             String value = getFirstAvailableProperty(names);
             return value == null ? defaultValue : Duration.parse(value.trim());
-        }
-
-        static int defaultMaxConcurrentRuntimeResultCompletions(int javaFeatureVersion) {
-            return javaFeatureVersion >= 25 ? 32 : 8;
         }
 
         private static Map<MessageType, Integer> defaultGatewaySessions() {

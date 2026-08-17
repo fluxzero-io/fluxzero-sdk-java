@@ -66,7 +66,7 @@ Key options include:
 | `maxConcurrentRuntimeWebSocketMessages`      | Messages decoded or waiting for completion-dispatcher admission per session     | `3`                                      |
 | `maxRetainedRuntimeWebSocketMessages`        | Total assembling, compressed-pending, decode/admission, and active messages     | `128`                                    |
 | `maxRetainedRuntimeWebSocketBytes`           | Total compressed runtime wire bytes retained per session                        | 64 MiB                                   |
-| `maxConcurrentRuntimeResultCompletions`      | Admitted groups and result completions/continuations per client                  | `32` on Java 25+, `8` on Java 21–24      |
+| `maxConcurrentRuntimeResultCompletions`      | Admitted groups and result completions/continuations per client                  | `8`                                      |
 | `runtimeIngressStallCloseTimeout`            | Optional close delay after ingress is diagnosed as stalled                      | Disabled                                 |
 | `disableMetrics`                             | Whether to suppress all outgoing metrics                                         | `false`                                  |
 | `typeFilter`                                 | Optional message type restriction                                                | `null`                                   |
@@ -78,8 +78,8 @@ Key options include:
 Runtime responses are decoded outside the WebSocket protocol callback path. Up to three complete messages per session
 are decoded or wait for bounded dispatcher admission concurrently by default. A permit is released after safe
 admission, while the message remains retained until functional completion. A client-wide completion dispatcher admits
-and actively completes at most 32 message groups/results on Java 25 and newer or eight on Java 21 through 24 by
-default. Customer callbacks never run on a decode worker. This keeps pong and decode progress independent from slow
+and actively completes at most eight message groups/results per client by default. Customer callbacks never run on a
+decode worker. This keeps pong and decode progress independent from slow
 functional continuations while preserving bounded resource use.
 
 The SDK retains at most 128 runtime messages or 64 MiB of compressed wire data per physical session by default. Messages
@@ -92,8 +92,7 @@ The byte envelope is a retained-work credit limit and is not allocated up front.
 therefore exceed the transport envelope; it may still proceed when it is the only retained message, while later
 responses wait for capacity.
 
-The limits can be configured explicitly. The examples below restate the Java 25+ defaults; omit
-`maxConcurrentRuntimeResultCompletions` to retain the runtime-specific default, or use eight on Java 21 through 24:
+The limits can be configured explicitly. The examples below restate the defaults:
 
 <Tabs>
   <TabItem label="Java">
@@ -103,7 +102,7 @@ The limits can be configured explicitly. The examples below restate the Java 25+
           .maxConcurrentRuntimeWebSocketMessages(3)
           .maxRetainedRuntimeWebSocketMessages(128)
           .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
-          .maxConcurrentRuntimeResultCompletions(32)
+          .maxConcurrentRuntimeResultCompletions(8)
           .runtimeIngressStallCloseTimeout(Duration.ZERO)
           .build();
   ```
@@ -115,7 +114,7 @@ The limits can be configured explicitly. The examples below restate the Java 25+
       .maxConcurrentRuntimeWebSocketMessages(3)
       .maxRetainedRuntimeWebSocketMessages(128)
       .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
-      .maxConcurrentRuntimeResultCompletions(32)
+      .maxConcurrentRuntimeResultCompletions(8)
       .runtimeIngressStallCloseTimeout(Duration.ZERO)
       .build()
   ```
@@ -155,9 +154,9 @@ workers supplied.
 Increasing retained limits raises worst-case memory use. Message concurrency controls simultaneous decode/allocation;
 result-completion concurrency separately controls admitted decoded work and customer-callback pressure.
 
-The executor policy itself does not change: Java 25 and newer use virtual completion workers with a default concurrency
-of 32, while Java 21 through 24 use the existing lazily populated fixed platform-thread pool with a safe default of
-eight. Explicit completion concurrency still wins on both routes.
+The executor policy itself does not change: Java 25 and newer use virtual completion workers, while Java 21 through 24
+use the existing lazily populated fixed platform-thread pool. Both routes default to eight. Explicit completion
+concurrency still wins on both routes, so a Java 25 application can opt into 32 after validating its workload.
 
 ---
 

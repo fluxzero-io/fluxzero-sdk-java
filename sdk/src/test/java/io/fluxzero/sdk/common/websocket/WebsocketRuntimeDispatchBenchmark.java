@@ -104,7 +104,7 @@ public class WebsocketRuntimeDispatchBenchmark {
     private static final int SMALL_LOAD_MAX_RETAINED_MESSAGES = Integer.getInteger(
             "smallLoadMaxRetainedMessages", JdkWebSocketSession.DEFAULT_MAX_RETAINED_RUNTIME_MESSAGES);
     private static final int RESULT_COMPLETION_CONCURRENCY = Integer.getInteger(
-            "resultConcurrency", Runtime.version().feature() >= 25 ? 32 : 8);
+            "resultConcurrency", 8);
     private static final int LOAD_PAYLOAD_BYTES = Integer.getInteger("loadPayloadBytes", 64 << 10);
     private static final int[] SMALL_RESULT_VALUE_BYTES = {16, 320};
     private static final int[] LARGE_LOAD_TARGET_COMPRESSED_BYTES = {
