@@ -139,6 +139,32 @@ Evidence SHA-256: E843-E846 respectively `a7fa7b98c9cdff4eb2fab5f5b3f57359eddb8d
 `aafb597324d81f2e03898c5870eda711ee573c7a8dc4bfc66a4f5b5636062378`,
 `e25a78a39c3b1a60000be43379897c4fe1e2dc02b7255efdf7ea20ebab8edb68`.
 
+## Current-source direct 8 versus 32 audit
+
+E864-E871 were added after the acceptance gate to test the completion limit directly on the same production binary,
+instead of inferring its effect from comparisons against the pre-PR parent. Both routes use the full compressed
+WebSocket decode and bounded result-dispatch path with a trivial functional callback. The sequence alternates
+8-32-32-8. The host was not canonical (`mds` used approximately 55% CPU and the Docker VM approximately 15%), so only
+the large within-sequence ratios are used.
+
+For 1,024-result messages, limit 8 has a geometric mean of **5,304,432 results/s** versus **2,363,448 results/s** for
+limit 32: 8 is **2.24x** or **124.44%** faster. For singleton messages, limit 32 has a geometric mean of **515,042
+results/s** versus **420,624 results/s** for limit 8: 32 is **22.45%** faster. This confirms a real workload trade-off,
+not a universally superior limit. It also narrows the E2E claim: the earlier +13.48% and +25.83% are matched gains of
+the complete accepted PR integration over its parent, but cannot be attributed exclusively to 8 because the full E2E
+gate did not alternate 8 and 32 directly on one binary.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E864 | smoke | current-source result decode/completion, batch 1,024 | `190b82cc5f3`, limit 8 | 8, A1 | 4,194,304 results | 5 full passes | none | 5,048,600/s | n/a | false | direct parameter control | diagnostic-only |
+| E865 | smoke | current-source result decode/completion, batch 1,024 | `190b82cc5f3`, limit 8 | 32, B1 | 4,194,304 results | 5 full passes | none | 5,048,600/s preceding | 2,202,433/s | false | 32 over-parallelizes cheap batch | diagnostic-only |
+| E866 | smoke | current-source result decode/completion, batch 1,024 | `190b82cc5f3`, limit 8 | 32, B2 | 4,194,304 results | 5 full passes | none | 5,573,229/s following | 2,536,234/s | false | reverse confirmation | diagnostic-only |
+| E867 | smoke | current-source result decode/completion, batch 1,024 | `190b82cc5f3`, limit 8 | 8, A2 | 4,194,304 results | 5 full passes | none | 5,573,229/s | n/a | false | geometric advantage 124.44% | diagnostic-only |
+| E868 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limit 8 | 8, A1 | 1,048,576 results | 3 full passes | none | 420,334/s | n/a | false | direct parameter control | diagnostic-only |
+| E869 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limit 8 | 32, B1 | 1,048,576 results | 3 full passes | none | 420,334/s preceding | 509,923/s | false | 32 helps singleton scheduling | diagnostic-only |
+| E870 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limit 8 | 32, B2 | 1,048,576 results | 3 full passes | none | 420,916/s following | 520,213/s | false | reverse confirmation | diagnostic-only |
+| E871 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limit 8 | 8, A2 | 1,048,576 results | 3 full passes | none | 420,916/s | n/a | false | geometric disadvantage 22.45% | diagnostic-only |
+
 ## Correctness and compatibility gate
 
 - Focused WebSocket/configuration/result-dispatch tests: 101 green before the final simplification and 94 green after.
