@@ -4,6 +4,14 @@ Status: active S60 release blocker
 
 Date: 2026-08-17
 
+## Living scoreboard
+
+| Checkpoint | SDK production Java | Runtime production Java | Combined removal | Performance decision |
+| --- | ---: | ---: | ---: | --- |
+| S60 start (`f19e3db42c8` / `610a7060`) | 168,771 | 42,038 | — | accepted control |
+| CP1 canonical binary (`7c62c608352` / `0661533f`) | **168,082** | **42,037** | **690** | accepted; no-model neutral, full model +0.27% |
+| Required final ceiling | **136,000** | **32,000** | **42,119 still to remove** | pending |
+
 ## Objective
 
 Retain the complete independent-model and graph capability, its correctness contracts and its accepted performance,
@@ -38,6 +46,33 @@ The fixed non-core roots make the budget exact:
 
 The requested ceilings therefore permit virtually no net core growth after the reduction checkpoint. Every retained
 post-checkpoint capability must replace at least as much older implementation as it adds.
+
+## Accepted checkpoint CP1 — one canonical binary envelope
+
+The first checkpoint removes the unreleased `BINARY_V2` generation and the legacy compact message encodings behind
+`BINARY`. `BINARY` now always carries the final reusable `SerializedMessage` envelope. JSON and CBOR are unchanged.
+Tracking and model commits no longer maintain paired legacy/native serializers, descriptors and readers. The removed
+formats existed only on this development branch and are not released compatibility contracts.
+
+The first implementation changed the hot type-dispatch order in `TrackingWireCodec`. A pinned three-pair no-model
+series measured 721,826/s for the control and 683,061/s for that intermediate candidate (**-5.37%**). Matched JFRs
+showed smaller result transactions and slower command serialization. Inspection of the exact parent bytecode found
+that the previous native route checked `ReadResult` before the generic `Read` path. Restoring that order removed the
+regression; this is why the rejected intermediate was not checkpointed despite having identical wire bytes.
+
+| Qualifying route | Control | Final candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| no-model command -> durable result, geometric mean | 746,241/s | 735,636/s | -1.42% | exact completions |
+| command -> `@Apply` -> model commit -> event + result, ABBA geometric mean | 179,536/s | 180,022/s | +0.27% | exact 1,048,576 results, model events and global events; 8,192 exact states |
+
+The no-model result is inside the observed adjacent host movement: the final individual candidate runs were 782,741/s
+and 691,365/s while their surrounding controls were 797,024/s and 698,694/s. The full-model ABBA alternated in the
+same way: controls 186,874/s and 172,486/s; candidates 173,653/s and 186,625/s. Both complete Maven reactors and the
+SDK downstream Java/Kotlin projects passed after the final hot-path ordering change.
+
+Six earlier no-model runs are explicitly non-canonical because the required 1,048,576-entry command cache pin was
+omitted. They exercised the known 65,536-entry cache cliff and ranged from 542,018/s to 784,956/s; they are retained in
+the run registry as diagnostic-only evidence and were not used for either the performance decision or checkpoint.
 
 ## What caused the growth
 
