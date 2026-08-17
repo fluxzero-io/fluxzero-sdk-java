@@ -165,6 +165,20 @@ gate did not alternate 8 and 32 directly on one binary.
 | E870 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limit 8 | 32, B2 | 1,048,576 results | 3 full passes | none | 420,916/s following | 520,213/s | false | reverse confirmation | diagnostic-only |
 | E871 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limit 8 | 8, A2 | 1,048,576 results | 3 full passes | none | 420,916/s | n/a | false | geometric disadvantage 22.45% | diagnostic-only |
 
+E872-E875 screen limit 16 on the same source and loaded host. Singleton service is a genuine midpoint: geometric
+**471,839/s**, 12.18% above 8 and 8.39% below 32. Its two batch measurements vary from 2.51M/s to 6.44M/s; the
+geometric 4.02M/s is 24.26% below 8, but that spread is too wide for a causal rank. Limit 16 therefore remains an
+unproven compromise, not a better default. The opposing batch/singleton curves also expose that one setting currently
+bounds both admitted result groups and active callbacks inside large result batches; a deterministic separation of
+those concerns deserves evaluation before selecting a wider fixed default.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E872 | smoke | current-source result decode/completion, batch 1,024 | `190b82cc5f3`, limits 8/32 | 16, C1 | 4,194,304 results | 5 full passes | none | 5,304,432/s limit 8 geometric | 2,507,556/s | false | unstable midpoint screen | diagnostic-only |
+| E873 | smoke | current-source result decode/completion, batch 1,024 | `190b82cc5f3`, limits 8/32 | 16, C2 | 4,194,304 results | 5 full passes | none | 5,304,432/s limit 8 geometric | 6,436,762/s | false | variance rejects causal rank | diagnostic-only |
+| E874 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limits 8/32 | 16, C1 | 1,048,576 results | 3 full passes | none | 420,624/s limit 8 geometric | 466,983/s | false | midpoint screen | diagnostic-only |
+| E875 | smoke | current-source singleton result decode/completion | `190b82cc5f3`, limits 8/32 | 16, C2 | 1,048,576 results | 3 full passes | none | 515,042/s limit 32 geometric | 476,746/s | false | singleton midpoint confirmed | diagnostic-only |
+
 ## Correctness and compatibility gate
 
 - Focused WebSocket/configuration/result-dispatch tests: 101 green before the final simplification and 94 green after.
