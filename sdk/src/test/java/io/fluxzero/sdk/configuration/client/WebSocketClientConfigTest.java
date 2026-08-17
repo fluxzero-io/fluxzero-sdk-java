@@ -20,11 +20,149 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebSocketClientConfigTest {
+
+    @Test
+    void defaultsToBoundedRuntimeWebSocketCapacity() {
+        withProperties(Map.of(), () -> {
+            WebSocketClient.ClientConfig config = clientConfig();
+
+            assertEquals(3, config.getMaxConcurrentRuntimeWebSocketMessages());
+            assertEquals(128, config.getMaxRetainedRuntimeWebSocketMessages());
+            assertEquals(64L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
+            assertEquals(8, config.getMaxConcurrentRuntimeResultCompletions());
+            assertEquals(Duration.ZERO, config.getRuntimeIngressStallCloseTimeout());
+        });
+    }
+
+    @Test
+    void readsCanonicalRuntimeIngressProperties() {
+        withProperties(Map.of(
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY, "2",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY, "11",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_BYTES_PROPERTY, "8388608",
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY, "5",
+                WebSocketClient.ClientConfig.RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY, "PT45S"), () -> {
+            WebSocketClient.ClientConfig config = clientConfig();
+
+            assertEquals(2, config.getMaxConcurrentRuntimeWebSocketMessages());
+            assertEquals(11, config.getMaxRetainedRuntimeWebSocketMessages());
+            assertEquals(8L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
+            assertEquals(5, config.getMaxConcurrentRuntimeResultCompletions());
+            assertEquals(Duration.ofSeconds(45), config.getRuntimeIngressStallCloseTimeout());
+        });
+    }
+
+    @Test
+    void canonicalRuntimeIngressPropertiesTakePrecedenceOverWebSocketAliases() {
+        withProperties(Map.of(
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY, "2",
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS, "4",
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY, "6"),
+                       () -> assertEquals(2, clientConfig().getMaxConcurrentRuntimeWebSocketMessages()));
+    }
+
+    @Test
+    void readsDottedWebSocketAliases() {
+        withProperties(Map.of(
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS, "2",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS, "12",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS, "4194304"), () -> {
+            WebSocketClient.ClientConfig config = clientConfig();
+
+            assertEquals(2, config.getMaxConcurrentRuntimeWebSocketMessages());
+            assertEquals(12, config.getMaxRetainedRuntimeWebSocketMessages());
+            assertEquals(4L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
+        });
+    }
+
+    @Test
+    void readsRuntimeWebSocketCapacityFromApplicationProperties() {
+        withProperties(Map.of(
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY, "2",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY, "11",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY, "8388608"), () -> {
+            WebSocketClient.ClientConfig config = clientConfig();
+
+            assertEquals(2, config.getMaxConcurrentRuntimeWebSocketMessages());
+            assertEquals(11, config.getMaxRetainedRuntimeWebSocketMessages());
+            assertEquals(8L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
+        });
+    }
+
+    @Test
+    void explicitRuntimeWebSocketCapacityOverridesApplicationProperties() {
+        withProperties(Map.of(
+                WebSocketClient.ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY, "2",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY, "11",
+                WebSocketClient.ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY, "8388608"), () -> {
+            WebSocketClient.ClientConfig config = clientConfigBuilder()
+                    .maxConcurrentRuntimeWebSocketMessages(4)
+                    .maxRetainedRuntimeWebSocketMessages(28)
+                    .maxRetainedRuntimeWebSocketBytes(32L * 1024 * 1024)
+                    .build();
+
+            assertEquals(4, config.getMaxConcurrentRuntimeWebSocketMessages());
+            assertEquals(28, config.getMaxRetainedRuntimeWebSocketMessages());
+            assertEquals(32L * 1024 * 1024, config.getMaxRetainedRuntimeWebSocketBytes());
+        });
+    }
+
+    @Test
+    void rejectsInvalidRuntimeWebSocketCapacityAtClientConstruction() {
+        IllegalArgumentException concurrencyError = assertThrows(IllegalArgumentException.class,
+                                                                  () -> WebSocketClient.newInstance(
+                                                                          clientConfigBuilder()
+                                                                                  .maxConcurrentRuntimeWebSocketMessages(0)
+                                                                                  .build()));
+        IllegalArgumentException messageError = assertThrows(IllegalArgumentException.class,
+                                                              () -> WebSocketClient.newInstance(
+                                                                      clientConfigBuilder()
+                                                                              .maxConcurrentRuntimeWebSocketMessages(4)
+                                                                              .maxRetainedRuntimeWebSocketMessages(3)
+                                                                              .build()));
+        IllegalArgumentException byteError = assertThrows(IllegalArgumentException.class,
+                                                           () -> WebSocketClient.newInstance(
+                                                                   clientConfigBuilder()
+                                                                           .maxRetainedRuntimeWebSocketBytes(0)
+                                                                           .build()));
+        IllegalArgumentException completionError = assertThrows(IllegalArgumentException.class,
+                                                                 () -> WebSocketClient.newInstance(
+                                                                         clientConfigBuilder()
+                                                                                 .maxConcurrentRuntimeResultCompletions(0)
+                                                                                 .build()));
+        IllegalArgumentException stallError = assertThrows(IllegalArgumentException.class,
+                                                            () -> WebSocketClient.newInstance(
+                                                                    clientConfigBuilder()
+                                                                            .runtimeIngressStallCloseTimeout(
+                                                                                    Duration.ofSeconds(-1))
+                                                                            .build()));
+
+        assertTrue(concurrencyError.getMessage().contains("maxConcurrentRuntimeWebSocketMessages"));
+        assertTrue(messageError.getMessage().contains("maxRetainedRuntimeWebSocketMessages"));
+        assertTrue(byteError.getMessage().contains("maxRetainedRuntimeWebSocketBytes"));
+        assertTrue(completionError.getMessage().contains("maxConcurrentRuntimeResultCompletions"));
+        assertTrue(stallError.getMessage().contains("runtimeIngressStallCloseTimeout"));
+    }
+
+    @Test
+    void acceptsZeroPendingCapacityAndIntegerLimitWithoutOverflow() {
+        assertDoesNotThrow(() -> WebSocketClient.newInstance(clientConfigBuilder()
+                                                                      .maxConcurrentRuntimeWebSocketMessages(
+                                                                              Integer.MAX_VALUE)
+                                                                      .maxRetainedRuntimeWebSocketMessages(
+                                                                              Integer.MAX_VALUE)
+                                                                      .maxRetainedRuntimeWebSocketBytes(Long.MAX_VALUE)
+                                                                      .build()));
+    }
 
     @Test
     void defaultsToExistingMaxInFlightWebSocketBytesWhenPropertyIsUnset() {

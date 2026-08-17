@@ -55,16 +55,108 @@ and can be created or extended using the `toBuilder()` pattern.
 
 Key options include:
 
-| Setting                     | Description                                                  | Default                          |
-|-----------------------------|--------------------------------------------------------------|----------------------------------|
-| `runtimeBaseUrl`            | Base URL for all subsystems <br/>(e.g. `wss://my.flux.host`) | `FLUX_BASE_URL` property         |
-| `name`                      | Name of the application                                      | `FLUX_APPLICATION_NAME` property |
-| `applicationId`             | Optional app ID                                              | `FLUX_APPLICATION_ID` property   |
-| `id`                        | Unique client instance ID                                    | `FLUX_TASK_ID` property or UUID  |
-| `compression`               | Compression algorithm                                        | `LZ4`                            |
-| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health                     | 10s / 5s                         |
-| `disableMetrics`            | Whether to suppress all outgoing metrics                     | `false`                          |
-| `typeFilter`                | Optional message type restriction                            | `null`                           |
+| Setting                                      | Description                                                                      | Default                                  |
+|----------------------------------------------|----------------------------------------------------------------------------------|------------------------------------------|
+| `runtimeBaseUrl`                             | Base URL for all subsystems <br/>(e.g. `wss://my.flux.host`)                     | `FLUXZERO_BASE_URL` or `FLUX_BASE_URL`   |
+| `name`                                       | Name of the application                                                          | `FLUXZERO_APPLICATION_NAME` or legacy alias |
+| `applicationId`                              | Optional app ID                                                                  | `FLUXZERO_APPLICATION_ID` or legacy alias |
+| `id`                                         | Unique client instance ID                                                        | `FLUXZERO_TASK_ID`, legacy alias, or UUID |
+| `supportedCompressionAlgorithms`             | Preferred and fallback compression algorithms                                   | ZSTD, then LZ4                           |
+| `pingDelay` / `pingTimeout`                  | Heartbeat intervals for WebSocket health                                         | 10s / 15s                                |
+| `maxConcurrentRuntimeWebSocketMessages`      | Messages decoded or waiting for completion-dispatcher admission per session     | `3`                                      |
+| `maxRetainedRuntimeWebSocketMessages`        | Total assembling, compressed-pending, decode/admission, and active messages     | `128`                                    |
+| `maxRetainedRuntimeWebSocketBytes`           | Total compressed runtime wire bytes retained per session                        | 64 MiB                                   |
+| `maxConcurrentRuntimeResultCompletions`      | Admitted groups and result completions/continuations per client                  | `8`                                      |
+| `runtimeIngressStallCloseTimeout`            | Optional close delay after ingress is diagnosed as stalled                      | Disabled                                 |
+| `disableMetrics`                             | Whether to suppress all outgoing metrics                                         | `false`                                  |
+| `typeFilter`                                 | Optional message type restriction                                                | `null`                                   |
+
+---
+
+## Runtime ingress flow control
+
+Runtime responses are decoded outside the WebSocket protocol callback path. Up to three complete messages per session
+are decoded or wait for bounded dispatcher admission concurrently by default. A permit is released after safe
+admission, while the message remains retained until functional completion. A client-wide completion dispatcher admits
+and actively completes at most eight message groups/results per client by default. Customer callbacks never run on a
+decode worker. This keeps pong and decode progress independent from slow
+functional continuations while preserving bounded resource use.
+
+The SDK retains at most 128 runtime messages or 64 MiB of compressed wire data per physical session by default. Messages
+remain retained until functional processing completes, including synchronous code triggered by completing a request
+future. When a retained bound is reached, the JDK WebSocket adapter pauses receive demand and resumes it after capacity
+is released. Normal capacity pressure does not close or reconnect an otherwise healthy session.
+
+The byte envelope is a retained-work credit limit and is not allocated up front. Tracking's default `maxFetchBytes` is
+100 MiB of serialized message payload before WebSocket compression and envelope overhead. A single response can
+therefore exceed the transport envelope; it may still proceed when it is the only retained message, while later
+responses wait for capacity.
+
+The limits can be configured explicitly. The examples below restate the defaults:
+
+<Tabs>
+  <TabItem label="Java">
+
+  ```java
+  ClientConfig config = ClientConfig.builder()
+          .maxConcurrentRuntimeWebSocketMessages(3)
+          .maxRetainedRuntimeWebSocketMessages(128)
+          .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
+          .maxConcurrentRuntimeResultCompletions(8)
+          .runtimeIngressStallCloseTimeout(Duration.ZERO)
+          .build();
+  ```
+  </TabItem>
+  <TabItem label="Kotlin">
+
+  ```kotlin
+  val config = ClientConfig.builder()
+      .maxConcurrentRuntimeWebSocketMessages(3)
+      .maxRetainedRuntimeWebSocketMessages(128)
+      .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
+      .maxConcurrentRuntimeResultCompletions(8)
+      .runtimeIngressStallCloseTimeout(Duration.ZERO)
+      .build()
+  ```
+  </TabItem>
+</Tabs>
+
+Operational properties use the following canonical names:
+
+| Property | Purpose |
+|----------|---------|
+| `fluxzero.runtime.ingress.maxConcurrency` | Concurrent complete runtime messages per session |
+| `fluxzero.runtime.ingress.maxRetainedMessages` | Total retained runtime messages per session |
+| `fluxzero.runtime.ingress.maxRetainedBytes` | Total retained compressed wire bytes per session |
+| `fluxzero.runtime.ingress.maxCompletionConcurrency` | Concurrent result completions per client |
+| `fluxzero.runtime.ingress.stallCloseTimeout` | Optional ISO-8601 stall close delay, for example `PT30S` |
+
+Explicit builder values take precedence over properties. Legacy `fluxzero.websocket.runtime.*` and
+`FLUXZERO_WEBSOCKET_RUNTIME_MAX_*` aliases remain supported for the three WebSocket capacity settings. There is no
+unbounded or disable mode. Set message concurrency to one for serial decode, and result-completion concurrency to one
+only when functional callbacks must also be serial, while keeping protocol isolation.
+
+With transport metrics enabled, a retained session without a functional completion for one `pingTimeout` emits
+`RUNTIME_INGRESS_STALLED`. An idle session without retained work is never stalled. The next completed message or an
+empty retained queue emits `RUNTIME_INGRESS_RECOVERED`. Independently of metric publication, a positive
+`runtimeIngressStallCloseTimeout` enables the progress watchdog and closes the session after that additional period
+without progress. The timeout is disabled by default. Normal ping-timeout detection remains active whenever receive
+demand is open. Peer close and transport I/O errors remain active during local backpressure; a silent connection
+failure during a persistent local pause is bounded only when the stall-close timeout is configured.
+
+Set `fluxzero.websocket.transportMetrics.enabled=true` to publish sparse transport diagnostics such as
+`RUNTIME_INGRESS_BACKPRESSURED`, `RUNTIME_INGRESS_STALLED`, `RUNTIME_INGRESS_RECOVERED`,
+`RUNTIME_INGRESS_OVERFLOW`, `RUNTIME_EXECUTOR_REJECTED`, and `PING_TIMEOUT`. This diagnostic is disabled by default.
+Diagnostics report the effective transport and completion worker modes and both configured concurrency bounds.
+Increase retained messages to absorb verified bursts of small responses. A wider retained window does not add
+runtime-message workers, but can improve burst throughput by reducing receive-demand pauses and keeping existing
+workers supplied.
+Increasing retained limits raises worst-case memory use. Message concurrency controls simultaneous decode/allocation;
+result-completion concurrency separately controls admitted decoded work and customer-callback pressure.
+
+The executor policy itself does not change: Java 25 and newer use virtual completion workers, while Java 21 through 24
+use the existing lazily populated fixed platform-thread pool. Both routes default to a concurrency of eight. Explicit
+completion concurrency still wins on both routes.
 
 ---
 

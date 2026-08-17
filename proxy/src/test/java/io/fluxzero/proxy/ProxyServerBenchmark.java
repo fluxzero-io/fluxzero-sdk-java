@@ -66,6 +66,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
 import static java.lang.Integer.getInteger;
 import static java.lang.Long.getLong;
 import static java.lang.Math.max;
@@ -78,14 +79,14 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  *
  * <p>Example:</p>
  * <pre>{@code
- * ./mvnw -pl proxy -am -DskipTests test-compile
+ * ./mvnw -pl proxy -am -DskipTests install
  * ./mvnw -pl proxy -DskipTests \
  *   org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
  *   -Dexec.classpathScope=test \
  *   -Dexec.mainClass=io.fluxzero.proxy.ProxyServerBenchmark \
  *   -Drequests=10000 -Dwarmup=1000 -Dconcurrency=32
  *
- * ./mvnw -pl proxy -am -DskipTests test-compile
+ * ./mvnw -pl proxy -am -DskipTests install
  * ./mvnw -pl proxy -DskipTests \
  *   org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
  *   -Dexec.classpathScope=test \
@@ -100,6 +101,12 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
  *   -Dexec.mainClass=io.fluxzero.proxy.ProxyServerBenchmark \
  *   -Dscenarios=websocket-slow-clients -Dconcurrency=16
  * }</pre>
+ *
+ * <p>The install step is intentional: the separate exec invocation must resolve the current reactor snapshots rather
+ * than older snapshots from the local Maven repository.</p>
+ *
+ * <p>Use {@code -Druntime=test-server} to include the SDK WebSocket result path. The default local runtime measures the
+ * Proxy and local SDK path only.</p>
  *
  * <p>Run this same class on the Undertow baseline commit and the Jetty commit to compare transport overhead.</p>
  */
@@ -118,6 +125,8 @@ public class ProxyServerBenchmark {
 
     @SneakyThrows
     void run(BenchmarkConfig config) {
+        System.out.printf("Proxy benchmark runtime: java=%s, feature=%d%n",
+                          Runtime.version(), Runtime.version().feature());
         byte[] responsePayload = payload(config.responseBytes(), (byte) 'r', PayloadPattern.REPEATED);
         byte[] requestPayload = payload(config.requestBytes(), (byte) 'q', config.payloadPattern());
         String websocketPayload = "w".repeat(config.websocketBytes());
@@ -148,6 +157,10 @@ public class ProxyServerBenchmark {
                     System.out.printf("Proxy benchmark config: %s, runtimeBaseUrl=%s, proxyPort=%d%s%n",
                                       config, runtime.runtimeBaseUrl(), proxyServer.getPort(),
                                       proxyDetails(proxyServer));
+                    boolean exercisesSdkWebsocket = runtime.runtimeBaseUrl() != null;
+                    System.out.println(exercisesSdkWebsocket
+                                               ? "SDK runtime data dispatch: always-on bounded parallel"
+                                               : "SDK runtime data dispatch: not exercised (local client)");
 
                     if (config.scenarios().contains(Scenario.HEALTH)) {
                         ObservedVersions observedVersions = new ObservedVersions();
@@ -221,6 +234,9 @@ public class ProxyServerBenchmark {
                     if (config.scenarios().contains(Scenario.WEBSOCKET_SLOW_CLIENTS)) {
                         benchmarkSlowWebsocketClients("websocket-slow-clients", config, handlers,
                                                       websocketBaseUri.resolve("/benchmark/ws-slow"));
+                    }
+                    if (exercisesSdkWebsocket) {
+                        System.out.println(sdkWebsocketWorkerDetails());
                     }
                 } finally {
                     proxyServer.cancel();
@@ -593,6 +609,21 @@ public class ProxyServerBenchmark {
             details.append(", proxyThreads=").append(minThreads).append("..").append(maxThreads);
         }
         return details.toString();
+    }
+
+    private static String sdkWebsocketWorkerDetails() {
+        long jdkWorkers = countLiveThreads("fluxzero-websocket-jdk-");
+        long runtimeDataWorkers = countLiveThreads("fluxzero-websocket-runtime-data-");
+        String workerMode = supportsVirtualThreadWorkers() ? "virtual-per-task" : "fixed-platform";
+        return "SDK websocket workers: mode=%s, retainedJdk=%d, retainedRuntimeData=%d"
+                .formatted(workerMode, jdkWorkers, runtimeDataWorkers);
+    }
+
+    private static long countLiveThreads(String prefix) {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(Thread::isAlive)
+                .filter(thread -> thread.getName().startsWith(prefix))
+                .count();
     }
 
     private static Object invokeNoArg(Object target, String methodName) {

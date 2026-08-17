@@ -2478,6 +2478,41 @@ explicitly. Exclusion and path selection affect documentation only, not the grap
 `ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
 metadata with the model types registered in the current application, so child models may live in another Maven module.
 
+#### Request Cookies
+
+[HTTP/2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.3) and
+[HTTP/3](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2.1) can split one logical `Cookie` field over multiple
+field lines for compression. `WebRequest` parses all received `Cookie` values in logical wire order, whether the HTTP
+layer preserves those field lines or combines them with `; `. Commas are cookie-value data, not cookie-pair separators.
+
+```java
+List<HttpCookie> allCookies = request.getCookies();
+List<HttpCookie> sessions = request.getCookies("session");
+Optional<HttpCookie> firstSession = request.getCookie("session");
+```
+
+`getCookies()` returns every cookie without collapsing duplicate names. `getCookies(name)` uses an exact,
+case-sensitive name match. HTTP header names remain case-insensitive, so `Cookie` and `cookie` identify the same header;
+cookie names such as `Session` and `session` remain distinct.
+
+`getCookie(name)` retains its existing first-match behavior and uses `CookieValueConflictPolicy.DEFAULT`, which is
+`ALLOW_CONFLICTING_VALUES` in this release. It now also finds a first match in a later cookie field. Callers that need
+every value should use `getCookies(name)` instead of splitting raw headers.
+
+For security-sensitive cookies, reject conflicting values explicitly:
+
+```java
+HttpCookie session = request
+        .getCookie("session", CookieValueConflictPolicy.REJECT_CONFLICTING_VALUES)
+        .orElseThrow();
+```
+
+`REJECT_CONFLICTING_VALUES` accepts repeated cookies when their parsed values are exactly equal and throws a redacted
+`CookieConflictException` when any value differs. The exception contains no cookie name or value. Use this policy for
+session, authentication, authorization, flow-binding, and CSRF cookies so different processing layers cannot select
+different values from the same request. Cookie headers and values are excluded from `WebRequest` and builder
+`toString()` output.
+
 #### Other Parameter Annotations
 
 In addition to `@PathParam`, you can extract other values from the request using:
@@ -5899,7 +5934,7 @@ To configure and instantiate a WebSocket-backed client:
 ```java
 WebSocketClient client = WebSocketClient.newInstance(
         WebSocketClient.ClientConfig.builder()
-                .serviceBaseUrl("wss://my.flux.host")
+                .runtimeBaseUrl("wss://my.flux.host")
                 .name("my-service")
                 .build());
 
@@ -5907,7 +5942,7 @@ Fluxzero flux = Fluxzero.builder().build(client);
 ```
 
 This is the most common setup for production and shared environments. It connects to a remote Fluxzero Runtime via the
-service base URL, which must point to the desired deployment.
+runtime base URL, which must point to the desired deployment.
 
 ---
 
@@ -5918,16 +5953,127 @@ and can be created or extended using the `toBuilder()` pattern.
 
 Key options include:
 
-| Setting                     | Description                                                  | Default                          |
-|-----------------------------|--------------------------------------------------------------|----------------------------------|
-| `serviceBaseUrl`            | Base URL for all subsystems <br/>(e.g. `wss://my.flux.host`) | `FLUX_BASE_URL` property         |
-| `name`                      | Name of the application                                      | `FLUX_APPLICATION_NAME` property |
-| `applicationId`             | Optional app ID                                              | `FLUX_APPLICATION_ID` property   |
-| `id`                        | Unique client instance ID                                    | `FLUX_TASK_ID` property or UUID  |
-| `compression`               | Compression algorithm                                        | `LZ4`                            |
-| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health                     | 10s / 5s                         |
-| `disableMetrics`            | Whether to suppress all outgoing metrics                     | `false`                          |
-| `typeFilter`                | Optional message type restriction                            | `null`                           |
+| Setting | Description | Default |
+|---|---|---|
+| `runtimeBaseUrl` | Base URL for all subsystems, e.g. `wss://my.flux.host` | `FLUXZERO_BASE_URL` or `FLUX_BASE_URL` |
+| `name` | Name of the application | `FLUXZERO_APPLICATION_NAME` or `FLUX_APPLICATION_NAME` |
+| `applicationId` | Optional application ID | `FLUXZERO_APPLICATION_ID` or `FLUX_APPLICATION_ID` |
+| `id` | Unique client instance ID | `FLUXZERO_TASK_ID`, `FLUX_TASK_ID`, or UUID |
+| `supportedCompressionAlgorithms` | Preferred and fallback compression algorithms | ZSTD, then LZ4 |
+| `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health | 10s / 15s |
+| `maxConcurrentRuntimeWebSocketMessages` | Runtime messages decoded or waiting for completion-dispatcher admission per session | `fluxzero.runtime.ingress.maxConcurrency` or `3` |
+| `maxRetainedRuntimeWebSocketMessages` | Total assembling, compressed-pending, decode/admission, and functionally active messages per session | `fluxzero.runtime.ingress.maxRetainedMessages` or `128` |
+| `maxRetainedRuntimeWebSocketBytes` | Total compressed runtime-message wire bytes retained per session | `fluxzero.runtime.ingress.maxRetainedBytes` or 64 MiB |
+| `maxConcurrentRuntimeResultCompletions` | Admitted runtime-message groups and result completions, including synchronous customer continuations, per client | `fluxzero.runtime.ingress.maxCompletionConcurrency` or `8` |
+| `runtimeIngressStallCloseTimeout` | Opt-in close delay after ingress has been diagnosed as stalled | `fluxzero.runtime.ingress.stallCloseTimeout` or disabled |
+| `disableMetrics` | Whether to suppress all outgoing metrics | `false` |
+| `typeFilter` | Optional message type restriction | `null` |
+
+---
+
+### Runtime Data Dispatch Isolation
+
+SDK clients route complete runtime messages through a bounded, transport-neutral ingress controller. With the default
+`JdkWebsocketConnector`, its executor is separate from the JDK WebSocket protocol callback workers. Protocol ingress
+remains ordered, while up to three complete messages from one session may be processed concurrently. That per-session
+permit is released as soon as the decoded message group has been safely admitted by the client-wide completion
+dispatcher. Slow customer continuations therefore do not occupy decode capacity. Single responses and `ResultBatch`
+responses share that dispatcher, which admits and actively completes at most eight message groups/results per client
+by default. Customer callbacks always run on its completion executor, never on a
+runtime-data decode worker. A large batch is submitted incrementally rather than creating one executor task per result.
+Applications must not rely on WebSocket arrival order or single-threaded result completion; request/result correlation
+remains based on request IDs.
+
+By default, the dispatcher retains at most 128 runtime messages or 64 MiB per session. This envelope includes messages
+being assembled, compressed pending messages, up to three messages decoding or waiting for completion-dispatcher
+admission, and admitted messages whose functional work is still incomplete. The admitted group bound is client-wide
+and shared across that client's sessions. Messages and compressed wire bytes remain retained until their functional
+processing fully completes.
+For a response this includes SDK result completion and synchronous customer continuations triggered by its
+`CompletableFuture`. A single larger message may proceed when it is the only retained message, but no later message is
+admitted alongside it. Fragment reassembly reserves one retained message slot and its accumulated compressed bytes
+count toward the same bound. The byte bound applies to compressed wire payloads and does not cap the size of
+decompressed object graphs.
+
+When either retained bound is reached, the JDK adapter stops requesting another WebSocket frame. A frame already
+delivered during the capacity transition may be held as one uncopied `ByteBuffer` slice; it is admitted as soon as a
+functional completion releases capacity. Normal capacity pressure therefore pauses and resumes ingress without
+closing or reconnecting the session. Because the JDK does not deliver protocol frames while receive demand is paused,
+the SDK fences its ping deadline during this local pause and starts a fresh heartbeat after ingress resumes. Normal
+ping-timeout detection remains active whenever receive demand is open. Peer close and transport I/O errors remain
+independent of this fence and are reported immediately; while local backpressure persists, a silent connection failure
+is bounded only when the stall-close timeout below is configured.
+
+With transport metrics enabled, a retained queue with no functional completion for one `pingTimeout` emits one
+`RUNTIME_INGRESS_STALLED` diagnostic. An idle session without retained work is never stalled. The next completed
+message, or an empty retained queue, emits `RUNTIME_INGRESS_RECOVERED` and starts a fresh progress window if work
+remains. Independently of metric publication, a positive `runtimeIngressStallCloseTimeout` enables the progress
+watchdog and closes a session after that additional period without progress. The timeout is disabled by default.
+
+The limits can be tuned without disabling protocol isolation. The example below restates the defaults:
+
+```java
+WebSocketClient.ClientConfig.builder()
+        .maxConcurrentRuntimeWebSocketMessages(3)
+        .maxRetainedRuntimeWebSocketMessages(128)
+        .maxRetainedRuntimeWebSocketBytes(64L * 1024 * 1024)
+        .maxConcurrentRuntimeResultCompletions(8)
+        .runtimeIngressStallCloseTimeout(Duration.ZERO)
+        .build();
+```
+
+The 64 MiB byte envelope is not allocated up front; it is a retained-work credit limit. Tracking's default
+`maxFetchBytes` is 100 MiB of serialized message payload before WebSocket compression and envelope overhead, so one
+tracking response can legitimately exceed the transport envelope. The sole-oversized-message rule preserves progress
+in that case, while later responses wait until retained work completes.
+
+An explicit builder value takes precedence over the corresponding environment variable or system/application
+property, which in turn takes precedence over the SDK default. Concurrency must be at least one, retained messages
+must be at least concurrency, and retained bytes must be positive; invalid combinations are rejected when the
+`WebSocketClient` is constructed. There is no disable or unbounded mode. Set message concurrency to one for serial
+runtime-message decode while retaining liveness isolation; set result-completion concurrency to one only when
+functional result callbacks must also be serial.
+
+The canonical operation properties are `fluxzero.runtime.ingress.maxConcurrency`,
+`fluxzero.runtime.ingress.maxRetainedMessages`, `fluxzero.runtime.ingress.maxRetainedBytes`,
+`fluxzero.runtime.ingress.maxCompletionConcurrency`, and `fluxzero.runtime.ingress.stallCloseTimeout`. The
+`fluxzero.websocket.runtime.*` dotted names and `FLUXZERO_WEBSOCKET_RUNTIME_MAX_*` environment variables are aliases for
+the three WebSocket capacity limits. Canonical names take precedence when both forms are set. Environment-variable
+normalization also allows the canonical properties to be supplied as `FLUXZERO_RUNTIME_INGRESS_*`.
+
+Increase retained messages for bursts of small responses and retained bytes for larger compressed responses. A wider
+retained window does not add runtime-message workers, but can improve burst throughput by reducing receive-demand
+pauses and keeping existing workers supplied. Increase message concurrency only when decode/admission is the
+bottleneck; increase result-completion concurrency only when functional callbacks are the bottleneck and the process
+has CPU and heap headroom. These limits are
+per physical WebSocket session, so account for the configured number of subsystem sessions. For tracking workloads,
+consider lowering fetch size or byte limits before substantially increasing the WebSocket retention envelope.
+Increasing retained limits raises the worst-case compressed ingress memory per session; increasing message
+concurrency raises simultaneous decode and allocation, while result-completion concurrency raises callback and decoded
+work-group pressure. Tune from the
+sparse pressure diagnostics and load-test the resulting aggregate across all configured sessions.
+
+The worker model is unchanged by these limits. On Java 25 and newer, completion tasks use one virtual thread per task.
+On Java 21 through 24, they use the existing lazily populated fixed platform-thread pool, sized to the configured
+completion concurrency. The default is eight on both routes. Explicit configuration still wins when an application
+has measured headroom for wider parallel callback completion.
+
+The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
+explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied
+single-thread executor therefore does not promise the same isolation.
+
+Transport anomaly metrics remain disabled by default. Set
+`fluxzero.websocket.transportMetrics.enabled=true` to emit sparse diagnostics for ping timeout, ingress
+backpressure/stall/recovery, an unrecoverable accounting overflow, or runtime-data executor rejection. They contain the
+client type, runtime and Java versions, actual transport and completion executor worker modes, retained, decode/admission,
+admitted-functional, compressed-pending and one deferred-frame byte counts, all effective ingress and
+result-completion limits, admitted and admission-pending completion groups, current result-completion queue state, the
+opt-in stall-close timeout and last inbound age, but no session or ping IDs. Transport metrics do not add per-message
+completion clocks or historical high-watermark bookkeeping.
+Enabling this diagnostic also records the last native inbound activity using monotonic time; the default listener
+performs no corresponding clock reads. Ping-timeout close starts before best-effort metric publication is dispatched.
+Transport metrics follow
+`disableMetrics` and are suppressed on the metrics WebSocket itself to avoid recursive publication.
 
 ---
 

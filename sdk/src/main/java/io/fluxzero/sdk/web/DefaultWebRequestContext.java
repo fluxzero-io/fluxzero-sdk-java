@@ -31,7 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -108,8 +107,7 @@ public class DefaultWebRequestContext implements WebRequestContext {
                 .map(scheme -> scheme + "://" + uri.getHost() + Optional.of(uri.getPort())
                         .filter(p -> p >= 0).map(p -> ":" + p).orElse("")).orElse(null);
         queryParameters = parseParameters(uri.getRawQuery());
-        cookieMap = WebRequest.getHeaders(metadata).getOrDefault("Cookie", Collections.emptyList())
-                .stream().findFirst().map(WebUtils::parseRequestCookieHeader).orElseGet(Collections::emptyList)
+        cookieMap = WebRequest.parseCookieHeaders(WebRequest.getHeaders(metadata).getOrDefault("Cookie", List.of()))
                 .stream().collect(toMap(HttpCookie::getName, HttpCookie::getValue, (first, ignored) -> first,
                                         LinkedHashMap::new));
         remoteAddress = Stream.of("X-Forwarded-For", "Forwarded", "X-Real-IP")

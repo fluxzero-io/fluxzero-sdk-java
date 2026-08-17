@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
+import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
 
 /**
@@ -53,8 +54,11 @@ import static java.net.http.HttpClient.Version.HTTP_1_1;
  */
 public class JdkWebsocketConnector implements WebsocketConnector {
     static final String DEFAULT_EXECUTOR_THREAD_PREFIX = "fluxzero-websocket-jdk-";
+    static final String SDK_RUNTIME_DATA_EXECUTOR_THREAD_PREFIX = "fluxzero-websocket-runtime-data-";
 
     private static final Executor DEFAULT_EXECUTOR = newWorkerPool(DEFAULT_EXECUTOR_THREAD_PREFIX, 8);
+    private static final Executor SDK_RUNTIME_DATA_EXECUTOR =
+            newWorkerPool(SDK_RUNTIME_DATA_EXECUTOR_THREAD_PREFIX, 8);
     private static final String SEC_WEBSOCKET_ACCEPT = "Sec-WebSocket-Accept";
     private static final String SEC_WEBSOCKET_KEY = "Sec-WebSocket-Key";
     private static final String WEBSOCKET_ACCEPT_SUFFIX = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
@@ -62,20 +66,23 @@ public class JdkWebsocketConnector implements WebsocketConnector {
     private final HttpClient httpClient;
     private final CapturingCookieHandler cookieHandler;
     private final Executor executor;
+    private final Executor runtimeDataExecutor;
     private final Set<WebsocketSession> openSessions = ConcurrentHashMap.newKeySet();
 
     /**
      * Creates a connector backed by a default HTTP/1.1 {@link HttpClient}.
+     * SDK runtime messages use a separate shared executor from native WebSocket callbacks.
      */
     public JdkWebsocketConnector() {
-        this(HttpClient.newBuilder().version(HTTP_1_1).build());
+        this(HttpClient.newBuilder().version(HTTP_1_1).build(), DEFAULT_EXECUTOR, SDK_RUNTIME_DATA_EXECUTOR);
     }
 
     /**
      * Creates a connector backed by the supplied HTTP client.
      *
      * <p>A single internal client is derived from this client so the connector can install its handshake-header
-     * capturing cookie handler without mutating the original client.</p>
+     * capturing cookie handler without mutating the original client. Its resolved executor is retained for both native
+     * callbacks and SDK runtime messages.</p>
      *
      * @param httpClient base client whose proxy, SSL, authenticator, executor, cookie, and timeout settings are reused
      */
@@ -86,14 +93,19 @@ public class JdkWebsocketConnector implements WebsocketConnector {
     /**
      * Creates a connector backed by the supplied HTTP client and executor.
      *
-     * <p>The executor is used for the internal HTTP client derived from the supplied client and for dispatching native
-     * JDK websocket listener callbacks.</p>
+     * <p>The executor is used for the internal HTTP client derived from the supplied client, native JDK WebSocket
+     * listener callbacks, and SDK runtime messages.</p>
      *
      * @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused
      * @param executor   executor for JDK websocket and listener callback work
      */
     public JdkWebsocketConnector(HttpClient httpClient, Executor executor) {
+        this(httpClient, executor, executor);
+    }
+
+    JdkWebsocketConnector(HttpClient httpClient, Executor executor, Executor runtimeDataExecutor) {
         this.executor = Objects.requireNonNull(executor);
+        this.runtimeDataExecutor = Objects.requireNonNull(runtimeDataExecutor);
         this.cookieHandler = new CapturingCookieHandler(
                 Objects.requireNonNull(httpClient).cookieHandler().orElse(null));
         this.httpClient = createHttpClient(httpClient, this.executor, cookieHandler);
@@ -121,7 +133,7 @@ public class JdkWebsocketConnector implements WebsocketConnector {
         applySubprotocols(builder, connectionOptions.subprotocols());
 
         JdkWebSocketSession session = new JdkWebSocketSession(this, endpoint, connectionOptions, uri,
-                                                             handshakeResponse, executor);
+                                                             handshakeResponse, executor, runtimeDataExecutor);
         HandshakeCapture handshakeCapture = new HandshakeCapture(handshakeResponse);
         CompletableFuture<WebSocket> webSocketFuture = null;
         try {
@@ -152,6 +164,20 @@ public class JdkWebsocketConnector implements WebsocketConnector {
 
     void removeOpenSession(WebsocketSession session) {
         openSessions.remove(session);
+    }
+
+    static String runtimeDataWorkerMode(Executor callbackExecutor, Executor selectedRuntimeDataExecutor) {
+        if (selectedRuntimeDataExecutor == SDK_RUNTIME_DATA_EXECUTOR) {
+            return "isolated-sdk-default-" + defaultWorkerMode();
+        }
+        if (selectedRuntimeDataExecutor == DEFAULT_EXECUTOR) {
+            return "shared-sdk-default-" + defaultWorkerMode();
+        }
+        return selectedRuntimeDataExecutor == callbackExecutor ? "shared-caller-owned" : "isolated-caller-owned";
+    }
+
+    static String defaultWorkerMode() {
+        return supportsVirtualThreadWorkers() ? "virtual-thread-per-task" : "fixed-platform-pool";
     }
 
     private static void abortConnectingSession(JdkWebSocketSession session, CompletableFuture<WebSocket> webSocketFuture) {
