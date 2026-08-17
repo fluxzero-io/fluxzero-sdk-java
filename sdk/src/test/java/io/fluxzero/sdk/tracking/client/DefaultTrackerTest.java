@@ -254,6 +254,27 @@ class DefaultTrackerTest {
     }
 
     @Test
+    void keepsMinIndexInclusiveWhenCatchingUpFromStoredPosition() throws Exception {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        ConsumerConfiguration config = ConsumerConfiguration.builder()
+                .name("consumer")
+                .minIndex(10L)
+                .build();
+        Tracker tracker = new Tracker("trackerId", MessageType.EVENT, null, config, null);
+        DefaultTracker defaultTracker = createTracker(trackingClient, config, tracker);
+        SerializedMessage oldMessage = mock(SerializedMessage.class);
+        when(oldMessage.getIndex()).thenReturn(5L);
+        when(trackingClient.storePosition(eq("consumer"), any(), anyLong())).thenReturn(
+                CompletableFuture.completedFuture(null));
+        setRunning(defaultTracker, true);
+
+        defaultTracker.process(new MessageBatch(
+                new int[]{0, 128}, List.of(oldMessage), 5L, Position.newPosition(), false));
+
+        verify(trackingClient).storePosition(eq("consumer"), any(), eq(9L));
+    }
+
+    @Test
     void storePositionPreservesInterruptAndDoesNotRetryInterruptedWait() throws Exception {
         TrackingClient trackingClient = mock(TrackingClient.class);
         ConsumerConfiguration config = ConsumerConfiguration.builder().name("consumer").build();

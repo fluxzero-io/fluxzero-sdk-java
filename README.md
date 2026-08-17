@@ -6055,8 +6055,8 @@ sparse pressure diagnostics and load-test the resulting aggregate across all con
 
 The worker model is unchanged by these limits. On Java 25 and newer, completion tasks use one virtual thread per task.
 On Java 21 through 24, they use the existing lazily populated fixed platform-thread pool, sized to the configured
-completion concurrency. The default is eight on both routes. Explicit configuration still wins when an application
-has measured headroom for wider parallel callback completion.
+completion concurrency. Both routes default to eight. Explicit configuration still wins when an application has
+measured headroom; for example, Java 25 applications can opt into 32 virtual completion workers.
 
 The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
 explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied

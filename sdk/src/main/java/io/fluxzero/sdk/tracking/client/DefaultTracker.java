@@ -415,8 +415,10 @@ public class DefaultTracker implements Runnable, Registration {
     private MessageBatch filterBatchIfNeeded(MessageBatch batch) {
         if (shouldFilterBatch(batch)) {
             var filter = messageIndexFilter();
+            // Stored positions are exclusive cursors. Stop immediately before an inclusive lower bound so the
+            // message at minIndex remains eligible after an older batch has been filtered out.
             var newLastIndex = isMaxIndexReached(batch.getLastIndex()) ? maxIndexExclusive - 1 :
-                    minIndex == null ? batch.getLastIndex() : Math.max(minIndex, batch.getLastIndex());
+                    minIndex == null ? batch.getLastIndex() : Math.max(minIndex - 1L, batch.getLastIndex());
             batch = new MessageBatch(batch.getSegment(),
                                      batch.getMessages().stream().filter(filter).collect(toList()),
                                      newLastIndex, batch.getPosition(), batch.isCaughtUp());

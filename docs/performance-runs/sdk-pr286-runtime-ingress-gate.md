@@ -188,3 +188,24 @@ those concerns deserves evaluation before selecting a wider fixed default.
   no production or test code was changed for that pre-existing queue-observation race.
 - All accepted full-route runs completed exact result/event counts and final model-state verification.
 - The adaptive candidate and Java-25 default 32 are absent from merge `190b82cc5f3`.
+
+## Final upstream-main convergence
+
+E876 verifies the final integration of SDK `origin/main` at `fc2648ce253`, after PR #286 was upstreamed with the
+accepted default of eight. The Runtime-ingress and indexed model-result hot-path sources are byte-identical to the
+previously accepted branch checkpoint `11eb3d53031`; the merge only adopts the definitive default-eight test and
+documentation plus independent newer main changes. The focused cross-boundary suite and full reactor build remain the
+correctness gate.
+
+This smoke exercises the bounded completion dispatcher directly on Java 25. It is intentionally not compared with the
+earlier full decode or E2E measurements: its purpose is to catch accidental loss of bounded incremental dispatch during
+conflict resolution. It completed every result, retained the configured maximum of eight queued tasks, allocated 0.09
+bytes per result for 1,024-result batches, and showed no measured GC collections.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E876a | smoke | bounded completion, singleton | `11eb3d53031` | final `origin/main` integration, limit 8 | 4,194,304 results | 5 full passes | none | n/a | 33.95M results/s | false | merge-conflict guard | accepted |
+| E876b | smoke | bounded completion, batch 32 | `11eb3d53031` | final `origin/main` integration, limit 8 | 4,194,304 results | 5 full passes | none | n/a | 129.53M results/s | false | merge-conflict guard | accepted |
+| E876c | smoke | bounded completion, batch 1,024 | `11eb3d53031` | final `origin/main` integration, limit 8 | 4,194,304 results | 5 full passes | none | n/a | 280.11M results/s | false | merge-conflict guard | accepted |
+
+Evidence SHA-256: `72d3759373c5b500171b4fbc90c94d38107d8879406ea3dcf1ec04747579917f`.

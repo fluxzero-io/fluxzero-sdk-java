@@ -155,8 +155,8 @@ Increasing retained limits raises worst-case memory use. Message concurrency con
 result-completion concurrency separately controls admitted decoded work and customer-callback pressure.
 
 The executor policy itself does not change: Java 25 and newer use virtual completion workers, while Java 21 through 24
-use the existing lazily populated fixed platform-thread pool. Both routes default to a concurrency of eight. Explicit
-completion concurrency still wins on both routes.
+use the existing lazily populated fixed platform-thread pool. Both routes default to eight. Explicit completion
+concurrency still wins on both routes, so a Java 25 application can opt into 32 after validating its workload.
 
 ---
 
