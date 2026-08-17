@@ -18,7 +18,6 @@ package io.fluxzero.sdk.tracking.client;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.tracking.ClaimSegment;
 import io.fluxzero.common.api.tracking.ClaimSegmentResult;
@@ -34,7 +33,6 @@ import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.api.tracking.ResetPosition;
 import io.fluxzero.common.api.tracking.StorePosition;
 import io.fluxzero.common.api.tracking.TrackingWebSocketCodec;
-import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -96,43 +94,7 @@ public class WebsocketTrackingClient extends AbstractWebsocketClient implements 
                 configuration.singleTracker(), configuration.clientControlledIndex(),
                 configuration.isIncludeDocumentTombstones(), lastIndex,
                 Optional.ofNullable(configuration.getPurgeDelay()).map(Duration::toMillis).orElse(null)))
-                .thenApply(result -> {
-                    recordReadStages(result.getMessageBatch(), "read-future-complete");
-                    return result.getMessageBatch();
-                });
-    }
-
-    @Override
-    protected void recordResultStages(List<RequestResult> results, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        results.stream().filter(ReadResult.class::isInstance)
-                .map(ReadResult.class::cast)
-                .forEach(result -> recordReadStages(result.getMessageBatch(), stage));
-    }
-
-    private void recordReadStages(MessageBatch batch, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()
-                || messageType != MessageType.COMMAND && messageType != MessageType.RESULT) {
-            return;
-        }
-        int batchSize = batch.getMessages().size();
-        String component = messageType == MessageType.RESULT
-                ? "sdk.tracking-client.RESULT"
-                : "sdk.tracking-client.COMMAND";
-        for (SerializedMessage message : batch.getMessages()) {
-            Long boxedIndex = message.getIndex();
-            long traceId = messageType == MessageType.RESULT
-                    ? message.getMetadataLongValue("$traceId", Long.MIN_VALUE)
-                    : boxedIndex == null ? Long.MIN_VALUE : boxedIndex;
-            if (traceId != Long.MIN_VALUE
-                && FluxzeroJfr.requestTraceSampled(traceId)) {
-                FluxzeroJfr.requestStage(
-                        traceId, component, stage,
-                        batchSize, boxedIndex == null ? -1L : boxedIndex);
-            }
-        }
+                .thenApply(ReadResult::getMessageBatch);
     }
 
     public CompletableFuture<ClaimSegmentResult> claimSegment(String trackerId, Long lastIndex,

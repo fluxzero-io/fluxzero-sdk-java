@@ -49,7 +49,6 @@ import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
 import lombok.extern.slf4j.Slf4j;
 
-import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.time.Duration;
 import java.time.Instant;
@@ -742,7 +741,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     transportSlot,
                     false);
         }
-        recordModelRequestStage(message, "model-evaluation-start", 1);
         ModelCommitEngine.CommitEvaluation initialEvaluation =
                 MessageBatchModelView.withDependency(
                         batchTicket,
@@ -758,7 +756,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                         : evaluate(message)
                                 : evaluatePrefetched(
                                         message, prefetch, batchTicket));
-        recordModelRequestStage(message, "model-evaluation-complete", 1);
         if (batchTicket != null) {
             batchTicket.stage(initialEvaluation);
         }
@@ -2738,23 +2735,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         completed, completed - started));
     }
 
-    private static void recordModelRequestStage(
-            DeserializingMessage message, String stage, int batchSize) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        try {
-            var serialized = message.getSerializedObject();
-            Long index = serialized.getIndex();
-            if (index != null) {
-                FluxzeroJfr.requestStage(
-                        index, "sdk.model-handler", stage, batchSize, index);
-            }
-        } catch (RuntimeException ignored) {
-            // Diagnostics must not affect handler execution for custom message implementations.
-        }
-    }
-
     private static void releaseGates(
             List<BatchCommitTicket> batch) {
         batch.stream()
@@ -3012,7 +2992,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             }
             int slot = tickets.size();
             HandlerCommitTicket ticket = new HandlerCommitTicket(
-                    FluxzeroJfr.requestStageEnabled() ? message : null,
                     message,
                     transportBatch, slot,
                     commitPolicyFor(
@@ -3020,8 +2999,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     modelView);
             planDependencies(ticket);
             tickets.add(ticket);
-            recordModelRequestStage(
-                    message, "model-commit-registered", tickets.size());
             return ticket;
         }
 
@@ -3076,7 +3053,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                     .toArray(CompletableFuture[]::new));
             AsyncCompletionScope.register(
                     completion);
-            if (jfrEvent != null || FluxzeroJfr.requestStageEnabled()) {
+            if (jfrEvent != null) {
                 completion.whenComplete((ignored, completionFailure) ->
                         finishJfr(snapshot, completionFailure));
             }
@@ -3089,23 +3066,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 jfrEvent.outputItemCount = snapshot.size();
                 jfrEvent.storageNanos = Math.max(0L, System.nanoTime() - createdNanos);
             }
-            snapshot.forEach(ticket -> {
-                if (ticket.traceMessage != null) {
-                    recordModelRequestStage(
-                            ticket.traceMessage, "model-commit-complete", snapshot.size());
-                }
-            });
             FluxzeroJfr.finish(jfrEvent, failure);
         }
     }
 
     private static final class HandlerCommitTicket
             extends BatchCommitTicket {
-        private final DeserializingMessage traceMessage;
         private final AtomicBoolean started = new AtomicBoolean();
 
         private HandlerCommitTicket(
-                DeserializingMessage traceMessage,
                 DeserializingMessage message,
                 ModelCommitter.CommitBatch transportBatch,
                 int transportSlot,
@@ -3115,7 +3084,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     null, message,
                     ThreadLocalContext.capture(),
                     commitPolicy, transportSlot);
-            this.traceMessage = traceMessage;
             modelView(modelView);
             transport(transportBatch, transportSlot);
         }
@@ -3123,7 +3091,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         static HandlerCommitTicket failed(
                 DeserializingMessage message, Throwable failure) {
             HandlerCommitTicket ticket = new HandlerCommitTicket(
-                    FluxzeroJfr.requestStageEnabled() ? message : null,
                     message, null, -1,
                     ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH,
                     null);
@@ -3146,10 +3113,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             }
             startedExecution.whenComplete((result, failure) -> {
                 if (failure == null) {
-                    if (traceMessage != null) {
-                        recordModelRequestStage(
-                                traceMessage, "model-execution-complete", 1);
-                    }
                     complete(result);
                 } else {
                     fail(failure);
@@ -3214,8 +3177,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                             commitPolicy,
                             registered - 1);
             tickets.add(ticket);
-            recordModelRequestStage(
-                    message, "model-commit-registered", registered);
             return ticket;
         }
 
@@ -3372,9 +3333,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             if (!jfrCompleted.compareAndSet(false, true)) {
                 return;
             }
-            tickets.forEach(ticket ->
-                    recordModelRequestStage(
-                            ticket.message(), "model-commit-complete", batchSize));
             FluxzeroJfr.finish(jfrEvent, failure);
         }
 

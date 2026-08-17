@@ -546,14 +546,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private CompletableFuture<Void> sendBatchChunkAsync(
             List<Request> requests, WebsocketSession session) {
         FluxzeroJfr.Batch batchEvent = startRequestBatchEvent(requests);
-        recordRequestStages(requests, "request-send-start");
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
             byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(object));
             if (batchEvent != null) {
                 batchEvent.bytes = bytes.length;
             }
-            recordRequestStages(requests, "request-send-complete");
             if (session.isOpen()) {
                 CompletableFuture<Void> result = sendEncodedBatch(session, object, bytes);
                 FluxzeroJfr.finish(batchEvent, null);
@@ -580,10 +578,6 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     /** Starts an optional request-batch event owned by the concrete protocol client. */
     protected FluxzeroJfr.Batch startRequestBatchEvent(List<Request> requests) {
         return null;
-    }
-
-    /** Records specialized request stages without coupling the transport to a request domain. */
-    protected void recordRequestStages(List<Request> requests, String stage) {
     }
 
     private CompletableFuture<Void> sendEncodedBatch(WebsocketSession session, JsonType object, byte[] bytes)
@@ -740,11 +734,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         String sessionId = getNegotiatedSessionId(session);
         List<RequestResult> results = restoreResultContext(decodedResults);
         WebSocketRequest[] receivedRequests = receiveResultContext(results);
-        recordResultStages(results, "response-context-restored");
-        recordResultStages(results, "result-preparation-start");
         CompletableFuture<Void> preparation = prepareResultGroup(results);
-        recordPreparationCompletion(results, preparation);
-        recordResultStages(results, "result-callback-queued");
         String batchId = value instanceof ResultBatch ? Fluxzero.generateId() : null;
         long callbackQueuedTimestamp = resultDiagnostics.timestamp();
         RuntimeIngressController.MessageDispatch submission;
@@ -790,18 +780,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         context.request = request;
         Throwable failure = null;
         try {
-            if (FluxzeroJfr.requestStageEnabled()) {
-                recordResultStages(List.of(result), "result-callback-start");
-            }
             preparation.join();
             handleResult(
                     result, batchId, sessionId,
                     resultDiagnostics.resultTiming(
                             frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
                             resultDiagnostics.timestamp()));
-            if (FluxzeroJfr.requestStageEnabled()) {
-                recordResultStages(List.of(result), "result-callback-complete");
-            }
         } catch (RuntimeException | Error e) {
             failure = e;
             throw e;
@@ -1006,22 +990,6 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     /** Classifies decoded results for optional protocol-specific JFR diagnostics. */
     protected String jfrResultType(List<RequestResult> results) {
         return "RESULT";
-    }
-
-    private void recordPreparationCompletion(
-            List<RequestResult> results, CompletableFuture<Void> preparation) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        preparation.whenComplete((ignored, failure) -> {
-            if (failure == null) {
-                recordResultStages(results, "result-preparation-complete");
-            }
-        });
-    }
-
-    /** Records specialized result stages without coupling the transport to a result domain. */
-    protected void recordResultStages(List<RequestResult> results, String stage) {
     }
 
     CompletableFuture<Void> prepareResultGroup(

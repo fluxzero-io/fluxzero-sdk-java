@@ -71,7 +71,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -153,39 +152,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
         }
         return results.stream().allMatch(result -> result != null && result.getClass() == type)
                 ? label : "RESULT";
-    }
-
-    @Override
-    protected void recordRequestStages(List<Request> requests, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        int batchSize = requests.size();
-        requests.stream().filter(CommitModels.class::isInstance)
-                .map(CommitModels.class::cast)
-                .forEach(commit -> recordCommitStage(
-                        commit.getCommitId(), "sdk.model-transport", stage, batchSize));
-    }
-
-    @Override
-    protected void recordResultStages(List<RequestResult> results, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        int batchSize = results.size();
-        results.stream().filter(CommitModelsResult.class::isInstance)
-                .map(CommitModelsResult.class::cast)
-                .forEach(commit -> recordCommitStage(
-                        commit.getCommitId(), "sdk.websocket-input.MODEL", stage, batchSize));
-    }
-
-    private static void recordCommitStage(
-            String commitId, String component, String stage, int batchSize) {
-        Long traceId = FluxzeroJfr.resolveTraceCorrelation(commitId);
-        if (traceId != null) {
-            FluxzeroJfr.requestStage(
-                    traceId, component, stage, batchSize, traceId);
-        }
     }
 
     /**

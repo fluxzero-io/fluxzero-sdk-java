@@ -565,7 +565,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private CompletableFuture<Message> deserializeResponse(SerializedMessage m) {
-        recordTraceStage(m, "result-deserialization-start");
         Object result;
         try {
             result = serializer.deserialize(m);
@@ -580,44 +579,12 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (messageType == MessageType.WEBREQUEST) {
             message = new WebResponse(message);
         }
-        recordTraceStage(m, "result-deserialization-complete");
         return CompletableFuture.completedFuture(message);
-    }
-
-    private static void recordTraceStage(SerializedMessage message, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled() || message == null) {
-            return;
-        }
-        recordTraceStage(message.getMetadataValue("$traceId"), stage);
-    }
-
-    private static void recordTraceStage(Message message, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled() || message == null) {
-            return;
-        }
-        recordTraceStage(message.getMetadata().get("$traceId"), stage);
-    }
-
-    private static void recordTraceStage(String traceId, String stage) {
-        if (traceId == null) {
-            return;
-        }
-        try {
-            FluxzeroJfr.requestStage(
-                    Long.parseLong(traceId), "sdk.command-gateway", stage, 1, -1L);
-        } catch (NumberFormatException ignored) {
-            // Detailed route timing supports the numeric default correlation ID; arbitrary user trace IDs remain valid.
-        }
     }
 
     private CompletableFuture<Message> trackCallback(String messageId, CompletableFuture<Message> future) {
         callbacks.put(messageId, future);
-        return future.whenComplete((message, failure) -> {
-            callbacks.remove(messageId);
-            if (failure == null) {
-                recordTraceStage(message, "command-future-complete");
-            }
-        });
+        return future.whenComplete((message, failure) -> callbacks.remove(messageId));
     }
 
     @Override

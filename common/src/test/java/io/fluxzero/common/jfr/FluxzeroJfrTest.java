@@ -24,7 +24,6 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FluxzeroJfrTest {
@@ -33,24 +32,16 @@ class FluxzeroJfrTest {
     Path testDirectory;
 
     @Test
-    void recordsBatchesAndStableRequestSamples() throws Exception {
+    void recordsBatches() throws Exception {
         Path recordingFile = testDirectory.resolve("fluxzero.jfr");
         try (Recording recording = new Recording()) {
             recording.enable("io.fluxzero.Batch");
-            recording.enable("io.fluxzero.RequestStage");
             recording.start();
 
             FluxzeroJfr.Batch batch = FluxzeroJfr.startBatch(
                     "sdk", "handle", "COMMAND", 64, 1_024L, 3L, 2_048L);
             batch.preparationNanos = 123L;
             FluxzeroJfr.finish(batch, null);
-            FluxzeroJfr.requestStage(4_096L, "sdk", "handled", 64, 99L);
-            FluxzeroJfr.requestStage(4_097L, "sdk", "handled", 64, 100L);
-            FluxzeroJfr.registerTraceCorrelation("sampled", 4_096L);
-            FluxzeroJfr.registerTraceCorrelation("not-sampled", 4_097L);
-            assertEquals(4_096L, FluxzeroJfr.resolveTraceCorrelation("sampled"));
-            assertNull(FluxzeroJfr.resolveTraceCorrelation("not-sampled"));
-
             recording.stop();
             recording.dump(recordingFile);
         }
@@ -63,12 +54,5 @@ class FluxzeroJfrTest {
         assertEquals(64, batch.getInt("itemCount"));
         assertEquals(123L, batch.getLong("preparationNanos"));
         assertTrue(batch.getDuration().toNanos() >= 0L);
-
-        List<RecordedEvent> requests = events.stream()
-                .filter(event -> event.getEventType().getName().equals("io.fluxzero.RequestStage"))
-                .toList();
-        assertEquals(1, requests.size());
-        assertEquals(4_096L, requests.getFirst().getLong("requestId"));
-        assertEquals(99L, requests.getFirst().getLong("messageIndex"));
     }
 }

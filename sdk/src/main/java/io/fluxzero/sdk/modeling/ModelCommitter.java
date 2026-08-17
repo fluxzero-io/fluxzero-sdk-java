@@ -23,16 +23,13 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
-import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
-import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.SerializedDocument;
-import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -263,7 +260,6 @@ final class ModelCommitter {
                     prepared.commit().getRequestId(), pending);
         }
         CompletableFuture<CommitModelsResult> committed;
-        recordCommitStage(prepared, "model-commit-dispatch-start");
         try {
             committed = batch == null
                     ? eventStoreClient.commitModels(prepared.commit())
@@ -276,7 +272,6 @@ final class ModelCommitter {
             }
             throw failure;
         }
-        recordCommitStage(prepared, "model-commit-dispatched");
         if (pending != null) {
             return committed.handle((result, failure) -> {
                 if (failure != null) {
@@ -296,7 +291,6 @@ final class ModelCommitter {
         }
         return committed
                 .thenApply(result -> {
-                    recordCommitStage(prepared, "model-commit-response-received");
                     if (result.isAccepted()) {
                         processCommits(
                                 List.of(
@@ -323,8 +317,6 @@ final class ModelCommitter {
             if (pending == null) {
                 continue;
             }
-            recordCommitStage(
-                    pending.prepared(), "model-commit-response-received");
             /*
              * A decoded result owns this pending entry from here on. Removing it before post-commit processing avoids
              * retaining and boxing every request id in a second list, and also prevents duplicate transport delivery
@@ -332,8 +324,6 @@ final class ModelCommitter {
              */
             pendingCommits.remove(
                     result.getRequestId(), pending);
-            recordCommitStage(
-                    pending.prepared(), "model-result-matched");
             if (result.isAccepted()) {
                 committed.add(
                         new CommittedCommit(
@@ -369,24 +359,9 @@ final class ModelCommitter {
 
     private CompletableFuture<Void> processCommits(
             List<CommittedCommit> committed) {
-        if (FluxzeroJfr.requestStageEnabled()) {
-            committed.forEach(value ->
-                                      recordCommitStage(
-                                              value.prepared(), "model-post-commit-start"));
-        }
-        CompletableFuture<Void> result = Objects.requireNonNull(
+        return Objects.requireNonNull(
                 afterCommits.apply(committed),
                 "Model post-commit callback returned null");
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return result;
-        }
-        return result.whenComplete((ignored, failure) -> {
-            if (failure == null) {
-                committed.forEach(value ->
-                                          recordCommitStage(
-                                                  value.prepared(), "model-post-commit-complete"));
-            }
-        });
     }
 
     void close() {
@@ -523,35 +498,7 @@ final class ModelCommitter {
             String commitId,
             ModelCommitEngine.CommitEvaluation evaluation,
             ModelConflictPolicy conflictPolicy) {
-        recordCommitStage(evaluation, "model-commit-prepare-start");
-        PreparedCommit result = doPrepare(commitId, evaluation, conflictPolicy);
-        recordCommitStage(evaluation, "model-commit-prepare-complete");
-        return result;
-    }
-
-    private static void recordCommitStage(
-            ModelCommitEngine.CommitEvaluation evaluation, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled() || evaluation == null || evaluation.substeps().isEmpty()) {
-            return;
-        }
-        recordCommitStage(evaluation.substeps().getFirst().message(), stage);
-    }
-
-    private static void recordCommitStage(PreparedCommit prepared, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled() || prepared == null || prepared.messages().isEmpty()) {
-            return;
-        }
-        recordCommitStage(prepared.messages().getFirst(), stage);
-    }
-
-    private static void recordCommitStage(DeserializingMessage message, String stage) {
-        SerializedMessage serialized = message.getSerializedObject();
-        Long index = serialized.getIndex();
-        if (index != null) {
-            FluxzeroJfr.registerTraceCorrelation(message.getMessageId(), index);
-            FluxzeroJfr.requestStage(
-                    index, "sdk.model-committer", stage, 1, index);
-        }
+        return doPrepare(commitId, evaluation, conflictPolicy);
     }
 
     private PreparedCommit doPrepare(

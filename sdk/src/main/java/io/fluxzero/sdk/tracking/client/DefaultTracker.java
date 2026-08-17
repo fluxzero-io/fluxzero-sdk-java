@@ -249,7 +249,6 @@ public class DefaultTracker implements Runnable, Registration {
             Tracker.current.set(tracker);
             thread.set(currentThread());
             try {
-                List<SerializedMessage> previouslyProcessedMessages = null;
                 if (maxIndexExclusive != null && IndexUtils.timestampFromIndex(maxIndexExclusive).isBefore(
                         Fluxzero.currentTime())) {
                     Long storedLowestIndex = currentStoredLowestIndex();
@@ -260,14 +259,10 @@ public class DefaultTracker implements Runnable, Registration {
                 while (running.get()) {
                     pauseFetchIfNeeded();
                     if (running.get()) {
-                        recordRequestStages(previouslyProcessedMessages, "next-read-start");
-                        previouslyProcessedMessages = null;
                         MessageBatch batch = fetch(lastProcessedIndex);
                         if (batch != null) {
                             Tracker.current.set(tracker.withMessageBatch(batch));
                             processor.accept(batch);
-                            previouslyProcessedMessages = FluxzeroJfr.requestStageEnabled()
-                                    ? batch.getMessages() : null;
                         }
                     }
                 }
@@ -446,7 +441,6 @@ public class DefaultTracker implements Runnable, Registration {
     private void doProcess(Consumer<List<SerializedMessage>> consumer, MessageBatch messageBatch) {
         List<SerializedMessage> messages = messageBatch.getMessages();
         FluxzeroJfr.Batch event = trackingBatchEvent(messages);
-        recordRequestStages(messages, "tracker-delivered");
         long handlingStarted = event == null ? 0L : System.nanoTime();
         Throwable diagnosticFailure = null;
         try {
@@ -472,7 +466,6 @@ public class DefaultTracker implements Runnable, Registration {
                 return;
             }
             long handled = event == null ? 0L : System.nanoTime();
-            recordRequestStages(messages, "consumer-completed");
             if (event != null) {
                 event.callbackNanos = handled - handlingStarted;
             }
@@ -480,7 +473,6 @@ public class DefaultTracker implements Runnable, Registration {
             if (event != null) {
                 event.storageNanos = System.nanoTime() - handled;
             }
-            recordRequestStages(messages, "tracker-completed");
         } catch (RuntimeException | Error failure) {
             diagnosticFailure = failure;
             throw failure;
@@ -501,40 +493,6 @@ public class DefaultTracker implements Runnable, Registration {
                 "sdk.tracker", "handle", trackingClient.getMessageType().name(),
                 messages.size(), bytes, 0L, 0L);
     }
-
-    private void recordRequestStages(List<SerializedMessage> messages, String stage) {
-        if (messages == null || !FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        int batchSize = messages.size();
-        String component = "sdk.tracker." + trackingClient.getMessageType().name();
-        for (SerializedMessage message : messages) {
-            Long traceId = traceId(message);
-            if (traceId != null) {
-                Long index = message.getIndex();
-                FluxzeroJfr.requestStage(
-                        traceId, component, stage, batchSize,
-                        index == null ? -1L : index);
-            }
-        }
-    }
-
-    private Long traceId(SerializedMessage message) {
-        if (trackingClient.getMessageType() == MessageType.COMMAND) {
-            return message.getIndex();
-        }
-        String traceId = message.getMetadataValue("$traceId");
-        if (traceId != null) {
-            try {
-                return Long.parseLong(traceId);
-            } catch (NumberFormatException ignored) {
-                // Non-numeric user trace identifiers fall back to request correlation below.
-            }
-        }
-        Integer requestId = message.getRequestId();
-        return requestId == null ? null : Integer.toUnsignedLong(requestId);
-    }
-
 
     private void storePosition(Long index, int[] segment) {
         if (index != null) {

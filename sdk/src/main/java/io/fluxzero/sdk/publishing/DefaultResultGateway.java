@@ -24,7 +24,6 @@ import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
-import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
@@ -36,9 +35,7 @@ import lombok.With;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
@@ -70,21 +67,12 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             1, Integer.getInteger("fluxzero.resultBatchSize", 16_384));
     private static final long RESULT_BATCH_COLLECTION_NANOS = Math.max(
             0L, Long.getLong("fluxzero.resultBatchCollectionNanos", 1_000_000L));
-    private static final int MAX_RESULT_TRACE_CORRELATIONS = 16_384;
-
     @With
     private final Client client;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
     private final ResponseMapper responseMapper;
     private final AtomicLong responseQueueDepth = new AtomicLong();
-    private final Map<Integer, Long> resultTraceCorrelations = new LinkedHashMap<>(256, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<Integer, Long> eldest) {
-            return size() > MAX_RESULT_TRACE_CORRELATIONS;
-        }
-    };
-
     @Getter(lazy = true)
     private final GatewayClient gatewayClient = client.getGatewayClient(RESULT);
     @Getter(lazy = true)
@@ -167,7 +155,6 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                 CompositeDispatchInterceptor.requiresMonitoring(dispatchInterceptor, RESULT), errorHandler,
                 trackCompletion ? new CompletableFuture<>() : null,
                 FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L);
-        registerResponseTrace(requestId, null);
         enqueue(prepared);
         return prepared.dispatched();
     }
@@ -176,7 +163,6 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         int size = responses.size();
         long queueDepth = responseQueueDepth.addAndGet(-size);
         FluxzeroJfr.Batch event = resultBatchEvent(responses, queueDepth);
-        recordResponseStages(responses, "result-publication-start");
         long preparationStarted = event == null ? 0L : System.nanoTime();
         boolean hasMonitoring = false;
         for (int index = 0; index < size; index++) {
@@ -282,15 +268,10 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                 }
             });
         }
-        if (event != null || FluxzeroJfr.requestStageEnabled()) {
+        if (event != null) {
             long publicationStarted = appendStarted;
             result.whenComplete((ignored, failure) -> {
-                if (event != null) {
-                    event.publicationNanos = System.nanoTime() - publicationStarted;
-                }
-                if (failure == null) {
-                    recordResponseStages(appendedResponses, "result-publication-complete");
-                }
+                event.publicationNanos = System.nanoTime() - publicationStarted;
                 FluxzeroJfr.finish(event, failure);
             });
         }
@@ -319,41 +300,6 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                 Math.max(0L, queueDepth), 0L);
         event.queueWaitNanos = enqueued == 0L ? 0L : Math.max(0L, now - enqueued);
         return event;
-    }
-
-    private void recordResponseStages(
-            List<PreparedResponse> responses, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        int batchSize = responses.size();
-        for (PreparedResponse response : responses) {
-            Long traceId = traceId(response);
-            Integer requestId = response.requestId();
-            if (traceId != null || requestId != null) {
-                FluxzeroJfr.requestStage(
-                        traceId == null ? Integer.toUnsignedLong(requestId) : traceId,
-                        "sdk.result-gateway", stage, batchSize,
-                        traceId == null ? -1L : traceId);
-            }
-        }
-    }
-
-    private void recordResponseStages(
-            PreparedResponse[] responses, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        for (PreparedResponse response : responses) {
-            Long traceId = traceId(response);
-            Integer requestId = response.requestId();
-            if (traceId != null || requestId != null) {
-                FluxzeroJfr.requestStage(
-                        traceId == null ? Integer.toUnsignedLong(requestId) : traceId,
-                        "sdk.result-gateway", stage, responses.length,
-                        traceId == null ? -1L : traceId);
-            }
-        }
     }
 
     private void prepareRange(List<PreparedResponse> responses, Message[] messages, SerializedMessage[] serialized,
@@ -424,37 +370,8 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                 response.payload(), response.metadata(), response.target(), response.requestId(), response.context(),
                 response.monitor(), null, new CompletableFuture<>(),
                 FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L);
-        if (FluxzeroJfr.requestStageEnabled()) {
-            registerResponseTrace(response.requestId(), traceId(response));
-        }
         enqueue(retry);
         return retry.dispatched();
-    }
-
-    private void registerResponseTrace(Integer requestId, Long inheritedTraceId) {
-        if (requestId == null || !FluxzeroJfr.requestStageEnabled()) {
-            return;
-        }
-        Long traceId = inheritedTraceId;
-        if (traceId == null) {
-            DeserializingMessage currentMessage = DeserializingMessage.getCurrent();
-            traceId = currentMessage == null ? null : currentMessage.getIndex();
-        }
-        if (traceId != null && FluxzeroJfr.requestTraceSampled(traceId)) {
-            synchronized (resultTraceCorrelations) {
-                resultTraceCorrelations.put(requestId, traceId);
-            }
-        }
-    }
-
-    private Long traceId(PreparedResponse response) {
-        Integer requestId = response.requestId();
-        if (requestId == null) {
-            return null;
-        }
-        synchronized (resultTraceCorrelations) {
-            return resultTraceCorrelations.get(requestId);
-        }
     }
 
     protected SerializedMessage interceptDispatch(Object payload, Metadata metadata) {

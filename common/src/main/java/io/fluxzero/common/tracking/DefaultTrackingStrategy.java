@@ -29,7 +29,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -87,9 +86,9 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     /**
-     * Creates a strategy whose JFR-only request stages identify the logical message log.
+     * Creates a strategy whose JFR batch metrics identify the logical message log.
      *
-     * @param traceMessageType logical message type used only while request-stage recording is enabled
+     * @param traceMessageType logical message type used only while batch recording is enabled
      */
     public DefaultTrackingStrategy(
             MessageStore source, PositionStore positionStore, String traceMessageType) {
@@ -399,7 +398,6 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         if (stopped) {
             return;
         }
-        recordRequestStages(messages, "update-received");
         updateNotificationVersion.incrementAndGet();
         if (!updateNotificationPending.getAndSet(true) && FluxzeroJfr.batchEnabled()) {
             updateNotificationPendingSinceNanos.compareAndSet(0L, System.nanoTime());
@@ -550,40 +548,11 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     }
 
     private boolean completeRequest(Tracker tracker, TrackerRequest<?> result, MessageBatch batch) {
-        recordRequestStages(batch.getMessages(), "batch-resolved");
-        if (FluxzeroJfr.requestStageEnabled()) {
-            recordRequestStages(
-                    batch.getMessages(),
-                    result.notificationResolution
-                            ? "batch-resolved-from-notification"
-                            : "batch-resolved-from-client-request");
-        }
         boolean completed = result.complete(batch);
         if (completed) {
             openRequests.remove(tracker, result);
         }
         return completed;
-    }
-
-    private void recordRequestStages(List<SerializedMessage> messages, String stage) {
-        if (!FluxzeroJfr.requestStageEnabled()
-                || messages.isEmpty()
-                || !("COMMAND".equals(traceMessageType) || "RESULT".equals(traceMessageType))) {
-            return;
-        }
-        int batchSize = messages.size();
-        for (SerializedMessage message : messages) {
-            Long boxedIndex = message.getIndex();
-            long traceId = "RESULT".equals(traceMessageType)
-                    ? message.getMetadataLongValue("$traceId", Long.MIN_VALUE)
-                    : boxedIndex == null ? Long.MIN_VALUE : boxedIndex;
-            if (traceId != Long.MIN_VALUE
-                && FluxzeroJfr.requestTraceSampled(traceId)) {
-                FluxzeroJfr.requestStage(
-                        traceId, traceComponent, stage, batchSize,
-                        boxedIndex == null ? -1L : boxedIndex);
-            }
-        }
     }
 
     private FluxzeroJfr.Batch startTrackingBatch(String operation, int itemCount) {
@@ -634,7 +603,6 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         private final CompletableFuture<T> result = new CompletableFuture<>();
         private final Function<MessageBatch, T> mapper;
         private volatile boolean replaced;
-        private boolean notificationResolution;
 
         protected TrackerRequest(Function<MessageBatch, T> mapper) {
             this.mapper = mapper;
@@ -694,17 +662,7 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
                         event.preparationNanos = followUpStarted - started;
                         event.outputItemCount = 1;
                     }
-                    boolean traceResolution = FluxzeroJfr.requestStageEnabled();
-                    if (traceResolution) {
-                        request.notificationResolution = true;
-                    }
-                    try {
-                        followUp.run();
-                    } finally {
-                        if (traceResolution) {
-                            request.notificationResolution = false;
-                        }
-                    }
+                    followUp.run();
                     if (event != null) {
                         event.storageNanos = System.nanoTime() - followUpStarted;
                     }
