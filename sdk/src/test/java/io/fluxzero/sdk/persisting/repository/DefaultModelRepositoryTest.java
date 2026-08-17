@@ -688,7 +688,7 @@ class DefaultModelRepositoryTest {
                 assertEquals(new Account(id, 5), fluxzero.modelRepository().load(id).get());
 
                 verify(eventStoreClient, times(0))
-                        .getCompactModelEvents(any());
+                        .getModelEvents(any());
             }
         }
 
@@ -717,7 +717,7 @@ class DefaultModelRepositoryTest {
                         new Account(id, 7),
                         fluxzero.modelRepository().load(id).get());
                 verify(eventStoreClient, times(0))
-                        .getCompactModelEvents(any());
+                        .getModelEvents(any());
                 verify(eventStoreClient, times(1))
                         .commitModels(any());
             }
@@ -947,7 +947,7 @@ class DefaultModelRepositoryTest {
                     fluxzero.modelRepository().load(id).get());
 
             var captor = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
-            verify(eventStoreClient).getCompactModelEvents(captor.capture());
+            verify(eventStoreClient).getModelEvents(captor.capture());
             assertEquals(
                     1L, captor.getValue().getRequests().getFirst()
                             .getLastSequenceNumber());
@@ -1185,7 +1185,7 @@ class DefaultModelRepositoryTest {
                 }
                 return result;
             }).when(eventStoreClient)
-                    .getCompactModelEvents(any());
+                    .getModelEvents(any());
 
             CompletableFuture<Entity<Account>>
                     olderReconstruction =
@@ -1333,7 +1333,7 @@ class DefaultModelRepositoryTest {
 
             var captor = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
             verify(eventStoreClient, times(2))
-                    .getCompactModelEvents(captor.capture());
+                    .getModelEvents(captor.capture());
             assertEquals(
                     2, captor.getAllValues().getLast()
                             .getRequests().size());
@@ -1359,10 +1359,11 @@ class DefaultModelRepositoryTest {
 
             var captor = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
             verify(eventStoreClient, atLeastOnce())
-                    .getCompactModelEvents(captor.capture());
+                    .getModelEvents(captor.capture());
             assertEquals(
                     List.of(2),
                     captor.getAllValues().stream()
+                            .filter(request -> !request.getRequests().isEmpty())
                             .map(request -> request.getRequests().size())
                             .toList());
             clearInvocations(eventStoreClient);
@@ -1563,7 +1564,7 @@ class DefaultModelRepositoryTest {
                                     GetModelEvents.class);
             verify(eventStoreClient,
                    atLeastOnce())
-                    .getCompactModelEvents(
+                    .getModelEvents(
                             captor.capture());
             List<ModelEventStreamRequest> requests =
                     captor.getAllValues()
@@ -1639,7 +1640,7 @@ class DefaultModelRepositoryTest {
             var requests = org.mockito.ArgumentCaptor.forClass(
                     GetModelEvents.class);
             verify(eventStoreClient, times(2))
-                    .getCompactModelEvents(
+                    .getModelEvents(
                             requests.capture());
             assertEquals(
                     handledCommitId,

@@ -436,25 +436,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
         return expandCompactResult(request, sendAndWait(request));
     }
 
-    @Override
-    public GetModelEventsResult getCompactModelEvents(GetModelEvents request) {
-        GetModelEventsResult result = sendAndWait(request);
-        return hasOnlyEmbeddedMemberships(result)
-                ? result : expandCompactResult(request, result);
-    }
-
-    private static boolean hasOnlyEmbeddedMemberships(
-            GetModelEventsResult result) {
-        return (result.getPayloads() == null
-                || result.getPayloads().isEmpty())
-               && (result.getCompactPayloads() == null
-                   || result.getCompactPayloads().length == 0)
-               && (result.getCompactPayloadBlocks() == null
-                   || result.getCompactPayloadBlocks().isEmpty())
-               && result.getCompactMembershipBlocks() != null
-               && !result.getCompactMembershipBlocks().isEmpty();
-    }
-
     private static GetModelEventsResult expandCompactResult(
             GetModelEvents request, GetModelEventsResult result) {
         byte[] compactPayloads = result.getCompactPayloads();
@@ -471,14 +452,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                 && !compactMembershipBlocks.isEmpty();
         if (!hasPayloads && !hasBlocks && !hasMembershipBlocks) {
             return result;
-        }
-        if (!hasPayloads && !hasBlocks && hasMembershipBlocks) {
-            GetModelEventsResult embedded =
-                    tryExpandEmbeddedMemberships(
-                            request, result, compactMembershipBlocks);
-            if (embedded != null) {
-                return embedded;
-            }
         }
         long[] stateIndices = result.getCompactPayloadStateIndices();
         if (stateIndices == null) {
@@ -614,140 +587,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
         expandedResult.setResponseSendStartTimestamp(
                 result.getResponseSendStartTimestamp());
         return expandedResult;
-    }
-
-    private static GetModelEventsResult tryExpandEmbeddedMemberships(
-            GetModelEvents request,
-            GetModelEventsResult result,
-            List<ModelEventDataBlock> compactBlocks) {
-        List<ModelStreamBatchDecoder.DecodedBlock> decodedBlocks =
-                compactBlocks.size() < 8
-                        ? compactBlocks.stream()
-                                .map(ModelStreamBatchDecoder::decodeBlock)
-                                .toList()
-                        : compactBlocks.parallelStream()
-                                .map(ModelStreamBatchDecoder::decodeBlock)
-                                .toList();
-        if (decodedBlocks.stream()
-                .anyMatch(block -> block.embeddedPayloads() == null)) {
-            return null;
-        }
-        Map<String, ModelEventStreamRequest> requestsByModel =
-                new HashMap<>();
-        request.getRequests().forEach(
-                stream -> requestsByModel.put(stream.getModelId(), stream));
-        Map<String, List<ModelEventMembership>> memberships =
-                new HashMap<>();
-        request.getRequests().forEach(
-                stream -> memberships.put(stream.getModelId(), new ArrayList<>()));
-        Map<Long, SerializedMessage> payloads =
-                new LinkedHashMap<>();
-        long lastStateIndex = -1L;
-        for (ModelStreamBatchDecoder.DecodedBlock block : decodedBlocks) {
-            List<ModelStreamBatchDecoder.Entry> entries =
-                    block.entries();
-            List<SerializedMessage> events =
-                    SerializedMessagePackCodec.decode(
-                            block.embeddedPayloads().data(),
-                            block.embeddedPayloads().offset(),
-                            block.embeddedPayloads().length());
-            if (events.size() != entries.size()) {
-                throw new IllegalStateException(
-                        "Embedded model stream block contains %d events for %d memberships"
-                                .formatted(events.size(), entries.size()));
-            }
-            for (int ordinal = 0; ordinal < entries.size(); ordinal++) {
-                ModelStreamBatchDecoder.Entry entry =
-                        entries.get(ordinal);
-                ModelEventStreamRequest stream =
-                        requestsByModel.get(entry.modelId());
-                if (stream == null
-                    || stream.getMaxSize() <= 0
-                    || entry.sequenceNumber()
-                       <= stream.getLastSequenceNumber()
-                    || entry.stateIndex()
-                       > result.getStateIndex()) {
-                    continue;
-                }
-                List<ModelEventMembership> selected =
-                        memberships.get(entry.modelId());
-                if (selected.size() >= stream.getMaxSize()) {
-                    continue;
-                }
-                SerializedMessage event = events.get(ordinal);
-                if (event.getIndex() != null
-                    && event.getIndex() != entry.eventIndex()) {
-                    throw new IllegalStateException(
-                            "Embedded event index %d does not match model membership %d"
-                                    .formatted(
-                                            event.getIndex(),
-                                            entry.eventIndex()));
-                }
-                event.setIndex(entry.eventIndex());
-                SerializedMessage previous =
-                        payloads.putIfAbsent(
-                                entry.stateIndex(), event);
-                if (previous != null && previous != event) {
-                    throw new IllegalStateException(
-                            "Duplicate embedded model payload at state index "
-                            + entry.stateIndex());
-                }
-                if (previous == null) {
-                    if (entry.stateIndex() <= lastStateIndex) {
-                        throw new IllegalStateException(
-                                "Embedded model payloads are not ordered by state index");
-                    }
-                    lastStateIndex = entry.stateIndex();
-                }
-                selected.add(
-                        new ModelEventMembership(
-                                entry.sequenceNumber(),
-                                entry.stateIndex(),
-                                entry.readStateIndex(),
-                                entry.commitId(),
-                                entry.substep()));
-            }
-        }
-        List<ModelEventStream> streams =
-                new ArrayList<>(result.getStreams().size());
-        for (int ordinal = 0;
-             ordinal < result.getStreams().size();
-             ordinal++) {
-            ModelEventStream existing =
-                    result.getStreams().get(ordinal);
-            ModelEventStreamRequest requested =
-                    request.getRequests().get(ordinal);
-            if (!existing.getModelId().equals(
-                    requested.getModelId())) {
-                throw new IllegalStateException(
-                        "Embedded model response order does not match its request");
-            }
-            List<ModelEventMembership> selected =
-                    memberships.get(existing.getModelId());
-            streams.add(
-                    new ModelEventStream(
-                            existing.getModelId(),
-                            existing.getHead(),
-                            List.copyOf(selected)));
-        }
-        GetModelEventsResult expanded =
-                new GetModelEventsResult(
-                        result.getRequestId(),
-                        result.getStateIndex(),
-                        payloads.entrySet().stream()
-                                .map(entry ->
-                                             new ModelEventPayload(
-                                                     entry.getKey(),
-                                                     entry.getValue()))
-                                .toList(),
-                        List.copyOf(streams));
-        expanded.setRequestReceivedTimestamp(
-                result.getRequestReceivedTimestamp());
-        expanded.setResponseQueuedTimestamp(
-                result.getResponseQueuedTimestamp());
-        expanded.setResponseSendStartTimestamp(
-                result.getResponseSendStartTimestamp());
-        return expanded;
     }
 
     private static List<ModelEventStream> expandCompactMemberships(

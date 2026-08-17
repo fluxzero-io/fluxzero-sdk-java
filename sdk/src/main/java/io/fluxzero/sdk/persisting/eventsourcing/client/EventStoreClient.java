@@ -95,17 +95,6 @@ public interface EventStoreClient extends AutoCloseable {
     }
 
     /**
-     * Loads model events while allowing a transport implementation to retain its compact storage representation.
-     * <p>
-     * This is the reconstruction-oriented counterpart of {@link #getModelEvents(GetModelEvents)}. Implementations that
-     * do not expose a compact representation inherit the regular, fully expanded result. Callers must therefore
-     * support both shapes.
-     */
-    default GetModelEventsResult getCompactModelEvents(GetModelEvents request) {
-        return getModelEvents(request);
-    }
-
-    /**
      * Long-polls committed independent-model commit substeps after a client-controlled state cursor.
      */
     default CompletableFuture<TrackModelUpdatesResult> trackModelUpdates(

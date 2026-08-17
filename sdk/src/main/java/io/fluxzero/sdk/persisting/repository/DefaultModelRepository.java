@@ -2794,12 +2794,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         base == null ? -1L : base.sequenceNumber());
             }
             ModelEventBatchLoader.LoadResult loaded =
-                    eventLoader.loadForReconstruction(
+                    eventLoader.load(
                             cursors, boundary,
-                            page -> applyPage(
-                                    page, states),
-                            page -> applyCompactPage(
-                                    page, states));
+                            page -> applyPage(page, states));
             List<FinalizedReconstruction> finalized =
                     targets.stream()
                             .map(target -> {
@@ -2994,33 +2991,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             preparedReplays.clear();
         }
 
-        private void applyCompactPage(
-                ModelEventBatchLoader.CompactPage page,
-                Map<String, MutableReconstruction> states) {
-            page.streams().forEach(
-                    stream -> resolveTarget(
-                            stream.modelId(), stream.head(), states));
-            boolean independent =
-                    page.streams().size() >= 32
-                    && page.streams().parallelStream()
-                            .allMatch(stream ->
-                                              isIndependent(
-                                                      stream,
-                                                      states));
-            if (independent) {
-                page.streams().parallelStream()
-                        .forEach(stream ->
-                                         applyCompactStream(
-                                                 stream,
-                                                 states));
-            } else {
-                page.streams().forEach(stream ->
-                                                   applyCompactStream(
-                                                           stream,
-                                                           states));
-            }
-        }
-
         private void resolveTarget(
                 String requestedId,
                 ModelHeadState head,
@@ -3036,60 +3006,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         + requestedId);
             }
             state.resolve(head.getModelId());
-        }
-
-        private boolean isIndependent(
-                ModelEventBatchLoader.CompactStream stream,
-                Map<String, MutableReconstruction> states) {
-            MutableReconstruction state =
-                    states.get(stream.modelId());
-            if (state == null) {
-                throw new EventSourcingException(
-                        "Model event store returned unrelated stream "
-                        + stream.modelId());
-            }
-            for (ModelEventBatchLoader.CompactEvent compactEvent :
-                    stream.events()) {
-                ReplayPlan directPlan =
-                        directReplayPlan(
-                                compactEvent.event(),
-                                state.target.modelType());
-                if (directPlan != null) {
-                    compactEvent.preparedReplay(
-                            directPlan);
-                    continue;
-                }
-                ModelEventMembership membership =
-                        compactEvent.membership();
-                StoredEvent storedEvent =
-                        new StoredEvent(
-                                membership,
-                                compactEvent.event());
-                List<PreparedReplay> prepared =
-                        prepareReplay(
-                                state.target,
-                                membership,
-                                storedEvent,
-                                false);
-                compactEvent.preparedReplay(prepared);
-                for (PreparedReplay replay : prepared) {
-                    ReplayPlan plan =
-                            replay.plan();
-                    ModelTargetResolver.Resolution resolution =
-                            replay.resolution();
-                    if (!plan.handlers().isEmpty()
-                        && !plan.direct()
-                        && (resolution.hasAncestorDependencies()
-                            || resolution.models().stream()
-                                    .anyMatch(target ->
-                                                      !target.modelId()
-                                                              .equals(
-                                                                      stream.modelId())))) {
-                        return false;
-                    }
-                }
-            }
-            return true;
         }
 
         private ReplayPlan directReplayPlan(
@@ -3111,53 +3027,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                             payloadType,
                                             modelType));
             return plan.direct() ? plan : null;
-        }
-
-        private void applyCompactStream(
-                ModelEventBatchLoader.CompactStream stream,
-                Map<String, MutableReconstruction> states) {
-            MutableReconstruction state =
-                    states.get(stream.modelId());
-            if (state == null) {
-                throw new EventSourcingException(
-                        "Model event store returned unrelated stream "
-                        + stream.modelId());
-            }
-            if (stream.head() != null
-                && !stream.head().isHistoryComplete()) {
-                throw incompleteHistory(
-                        stream.modelId());
-            }
-            for (ModelEventBatchLoader.CompactEvent compactEvent :
-                    stream.events()) {
-                StoredEvent storedEvent =
-                        new StoredEvent(
-                                compactEvent.membership(),
-                                compactEvent.event());
-                Object preparedReplay =
-                        compactEvent.preparedReplay();
-                if (preparedReplay instanceof ReplayPlan directPlan) {
-                    state.applyDirect(
-                            storedEvent,
-                            directPlan);
-                    continue;
-                }
-                @SuppressWarnings("unchecked")
-                List<PreparedReplay> prepared =
-                        (List<PreparedReplay>)
-                                preparedReplay;
-                if (prepared == null) {
-                    prepared =
-                            prepareReplay(
-                                    state.target,
-                                    compactEvent.membership(),
-                                    storedEvent,
-                                    false);
-                }
-                state.apply(
-                        storedEvent,
-                        prepared);
-            }
         }
 
         private boolean isIndependent(

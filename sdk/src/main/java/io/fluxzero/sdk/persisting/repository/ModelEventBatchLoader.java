@@ -16,17 +16,13 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
-import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
-import io.fluxzero.common.api.modeling.ModelEventDataBlock;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelHeadState;
-import io.fluxzero.common.api.modeling.ModelStreamBatchDecoder;
-import io.fluxzero.common.serialization.SerializedMessagePackCodec;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 
@@ -105,29 +101,6 @@ final class ModelEventBatchLoader {
             Map<String, Long> lastSequenceNumbers,
             Boundary boundary,
             Consumer<GetModelEventsResult> pageConsumer) {
-        return load(
-                lastSequenceNumbers, boundary,
-                pageConsumer, null);
-    }
-
-    LoadResult loadForReconstruction(
-            Map<String, Long> lastSequenceNumbers,
-            Boundary boundary,
-            Consumer<GetModelEventsResult> pageConsumer,
-            Consumer<CompactPage> compactPageConsumer) {
-        return load(
-                lastSequenceNumbers, boundary,
-                pageConsumer,
-                Objects.requireNonNull(
-                        compactPageConsumer,
-                        "compactPageConsumer"));
-    }
-
-    private LoadResult load(
-            Map<String, Long> lastSequenceNumbers,
-            Boundary boundary,
-            Consumer<GetModelEventsResult> pageConsumer,
-            Consumer<CompactPage> compactPageConsumer) {
         Objects.requireNonNull(lastSequenceNumbers, "lastSequenceNumbers");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(pageConsumer, "pageConsumer");
@@ -155,7 +128,7 @@ final class ModelEventBatchLoader {
             chunkIds.forEach(modelId -> chunkCursors.put(modelId, validatedCursors.get(modelId)));
             LoadResult chunk = loadChunk(
                     chunkCursors, pinned,
-                    pageConsumer, compactPageConsumer);
+                    pageConsumer);
             pinned = Boundary.at(chunk.stateIndex());
             heads.putAll(chunk.heads());
         }
@@ -264,8 +237,7 @@ final class ModelEventBatchLoader {
     private LoadResult loadChunk(
             LinkedHashMap<String, Long> initialCursors,
             Boundary boundary,
-            Consumer<GetModelEventsResult> pageConsumer,
-            Consumer<CompactPage> compactPageConsumer) {
+            Consumer<GetModelEventsResult> pageConsumer) {
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(initialCursors);
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         Boundary pinned = boundary;
@@ -297,341 +269,22 @@ final class ModelEventBatchLoader {
                             requests, pinned.stateIndex(),
                             pinned.commitId(), pinned.substep(), pinned.eventIndex(),
                             settings.maxPayloadBytes(), true);
-            GetModelEventsResult response =
-                    compactPageConsumer == null
-                            ? requestBatcher.get(request)
-                            : requestBatcher.getCompact(request);
+            GetModelEventsResult response = requestBatcher.get(request);
             long responseStateIndex = validateBoundary(
                     response, pinned.stateIndex());
             pinned = Boundary.at(responseStateIndex);
 
-            int advanced;
-            if (compactPageConsumer != null
-                && isEmbeddedCompactPage(response)) {
-                CompactPage compactPage =
-                        validateCompactPage(
-                                response, requests, cursors, heads,
-                                perStreamLimit,
-                                settings.maxPayloadBytes());
-                advanced = compactPage.eventCount();
-                compactPageConsumer.accept(compactPage);
-            } else {
-                advanced = validatePage(
-                        response, active, cursors, heads,
-                        perStreamLimit,
-                        settings.maxPayloadBytes());
-                pageConsumer.accept(response);
-            }
+            int advanced = validatePage(
+                    response, active, cursors, heads,
+                    perStreamLimit,
+                    settings.maxPayloadBytes());
+            pageConsumer.accept(response);
             if (advanced == 0 && hasIncompleteStream(cursors, heads)) {
                 throw invalid(
                         "Model event page made no progress at state index "
                         + pinned.stateIndex());
             }
         }
-    }
-
-    private static boolean isEmbeddedCompactPage(
-            GetModelEventsResult response) {
-        return Objects.requireNonNull(
-                        response.getPayloads(),
-                        "Model event payloads")
-                .isEmpty()
-               && (response.getCompactPayloads() == null
-                   || response.getCompactPayloads().length == 0)
-               && (response.getCompactPayloadBlocks() == null
-                   || response.getCompactPayloadBlocks().isEmpty())
-               && response.getCompactMembershipBlocks() != null
-               && !response.getCompactMembershipBlocks().isEmpty();
-    }
-
-    private static CompactPage validateCompactPage(
-            GetModelEventsResult response,
-            List<ModelEventStreamRequest> requests,
-            Map<String, Long> cursors,
-            Map<String, ModelHeadState> knownHeads,
-            int perStreamLimit,
-            long maxPayloadBytes) {
-        List<ModelEventStream> responseStreams =
-                Objects.requireNonNull(
-                        response.getStreams(),
-                        "Model event streams");
-        if (responseStreams.size() != requests.size()) {
-            throw invalid(
-                    "Compact model event response contains %d streams for %d requests"
-                            .formatted(
-                                    responseStreams.size(),
-                                    requests.size()));
-        }
-        Map<String, Integer> ordinals =
-                new HashMap<>(requests.size() * 4 / 3 + 1);
-        @SuppressWarnings("unchecked")
-        List<CompactEvent>[] selected =
-                new List[requests.size()];
-        for (int ordinal = 0; ordinal < requests.size(); ordinal++) {
-            ModelEventStreamRequest request = requests.get(ordinal);
-            ModelEventStream stream = responseStreams.get(ordinal);
-            if (stream == null
-                || !request.getModelId().equals(stream.getModelId())) {
-                throw invalid(
-                        "Compact model event stream %d should be '%s' but was '%s'"
-                                .formatted(
-                                        ordinal,
-                                        request.getModelId(),
-                                        stream == null
-                                                ? null
-                                                : stream.getModelId()));
-            }
-            if (!Objects.requireNonNull(
-                            stream.getMemberships(),
-                            "Model event memberships")
-                    .isEmpty()) {
-                throw invalid(
-                        "Compact model event stream contains expanded memberships for "
-                        + request.getModelId());
-            }
-            if (ordinals.put(request.getModelId(), ordinal) != null) {
-                throw invalid(
-                        "Duplicate compact model event stream "
-                        + request.getModelId());
-            }
-            selected[ordinal] = new ArrayList<>();
-        }
-
-        long payloadBytes = 0L;
-        long lastStateIndex = -1L;
-        List<ModelEventDataBlock> compactBlocks =
-                response.getCompactMembershipBlocks();
-        List<DecodedCompactBlock> decodedBlocks =
-                (compactBlocks.size() < 8
-                        ? compactBlocks.stream()
-                        : compactBlocks.parallelStream())
-                        .map(
-                                ModelEventBatchLoader::decodeCompactBlock)
-                        .toList();
-        for (DecodedCompactBlock block :
-                decodedBlocks) {
-            List<ModelStreamBatchDecoder.Entry> entries =
-                    block.entries();
-            List<SerializedMessage> events =
-                    block.events();
-            for (int eventOrdinal = 0;
-                 eventOrdinal < entries.size();
-                 eventOrdinal++) {
-                ModelStreamBatchDecoder.Entry entry =
-                        entries.get(eventOrdinal);
-                Integer streamOrdinal =
-                        ordinals.get(entry.modelId());
-                if (streamOrdinal == null) {
-                    continue;
-                }
-                ModelEventStreamRequest request =
-                        requests.get(streamOrdinal);
-                List<CompactEvent> streamEvents =
-                        selected[streamOrdinal];
-                if (request.getMaxSize() <= 0
-                    || entry.sequenceNumber()
-                       <= request.getLastSequenceNumber()
-                    || entry.stateIndex()
-                       > response.getStateIndex()
-                    || streamEvents.size()
-                       >= request.getMaxSize()) {
-                    continue;
-                }
-                long expectedSequence =
-                        cursors.get(entry.modelId())
-                        + streamEvents.size() + 1L;
-                if (entry.sequenceNumber() != expectedSequence) {
-                    throw invalid(
-                            "Compact model stream '%s' returned sequence %d instead of %d"
-                                    .formatted(
-                                            entry.modelId(),
-                                            entry.sequenceNumber(),
-                                            expectedSequence));
-                }
-                if (entry.stateIndex() < 0L
-                    || entry.stateIndex()
-                       > response.getStateIndex()
-                    || entry.stateIndex()
-                       <= lastStateIndex) {
-                    throw invalid(
-                            "Compact model events are not strictly ordered at state index "
-                            + entry.stateIndex());
-                }
-                if (entry.readStateIndex() < -1L
-                    || entry.readStateIndex()
-                       >= entry.stateIndex()) {
-                    throw invalid(
-                            "Compact model stream '%s' has invalid read state index %d at state %d"
-                                    .formatted(
-                                            entry.modelId(),
-                                            entry.readStateIndex(),
-                                            entry.stateIndex()));
-                }
-                if (entry.commitId() == null
-                    || entry.commitId().isBlank()
-                    || entry.substep() < 0) {
-                    throw invalid(
-                            "Compact model stream '"
-                            + entry.modelId()
-                            + "' has invalid commit membership");
-                }
-                SerializedMessage event =
-                        events.get(eventOrdinal);
-                if (event.getIndex() != null
-                    && event.getIndex() != entry.eventIndex()) {
-                    throw invalid(
-                            "Compact event index %d does not match model membership %d"
-                                    .formatted(
-                                            event.getIndex(),
-                                            entry.eventIndex()));
-                }
-                event.setIndex(entry.eventIndex());
-                payloadBytes =
-                        addSaturated(
-                                payloadBytes,
-                                event.getBytes());
-                streamEvents.add(
-                        new CompactEvent(
-                                new ModelEventMembership(
-                                        entry.sequenceNumber(),
-                                        entry.stateIndex(),
-                                        entry.readStateIndex(),
-                                        entry.commitId(),
-                                        entry.substep()),
-                                event));
-                lastStateIndex = entry.stateIndex();
-            }
-        }
-        int eventCount =
-                Arrays.stream(selected)
-                        .mapToInt(List::size)
-                        .sum();
-        if (eventCount > 1
-            && maxPayloadBytes > 0L
-            && payloadBytes > maxPayloadBytes) {
-            throw invalid(
-                    "Compact model event response contains %d serialized event bytes, exceeding limit %d"
-                            .formatted(
-                                    payloadBytes,
-                                    maxPayloadBytes));
-        }
-
-        List<CompactStream> streams =
-                new ArrayList<>(requests.size());
-        for (int ordinal = 0; ordinal < requests.size(); ordinal++) {
-            ModelEventStreamRequest request = requests.get(ordinal);
-            ModelEventStream responseStream =
-                    responseStreams.get(ordinal);
-            ModelHeadState head =
-                    responseStream.getHead();
-            String modelId =
-                    request.getModelId();
-            long cursor =
-                    cursors.get(modelId);
-            boolean knownHead =
-                    knownHeads.containsKey(modelId);
-            ModelHeadState previousHead =
-                    knownHeads.get(modelId);
-            if (head != null) {
-                if (knownHead && previousHead == null) {
-                    throw invalid(
-                            "Model head appeared while loading "
-                            + modelId);
-                }
-                validateHead(
-                        modelId, head,
-                        response.getStateIndex(),
-                        previousHead);
-                if (cursor > head.getSequenceNumber()) {
-                    throw invalid(
-                            "Model stream '%s' starts after pinned head sequence %d"
-                                    .formatted(
-                                            modelId,
-                                            head.getSequenceNumber()));
-                }
-            } else if (knownHead
-                       && previousHead != null) {
-                throw invalid(
-                        "Model head disappeared while loading "
-                        + modelId);
-            }
-            if (!knownHead) {
-                knownHeads.put(modelId, head);
-            }
-            List<CompactEvent> events =
-                    selected[ordinal];
-            if (events.size() > perStreamLimit) {
-                throw invalid(
-                        "Model stream '%s' returned %d memberships, exceeding requested limit %d"
-                                .formatted(
-                                        modelId,
-                                        events.size(),
-                                        perStreamLimit));
-            }
-            if (head != null) {
-                for (CompactEvent event : events) {
-                    if (event.membership().getStateIndex()
-                        > head.getStateIndex()) {
-                        throw invalid(
-                                "Model stream '%s' has membership state %d beyond head state %d"
-                                        .formatted(
-                                                modelId,
-                                                event.membership().getStateIndex(),
-                                                head.getStateIndex()));
-                    }
-                }
-            }
-            long advancedCursor =
-                    events.isEmpty()
-                            ? cursor
-                            : events.getLast()
-                                    .membership()
-                                    .getSequenceNumber();
-            if (head != null
-                && advancedCursor
-                   > head.getSequenceNumber()) {
-                throw invalid(
-                        "Model stream '%s' advanced beyond head sequence %d"
-                                .formatted(
-                                        modelId,
-                                        head.getSequenceNumber()));
-            }
-            cursors.put(modelId, advancedCursor);
-            streams.add(
-                    new CompactStream(
-                            modelId,
-                            head,
-                            List.copyOf(events)));
-        }
-        return new CompactPage(
-                response.getStateIndex(),
-                List.copyOf(streams),
-                eventCount);
-    }
-
-    private static DecodedCompactBlock decodeCompactBlock(
-            ModelEventDataBlock data) {
-        ModelStreamBatchDecoder.DecodedBlock block =
-                ModelStreamBatchDecoder.decodeBlock(data);
-        if (block.embeddedPayloads() == null) {
-            throw invalid(
-                    "Compact model stream block has no embedded event payloads");
-        }
-        List<SerializedMessage> events =
-                SerializedMessagePackCodec.decode(
-                        block.embeddedPayloads().data(),
-                        block.embeddedPayloads().offset(),
-                        block.embeddedPayloads().length());
-        if (events.size() != block.entries().size()) {
-            throw invalid(
-                    "Compact model stream block contains %d events for %d memberships"
-                            .formatted(
-                                    events.size(),
-                                    block.entries().size()));
-        }
-        return new DecodedCompactBlock(
-                block.entries(),
-                events);
     }
 
     private static List<String> validateIds(List<String> modelIds) {
@@ -877,52 +530,6 @@ final class ModelEventBatchLoader {
 
     private static EventSourcingException invalid(String message) {
         return new EventSourcingException(message);
-    }
-
-    record CompactPage(
-            long stateIndex,
-            List<CompactStream> streams,
-            int eventCount) {
-    }
-
-    record CompactStream(
-            String modelId,
-            ModelHeadState head,
-            List<CompactEvent> events) {
-    }
-
-    private record DecodedCompactBlock(
-            List<ModelStreamBatchDecoder.Entry> entries,
-            List<SerializedMessage> events) {
-    }
-
-    static final class CompactEvent {
-        private final ModelEventMembership membership;
-        private final SerializedMessage event;
-        private volatile Object preparedReplay;
-
-        private CompactEvent(
-                ModelEventMembership membership,
-                SerializedMessage event) {
-            this.membership = membership;
-            this.event = event;
-        }
-
-        ModelEventMembership membership() {
-            return membership;
-        }
-
-        SerializedMessage event() {
-            return event;
-        }
-
-        Object preparedReplay() {
-            return preparedReplay;
-        }
-
-        void preparedReplay(Object preparedReplay) {
-            this.preparedReplay = preparedReplay;
-        }
     }
 
     record Settings(
