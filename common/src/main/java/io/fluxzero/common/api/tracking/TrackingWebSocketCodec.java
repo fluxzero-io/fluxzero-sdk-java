@@ -23,7 +23,6 @@ import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import java.io.IOException;
 
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
-import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY_V2;
 
 /** Compact websocket representation for message publication and tracking. */
 public enum TrackingWebSocketCodec implements WebSocketPayloadCodec {
@@ -31,15 +30,11 @@ public enum TrackingWebSocketCodec implements WebSocketPayloadCodec {
 
     @Override
     public byte[] tryEncode(JsonType value, WebSocketTransportFormat format) throws IOException {
-        return format == BINARY_V2
-                ? TrackingWireCodec.tryEncodeNative(value)
-                : format == BINARY ? TrackingWireCodec.tryEncode(value) : null;
+        return format == BINARY ? TrackingWireCodec.tryEncode(value) : null;
     }
 
     @Override
     public JsonType tryDecode(byte[] bytes, WebSocketTransportFormat format) throws IOException {
-        return format == BINARY_V2
-                ? TrackingWireCodec.tryDecodeNative(bytes)
-                : format == BINARY ? TrackingWireCodec.tryDecode(bytes) : null;
+        return format == BINARY ? TrackingWireCodec.tryDecode(bytes) : null;
     }
 }

@@ -23,7 +23,6 @@ import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import java.io.IOException;
 
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
-import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY_V2;
 
 /** Compact websocket representation for model commits and model-event reads. */
 public enum ModelWebSocketCodec implements WebSocketPayloadCodec {
@@ -31,19 +30,15 @@ public enum ModelWebSocketCodec implements WebSocketPayloadCodec {
 
     @Override
     public byte[] tryEncode(JsonType value, WebSocketTransportFormat format) throws IOException {
-        byte[] encoded = format == BINARY_V2
-                ? ModelCommitWireCodec.tryEncodeNative(value)
-                : format == BINARY ? ModelCommitWireCodec.tryEncode(value) : null;
-        return encoded == null && (format == BINARY || format == BINARY_V2)
+        byte[] encoded = format == BINARY ? ModelCommitWireCodec.tryEncode(value) : null;
+        return encoded == null && format == BINARY
                 ? ModelEventWireCodec.tryEncode(value) : encoded;
     }
 
     @Override
     public JsonType tryDecode(byte[] bytes, WebSocketTransportFormat format) throws IOException {
-        JsonType decoded = format == BINARY_V2
-                ? ModelCommitWireCodec.tryDecodeNative(bytes)
-                : format == BINARY ? ModelCommitWireCodec.tryDecode(bytes) : null;
-        return decoded == null && (format == BINARY || format == BINARY_V2)
+        JsonType decoded = format == BINARY ? ModelCommitWireCodec.tryDecode(bytes) : null;
+        return decoded == null && format == BINARY
                 ? ModelEventWireCodec.tryDecode(bytes) : decoded;
     }
 }

@@ -134,8 +134,6 @@ class WebSocketTransportCodecsTest {
     private final List<WebSocketPayloadCodec> payloadCodecs = List.of(
             TrackingWebSocketCodec.INSTANCE, ModelWebSocketCodec.INSTANCE);
     private final WebSocketTransportCodec binaryCodec = WebSocketTransportCodecs.binary(objectMapper, payloadCodecs);
-    private final WebSocketTransportCodec nativeBinaryCodec =
-            WebSocketTransportCodecs.binaryV2(objectMapper, payloadCodecs);
 
     @Test
     void forFormatDefaultsToJson() {
@@ -180,20 +178,20 @@ class WebSocketTransportCodecsTest {
     void nativeBinaryTrackingCodecRetainsPatchableMessageEnvelopes() throws Exception {
         Append append = new Append(MessageType.EVENT, List.of(serializedMessage()), Guarantee.STORED);
 
-        Append decoded = assertInstanceOf(Append.class, roundTrip(nativeBinaryCodec, append));
+        Append decoded = assertInstanceOf(Append.class, roundTrip(binaryCodec, append));
 
         SerializedMessage message = decoded.getMessages().getFirst();
         assertTrue(message.isReusable());
         assertSerializedMessage(serializedMessage(), message);
         message.setIndex(123L);
         SerializedMessage roundTripped =
-                assertInstanceOf(Append.class, roundTrip(nativeBinaryCodec, decoded)).getMessages().getFirst();
+                assertInstanceOf(Append.class, roundTrip(binaryCodec, decoded)).getMessages().getFirst();
         assertTrue(roundTripped.isReusable());
         assertEquals(123L, roundTripped.getIndex());
     }
 
     @Test
-    void legacyBinaryCodecConvertsNativeMessagesAtTheClientBoundary() throws Exception {
+    void binaryCodecPreservesNativeMessagesWithoutOriginalRevision() throws Exception {
         SerializedMessage expected = serializedMessage();
         expected.setOriginalRevision(null);
         Append append = new Append(
@@ -201,7 +199,7 @@ class WebSocketTransportCodecsTest {
 
         Append decoded = assertInstanceOf(Append.class, roundTrip(binaryCodec, append));
 
-        assertFalse(decoded.getMessages().getFirst().isReusable());
+        assertTrue(decoded.getMessages().getFirst().isReusable());
         assertSerializedMessage(expected, decoded.getMessages().getFirst());
     }
 
@@ -212,20 +210,10 @@ class WebSocketTransportCodecsTest {
                 true, null, false, 42L, null);
         RequestBatch<ClaimSegment> batch = new RequestBatch<>(List.of(claim));
 
-        for (WebSocketTransportCodec codec : List.of(binaryCodec, nativeBinaryCodec)) {
-            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class, roundTrip(codec, batch));
-            ClaimSegment decodedClaim = assertInstanceOf(
-                    ClaimSegment.class, decoded.getRequests().getFirst());
-            assertEquals(claim.getRequestId(), decodedClaim.getRequestId());
-            assertEquals(claim.getLastIndex(), decodedClaim.getLastIndex());
-        }
-
-        assertNull(TrackingWireCodec.tryEncode(batch),
-                   "legacy BINARY must retain its CBOR fallback for older runtimes");
-        byte[] nativeBytes = TrackingWireCodec.tryEncodeNative(batch);
+        byte[] nativeBytes = TrackingWireCodec.tryEncode(batch);
         assertNotNull(nativeBytes);
         RequestBatch<?> nativeDecoded = assertInstanceOf(
-                RequestBatch.class, TrackingWireCodec.tryDecodeNative(nativeBytes));
+                RequestBatch.class, TrackingWireCodec.tryDecode(nativeBytes));
         ClaimSegment nativeClaim = assertInstanceOf(
                 ClaimSegment.class, nativeDecoded.getRequests().getFirst());
         assertEquals(claim, nativeClaim);
@@ -238,16 +226,10 @@ class WebSocketTransportCodecsTest {
                 false, false, false, false, true, null, null);
         RequestBatch<Read> batch = new RequestBatch<>(List.of(read));
 
-        for (WebSocketTransportCodec codec : List.of(binaryCodec, nativeBinaryCodec)) {
-            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class, roundTrip(codec, batch));
-            assertTrue(assertInstanceOf(Read.class, decoded.getRequests().getFirst())
-                               .isIncludeDocumentTombstones());
-        }
-
-        byte[] nativeBytes = TrackingWireCodec.tryEncodeNative(batch);
+        byte[] nativeBytes = TrackingWireCodec.tryEncode(batch);
         assertNotNull(nativeBytes);
         RequestBatch<?> nativeDecoded = assertInstanceOf(
-                RequestBatch.class, TrackingWireCodec.tryDecodeNative(nativeBytes));
+                RequestBatch.class, TrackingWireCodec.tryDecode(nativeBytes));
         assertTrue(assertInstanceOf(Read.class, nativeDecoded.getRequests().getFirst())
                            .isIncludeDocumentTombstones());
     }
@@ -272,7 +254,7 @@ class WebSocketTransportCodecsTest {
 
         RequestBatch<?> decodedBatch = assertInstanceOf(
                 RequestBatch.class,
-                roundTrip(nativeBinaryCodec, new RequestBatch<>(List.of(commit))));
+                roundTrip(binaryCodec, new RequestBatch<>(List.of(commit))));
         CommitModels decoded = assertInstanceOf(
                 CommitModels.class, decodedBatch.getRequests().getFirst());
         assertTrue(decoded.getSubsteps().getFirst().getEvent().isReusable());

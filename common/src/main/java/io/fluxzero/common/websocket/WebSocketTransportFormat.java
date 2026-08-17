@@ -20,12 +20,8 @@ package io.fluxzero.common.websocket;
  */
 public enum WebSocketTransportFormat {
     /**
-     * Native binary transport. Serialized messages use a patchable envelope with opaque payload and metadata bytes.
-     */
-    BINARY_V2,
-
-    /**
-     * Negotiated binary transport with compact representations for high-volume protocol values and CBOR fallback.
+     * Native binary transport. Serialized messages use a patchable envelope with opaque payload and metadata bytes;
+     * protocol values without a compact representation use CBOR.
      */
     BINARY,
 

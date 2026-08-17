@@ -466,8 +466,8 @@ class AbstractWebsocketClientTest {
                 .name("test-client")
                 .build();
 
-        assertEquals(List.of(WebSocketTransportFormat.BINARY_V2, WebSocketTransportFormat.BINARY,
-                             WebSocketTransportFormat.CBOR, WebSocketTransportFormat.JSON),
+        assertEquals(List.of(WebSocketTransportFormat.BINARY, WebSocketTransportFormat.CBOR,
+                             WebSocketTransportFormat.JSON),
                      clientConfig.getSupportedTransportFormats());
         assertEquals(Duration.ofSeconds(30), clientConfig.getWebSocketSendTimeout());
     }

@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY;
-import static io.fluxzero.common.websocket.WebSocketTransportFormat.BINARY_V2;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.CBOR;
 import static io.fluxzero.common.websocket.WebSocketTransportFormat.JSON;
 
@@ -49,7 +48,6 @@ public final class WebSocketTransportCodecs {
             case JSON -> json(objectMapper);
             case CBOR -> cbor(objectMapper);
             case BINARY -> binary(objectMapper, payloadCodecs);
-            case BINARY_V2 -> binaryV2(objectMapper, payloadCodecs);
         };
     }
 
@@ -79,20 +77,6 @@ public final class WebSocketTransportCodecs {
             ObjectMapper objectMapper, List<? extends WebSocketPayloadCodec> payloadCodecs) {
         return new CborWebSocketTransportCodec(
                 new CborObjectMapper(objectMapper), BINARY, List.copyOf(payloadCodecs));
-    }
-
-    /**
-     * Native binary codec. Messages use a patchable envelope while other compact protocols retain their binary form.
-     */
-    public static WebSocketTransportCodec binaryV2(ObjectMapper objectMapper) {
-        return binaryV2(objectMapper, List.of());
-    }
-
-    /** Native binary codec extended with protocol-specific compact payload representations. */
-    public static WebSocketTransportCodec binaryV2(
-            ObjectMapper objectMapper, List<? extends WebSocketPayloadCodec> payloadCodecs) {
-        return new CborWebSocketTransportCodec(
-                new CborObjectMapper(objectMapper), BINARY_V2, List.copyOf(payloadCodecs));
     }
 
     private record JsonWebSocketTransportCodec(ObjectMapper objectMapper) implements WebSocketTransportCodec {
