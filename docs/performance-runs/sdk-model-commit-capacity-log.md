@@ -2625,3 +2625,55 @@ Evidence SHA-256: E797 `3de2b077be915a6445688210ea139a8cc5563cf36294a1c34eb980fe
 `a6545e0f53cf478ac3fa07e4fcda0e956aa8e3bca9b5c10cc7c2696a6ff9f903`, E810
 `dea4b745fd32e2f1a5a0fd1c0b245cac0f5390e35163cda0f3f8c7ca1befcf8d`, E811
 `1c547a75ca957c97dc4e45637236c7e0f9349e2cabaddde391e469108b3e15a6`.
+
+### S60 — generic WebSocket/Runtime boundary refactor
+
+SDK `625938a5db8` and Runtime `610a7060` remove modeling-specific knowledge from generic WebSocket and endpoint
+infrastructure. Their exact direct parents are SDK `db964fdf027` and Runtime `3ffe241f`. The candidate and control
+binaries were compiled separately and run on Java 25 with the latest SDK defaults, an embedded Runtime, PostgreSQL, an 8-GiB
+fixed heap, no JFR, 16 command-consumer threads, a 65,536 request window and 32-byte payloads.
+
+E812-E815 attempted the historical 65,536-model route first. Neither parent nor candidate reached the measured phase:
+the initial-create phase completed only approximately one 8K wave before the derived stream-locator path exceeded the
+benchmark's 60-second completion bound. Changing from the fresh isolated database to an isolated clone of the former
+benchmark database and reducing JVM-visible processors to eight did not change that outcome. These runs therefore do
+not establish throughput and are not evidence for or against the refactor. They do establish that the clean P5
+**425,606/s** pin was not freshly reproduced on this host state.
+
+E816-E822 retained the complete command -> automatic `@Apply` -> atomic model/event commit -> durable ordinary result
+route, but reduced the conflict-free model set to 8,192 so the pre-measurement seed could finish. Every non-sleep run
+completed exactly 1,048,576 results, stored model events and global events and verified every final model state. E820
+is excluded because the laptop slept during the run; the log records roughly 926 seconds of artificial cache lag.
+
+The first bracket experienced a large host collapse at E819: its warm-up fell from 87-109K/s to 14.6K/s and measured
+throughput fell to 50K/s. The sleep-protected adjacent E821/E822 pair is the strongest comparison: parent
+**151,642/s**, candidate **169,942/s** (**+12.07%**). Across all three non-sleep candidate observations and the two
+controls that did not suffer the E819 collapse, geometric means are **160,548/s candidate versus 161,043/s parent
+(-0.31%)**. This rejects a material regression from the generic-boundary refactor, but is deliberately classified as a
+non-canonical no-regression screen rather than a new absolute pin.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | model_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E812 | canonical | full command -> model -> event + result | SDK `db964fdf027` + Runtime `3ffe241f` | parent long control | 4,194,304 | 262,144 | 65,536 | none | n/a | n/a | false | seed timed out with 57,290 incomplete commands | diagnostic-only |
+| E813 | smoke | full command -> model -> event + result | SDK `db964fdf027` + Runtime `3ffe241f` | parent short control | 1,048,576 | 262,144 | 65,536 | none | n/a | n/a | false | seed timed out with 57,588 incomplete commands | diagnostic-only |
+| E814 | smoke | full command -> model -> event + result | direct parents | current 14-processor diagnostic | 1,048,576 | 262,144 | 65,536 | none | n/a | n/a | false | seed timed out with 53,740 incomplete commands | diagnostic-only |
+| E815 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | current isolated-clone diagnostic | 1,048,576 | 262,144 | 65,536 | none | n/a | n/a | false | seed timed out with 57,348 incomplete commands | diagnostic-only |
+| E816 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | parent P1 | 1,048,576 | 262,144 | 8,192 | none | 171,026/s | n/a | false | exact loaded-host control | diagnostic-only |
+| E817 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | current C1 | 1,048,576 | 262,144 | 8,192 | none | 171,026/s preceding | 158,621/s | false | exact current observation | accepted |
+| E818 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | current C2 | 1,048,576 | 262,144 | 8,192 | none | 50,155/s following | 153,515/s | false | exact current observation before host collapse | accepted |
+| E819 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | parent P2 | 1,048,576 | 262,144 | 8,192 | none | 50,155/s | n/a | false | exact but host collapsed; warm-up only 14.6K/s | diagnostic-only |
+| E820 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | current C3 | 1,048,576 | 262,144 | 8,192 | none | n/a | n/a | false | laptop sleep; approximately 926-second artificial cache lag | diagnostic-only |
+| E821 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | parent sleep-protected adjacent control | 1,048,576 | 262,144 | 8,192 | none | 151,642/s | n/a | false | exact adjacent control | diagnostic-only |
+| E822 | smoke | full command -> model -> event + result, 8 JVM processors | direct parents | current sleep-protected adjacent candidate | 1,048,576 | 262,144 | 8,192 | none | 151,642/s preceding | 169,942/s | false | +12.07% adjacent; aggregate no-regression gate passes | accepted |
+
+Evidence SHA-256: E812 `04fc86fa863d963b16eccfc60757ac1b1f1ae793c7323d0588b8a50eebeca7a7`, E813
+`9b7131de6b1f55ee874aba99fdf2cf0fbc85e4051b2b7020ead96672808f17a3`, E814
+`5d5e21dd7b895b129c6ae95e705cb79998232b95f893b2c0b236010e67962160`, E815
+`ae92eb8e105621c4fb1408c21e48d9825506e6939ef67bd71a2e2d05004ea619`, E816
+`0d86fa5c3d8a784a2efafbe2a2f6a2343daaa8248cd682cf0d1c652d30412fdf`, E817
+`168049b0cff1541df30e393fa4bcce7b21699657593214152258c2ee86875fb9`, E818
+`78f1c4dc232c3e79958f7534663ad9caa674dcf40ce707341431d43882028b01`, E819
+`cc37673c9c64bea0f5006914dac48ab7e7622916860f233cbaf032c109971051`, E820
+`50e9940f94f66a1ad4f608a6119014c5bca32b249baae3f32d6669a8cf8f25e0`, E821
+`7221d72fcaa5b3e62e044ae454c8b645af66dd1374cef34e32f529319723df08`, E822
+`83212aeaf79fd51e3efd88ed9c1964fdc09d8eeee0cca78054c9647ff3ea381c`.
