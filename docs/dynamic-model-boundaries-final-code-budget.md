@@ -30,6 +30,36 @@ Formatting compression, moving Java into resources, generated equivalents, delet
 implementation do not count. The reduction must come from one owner per responsibility, one representation per state,
 one execution pipeline and reuse of existing Fluxzero foundations.
 
+## Macro-replacement rule
+
+CP7 is the final small preparatory checkpoint. It is retained because it removed a second batch-state owner and
+materially reduced scheduler allocation, but its 316-line reduction is not representative progress toward this code
+budget.
+
+No later reduction checkpoint is accepted merely because it makes several local classes smaller. A candidate must
+instead satisfy at least one of these structural gates:
+
+- remove one complete production pipeline, durable representation or lifecycle owner; or
+- remove at least 3,000 production Java lines in one coherent replacement, with an expected range of 3,000-5,000 or
+  more.
+
+Correctness and performance are still release contracts, but they are verified at the boundary of a macro replacement.
+Diagnostic commits and losing experiments may exist temporarily and are recorded in the run registry; they do not
+become named production checkpoints and later work does not build on them.
+
+The remaining campaign therefore has five checkpoints at most:
+
+| Macro replacement | Owner after replacement | Owners and pipelines that must disappear | Structural target |
+| --- | --- | --- | ---: |
+| Runtime commit/storage | one `ModelCommitPlan` and one block executor | general rows, initial-packed, update-packed, paired head/locator and paired replay routes | 5,000-7,000 Runtime lines |
+| SDK execution | one compiled payload plan and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 7,000-8,000 SDK lines |
+| Graph/repository | one indexed graph state and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 7,000-8,000 SDK lines |
+| Aggregate/Model mechanics | neutral transition, identity, apply and replay mechanics | duplicated aggregate/model reflection, transition, repository and fixture implementations | 6,000-7,000 SDK lines |
+| Wire/integration residue | one envelope/codecpad plus thin integrations | remaining handwritten protocol variants, preview schema/codecs and branch-only adapters | 5,000-7,000 combined lines |
+
+Repository ceilings remain the final authority. A macro that falls short of its structural range is redesigned before
+the next subsystem is started; missing budget is not paid through another sequence of local cleanups.
+
 ## Causal baseline
 
 The primary comparison is the last accepted ownership-reduction checkpoint, not `main`. Almost all broad Model
@@ -350,6 +380,96 @@ The existing global event log remains the single publication owner. Any reuse of
 transaction preparation, binary copy, batching and ordered publication primitives; model commits do not introduce a
 second message-store transaction or duplicate publication.
 
+#### Runtime replacement blueprint
+
+The current 10,779-line store makes the representation choice before canonical preparation:
+
+```text
+Job
+├── initial-create candidate -> InitialCommit/PreparedInitialStream -> packed blocks
+├── cached simple update     -> InitialCommit/PreparedInitialStream -> packed blocks
+└── general commit           -> PreparedCommit/StoredCommit         -> heads + rows + blocks
+```
+
+Reads then merge ordinary heads/stream rows with packed pseudo-stream rows, derived locators and two cache families.
+Commit receipts likewise exist as ordinary rows, compact commit blocks and stream-embedded receipts. This multiplication
+is the first macro replacement.
+
+The final intake and transaction shape is:
+
+```text
+List<Job>
+  -> prepareBatch(...)
+       -> ModelCommitPlan
+            receipts[]
+            transitions[]
+            payloads[]
+            optional aliases[]
+            optional relationships[]
+            optional materializations[]
+  -> execute(connection, plan)
+       lock/validate one state boundary
+       resolve duplicates and conflicts
+       assign contiguous state and per-model sequence ranges
+       write receipt blocks + transition blocks + payload blocks
+       apply non-empty optional mutations
+       append published events through the same JDBC transaction
+       advance one boundary
+  -> publish(plan)
+       update one locator/head view and one cache
+       publish update cursors
+       materialize direct documents
+       complete each real durable result
+```
+
+`ModelCommitPlan` is the only prepared representation. Fast common commits are cheap because their optional arrays are
+empty and conflict inputs are already proven, not because they enter another pipeline. Rich multi-model commits,
+deletions and relationship changes use the same plan with additional mutations.
+
+One final transition entry can express every target case:
+
+- commit/substep identity and assigned state index;
+- model identity/type and resulting sequence/head fields;
+- stored membership and its payload/global-event reference when present;
+- update-state, history-incomplete and logical-deletion state;
+- document collection and the information needed by direct materialization;
+- enough target identity to serve `GetModelChange`, hard erasure and exact duplicate results.
+
+Receipt blocks are the sole idempotency/result form. Transition blocks are the sole current and historical stream form.
+A sparse materialization outbox may remain because its bytes must be cleared independently after an external search
+write; it is an optional durability mutation, not another commit representation. Temporal relationships, aliases,
+erasure fences and deletion progress remain normalized tables because they have independent query/lifecycle semantics,
+but they are written only by the same executor from the same plan.
+
+The final locator is one derived index over transition blocks. It carries the current head fields and ordered block
+locations for a model. Ordinary and freshly created models no longer have separate head/cache/loader families. Local
+publication may update the same in-memory view immediately; cold/restart reads first advance the durable locator through
+the requested state boundary. There is no fallback to a general row stream.
+
+The durable update feed references or projects the same committed transition/receipt data instead of serializing an
+independent model-update representation. Cache tracking, graph projection and recovery keep their different actions,
+but read through one cursor/wakeup/retry owner.
+
+The replacement deletes, rather than wraps:
+
+- `initialCreateCandidate`, `packedPublishedCandidate`, `packedPreviousHead` and all mode selection;
+- `InitialCommit`, `PreparedInitialStream` and the paired `PreparedCommit`/`StoredCommit` hierarchy in favor of one
+  plan/transition hierarchy;
+- ordinary `model_head`/per-model stream writes and the paired packed pseudo-stream read merge;
+- regular-head versus initial-stream cache generations and loaders;
+- stream-embedded versus row/block commit-result lookup;
+- separate `ModelStreamBatchCodec`, `ModelStreamBlockCodec`, `ModelCommitBlockCodec` and `ModelUpdateCodec` ownership in
+  favor of one final model-block codec with narrow typed views.
+
+The historical pre-performance store at `1c3e8a9b^` is a useful ownership reference: it implemented the complete
+then-current lifecycle in 5,453 lines. The rewrite does not restore its slower row representation. It uses that single
+lifecycle shape as the skeleton and makes the later measured block representation its only storage form, then carries
+forward aliases, before-state graph boundaries, cascade deletion and other later contracts as plan mutations.
+
+This macro is accepted only when the old modes and representations are physically gone, Runtime production Java falls
+by at least 5,000 lines, and the current/historical/long-stream/relationship/deletion/restart/full-E2E gates pass. A
+temporary bridge that leaves both stores in place is an experiment, not a checkpoint.
+
 ### 7. One durable update-consumer mechanism
 
 Cache tracking, direct materialization recovery, graph projection and derived locator work retain distinct domain
@@ -391,19 +511,23 @@ preferred workstream.
 
 ## Execution order
 
-1. Freeze the current exact functional matrices and matched performance pins as immutable controls.
-2. Remove branch-internal binary/storage compatibility and collapse primitive binary I/O; prove byte, allocation and
-   no-model/model E2E behavior before proceeding.
-3. Replace Graph wrappers and repository graph composition with one indexed graph view.
-4. Replace the SDK handler/ticket/gate and duplicate batch-view machinery with one compiled model pipeline and scope.
-5. Spike the canonical packed Runtime representation together with the single SDK replay cursor. Keep the spike only
-   when current, historical, long-stream, relationship, deletion, restart and full E2E profiles all pass.
-6. Move shared Aggregate/Model transition mechanics behind neutral primitives and delete superseded implementations.
-7. Remove campaign-only diagnostics, run the final ownership/LOC audit and close any remaining budget through the
-   largest surviving duplicate owner—not through formatting or weakened contracts.
+1. Freeze CP7's exact functional matrices, schemas and matched performance pins as immutable controls.
+2. Replace the complete Runtime commit/storage subsystem according to the blueprint above. Do not checkpoint an
+   adapter layer or coexistence state; accept only after the old representations are gone and at least 5,000 Runtime
+   production lines have disappeared.
+3. Replace the complete SDK execution subsystem with one compiled payload plan and one batch scope. The registration,
+   manual invocation, retry and automatic paths must all enter it before the alternate lifecycle owners are deleted.
+4. Replace Graph and repository loading together: one indexed graph state, one replay cursor and no repository-specific
+   traversal/apply variants.
+5. Move Aggregate and Model behind neutral transition/identity/apply/replay mechanics and remove the superseded public-
+   implementation duplication while retaining Aggregate compatibility contracts.
+6. Collapse the remaining wire/preview/integration residue, then audit absolute LOC. Any missing budget is solved in the
+   largest surviving duplicate owner, never through formatting, generated hiding or weaker documentation.
 
-Each accepted step is a separate checkpoint commit. Losing candidates are reverted and recorded; no later work builds
-on a regression merely because it removes many lines.
+Each accepted macro replacement is a separate checkpoint commit. Functional tests may be run continuously while a
+replacement is being built, but full correctness and matched performance qualification happen at the replacement
+boundary. Losing candidates are reverted and recorded; no later work builds on a regression merely because it removes
+many lines.
 
 ## Non-negotiable gates
 
