@@ -15,6 +15,7 @@
 package io.fluxzero.common.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.fluxzero.common.api.internal.BinaryWire;
 import lombok.NonNull;
 
 import java.beans.ConstructorProperties;
@@ -264,9 +265,9 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         int formatLength = reuseEncodedFormat
                 ? message.encodedDataFormatLength : length(encodedFormat);
         int sourceLength = encodedSource == null
-                ? utf8Length(source) : encodedSource.length;
+                ? BinaryWire.utf8Length(source) : encodedSource.length;
         int targetLength = encodedTarget == null
-                ? utf8Length(target) : encodedTarget.length;
+                ? BinaryWire.utf8Length(target) : encodedTarget.length;
         int messageIdLength = message.encodedMessageIdLength(
                 messageId);
 
@@ -615,13 +616,13 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
                 : length((currentMetadata == null ? Metadata.empty() : currentMetadata).toData().getValue());
         int result = HEADER_SIZE;
         result = addLength(result, hasEncodedDataType()
-                ? encodedDataTypeLength : utf8Length(messageData.getType()));
+                ? encodedDataTypeLength : BinaryWire.utf8Length(messageData.getType()));
         result = addLength(result, hasEncodedDataFormat()
-                ? encodedDataFormatLength : utf8Length(messageData.getFormat()));
+                ? encodedDataFormatLength : BinaryWire.utf8Length(messageData.getFormat()));
         result = addLength(result, sourceLength == MATERIALIZED_STRING
-                ? utf8Length(currentSource) : sourceLength);
+                ? BinaryWire.utf8Length(currentSource) : sourceLength);
         result = addLength(result, targetLength == MATERIALIZED_STRING
-                ? utf8Length(currentTarget) : targetLength);
+                ? BinaryWire.utf8Length(currentTarget) : targetLength);
         result = addLength(result, encodedMessageIdLength(
                 messageIdLength == MATERIALIZED_STRING ? currentMessageId : null));
         result = addLength(result, currentPayloadLength);
@@ -880,30 +881,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         if (targetLength == MATERIALIZED_STRING) {
             return Objects.equals(target, candidate);
         }
-        if (targetLength < 0) {
-            return candidate == null;
-        }
-        if (candidate == null) {
-            return false;
-        }
-        for (int i = 0; i < candidate.length(); i++) {
-            if (candidate.charAt(i) > 0x7f) {
-                return Objects.equals(getTarget(), candidate);
-            }
-        }
-        if (candidate.length() != targetLength) {
-            return false;
-        }
-        for (int i = 0; i < targetLength; i++) {
-            byte encoded = envelope[targetOffset + i];
-            if (encoded < 0) {
-                return Objects.equals(getTarget(), candidate);
-            }
-            if (encoded != (byte) candidate.charAt(i)) {
-                return false;
-            }
-        }
-        return true;
+        return encodedEquals(candidate, targetOffset, targetLength);
     }
 
     /**
@@ -913,30 +891,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         if (dataTypeLength == MATERIALIZED_STRING) {
             return Objects.equals(getType(), candidate);
         }
-        if (dataTypeLength < 0) {
-            return candidate == null;
-        }
-        if (candidate == null) {
-            return false;
-        }
-        for (int i = 0; i < candidate.length(); i++) {
-            if (candidate.charAt(i) > 0x7f) {
-                return Objects.equals(getType(), candidate);
-            }
-        }
-        if (candidate.length() != dataTypeLength) {
-            return false;
-        }
-        for (int i = 0; i < dataTypeLength; i++) {
-            byte encoded = envelope[dataTypeOffset + i];
-            if (encoded < 0) {
-                return Objects.equals(getType(), candidate);
-            }
-            if (encoded != (byte) candidate.charAt(i)) {
-                return false;
-            }
-        }
-        return true;
+        return encodedEquals(candidate, dataTypeOffset, dataTypeLength);
     }
 
     public synchronized void setTarget(String target) {
@@ -1150,7 +1105,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         return encodedMessageHeaders == null
                || encodedMessageIdLength
                   == UNKNOWN_ENCODED_STRING
-                ? utf8Length(messageId)
+                ? BinaryWire.utf8Length(messageId)
                 : encodedMessageIdLength;
     }
 
@@ -1220,42 +1175,6 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
             encodedMessageIdLength =
                     source.encodedMessageIdLength;
         }
-    }
-
-    private static int utf8Length(String value) {
-        if (value == null) {
-            return -1;
-        }
-        int result = 0;
-        int i = 0;
-        while (i <= value.length() - Integer.BYTES) {
-            char first = value.charAt(i);
-            char second = value.charAt(i + 1);
-            char third = value.charAt(i + 2);
-            char fourth = value.charAt(i + 3);
-            if ((first | second | third | fourth) > 0x7f) {
-                break;
-            }
-            result = Math.addExact(result, Integer.BYTES);
-            i += Integer.BYTES;
-        }
-        for (; i < value.length(); i++) {
-            char character = value.charAt(i);
-            if (character <= 0x7f) {
-                result = Math.addExact(result, 1);
-            } else if (character <= 0x7ff) {
-                result = Math.addExact(result, 2);
-            } else if (Character.isHighSurrogate(character)
-                       && i + 1 < value.length() && Character.isLowSurrogate(value.charAt(i + 1))) {
-                result = Math.addExact(result, 4);
-                i++;
-            } else if (Character.isSurrogate(character)) {
-                result = Math.addExact(result, 1);
-            } else {
-                result = Math.addExact(result, 3);
-            }
-        }
-        return result;
     }
 
     private static int writeUtf8(String value, byte[] target, int offset) {
@@ -1416,6 +1335,11 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
         return length < 0 ? null : new String(envelope, offset, length, StandardCharsets.UTF_8);
     }
 
+    private boolean encodedEquals(String value, int offset, int length) {
+        return length < 0 ? value == null
+                : value != null && BinaryWire.utf8Equals(envelope, offset, length, value);
+    }
+
     private static int readNullableLength(byte[] bytes, int offset, String label) throws IOException {
         int value = readInt(bytes, offset);
         if (value < -1 || value > MAX_VALUE_BYTES) {
@@ -1494,10 +1418,7 @@ public class SerializedMessage implements SerializedObject<byte[]>, HasMetadata 
     }
 
     private static int readInt(byte[] bytes, int offset) {
-        return ((bytes[offset] & 0xff) << 24)
-               | ((bytes[offset + 1] & 0xff) << 16)
-               | ((bytes[offset + 2] & 0xff) << 8)
-               | (bytes[offset + 3] & 0xff);
+        return BinaryWire.peekInt(bytes, offset);
     }
 
     private static long readLong(byte[] bytes, int offset) {

@@ -37,7 +37,140 @@ public final class BinaryWire {
     }
 
     public static int utf8Length(String value) {
-        return value.getBytes(StandardCharsets.UTF_8).length;
+        if (value == null) {
+            return -1;
+        }
+        int result = 0;
+        for (int index = 0; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (current <= 0x7f) {
+                result = Math.addExact(result, 1);
+            } else if (current <= 0x7ff) {
+                result = Math.addExact(result, 2);
+            } else if (Character.isHighSurrogate(current) && index + 1 < value.length()
+                    && Character.isLowSurrogate(value.charAt(index + 1))) {
+                result = Math.addExact(result, 4);
+                index++;
+            } else {
+                result = Math.addExact(result, Character.isSurrogate(current) ? 1 : 3);
+            }
+        }
+        return result;
+    }
+
+    /** Unchecked cursor for validated embedded values whose public API does not expose I/O failures. */
+    public static final class Cursor {
+        private final byte[] bytes;
+        private final int limit;
+        private int position;
+
+        public Cursor(byte[] bytes, int offset, int length, int maximumSize) {
+            if (bytes == null || offset < 0 || length < 0 || length > maximumSize
+                    || offset > bytes.length - length) {
+                throw new IllegalArgumentException("Invalid binary wire range");
+            }
+            this.bytes = bytes;
+            this.position = offset;
+            this.limit = offset + length;
+        }
+
+        public byte[] bytes() {
+            return bytes;
+        }
+
+        public int position() {
+            return position;
+        }
+
+        public int remaining() {
+            return limit - position;
+        }
+
+        public int readInt() {
+            require(Integer.BYTES);
+            int result = peekInt(bytes, position);
+            position += Integer.BYTES;
+            return result;
+        }
+
+        public int readSize(int maximum, String label) {
+            int value = readInt();
+            if (value < 0 || value > maximum) {
+                throw new IllegalArgumentException("Invalid binary wire " + label + " size " + value);
+            }
+            return value;
+        }
+
+        public int readStringLength(int maximum) {
+            int length = readSize(maximum, "string");
+            require(length);
+            return length;
+        }
+
+        public String readString(int maximum) {
+            int length = readStringLength(maximum);
+            String result = new String(bytes, position, length, StandardCharsets.UTF_8);
+            position += length;
+            return result;
+        }
+
+        public boolean readStringEquals(String value, int maximum) {
+            int length = readStringLength(maximum);
+            boolean result = utf8Equals(bytes, position, length, value);
+            position += length;
+            return result;
+        }
+
+        public void skipString(int maximum) {
+            int length = readStringLength(maximum);
+            position += length;
+        }
+
+        public void skip(int length) {
+            require(length);
+            position += length;
+        }
+
+        public void requireComplete() {
+            if (position != limit) {
+                throw new IllegalArgumentException("Unexpected trailing binary wire bytes");
+            }
+        }
+
+        private void require(int length) {
+            if (length < 0 || length > limit - position) {
+                throw new IllegalArgumentException("Truncated binary wire value");
+            }
+        }
+    }
+
+    public static boolean utf8Equals(byte[] bytes, int offset, int byteLength, String value) {
+        int byteIndex = 0;
+        for (int charIndex = 0; charIndex < value.length(); charIndex++) {
+            char current = value.charAt(charIndex);
+            if (current <= 0x7f) {
+                if (!matches(bytes, offset, byteIndex++, byteLength, current)) return false;
+            } else if (current <= 0x7ff) {
+                if (!matches(bytes, offset, byteIndex++, byteLength, 0xc0 | current >>> 6)
+                        || !matches(bytes, offset, byteIndex++, byteLength, 0x80 | current & 0x3f)) return false;
+            } else if (Character.isHighSurrogate(current) && charIndex + 1 < value.length()
+                    && Character.isLowSurrogate(value.charAt(charIndex + 1))) {
+                int codePoint = Character.toCodePoint(current, value.charAt(++charIndex));
+                if (!matches(bytes, offset, byteIndex++, byteLength, 0xf0 | codePoint >>> 18)
+                        || !matches(bytes, offset, byteIndex++, byteLength, 0x80 | codePoint >>> 12 & 0x3f)
+                        || !matches(bytes, offset, byteIndex++, byteLength, 0x80 | codePoint >>> 6 & 0x3f)
+                        || !matches(bytes, offset, byteIndex++, byteLength, 0x80 | codePoint & 0x3f)) return false;
+            } else if (Character.isSurrogate(current)) {
+                if (!matches(bytes, offset, byteIndex++, byteLength, '?')) return false;
+            } else if (!matches(bytes, offset, byteIndex++, byteLength, 0xe0 | current >>> 12)
+                    || !matches(bytes, offset, byteIndex++, byteLength, 0x80 | current >>> 6 & 0x3f)
+                    || !matches(bytes, offset, byteIndex++, byteLength, 0x80 | current & 0x3f)) return false;
+        }
+        return byteIndex == byteLength;
+    }
+
+    private static boolean matches(byte[] bytes, int offset, int index, int length, int expected) {
+        return index < length && (bytes[offset + index] & 0xff) == expected;
     }
 
     public static final class Writer {
