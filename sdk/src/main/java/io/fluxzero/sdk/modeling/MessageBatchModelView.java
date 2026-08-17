@@ -282,6 +282,123 @@ public final class MessageBatchModelView {
                 visible.value(), visible.existedBefore());
     }
 
+    static Map<String, Object> currentValues(
+            String namespace,
+            ModelTargetResolver.Resolution resolution) {
+        MessageBatchModelView view = current();
+        if (view == null) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> result = new LinkedHashMap<>();
+        if (resolution.hasAncestorDependencies()) {
+            int messageIndex = DeserializingMessage.getMessageBatchIndex();
+            view.ensureIndexed(messageIndex);
+            String normalizedNamespace = normalize(namespace);
+            view.exactValues.forEach((key, candidate) -> {
+                if (!key.namespace().equals(normalizedNamespace)) {
+                    return;
+                }
+                Candidate visible = visible(candidate, messageIndex);
+                if (visible != null
+                    && status(visible) != Status.FAILURE
+                    && resolution.ancestorDependencies().stream()
+                            .map(ModelTargetResolver.AncestorDependency::modelType)
+                            .anyMatch(type -> type.isAssignableFrom(visible.modelType())
+                                              || visible.modelType().isAssignableFrom(type))) {
+                    dependOn(visible);
+                    result.put(visible.modelId(), visible.value());
+                }
+            });
+        }
+        List<String> pending = new ArrayList<>();
+        resolution.models().forEach(target -> pending.add(target.modelId()));
+        for (int index = 0; index < pending.size(); index++) {
+            Lookup lookup = view.lookupStoredExact(
+                    namespace, pending.get(index));
+            if (lookup == null || result.containsKey(lookup.modelId())) {
+                continue;
+            }
+            Object value = lookup.available() ? lookup.value() : null;
+            result.put(lookup.modelId(), value);
+            if (value == null) {
+                continue;
+            }
+            for (ModelMetadata.ParentReference parent :
+                    ModelMetadata.validate(value.getClass()).parentReferences()) {
+                Object parentId = parent.read(value);
+                if (parentId != null) {
+                    pending.add(parent.repositoryId(parentId));
+                }
+            }
+        }
+        return immutable(result);
+    }
+
+    static Map<String, Object> currentValues(
+            String namespace,
+            ModelCommitContext context) {
+        MessageBatchModelView view = current();
+        if (view == null) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Object> result = new LinkedHashMap<>();
+        context.entries().forEach(entry -> {
+            Lookup lookup = view.lookupStoredExact(
+                    namespace, entry.target().modelId());
+            if (lookup != null) {
+                result.put(
+                        lookup.modelId(),
+                        lookup.available() ? lookup.value() : null);
+            }
+        });
+        return immutable(result);
+    }
+
+    /**
+     * Resolves an exact value for the automatic model handler without materializing the generic alias index. Automatic
+     * dependency planning already addresses repository identities, while alias-aware application loads continue to use
+     * {@link #lookup(String, String)}. Scanning the usually short batch avoids maintaining a second speculative view.
+     */
+    private Lookup lookupStoredExact(
+            String namespace,
+            String requestedId) {
+        int messageIndex = DeserializingMessage.getMessageBatchIndex();
+        if (messageIndex <= 0) {
+            return null;
+        }
+        String normalizedNamespace = normalize(namespace);
+        int segment = currentSegment();
+        Slots current = slots;
+        for (int index = Math.min(
+                     messageIndex - 1,
+                     current.evaluations().length - 1);
+             index >= 0; index--) {
+            ModelCommitEngine.CommitEvaluation evaluation =
+                    current.evaluations()[index];
+            Map<String, Object> values = evaluation == null
+                    ? null : evaluation.finalValues();
+            if (evaluation == null
+                || current.segments()[index] != segment
+                || !normalizedNamespace.equals(
+                        current.namespaces()[index])
+                || !values.containsKey(requestedId)) {
+                continue;
+            }
+            Dependency producer = current.producers()[index];
+            if (producer == currentDependency.get()) {
+                continue;
+            }
+            dependOn(producer);
+            Class<?> modelType = evaluation.readModelTypes()
+                    .getOrDefault(requestedId, Object.class);
+            return new Lookup(
+                    requestedId, modelType,
+                    values.get(requestedId),
+                    true, true);
+        }
+        return null;
+    }
+
     private static MessageBatchModelView current() {
         return DeserializingMessage.getMessageBatchResource(
                 RESOURCE_KEY);
@@ -511,7 +628,10 @@ public final class MessageBatchModelView {
     }
 
     private static void dependOn(Candidate candidate) {
-        Dependency producer = candidate.producer();
+        dependOn(candidate.producer());
+    }
+
+    private static void dependOn(Dependency producer) {
         if (producer == null) {
             return;
         }
@@ -563,6 +683,13 @@ public final class MessageBatchModelView {
         LinkedHashSet<String> result = new LinkedHashSet<>(left);
         result.removeAll(right);
         return result;
+    }
+
+    private static Map<String, Object> immutable(
+            LinkedHashMap<String, Object> values) {
+        return values.isEmpty()
+                ? Map.of()
+                : Collections.unmodifiableMap(values);
     }
 
     private static boolean existedBefore(
