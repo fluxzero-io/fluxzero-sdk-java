@@ -2677,3 +2677,8 @@ Evidence SHA-256: E812 `04fc86fa863d963b16eccfc60757ac1b1f1ae793c7323d0588b8a50e
 `50e9940f94f66a1ad4f608a6119014c5bca32b249baae3f32d6669a8cf8f25e0`, E821
 `7221d72fcaa5b3e62e044ae454c8b645af66dd1374cef34e32f529319723df08`, E822
 `83212aeaf79fd51e3efd88ed9c1964fdc09d8eeee0cca78054c9647ff3ea381c`.
+
+PR #286 was subsequently merged into the model branch at SDK `190b82cc5f3`. The exact result-dispatch screens,
+rejected adaptive experiment, balanced no-model comparisons, model-route bracket, hashes and final decision are in
+[`sdk-pr286-runtime-ingress-gate.md`](sdk-pr286-runtime-ingress-gate.md). The accepted default is eight concurrent
+result completions; matched final-source runs improved both complete routes without replacing the clean absolute pins.
