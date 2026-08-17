@@ -1061,7 +1061,7 @@ public final class Graphs {
     }
 
     /** Detached identity-only graph used by the public loadGraph conveniences. */
-    private static final class IdentityGraph<T> implements Graph<T> {
+    private static final class IdentityGraph<T> extends ForwardingGraph<T> {
         private final Object requestedId;
         private final String primaryId;
         private final Object lookupId;
@@ -1086,7 +1086,8 @@ public final class Graphs {
             this.boundary = Boundary.current(-1L);
         }
 
-        private Graph<T> delegate() {
+        @Override
+        protected Graph<T> delegate() {
             Graph<T> result = delegate;
             if (result == null) {
                 synchronized (this) {
@@ -1108,11 +1109,6 @@ public final class Graphs {
         }
 
         @Override
-        public T get() {
-            return delegate().get();
-        }
-
-        @Override
         public Object id() {
             return primaryIdKnown ? primaryId : delegate().id();
         }
@@ -1123,63 +1119,13 @@ public final class Graphs {
         }
 
         @Override
-        public Collection<?> aliases() {
-            return delegate().aliases();
+        public <C> Optional<C> context(Class<C> contextType) {
+            return Optional.empty();
         }
 
         @Override
         public String relationshipPath() {
             return null;
-        }
-
-        @Override
-        public long stateIndex() {
-            return delegate().stateIndex();
-        }
-
-        @Override
-        public long revisionStateIndex() {
-            return delegate().revisionStateIndex();
-        }
-
-        @Override
-        public String lastEventId() {
-            return delegate().lastEventId();
-        }
-
-        @Override
-        public Long lastEventIndex() {
-            return delegate().lastEventIndex();
-        }
-
-        @Override
-        public long sequenceNumber() {
-            return delegate().sequenceNumber();
-        }
-
-        @Override
-        public Instant timestamp() {
-            return delegate().timestamp();
-        }
-
-        @Override
-        public Graph<?> root() {
-            return delegate().root();
-        }
-
-        @Override
-        public Optional<Graph<?>> parent() {
-            return delegate().parent();
-        }
-
-        @Override
-        public List<Graph<?>> parents() {
-            return delegate().parents();
-        }
-
-        @Override
-        public <P> Optional<Graph<P>> parent(Class<P> parentType) {
-            return delegate().parent(parentType);
         }
 
         @Override
@@ -1205,99 +1151,8 @@ public final class Graphs {
         }
 
         @Override
-        public List<Graph<?>> children() {
-            return delegate().children();
-        }
-
-        @Override
-        public <C> List<Graph<C>> children(Class<C> childType) {
-            return delegate().children(childType);
-        }
-
-        @Override
-        public <C> List<Graph<C>> children(String path, Class<C> childType) {
-            return delegate().children(path, childType);
-        }
-
-        @Override
         public <D> List<Graph<D>> descendants(Class<D> descendantType) {
             return delegate().descendants(descendantType);
-        }
-
-        @Override
-        public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
-            return delegate().descendants(path, descendantType);
-        }
-
-        @Override
-        public Graph<T> apply(Object update) {
-            return delegate().apply(update);
-        }
-
-        @Override
-        public Graph<T> apply(Object update, Metadata metadata) {
-            return delegate().apply(update, metadata);
-        }
-
-        @Override
-        public Graph<T> apply(DeserializingMessage update) {
-            return delegate().apply(update);
-        }
-
-        @Override
-        public Graph<T> apply(Message update) {
-            return delegate().apply(update);
-        }
-
-        @Override
-        public Graph<T> apply(Object... updates) {
-            return delegate().apply(updates);
-        }
-
-        @Override
-        public Graph<T> apply(Collection<?> updates) {
-            return delegate().apply(updates);
-        }
-
-        @Override
-        public Graph<T> update(UnaryOperator<T> update) {
-            return delegate().update(update);
-        }
-
-        @Override
-        public Graph<T> commit() {
-            return delegate().commit();
-        }
-
-        @Override
-        public <E extends Exception> Graph<T> assertLegal(Object update) throws E {
-            delegate().assertLegal(update);
-            return this;
-        }
-
-        @Override
-        public Graph<T> assertAndApply(Object update) {
-            return delegate().assertAndApply(update);
-        }
-
-        @Override
-        public Graph<T> assertAndApply(Object update, Metadata metadata) {
-            return delegate().assertAndApply(update, metadata);
-        }
-
-        @Override
-        public Graph<T> previous() {
-            return delegate().previous();
-        }
-
-        @Override
-        public Graph<T> atStateIndex(long stateIndex) {
-            return delegate().atStateIndex(stateIndex);
-        }
-
-        @Override
-        public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
-            return delegate().playBackToEvent(eventIndex, eventId);
         }
 
         @Override
@@ -1481,6 +1336,82 @@ public final class Graphs {
         }
     }
 
+    /** Shared forwarding contract for lightweight graph views. Subclasses override only the context they transform. */
+    private abstract static class ForwardingGraph<T> implements Graph<T> {
+        protected abstract Graph<T> delegate();
+
+        protected Graph<T> after(Graph<T> graph) {
+            return graph;
+        }
+
+        @Override public T get() { return delegate().get(); }
+        @Override public Object id() { return delegate().id(); }
+        @Override public Class<T> type() { return delegate().type(); }
+        @Override public Collection<?> aliases() { return delegate().aliases(); }
+        @Override public <C> Optional<C> context(Class<C> type) { return delegate().context(type); }
+        @Override public String relationshipPath() { return delegate().relationshipPath(); }
+        @Override public long stateIndex() { return delegate().stateIndex(); }
+        @Override public long revisionStateIndex() { return delegate().revisionStateIndex(); }
+        @Override public String lastEventId() { return delegate().lastEventId(); }
+        @Override public Long lastEventIndex() { return delegate().lastEventIndex(); }
+        @Override public long sequenceNumber() { return delegate().sequenceNumber(); }
+        @Override public Instant timestamp() { return delegate().timestamp(); }
+        @Override public Graph<?> root() { return delegate().root(); }
+        @Override public Optional<Graph<?>> parent() { return delegate().parent(); }
+        @Override public List<Graph<?>> parents() { return delegate().parents(); }
+        @Override public <P> Optional<Graph<P>> parent(Class<P> type) { return delegate().parent(type); }
+        @Override public <A> Optional<Graph<A>> ancestor(Class<A> type) { return delegate().ancestor(type); }
+        @Override public List<Graph<?>> children() { return delegate().children(); }
+        @Override public List<String> childPaths() { return delegate().childPaths(); }
+        @Override public <C> List<Graph<C>> children(Class<C> type) { return delegate().children(type); }
+        @Override public <C> List<Graph<C>> children(String path, Class<C> type) {
+            return delegate().children(path, type);
+        }
+        @Override public <D> List<Graph<D>> descendants(Class<D> type) {
+            return stream().skip(1).filter(graph -> type.isAssignableFrom(graph.type()))
+                    .map(Graphs::<D>cast).toList();
+        }
+        @Override public <D> List<Graph<D>> descendants(String path, Class<D> type) {
+            return delegate().descendants(path, type);
+        }
+        @Override public Graph<T> apply(Object update) { return after(delegate().apply(update)); }
+        @Override public Graph<T> apply(Object update, Metadata metadata) {
+            return after(delegate().apply(update, metadata));
+        }
+        @Override public Graph<T> apply(DeserializingMessage update) { return after(delegate().apply(update)); }
+        @Override public Graph<T> apply(Message update) { return after(delegate().apply(update)); }
+        @Override public Graph<T> apply(Object... updates) { return after(delegate().apply(updates)); }
+        @Override public Graph<T> apply(Collection<?> updates) { return after(delegate().apply(updates)); }
+        @Override public Graph<T> update(UnaryOperator<T> update) { return after(delegate().update(update)); }
+        @Override public Graph<T> commit() { return after(delegate().commit()); }
+        @Override public <E extends Exception> Graph<T> assertLegal(Object update) throws E {
+            delegate().assertLegal(update);
+            return this;
+        }
+        @Override public Graph<T> assertAndApply(Object update) {
+            return after(delegate().assertAndApply(update));
+        }
+        @Override public Graph<T> assertAndApply(Object update, Metadata metadata) {
+            return after(delegate().assertAndApply(update, metadata));
+        }
+        @Override public Graph<T> previous() {
+            Graph<T> previous = delegate().previous();
+            return previous == null ? null : after(previous);
+        }
+        @Override public Graph<T> atStateIndex(long stateIndex) { return after(delegate().atStateIndex(stateIndex)); }
+        @Override public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
+            return delegate().playBackToEvent(eventIndex, eventId).map(this::after);
+        }
+        @Override public Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition) {
+            Objects.requireNonNull(condition, "condition");
+            Graph<T> result = this;
+            while (result != null && !condition.test(result)) {
+                result = result.previous();
+            }
+            return Optional.ofNullable(result);
+        }
+    }
+
     private static final class MappedContext {
         private final Function<? super Graph<?>, ?> mapper;
         private final List<?> values;
@@ -1523,7 +1454,7 @@ public final class Graphs {
         }
     }
 
-    private static final class MappedGraph<T> implements Graph<T> {
+    private static final class MappedGraph<T> extends ForwardingGraph<T> {
         private final MappedContext context;
         private final Graph<T> delegate;
         private volatile boolean mapped;
@@ -1532,6 +1463,16 @@ public final class Graphs {
         private MappedGraph(MappedContext context, Graph<T> delegate) {
             this.context = context;
             this.delegate = delegate;
+        }
+
+        @Override
+        protected Graph<T> delegate() {
+            return delegate;
+        }
+
+        @Override
+        protected Graph<T> after(Graph<T> graph) {
+            return context.view(graph);
         }
 
         @Override
@@ -1548,9 +1489,6 @@ public final class Graphs {
             return value;
         }
 
-        @Override public Object id() { return delegate.id(); }
-        @Override public Class<T> type() { return delegate.type(); }
-        @Override public Collection<?> aliases() { return delegate.aliases(); }
         @Override public <C> Optional<C> context(Class<C> contextType) {
             Objects.requireNonNull(contextType, "contextType");
             return context.value(contextType).or(() -> delegate.context(contextType));
@@ -1558,12 +1496,6 @@ public final class Graphs {
         @Override public String relationshipPath() {
             return context.relationshipPath(delegate.relationshipPath());
         }
-        @Override public long stateIndex() { return delegate.stateIndex(); }
-        @Override public long revisionStateIndex() { return delegate.revisionStateIndex(); }
-        @Override public String lastEventId() { return delegate.lastEventId(); }
-        @Override public Long lastEventIndex() { return delegate.lastEventIndex(); }
-        @Override public long sequenceNumber() { return delegate.sequenceNumber(); }
-        @Override public Instant timestamp() { return delegate.timestamp(); }
         @Override public Graph<?> root() { return context.view(delegate.root()); }
         @Override public Optional<Graph<?>> parent() {
             return delegate.parent().map(context::view).map(graph -> (Graph<?>) graph);
@@ -1623,47 +1555,6 @@ public final class Graphs {
             }
             return List.copyOf(result);
         }
-        @Override public Graph<T> apply(Object update) { return context.view(delegate.apply(update)); }
-        @Override public Graph<T> apply(Object update, Metadata metadata) {
-            return context.view(delegate.apply(update, metadata));
-        }
-        @Override public Graph<T> apply(DeserializingMessage update) {
-            return context.view(delegate.apply(update));
-        }
-        @Override public Graph<T> apply(Message update) { return context.view(delegate.apply(update)); }
-        @Override public Graph<T> apply(Object... updates) { return context.view(delegate.apply(updates)); }
-        @Override public Graph<T> apply(Collection<?> updates) { return context.view(delegate.apply(updates)); }
-        @Override public Graph<T> update(UnaryOperator<T> update) { return context.view(delegate.update(update)); }
-        @Override public Graph<T> commit() { return context.view(delegate.commit()); }
-        @Override public <E extends Exception> Graph<T> assertLegal(Object update) throws E {
-            delegate.assertLegal(update);
-            return this;
-        }
-        @Override public Graph<T> assertAndApply(Object update) {
-            return context.view(delegate.assertAndApply(update));
-        }
-        @Override public Graph<T> assertAndApply(Object update, Metadata metadata) {
-            return context.view(delegate.assertAndApply(update, metadata));
-        }
-        @Override public Graph<T> previous() {
-            Graph<T> previous = delegate.previous();
-            return previous == null ? null : context.view(previous);
-        }
-        @Override public Graph<T> atStateIndex(long stateIndex) {
-            return context.view(delegate.atStateIndex(stateIndex));
-        }
-        @Override public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
-            return delegate.playBackToEvent(eventIndex, eventId).map(context::view);
-        }
-        @Override public Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition) {
-            Objects.requireNonNull(condition, "condition");
-            Graph<T> result = this;
-            while (result != null && !condition.test(result)) {
-                result = result.previous();
-            }
-            return Optional.ofNullable(result);
-        }
-
         private record PathGraph(Graph<?> graph, String path) {
         }
     }
@@ -1708,7 +1599,7 @@ public final class Graphs {
         }
     }
 
-    private static final class ChangeGraph<T> implements Graph<T> {
+    private static final class ChangeGraph<T> extends ForwardingGraph<T> {
         private final ChangeContext context;
         private final Graph<T> delegate;
         private final Graph<?> parent;
@@ -1720,6 +1611,11 @@ public final class Graphs {
             this.context = context;
             this.delegate = delegate;
             this.parent = parent;
+        }
+
+        @Override
+        protected Graph<T> delegate() {
+            return delegate;
         }
 
         private <C> Graph<C> child(Graph<C> child) {
@@ -1734,20 +1630,6 @@ public final class Graphs {
             }
         }
 
-        @Override public T get() { return delegate.get(); }
-        @Override public Object id() { return delegate.id(); }
-        @Override public Class<T> type() { return delegate.type(); }
-        @Override public Collection<?> aliases() { return delegate.aliases(); }
-        @Override public <C> Optional<C> context(Class<C> contextType) {
-            return delegate.context(contextType);
-        }
-        @Override public String relationshipPath() { return delegate.relationshipPath(); }
-        @Override public long stateIndex() { return delegate.stateIndex(); }
-        @Override public long revisionStateIndex() { return delegate.revisionStateIndex(); }
-        @Override public String lastEventId() { return delegate.lastEventId(); }
-        @Override public Long lastEventIndex() { return delegate.lastEventIndex(); }
-        @Override public long sequenceNumber() { return delegate.sequenceNumber(); }
-        @Override public Instant timestamp() { return delegate.timestamp(); }
         @Override public Graph<?> root() { return context.root(); }
         @Override public Optional<Graph<?>> parent() {
             if (parent != null) {
@@ -1785,17 +1667,11 @@ public final class Graphs {
         @Override public List<Graph<?>> children() {
             return delegate.children().stream().<Graph<?>>map(this::child).toList();
         }
-        @Override public List<String> childPaths() { return delegate.childPaths(); }
         @Override public <C> List<Graph<C>> children(Class<C> childType) {
             return delegate.children(childType).stream().map(this::child).toList();
         }
         @Override public <C> List<Graph<C>> children(String path, Class<C> childType) {
             return delegate.children(path, childType).stream().map(this::child).toList();
-        }
-        @Override public <D> List<Graph<D>> descendants(Class<D> descendantType) {
-            return stream().skip(1)
-                    .filter(candidate -> descendantType.isAssignableFrom(candidate.type()))
-                    .map(Graphs::<D>cast).toList();
         }
         @Override public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
             String selectedPath = normalizePath(path);
@@ -1849,37 +1725,7 @@ public final class Graphs {
 
         private record PathGraph(Graph<?> graph, String path) {
         }
-        @Override public Graph<T> apply(Object update) { return delegate.apply(update); }
-        @Override public Graph<T> apply(Object update, Metadata metadata) {
-            return delegate.apply(update, metadata);
-        }
-        @Override public Graph<T> apply(DeserializingMessage update) { return delegate.apply(update); }
-        @Override public Graph<T> apply(Message update) { return delegate.apply(update); }
-        @Override public Graph<T> apply(Object... updates) { return delegate.apply(updates); }
-        @Override public Graph<T> apply(Collection<?> updates) { return delegate.apply(updates); }
-        @Override public Graph<T> update(UnaryOperator<T> update) { return delegate.update(update); }
-        @Override public Graph<T> commit() { return delegate.commit(); }
-        @Override public <E extends Exception> Graph<T> assertLegal(Object update) throws E {
-            delegate.assertLegal(update);
-            return this;
-        }
-        @Override public Graph<T> assertAndApply(Object update) { return delegate.assertAndApply(update); }
-        @Override public Graph<T> assertAndApply(Object update, Metadata metadata) {
-            return delegate.assertAndApply(update, metadata);
-        }
         @Override public Graph<T> previous() { return context.previous(delegate); }
-        @Override public Graph<T> atStateIndex(long stateIndex) { return delegate.atStateIndex(stateIndex); }
-        @Override public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
-            return delegate.playBackToEvent(eventIndex, eventId);
-        }
-        @Override public Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition) {
-            Objects.requireNonNull(condition, "condition");
-            Graph<T> result = this;
-            while (result != null && !condition.test(result)) {
-                result = result.previous();
-            }
-            return Optional.ofNullable(result);
-        }
     }
 
     private static final class SelectedContext {
@@ -1923,7 +1769,7 @@ public final class Graphs {
         }
     }
 
-    private static final class SelectedGraph<T> implements Graph<T> {
+    private static final class SelectedGraph<T> extends ForwardingGraph<T> {
         private final SelectedContext context;
         private final Graph<T> delegate;
         private final Set<String> selection;
@@ -1938,6 +1784,16 @@ public final class Graphs {
             this.delegate = delegate;
             this.selection = selection;
             this.parent = parent;
+        }
+
+        @Override
+        protected Graph<T> delegate() {
+            return delegate;
+        }
+
+        @Override
+        protected Graph<T> after(Graph<T> graph) {
+            return Graphs.selectPaths(graph, selection);
         }
 
         private Set<String> below(String relationshipPath) {
@@ -1962,20 +1818,6 @@ public final class Graphs {
             return context.child(graph, below(graph.relationshipPath()), this);
         }
 
-        @Override public T get() { return delegate.get(); }
-        @Override public Object id() { return delegate.id(); }
-        @Override public Class<T> type() { return delegate.type(); }
-        @Override public Collection<?> aliases() { return delegate.aliases(); }
-        @Override public <C> Optional<C> context(Class<C> contextType) {
-            return delegate.context(contextType);
-        }
-        @Override public String relationshipPath() { return delegate.relationshipPath(); }
-        @Override public long stateIndex() { return delegate.stateIndex(); }
-        @Override public long revisionStateIndex() { return delegate.revisionStateIndex(); }
-        @Override public String lastEventId() { return delegate.lastEventId(); }
-        @Override public Long lastEventIndex() { return delegate.lastEventIndex(); }
-        @Override public long sequenceNumber() { return delegate.sequenceNumber(); }
-        @Override public Instant timestamp() { return delegate.timestamp(); }
         @Override public Graph<?> root() { return context.root; }
         @Override public Optional<Graph<?>> parent() {
             return Optional.ofNullable(parent);
@@ -2018,69 +1860,11 @@ public final class Graphs {
                     .filter(child -> childType.isAssignableFrom(child.type()))
                     .map(Graphs::<C>cast).toList();
         }
-        @Override public <D> List<Graph<D>> descendants(Class<D> descendantType) {
-            return stream().skip(1)
-                    .filter(graph -> descendantType.isAssignableFrom(graph.type()))
-                    .map(Graphs::<D>cast).toList();
-        }
         @Override public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
             return stream().skip(1)
                     .filter(graph -> Objects.equals(path, graph.relationshipPath()))
                     .filter(graph -> descendantType.isAssignableFrom(graph.type()))
                     .map(Graphs::<D>cast).toList();
-        }
-        @Override public Graph<T> apply(Object update) {
-            return Graphs.selectPaths(delegate.apply(update), selection);
-        }
-        @Override public Graph<T> apply(Object update, Metadata metadata) {
-            return Graphs.selectPaths(delegate.apply(update, metadata), selection);
-        }
-        @Override public Graph<T> apply(DeserializingMessage update) {
-            return Graphs.selectPaths(delegate.apply(update), selection);
-        }
-        @Override public Graph<T> apply(Message update) {
-            return Graphs.selectPaths(delegate.apply(update), selection);
-        }
-        @Override public Graph<T> apply(Object... updates) {
-            return Graphs.selectPaths(delegate.apply(updates), selection);
-        }
-        @Override public Graph<T> apply(Collection<?> updates) {
-            return Graphs.selectPaths(delegate.apply(updates), selection);
-        }
-        @Override public Graph<T> update(UnaryOperator<T> update) {
-            return Graphs.selectPaths(delegate.update(update), selection);
-        }
-        @Override public Graph<T> commit() {
-            return Graphs.selectPaths(delegate.commit(), selection);
-        }
-        @Override public <E extends Exception> Graph<T> assertLegal(Object update) throws E {
-            delegate.assertLegal(update);
-            return this;
-        }
-        @Override public Graph<T> assertAndApply(Object update) {
-            return Graphs.selectPaths(delegate.assertAndApply(update), selection);
-        }
-        @Override public Graph<T> assertAndApply(Object update, Metadata metadata) {
-            return Graphs.selectPaths(delegate.assertAndApply(update, metadata), selection);
-        }
-        @Override public Graph<T> previous() {
-            Graph<T> previous = delegate.previous();
-            return previous == null ? null : Graphs.selectPaths(previous, selection);
-        }
-        @Override public Graph<T> atStateIndex(long stateIndex) {
-            return Graphs.selectPaths(delegate.atStateIndex(stateIndex), selection);
-        }
-        @Override public Optional<Graph<T>> playBackToEvent(Long eventIndex, String eventId) {
-            return delegate.playBackToEvent(eventIndex, eventId)
-                    .map(graph -> Graphs.selectPaths(graph, selection));
-        }
-        @Override public Optional<Graph<T>> playBackToCondition(Predicate<Graph<T>> condition) {
-            Objects.requireNonNull(condition, "condition");
-            Graph<T> result = this;
-            while (result != null && !condition.test(result)) {
-                result = result.previous();
-            }
-            return Optional.ofNullable(result);
         }
     }
 
