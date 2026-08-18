@@ -623,7 +623,8 @@ public final class ModelTargetResolver {
                     .forEach(method -> members.putIfAbsent(getPropertyName(method), method));
             Map<String, Property> result = new LinkedHashMap<>();
             members.forEach((name, member) -> result.put(name, new Property(
-                    name, getPropertyType(member), getGenericPropertyType(member), metadata.getter(name), null)));
+                    name, getPropertyType(member), getGenericPropertyType(member),
+                    target -> metadata.getter(name).apply(target), null)));
             properties = Collections.unmodifiableMap(result);
         }
 

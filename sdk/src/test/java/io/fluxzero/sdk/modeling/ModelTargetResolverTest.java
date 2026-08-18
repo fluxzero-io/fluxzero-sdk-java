@@ -33,6 +33,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelTargetResolverTest {
 
     @Test
+    void discoversReferencesWithoutOpeningUnselectedJdkMembers() {
+        assertEquals(List.of(), ModelTargetResolver.referencedModelTypes(Integer.class));
+        assertEquals(List.of(), ModelTargetResolver.referencedModelTypes(String.class));
+    }
+
+    @Test
     void resolvesModelReceiverByEntityIdNameAndMarksItReadWrite() {
         ModelTargetResolver.TargetPlan plan = ModelTargetResolver.compile(
                 RenameProduct.class, ModelMetadata.of(Product.class).handlerMethods());
