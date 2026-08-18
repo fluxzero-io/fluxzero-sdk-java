@@ -517,6 +517,89 @@ The event request batcher, batch loader and websocket client share one bounded r
 TestFixture stores use the same transition planner and cursor, with storage represented by a narrow adapter rather
 than a parallel commit/replay implementation.
 
+#### SDK replacement blueprint — designed from CP9
+
+Macro 3 replaces the Graph and repository replay owners together. Their exact CP9 footprint is 7,685 production Java
+lines across `Graphs`, `MaterializedGraphFactory`, `DefaultModelRepository`, `ModelEventBatchLoader`,
+`ModelEventRequestBatcher` and `ModelAncestorResolver`. This is not a promise that every line in those files can
+disappear: deletion, projection registration, direct-document conversion and accepted-commit cache maintenance remain
+repository responsibilities. The acceptance budget is a combined replacement no larger than 4,500 lines in those
+owners and their successors, for at least 3,185 net structural lines. A larger reduction is welcome, but the old
+7,000-8,000 estimate is not used to justify local compaction or loss of explicit contracts.
+
+The target class design has four owners:
+
+1. `GraphState` owns one immutable placement array and all indexes over it. A placement contains persisted identity,
+   concrete type, parent ordinal, relationship path and ordered child ordinals. Identity/type and adjacency indexes
+   serve root, parent, ancestor, child, descendant, lookup, selection and cycle checks. A node resolver memoizes only
+   the value and durable revision data for that placement. Repository entities, materialized JSON nodes and detached
+   identity loads are resolver inputs, not alternate `Graph` implementations.
+2. `GraphView<T>` is the only `Graph<T>` implementation. It is a tuple of state, placement and immutable view options.
+   Path selection, value filtering, branch filtering, response context, path remapping and explicit previous state
+   compose into those options. One per-view cache preserves stable root/parent/child identity without building
+   forwarding object graphs. Materialized graph results construct `GraphState` directly from their manifest and use a
+   lazy JSON resolver; durable history and updates enter through the same boundary resolver as repository graphs.
+3. `ModelReadBoundary` is the one current/state/commit/event boundary representation, including inclusive versus
+   before-state projection and the state index pinned by the first response. Graph history, ancestor lookup, handler
+   metadata and replay pass this value unchanged; no Graph-, ancestor-, loader- or handler-specific boundary records
+   remain.
+4. `ModelReplayCursor` owns one bounded request/result pipeline and one reconstruction session. It accepts typed model
+   requests, a `ModelReadBoundary`, optional expected heads and one batch overlay. Cache or snapshot revisions are
+   starting cursors; compact and ordinary pages become the same validated stream page; every event follows one apply
+   loop. Stored cross-model dependencies open a child view on the same session caches instead of starting another
+   reconstruction engine. `DefaultModelRepository` selects inputs and converts the result to `Entity`,
+   `ModelCommitContext` or `GraphState`; it no longer owns replay state.
+
+The complete flows are therefore:
+
+```text
+current model       -> current boundary -> cache/snapshot base -> replay cursor -> Entity
+historical model    -> exact boundary   -> snapshot/checkpoint -> replay cursor -> Entity
+current graph       -> graph edges/heads pinned once -> same cursor -> GraphState -> GraphView
+historical graph    -> exact graph boundary/heads   -> same cursor -> GraphState -> GraphView
+message-batch graph -> durable edges + one staged overlay before selection -> same state/view
+materialized graph  -> manifest adjacency + lazy JSON resolver -> same state/view
+```
+
+Document-based values remain a source option, not a second replay algorithm. A current direct document can satisfy a
+read after its head/cache proof; historical reads and dependencies of event-sourced writes use the same stored-event
+cursor. Alias resolution changes the canonical request identity once in the cursor result. Snapshots and cache entries
+only choose the initial sequence and never bypass boundary or head validation. The message-batch overlay supplies
+replacement node values and relationship edges before the immutable state is selected, so no graph is composed,
+wrapped, expanded and composed again.
+
+The accepted checkpoint physically removes:
+
+- `Graphs.Context`, `Placement`, `DefaultGraph`, `IdentityGraph`, `ForwardingGraph`, `MappedGraph`, `ChangeGraph` and
+  `SelectedGraph`, together with their parallel context and traversal implementations;
+- `MaterializedGraphFactory.Context`, `Node` and `MaterializedGraph` as an independent Graph object model;
+- `DefaultModelRepository.ReconstructionSession`, `GraphComposer`, `ReconstructedGraph`, `GraphSelection`,
+  `ModelEventStateBoundary`, parallel graph reconstruction batches and all boundary-conversion helpers;
+- the separate `ModelEventBatchLoader` and `ModelEventRequestBatcher` lifecycle owners once their bounded transport
+  behavior is part of `ModelReplayCursor`;
+- the ancestor-specific reachability traversal and boundary representation once ancestor selection uses
+  `GraphState`'s reverse adjacency index.
+
+The public `Graph<T>` and `ModelRepository` behavior remains the contract: lazy detached values, exact typed IDs and
+aliases, deterministic placement order, pathless relations, polymorphic/multiple parents, ambiguous lookup policy,
+declared empty child paths, immutable filters, response context, staged updates, current and historical revisions,
+commit/event before-state semantics and materialized tombstones. Replay additionally preserves upcasting,
+ignore-unknown behavior, direct compiled applies, cross-model read boundaries, same-commit substeps, logical
+delete/recreate, snapshots, cache fencing and incomplete-history failures. Batch paging stays bounded by stream count,
+membership count and payload bytes, and current concurrent reads may still coalesce without moving historical or local
+reads off their calling thread.
+
+Qualification starts with focused Graph, materialized-search, replay, loader, cache and integration tests, then the
+complete reactor and downstream builds. Performance characterization covers detached no-relationship access, complete
+Graph traversal/serialization, current cached single-model loads, cold snapshot/event reconstruction and a multi-node
+historical Graph. The full command/model/event/result E2E route receives the same matched control/candidate gate as
+CP9 because repository loading is on its conflict/retry path. Allocation or retained-state growth in the one-state
+view is a rejection even if throughput remains flat.
+
+The exact rollback point is CP9 documentation commit `ac8bed3cbc5`. Experiments may temporarily add the new owners, but
+Macro 3 is accepted only after the superseded Graph implementations, replay session, loaders and adapters are gone; no
+bridge that keeps both object models or apply loops survives the checkpoint.
+
 ### 6. One packed Runtime model representation
 
 Promote the measured packed representation to the canonical representation for both initial models and later updates.
