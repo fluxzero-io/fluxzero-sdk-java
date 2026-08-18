@@ -2827,3 +2827,58 @@ Evidence SHA-256: E835 `c2e42954242f34f1d536a233c36568b6405c950f3f3df3c723be5dec
 `fd23f2beea15bc7b322034bd69e08051eb263eadd68f5e1deb3e5c88e997017e`, E838
 `7440e7cb8a6abd21d0832bc16f41c4f23464d259529bfb386f9987852e281e5f`, E839
 `8ac58dcefadcf781436117c960b771ddf97925ab9ef44dc205d68f31aa76446a`.
+
+## S60 CP12: final Graph state and repository replay cursor
+
+SDK `71e43a18924` completes Macro 3 against exact CP11 control `bc213d593e9`; Runtime remains `d7c54eb086d`. All
+completed comparisons used the same local PostgreSQL store, Java 25, an 8-GiB fixed heap and eight active processors.
+The host was actively loaded by a virtual machine and indexing/media processes, so CP12 uses immediately adjacent
+control/candidate pairs and retains the contradictory early ABBA as diagnostic evidence.
+
+The first B0 ABBA used 8,192 models, 262,144 warm-up updates and 1,048,576 measured updates. Controls reached 235,234
+and 238,095 commands/s; candidates reached 229,008 and 227,136 commands/s, a geometric-mean deficit of 3.63%. A third
+candidate remained in the same band at 228,628/s. Because method ownership had moved but the hot cached route was
+instructionally unchanged, the next adjacent pair recorded the exact measured phase with the JFR profile
+configuration. That pair reversed the result: control reached 220,697/s and CP12 reached 222,027/s (**+0.60%**), with
+overlapping latency and allocation profiles. Both verified exactly 1,048,576 results, stored model events and global
+events plus 8,192 final states.
+
+| Run | Route | CP11 control | CP12 candidate | Difference | Exactness |
+| --- | --- | ---: | ---: | ---: | --- |
+| E845/E846 | profiled full command -> model/event commit -> durable result | 220,697/s | 222,027/s | **+0.60%** | 1,048,576 results/model-events/global events; 8,192 states |
+| E847/E848 | full route inside replay qualification | 77,608/s | 79,770/s | **+2.79%** | 65,536 results/model-events/global events; 4,096 states |
+| E849/E850 | current cached `loadModel` | 1,371,285/s | 1,396,742/s | **+1.86%** | 65,536 models / 1,376,256 represented events |
+| E851/E852 | sustained disjoint cold reconstruction | 22,407/s | 23,943/s | **+6.85%** | 20,480 models / 430,080 replayed events |
+| E853/E854 | graph command plus exact projection catch-up | 5,627/s | 5,742/s | **+2.04%** | 4,096 upserts, exact high-watermark |
+| E855/E856 | graph foreground command completion | 5,985/s | 6,239/s | **+4.24%** | 4,096 results/model-events/global events; 512 states |
+
+The profiled B0 latency changed from 34.319/53.266/66.489/97.500 ms to
+34.105/51.407/65.235/95.106 ms at p50/p95/p99/max. The replay qualification changed from
+42.836/75.372/78.454/79.475 ms to 43.335/68.298/76.288/77.390 ms. The graph foreground changed from
+37.860/51.321/53.160/53.242 ms to 40.341/46.801/48.400/48.471 ms: a slightly higher median with lower tail and higher
+throughput. Graph composition itself was neutral at 319.449 versus 318.656 ms. Observed heap maximum was 2,221.7 MiB
+for control and 2,309.2 MiB for CP12; the latter remains below the prior CP10 candidate maxima, with two rather than
+four maximum pending signals and no pending roots. No retained-state or backpressure growth was observed.
+
+The first oversized cold candidate is rejected. Its E2E and hot phases completed, but parallel independent replay
+updated a plain checkpoint `HashMap` and failed with `ConcurrentModificationException` during cold reconstruction.
+The accepted cursor uses concurrent outer ownership and a synchronized bounded per-model checkpoint index. A
+post-correction oversized diagnostic advanced past the former crash and was intentionally stopped instead of spending
+the host on its default more-than-168-million-event cold phase. The matched E851/E852 shape then completed, and a new
+256-stream integration test exercises the exact concurrent checkpoint contract.
+
+The graph pair verified exact active and historical relationships, graph-root and cumulative-child search documents,
+512 graph roots and 512 graph children. Focused Macro-3 qualification passed 346 tests. The final complete nine-module
+SDK reactor, Test Server, Proxy, annotation processor and Java/Kotlin downstream projects passed. One prior full run
+hit an existing timing-sensitive document-cascade fixture assertion; that exact test passed immediately in isolation
+and the unchanged complete rerun was green.
+
+Evidence SHA-256: E845
+`e7b071dc7b7b185476d47c5c73a96da65ddd60c92617434e6de0b452b9710f65`, E846
+`c5b44dbce71ad175ac1ac4a34b6b0ad8d30d6471ff3e4043c5f8cbacd4d539dc`, E847/E849/E851
+`0f2877401b1f6da620e9f4aa1ec3d2925f6bf07d5fad456e6f972cb17d7da94b`, E848/E850/E852
+`13405d61cb5303dbbf703ed8bab0289e3612af9011cba3b797ab5c65fc9954b4`, E853/E855
+`be257aa135ffaf8bbef45a6fdbb9d159bf8e420ea5bfe05bede6992d34d5d7b5`, E854/E856
+`a98cf3c818937c0962bac258c71709fa19d1b0a73e29a86008ae79f28268c8d0`. Profile recordings: control
+`5c91fa9d286079e28cecbaafd512483c0af7d5770dc6928b922473038458fae6`, candidate
+`49e9e82006ca0fd255999a629896d791d5ed147f2f4523ede6aa262cca709370`.

@@ -20,7 +20,8 @@ Date: 2026-08-18
 | CP9 intermediate SDK execution (`6183d8a66a3` / `d7c54eb086d`) | **161,747** | **36,809** | **12,253** | retained intermediate; clean adjacent full model -0.30%, loaded reverse pair +4.69% |
 | CP10 intermediate Graph/replay (`34f0038e98b` / `d7c54eb086d`) | **160,076** | **36,809** | **13,924** | retained intermediate; full model +2.41%, graph projection -2.62%, cold replay +56.57% |
 | CP11 final compiled SDK pipeline (`bc213d593e9` / `d7c54eb086d`) | **160,217** | **36,809** | **13,783** | accepted; matched full-model geometric mean +1.50%, final adjacent pair +2.69% |
-| Required final ceiling | **136,000** | **32,000** | **29,026 still to remove** | pending |
+| CP12 final Graph/replay cursor (`71e43a18924` / `d7c54eb086d`) | **160,079** | **36,809** | **13,921** | accepted; cold replay +6.85%, graph command + catch-up +2.04%, profiled full model +0.60% |
+| Required final ceiling | **136,000** | **32,000** | **28,888 still to remove** | pending |
 
 ## Objective
 
@@ -58,7 +59,7 @@ The macro campaign is tracked by completed ownership boundaries, not by the earl
 | --- | --- | --- | ---: |
 | Runtime commit/storage — **CP8 complete** | one `ModelCommitPlan` and one block executor | general rows, initial-packed, update-packed, paired head/locator and paired replay routes | 4,809 direct-parent / 5,229 S60 Runtime lines |
 | SDK execution — **CP11 complete** | one executable compiled payload plan, one pipeline and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 3,397 SDK lines at CP9; CP11 completes ownership without additional LOC credit |
-| Graph/repository — **CP10 intermediate** | one indexed graph state and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 1,671 SDK lines so far; owner replacement remains open |
+| Graph/repository — **CP12 complete** | one indexed graph state, one node resolver and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 1,668 SDK lines from CP9; CP12 completes ownership with 138 direct-parent lines |
 | Aggregate/Model mechanics | neutral transition, identity, apply and replay mechanics | duplicated aggregate/model reflection, transition, repository and fixture implementations | 6,000-7,000 SDK lines |
 | Wire/integration residue | one envelope/codecpad plus thin integrations | remaining handwritten protocol variants, preview schema/codecs and branch-only adapters | 5,000-7,000 combined lines |
 
@@ -71,6 +72,12 @@ inside both the registry and compiler, plans were mainly data, and batch depende
 exposed as a second operation abstraction. CP11 completes Macro 2 by replacing that ownership rather than by shaving
 more rules. Its 141-line increase relative to CP10 receives no reduction credit. The original 7,000-8,000 estimate was
 directional; all unpaid budget remains visible in the absolute SDK ceiling.
+
+CP10 paid nearly all of Macro 3's physical reduction but remained intermediate because graph, ancestor, alias,
+document-head and cache-refresh reconstruction still had repository-specific owners. CP12 moves those variants behind
+the same cursor and binds every graph node to one state resolver. Its 138-line direct-parent reduction closes the
+ownership gate, not the estimated LOC budget; Macro 3's total reduction from CP9 is 1,668 lines and the complete
+shortfall remains part of the 24,079-line SDK deficit.
 
 ## Causal baseline
 
@@ -728,6 +735,71 @@ documentation-link check passes.
 The behavioral implementation is `f2c6a6ed92b`, its cursor-test ownership rename is `ade0255e517`, and its documented
 intermediate boundary is `34f0038e98b`. Macro 3 resumes from CP11 after the SDK-pipeline replacement.
 
+#### Accepted checkpoint CP12 — one Graph state and one repository replay cursor
+
+CP12 closes the ownership gap that kept CP10 intermediate. `DefaultModelRepository` no longer implements current,
+historical, direct, batch, ancestor and graph reconstruction variants. It is the public facade, document converter,
+deletion/projection registrar and accepted-commit cache owner; all stored-event, head, ancestor and graph reads enter
+`ModelReplayCursor`. The cursor now selects cache/snapshot/document bases, resolves aliases and ancestors, pins the
+boundary, applies the single replay loop and projects the result as an entity, commit context or graph input.
+
+`GraphState` remains the only structural graph representation and `GraphView<T>` the only `Graph<T>` implementation.
+Every node in one state is bound to the same `NodeResolver`; loaded entities, detached identities, materialized JSON
+and external expansions are resolver inputs rather than supplier object graphs. Durable edges and batch-local values
+are composed before selection into one final state. The old durable-graph-then-overlay-then-rewrap lifecycle is gone,
+as are repository graph reconstructors, document-head replay, first-event type reads, current-context projection,
+cache refresh replay and ancestor traversal as separate owners.
+
+The six direct owners and successors now contain 5,982 production lines:
+
+| Owner | CP12 lines |
+| --- | ---: |
+| `Graphs` (`GraphState`, `NodeResolver` and `GraphView`) | 1,674 |
+| `MaterializedGraphFactory` | 218 |
+| `DefaultModelRepository` | 1,329 |
+| `ModelReplayCursor` | 2,495 |
+| `ModelReadBoundary` | 211 |
+| `ModelAncestorResolver` | 55 |
+| **Total** | **5,982** |
+
+This is 138 lines below CP11 and 1,703 direct-owner lines below the 7,685-line CP9 footprint. The full SDK tree is
+160,079 lines, 1,668 below CP9. The redesign therefore misses the directional 7,000-8,000 estimate and the earlier
+4,500-line successor budget, but it satisfies the macro gate by physically removing the competing lifecycles rather
+than compacting their rules. No additional LOC credit is invented; the remaining 24,079 SDK lines above the release
+ceiling stay visible.
+
+The first oversized cold candidate exposed a real session-concurrency defect: independent stream replay updated a
+plain checkpoint `HashMap` from the parallel direct-replay path and failed with `ConcurrentModificationException`.
+That candidate was rejected. The accepted cursor uses concurrent model-key ownership plus a synchronized bounded
+per-model checkpoint index, and a deterministic 256-stream integration test now preserves that contract. A second
+oversized diagnostic was stopped after it proved the crash was gone because its default cold phase represented more
+than 168 million replayed events and was not the matched qualification shape.
+
+The matched CP11-control/CP12-candidate qualification used Runtime `d7c54eb086d`, Java 25, eight active processors and
+an 8-GiB fixed heap. It verified exact result, model-event, global-event, state, relationship, search and graph counts.
+The qualifying pairs were:
+
+| Route | CP11 control | CP12 candidate | Difference |
+| --- | ---: | ---: | ---: |
+| profiled full command/model/event/result E2E | 220,697/s | 222,027/s | **+0.60%** |
+| current cached model load | 1,371,285 models/s | 1,396,742 models/s | **+1.86%** |
+| sustained cold reconstruction | 22,407 models/s | 23,943 models/s | **+6.85%** |
+| graph command plus exact projection catch-up | 5,627/s | 5,742/s | **+2.04%** |
+| graph foreground command completion | 5,985/s | 6,239/s | **+4.24%** |
+
+An earlier non-profiled B0 ABBA measured a 3.63% candidate deficit while host capacity was moving; the immediately
+adjacent profile pair reversed it to a 0.60% gain, and the load qualification's full E2E phase also favored CP12 by
+2.79%. It is retained as diagnostic evidence rather than hidden. Graph composition time was neutral (319.449 versus
+318.656 ms). The candidate's one-shot observed heap maximum was 2,309.2 MiB versus 2,221.7 MiB control, still below
+the CP10 qualification maxima and with lower pending-signal/root pressure; no unbounded state or ownership growth was
+observed.
+
+Focused graph/replay/commit/search/TestFixture qualification passed 346 tests. The final concurrency regression test
+passed separately and both complete nine-module reactors eventually passed with Java/Kotlin downstream compatibility.
+One intervening full run hit a load-sensitive existing document-cascade assertion; the exact test passed immediately
+in isolation and the next unchanged full reactor was green. The accepted implementation is `71e43a18924`; exact
+performance logs and rejected-candidate history are retained in the SDK model capacity log.
+
 ### 6. One packed Runtime model representation
 
 Promote the measured packed representation to the canonical representation for both initial models and later updates.
@@ -855,7 +927,7 @@ later work starts from new class/state designs rather than attempting to shave t
 | --- | ---: |
 | final binary envelope, metadata and wire protocol | 6,000–7,000 |
 | single commit plan, handler pipeline and batch scope | 7,000–8,000 planned; **3,397 delivered at CP9, ownership completed at CP11 without further LOC credit** |
-| one graph state and one repository/replay cursor | 7,000–8,000 |
+| one graph state and one repository/replay cursor | 7,000–8,000 planned; **1,668 delivered from CP9, ownership completed at CP12** |
 | shared Aggregate/Model and in-memory transition mechanics | 6,000–7,000 |
 | preview migration, campaign diagnostics and thin integration cleanup | 3,500–4,500 |
 | **Required SDK total** | **32,771** |
@@ -881,9 +953,10 @@ preferred workstream.
    one batch scope and one protocol boundary. Registration, manual invocation, retry and automatic paths now share it;
    alternate lifecycle owners are deleted. CP9 supplied the 3,397-line reduction and CP11 completes ownership without
    additional LOC credit.
-4. **Intermediate at CP10; active next:** replace Graph and repository loading together with one indexed graph state,
-   one replay cursor and no repository-specific traversal/apply variants.
-5. Move Aggregate and Model behind neutral transition/identity/apply/replay mechanics and remove the superseded public-
+4. **Complete at CP12:** replace Graph and repository loading together with one indexed graph state, one shared node
+   resolver, one replay cursor and no repository-specific traversal/apply variants. CP10 supplied most physical
+   reduction; CP12 removes the remaining ownership split without claiming the unmet estimate.
+5. **Active next:** move Aggregate and Model behind neutral transition/identity/apply/replay mechanics and remove the superseded public-
    implementation duplication while retaining Aggregate compatibility contracts.
 6. Collapse the remaining wire/preview/integration residue, then audit absolute LOC. Any missing budget is solved in the
    largest surviving duplicate owner, never through formatting, generated hiding or weaker documentation.
