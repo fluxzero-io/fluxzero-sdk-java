@@ -591,6 +591,7 @@ class GraphTest {
         Graph<AliasedChild> graph = Graphs.lazy(
                 sourceValue.alias(), AliasedChild.class, repository);
 
+        assertEquals(sourceValue.id(), graph.id());
         assertSame(ancestor, graph.ancestor(Root.class).orElseThrow());
         assertTrue(repository.sourceLoaded);
         assertEquals(List.of("child-alias", "actual-child"), repository.identityLookups);
