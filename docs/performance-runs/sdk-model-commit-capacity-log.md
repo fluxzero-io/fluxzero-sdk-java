@@ -4,7 +4,7 @@
 
 | Route | Current exact pin | Runtime store path | Store service capacity | Role in campaign |
 | --- | ---: | --- | ---: | --- |
-| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; fresh unchanged E668/E671 controls average **420,348/s** | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Accepted current S60 release pin; higher throughput is a future stretch goal |
+| Full command -> model -> event + result E2E | P5 matched no-JFR **425,606/s** versus 420,193/s control (**+1.29%**); **426,108/s** best run; corrected current E833 **358,973/s** after a clean Docker restart | `commit-packed-update` | **0.539M/s** in the matched P5 profile; **0.519M/s** in fresh E636 | Accepted S60 release pin remains 425,606/s; E833 is the current active-host floor |
 | Synthetic tracked SDK apply -> model + event durability | Best **834,806/s** without JFR / **846,441/s** with batch JFR; fresh E694/E696 **812,491 / 816,815/s** | `commit-packed-update` | Best **0.995M/s** in E589; fresh **0.955 / 0.967M/s** | SDK-inclusive model upper-bound diagnostic without command/result logs |
 | Low-level SDK `CommitModels` update round trip | **595,877/s** without JFR | `commit-packed-update` | **0.781M/s** in E488 | Runtime/wire upper-bound diagnostic |
 | Direct SDK `assertAndApply(command)` without tracked context | 80,074/s without JFR | `commit-general` | **0.108M/s** in E491 | Separate direct-API/idempotency diagnostic; not a proxy for tracked E2E |
@@ -2742,3 +2742,23 @@ Evidence SHA-256, in the most relevant order: E823
 `b8234b1981ee562996f154c2a6b5f409fd38a3350bb0ce6e0e63f5a59b34f47e`, E831
 `f4a347e60bd801352402ce1fcce7accd097cd004608decfd4e03a6469f724321`, E832
 `2584455b3eebc6cfa2865b78b33162fdebdab329021f94f6d63f89009ff1f839`.
+
+## E833: clean-host current absolute replay
+
+After the packed-route corrections were committed as SDK `ee59e4c0984` and Runtime `8d5ac5cf`, Docker Desktop was
+restarted and only the isolated `fluxzero-codex-s1-postgres` benchmark container was started. Spotlight, Dropbox and
+media analysis were idle; no JFR was active. The exact canonical route retained 65,536 models, 262,144 warm-up
+commands, 4,194,304 measured commands, two durable event kinds and ordinary durable command results.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E833 | canonical | full command -> automatic `@Apply` -> model/event commit -> result | accepted P5 425,606/s | SDK `ee59e4c0984` + Runtime `8d5ac5cf` | 4,194,304 | 262,144 | none | 425,606/s historical | 358,973/s | false | accept as current active-host floor; retain P5 as quiet-host pin | accepted |
+
+E833 completed the seed at 4,461 creates/s, warmed at 237,905/s and verified exactly 4,194,304 results, stored model
+events and global events plus all 65,536 final states. Its p50/p95/p99/max command-result latency was
+152.511/206.616/225.268/260.065 ms. Throughput is 15.66% below the clean P5 pin, so this is a substantial recovery from
+the earlier 217-258k host state but not a replacement for the quieter-host P5 qualification. The immediately following no-model E834 reached
+978,950/s, localizing most remaining headroom to the model/event route rather than generic command/result handling.
+
+E833 log SHA-256:
+`0f84eccff6f2d8a489b159688818c0e4a60fde8f1a9817acb91c9a8df9eaec2c`.

@@ -12,6 +12,7 @@ mistaken for a production regression again.
 | Fresh exact-weight pin | E386/E389 unbounded: **964,390 / 963,072 commands/s**; geometric mean **963,731/s** |
 | Accepted cache-tail checkpoint | Eliminates physical polling reads; healthy-host E451/E452 is throughput-neutral at **1,011,357 / 1,012,685 commands/s** |
 | Current no-model status | E452/E453 current production: **1,012,685 / 1,010,338 commands/s**; geometric mean **1,011,511/s** |
+| Fresh current replay | E834 current SDK/Runtime after a clean Docker restart: **978,950 commands/s**; exact and 3.22% below the E452/E453 geometric pin |
 | Best recent healthy batch-profile | E391: 943,926/s with 8,192-message capacity; local result writer improves 11.0%, but matched E2E is neutral |
 | Current production checkpoint | SDK `bb8e1db2`: exact complete-envelope byte accounting plus Backlog `maxInFlightBatches`; Runtime remains intentionally unbounded and at the legacy 4,096-message backlog. The pin also requires command-cache count ceiling 1,048,576 with the unchanged 64-MiB byte ceiling |
 | Current focus | E421-E424 reject target-aware cache indexing at −0.84% on the correct full canonical route. Production candidate code is removed; return to the measured result-writer/commit limiter on the clean pinned identity |
@@ -1030,3 +1031,22 @@ Log SHA-256 in run order: `47bf56035810a1b1d5b52106e5e301e07165b569dd188a7421aaf
 `553e97a19473d36adc711223e861ad6c41a6f8cf01c1bd3b4389dba87ca4ee91`,
 `6488840a72f720f0f7d739dcd214164b92ba402079f33956907424bd1a83f061`,
 `bb7e7358d7a944fbc5b48931a3cfc02b6349e17734a3243e2f6689b54de4d992`.
+
+## E834: clean Docker restart confirms current no-model health
+
+E834 immediately followed the full-model E833 replay on SDK `ee59e4c0984` and Runtime `8d5ac5cf`. Docker Desktop had
+been restarted and only the isolated benchmark PostgreSQL container was active. The screen and Codex UI remained
+active, so this is a valid current absolute observation rather than an exact recreation of the quietest historical
+host state. No JFR was active.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E834 | canonical | durable typed command -> explicit void handler -> durable result -> original future completion | E452/E453 geometric pin 1,011,511/s | SDK `ee59e4c0984` + Runtime `8d5ac5cf` | 10,485,760 | 10,485,760 | none | 1,011,511/s historical | 978,950/s | false | current generic command/result route remains healthy; not the model-route limiter | accepted |
+
+Both senders formed 1,280 dispatch batches per phase with an average 8,192 commands. Warm-up reached 850,428/s. The
+measured phase verified exactly 10,485,760 durable results, zero model events and zero global events. Its
+p50/p95/p99/max latency was 61.320/77.218/84.291/102.174 ms. The 3.22% gap from E452/E453 is compatible with the less
+idle host and does not displace the stable 1,011,511/s pin.
+
+E834 log SHA-256:
+`786dca1f67b3a159b8611670c3732eb0f2a5ccc4cd51498b6e71321ee746352e`.
