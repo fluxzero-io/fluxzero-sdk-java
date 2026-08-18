@@ -21,6 +21,7 @@ import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
@@ -92,6 +93,133 @@ public final class Graphs {
             String rootId, long stateIndex, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
             ModelRepository repository, boolean historical) {
         return GraphState.composed(rootId, stateIndex, models, edges, repository, historical, Map.of()).root();
+    }
+
+    /** Applies the visible message-batch values before graph selection on the same indexed state. */
+    public static <T> Graph<T> overlayMessageBatch(
+            Graph<T> durable, String namespace, Class<T> rootType, Graph.Options options,
+            Map<String, ModelBatchScope.StagedModel> staged,
+            Function<ModelBatchScope.StagedModel, Graph<?>> supplementalLoader) {
+        if (staged.isEmpty()) {
+            return durable;
+        }
+        GraphView<T> source = adapt(durable);
+        GraphState state = source.state();
+        String rootId = source.node().data().id();
+        ModelBatchScope.StagedModel stagedRoot = staged.get(rootId);
+        if (stagedRoot != null && stagedRoot.value() == null) {
+            Entity<?> deleted = ModelBatchScope.overlayCurrent(
+                    namespace, rootId, (Class) stagedRoot.modelType(),
+                    source.node().data().entity());
+            return GraphState.composed(
+                    rootId, state.stateIndex, Map.of(rootId, deleted), List.of(),
+                    state.repository, state.historical, Map.of()).root();
+        }
+        LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(state.knownModels);
+        LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>(state.edges);
+        edges.removeIf(edge -> staged.containsKey(edge.getChildId()));
+        staged.values().stream().filter(value -> value.value() != null).forEach(value ->
+                addParentEdges(value.modelId(), value.modelType(), value.value(), edges));
+
+        LinkedHashSet<String> selected = selectedIds(rootId, edges, options);
+        for (String modelId : selected) {
+            ModelBatchScope.StagedModel candidate = staged.get(modelId);
+            if (candidate == null || models.containsKey(modelId) || !candidate.existedBefore()) {
+                continue;
+            }
+            GraphView<?> supplemental = adapt(supplementalLoader.apply(candidate));
+            models.putAll(supplemental.state().knownModels);
+            supplemental.state().edges.stream()
+                    .filter(edge -> !staged.containsKey(edge.getChildId()))
+                    .forEach(edges::add);
+        }
+
+        LinkedHashSet<String> finalSelection = selectedIds(rootId, edges, options);
+        LinkedHashMap<String, Entity<?>> selectedModels = new LinkedHashMap<>();
+        for (String modelId : finalSelection) {
+            ModelBatchScope.StagedModel candidate = staged.get(modelId);
+            Entity<?> entity = models.get(modelId);
+            if (candidate != null) {
+                if (entity == null) {
+                    entity = ImmutableModelRoot.builder()
+                            .id(modelId).type((Class) candidate.modelType())
+                            .idProperty(ModelMetadata.validate(candidate.modelType())
+                                                .entityId().orElseThrow().name())
+                            .value(null).build();
+                }
+                entity = ModelBatchScope.overlayCurrent(
+                        namespace, modelId, (Class) candidate.modelType(), entity);
+            }
+            if (entity == null) {
+                throw new IllegalArgumentException(
+                        "Message-batch model graph contains an unloaded node " + modelId);
+            }
+            selectedModels.put(modelId, entity);
+        }
+        Class<?> effectiveRootType = stagedRoot == null ? rootType : stagedRoot.modelType();
+        if (!rootType.isAssignableFrom(effectiveRootType)) {
+            throw new IllegalArgumentException(
+                    "Message-batch graph root '%s' has staged type %s instead of %s"
+                            .formatted(rootId, effectiveRootType.getName(), rootType.getName()));
+        }
+        List<ModelGraphEdge> selectedEdges = edges.stream()
+                .filter(edge -> finalSelection.contains(edge.getParentId())
+                                && finalSelection.contains(edge.getChildId()))
+                .toList();
+        return GraphState.composed(
+                rootId, state.stateIndex, selectedModels, selectedEdges,
+                state.repository, state.historical, Map.of()).root();
+    }
+
+    private static LinkedHashSet<String> selectedIds(
+            String rootId, Collection<ModelGraphEdge> edges, Graph.Options options) {
+        LinkedHashMap<String, List<ModelGraphEdge>> children = new LinkedHashMap<>();
+        edges.forEach(edge -> children.computeIfAbsent(
+                edge.getParentId(), ignored -> new ArrayList<>()).add(edge));
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        result.add(rootId);
+        List<String> frontier = List.of(rootId);
+        for (int depth = 0; !frontier.isEmpty()
+                            && (options.maxDepth() < 0 || depth < options.maxDepth()); depth++) {
+            List<String> next = new ArrayList<>();
+            frontier.forEach(parent -> children.getOrDefault(parent, List.of()).forEach(edge -> {
+                if (result.add(edge.getChildId())) {
+                    if (options.maxModels() >= 0 && result.size() > options.maxModels()) {
+                        throw new IllegalArgumentException(
+                                "Model graph exceeds maxModels " + options.maxModels());
+                    }
+                    next.add(edge.getChildId());
+                }
+            }));
+            frontier = next;
+        }
+        return result;
+    }
+
+    private static void addParentEdges(
+            String modelId, Class<?> modelType, Object value, Collection<ModelGraphEdge> edges) {
+        for (ModelMetadata.ParentReference parent : ModelMetadata.validate(modelType).parentReferences()) {
+            Object parentId = parent.read(value);
+            if (parentId != null) {
+                Class<?> parentType = parent.parentModelType(parentId);
+                edges.add(new ModelGraphEdge(
+                        modelId, parent.repositoryId(parentId),
+                        parentType == null ? null : parentType.getName(),
+                        parent.path().isEmpty() ? null : parent.path(), -1L, null));
+            }
+        }
+    }
+
+    /** One reachable parent identity in deterministic traversal order. */
+    public record AncestorPlacement(
+            String id, int depth, List<ModelGraphEdge> incoming) {
+    }
+
+    /** Indexes parent edges once and returns every ancestor reachable from the supplied model roots. */
+    public static List<AncestorPlacement> ancestors(
+            Collection<String> roots, List<ModelGraphEdge> edges,
+            int maxDepth, int maxModels) {
+        return GraphState.ancestors(roots, edges, maxDepth, maxModels);
     }
 
     /** Description of one placement in a materialized graph manifest. */
@@ -253,14 +381,14 @@ public final class Graphs {
 
 /** One immutable placement/index state shared by every graph source and view. */
 final class GraphState {
-    private final long stateIndex;
-    private final ModelRepository repository;
+    final long stateIndex;
+    final ModelRepository repository;
     private final boolean complete;
-    private final boolean historical;
+    final boolean historical;
     private final boolean exactBoundary;
     private final ModelReadBoundary boundary;
-    private final Map<String, Entity<?>> knownModels;
-    private final List<ModelGraphEdge> edges;
+    final Map<String, Entity<?>> knownModels;
+    final List<ModelGraphEdge> edges;
     private final Map<String, Graphs.StagedModelChange> stagedChanges;
     private final Map<String, List<Node>> byId;
     private final Map<String, Node> detachedById;
@@ -439,6 +567,71 @@ final class GraphState {
         visiting.remove(modelId);
         result.freeze();
         return result;
+    }
+
+    static List<Graphs.AncestorPlacement> ancestors(
+            Collection<String> roots, List<ModelGraphEdge> edges,
+            int maxDepth, int maxModels) {
+        LinkedHashMap<String, List<ModelGraphEdge>> parents = new LinkedHashMap<>();
+        edges.forEach(edge -> parents.computeIfAbsent(
+                edge.getChildId(), ignored -> new ArrayList<>()).add(edge));
+        LinkedHashSet<String> visited = new LinkedHashSet<>(roots);
+        LinkedHashMap<String, Integer> ancestors = new LinkedHashMap<>();
+        LinkedHashMap<String, List<ModelGraphEdge>> incoming = new LinkedHashMap<>();
+        List<String> frontier = List.copyOf(roots);
+        for (int depth = 0; !frontier.isEmpty(); depth++) {
+            if (maxDepth >= 0 && depth >= maxDepth) {
+                if (frontier.stream().anyMatch(id -> !parents.getOrDefault(id, List.of()).isEmpty())) {
+                    throw new IllegalStateException(
+                            "Model ancestor graph exceeds maximum depth " + maxDepth);
+                }
+                break;
+            }
+            List<String> next = new ArrayList<>();
+            for (String child : frontier) {
+                for (ModelGraphEdge edge : parents.getOrDefault(child, List.of())) {
+                    String parent = edge.getParentId();
+                    incoming.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(edge);
+                    ancestors.putIfAbsent(parent, depth + 1);
+                    if (visited.add(parent)) {
+                        if (maxModels >= 0 && visited.size() > maxModels) {
+                            throw new IllegalStateException(
+                                    "Model ancestor graph exceeds maxModels " + maxModels);
+                        }
+                        next.add(parent);
+                    }
+                }
+            }
+            frontier = next;
+        }
+        assertAcyclic(roots, parents, new LinkedHashSet<>(), new LinkedHashSet<>());
+        return ancestors.entrySet().stream()
+                .map(entry -> new Graphs.AncestorPlacement(
+                        entry.getKey(), entry.getValue(),
+                        List.copyOf(incoming.getOrDefault(entry.getKey(), List.of()))))
+                .toList();
+    }
+
+    private static void assertAcyclic(
+            Collection<String> roots,
+            Map<String, List<ModelGraphEdge>> parents,
+            Set<String> visiting,
+            Set<String> complete) {
+        for (String modelId : roots) {
+            if (complete.contains(modelId)) {
+                continue;
+            }
+            if (!visiting.add(modelId)) {
+                throw new EventSourcingException(
+                        "Model ancestor graph contains a cycle through " + modelId);
+            }
+            assertAcyclic(
+                    parents.getOrDefault(modelId, List.of()).stream()
+                            .map(ModelGraphEdge::getParentId).toList(),
+                    parents, visiting, complete);
+            visiting.remove(modelId);
+            complete.add(modelId);
+        }
     }
 
     @SuppressWarnings("unchecked")

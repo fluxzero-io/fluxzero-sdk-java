@@ -229,87 +229,23 @@ final class ModelReplayCursor {
             });
         }
         ModelReadBoundary pinned = boundary;
-        LinkedHashMap<String, ModelHeadState> heads =
-                new LinkedHashMap<>();
+        LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         for (int offset = 0;
              offset < ids.size();
              offset += settings.maxStreamsPerRequest()) {
-            int until = Math.min(
-                    ids.size(),
-                    offset + settings.maxStreamsPerRequest());
-            List<String> chunkIds =
-                    ids.subList(offset, until);
-            GetModelEventsResult response =
-                    requestBatcher.get(
-                            new GetModelEvents(
-                                    chunkIds.stream()
-                                            .map(modelId ->
-                                                         new ModelEventStreamRequest(
-                                                                 modelId, -1L, 0))
-                                            .toList(),
-                                    pinned.requestStateIndex(),
-                                    pinned.commitId(),
-                                    pinned.substep(),
-                                    pinned.eventIndex(),
-                                    settings.maxPayloadBytes(),
-                                    true));
-            long responseStateIndex =
-                    validateBoundary(response, pinned.stateIndex());
-            validateHeadPage(response, chunkIds, heads);
-            pinned = ModelReadBoundary.state(responseStateIndex, false);
+            List<String> chunk = ids.subList(
+                    offset, Math.min(ids.size(), offset + settings.maxStreamsPerRequest()));
+            GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
+                    chunk.stream().map(id -> new ModelEventStreamRequest(id, -1L, 0)).toList(),
+                    pinned.requestStateIndex(), pinned.commitId(), pinned.substep(), pinned.eventIndex(),
+                    settings.maxPayloadBytes(), true));
+            long stateIndex = validateBoundary(response, pinned.stateIndex());
+            LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
+            chunk.forEach(id -> cursors.put(id, -1L));
+            validatePage(response, chunk, cursors, heads, 0, settings.maxPayloadBytes());
+            pinned = ModelReadBoundary.state(stateIndex, false);
         }
         return new LoadResult(pinned.stateIndex(), heads);
-    }
-
-    private static void validateHeadPage(
-            GetModelEventsResult response,
-            List<String> requestedIds,
-            Map<String, ModelHeadState> heads) {
-        if (!Objects.requireNonNull(
-                response.getPayloads(),
-                "Model event payloads").isEmpty()) {
-            throw invalid(
-                    "Head-only model response contains event payloads");
-        }
-        List<ModelEventStream> streams =
-                Objects.requireNonNull(
-                        response.getStreams(),
-                        "Model event streams");
-        if (streams.size() != requestedIds.size()) {
-            throw invalid(
-                    "Model head response contains %d streams for %d requests"
-                            .formatted(
-                                    streams.size(),
-                                    requestedIds.size()));
-        }
-        for (int i = 0; i < streams.size(); i++) {
-            String requestedId = requestedIds.get(i);
-            ModelEventStream stream = streams.get(i);
-            if (stream == null
-                || !requestedId.equals(stream.getModelId())) {
-                throw invalid(
-                        "Model head stream %d should be '%s' but was '%s'"
-                                .formatted(
-                                        i, requestedId,
-                                        stream == null
-                                                ? null
-                                                : stream.getModelId()));
-            }
-            if (!Objects.requireNonNull(
-                    stream.getMemberships(),
-                    "Model event memberships").isEmpty()) {
-                throw invalid(
-                        "Head-only model response contains memberships for "
-                        + requestedId);
-            }
-            ModelHeadState head = stream.getHead();
-            if (head != null) {
-                validateHead(
-                        requestedId, head,
-                        response.getStateIndex(), null);
-            }
-            heads.put(requestedId, head);
-        }
     }
 
     private LoadResult loadChunk(
@@ -623,8 +559,6 @@ final class ModelReplayCursor {
                 new HashMap<>();
         private final ConcurrentMap<PayloadKey, List<DeserializingMessage>>
                 deserializedEvents = new ConcurrentHashMap<>();
-        private final ConcurrentMap<PreparedReplayKey, List<PreparedReplay>>
-                preparedReplays = new ConcurrentHashMap<>();
         private final Map<ReplayAncestorKey, ModelTargetResolver.Resolution>
                 replayAncestorResolutions =
                 new LinkedHashMap<>(128, 0.75f, true) {
@@ -635,14 +569,6 @@ final class ModelReplayCursor {
                         return size() > 1_024;
                     }
                 };
-
-        ReconstructionBatch reconstruct(
-                List<ModelTargetResolver.ResolvedModel> targets, Long maxStateIndex) {
-            return reconstruct(
-                    targets,
-                    ModelReadBoundary.at(maxStateIndex),
-                    maxStateIndex == null);
-        }
 
         ReconstructionBatch reconstruct(
                 List<ModelTargetResolver.ResolvedModel> targets,
@@ -681,51 +607,28 @@ final class ModelReplayCursor {
                     ModelReplayCursor.this.load(
                             cursors, boundary,
                             page -> applyPage(page, states));
-            List<FinalizedReconstruction> finalized =
-                    targets.stream()
-                            .map(target -> {
-                                ModelHeadState head =
-                                        loaded.heads()
-                                                .get(target.modelId());
-                                MutableReconstruction state =
-                                        states.get(target.modelId());
-                                Entity<?> entity;
-                                if (head == null) {
-                                    entity = empty(target);
-                                } else {
-                                    entity = withHead(
-                                            state.current, head);
-                                }
-                                ModelTargetResolver.ResolvedModel resolvedTarget =
-                                        state.target;
-                                validateReconstruction(
-                                        resolvedTarget, head, entity);
-                                boolean cacheable =
-                                        cacheAtBoundary
-                                        && head != null
-                                        && ModelMetadata.of(
-                                                        resolvedTarget.modelType())
-                                                .model()
-                                                .orElseThrow()
-                                                .cached()
-                                        && head.isHistoryComplete();
-                                if (head == null && !cacheable) {
-                                    modelCache.remove(
-                                            target.modelId());
-                                }
-                                return new FinalizedReconstruction(
-                                        target, resolvedTarget,
-                                        entity, cacheable);
-                            })
-                            .toList();
             LinkedHashMap<String, Entity<?>> cacheCandidates =
                     new LinkedHashMap<>();
-            finalized.stream()
-                    .filter(FinalizedReconstruction::cacheable)
-                    .forEach(value ->
-                                     cacheCandidates.put(
-                                             value.resolvedTarget().modelId(),
-                                             value.entity()));
+            LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
+            for (ModelTargetResolver.ResolvedModel target : targets) {
+                ModelHeadState head = loaded.heads().get(target.modelId());
+                MutableReconstruction state = states.get(target.modelId());
+                Entity<?> entity = head == null ? empty(target) : withHead(state.current, head);
+                ModelTargetResolver.ResolvedModel resolvedTarget = state.target;
+                validateReconstruction(resolvedTarget, head, entity);
+                boolean cacheable = cacheAtBoundary && head != null && head.isHistoryComplete()
+                                    && ModelMetadata.of(resolvedTarget.modelType())
+                                            .model().orElseThrow().cached();
+                if (cacheable) {
+                    cacheCandidates.put(resolvedTarget.modelId(), entity);
+                } else if (head == null) {
+                    modelCache.remove(target.modelId());
+                }
+                result.put(target.modelId(), entity);
+                reconstructed.put(new ViewKey(
+                        target.modelId(), target.modelType(), loaded.stateIndex(),
+                        null, Integer.MAX_VALUE, loaded.stateIndex()), entity);
+            }
             modelCache.mergeAll(
                     cacheCandidates,
                     (current, candidate) ->
@@ -734,24 +637,7 @@ final class ModelReplayCursor {
                                >= stateIndex(candidate)
                                     ? current
                                     : candidate);
-            LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-            for (FinalizedReconstruction value : finalized) {
-                ModelTargetResolver.ResolvedModel target =
-                        value.target();
-                Entity<?> entity = value.entity();
-                result.put(target.modelId(), entity);
-                reconstructed.put(new ViewKey(
-                        target.modelId(), target.modelType(), loaded.stateIndex(),
-                        null, Integer.MAX_VALUE, loaded.stateIndex()), entity);
-            }
             return new ReconstructionBatch(loaded.stateIndex(), result);
-        }
-
-        private record FinalizedReconstruction(
-                ModelTargetResolver.ResolvedModel target,
-                ModelTargetResolver.ResolvedModel resolvedTarget,
-                Entity<?> entity,
-                boolean cacheable) {
         }
 
         private Entity<?> reconstructionBase(
@@ -850,11 +736,10 @@ final class ModelReplayCursor {
             boolean independent =
                     page.getStreams().size() >= 32
                     && page.getStreams().parallelStream()
-                            .allMatch(stream ->
-                                              isIndependent(
-                                                      stream,
-                                                      states,
-                                                      payloads));
+                            .allMatch(stream -> stream.getMemberships().stream()
+                                    .allMatch(membership -> directReplayPlan(
+                                            payloads.getRequired(membership.getStateIndex()),
+                                            states.get(stream.getModelId()).target.modelType()) != null));
             if (independent) {
                 page.getStreams().parallelStream()
                         .forEach(stream ->
@@ -872,7 +757,6 @@ final class ModelReplayCursor {
             if (deserializedEvents.size() > 1_024) {
                 deserializedEvents.clear();
             }
-            preparedReplays.clear();
         }
 
         private void resolveTarget(
@@ -913,75 +797,6 @@ final class ModelReplayCursor {
             return plan.direct() ? plan : null;
         }
 
-        private boolean isIndependent(
-                ModelEventStream stream,
-                Map<String, MutableReconstruction> states,
-                PayloadLookup payloads) {
-            MutableReconstruction state = states.get(stream.getModelId());
-            if (state == null) {
-                throw new EventSourcingException(
-                        "Model event store returned unrelated stream "
-                        + stream.getModelId());
-            }
-            for (ModelEventMembership membership : stream.getMemberships()) {
-                StoredEvent storedEvent = new StoredEvent(
-                        membership,
-                        payloads.getRequired(
-                                membership.getStateIndex()));
-                ModelExecutionPlan directPlan =
-                        directReplayPlan(
-                                storedEvent.event(),
-                                state.target.modelType());
-                if (directPlan != null) {
-                    continue;
-                }
-                List<PreparedReplay> prepared =
-                        new ArrayList<>();
-                for (DeserializingMessage event :
-                        deserialize(
-                                state.target.modelType(),
-                                membership,
-                                storedEvent)) {
-                    Class<?> payloadType = event.getPayloadClass();
-                    ModelExecutionPlan plan = replayPlans.computeIfAbsent(
-                            new HandlerKey(
-                                    payloadType,
-                                    state.target.modelType()),
-                            ignored ->
-                                    replayPlan(
-                                            payloadType,
-                                            state.target.modelType()));
-                    if (plan.empty()
-                        || plan.direct()) {
-                        prepared.add(
-                                new PreparedReplay(
-                                        event, plan, null));
-                        continue;
-                    }
-                    Object payload = event.getPayload();
-                    ModelTargetResolver.Resolution resolution =
-                            plan.replayTargets().resolve(payload);
-                    if (resolution.hasAncestorDependencies()
-                        || resolution.models().stream()
-                                .anyMatch(target ->
-                                                  !target.modelId()
-                                                          .equals(
-                                                          stream.getModelId()))) {
-                        return false;
-                    }
-                    prepared.add(
-                            new PreparedReplay(
-                                    event, plan, resolution));
-                }
-                preparedReplays.put(
-                        new PreparedReplayKey(
-                                membership.getStateIndex(),
-                                state.target.modelType()),
-                        List.copyOf(prepared));
-            }
-            return true;
-        }
-
         private void applyStream(
                 ModelEventStream stream,
                 Map<String, MutableReconstruction> states,
@@ -1013,12 +828,6 @@ final class ModelReplayCursor {
                             directPlan);
                 }
             }
-        }
-
-        private Entity<?> reconstructAt(
-                ModelTargetResolver.ResolvedModel target, long stateIndex) {
-            return reconstructAt(List.of(target), stateIndex)
-                    .get(target.modelId());
         }
 
         private Map<String, Entity<?>> reconstructAt(
@@ -1280,22 +1089,9 @@ final class ModelReplayCursor {
                 Entity<?> begin,
                 StoredEvent storedEvent) {
             ModelEventMembership membership = storedEvent.membership();
-            List<PreparedReplay> prepared =
-                    preparedReplays.get(
-                            new PreparedReplayKey(
-                                    membership.getStateIndex(),
-                                    target.modelType()));
-            if (prepared == null) {
-                prepared =
-                        prepareReplay(
-                                target,
-                                membership,
-                                storedEvent,
-                                true);
-            }
             return apply(
                     target, begin, storedEvent,
-                    prepared);
+                    prepareReplay(target, membership, storedEvent));
         }
 
         private Entity<?> apply(
@@ -1448,18 +1244,8 @@ final class ModelReplayCursor {
         private List<PreparedReplay> prepareReplay(
                 ModelTargetResolver.ResolvedModel target,
                 ModelEventMembership membership,
-                StoredEvent storedEvent,
-                boolean sharedPayload) {
-            List<DeserializingMessage> messages =
-                    sharedPayload
-                            ? deserialize(
-                                    target.modelType(),
-                                    membership,
-                                    storedEvent)
-                            : deserializeUncached(
-                                    target.modelType(),
-                                    storedEvent);
-            return messages.stream()
+                StoredEvent storedEvent) {
+            return deserialize(target.modelType(), membership, storedEvent).stream()
                     .map(event -> {
                         Class<?> payloadType =
                                 event.getPayloadClass();
@@ -1520,23 +1306,6 @@ final class ModelReplayCursor {
                                     Stream.of(storedEvent.event()), EVENT,
                                     ignoreUnknown ? UnknownTypeStrategy.IGNORE : UnknownTypeStrategy.FAIL)
                             .toList());
-        }
-
-        private List<DeserializingMessage> deserializeUncached(
-                Class<?> modelType,
-                StoredEvent storedEvent) {
-            boolean ignoreUnknown =
-                    ModelMetadata.of(modelType)
-                            .model().orElseThrow()
-                            .ignoreUnknownEvents();
-            return serializer.deserializeMessages(
-                            Stream.of(
-                                    storedEvent.event()),
-                            EVENT,
-                            ignoreUnknown
-                                    ? UnknownTypeStrategy.IGNORE
-                                    : UnknownTypeStrategy.FAIL)
-                    .toList();
         }
 
         private ModelExecutionPlan replayPlan(
@@ -1758,9 +1527,6 @@ final class ModelReplayCursor {
     }
 
     private record HandlerKey(Class<?> payloadType, Class<?> modelType) {
-    }
-
-    private record PreparedReplayKey(long stateIndex, Class<?> modelType) {
     }
 
     private record PreparedReplay(

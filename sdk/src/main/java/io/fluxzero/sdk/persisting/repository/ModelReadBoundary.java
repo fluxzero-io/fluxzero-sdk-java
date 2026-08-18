@@ -79,6 +79,19 @@ public record ModelReadBoundary(
                 stateIndex, commitId, substep, eventIndex, true, false);
     }
 
+    public ModelReadBoundary resolved(long resolvedStateIndex) {
+        return new ModelReadBoundary(
+                resolvedStateIndex, commitId, substep, eventIndex,
+                before, false);
+    }
+
+    public ModelReadBoundary withoutMessageBatch() {
+        return includeMessageBatch
+                ? new ModelReadBoundary(
+                        stateIndex, commitId, substep, eventIndex, before, false)
+                : this;
+    }
+
     public boolean historical() {
         return stateIndex != null || commitId != null || eventIndex != null;
     }
