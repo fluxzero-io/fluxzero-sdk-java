@@ -176,87 +176,6 @@ final class ModelCacheTracker implements AutoCloseable {
         return currentVersion(modelId, modelType, sink) == SUPPLIED;
     }
 
-    void supplyCurrentVersions(
-            Iterable<? extends DefaultModelRepository.CurrentModelLookup> lookups) {
-        if (!healthy || unsupported || closed.get()) {
-            return;
-        }
-        List<BatchCandidate> candidates =
-                new ArrayList<>();
-        for (DefaultModelRepository.CurrentModelLookup lookup :
-                lookups) {
-            String modelId = lookup.modelId();
-            Entry entry = entries.get(modelId);
-            if (entry == null) {
-                continue;
-            }
-            if (entry.stale) {
-                currentVersion(
-                        modelId, lookup.modelType(),
-                        lookup);
-                continue;
-            }
-            long validThrough;
-            boolean stale;
-            synchronized (entry) {
-                stale = entry.stale;
-                validThrough = Math.max(
-                        entry.validThrough, cursor);
-            }
-            if (stale) {
-                currentVersion(
-                        modelId, lookup.modelType(),
-                        lookup);
-            } else {
-                candidates.add(
-                        new BatchCandidate(
-                                entry, lookup,
-                                validThrough));
-            }
-        }
-        cache.supplyAll(
-                candidates,
-                candidate ->
-                        candidate.lookup.modelId(),
-                (candidate, cached) ->
-                        candidate.cached =
-                                (Entity<?>) cached);
-        for (BatchCandidate candidate :
-                candidates) {
-            String modelId =
-                    candidate.lookup.modelId();
-            Entry entry = candidate.entry;
-            synchronized (entry) {
-                if (entry.stale) {
-                    continue;
-                }
-                Entity<?> cached = candidate.cached;
-                if (cached == null) {
-                    entries.remove(modelId, entry);
-                    continue;
-                }
-                if (!candidate.lookup.modelType()
-                        .equals(cached.type())) {
-                    continue;
-                }
-                long modelStateIndex =
-                        cached instanceof ModelRoot<?> model
-                                ? model.stateIndex() : -1L;
-                if (modelStateIndex
-                    > candidate.validThrough) {
-                    continue;
-                }
-                entry.validThrough = Math.max(
-                        entry.validThrough,
-                        candidate.validThrough);
-                candidate.lookup.accept(
-                        cached,
-                        candidate.validThrough,
-                        modelStateIndex);
-            }
-        }
-    }
-
     private CurrentModel currentVersion(
             String modelId,
             Class<?> modelType,
@@ -1118,22 +1037,6 @@ final class ModelCacheTracker implements AutoCloseable {
 
     private static final CurrentModel SUPPLIED =
             new CurrentModel(null, -1L, -1L);
-
-    private static final class BatchCandidate {
-        private final Entry entry;
-        private final DefaultModelRepository.CurrentModelLookup lookup;
-        private final long validThrough;
-        private Entity<?> cached;
-
-        private BatchCandidate(
-                Entry entry,
-                DefaultModelRepository.CurrentModelLookup lookup,
-                long validThrough) {
-            this.entry = entry;
-            this.lookup = lookup;
-            this.validThrough = validThrough;
-        }
-    }
 
     private static final class Entry {
         private volatile Class<?> modelType;

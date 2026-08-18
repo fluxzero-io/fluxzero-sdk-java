@@ -216,12 +216,27 @@ final class ModelReplayCursor {
     /**
      * Loads only model heads while pinning the same boundary across every request chunk.
      * <p>
-     * This is used to prove that a directly document-loaded dependency still has complete stored event history before
-     * an event-sourced model is allowed to depend on it. No event membership or payload is transferred.
+     * This supports metadata and alias resolution without transferring event membership or payload.
      */
     LoadResult loadHeads(
             List<String> modelIds,
             ModelReadBoundary boundary) {
+        return loadHeads(modelIds, boundary, false);
+    }
+
+    /**
+     * Loads model heads and rejects streams whose stored history cannot support event replay.
+     */
+    LoadResult loadReplayableHeads(
+            List<String> modelIds,
+            ModelReadBoundary boundary) {
+        return loadHeads(modelIds, boundary, true);
+    }
+
+    private LoadResult loadHeads(
+            List<String> modelIds,
+            ModelReadBoundary boundary,
+            boolean requireCompleteHistory) {
         Objects.requireNonNull(boundary, "boundary");
         List<String> ids = validateIds(modelIds);
         if (ids.isEmpty()) {
@@ -242,7 +257,9 @@ final class ModelReplayCursor {
             long stateIndex = validateBoundary(response, pinned.stateIndex());
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
             chunk.forEach(id -> cursors.put(id, -1L));
-            validatePage(response, chunk, cursors, heads, 0, settings.maxPayloadBytes());
+            validatePage(
+                    response, chunk, cursors, heads, 0,
+                    settings.maxPayloadBytes(), requireCompleteHistory);
             pinned = ModelReadBoundary.state(stateIndex, false);
         }
         return new LoadResult(pinned.stateIndex(), heads);
@@ -291,7 +308,7 @@ final class ModelReplayCursor {
             int advanced = validatePage(
                     response, active, cursors, heads,
                     perStreamLimit,
-                    settings.maxPayloadBytes());
+                    settings.maxPayloadBytes(), true);
             pageConsumer.accept(response);
             if (advanced == 0 && hasIncompleteStream(cursors, heads)) {
                 throw invalid(
@@ -355,7 +372,8 @@ final class ModelReplayCursor {
             Map<String, Long> cursors,
             Map<String, ModelHeadState> knownHeads,
             int perStreamLimit,
-            long maxPayloadBytes) {
+            long maxPayloadBytes,
+            boolean requireCompleteHistory) {
         List<ModelEventPayload> payloadList =
                 Objects.requireNonNull(response.getPayloads(), "Model event payloads");
         long[] payloadStateIndices = new long[payloadList.size()];
@@ -420,7 +438,9 @@ final class ModelReplayCursor {
                 if (knownHead && previousHead == null) {
                     throw invalid("Model head appeared while loading " + requestedId);
                 }
-                validateHead(requestedId, head, response.getStateIndex(), previousHead);
+                validateHead(
+                        requestedId, head, response.getStateIndex(), previousHead,
+                        requireCompleteHistory);
                 if (cursor > head.getSequenceNumber()) {
                     throw invalid(
                             "Model stream '%s' starts after pinned head sequence %d"
@@ -507,19 +527,21 @@ final class ModelReplayCursor {
             String requestedId,
             ModelHeadState head,
             long responseStateIndex,
-            ModelHeadState previous) {
+            ModelHeadState previous,
+            boolean requireCompleteHistory) {
         if (head.getModelId() == null
             || head.getModelId().isBlank()) {
             throw invalid(
                     "Model head for '%s' reports a blank resolved ID"
                             .formatted(requestedId));
         }
-        if (!head.isHistoryComplete()) {
+        if (requireCompleteHistory && !head.isHistoryComplete()) {
             throw invalid(
                     "Model '%s' cannot be reconstructed at state index %d because its stored history is incomplete"
                             .formatted(requestedId, responseStateIndex));
         }
-        if (head.getSequenceNumber() < 0L
+        long minimumSequence = requireCompleteHistory ? 0L : -1L;
+        if (head.getSequenceNumber() < minimumSequence
             || head.getStateIndex() < 0L
             || head.getStateIndex() > responseStateIndex) {
             throw invalid("Model head for '" + requestedId + "' contains invalid positions");

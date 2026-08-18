@@ -41,8 +41,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -55,76 +53,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ModelCacheTrackerTest {
-
-    @Test
-    void bulkLookupRejectsARevisionAheadOfItsCapturedProof() {
-        EventStoreClient eventStore =
-                mock(EventStoreClient.class);
-        polls(eventStore);
-        AtomicReference<Runnable> beforeSupply =
-                new AtomicReference<>();
-        AdaptiveObjectCache cache =
-                new AdaptiveObjectCache() {
-                    @Override
-                    public <U, T> void supplyAll(
-                            Iterable<? extends U> lookups,
-                            Function<? super U, ?> keyFunction,
-                            BiConsumer<? super U, ? super T> valueConsumer) {
-                        Runnable callback = beforeSupply.get();
-                        if (callback != null) {
-                            callback.run();
-                        }
-                        super.supplyAll(
-                                lookups, keyFunction,
-                                valueConsumer);
-                    }
-                };
-        Entity<?> initial = modelEntity(10L);
-        Entity<?> committed = modelEntity(20L);
-        cache.put("sample-1", initial);
-        try (ModelCacheTracker tracker =
-                     new ModelCacheTracker(
-                             eventStore, cache,
-                             (ignored, safeStateIndex) ->
-                                     new ModelCacheTracker
-                                             .RefreshedBatch(
-                                                     safeStateIndex))) {
-            tracker.loaded(
-                    "sample-1",
-                    SampleModel.class,
-                    10L);
-            awaitCurrent(
-                    tracker, "sample-1",
-                    SampleModel.class);
-            TestLookup lookup =
-                    new TestLookup(
-                            "sample-1",
-                            SampleModel.class);
-            beforeSupply.set(() ->
-                    cache.put(
-                            "sample-1", committed));
-
-            tracker.supplyCurrentVersions(
-                    List.of(lookup));
-
-            assertNull(lookup.entity.get());
-            beforeSupply.set(null);
-            tracker.committed(
-                    "sample-1",
-                    SampleModel.class,
-                    20L);
-            tracker.supplyCurrentVersions(
-                    List.of(lookup));
-            assertSame(
-                    committed,
-                    lookup.entity.get());
-            assertEquals(
-                    20L,
-                    lookup.validThrough);
-        } finally {
-            cache.close();
-        }
-    }
 
     @Test
     void bootstrapDoesNotBlockTheLoadingCallback() throws Exception {
@@ -1366,41 +1294,6 @@ class ModelCacheTrackerTest {
         }
         assertTrue(current != null);
         return current;
-    }
-
-    private static final class TestLookup
-            implements DefaultModelRepository.CurrentModelLookup {
-        private final String modelId;
-        private final Class<?> modelType;
-        private final AtomicReference<Entity<?>> entity =
-                new AtomicReference<>();
-        private volatile long validThrough = -1L;
-
-        private TestLookup(
-                String modelId,
-                Class<?> modelType) {
-            this.modelId = modelId;
-            this.modelType = modelType;
-        }
-
-        @Override
-        public String modelId() {
-            return modelId;
-        }
-
-        @Override
-        public Class<?> modelType() {
-            return modelType;
-        }
-
-        @Override
-        public void accept(
-                Entity<?> entity,
-                long validThrough,
-                long modelStateIndex) {
-            this.entity.set(entity);
-            this.validThrough = validThrough;
-        }
     }
 
     private static void completeNext(

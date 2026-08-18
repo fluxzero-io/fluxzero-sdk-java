@@ -1213,7 +1213,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 ? null : prefetch(initialMessage);
         if (cached != null) {
             if (repository.supplyCurrentModel(
-                    cached.modelId(), cached.modelType(), cached)) {
+                    cached.modelId, cached.modelType, cached)) {
                 return evaluate(initialMessage, cached);
             }
         }
@@ -1504,12 +1504,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 && prefetched.entity != null
                 && requestedStateIndex == null
                 && stagedValues.isEmpty()) {
-                commitEntities.put(prefetched.modelId(), prefetched.entity);
+                commitEntities.put(prefetched.modelId, prefetched.entity);
                 return new ModelExecutionPlan.ResolvedSubstep(
                         ModelCommitContext.createSingle(
                                 prefetched.stateIndex,
-                                prefetched.modelId(),
-                                prefetched.modelType(),
+                                prefetched.modelId,
+                                prefetched.modelType,
                                 prefetched.access,
                                 prefetched.sourceProperties,
                                 prefetched.entity),
@@ -1921,7 +1921,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private static final class PrefetchSlot
-            implements DefaultModelRepository.CurrentModelLookup {
+            implements DefaultModelRepository.CurrentModelSink {
         private final String modelId;
         private final Class<?> modelType;
         private final ModelTargetResolver.Access access;
@@ -1941,16 +1941,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             this.access = access;
             this.sourceProperties = sourceProperties;
             this.directApply = directApply;
-        }
-
-        @Override
-        public String modelId() {
-            return modelId;
-        }
-
-        @Override
-        public Class<?> modelType() {
-            return modelType;
         }
 
         @Override
