@@ -58,17 +58,54 @@ import static io.fluxzero.common.ObjectUtils.asStream;
  * produces no commit result. This class never publishes or stores an event, allowing its caller to commit the returned
  * commit atomically after evaluation.
  */
-public record ModelExecutionPlan(
+public final class ModelExecutionPlan {
+    private final Compiler compiler;
+    private final HandlerPlan handlers;
+    private final ModelTargetResolver.TargetPlan targets;
+    private final DirectSingleTargetApply directApply;
+    private final ModelCommitPolicy commitPolicy;
+    private final boolean commit;
+    private final boolean automatic;
+
+    ModelExecutionPlan(
+            Compiler compiler,
             HandlerPlan handlers,
             ModelTargetResolver.TargetPlan targets,
             DirectSingleTargetApply directApply,
             ModelCommitPolicy commitPolicy,
             boolean commit,
             boolean automatic) {
-    public ModelExecutionPlan {
-        Objects.requireNonNull(handlers);
-        Objects.requireNonNull(targets);
-        Objects.requireNonNull(commitPolicy);
+        this.compiler = Objects.requireNonNull(compiler, "compiler");
+        this.handlers = Objects.requireNonNull(handlers, "handlers");
+        this.targets = Objects.requireNonNull(targets, "targets");
+        this.directApply = directApply;
+        this.commitPolicy = Objects.requireNonNull(commitPolicy, "commitPolicy");
+        this.commit = commit;
+        this.automatic = automatic;
+    }
+
+    HandlerPlan handlers() {
+        return handlers;
+    }
+
+    ModelTargetResolver.TargetPlan targets() {
+        return targets;
+    }
+
+    DirectSingleTargetApply directApply() {
+        return directApply;
+    }
+
+    ModelCommitPolicy commitPolicy() {
+        return commitPolicy;
+    }
+
+    boolean commit() {
+        return commit;
+    }
+
+    boolean automatic() {
+        return automatic;
     }
 
     /** Whether this plan contains no model handlers. */
@@ -84,6 +121,31 @@ public record ModelExecutionPlan(
     /** Target accessors used when reconstructing one persisted model stream. */
     public ModelTargetResolver.TargetPlan replayTargets() {
         return targets;
+    }
+
+    CommitEvaluation execute(
+            List<DeserializingMessage> messages,
+            SubstepResolver resolver,
+            ExecutionMode mode) {
+        return compiler.execute(messages, resolver, mode);
+    }
+
+    CommitEvaluation evaluateDirectSingleTarget(
+            DeserializingMessage message,
+            long readStateIndex,
+            String modelId,
+            Class<?> modelType,
+            Entity<?> entity) {
+        return compiler.evaluateDirectSingleTarget(
+                message, readStateIndex, modelId, modelType,
+                entity, handlers, directApply);
+    }
+
+    public Object replay(
+            DeserializingMessage event,
+            ModelCommitContext context,
+            String targetModelId) {
+        return compiler.replay(event, context, this, targetModelId);
     }
 
     /** Compiles payload plans and evaluates their ordered substeps. */
@@ -161,28 +223,46 @@ public record ModelExecutionPlan(
         }
     }
 
-    CommitEvaluation evaluate(
-            DeserializingMessage initialMessage, SubstepResolver resolver) {
-        Objects.requireNonNull(initialMessage, "initialMessage");
-        Deque<PendingSubstep> pending = new ArrayDeque<>();
-        if (initialMessage.getPayload() instanceof Graph<?> graph) {
-            enqueueOutput(initialMessage, graph, pending, false);
-        } else {
-            pending.add(new PendingSubstep(initialMessage, true));
-        }
-        return evaluate(pending, resolver, initialMessage, true, true);
+    /** Executes live, validation-only and stored/retry forms through one ordered substep pipeline. */
+    CommitEvaluation execute(
+            DeserializingMessage message,
+            SubstepResolver resolver,
+            ExecutionMode mode) {
+        return execute(List.of(message), resolver, mode);
     }
 
-    /**
-     * Runs apply interceptors and immediate legality assertions without invoking applies or after-handler assertions.
-     */
-    CommitEvaluation assertLegal(
-            DeserializingMessage initialMessage,
+    CommitEvaluation evaluate(
+            DeserializingMessage message,
             SubstepResolver resolver) {
-        Objects.requireNonNull(initialMessage, "initialMessage");
-        Deque<PendingSubstep> pending = new ArrayDeque<>();
-        pending.add(new PendingSubstep(initialMessage, true));
-        return evaluate(pending, resolver, initialMessage, false, true);
+        return execute(message, resolver, ExecutionMode.LIVE);
+    }
+
+    /** Executes live, validation-only and stored/retry forms through one ordered substep pipeline. */
+    CommitEvaluation execute(
+            List<DeserializingMessage> messages,
+            SubstepResolver resolver,
+            ExecutionMode mode) {
+        Objects.requireNonNull(messages, "messages");
+        Objects.requireNonNull(mode, "mode");
+        if (messages.isEmpty()) {
+            throw new IllegalArgumentException("A model execution requires at least one message");
+        }
+        Deque<PendingSubstep> pending = new ArrayDeque<>(messages.size());
+        for (DeserializingMessage message : messages) {
+            Objects.requireNonNull(message, "message");
+            if (mode == ExecutionMode.LIVE && message.getPayload() instanceof Graph<?> graph) {
+                enqueueOutput(message, graph, pending, false);
+            } else if (mode == ExecutionMode.REPLAY && message instanceof GraphChangeMessage changeMessage) {
+                pending.add(new PendingSubstep(
+                        new GraphChangeMessage(changeMessage.change.forRebase()), false));
+            } else {
+                pending.add(new PendingSubstep(message, mode.interception()));
+            }
+        }
+        return evaluate(
+                pending, resolver,
+                mode == ExecutionMode.REPLAY ? null : messages.getFirst(),
+                mode.applies(), mode.assertions());
     }
 
     private CommitEvaluation evaluate(
@@ -418,34 +498,6 @@ public record ModelExecutionPlan(
                 addition.cascadedDeletion()));
     }
 
-    /**
-     * Re-applies already produced commit events against a new pinned model boundary.
-     * <p>
-     * Command handling, assertions, and interceptors are deliberately not invoked. The supplied messages are the
-     * original post-interception substeps and only their {@link Apply @Apply} handlers contribute new derived state.
-     */
-    CommitEvaluation rebase(
-            List<DeserializingMessage> appliedMessages,
-            SubstepResolver resolver) {
-        Objects.requireNonNull(appliedMessages, "appliedMessages");
-        if (appliedMessages.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "A model commit rebase requires at least one applied message");
-        }
-        Deque<PendingSubstep> pending = new ArrayDeque<>(appliedMessages.size());
-        appliedMessages.forEach(message -> {
-            if (message instanceof GraphChangeMessage changeMessage) {
-                pending.add(new PendingSubstep(
-                        new GraphChangeMessage(
-                                changeMessage.change.forRebase()),
-                        false));
-            } else {
-                pending.add(new PendingSubstep(message, false));
-            }
-        });
-        return evaluate(pending, resolver, null, true, false);
-    }
-
     private List<Transition> evaluateInContext(
             DeserializingMessage message,
             ModelCommitContext beginState,
@@ -466,13 +518,9 @@ public record ModelExecutionPlan(
         Map<String, Transition> transitions = null;
         for (CompiledHandler compiledHandler : plan.applies()) {
             ModelMetadata.HandlerMethod handler = compiledHandler.method();
-            if (!handler.hasApplyResult()) {
+            ApplyResultShape resultShape = compiledHandler.resultShape();
+            if (!resultShape.present()) {
                 continue;
-            }
-            if (!handler.dynamicApplyResult()
-                && handler.targetModelTypes().size() != 1) {
-                throw new IllegalStateException(
-                        "Apply %s targets more than one model type".formatted(handler.executable()));
             }
             Object result;
             if (directApply != null && plan.applies().size() == 1) {
@@ -492,14 +540,7 @@ public record ModelExecutionPlan(
                 }
                 result = invoker.invoke();
             }
-            if (!handler.collectionApplyResult()) {
-                    transitions = addApplyResult(
-                            transitions, compiledHandler, result, 0,
-                            beginState);
-                continue;
-            }
-            List<?> results = collectionApplyResults(
-                    handler, result);
+            List<?> results = resultShape.values(handler, result);
             for (int resultIndex = 0; resultIndex < results.size(); resultIndex++) {
                 transitions = addApplyResult(
                         transitions, compiledHandler,
@@ -685,7 +726,7 @@ public record ModelExecutionPlan(
         ModelTargetResolver.TargetPlan targets =
                 ModelTargetResolver.compile(payloadType, handlers);
         return new ModelExecutionPlan(
-                compiledHandlers, targets, direct,
+                this, compiledHandlers, targets, direct,
                 ModelCommitPolicy.SYNC_AFTER_HANDLER,
                 !handlers.isEmpty(), false);
     }
@@ -821,15 +862,14 @@ public record ModelExecutionPlan(
             int resultIndex,
             ModelCommitContext beginState) {
         ModelMetadata.HandlerMethod handler = compiledHandler.method();
-        Class<?> targetType = applyTargetType(
-                handler, value, resultIndex);
+        Class<?> targetType = compiledHandler.resultShape()
+                .targetType(handler, value, resultIndex);
         String targetId = resolveWriteTarget(
                 handler, targetType, value, beginState);
         ModelCommitContext.Entry target =
                 beginState.entry(targetId);
         boolean creation = target == null && value != null
-                           && (handler.collectionApplyResult()
-                               || handler.dynamicApplyResult());
+                           && compiledHandler.resultShape().createsTargets();
         if (!creation && (target == null || !beginState.mayWrite(
                 targetId, targetType,
                 handler.executable()))) {
@@ -886,71 +926,6 @@ public record ModelExecutionPlan(
         return result;
     }
 
-    private static List<?> collectionApplyResults(
-            ModelMetadata.HandlerMethod handler,
-            Object result) {
-        if (result == null) {
-            throw new IllegalStateException(
-                    "Apply %s returned null instead of a model collection"
-                            .formatted(handler.executable().toGenericString()));
-        }
-        if (!(result instanceof Collection<?> collection)) {
-            throw new IllegalStateException(
-                    "Apply %s returned %s instead of a model collection"
-                            .formatted(handler.executable().toGenericString(),
-                                       result.getClass().getName()));
-        }
-        List<Object> snapshot = new ArrayList<>(collection.size());
-        int index = 0;
-        for (Object value : collection) {
-            if (value == null) {
-                throw new IllegalStateException(
-                        "Apply %s returned a null model at collection index %d; use Graph.delete() for deletion"
-                                .formatted(handler.executable().toGenericString(), index));
-            }
-            snapshot.add(value);
-            index++;
-        }
-        return snapshot;
-    }
-
-    private static Class<?> applyTargetType(
-            ModelMetadata.HandlerMethod handler,
-            Object result,
-            int resultIndex) {
-        if (!handler.dynamicApplyResult()) {
-            Class<?> targetType = handler.targetModelTypes().getFirst();
-            if (result != null && !targetType.isInstance(result)) {
-                throw new IllegalStateException(
-                        "Apply %s returned %s instead of %s%s"
-                                .formatted(
-                                        handler.executable().toGenericString(),
-                                        result.getClass().getName(),
-                                        targetType.getName(),
-                                        handler.collectionApplyResult()
-                                                ? " at collection index " + resultIndex : ""));
-            }
-            return targetType;
-        }
-        if (result == null) {
-            throw new IllegalStateException(
-                    "Apply %s returned null for a dynamically typed model result"
-                            .formatted(handler.executable().toGenericString()));
-        }
-        ModelMetadata metadata = ModelMetadata.validate(
-                result.getClass());
-        if (!metadata.isModel()) {
-            throw new IllegalStateException(
-                    "Apply %s returned %s%s, which is not annotated with @Model"
-                            .formatted(
-                                    handler.executable().toGenericString(),
-                                    result.getClass().getName(),
-                                    handler.collectionApplyResult()
-                                            ? " at collection index " + resultIndex : ""));
-        }
-        return result.getClass();
-    }
-
     private static int compareHandlers(
             ModelMetadata.HandlerMethod left, ModelMetadata.HandlerMethod right) {
         return left.executable().toGenericString().compareTo(right.executable().toGenericString());
@@ -985,7 +960,7 @@ public record ModelExecutionPlan(
             Message emitted = hasMessage.toMessage();
             return source.withMessage(emitted.withMetadata(
                             source.getMetadata().with(emitted.getMetadata())))
-                    .withoutContext(ModelCommitHandlerRegistry.ExplicitModelTarget.class);
+                    .withoutContext(ModelPipeline.ExplicitModelTarget.class);
         }
         if (preserveSourceIdentity) {
             return source.withPayload(output);
@@ -1219,6 +1194,34 @@ public record ModelExecutionPlan(
             DeserializingMessage message, List<Transition> transitions) {
         AppliedSubstep {
             transitions = List.copyOf(transitions);
+        }
+    }
+
+    enum ExecutionMode {
+        LIVE(true, true, true),
+        ASSERT(true, false, true),
+        REPLAY(false, true, false);
+
+        private final boolean interception;
+        private final boolean applies;
+        private final boolean assertions;
+
+        ExecutionMode(boolean interception, boolean applies, boolean assertions) {
+            this.interception = interception;
+            this.applies = applies;
+            this.assertions = assertions;
+        }
+
+        boolean interception() {
+            return interception;
+        }
+
+        boolean applies() {
+            return applies;
+        }
+
+        boolean assertions() {
+            return assertions;
         }
     }
 
@@ -1487,6 +1490,7 @@ public record ModelExecutionPlan(
                 Compiler compiler) {
             this(handlers.stream().map(handler -> new CompiledHandler(
                     handler, compiler.compileMatcher(handler),
+                    handler.modelParameters(), ApplyResultShape.of(handler),
                     EffectOverrides.of(handler.executable()))).toList());
         }
 
@@ -1520,7 +1524,94 @@ public record ModelExecutionPlan(
     private record CompiledHandler(
             ModelMetadata.HandlerMethod method,
             HandlerMatcher<Object, DeserializingMessage> matcher,
+            List<ModelMetadata.ModelParameter> dependencyAccessors,
+            ApplyResultShape resultShape,
             EffectOverrides effect) {
+        private CompiledHandler {
+            dependencyAccessors = List.copyOf(dependencyAccessors);
+        }
+    }
+
+    private record ApplyResultShape(
+            boolean present,
+            boolean collection,
+            boolean dynamic,
+            Class<?> targetType) {
+        private static ApplyResultShape of(ModelMetadata.HandlerMethod handler) {
+            if (!handler.hasApplyResult()) {
+                return new ApplyResultShape(false, false, false, null);
+            }
+            if (!handler.dynamicApplyResult() && handler.targetModelTypes().size() != 1) {
+                throw new IllegalStateException(
+                        "Apply %s targets more than one model type".formatted(handler.executable()));
+            }
+            return new ApplyResultShape(
+                    true, handler.collectionApplyResult(), handler.dynamicApplyResult(),
+                    handler.dynamicApplyResult() ? null : handler.targetModelTypes().getFirst());
+        }
+
+        private boolean createsTargets() {
+            return collection || dynamic;
+        }
+
+        private List<?> values(ModelMetadata.HandlerMethod handler, Object result) {
+            if (!collection) {
+                return Collections.singletonList(result);
+            }
+            if (result == null) {
+                throw new IllegalStateException(
+                        "Apply %s returned null instead of a model collection"
+                                .formatted(handler.executable().toGenericString()));
+            }
+            if (!(result instanceof Collection<?> values)) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s instead of a model collection"
+                                .formatted(handler.executable().toGenericString(), result.getClass().getName()));
+            }
+            List<Object> snapshot = new ArrayList<>(values.size());
+            int index = 0;
+            for (Object value : values) {
+                if (value == null) {
+                    throw new IllegalStateException(
+                            "Apply %s returned a null model at collection index %d; use Graph.delete() for deletion"
+                                    .formatted(handler.executable().toGenericString(), index));
+                }
+                snapshot.add(value);
+                index++;
+            }
+            return snapshot;
+        }
+
+        private Class<?> targetType(
+                ModelMetadata.HandlerMethod handler,
+                Object result,
+                int resultIndex) {
+            if (!dynamic) {
+                if (result != null && !targetType.isInstance(result)) {
+                    throw new IllegalStateException(
+                            "Apply %s returned %s instead of %s%s"
+                                    .formatted(
+                                            handler.executable().toGenericString(),
+                                            result.getClass().getName(), targetType.getName(),
+                                            collection ? " at collection index " + resultIndex : ""));
+                }
+                return targetType;
+            }
+            if (result == null) {
+                throw new IllegalStateException(
+                        "Apply %s returned null for a dynamically typed model result"
+                                .formatted(handler.executable().toGenericString()));
+            }
+            ModelMetadata metadata = ModelMetadata.validate(result.getClass());
+            if (!metadata.isModel()) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s%s, which is not annotated with @Model"
+                                .formatted(
+                                        handler.executable().toGenericString(), result.getClass().getName(),
+                                        collection ? " at collection index " + resultIndex : ""));
+            }
+            return result.getClass();
+        }
     }
 
     private enum MissingTarget {

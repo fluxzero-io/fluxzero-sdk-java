@@ -41,12 +41,12 @@ import java.util.function.Supplier;
 /**
  * One message-batch-local model scope for read-your-writes, exact dependencies and commit release.
  * Pending values stay visible only at their namespace, routing segment and message position. Reading one registers its
- * producing operation as a predecessor; successful or failed operations immediately yield to authoritative storage.
+ * producing entry as a predecessor; successful or failed entries immediately yield to authoritative storage.
  */
 public final class ModelBatchScope {
     private static final Object RESOURCE_KEY = ModelBatchScope.class;
     private static final String APPLICATION_NAMESPACE = "\u0000";
-    private static final ThreadLocal<Operation> currentDependency =
+    private static final ThreadLocal<Entry> currentDependency =
             ThreadLocalContext.create();
 
     private final ConcurrentHashMap<ModelKey, ConcurrentLinkedDeque<Candidate>> values =
@@ -56,10 +56,10 @@ public final class ModelBatchScope {
     private ModelBatchScope() {
     }
 
-    static void stage(
+    private static void stage(
             String namespace,
             ModelExecutionPlan.CommitEvaluation evaluation,
-            Operation producer) {
+            Entry producer) {
         int position = DeserializingMessage.getMessageBatchIndex();
         if (position < 0 || evaluation.finalValues().isEmpty()) {
             return;
@@ -71,7 +71,7 @@ public final class ModelBatchScope {
         }
         if (producer != null) {
             evaluation.substeps().forEach(substep ->
-                    substep.message().putContext(Operation.class, producer));
+                    substep.message().putContext(Entry.class, producer));
         }
         Map<String, Object> before = new HashMap<>();
         evaluation.transitions().forEach(transition ->
@@ -89,8 +89,22 @@ public final class ModelBatchScope {
         });
     }
 
-    static <T> T withDependency(Operation dependency, Supplier<T> action) {
-        Operation previous = currentDependency.get();
+    static void stage(
+            String namespace,
+            ModelExecutionPlan.CommitEvaluation evaluation) {
+        stage(namespace, evaluation, null);
+    }
+
+    static CompletableFuture<Object> stagePending(
+            String namespace,
+            ModelExecutionPlan.CommitEvaluation evaluation) {
+        Entry producer = new Entry();
+        stage(namespace, evaluation, producer);
+        return producer.completion();
+    }
+
+    private static <T> T withDependency(Entry dependency, Supplier<T> action) {
+        Entry previous = currentDependency.get();
         try {
             if (dependency == null) {
                 currentDependency.remove();
@@ -111,18 +125,50 @@ public final class ModelBatchScope {
             DeserializingMessage message,
             Supplier<T> action) {
         return withDependency(
-                message.getContext(Operation.class).orElse(null), action);
+                message.getContext(Entry.class).orElse(null), action);
     }
 
-    static Operation register(
-            Object key,
+    static CompletableFuture<Object> execute(
+            Object batchKey,
             DeserializingMessage message,
             ModelCommitPolicy policy,
-            BatchLifecycle lifecycle) {
+            BatchLifecycle lifecycle,
+            boolean asynchronousReevaluation,
+            Evaluator evaluator,
+            CommitStage commitStage) {
+        Entry entry = policy == null || DeserializingMessage.getCurrent() == null
+                      || !policy.commitAfterBatch() && !policy.awaitAfterBatch()
+                ? new Entry()
+                : register(batchKey, message, policy, lifecycle);
+        ThreadLocalContext.Snapshot context = message.captureContext();
+        ModelExecutionPlan.CommitEvaluation initial;
+        try {
+            initial = context.supply(() -> withDependency(
+                    entry, () -> evaluator.evaluate(false, entry.batched())));
+            stage(namespace(message), initial, entry);
+            entry.initialize(initial.readModelIds());
+        } catch (Throwable failure) {
+            entry.fail(failure);
+            return entry.completion();
+        }
+        try {
+            CompletableFuture<Object> submitted = submit(
+                    entry, initial, context, asynchronousReevaluation,
+                    evaluator, commitStage);
+            entry.bind(submitted);
+        } catch (Throwable failure) {
+            entry.fail(failure);
+        }
+        return entry.completion();
+    }
+
+    private static Entry register(
+            Object key, DeserializingMessage message,
+            ModelCommitPolicy policy, BatchLifecycle lifecycle) {
         ModelBatchScope scope = DeserializingMessage.computeForMessageBatchIfAbsent(
                 RESOURCE_KEY, ignored -> new ModelBatchScope());
         if (scope == null) {
-            return new Operation();
+            return new Entry();
         }
         Batch batch = scope.batches.computeIfAbsent(key, ignored -> {
             Batch created = new Batch(lifecycle);
@@ -130,6 +176,53 @@ public final class ModelBatchScope {
             return created;
         });
         return batch.register(message, policy);
+    }
+
+    private static CompletableFuture<Object> submit(
+            Entry entry,
+            ModelExecutionPlan.CommitEvaluation initial,
+            ThreadLocalContext.Snapshot context,
+            boolean asynchronousReevaluation,
+            Evaluator evaluator,
+            CommitStage commitStage) {
+        if (entry.hasDependencies()) {
+            if (entry.batched() && !entry.policy().commitAfterBatch()
+                && entry.transportBatch() != null) {
+                entry.flushTransport();
+            }
+            entry.detachTransport();
+        }
+        return entry.executeAfterRelease(dependent -> {
+            CompletableFuture<ModelExecutionPlan.CommitEvaluation> ready = dependent
+                    ? reevaluate(entry, context, asynchronousReevaluation, evaluator)
+                    : CompletableFuture.completedFuture(initial);
+            return ready.thenCompose(context.wrap(evaluation -> Objects.requireNonNull(
+                    commitStage.commit(evaluation, entry.transportBatch(), entry.transportSlot()),
+                    "Model pipeline commit stage returned null")));
+        });
+    }
+
+    private static CompletableFuture<ModelExecutionPlan.CommitEvaluation> reevaluate(
+            Entry entry,
+            ThreadLocalContext.Snapshot context,
+            boolean asynchronous,
+            Evaluator evaluator) {
+        int dependencyCount = entry.dependencyCount();
+        Supplier<ModelExecutionPlan.CommitEvaluation> evaluation = () ->
+                context.supply(() -> withDependency(
+                        entry, () -> evaluator.evaluate(true, entry.batched())));
+        CompletableFuture<ModelExecutionPlan.CommitEvaluation> result = entry.batched() && asynchronous
+                ? entry.dependencyCompletion().thenCompose(ignored ->
+                        CompletableFuture.supplyAsync(context.wrap(evaluation)))
+                : entry.dependencyCompletion().thenApply(ignored -> evaluation.get());
+        return result.thenCompose(value -> entry.dependencyCount() == dependencyCount
+                ? CompletableFuture.completedFuture(value)
+                : reevaluate(entry, context, asynchronous, evaluator));
+    }
+
+    private static String namespace(DeserializingMessage message) {
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        return io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace(current == null ? message : current);
     }
 
     /** Overlays a durable direct load with the newest pending model or alias visible to the current message. */
@@ -287,7 +380,7 @@ public final class ModelBatchScope {
             Object after,
             int position,
             int segment,
-            Operation producer) {
+            Entry producer) {
         ConcurrentLinkedDeque<Candidate> exact = candidates(namespace, modelId);
         Candidate value = new Candidate(
                 modelId, modelType, after, true, true,
@@ -335,7 +428,7 @@ public final class ModelBatchScope {
         if (candidates == null) {
             return null;
         }
-        Operation consumer = currentDependency.get();
+        Entry consumer = currentDependency.get();
         int segment = currentSegment();
         Candidate result = null;
         for (Candidate candidate : candidates) {
@@ -353,26 +446,26 @@ public final class ModelBatchScope {
         return result;
     }
 
-    private static void dependOn(Operation producer) {
+    private static void dependOn(Entry producer) {
         if (producer == null) {
             return;
         }
-        Operation consumer = currentDependency.get();
+        Entry consumer = currentDependency.get();
         if (consumer != null) {
             if (consumer != producer) {
                 consumer.dependsOn(producer);
             }
         } else if (DeserializingMessage.getCurrent() != null) {
             Invocation.awaitBeforeResultPublication(
-                    DeserializingMessage.getCurrent(), producer);
+                    DeserializingMessage.getCurrent(), producer.completion());
         }
     }
 
     private static Status status(Candidate candidate) {
-        if (candidate.producer() == null || !candidate.producer().isDone()) {
+        if (candidate.producer() == null || !candidate.producer().completion().isDone()) {
             return Status.PENDING;
         }
-        CompletableFuture<?> completion = candidate.producer();
+        CompletableFuture<?> completion = candidate.producer().completion();
         return completion.isCompletedExceptionally() || completion.isCancelled()
                 ? Status.FAILURE : Status.SUCCESS;
     }
@@ -435,9 +528,22 @@ public final class ModelBatchScope {
             BooleanSupplier awaitBeforeResultPublication) {
     }
 
+    @FunctionalInterface
+    interface Evaluator {
+        ModelExecutionPlan.CommitEvaluation evaluate(boolean retry, boolean batched);
+    }
+
+    @FunctionalInterface
+    interface CommitStage {
+        CompletableFuture<Object> commit(
+                ModelExecutionPlan.CommitEvaluation evaluation,
+                ModelCommitBatchingClient.ModelCommitBatch batch,
+                int slot);
+    }
+
     private static final class Batch {
         private final BatchLifecycle lifecycle;
-        private final List<Operation> operations = new ArrayList<>();
+        private final List<Entry> entries = new ArrayList<>();
         private ModelCommitBatchingClient.ModelCommitBatch readyTransport;
         private boolean transportSettled;
         private boolean closed;
@@ -446,86 +552,87 @@ public final class ModelBatchScope {
             this.lifecycle = lifecycle;
         }
 
-        private synchronized Operation register(
+        private synchronized Entry register(
                 DeserializingMessage message,
                 ModelCommitPolicy policy) {
             if (closed) {
-                return new Operation(null, policy, true);
+                return new Entry(null, policy, true);
             }
-            Operation operation = new Operation(this, policy, !policy.commitAfterBatch());
+            Entry entry = new Entry(this, policy, !policy.commitAfterBatch());
             if (!policy.commitAfterBatch()) {
                 if (readyTransport == null) {
                     readyTransport = lifecycle.readyBatch().get();
                 }
-                operation.transport(readyTransport, operations.size());
+                entry.transport(readyTransport, entries.size());
                 if (lifecycle.awaitBeforeResultPublication().getAsBoolean()) {
-                    Invocation.awaitBeforeResultPublication(message, operation);
+                    Invocation.awaitBeforeResultPublication(message, entry.completion());
                 }
             }
-            operations.add(operation);
-            return operation;
+            entries.add(entry);
+            return entry;
         }
 
         private void close(Throwable failure) {
-            List<Operation> snapshot;
+            List<Entry> snapshot;
             synchronized (this) {
                 closed = true;
-                snapshot = List.copyOf(operations);
+                snapshot = List.copyOf(entries);
             }
             if (failure != null) {
                 settleTransport(failure);
-                snapshot.forEach(operation -> operation.fail(failure));
+                snapshot.forEach(entry -> entry.fail(failure));
                 return;
             }
             settleTransport(null);
             if (snapshot.isEmpty()) {
                 return;
             }
-            List<Operation> deferred = snapshot.stream()
-                    .filter(operation -> operation.policy().commitAfterBatch()).toList();
+            List<Entry> deferred = snapshot.stream()
+                    .filter(entry -> entry.policy().commitAfterBatch()).toList();
             if (!deferred.isEmpty()) {
                 CompletableFuture.allOf(deferred.stream()
-                                .map(Operation::initialization)
+                                .map(Entry::initialization)
                                 .toArray(CompletableFuture[]::new))
                         .whenComplete((ignored, initializationFailure) -> {
                             if (initializationFailure == null) {
                                 release(snapshot, deferred);
                             } else {
-                                deferred.forEach(operation -> operation.fail(initializationFailure));
+                                deferred.forEach(entry -> entry.fail(initializationFailure));
                             }
                         });
             }
             AsyncCompletionScope.register(CompletableFuture.allOf(
-                    snapshot.toArray(CompletableFuture[]::new)));
+                    snapshot.stream().map(Entry::completion)
+                            .toArray(CompletableFuture[]::new)));
         }
 
         private void release(
-                List<Operation> all,
-                List<Operation> deferred) {
-            boolean sequential = all.stream().anyMatch(operation -> !operation.policy().async());
-            Map<String, Operation> tails = new HashMap<>();
-            Operation previous = null;
-            for (Operation operation : all) {
+                List<Entry> all,
+                List<Entry> deferred) {
+            boolean sequential = all.stream().anyMatch(entry -> !entry.policy().async());
+            Map<String, Entry> tails = new HashMap<>();
+            Entry previous = null;
+            for (Entry entry : all) {
                 if (sequential && previous != null) {
-                    operation.dependsOn(previous);
+                    entry.dependsOn(previous);
                 }
-                previous = operation;
-                if (operation.modelIds() != null) {
-                    operation.modelIds().forEach(modelId -> {
-                        Operation predecessor = tails.put(modelId, operation);
+                previous = entry;
+                if (entry.modelIds() != null) {
+                    entry.modelIds().forEach(modelId -> {
+                        Entry predecessor = tails.put(modelId, entry);
                         if (predecessor != null) {
-                            operation.dependsOn(predecessor);
+                            entry.dependsOn(predecessor);
                         }
                     });
                 }
             }
             ModelCommitBatchingClient.ModelCommitBatch transport = deferred.stream()
-                    .allMatch(operation -> operation.policy().async())
+                    .allMatch(entry -> entry.policy().async())
                     ? lifecycle.batch().apply(deferred.size()) : null;
             for (int index = 0; index < deferred.size(); index++) {
                 deferred.get(index).transport(transport, index);
             }
-            deferred.forEach(Operation::release);
+            deferred.forEach(Entry::release);
         }
 
         private synchronized void settleTransport(Throwable failure) {
@@ -540,8 +647,8 @@ public final class ModelBatchScope {
         }
     }
 
-    static class Operation extends CompletableFuture<Object> {
-        private final Set<Operation> dependencies = ConcurrentHashMap.newKeySet();
+    private static final class Entry extends CompletableFuture<Object> {
+        private final Set<Entry> dependencies = ConcurrentHashMap.newKeySet();
         private final CompletableFuture<Void> initialized = new CompletableFuture<>();
         private final CompletableFuture<Void> release = new CompletableFuture<>();
         private final AtomicBoolean arrived = new AtomicBoolean();
@@ -551,11 +658,11 @@ public final class ModelBatchScope {
         private volatile ModelCommitBatchingClient.ModelCommitBatch transport;
         private volatile int slot = -1;
 
-        Operation() {
+        Entry() {
             this(null, null, true);
         }
 
-        private Operation(Batch batch, ModelCommitPolicy policy, boolean released) {
+        private Entry(Batch batch, ModelCommitPolicy policy, boolean released) {
             this.batch = batch;
             this.policy = policy;
             if (batch == null) {
@@ -566,7 +673,7 @@ public final class ModelBatchScope {
             }
         }
 
-        void dependsOn(Operation producer) {
+        void dependsOn(Entry producer) {
             if (producer != this) {
                 dependencies.add(producer);
             }
@@ -584,7 +691,7 @@ public final class ModelBatchScope {
         <T> CompletableFuture<T> executeAfterRelease(
                 Function<Boolean, CompletableFuture<T>> action) {
             if (!arrived.compareAndSet(false, true)) {
-                throw new IllegalStateException("Model commit operation was awaited twice");
+                throw new IllegalStateException("Model commit entry was awaited twice");
             }
             return release.thenCompose(ignored -> {
                 boolean dependent = !dependencies.isEmpty();
@@ -593,11 +700,12 @@ public final class ModelBatchScope {
                 }
                 CompletableFuture<Void> predecessors = dependent
                                 ? CompletableFuture.allOf(dependencies.stream()
+                                .map(Entry::completion)
                                 .toArray(CompletableFuture[]::new))
                         : CompletableFuture.completedFuture(null);
                 return predecessors.thenCompose(unused ->
                         Objects.requireNonNull(action.apply(dependent),
-                                               "Model commit operation returned null"));
+                                               "Model commit entry returned null"));
             }).whenComplete((ignored, failure) -> settleTransport());
         }
 
@@ -616,6 +724,10 @@ public final class ModelBatchScope {
             initialized.completeExceptionally(failure);
             release.completeExceptionally(failure);
             settleTransport();
+        }
+
+        CompletableFuture<Object> completion() {
+            return this;
         }
 
         void release() {
@@ -657,7 +769,7 @@ public final class ModelBatchScope {
             return modelIds;
         }
 
-        boolean hasBatchDependencies() {
+        boolean hasDependencies() {
             return !dependencies.isEmpty();
         }
 
@@ -668,6 +780,7 @@ public final class ModelBatchScope {
         CompletableFuture<Void> dependencyCompletion() {
             return dependencies.isEmpty() ? CompletableFuture.completedFuture(null)
                     : CompletableFuture.allOf(dependencies.stream()
+                            .map(Entry::completion)
                             .toArray(CompletableFuture[]::new));
         }
 
@@ -698,7 +811,7 @@ public final class ModelBatchScope {
             boolean existedBefore,
             int position,
             int segment,
-            Operation producer) {
+            Entry producer) {
         private Candidate asAlias(Object aliasValue, boolean aliasAvailable) {
             return new Candidate(
                     modelId, modelType, aliasValue, aliasAvailable, false,

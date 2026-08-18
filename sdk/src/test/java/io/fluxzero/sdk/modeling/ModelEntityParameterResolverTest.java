@@ -801,8 +801,7 @@ class ModelEntityParameterResolverTest {
                                                     java.util.Map.of(
                                                             departmentId
                                                                     .toString(),
-                                                            after)),
-                                            null);
+                                                            after)));
                                     return;
                                 }
                                 result.set(resolve(

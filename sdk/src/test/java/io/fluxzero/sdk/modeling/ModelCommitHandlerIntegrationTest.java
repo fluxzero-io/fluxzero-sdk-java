@@ -1850,8 +1850,7 @@ class ModelCommitHandlerIntegrationTest {
                                                                     0L, null, before, after, null,
                                                                     null, false)))),
                                                     java.util.Map.of(
-                                                            firstChildId.toString(), after)),
-                                            null);
+                                                            firstChildId.toString(), after)));
                                     return;
                                 }
 
@@ -1961,8 +1960,7 @@ class ModelCommitHandlerIntegrationTest {
                                                                             null, false)))),
                                                     java.util.Map.of(
                                                             rootId.toString(), root,
-                                                            childId.toString(), child)),
-                                            null);
+                                                            childId.toString(), child)));
                                     return;
                                 }
                                 Graph<FamilyRoot> graph =
@@ -2027,8 +2025,7 @@ class ModelCommitHandlerIntegrationTest {
                                                                     null, null, null, false)))),
                                                     Collections.singletonMap(
                                                             rootId.toString(),
-                                                            null)),
-                                            null);
+                                                            null)));
                                     return;
                                 }
                                 Graph<FamilyRoot> currentGraph =

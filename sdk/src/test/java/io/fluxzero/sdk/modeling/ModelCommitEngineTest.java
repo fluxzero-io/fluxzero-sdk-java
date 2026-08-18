@@ -524,7 +524,7 @@ class ModelCommitEngineTest {
 
         DeserializingMessage deletionEvent =
                 result.substeps().getFirst().message();
-        ModelExecutionPlan.CommitEvaluation rebased = compiler.rebase(
+        ModelExecutionPlan.CommitEvaluation rebased = compiler.execute(
                 List.of(
                         result.substeps().getFirst().message(),
                         ModelExecutionPlan.graphChangeReplay(
@@ -534,7 +534,7 @@ class ModelCommitEngineTest {
                                         .filter(transition -> transition.modelId()
                                                 .equals(inventoryId.toString()))
                                         .findFirst().orElseThrow().stagedReplay())),
-                resolver);
+                resolver, ModelExecutionPlan.ExecutionMode.REPLAY);
 
         assertEquals(2, rebased.substeps().size());
         assertEquals(1, rebased.substeps().getFirst().transitions().size());
@@ -570,13 +570,14 @@ class ModelCommitEngineTest {
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));
         DeserializingMessage event = result.substeps().getFirst().message();
-        ModelExecutionPlan.CommitEvaluation rebased = compiler.rebase(
+        ModelExecutionPlan.CommitEvaluation rebased = compiler.execute(
                 List.of(event, ModelExecutionPlan.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
                         graphTransition.stagedReplay())),
                 graphResolver(
                         88L, Map.of(orderId.toString(), order,
-                                    inventoryId.toString(), concurrent)));
+                                    inventoryId.toString(), concurrent)),
+                ModelExecutionPlan.ExecutionMode.REPLAY);
 
         assertEquals(11, ((Inventory) rebased.finalValues()
                 .get(inventoryId.toString())).available());
@@ -613,13 +614,14 @@ class ModelCommitEngineTest {
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));
         DeserializingMessage event = result.substeps().getFirst().message();
-        ModelExecutionPlan.CommitEvaluation rebased = compiler.rebase(
+        ModelExecutionPlan.CommitEvaluation rebased = compiler.execute(
                 List.of(event, ModelExecutionPlan.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
                         combined.stagedReplay())),
                 graphResolver(
                         88L, Map.of(orderId.toString(), order,
-                                    inventoryId.toString(), concurrent)));
+                                    inventoryId.toString(), concurrent)),
+                ModelExecutionPlan.ExecutionMode.REPLAY);
 
         assertEquals(12, ((Inventory) rebased.finalValues()
                 .get(inventoryId.toString())).available());
@@ -718,10 +720,11 @@ class ModelCommitEngineTest {
         Entity<Order> order = entity(id, new Order(id, "pending"));
         ModelCommitContext begin = context(command, handlers, order);
 
-        compiler.assertLegal(
+        compiler.execute(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
-                        new ModelExecutionPlan.ResolvedSubstep(begin, compiler.compileHandlers(handlers)));
+                        new ModelExecutionPlan.ResolvedSubstep(begin, compiler.compileHandlers(handlers)),
+                ModelExecutionPlan.ExecutionMode.ASSERT);
 
         assertEquals(
                 List.of("before-high-pending", "before-low-pending"),
@@ -741,10 +744,11 @@ class ModelCommitEngineTest {
                 id, new ReceiverOrder(id, "initial"));
         ModelCommitContext begin = context(command, handlers, order);
 
-        compiler.assertLegal(
+        compiler.execute(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
-                        new ModelExecutionPlan.ResolvedSubstep(begin, compiler.compileHandlers(handlers)));
+                        new ModelExecutionPlan.ResolvedSubstep(begin, compiler.compileHandlers(handlers)),
+                ModelExecutionPlan.ExecutionMode.ASSERT);
 
         assertEquals(
                 List.of("intercept-initial", "assert-initial"),

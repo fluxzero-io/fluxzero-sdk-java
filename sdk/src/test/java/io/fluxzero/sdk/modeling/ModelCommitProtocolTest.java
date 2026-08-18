@@ -237,9 +237,9 @@ class ModelCommitProtocolTest {
             return CompletableFuture.completedFuture(result(request));
         });
 
-        var accepted = ModelCommitHandlerRegistry.commit(
+        var accepted = ModelPipeline.commit(
                 protocol, "standalone-rebase", original, ModelConflictPolicy.ACCEPT,
-                ModelCommitHandlerRegistry.Retry.accepting((result, current, prepared) -> {
+                ModelPipeline.Retry.accepting((result, current, prepared) -> {
                     assertEquals(51L, result.getRebaseStateIndex());
                     assertEquals(1, prepared.rebaseMessages().size());
                     return CompletableFuture.completedFuture(rebased);
@@ -593,10 +593,10 @@ class ModelCommitProtocolTest {
         });
         AtomicInteger reloads = new AtomicInteger();
 
-        var result = ModelCommitHandlerRegistry.commit(
+        var result = ModelPipeline.commit(
                 protocol, "commit-1", firstEvaluation,
                 ModelConflictPolicy.RETRY,
-                ModelCommitHandlerRegistry.Retry.conflicts(
+                ModelPipeline.Retry.conflicts(
                         ModelConflictResolver.retryIfAllowed(), 1,
                         (conflict, current, original) -> {
                     reloads.incrementAndGet();
@@ -638,10 +638,10 @@ class ModelCommitProtocolTest {
         });
         AtomicInteger reloads = new AtomicInteger();
 
-        CompletionException bounded = assertThrows(CompletionException.class, () -> ModelCommitHandlerRegistry.commit(
+        CompletionException bounded = assertThrows(CompletionException.class, () -> ModelPipeline.commit(
                 protocol, "commit-1", evaluation,
                 ModelConflictPolicy.RETRY,
-                ModelCommitHandlerRegistry.Retry.conflicts(
+                ModelPipeline.Retry.conflicts(
                         ModelConflictResolver.retryIfAllowed(), 1,
                         (conflict, current, original) -> {
                     reloads.incrementAndGet();
@@ -653,9 +653,9 @@ class ModelCommitProtocolTest {
         verify(eventStoreClient, times(2)).commitModels(any());
 
         IllegalStateException applicationError = new IllegalStateException("try again later");
-        CompletionException mapped = assertThrows(CompletionException.class, () -> ModelCommitHandlerRegistry.commit(
+        CompletionException mapped = assertThrows(CompletionException.class, () -> ModelPipeline.commit(
                 protocol, "commit-2", evaluation, ModelConflictPolicy.FAIL,
-                ModelCommitHandlerRegistry.Retry.conflicts(
+                ModelPipeline.Retry.conflicts(
                         ignored -> {
                             throw applicationError;
                         }, 0,
@@ -941,9 +941,9 @@ class ModelCommitProtocolTest {
                             result(request));
                 });
 
-        var accepted = ModelCommitHandlerRegistry.commit(
+        var accepted = ModelPipeline.commit(
                 protocol, "commit-rebase", original, ModelConflictPolicy.ACCEPT,
-                ModelCommitHandlerRegistry.Retry.accepting((result, current, prepared) -> {
+                ModelPipeline.Retry.accepting((result, current, prepared) -> {
                     assertEquals(51L, result.getRebaseStateIndex());
                     assertEquals(1, prepared.rebaseMessages().size());
                     return CompletableFuture.completedFuture(
@@ -1027,10 +1027,10 @@ class ModelCommitProtocolTest {
         Fluxzero.instance.set(
                 expectedContext);
         try {
-            completion = ModelCommitHandlerRegistry.commit(
+            completion = ModelPipeline.commit(
                             protocol, "callback-rebase", original,
                             ModelConflictPolicy.ACCEPT,
-                            ModelCommitHandlerRegistry.Retry.accepting((result, current, prepared) -> {
+                            ModelPipeline.Retry.accepting((result, current, prepared) -> {
                                 assertSame(
                                         expectedContext,
                                         Fluxzero.instance.get());

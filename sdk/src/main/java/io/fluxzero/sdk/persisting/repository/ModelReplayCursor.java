@@ -1303,8 +1303,8 @@ final class ModelReplayCursor {
                 DeserializingMessage replayEvent = plan.direct()
                         ? event : new DeserializingMessage(
                                 event.toMessage(), EVENT, null, serializer);
-                return modelExecution.replay(
-                        replayEvent, context, plan, target.modelId());
+                return plan.replay(
+                        replayEvent, context, target.modelId());
             } catch (Throwable failure) {
                 throw new EventSourcingException(
                         "Failed to apply model event at state %d to %s"

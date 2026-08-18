@@ -127,8 +127,7 @@ class ModelCommitHandlerRegistryTest {
         stubModelLoads(repository);
         ModelCommitHandlerRegistry subject =
                 subject(repository, eventStoreClient);
-        Logger logger = (Logger) LoggerFactory.getLogger(
-                ModelCommitHandlerRegistry.class);
+        Logger logger = (Logger) LoggerFactory.getLogger(ModelPipeline.class);
         ListAppender<ILoggingEvent> appender =
                 new ListAppender<>();
         appender.start();
@@ -1305,13 +1304,13 @@ class ModelCommitHandlerRegistryTest {
                 subject(
                         AutomaticModelHandling.ENABLED,
                         GraphProjectionCompletion.ASYNC)
-                        .awaitedGraphProjections(
+                        .pipeline().awaitedGraphProjections(
                                 evaluation(inherited)));
         assertTrue(
                 subject(
                         AutomaticModelHandling.ENABLED,
                         GraphProjectionCompletion.AWAIT)
-                        .awaitedGraphProjections(
+                        .pipeline().awaitedGraphProjections(
                                 evaluation(asynchronous))
                         .isEmpty());
         assertEquals(
@@ -1319,7 +1318,7 @@ class ModelCommitHandlerRegistryTest {
                 subject(
                         AutomaticModelHandling.ENABLED,
                         GraphProjectionCompletion.AWAIT)
-                        .awaitedGraphProjections(
+                        .pipeline().awaitedGraphProjections(
                                 evaluation(
                                         transition(
                                                 DefaultProjectionRoot.class,
@@ -1347,7 +1346,7 @@ class ModelCommitHandlerRegistryTest {
                 subject(
                         AutomaticModelHandling.ENABLED,
                         GraphProjectionCompletion.ASYNC)
-                        .awaitedGraphProjections(
+                        .pipeline().awaitedGraphProjections(
                                 evaluation(cascadedDeletion)));
     }
 
@@ -1378,7 +1377,7 @@ class ModelCommitHandlerRegistryTest {
                         "awaited-graphs",
                         java.util.Set.of(
                                 "shared-child")),
-                subject.awaitedGraphProjectionTargets(
+                subject.pipeline().awaitedGraphProjectionTargets(
                         evaluation(
                                 asynchronous,
                                 awaiting)));
@@ -1405,7 +1404,7 @@ class ModelCommitHandlerRegistryTest {
                             GraphProjectionCompletion.ASYNC);
             assertEquals(
                     java.util.Set.of("async-graphs"),
-                    subject.awaitedGraphProjections(
+                    subject.pipeline().awaitedGraphProjections(
                             evaluation(
                                     transition(
                                             AsyncProjectionRoot.class,
@@ -1413,7 +1412,7 @@ class ModelCommitHandlerRegistryTest {
                                                     .getDeclaredMethod(
                                                             "inherit")))));
             assertTrue(
-                    subject.awaitedGraphProjections(
+                    subject.pipeline().awaitedGraphProjections(
                             evaluation(
                                     transition(
                                             AsyncProjectionRoot.class,

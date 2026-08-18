@@ -78,7 +78,7 @@ class ModelBatchScopeTest {
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("success")), current -> {
-                    ModelBatchScope.Operation stage = stage(
+                    CompletableFuture<Object> stage = stagePending(
                             null, evaluation(current, before, after));
                     assertEquals(after,
                                  ModelBatchScope.overlayCurrent(
@@ -90,7 +90,7 @@ class ModelBatchScopeTest {
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("failure")), current -> {
-                    ModelBatchScope.Operation stage = stage(
+                    CompletableFuture<Object> stage = stagePending(
                             null, evaluation(current, before, after));
                     stage.completeExceptionally(
                             new IllegalStateException("boom"));
@@ -100,33 +100,25 @@ class ModelBatchScopeTest {
     }
 
     @Test
-    void pendingReadsRegisterTheirProducerAndNeverReadTheirOwnSpeculation() {
+    void pendingReadsNeverReadTheirOwnSpeculation() {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);
         Entity<AliasModel> durable = entity(before);
-        ModelBatchScope.Operation producer = new ModelBatchScope.Operation();
-        ModelBatchScope.Operation consumer = new ModelBatchScope.Operation();
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        ModelBatchScope.stage(
-                                null, evaluation(current, before, after), producer);
+                        stagePending(null, evaluation(current, before, after));
                         ModelBatchScope.withMessageDependency(current, () -> {
                             assertSame(durable, ModelBatchScope.overlayCurrent(
                                     null, "model-1", AliasModel.class, durable));
                             return null;
                         });
                     } else {
-                        ModelBatchScope.withDependency(consumer, () -> {
-                            assertEquals(after, ModelBatchScope.overlayCurrent(
-                                    null, "model-1", AliasModel.class, durable).get());
-                            return null;
-                        });
+                        assertEquals(after, ModelBatchScope.overlayCurrent(
+                                null, "model-1", AliasModel.class, durable).get());
                     }
                 });
-
-        assertEquals(1, consumer.dependencyCount());
     }
 
     @Test
@@ -134,15 +126,15 @@ class ModelBatchScopeTest {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);
         Entity<AliasModel> durable = entity(before);
-        ModelBatchScope.Operation producer = new ModelBatchScope.Operation();
+        AtomicReference<CompletableFuture<Object>> producer = new AtomicReference<>();
         AtomicReference<CompletableFuture<Void>> barrier =
                 new AtomicReference<>();
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        ModelBatchScope.stage(
-                                null, evaluation(current, before, after), producer);
+                        producer.set(stagePending(
+                                null, evaluation(current, before, after)));
                     } else {
                         assertEquals(after, ModelBatchScope.overlayCurrent(
                                 null, "model-1", AliasModel.class, durable).get());
@@ -151,7 +143,7 @@ class ModelBatchScopeTest {
                     }
                 });
 
-        producer.complete(null);
+        producer.get().complete(null);
         barrier.get().join();
         assertTrue(barrier.get().isDone());
     }
@@ -313,12 +305,16 @@ class ModelBatchScopeTest {
         return evaluation(message, before.id(), before, after);
     }
 
-    private static ModelBatchScope.Operation stage(
+    private static void stage(
             String namespace,
             ModelExecutionPlan.CommitEvaluation evaluation) {
-        ModelBatchScope.Operation result = new ModelBatchScope.Operation();
-        ModelBatchScope.stage(namespace, evaluation, result);
-        return result;
+        ModelBatchScope.stage(namespace, evaluation);
+    }
+
+    private static CompletableFuture<Object> stagePending(
+            String namespace,
+            ModelExecutionPlan.CommitEvaluation evaluation) {
+        return ModelBatchScope.stagePending(namespace, evaluation);
     }
 
     private static ModelExecutionPlan.CommitEvaluation evaluation(
