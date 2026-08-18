@@ -143,7 +143,7 @@ public record ModelCommitContext(
 
     Entity<?> resolve(Class<?> modelType, String sourceProperty) {
         String entityIdProperty = Objects.requireNonNull(
-                ModelMetadata.of(modelType).entityIdName(),
+                EntityMetadata.of(modelType).entityIdName(),
                 () -> modelType.getName() + " has no @EntityId");
         Entity<?> candidate = null;
         Entity<?> secondCandidate = null;
@@ -235,7 +235,7 @@ public record ModelCommitContext(
                             .id(entry.entity().id())
                             .type(modelType)
                             .value(value)
-                            .idProperty(ModelMetadata.of(entry.target().modelType()).entityIdName())
+                            .idProperty(EntityMetadata.of(entry.target().modelType()).entityIdName())
                             .build();
             updated.add(new Entry(entry.target(), entity));
         }

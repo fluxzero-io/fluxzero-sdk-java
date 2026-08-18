@@ -78,7 +78,7 @@ public class ModelEntityParameterResolver
         return plan.hasModels()
                && (ReflectionUtils.getMethodAnnotation(
                         method, HandleMessage.class).isPresent()
-                   || ModelMetadata.of(method.getDeclaringClass())
+                   || EntityMetadata.of(method.getDeclaringClass())
                         .handlerMethods().stream()
                         .anyMatch(handler ->
                                 handler.executable().equals(method)));
@@ -90,7 +90,7 @@ public class ModelEntityParameterResolver
             Annotation methodAnnotation) {
         HandlerPlan plan =
                 plan(parameter.getDeclaringExecutable());
-        ModelMetadata.ModelParameter modelParameter =
+        EntityMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
         return modelParameter == null ? null
                 : input -> argument(parameter, modelParameter, input, plan);
@@ -103,7 +103,7 @@ public class ModelEntityParameterResolver
             Object input) {
         HandlerPlan plan =
                 plan(parameter.getDeclaringExecutable());
-        ModelMetadata.ModelParameter modelParameter =
+        EntityMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
             return false;
@@ -119,7 +119,7 @@ public class ModelEntityParameterResolver
                     Object input) {
         HandlerPlan plan =
                 plan(parameter.getDeclaringExecutable());
-        ModelMetadata.ModelParameter modelParameter =
+        EntityMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
             return null;
@@ -133,7 +133,7 @@ public class ModelEntityParameterResolver
 
     private static boolean canResolve(
             Parameter parameter,
-            ModelMetadata.ModelParameter modelParameter,
+            EntityMetadata.ModelParameter modelParameter,
             Object input,
             HandlerPlan plan) {
         if (suppliesGraph(parameter)) {
@@ -174,7 +174,7 @@ public class ModelEntityParameterResolver
 
     private static Object argument(
             Parameter parameter,
-            ModelMetadata.ModelParameter modelParameter,
+            EntityMetadata.ModelParameter modelParameter,
             Object input,
             HandlerPlan plan) {
         if (suppliesGraph(parameter)) {
@@ -446,7 +446,7 @@ public class ModelEntityParameterResolver
                 return null;
             }
             Parameter parameter = method.getParameters()[0];
-            ModelMetadata.ModelParameter model = ModelMetadata
+            EntityMetadata.ModelParameter model = EntityMetadata
                     .inspectModelParameter(parameter).orElse(null);
             return model != null
                    && model.graphWrapped()
@@ -471,7 +471,7 @@ public class ModelEntityParameterResolver
 
     private static Object value(
             Parameter parameter,
-            ModelMetadata.ModelParameter modelParameter,
+            EntityMetadata.ModelParameter modelParameter,
             Entity<?> entity,
             Object input,
             HandlerPlan plan) {
@@ -514,7 +514,7 @@ public class ModelEntityParameterResolver
 
     private static List<Graph<?>> collectionValue(
             Parameter parameter,
-            ModelMetadata.ModelParameter modelParameter,
+            EntityMetadata.ModelParameter modelParameter,
             Object input,
             HandlerPlan plan) {
         ModelTargetResolver.DirectReferences references = directReferences(input, modelParameter);
@@ -554,7 +554,7 @@ public class ModelEntityParameterResolver
     private static Entity<?> resolveEntity(
             Object input,
             HandlerPlan plan,
-            ModelMetadata.ModelParameter parameter) {
+            EntityMetadata.ModelParameter parameter) {
         Optional<ModelCommitContext> commitContext =
                 commitContext(input);
         if (commitContext.isPresent()) {
@@ -571,7 +571,7 @@ public class ModelEntityParameterResolver
 
     private static boolean nullDirectReference(
             Object input,
-            ModelMetadata.ModelParameter parameter) {
+            EntityMetadata.ModelParameter parameter) {
         if (parameter.collectionWrapped()) {
             return false;
         }
@@ -587,7 +587,7 @@ public class ModelEntityParameterResolver
 
     private static ModelTargetResolver.DirectReferences directReferences(
             Object input,
-            ModelMetadata.ModelParameter parameter) {
+            EntityMetadata.ModelParameter parameter) {
         DeserializingMessage message = input instanceof DeserializingMessage direct
                 ? direct : DeserializingMessage.getOptionally().orElse(null);
         if (message == null) {
@@ -599,7 +599,7 @@ public class ModelEntityParameterResolver
 
     private static ModelTargetResolver.DirectReferences computeDirectReferences(
             DeserializingMessage message,
-            ModelMetadata.ModelParameter parameter) {
+            EntityMetadata.ModelParameter parameter) {
         return ModelTargetResolver.directReferences(message, parameter);
     }
 
@@ -680,17 +680,17 @@ public class ModelEntityParameterResolver
 
     private record HandlerPlan(
             Executable executable,
-            Map<Parameter, ModelMetadata.ModelParameter>
+            Map<Parameter, EntityMetadata.ModelParameter>
                     parameters) {
 
         private static HandlerPlan inspect(
                 Executable executable) {
             LinkedHashMap<Parameter,
-                    ModelMetadata.ModelParameter> parameters =
+                    EntityMetadata.ModelParameter> parameters =
                     new LinkedHashMap<>();
             for (Parameter parameter :
                     executable.getParameters()) {
-                ModelMetadata
+                EntityMetadata
                         .inspectModelParameter(parameter)
                         .ifPresent(modelParameter ->
                                            parameters.put(
@@ -719,7 +719,7 @@ public class ModelEntityParameterResolver
 
     private static ModelTargetResolver.DirectReferences directReference(
             DeserializingMessage message,
-            ModelMetadata.ModelParameter parameter) {
+            EntityMetadata.ModelParameter parameter) {
         return ModelTargetResolver.directReferences(message, parameter);
     }
 
@@ -769,7 +769,7 @@ public class ModelEntityParameterResolver
         private final Map<Executable,
                 Optional<ResolvedHandlerPlan>> plans =
                 new ConcurrentHashMap<>();
-        private final Map<ModelMetadata.ModelParameter,
+        private final Map<EntityMetadata.ModelParameter,
                 ModelTargetResolver.DirectReferences> collectionReferences =
                 new ConcurrentHashMap<>();
     }

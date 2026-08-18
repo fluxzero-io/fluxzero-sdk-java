@@ -248,9 +248,9 @@ class GraphTest {
                 new ChildId("newer-parent"), rootValue.id(), "newer");
         ScopedLeaf older = new ScopedLeaf("shared", olderParent.id());
         ScopedLeaf newer = new ScopedLeaf("shared", newerParent.id());
-        String olderId = ModelMetadata.of(ScopedLeaf.class)
+        String olderId = EntityMetadata.of(ScopedLeaf.class)
                 .repositoryId("shared", olderParent.id(), Child.class);
-        String newerId = ModelMetadata.of(ScopedLeaf.class)
+        String newerId = EntityMetadata.of(ScopedLeaf.class)
                 .repositoryId("shared", newerParent.id(), Child.class);
         Graph<Root> graph = Graphs.compose(
                 rootValue.id().toString(), 21L,
@@ -546,7 +546,7 @@ class GraphTest {
     void parentScopedIdentityGraphDoesNotLoadItsSourceToResolveThePrimaryId() {
         ModelRepository repository = mock(ModelRepository.class);
         RootId rootId = new RootId("scoped");
-        String primaryId = ModelMetadata.of(ScopedChild.class)
+        String primaryId = EntityMetadata.of(ScopedChild.class)
                 .repositoryId("child", rootId, Root.class);
         ScopedChild value = new ScopedChild("child", rootId);
         Entity<ScopedChild> entity = entity(primaryId, ScopedChild.class, value);

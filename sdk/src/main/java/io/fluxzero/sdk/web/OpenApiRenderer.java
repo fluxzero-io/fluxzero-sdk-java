@@ -22,7 +22,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProperty;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -513,7 +513,7 @@ public final class OpenApiRenderer {
     private static ObjectNode modelGraphSchema(Type rootType, List<String> selectedPaths,
                                                SchemaContext schemaContext) {
         Class<?> root = rawClass(rootType);
-        if (root == null || !ModelMetadata.of(root).isModel()) {
+        if (root == null || !EntityMetadata.of(root).isModel()) {
             throw new IllegalArgumentException(
                     "@ApiDocResponse.modelGraph must refer to an @Model type, but found " + rootType);
         }
@@ -555,9 +555,9 @@ public final class OpenApiRenderer {
         try {
             Map<String, List<ModelGraphRelation>> byPath = new LinkedHashMap<>();
             schemaContext.modelTypes.stream().distinct()
-                    .filter(type -> ModelMetadata.of(type).isModel())
-                    .forEach(childType -> ModelMetadata.of(childType).parentReferences().stream()
-                            .filter(ModelMetadata.ParentReference::automaticallyComposed)
+                    .filter(type -> EntityMetadata.of(type).isModel())
+                    .forEach(childType -> EntityMetadata.of(childType).parentReferences().stream()
+                            .filter(EntityMetadata.ParentReference::automaticallyComposed)
                             .filter(parent -> parent.parentModelTypes().contains(parentType))
                             .filter(parent -> !metadata(parent.apiDoc()).hidden())
                             .forEach(parent -> byPath.computeIfAbsent(parent.path(), ignored -> new ArrayList<>())

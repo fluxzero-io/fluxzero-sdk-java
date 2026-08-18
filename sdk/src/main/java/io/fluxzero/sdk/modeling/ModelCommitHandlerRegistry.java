@@ -201,7 +201,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     @Override
     public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
         Class<?> targetType = ReflectionUtils.asClass(target);
-        if (!ModelMetadata.of(targetType).isModel()) {
+        if (!EntityMetadata.of(targetType).isModel()) {
             return Registration.noOp();
         }
         registeredModelTypes.addIfAbsent(targetType);
@@ -217,12 +217,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     @Override
     public List<?> trackingTargets(Object target, HandlerFilter handlerFilter) {
         Class<?> targetType = ReflectionUtils.asClass(target);
-        if (!ModelMetadata.of(targetType).isModel()) {
+        if (!EntityMetadata.of(targetType).isModel()) {
             return List.of(target);
         }
-        LinkedHashSet<Class<?>> payloadTypes = ModelMetadata.of(targetType)
+        LinkedHashSet<Class<?>> payloadTypes = EntityMetadata.of(targetType)
                 .handlerMethods().stream()
-                .filter(handler -> handler.kind() != ModelMetadata.HandlerKind.ASSERT_LEGAL)
+                .filter(handler -> handler.kind() != EntityMetadata.HandlerKind.ASSERT_LEGAL)
                 .filter(handler -> handlerFilter.test(
                         handler.executable().getDeclaringClass(), handler.executable()))
                 .flatMap(handler -> commandPayloadTypes(handler).stream())
@@ -230,7 +230,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return payloadTypes.isEmpty() ? List.of(target) : List.copyOf(payloadTypes);
     }
 
-    private static List<Class<?>> commandPayloadTypes(ModelMetadata.HandlerMethod handler) {
+    private static List<Class<?>> commandPayloadTypes(EntityMetadata.HandlerMethod handler) {
         return Stream.of(handler.executable().getParameters())
                 .filter(parameter -> handler.modelParameters().stream()
                         .noneMatch(model -> model.parameter().equals(parameter)))
@@ -245,7 +245,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             HandlerFilter handlerFilter,
             List<HandlerInterceptor> extraInterceptors) {
         Class<?> targetType = ReflectionUtils.asClass(target);
-        if (ModelMetadata.of(targetType).isModel()) {
+        if (EntityMetadata.of(targetType).isModel()) {
             return Optional.empty();
         }
         ModelExecutionPlan plan = planFor(targetType);
@@ -286,9 +286,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private ModelExecutionPlan compilePlan(Class<?> payloadType) {
-        List<ModelMetadata.HandlerMethod> handlers = inspectHandlers(payloadType);
-        List<ModelMetadata.HandlerMethod> applies = handlers.stream()
-                .filter(handler -> handler.kind() == ModelMetadata.HandlerKind.APPLY).toList();
+        List<EntityMetadata.HandlerMethod> handlers = inspectHandlers(payloadType);
+        List<EntityMetadata.HandlerMethod> applies = handlers.stream()
+                .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
         applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
                 .forEach(knownModelTypes::addIfAbsent);
         ModelExecutionPlan.DirectSingleTargetApply direct =
@@ -310,15 +310,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         recentPlan = null;
     }
 
-    private List<ModelMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType) {
-        LinkedHashSet<ModelMetadata.HandlerMethod> result =
-                new LinkedHashSet<>(ModelMetadata.of(payloadType).handlerMethods());
+    private List<EntityMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType) {
+        LinkedHashSet<EntityMetadata.HandlerMethod> result =
+                new LinkedHashSet<>(EntityMetadata.of(payloadType).handlerMethods());
         LinkedHashSet<Class<?>> receiverTypes =
                 new LinkedHashSet<>(ModelTargetResolver.referencedModelTypes(payloadType));
         receiverTypes.addAll(registeredModelTypes);
         for (Class<?> receiverType : receiverTypes) {
-            ModelMetadata.of(receiverType).handlerMethods().stream()
-                    .filter(handler -> ModelMetadata.acceptsPayload(handler, payloadType))
+            EntityMetadata.of(receiverType).handlerMethods().stream()
+                    .filter(handler -> EntityMetadata.acceptsPayload(handler, payloadType))
                     .forEach(result::add);
         }
         return List.copyOf(result);
@@ -332,8 +332,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             boolean commit = false;
             boolean automatic = true;
             LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>();
-            for (ModelMetadata.HandlerMethod handler : inspectHandlers(payloadType)) {
-                if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
+            for (EntityMetadata.HandlerMethod handler : inspectHandlers(payloadType)) {
+                if (handler.kind() == EntityMetadata.HandlerKind.APPLY) {
                     commit |= handler.hasApplyResult();
                     if (handler.hasApplyResult()) {
                         automatic &= automaticHandlingEnabled(handler);
@@ -342,10 +342,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         policies.add(ModelCommitPolicy.SYNC_AFTER_HANDLER);
                     }
                     handler.targetModelTypes().stream()
-                            .map(ModelMetadata::of).map(ModelMetadata::model).flatMap(Optional::stream)
+                            .map(EntityMetadata::of).map(EntityMetadata::model).flatMap(Optional::stream)
                             .map(Model::commitPolicy).map(ModelCommitPolicy::resolve)
                             .forEach(policies::add);
-                } else if (handler.kind() == ModelMetadata.HandlerKind.INTERCEPT_APPLY) {
+                } else if (handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY) {
                     commit |= handler.emittedPayloadTypes().isEmpty();
                     for (Class<?> emitted : handler.emittedPayloadTypes()) {
                         PlanTraits nested = inspectPlanTraits(emitted, visiting);
@@ -361,7 +361,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
     }
 
-    private boolean automaticHandlingEnabled(ModelMetadata.HandlerMethod handler) {
+    private boolean automaticHandlingEnabled(EntityMetadata.HandlerMethod handler) {
         Apply apply = handler.executable().getAnnotation(Apply.class);
         AutomaticModelHandling policy =
                 apply == null ? AutomaticModelHandling.DEFAULT : apply.automaticHandling();

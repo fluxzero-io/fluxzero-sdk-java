@@ -86,6 +86,22 @@ public class DefaultEntityHelper implements EntityHelper {
                 ReflectionUtils.getTypeAnnotation(type, Aggregate.class)).orElse(defaultAggregateAnnotation);
     }
 
+    /**
+     * Returns the shared persistence configuration for a model or aggregate root.
+     * <p>
+     * Unannotated values retain the legacy default aggregate configuration. An unknown {@link Object} root keeps the
+     * historical non-caching default used while an aggregate type is still being inferred from its first event.
+     */
+    public static EntityMetadata.RootConfiguration getRootConfiguration(Class<?> type) {
+        return EntityMetadata.of(type).rootConfiguration().orElseGet(
+                () -> EntityMetadata.RootConfiguration.aggregate(getRootAnnotation(type)));
+    }
+
+    /** Returns the legacy Aggregate defaults even when an Aggregate fallback load is attempted for a Model type. */
+    public static EntityMetadata.RootConfiguration getAggregateRootConfiguration(Class<?> type) {
+        return EntityMetadata.RootConfiguration.aggregate(getRootAnnotation(type));
+    }
+
     private final Function<Class<?>, HandlerMatcher<Object, HasMessage>> interceptMatchers;
     private final BiFunction<Class<?>, Boolean, HandlerMatcher<Object, DeserializingMessage>> applyMatchers;
     private final Function<Class<?>, HandlerMatcher<Object, MessageWithEntity>> assertLegalMatchers;
@@ -100,15 +116,27 @@ public class DefaultEntityHelper implements EntityHelper {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public DefaultEntityHelper(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
                                boolean disablePayloadValidation) {
-        this.interceptMatchers = memoize(type -> inspect(type, (List) parameterResolvers, InterceptApply.class));
+        this.interceptMatchers = memoize(type -> inspect(
+                type, executables(type, EntityMetadata.HandlerKind.INTERCEPT_APPLY), (List) parameterResolvers,
+                HandlerConfiguration.builder().methodAnnotation(InterceptApply.class).build()));
         this.applyMatchers = memoize((type, checkCompatibility) -> {
             var entityParameterResolver = new EntityParameterResolver(checkCompatibility);
             List resolvers = parameterResolvers.stream().map(r -> r instanceof EntityParameterResolver ? entityParameterResolver : r).toList();
-            return inspect(type, resolvers, applyHandlerConfiguration(checkCompatibility, entityParameterResolver));
+            return inspect(
+                    type, executables(type, EntityMetadata.HandlerKind.APPLY), resolvers,
+                    applyHandlerConfiguration(checkCompatibility, entityParameterResolver));
         });
-        this.assertLegalMatchers = memoize(type -> inspect(type, (List) parameterResolvers,
-                                                           assertLegalHandlerConfiguration()));
+        this.assertLegalMatchers = memoize(type -> inspect(
+                type, executables(type, EntityMetadata.HandlerKind.ASSERT_LEGAL), (List) parameterResolvers,
+                assertLegalHandlerConfiguration()));
         this.disablePayloadValidation = disablePayloadValidation;
+    }
+
+    private static List<Executable> executables(Class<?> type, EntityMetadata.HandlerKind kind) {
+        return EntityMetadata.of(type).handlerMethods().stream()
+                .filter(handler -> handler.kind() == kind)
+                .map(EntityMetadata.HandlerMethod::executable)
+                .toList();
     }
 
     /**
@@ -139,7 +167,7 @@ public class DefaultEntityHelper implements EntityHelper {
      * @throws IllegalStateException if the type contains a void apply targeting a model
      */
     public static void validateModelApplyMethods(Class<?> type) {
-        ModelMetadata.validate(type);
+        EntityMetadata.validate(type);
     }
 
     private static HandlerConfiguration<MessageWithEntity> assertLegalHandlerConfiguration() {

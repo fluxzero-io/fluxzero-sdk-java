@@ -41,11 +41,11 @@ import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
-import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.ModelExecutionPlan;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
@@ -631,8 +631,8 @@ final class ModelReplayCursor {
         if (!historicalBoundary
             && cacheTracker != null
             && resolution.models().stream().anyMatch(
-                    target -> ModelMetadata.validate(target.modelType())
-                            .model().orElseThrow().cached())) {
+                    target -> EntityMetadata.validate(target.modelType())
+                            .rootConfiguration().orElseThrow().cached())) {
             cacheTracker.prepare();
         }
 
@@ -649,8 +649,9 @@ final class ModelReplayCursor {
         List<ModelTargetResolver.ResolvedModel> eventTargets = new ArrayList<>();
         List<ModelTargetResolver.ResolvedModel> documentTargets = new ArrayList<>();
         for (ModelTargetResolver.ResolvedModel target : resolution.models()) {
-            Model model = ModelMetadata.validate(target.modelType()).model().orElseThrow();
-            (model.eventSourced() || historicalBoundary ? eventTargets : documentTargets).add(target);
+            EntityMetadata.RootConfiguration configuration = EntityMetadata.validate(target.modelType())
+                    .rootConfiguration().orElseThrow();
+            (configuration.eventSourced() || historicalBoundary ? eventTargets : documentTargets).add(target);
         }
 
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
@@ -676,8 +677,8 @@ final class ModelReplayCursor {
 
         boolean writesEventSourcedModel = resolution.models().stream().anyMatch(
                 target -> target.access().writes()
-                          && ModelMetadata.validate(target.modelType())
-                                  .model().orElseThrow().eventSourced());
+                          && EntityMetadata.validate(target.modelType())
+                                  .rootConfiguration().orElseThrow().eventSourced());
         List<String> documentDependencies = documentTargets.stream()
                 .filter(target -> target.access().reads())
                 .map(ModelTargetResolver.ResolvedModel::modelId)
@@ -689,14 +690,14 @@ final class ModelReplayCursor {
         Long documentCacheBoundary = !historicalBoundary
                                      && cacheTracker != null
                                      && documentTargets.stream().anyMatch(
-                target -> ModelMetadata.validate(target.modelType())
-                        .model().orElseThrow().cached())
+                target -> EntityMetadata.validate(target.modelType())
+                        .rootConfiguration().orElseThrow().cached())
                 ? cacheTracker.safeDocumentBoundary()
                 : null;
         for (ModelTargetResolver.ResolvedModel target : documentTargets) {
             Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
             loaded.put(target.modelId(), entity);
-            if (ModelMetadata.validate(target.modelType()).model().orElseThrow().cached()
+            if (EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().cached()
                 && documentCacheBoundary != null) {
                 modelCache.put(target.modelId(), entity);
             }
@@ -733,11 +734,12 @@ final class ModelReplayCursor {
 
         if (!historicalBoundary && cacheTracker != null) {
             for (ModelTargetResolver.ResolvedModel target : resolution.models()) {
-                Model model = ModelMetadata.validate(target.modelType()).model().orElseThrow();
-                if (!model.cached()) {
+                EntityMetadata.RootConfiguration configuration = EntityMetadata.validate(target.modelType())
+                        .rootConfiguration().orElseThrow();
+                if (!configuration.cached()) {
                     continue;
                 }
-                if (model.eventSourced()) {
+                if (configuration.eventSourced()) {
                     cacheTracker.loaded(target.modelId(), target.modelType(), stateIndex);
                 } else if (documentCacheBoundary != null) {
                     cacheTracker.loaded(
@@ -754,16 +756,16 @@ final class ModelReplayCursor {
             Class<?> modelType,
             ModelReadBoundary boundary,
             ModelCacheTracker cacheTracker) {
-        ModelMetadata metadata = ModelMetadata.validate(modelType);
-        Model model = metadata.model().orElseThrow();
-        if (!boundary.historical() && cacheTracker != null && model.cached()) {
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration().orElseThrow();
+        if (!boundary.historical() && cacheTracker != null && configuration.cached()) {
             ModelCacheTracker.CurrentModel current = cacheTracker.currentVersion(modelId, modelType);
             if (current != null
                 && (current.entity().isPresent() || !metadata.hasAliases())) {
                 return new EntityProjection(current.validThrough(), current.entity());
             }
         }
-        if (!model.eventSourced() && !boundary.historical()) {
+        if (!configuration.eventSourced() && !boundary.historical()) {
             Entity<?> loaded = documentReader.load(modelId, modelType);
             long stateIndex = -1L;
             if (loaded.isEmpty() && metadata.hasAliases()) {
@@ -775,7 +777,7 @@ final class ModelReplayCursor {
                     loaded = documentReader.load(resolvedId, modelType);
                 }
             }
-            if (model.cached() && cacheTracker != null) {
+            if (configuration.cached() && cacheTracker != null) {
                 Long safeBoundary = cacheTracker.safeDocumentBoundary();
                 if (safeBoundary != null
                     && (loaded.isPresent() || !metadata.hasAliases())) {
@@ -805,11 +807,11 @@ final class ModelReplayCursor {
         List<ModelTargetResolver.ResolvedModel> eventTargets = new ArrayList<>();
         List<ModelTargetResolver.ResolvedModel> documentTargets = new ArrayList<>();
         targets.forEach((modelId, modelType) -> {
-            ModelMetadata metadata = ModelMetadata.validate(modelType);
+            EntityMetadata metadata = EntityMetadata.validate(modelType);
             ModelTargetResolver.ResolvedModel target = new ModelTargetResolver.ResolvedModel(
                     modelId, modelType, ModelTargetResolver.Access.READ_ONLY,
                     List.of(metadata.entityId().orElseThrow().name()));
-            (metadata.model().orElseThrow().eventSourced()
+            (metadata.rootConfiguration().orElseThrow().eventSourced()
                     ? eventTargets : documentTargets).add(target);
         });
         if (!eventTargets.isEmpty()) {
@@ -841,7 +843,7 @@ final class ModelReplayCursor {
                     target.modelId(), target.modelType());
             if (current == null
                 || current.entity().isEmpty()
-                   && ModelMetadata.validate(target.modelType()).hasAliases()) {
+                   && EntityMetadata.validate(target.modelType()).hasAliases()) {
                 return null;
             }
             entities.put(target.modelId(), current.entity());
@@ -885,7 +887,7 @@ final class ModelReplayCursor {
             Class<?> modelType = graphModelType(stream, rootId, rootType);
             targets.add(new ModelTargetResolver.ResolvedModel(
                     stream.getModelId(), modelType, ModelTargetResolver.Access.READ_ONLY,
-                    List.of(ModelMetadata.validate(modelType).entityId().orElseThrow().name())));
+                    List.of(EntityMetadata.validate(modelType).entityId().orElseThrow().name())));
             heads.put(stream.getModelId(), stream.getHead());
         }
         LinkedHashMap<String, Entity<?>> models = reconstructProjection(
@@ -894,7 +896,7 @@ final class ModelReplayCursor {
         if (stagedRoot != null && !stagedRoot.existedBefore() && !models.containsKey(rootId)) {
             models.put(rootId, ImmutableModelRoot.builder()
                     .id(rootId).type((Class) stagedRoot.modelType())
-                    .idProperty(ModelMetadata.validate(stagedRoot.modelType())
+                    .idProperty(EntityMetadata.validate(stagedRoot.modelType())
                                         .entityId().orElseThrow().name())
                     .value(null).build());
         }
@@ -916,7 +918,8 @@ final class ModelReplayCursor {
             boolean cacheAtBoundary) {
         List<ModelTargetResolver.ResolvedModel> eventTargets = new ArrayList<>();
         List<ModelTargetResolver.ResolvedModel> documentTargets = new ArrayList<>();
-        targets.forEach(target -> (ModelMetadata.validate(target.modelType()).model().orElseThrow().eventSourced()
+        targets.forEach(target -> (EntityMetadata.validate(target.modelType())
+                .rootConfiguration().orElseThrow().eventSourced()
                 ? eventTargets : documentTargets).add(target));
         LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
         if (!eventTargets.isEmpty()) {
@@ -984,7 +987,7 @@ final class ModelReplayCursor {
                     "Graph root '%s' has stored type %s instead of %s"
                             .formatted(rootId, result.getName(), rootType.getName()));
         }
-        ModelMetadata.validate(result);
+        EntityMetadata.validate(result);
         return result;
     }
 
@@ -1010,7 +1013,7 @@ final class ModelReplayCursor {
         Entity<?> previous = root.previous();
         return previous != null ? previous : ImmutableModelRoot.builder()
                 .id(entity.id()).type((Class) entity.type())
-                .idProperty(ModelMetadata.validate(entity.type()).entityId().orElseThrow().name())
+                .idProperty(EntityMetadata.validate(entity.type()).entityId().orElseThrow().name())
                 .entityHelper(entityHelper).serializer(serializer).value(null).build();
     }
 
@@ -1061,9 +1064,9 @@ final class ModelReplayCursor {
                 if (value == null) {
                     continue;
                 }
-                ModelMetadata metadata = ModelMetadata.validate(value.getClass());
+                EntityMetadata metadata = EntityMetadata.validate(value.getClass());
                 stagedTypes.put(entry.getKey(), value.getClass());
-                for (ModelMetadata.ParentReference parent : metadata.parentReferences()) {
+                for (EntityMetadata.ParentReference parent : metadata.parentReferences()) {
                     Object parentId = parent.read(value);
                     if (parentId == null) {
                         continue;
@@ -1161,9 +1164,9 @@ final class ModelReplayCursor {
             }
             for (String modelId : candidates) {
                 Class<?> modelType = knownTypes.getOrDefault(modelId, dependency.modelType());
-                ModelMetadata.validate(modelType);
+                EntityMetadata.validate(modelType);
                 String sourceProperty = dependency.association() == null
-                        ? ModelMetadata.validate(modelType).entityId().orElseThrow().name()
+                        ? EntityMetadata.validate(modelType).entityId().orElseThrow().name()
                         : dependency.association();
                 ModelTargetResolver.merge(
                         selected, new ModelTargetResolver.ResolvedModel(
@@ -1222,7 +1225,7 @@ final class ModelReplayCursor {
                         "Could not resolve stored model type '%s' for ancestor %s"
                                 .formatted(storedType, modelId), failure);
             }
-            ModelMetadata.validate(candidate);
+            EntityMetadata.validate(candidate);
             result = result == null ? candidate
                     : compatible(result, candidate)
                             ? result.isAssignableFrom(candidate) ? candidate : result
@@ -1311,8 +1314,8 @@ final class ModelReplayCursor {
                 ModelTargetResolver.ResolvedModel resolvedTarget = state.target;
                 validateReconstruction(resolvedTarget, head, entity);
                 boolean cacheable = cacheAtBoundary && head != null && head.isHistoryComplete()
-                                    && ModelMetadata.of(resolvedTarget.modelType())
-                                            .model().orElseThrow().cached();
+                                    && EntityMetadata.of(resolvedTarget.modelType())
+                                            .rootConfiguration().orElseThrow().cached();
                 if (cacheable) {
                     cacheCandidates.put(resolvedTarget.modelId(), entity);
                 } else if (head == null) {
@@ -1338,9 +1341,10 @@ final class ModelReplayCursor {
                 ModelTargetResolver.ResolvedModel target,
                 Long maxStateIndex,
                 boolean allowCurrentCache) {
-            Model model = ModelMetadata.of(target.modelType()).model().orElseThrow();
+            EntityMetadata.RootConfiguration configuration = EntityMetadata.of(target.modelType())
+                    .rootConfiguration().orElseThrow();
             if (allowCurrentCache
-                && model.cached()) {
+                && configuration.cached()) {
                 Entity<?> cached =
                         modelCache.get(
                                 target.modelId());
@@ -1365,7 +1369,7 @@ final class ModelReplayCursor {
                 }
             }
             Entity<?> result = null;
-            if (model.snapshotPeriod() > 0 && snapshotStore != null
+            if (configuration.snapshotPeriod() > 0 && snapshotStore != null
                 && (maxStateIndex != null || allowCurrentCache)) {
                 result = snapshotStore.getSnapshot(
                                 target.modelId(), maxStateIndex)
@@ -1403,12 +1407,12 @@ final class ModelReplayCursor {
                                         target.modelType().getName()));
             }
             validateValueId(
-                    target.modelId(), ModelMetadata.of(target.modelType()),
+                    target.modelId(), EntityMetadata.of(target.modelType()),
                     snapshot.value());
             return ImmutableModelRoot.<Object>builder()
                     .id(target.modelId())
                     .type((Class<Object>) target.modelType())
-                    .idProperty(ModelMetadata.of(target.modelType())
+                    .idProperty(EntityMetadata.of(target.modelType())
                                         .entityId().orElseThrow().name())
                     .value(snapshot.value())
                     .entityHelper(entityHelper)
@@ -1505,23 +1509,25 @@ final class ModelReplayCursor {
                 && !stream.getHead().isHistoryComplete()) {
                 throw incompleteHistory(stream.getModelId());
             }
-            for (ModelEventMembership membership : stream.getMemberships()) {
-                StoredEvent storedEvent = new StoredEvent(
-                        membership,
-                        payloads.getRequired(
-                                membership.getStateIndex()));
-                ModelExecutionPlan directPlan =
-                        directReplayPlan(
-                                storedEvent.event(),
-                                state.target.modelType());
-                if (directPlan == null) {
-                    state.apply(storedEvent);
-                } else {
-                    state.applyCompiled(
-                            storedEvent,
-                            directPlan);
-                }
-            }
+            ImmutableRoot.replay(
+                    state, stream.getMemberships().iterator(),
+                    (current, membership) -> {
+                        StoredEvent storedEvent = new StoredEvent(
+                                membership,
+                                payloads.getRequired(membership.getStateIndex()));
+                        ModelExecutionPlan directPlan = directReplayPlan(
+                                storedEvent.event(), current.target.modelType());
+                        if (directPlan == null) {
+                            current.apply(storedEvent);
+                        } else {
+                            current.applyCompiled(storedEvent, directPlan);
+                        }
+                        return current;
+                    },
+                    (current, membership, error) -> error instanceof EventSourcingException replayFailure
+                            ? replayFailure : new EventSourcingException(
+                            "Failed to apply model event at state %d to %s"
+                                    .formatted(membership.getStateIndex(), current.target.modelId()), error));
         }
 
         private Map<String, Entity<?>> reconstructAt(
@@ -1762,9 +1768,9 @@ final class ModelReplayCursor {
 
         private void rememberCheckpoint(
                 ModelTargetResolver.ResolvedModel target, Entity<?> entity) {
-            Model model = ModelMetadata.of(target.modelType())
-                    .model().orElseThrow();
-            int period = model.checkpointPeriod();
+            EntityMetadata.RootConfiguration configuration = EntityMetadata.of(target.modelType())
+                    .rootConfiguration().orElseThrow();
+            int period = configuration.checkpointPeriod();
             if (period <= 0 || entity.sequenceNumber() < 0
                 || Math.floorMod(entity.sequenceNumber() + 1L, period) != 0L) {
                 return;
@@ -1814,7 +1820,7 @@ final class ModelReplayCursor {
                 }
                 ModelExecutionPlan plan = preparedReplay.plan();
                 if (plan.empty()) {
-                    if (ModelMetadata.of(target.modelType()).model().orElseThrow()
+                    if (EntityMetadata.of(target.modelType()).rootConfiguration().orElseThrow()
                             .ignoreUnknownEvents()) {
                         continue;
                     }
@@ -1997,7 +2003,7 @@ final class ModelReplayCursor {
                 Class<?> modelType,
                 ModelEventMembership membership,
                 StoredEvent storedEvent) {
-            boolean ignoreUnknown = ModelMetadata.of(modelType).model().orElseThrow()
+            boolean ignoreUnknown = EntityMetadata.of(modelType).rootConfiguration().orElseThrow()
                     .ignoreUnknownEvents();
             PayloadKey key = new PayloadKey(
                     membership.getStateIndex(), ignoreUnknown);
@@ -2010,23 +2016,23 @@ final class ModelReplayCursor {
 
         private ModelExecutionPlan replayPlan(
                 Class<?> payloadType, Class<?> modelType) {
-            LinkedHashSet<ModelMetadata.HandlerMethod> result = new LinkedHashSet<>();
-            ModelMetadata.of(payloadType).applyMethods().stream()
+            LinkedHashSet<EntityMetadata.HandlerMethod> result = new LinkedHashSet<>();
+            EntityMetadata.of(payloadType).applyMethods().stream()
                     .filter(handler -> handler.dynamicApplyResult()
                                        || handler.targetModelTypes().stream()
                                                .anyMatch(target -> compatible(target, modelType)))
                     .forEach(result::add);
-            ModelMetadata.of(modelType).applyMethods().stream()
-                    .filter(handler -> ModelMetadata.acceptsPayload(handler, payloadType))
+            EntityMetadata.of(modelType).applyMethods().stream()
+                    .filter(handler -> EntityMetadata.acceptsPayload(handler, payloadType))
                     .forEach(result::add);
-            List<ModelMetadata.HandlerMethod> handlers = List.copyOf(result);
+            List<EntityMetadata.HandlerMethod> handlers = List.copyOf(result);
             return modelExecution.compileReplay(
                     payloadType, modelType, handlers);
         }
 
         @SuppressWarnings("unchecked")
         private Entity<?> empty(ModelTargetResolver.ResolvedModel target) {
-            ModelMetadata metadata = ModelMetadata.validate(target.modelType());
+            EntityMetadata metadata = EntityMetadata.validate(target.modelType());
             return ImmutableModelRoot.<Object>builder()
                     .id(target.modelId())
                     .type((Class<Object>) target.modelType())
@@ -2079,8 +2085,8 @@ final class ModelReplayCursor {
                 long stateIndex,
                 SerializedMessage event,
                 Entity<?> previous) {
-            Model model = ModelMetadata.of(entity.type())
-                    .model().orElseThrow();
+            EntityMetadata.RootConfiguration configuration = EntityMetadata.of(entity.type())
+                    .rootConfiguration().orElseThrow();
             return ImmutableModelRoot.<Object>builder()
                     .id(entity.id())
                     .type((Class<Object>) entity.type())
@@ -2093,8 +2099,8 @@ final class ModelReplayCursor {
                     .lastEventId(event.getMessageId())
                     .lastEventIndex(event.getIndex())
                     .timestamp(Instant.ofEpochMilli(event.getTimestamp()))
-                    .previous(castPrevious(retainPrevious(
-                            previous, model)))
+                    .previous(castPrevious(ImmutableRoot.retainPrevious(
+                            previous, configuration)))
                     .build();
         }
 
@@ -2138,7 +2144,7 @@ final class ModelReplayCursor {
                         "Model '%s' reconstructed deletion=%s but its head reports deletion=%s"
                                 .formatted(target.modelId(), entity.isEmpty(), head.isDeleted()));
             }
-            validateValueId(target.modelId(), ModelMetadata.of(target.modelType()), entity.get());
+            validateValueId(target.modelId(), EntityMetadata.of(target.modelType()), entity.get());
         }
     }
 
@@ -2157,7 +2163,7 @@ final class ModelReplayCursor {
     }
 
     private static void validateValueId(
-            String modelId, ModelMetadata metadata, Object value) {
+            String modelId, EntityMetadata metadata, Object value) {
         if (value == null) {
             return;
         }
@@ -2171,30 +2177,6 @@ final class ModelReplayCursor {
                     "Stored model document '%s' reports @EntityId '%s'"
                             .formatted(modelId, storedId));
         }
-    }
-
-    private static Entity<?> retainPrevious(
-            Entity<?> previous, Model model) {
-        if (previous == null || !model.cached()
-            || !model.eventSourced() || model.cachingDepth() == 0) {
-            return null;
-        }
-        if (model.cachingDepth() < 0) {
-            return previous;
-        }
-        return truncatePrevious(previous, model.cachingDepth() - 1);
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static Entity<?> truncatePrevious(
-            Entity<?> revision, int remainingDepth) {
-        if (!(revision instanceof ImmutableModelRoot root)) {
-            return revision;
-        }
-        Entity<?> previous = remainingDepth <= 0
-                ? null : truncatePrevious(root.previous(), remainingDepth - 1);
-        return root.previous() == previous
-                ? root : root.withPrevious((Entity) previous);
     }
 
     @SuppressWarnings("unchecked")

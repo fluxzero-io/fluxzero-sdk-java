@@ -16,12 +16,10 @@
 package io.fluxzero.sdk.modeling;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
-import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
@@ -31,7 +29,6 @@ import lombok.experimental.NonFinal;
 import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
-import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.UnaryOperator;
@@ -63,30 +60,46 @@ import static java.util.Optional.ofNullable;
 @Accessors(fluent = true)
 @Jacksonized
 @ToString(callSuper = true)
-public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements AggregateRoot<T> {
-    @JsonProperty
-    String lastEventId;
-    @JsonProperty
-    Long lastEventIndex;
-    @JsonProperty
-    @Builder.Default
-    Instant timestamp = currentTime();
-    @JsonProperty
-    @Builder.Default
-    long sequenceNumber = -1L;
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
+public class ImmutableAggregateRoot<T> extends ImmutableRoot<T> implements AggregateRoot<T> {
 
     @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @JsonIgnore
-    transient Entity<T> previous;
-
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
     @Getter(lazy = true)
     Set<Relationship> relationships = super.relationships();
 
     @JsonIgnore
     transient EventStore eventStore;
+
+    /** Keeps the pre-unification builder method descriptors for compiled Aggregate consumers. */
+    public abstract static class ImmutableAggregateRootBuilder<
+            T, C extends ImmutableAggregateRoot<T>,
+            B extends ImmutableAggregateRootBuilder<T, C, B>>
+            extends ImmutableRoot.ImmutableRootBuilder<T, C, B> {
+        @Override
+        public B lastEventId(String value) {
+            return super.lastEventId(value);
+        }
+
+        @Override
+        public B lastEventIndex(Long value) {
+            return super.lastEventIndex(value);
+        }
+
+        @Override
+        public B timestamp(java.time.Instant value) {
+            return super.timestamp(value);
+        }
+
+        @Override
+        public B sequenceNumber(long value) {
+            return super.sequenceNumber(value);
+        }
+
+        @Override
+        public B previous(Entity<T> value) {
+            return super.previous(value);
+        }
+    }
 
     public static <T> ImmutableAggregateRoot<T> from(Entity<T> a, EntityHelper entityHelper, Serializer serializer,
                                                      EventStore eventStore) {
@@ -120,13 +133,14 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
     }
 
     Entity<T> asPrevious(long highestSequenceNumber) {
-        if (rootAnnotation().cachingDepth() < 0 || !rootAnnotation().eventSourced() || !rootAnnotation().cached()
+        EntityMetadata.RootConfiguration configuration = rootConfiguration();
+        if (configuration.cachingDepth() < 0 || !configuration.eventSourced() || !configuration.cached()
             || sequenceNumber() <= 0 || sequenceNumber() == highestSequenceNumber
-            || rootAnnotation().checkpointPeriod() <= 1) {
+            || configuration.checkpointPeriod() <= 1) {
             return this;
         }
-        if (highestSequenceNumber - sequenceNumber() >= rootAnnotation().cachingDepth()
-            && sequenceNumber() % rootAnnotation().checkpointPeriod() != 0) {
+        if (highestSequenceNumber - sequenceNumber() >= configuration.cachingDepth()
+            && sequenceNumber() % configuration.checkpointPeriod() != 0) {
             return LazyAggregateRoot.from(this);
         }
         return previous() instanceof ImmutableAggregateRoot<T> p ?
@@ -134,11 +148,16 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
     }
 
     @Override
+    public ImmutableAggregateRoot<T> withPrevious(Entity<T> previous) {
+        return toBuilder().previous(previous).build();
+    }
+
+    @Override
     public Entity<T> update(UnaryOperator<T> function) {
         return ((ImmutableAggregateRoot<T>) super.update(function))
                 .toBuilder()
                 .timestamp(currentTime())
-                .sequenceNumber(sequenceNumber + 1)
+                .sequenceNumber(sequenceNumber() + 1)
                 .build();
     }
 
@@ -166,7 +185,12 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
             }
             return updated;
         }
-        return toBuilder().previous(previous().withEventIndex(index, messageId)).build();
+        Entity<T> previous = previous();
+        if (previous == null) {
+            throw new IllegalStateException(
+                    "Cannot assign an event index to an aggregate revision that is no longer retained.");
+        }
+        return toBuilder().previous(previous.withEventIndex(index, messageId)).build();
     }
 
     @Override

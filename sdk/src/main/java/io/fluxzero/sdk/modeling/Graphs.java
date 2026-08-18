@@ -63,7 +63,7 @@ public final class Graphs {
 
     /** Creates a detached graph whose model and relationship state remain lazy. */
     public static <T> Graph<T> lazy(Object modelId, Class<T> modelType, ModelRepository repository) {
-        ModelMetadata metadata = ModelMetadata.validate(modelType);
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
         return GraphState.identity(modelId, metadata.repositoryId(modelId), false, modelType, repository).root();
     }
 
@@ -76,7 +76,7 @@ public final class Graphs {
     /** Creates a detached graph for a parent-scoped model. */
     public static <T> Graph<T> lazy(
             Object parentId, Class<?> parentType, Object modelId, Class<T> modelType, ModelRepository repository) {
-        String repositoryId = ModelMetadata.validate(modelType).repositoryId(modelId, parentId, parentType);
+        String repositoryId = EntityMetadata.validate(modelType).repositoryId(modelId, parentId, parentType);
         return GraphState.identity(modelId, repositoryId, true, modelType, repository).root();
     }
 
@@ -111,7 +111,7 @@ public final class Graphs {
             if (durableRoot == null) {
                 durableRoot = ImmutableModelRoot.builder()
                         .id(rootId).type((Class) stagedRoot.modelType())
-                        .idProperty(ModelMetadata.validate(stagedRoot.modelType())
+                        .idProperty(EntityMetadata.validate(stagedRoot.modelType())
                                             .entityId().orElseThrow().name())
                         .value(null).build();
             }
@@ -150,7 +150,7 @@ public final class Graphs {
                 if (entity == null) {
                     entity = ImmutableModelRoot.builder()
                             .id(modelId).type((Class) candidate.modelType())
-                            .idProperty(ModelMetadata.validate(candidate.modelType())
+                            .idProperty(EntityMetadata.validate(candidate.modelType())
                                                 .entityId().orElseThrow().name())
                             .value(null).build();
                 }
@@ -205,7 +205,7 @@ public final class Graphs {
 
     private static void addParentEdges(
             String modelId, Class<?> modelType, Object value, Collection<ModelGraphEdge> edges) {
-        for (ModelMetadata.ParentReference parent : ModelMetadata.validate(modelType).parentReferences()) {
+        for (EntityMetadata.ParentReference parent : EntityMetadata.validate(modelType).parentReferences()) {
             Object parentId = parent.read(value);
             if (parentId != null) {
                 Class<?> parentType = parent.parentModelType(parentId);
@@ -465,7 +465,7 @@ final class GraphState {
         Identity identity = new Identity(requestedId, repositoryId, exact, modelType, true);
         NodeData data = NodeData.identity(
                 repositoryId, modelType, requestedId, exact,
-                !exact && ModelMetadata.of(modelType).hasAliases());
+                !exact && EntityMetadata.of(modelType).hasAliases());
         Node root = new Node(data, null, null, true);
         return indexed(-1L, repository, false, false, false, ModelReadBoundary.current(), Map.of(), List.of(), Map.of(),
                        List.of(root), Map.of(), root, identity);
@@ -677,7 +677,7 @@ final class GraphState {
         if (value == null) {
             return;
         }
-        for (ModelMetadata.ParentReference parent : ModelMetadata.of(entity.type()).parentReferences()) {
+        for (EntityMetadata.ParentReference parent : EntityMetadata.of(entity.type()).parentReferences()) {
             Object parentId = parent.read(value);
             if (parentId != null) {
                 Class<?> parentType = parent.parentModelType(parentId);
@@ -694,7 +694,7 @@ final class GraphState {
             return List.of();
         }
         LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
-        for (ModelMetadata.ParentReference reference : ModelMetadata.of(node.data().type()).parentReferences()) {
+        for (EntityMetadata.ParentReference reference : EntityMetadata.of(node.data().type()).parentReferences()) {
             Object parentId = reference.read(value);
             Class<?> parentType = parentId == null ? null : reference.parentModelType(parentId);
             if (parentType == null) {
@@ -1251,7 +1251,7 @@ final class GraphView<T> implements Graph<T> {
         Entity<?> entity = node.data().entity();
         Object value = node.data().value();
         return entity != null ? entity.aliases()
-                : value == null ? List.of() : ModelMetadata.of(type()).aliases(value);
+                : value == null ? List.of() : EntityMetadata.of(type()).aliases(value);
     }
 
     @Override
@@ -1381,7 +1381,7 @@ final class GraphView<T> implements Graph<T> {
             placed = placed.parent();
         }
         GraphState.Identity identity = state.identity();
-        if (identity != null && ModelMetadata.of(type()).isModel()
+        if (identity != null && EntityMetadata.of(type()).isModel()
             && state.repository() instanceof ModelAncestorResolver resolver) {
             Optional<Graph<A>> resolved = resolver.loadAncestorGraph(
                     identity.repositoryId(), identity.type(), ancestorType,
@@ -1559,7 +1559,7 @@ final class GraphView<T> implements Graph<T> {
     @Override
     public Graph<T> commit() {
         if (!state.stagedChanges().isEmpty() && Fluxzero.getOptionally().isPresent()
-            && ModelMetadata.of(type()).isModel()) {
+            && EntityMetadata.of(type()).isModel()) {
             Fluxzero.assertAndApply(this);
             return Graphs.cast(Fluxzero.loadGraph(id().toString()));
         }
@@ -1587,7 +1587,7 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public Graph<T> assertAndApply(Object update, Metadata metadata) {
-        if (Fluxzero.getOptionally().isPresent() && ModelMetadata.of(type()).isModel()) {
+        if (Fluxzero.getOptionally().isPresent() && EntityMetadata.of(type()).isModel()) {
             return metadata == null ? Fluxzero.assertAndApply(this, update)
                     : Fluxzero.assertAndApply(this, update, metadata);
         }

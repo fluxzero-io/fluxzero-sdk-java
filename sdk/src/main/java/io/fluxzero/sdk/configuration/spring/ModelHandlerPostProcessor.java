@@ -15,7 +15,7 @@
 package io.fluxzero.sdk.configuration.spring;
 
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import org.springframework.core.type.AnnotationMetadata;
@@ -68,10 +68,10 @@ public class ModelHandlerPostProcessor extends ComponentScanPrototypePostProcess
 
     @Override
     protected boolean isTargetType(Class<?> type) {
-        ModelMetadata metadata = ModelMetadata.of(type);
+        EntityMetadata metadata = EntityMetadata.of(type);
         return metadata.isModel() || metadata.handlerMethods().stream()
-                .anyMatch(handler -> handler.kind() == ModelMetadata.HandlerKind.INTERCEPT_APPLY
-                                     || handler.kind() == ModelMetadata.HandlerKind.APPLY
+                .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
+                                     || handler.kind() == EntityMetadata.HandlerKind.APPLY
                                         && !handler.targetModelTypes().isEmpty());
     }
 

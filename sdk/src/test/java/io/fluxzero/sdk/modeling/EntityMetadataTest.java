@@ -30,11 +30,11 @@ import java.util.Set;
 import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toSet;
 
-import static io.fluxzero.sdk.modeling.ModelMetadata.HandlerKind.APPLY;
-import static io.fluxzero.sdk.modeling.ModelMetadata.HandlerKind.ASSERT_LEGAL;
-import static io.fluxzero.sdk.modeling.ModelMetadata.HandlerKind.INTERCEPT_APPLY;
-import static io.fluxzero.sdk.modeling.ModelMetadata.RootKind.AGGREGATE;
-import static io.fluxzero.sdk.modeling.ModelMetadata.RootKind.MODEL;
+import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.APPLY;
+import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.ASSERT_LEGAL;
+import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.INTERCEPT_APPLY;
+import static io.fluxzero.sdk.modeling.EntityMetadata.RootKind.AGGREGATE;
+import static io.fluxzero.sdk.modeling.EntityMetadata.RootKind.MODEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -43,14 +43,14 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ModelMetadataTest {
+class EntityMetadataTest {
 
     @Test
     void isOwnedByCentralTypeMetadata() {
-        ModelMetadata first = ModelMetadata.of(ChildModel.class);
-        ModelMetadata second = ModelMetadata.of(ChildModel.class);
-        ModelMetadata fromTypeMetadata = ReflectionUtils.getTypeMetadata(ChildModel.class)
-                .specializedMetadata(ModelMetadata.class, ignored -> {
+        EntityMetadata first = EntityMetadata.of(ChildModel.class);
+        EntityMetadata second = EntityMetadata.of(ChildModel.class);
+        EntityMetadata fromTypeMetadata = ReflectionUtils.getTypeMetadata(ChildModel.class)
+                .specializedMetadata(EntityMetadata.class, ignored -> {
                     throw new AssertionError("metadata should already be cached");
                 });
 
@@ -60,7 +60,7 @@ class ModelMetadataTest {
 
     @Test
     void capturesEntityIdAndParentTypesAndPaths() {
-        ModelMetadata metadata = ModelMetadata.validate(ChildModel.class);
+        EntityMetadata metadata = EntityMetadata.validate(ChildModel.class);
         ChildModel value = new ChildModel(
                 new ChildModelId("child"), new ParentModelId("parent"), "external-parent");
 
@@ -70,19 +70,19 @@ class ModelMetadataTest {
         assertEquals(List.of("parentId", "externalParentId"),
                      metadata.parentReferences().stream().map(reference -> reference.property().name()).toList());
         assertEquals(List.of("items", "externalItems"),
-                     metadata.parentReferences().stream().map(ModelMetadata.ParentReference::path).toList());
+                     metadata.parentReferences().stream().map(EntityMetadata.ParentReference::path).toList());
         assertEquals(List.of(ParentModel.class, ParentModel.class),
-                     metadata.parentReferences().stream().map(ModelMetadata.ParentReference::parentModelType).toList());
+                     metadata.parentReferences().stream().map(EntityMetadata.ParentReference::parentModelType).toList());
         assertEquals("parent-parent", metadata.parentReferences().getFirst().read(value).toString());
         assertEquals("external-parent", metadata.parentReferences().getLast().read(value));
-        assertTrue(metadata.parentReferences().stream().allMatch(ModelMetadata.ParentReference::automaticallyComposed));
+        assertTrue(metadata.parentReferences().stream().allMatch(EntityMetadata.ParentReference::automaticallyComposed));
         assertEquals("Child items", metadata.parentReferences().getFirst().apiDoc().description());
         assertEquals("", metadata.parentReferences().getLast().apiDoc().description());
     }
 
     @Test
     void composesEntityIdAffixesOutsideTypedIdRepositoryPrefix() {
-        ModelMetadata metadata = ModelMetadata.validate(AffixedModel.class);
+        EntityMetadata metadata = EntityMetadata.validate(AffixedModel.class);
         AffixedModelId id = new AffixedModelId("123");
 
         assertEquals("move-model-123-state", metadata.repositoryId(id));
@@ -94,7 +94,7 @@ class ModelMetadataTest {
 
     @Test
     void parentScopedIdentitySelectsTheDeepestNonNullParentFromAPayload() {
-        ModelMetadata metadata = ModelMetadata.validate(ScopedLeafModel.class);
+        EntityMetadata metadata = EntityMetadata.validate(ScopedLeafModel.class);
         ScopedTargetPayload payload = new ScopedTargetPayload("root", "branch", "leaf");
 
         assertEquals(
@@ -105,9 +105,9 @@ class ModelMetadataTest {
     @Test
     void parentScopedIdentityRequiresOneUnambiguousParent() {
         assertThrows(IllegalStateException.class,
-                     () -> ModelMetadata.validate(ParentlessScopedModel.class));
+                     () -> EntityMetadata.validate(ParentlessScopedModel.class));
 
-        ModelMetadata metadata = ModelMetadata.validate(AmbiguousScopedModel.class);
+        EntityMetadata metadata = EntityMetadata.validate(AmbiguousScopedModel.class);
         assertThrows(IllegalArgumentException.class,
                      () -> metadata.repositoryIdOf(
                              new AmbiguousScopedModel("leaf", "first", "second")));
@@ -115,9 +115,9 @@ class ModelMetadataTest {
 
     @Test
     void exposesAggregateNeutralRootConfiguration() {
-        ModelMetadata.RootConfiguration model = ModelMetadata.of(ConfiguredModel.class)
+        EntityMetadata.RootConfiguration model = EntityMetadata.of(ConfiguredModel.class)
                 .rootConfiguration().orElseThrow();
-        ModelMetadata.RootConfiguration aggregate = ModelMetadata.of(ConfiguredAggregate.class)
+        EntityMetadata.RootConfiguration aggregate = EntityMetadata.of(ConfiguredAggregate.class)
                 .rootConfiguration().orElseThrow();
 
         assertEquals(MODEL, model.kind());
@@ -152,7 +152,7 @@ class ModelMetadataTest {
                         .getProjectionPath());
         assertThrows(
                 IllegalStateException.class,
-                () -> ModelMetadata.validate(
+                () -> EntityMetadata.validate(
                         UnsearchableProjectedModel.class));
         assertEquals(
                 "default-projected-models-graphs",
@@ -166,8 +166,10 @@ class ModelMetadataTest {
     }
 
     @Test
-    void legacyAggregateRootIsAlsoAModelRoot() {
-        assertTrue(ModelRoot.class.isAssignableFrom(AggregateRoot.class));
+    void aggregateAndModelRootsShareOnlyTheNeutralPersistedContract() {
+        assertTrue(PersistedRoot.class.isAssignableFrom(AggregateRoot.class));
+        assertTrue(PersistedRoot.class.isAssignableFrom(ModelRoot.class));
+        assertFalse(ModelRoot.class.isAssignableFrom(AggregateRoot.class));
         assertEquals(Set.of("parent", "lastEventId", "lastEventIndex", "withEventIndex", "sequenceNumber",
                             "withSequenceNumber", "timestamp", "previous"),
                      stream(AggregateRoot.class.getDeclaredMethods()).map(java.lang.reflect.Method::getName)
@@ -180,7 +182,7 @@ class ModelMetadataTest {
                 .map(java.lang.reflect.Method::getName).collect(toSet());
         Set<String> aggregateSettings = stream(Aggregate.class.getDeclaredMethods())
                 .map(java.lang.reflect.Method::getName).collect(toSet());
-        Set<String> configurationSettings = stream(ModelMetadata.RootConfiguration.class.getRecordComponents())
+        Set<String> configurationSettings = stream(EntityMetadata.RootConfiguration.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName)
                 .filter(name -> !"kind".equals(name))
                 .collect(toSet());
@@ -205,9 +207,41 @@ class ModelMetadataTest {
     }
 
     @Test
+    void aggregateAndModelRootsUseTheSameSnapshotPolicy() {
+        EntityMetadata.SnapshotSettings model = EntityMetadata.of(SnapshotModel.class)
+                .rootConfiguration().orElseThrow().snapshotSettings(false);
+        EntityMetadata.SnapshotSettings aggregate = EntityMetadata.of(SnapshotAggregate.class)
+                .rootConfiguration().orElseThrow().snapshotSettings(false);
+
+        assertEquals(model, aggregate);
+        assertEquals(3, model.period());
+        assertEquals(2, model.maxCount());
+        assertFalse(model.due(1L, 1));
+        assertTrue(model.due(2L, 1));
+        assertTrue(model.due(3L, 3));
+        assertEquals(1, EntityMetadata.of(SnapshotAggregate.class).rootConfiguration().orElseThrow()
+                .snapshotSettings(true).period());
+    }
+
+    @Test
+    void transitionSettingsSeparateWireStrategyFromEffectivePolicy() {
+        EntityMetadata.TransitionSettings aggregate = EntityMetadata.of(SnapshotAggregate.class)
+                .rootConfiguration().orElseThrow().transitionSettings(null);
+        EntityMetadata.TransitionSettings model = EntityMetadata.of(SnapshotModel.class)
+                .rootConfiguration().orElseThrow().transitionSettings(null);
+
+        assertEquals(EventPublication.ALWAYS, aggregate.publication());
+        assertEquals(EventPublication.IF_MODIFIED, model.publication());
+        assertEquals(EventPublicationStrategy.DEFAULT, aggregate.eventStrategy());
+        assertEquals(EventPublicationStrategy.DEFAULT, model.eventStrategy());
+        assertEquals(EventPublicationStrategy.STORE_AND_PUBLISH, aggregate.strategy());
+        assertEquals(EventPublicationStrategy.STORE_AND_PUBLISH, model.strategy());
+    }
+
+    @Test
     void resolvesParentMetadataDeclaredOnAnInterfaceProperty() {
-        ModelMetadata.ParentReference parent =
-                ModelMetadata.validate(InterfaceChildModel.class).parentReferences().getFirst();
+        EntityMetadata.ParentReference parent =
+                EntityMetadata.validate(InterfaceChildModel.class).parentReferences().getFirst();
 
         assertEquals("parentId", parent.property().name());
         assertEquals("interfaceChildren", parent.path());
@@ -216,7 +250,7 @@ class ModelMetadataTest {
 
     @Test
     void resolvesPolymorphicParentFromConcreteTypedId() {
-        ModelMetadata.ParentReference parent = ModelMetadata.validate(PolymorphicChildModel.class)
+        EntityMetadata.ParentReference parent = EntityMetadata.validate(PolymorphicChildModel.class)
                 .parentReferences().getFirst();
         ParentModelId parentId = new ParentModelId("parent");
         AlternateParentModelId alternateId = new AlternateParentModelId("alternate");
@@ -231,11 +265,11 @@ class ModelMetadataTest {
 
     @Test
     void capturesApplyTargetsAndDependenciesForAllModelHandlerKinds() {
-        ModelMetadata metadata = ModelMetadata.of(ModelHandlers.class);
+        EntityMetadata metadata = EntityMetadata.of(ModelHandlers.class);
 
         assertEquals(List.of(APPLY, ASSERT_LEGAL, INTERCEPT_APPLY),
-                     metadata.handlerMethods().stream().map(ModelMetadata.HandlerMethod::kind).toList());
-        ModelMetadata.HandlerMethod apply = metadata.applyMethods().getFirst();
+                     metadata.handlerMethods().stream().map(EntityMetadata.HandlerMethod::kind).toList());
+        EntityMetadata.HandlerMethod apply = metadata.applyMethods().getFirst();
         assertEquals(List.of(ParentModel.class), apply.targetModelTypes());
         assertEquals(1, apply.modelParameters().size());
         assertSame(ParentModel.class, apply.modelParameters().getFirst().modelType());
@@ -246,11 +280,11 @@ class ModelMetadataTest {
 
     @Test
     void capturesTypedAndRuntimeValidatedCollectionApplyResults() {
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(CollectionApplyResults.class)
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(CollectionApplyResults.class)
                         .applyMethods();
 
-        ModelMetadata.HandlerMethod typed = handlers.stream()
+        EntityMetadata.HandlerMethod typed = handlers.stream()
                 .filter(handler -> handler.executable().getName()
                         .equals("typed"))
                 .findFirst().orElseThrow();
@@ -259,7 +293,7 @@ class ModelMetadataTest {
         assertFalse(typed.dynamicApplyResult());
         assertTrue(typed.hasApplyResult());
 
-        ModelMetadata.HandlerMethod dynamic = handlers.stream()
+        EntityMetadata.HandlerMethod dynamic = handlers.stream()
                 .filter(handler -> handler.executable().getName()
                         .equals("dynamic"))
                 .findFirst().orElseThrow();
@@ -271,7 +305,7 @@ class ModelMetadataTest {
 
     @Test
     void capturesModelConstructorAsApplyTarget() {
-        ModelMetadata.HandlerMethod constructor = ModelMetadata.of(ConstructorModel.class).applyMethods().getFirst();
+        EntityMetadata.HandlerMethod constructor = EntityMetadata.of(ConstructorModel.class).applyMethods().getFirst();
 
         assertInstanceOf(java.lang.reflect.Constructor.class, constructor.executable());
         assertEquals(List.of(ConstructorModel.class), constructor.targetModelTypes());
@@ -280,7 +314,7 @@ class ModelMetadataTest {
 
     @Test
     void resolvesApplyTargetFromGenericHandlerContract() {
-        ModelMetadata.HandlerMethod handler = ModelMetadata.of(GenericParentUpdate.class)
+        EntityMetadata.HandlerMethod handler = EntityMetadata.of(GenericParentUpdate.class)
                 .applyMethods().getFirst();
 
         assertEquals(List.of(ParentModel.class), handler.targetModelTypes());
@@ -289,7 +323,7 @@ class ModelMetadataTest {
 
     @Test
     void capturesModelReceiverDependencies() {
-        List<ModelMetadata.HandlerMethod> handlers = ModelMetadata.of(ReceiverModel.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers = EntityMetadata.of(ReceiverModel.class).handlerMethods();
 
         assertEquals(3, handlers.size());
         assertTrue(handlers.stream().allMatch(handler -> handler.receiverModelType() == ReceiverModel.class));
@@ -301,8 +335,8 @@ class ModelMetadataTest {
                 .getDeclaredMethod("handle", Graph.class)
                 .getParameters()[0];
 
-        ModelMetadata.ModelParameter dependency =
-                ModelMetadata.inspectModelParameter(parameter).orElseThrow();
+        EntityMetadata.ModelParameter dependency =
+                EntityMetadata.inspectModelParameter(parameter).orElseThrow();
 
         assertSame(ParentModel.class, dependency.modelType());
         assertFalse(dependency.entityWrapped());
@@ -316,8 +350,8 @@ class ModelMetadataTest {
                 .getDeclaredMethod("handleMany", List.class)
                 .getParameters()[0];
 
-        ModelMetadata.ModelParameter dependency =
-                ModelMetadata.inspectModelParameter(parameter).orElseThrow();
+        EntityMetadata.ModelParameter dependency =
+                EntityMetadata.inspectModelParameter(parameter).orElseThrow();
 
         assertSame(ParentModel.class, dependency.modelType());
         assertTrue(dependency.graphWrapped());
@@ -327,7 +361,7 @@ class ModelMetadataTest {
 
     @Test
     void doesNotTreatNestedHelperTypeAsModel() {
-        assertFalse(ModelMetadata.of(OuterModel.NestedHelper.class).isModel());
+        assertFalse(EntityMetadata.of(OuterModel.NestedHelper.class).isModel());
     }
 
     private static class GraphDependency {
@@ -342,11 +376,11 @@ class ModelMetadataTest {
 
     @Test
     void acceptsUniqueQualifiersForMultipleDependenciesOfSameType() {
-        ModelMetadata.HandlerMethod apply = ModelMetadata.of(QualifiedTransfer.class).applyMethods().getFirst();
+        EntityMetadata.HandlerMethod apply = EntityMetadata.of(QualifiedTransfer.class).applyMethods().getFirst();
 
         assertEquals(List.of("sourceId", "destinationId"),
                      apply.modelParameters().stream()
-                             .map(ModelMetadata.ModelParameter::associationProperty)
+                             .map(EntityMetadata.ModelParameter::associationProperty)
                              .toList());
     }
 
@@ -392,7 +426,7 @@ class ModelMetadataTest {
     @Test
     void detectsStaticallyTypedParentCyclesWithPath() {
         IllegalStateException exception = assertThrows(
-                IllegalStateException.class, () -> ModelMetadata.validate(CycleA.class));
+                IllegalStateException.class, () -> EntityMetadata.validate(CycleA.class));
 
         assertTrue(exception.getMessage().contains("Model parent cycle detected"));
         assertTrue(exception.getMessage().contains(CycleA.class.getName()));
@@ -401,12 +435,12 @@ class ModelMetadataTest {
 
     @Test
     void leavesUntypedParentCycleDetectionToCommitTime() {
-        assertNull(ModelMetadata.validate(UntypedParentModel.class)
+        assertNull(EntityMetadata.validate(UntypedParentModel.class)
                            .parentReferences().getFirst().parentModelType());
     }
 
     private static void assertMessage(Class<?> type, String... fragments) {
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> ModelMetadata.validate(type));
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> EntityMetadata.validate(type));
         for (String fragment : fragments) {
             assertTrue(exception.getMessage().contains(fragment),
                        () -> "Expected '%s' in '%s'".formatted(fragment, exception.getMessage()));
@@ -470,6 +504,14 @@ class ModelMetadataTest {
 
     @Aggregate(eventSourced = false, searchable = true, collection = "aggregates")
     private record ConfiguredAggregate(@EntityId String id) {
+    }
+
+    @Model(snapshotPeriod = 3, maxSnapshotCount = 2)
+    private record SnapshotModel(@EntityId String id) {
+    }
+
+    @Aggregate(snapshotPeriod = 3, maxSnapshotCount = 2)
+    private record SnapshotAggregate(@EntityId String id) {
     }
 
     private static class ParentModelId extends Id<ParentModel> {

@@ -31,30 +31,25 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Aggregate;
 import io.fluxzero.sdk.modeling.AggregateCommitPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
-import io.fluxzero.sdk.modeling.AnnotatedEntityHolder;
 import io.fluxzero.sdk.modeling.AppliedEvent;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
-import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.ImmutableAggregateRoot;
-import io.fluxzero.sdk.modeling.ImmutableEntity;
+import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.LazyAggregateRoot;
 import io.fluxzero.sdk.modeling.ModifiableAggregateRoot;
 import io.fluxzero.sdk.modeling.NoOpEntity;
 import io.fluxzero.sdk.modeling.SideEffectFreeEntity;
 import io.fluxzero.sdk.persisting.caching.NamedCache;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
-import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.NoOpSnapshotStore;
-import io.fluxzero.sdk.persisting.eventsourcing.NoSnapshotTrigger;
-import io.fluxzero.sdk.persisting.eventsourcing.PeriodicSnapshotTrigger;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
-import io.fluxzero.sdk.persisting.eventsourcing.SnapshotTrigger;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -67,7 +62,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -86,7 +80,6 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
 import static io.fluxzero.sdk.modeling.ModifiableAggregateRoot.getActiveAggregatesFor;
 import static java.lang.String.format;
 import static java.util.function.Predicate.not;
@@ -290,7 +283,10 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
     }
 
     private static Optional<Class<?>> inferAggregateTypeFromApplyFactory(Class<?> eventType) {
-        return ReflectionUtils.getAnnotatedMethods(eventType, Apply.class).stream()
+        return EntityMetadata.of(eventType).applyMethods().stream()
+                .map(EntityMetadata.HandlerMethod::executable)
+                .filter(Method.class::isInstance)
+                .map(Method.class::cast)
                 .filter(method -> method.getParameterCount() == 0)
                 .map(Method::getReturnType)
                 .filter(returnType -> !void.class.equals(returnType)
@@ -381,54 +377,36 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         private final Class<T> type;
         private final Cache aggregateCache;
         private final RelationshipsCache relationshipsCache;
-        private final boolean eventSourced;
+        private final EntityMetadata.RootConfiguration configuration;
         private final AggregateCommitPolicy commitPolicy;
-        private final EventPublication eventPublication;
-        private final EventPublicationStrategy publicationStrategy;
-        private final AggregateEventRouting eventRouting;
-        private final SnapshotTrigger snapshotTrigger;
+        private final EntityMetadata.SnapshotSettings snapshotSettings;
         private final SnapshotStore snapshotStore;
-        private final boolean searchable;
         private final String collection;
         private final Function<Entity<?>, Instant> timestampFunction;
         private final Function<Entity<?>, Instant> endFunction;
         private final String idProperty;
-        private final boolean ignoreUnknownEvents;
 
         public AnnotatedAggregateRepository(Class<T> type) {
             this.type = type;
 
-            Aggregate annotation = DefaultEntityHelper.getRootAnnotation(type);
-            this.aggregateCache = annotation.cached()
+            this.configuration = DefaultEntityHelper.getAggregateRootConfiguration(type);
+            this.aggregateCache = configuration.cached()
                     ? DefaultAggregateRepository.this.aggregateCache : NoOpCache.INSTANCE;
-            this.relationshipsCache = annotation.cached()
+            this.relationshipsCache = configuration.cached()
                     ? DefaultAggregateRepository.this.relationshipsCache : RelationshipsCache.noOp();
-            this.eventSourced = annotation.eventSourced();
-            this.commitPolicy = resolveCommitPolicy(annotation);
-            this.eventPublication = annotation.eventPublication();
-            this.publicationStrategy = annotation.publicationStrategy();
-            this.eventRouting = annotation.eventRouting();
-            int snapshotPeriod = annotation.eventSourced() || annotation.searchable() ? annotation.snapshotPeriod() : 1;
-            this.snapshotTrigger = snapshotPeriod > 0 ? new PeriodicSnapshotTrigger(snapshotPeriod) :
-                    NoSnapshotTrigger.INSTANCE;
-            this.snapshotStore = snapshotPeriod > 0
+            this.commitPolicy = resolveCommitPolicy(configuration);
+            this.snapshotSettings = configuration.snapshotSettings(
+                    !configuration.eventSourced() && !configuration.searchable());
+            this.snapshotStore = snapshotSettings.enabled()
                     ? DefaultAggregateRepository.this.snapshotStore : NoOpSnapshotStore.INSTANCE;
-            this.searchable = annotation.searchable();
-            this.collection = Optional.of(annotation).map(Aggregate::collection)
+            this.collection = Optional.of(configuration.collection())
                     .filter(s -> !s.isEmpty()).map(ApplicationProperties::substituteProperties)
                     .orElse(type.getSimpleName());
-            this.idProperty = getAnnotatedProperty(type, EntityId.class).map(ReflectionUtils::getName).orElse(null);
-            String timestampPath = Optional.of(annotation)
-                    .map(Aggregate::timestampPath)
-                    .filter(not(String::isBlank))
-                    .orElse(null);
+            this.idProperty = EntityMetadata.of(type).entityId().map(EntityMetadata.Property::name).orElse(null);
+            String timestampPath = Optional.of(configuration.timestampPath()).filter(not(String::isBlank)).orElse(null);
             this.timestampFunction = a -> parseTimeProperty(timestampPath, a.get(), false, a::timestamp);
-            String endPath = Optional.of(annotation)
-                    .map(Aggregate::endPath)
-                    .filter(not(String::isBlank))
-                    .orElse(null);
+            String endPath = Optional.of(configuration.endPath()).filter(not(String::isBlank)).orElse(null);
             this.endFunction = a -> parseTimeProperty(endPath, a.get(), true, () -> timestampFunction.apply(a));
-            this.ignoreUnknownEvents = annotation.ignoreUnknownEvents();
         }
 
         @SuppressWarnings("unchecked")
@@ -457,7 +435,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                     new RepairRelationships(aggregateId, type.getName(), Collections.emptySet(), STORED)));
             futures.add(eventStoreClient.deleteEvents(aggregateId, STORED));
             futures.add(snapshotStore.deleteSnapshot(id));
-            if (searchable) {
+            if (configuration.searchable()) {
                 futures.add(documentStore.deleteDocument(id, collection));
             }
             return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
@@ -479,7 +457,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                             }
                         }
                         return eventSourceModel(loadSnapshot(id));
-                    }), commitPolicy, eventPublication, publicationStrategy, eventRouting, eventSourced,
+                    }), commitPolicy, configuration,
                     entityHelper, serializer, dispatchInterceptor, this::commit);
         }
 
@@ -489,7 +467,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                             .idProperty(idProperty)
                             .entityHelper(entityHelper).serializer(serializer)
                             .eventStore(eventStore);
-            return (searchable && !eventSourced
+            return (configuration.searchable() && !configuration.eventSourced()
                     ? documentStore.<T>fetchDocument(id, collection)
                     .map(d -> builder.value(d).build())
                     : snapshotStore.<T>getSnapshot(id).map(
@@ -516,7 +494,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         }
 
         protected Entity<T> withHistoricalSnapshots(ImmutableAggregateRoot<T> snapshot, Object aggregateId) {
-            if (snapshot.sequenceNumber() <= 0L || !eventSourced) {
+            if (snapshot.sequenceNumber() <= 0L || !configuration.eventSourced()) {
                 return snapshot;
             }
             Entity<T> checkpoint = snapshotStore.<T>getSnapshotBefore(aggregateId, snapshot.sequenceNumber())
@@ -543,41 +521,24 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         @SuppressWarnings("unchecked")
         protected Entity<T> eventSourceModel(Entity<T> model) {
             try {
-                if (eventSourced) {
+                if (configuration.eventSourced()) {
                     AggregateEventStream<DeserializingMessage> eventStream
                             = eventStore.getEvents(model.id().toString(), model.sequenceNumber(), -1,
-                                                   ignoreUnknownEvents);
-                    Iterator<DeserializingMessage> iterator = eventStream.iterator();
-                    boolean wasLoading = Entity.isLoading();
-                    var previousRouteCache = new LinkedHashMap<>(ImmutableEntity.snapshotLoadingRouteCache());
-                    var previousEntityCache = new LinkedHashMap<>(AnnotatedEntityHolder.snapshotLoadingEntityCache());
-                    var previousRouteValuesCache = new LinkedHashMap<>(AnnotatedEntityHolder.snapshotLoadingRouteValuesCache());
-                    try {
-                        Entity.loading.set(true);
-                        ImmutableEntity.clearLoadingRouteCache();
-                        AnnotatedEntityHolder.clearLoadingEntityCache();
-                        AnnotatedEntityHolder.clearLoadingRouteValuesCache();
-                        while (iterator.hasNext()) {
-                            DeserializingMessage next = iterator.next();
-                            if (model.isEmpty()) {
-                                var t = Entity.getAggregateType(next);
-                                if (t != null && !t.equals(this.type) && this.type.isAssignableFrom(t)) {
-                                    model = model.withType((Class<T>) t);
+                                                   configuration.ignoreUnknownEvents());
+                    model = ImmutableRoot.replay(
+                            model, eventStream.iterator(),
+                            (current, next) -> {
+                                if (current.isEmpty()) {
+                                    var inferred = Entity.getAggregateType(next);
+                                    if (inferred != null && !inferred.equals(type)
+                                        && type.isAssignableFrom(inferred)) {
+                                        current = current.withType((Class<T>) inferred);
+                                    }
                                 }
-                            }
-                            try {
-                                model = model.apply(next);
-                            } catch (Throwable e) {
-                                throw new EventSourcingException(format(
-                                        "Failed to apply event %s to aggregate %s.", next.getIndex(), model.id()), e);
-                            }
-                        }
-                    } finally {
-                        AnnotatedEntityHolder.restoreLoadingRouteValuesCache(previousRouteValuesCache);
-                        AnnotatedEntityHolder.restoreLoadingEntityCache(previousEntityCache);
-                        ImmutableEntity.restoreLoadingRouteCache(previousRouteCache);
-                        Entity.loading.set(wasLoading);
-                    }
+                                return current.apply(next);
+                            },
+                            (current, next, error) -> new EventSourcingException(format(
+                                    "Failed to apply event %s to aggregate %s.", next.getIndex(), current.id()), error));
                     model = model.withSequenceNumber(
                             eventStream.getLastSequenceNumber().orElse(model.sequenceNumber()));
                 }
@@ -635,11 +596,11 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                             ignored -> storeEvents(after.id().toString(), unpublishedEvents));
                     futures.add(eventsStored);
                     if (stateChanged && !aggregateStateEvents.isEmpty()
-                        && snapshotTrigger.shouldCreateSnapshot(after, aggregateStateEvents)) {
+                        && snapshotSettings.due(after.sequenceNumber(), aggregateStateEvents.size())) {
                         futures.add(eventsStored.thenCompose(ignored -> snapshotStore.storeSnapshot(after)));
                     }
                 }
-                if (stateChanged && searchable) {
+                if (stateChanged && configuration.searchable()) {
                     Object value = after.get();
                     if (value == null) {
                         futures.add(eventsStored.thenCompose(
@@ -670,7 +631,8 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         }
 
         protected boolean updatesAggregateState(AppliedEvent event) {
-            return !eventSourced || event.getPublicationStrategy() != EventPublicationStrategy.PUBLISH_ONLY;
+            return !configuration.eventSourced()
+                   || event.getPublicationStrategy() != EventPublicationStrategy.PUBLISH_ONLY;
         }
 
         CompletableFuture<Void> storeEvents(String aggregateId, List<AppliedEvent> appliedEvents) {
@@ -702,9 +664,9 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         }
     }
 
-    static AggregateCommitPolicy resolveCommitPolicy(Aggregate annotation) {
-        if (annotation.commitPolicy() != AggregateCommitPolicy.DEFAULT) {
-            return annotation.commitPolicy();
+    static AggregateCommitPolicy resolveCommitPolicy(EntityMetadata.RootConfiguration configuration) {
+        if (configuration.commitPolicy() != AggregateCommitPolicy.DEFAULT) {
+            return (AggregateCommitPolicy) configuration.commitPolicy();
         }
         AggregateCommitPolicy configured = configuredCommitPolicy();
         if (configured != AggregateCommitPolicy.DEFAULT) {

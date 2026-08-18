@@ -46,7 +46,7 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
@@ -227,15 +227,15 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     public <T> GraphSearch<T> searchGraph(
             Class<T> rootModelType,
             boolean forceAdHoc) {
-        ModelMetadata.RootConfiguration root =
-                ModelMetadata.validate(rootModelType)
+        EntityMetadata.RootConfiguration root =
+                EntityMetadata.validate(rootModelType)
                         .rootConfiguration()
                         .orElseThrow(() ->
                                              new IllegalArgumentException(
                                                      rootModelType.getName()
                                                      + " is not an independent model"));
         if (root.kind()
-            != ModelMetadata.RootKind.MODEL) {
+            != EntityMetadata.RootKind.MODEL) {
             throw new IllegalArgumentException(
                     rootModelType.getName()
                     + " is not an independent model");

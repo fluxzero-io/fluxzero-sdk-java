@@ -27,7 +27,7 @@ import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
@@ -83,7 +83,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      */
     default <T> Entity<T> load(@NonNull Object modelId, @NonNull Class<T> modelType) {
         String functionalId = modelId.toString();
-        ModelMetadata metadata = ModelMetadata.of(modelType);
+        EntityMetadata metadata = EntityMetadata.of(modelType);
         String primaryId = metadata.entityId().isEmpty()
                 ? functionalId : metadata.repositoryId(modelId);
         Entity<T> result = load(primaryId, modelType);
@@ -100,7 +100,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     default <T> Entity<T> load(
             @NonNull Object parentId, @NonNull Class<?> parentType,
             @NonNull Object modelId, @NonNull Class<T> modelType) {
-        String primaryId = ModelMetadata.of(modelType)
+        String primaryId = EntityMetadata.of(modelType)
                 .repositoryId(modelId, parentId, parentType);
         return load(primaryId, modelType);
     }
@@ -246,7 +246,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      */
     default <T> Graph<T> loadGraph(@NonNull Id<T> rootId) {
         return loadGraph(
-                ModelMetadata.of(rootId.getType()).repositoryId(rootId),
+                EntityMetadata.of(rootId.getType()).repositoryId(rootId),
                 rootId.getType(), Graph.Options.DEFAULT);
     }
 
@@ -269,7 +269,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             long stateIndex,
             @NonNull Graph.Options options) {
         return loadGraphAt(
-                ModelMetadata.of(rootId.getType()).repositoryId(rootId), rootId.getType(),
+                EntityMetadata.of(rootId.getType()).repositoryId(rootId), rootId.getType(),
                 stateIndex, options);
     }
 

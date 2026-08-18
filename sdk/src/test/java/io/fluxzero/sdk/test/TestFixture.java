@@ -59,7 +59,7 @@ import io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty;
 import io.fluxzero.sdk.configuration.spring.ConditionalOnProperty;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
 import io.fluxzero.sdk.publishing.DefaultEventGateway;
@@ -1045,7 +1045,7 @@ public class TestFixture implements Given<TestFixture>, When {
     public TestFixture givenModelEvents(String modelId, Class<?> modelClass, Object... events) {
         Class<?> callerClass = getCallerClass();
         return givenModificationWithTrace(describeFixtureAction("event-sourced model", modelClass),
-                                          fixture -> fixture.applyModelEvents(
+                                          fixture -> fixture.applyEvents(
                                                   modelId, modelClass, fixture.getFluxzero(),
                                                   fixture.asEventMessages(callerClass, events).toList()));
     }
@@ -1374,8 +1374,8 @@ public class TestFixture implements Given<TestFixture>, When {
         Class<?> callerClass = getCallerClass();
         return executeWhenWithTrace(describeFixtureAction("applying events to model", modelClass),
                                     fc -> {
-                                        applyModelEvents(modelId, modelClass, fc,
-                                                         asMessages(callerClass, events).collect(toList()));
+                                        applyEvents(modelId, modelClass, fc,
+                                                    asMessages(callerClass, events).collect(toList()));
                                         return null;
                                     });
     }
@@ -1623,7 +1623,7 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     protected void applyEvents(String aggregateId, Class<?> aggregateClass, Fluxzero fc, List<Message> events) {
-        if (ModelMetadata.of(aggregateClass).isModel()) {
+        if (EntityMetadata.of(aggregateClass).isModel()) {
             events.stream().map(e -> e.withMetadata(e.getMetadata().with(
                             Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
                             Entity.AGGREGATE_TYPE_METADATA_KEY, aggregateClass.getName())))
@@ -1635,10 +1635,6 @@ public class TestFixture implements Given<TestFixture>, When {
                                 Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
                                 Entity.AGGREGATE_TYPE_METADATA_KEY, aggregateClass.getName())))
                                                                                  .toList());
-    }
-
-    protected void applyModelEvents(String modelId, Class<?> modelClass, Fluxzero fc, List<Message> events) {
-        fc.modelRepository().load(modelId, modelClass).apply(events);
     }
 
     protected List<Schedule> getFutureSchedules() {
@@ -2055,9 +2051,9 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     private static boolean hasModelHandlerMethods(Class<?> payloadClass) {
-        return ModelMetadata.of(payloadClass).handlerMethods().stream()
-                .anyMatch(handler -> handler.kind() == ModelMetadata.HandlerKind.INTERCEPT_APPLY
-                                     || handler.kind() == ModelMetadata.HandlerKind.APPLY
+        return EntityMetadata.of(payloadClass).handlerMethods().stream()
+                .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
+                                     || handler.kind() == EntityMetadata.HandlerKind.APPLY
                                         && !handler.targetModelTypes().isEmpty());
     }
 

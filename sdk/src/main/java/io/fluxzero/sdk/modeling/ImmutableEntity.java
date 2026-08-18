@@ -111,6 +111,12 @@ import static java.util.Collections.emptyList;
 @Accessors(fluent = true)
 @Slf4j
 public class ImmutableEntity<T> implements Entity<T> {
+    /** Source-visible superclass for Lombok's generated persisted-root builders. */
+    public abstract static class ImmutableEntityBuilder<
+            T, C extends ImmutableEntity<T>,
+            B extends ImmutableEntityBuilder<T, C, B>> {
+    }
+
     private static final ThreadLocal<Map<RouteCacheKey, String>> loadingRouteCache = ThreadLocal.withInitial(HashMap::new);
     private static final Map<RoutingKeyOverlapCacheKey, Boolean> routingKeyOverlapsCurrentIdCache =
             new ConcurrentHashMap<>();

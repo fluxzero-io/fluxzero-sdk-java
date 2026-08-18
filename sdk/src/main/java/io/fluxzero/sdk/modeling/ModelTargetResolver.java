@@ -54,14 +54,14 @@ public final class ModelTargetResolver {
     /** Compiles and validates a target plan without an explicit target override. */
     public static TargetPlan plan(
             Class<?> payloadType,
-            Collection<ModelMetadata.HandlerMethod> handlers) {
+            Collection<EntityMetadata.HandlerMethod> handlers) {
         return compile(payloadType, handlers).validate(null, false);
     }
 
     /** Compiles one target accessor plan for a payload and its selected handlers. */
     public static TargetPlan compile(
             Class<?> payloadType,
-            Collection<ModelMetadata.HandlerMethod> handlers) {
+            Collection<EntityMetadata.HandlerMethod> handlers) {
         Payload payload = Payload.of(Objects.requireNonNull(payloadType, "payloadType"));
         List<Slot> slots = new ArrayList<>();
         List<Deferred> deferred = new ArrayList<>();
@@ -84,19 +84,19 @@ public final class ModelTargetResolver {
 
     private static void compile(
             Payload payload,
-            ModelMetadata.HandlerMethod handler,
+            EntityMetadata.HandlerMethod handler,
             List<Slot> slots,
             List<Deferred> deferred,
             Set<PlannedAncestor> ancestors) {
         String signature = handler.executable().toGenericString();
-        boolean apply = handler.kind() == ModelMetadata.HandlerKind.APPLY;
+        boolean apply = handler.kind() == EntityMetadata.HandlerKind.APPLY;
         List<Slot> local = new ArrayList<>();
         if (handler.receiverModelType() != null) {
             local.add(new Slot(
                     handler.receiverModelType(), payload.required(handler.receiverModelType(), signature),
                     false, READ, signature, true, apply));
         }
-        for (ModelMetadata.ModelParameter parameter : handler.modelParameters()) {
+        for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
             Property property = parameter.collectionWrapped()
                     ? payload.collection(parameter.modelType(), parameter.associationProperty())
                     : payload.direct(parameter.modelType(), parameter.associationProperty());
@@ -115,7 +115,7 @@ public final class ModelTargetResolver {
                         parameter.modelType(), parameter.associationProperty(), signature), apply));
             }
         }
-        if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
+        if (handler.kind() == EntityMetadata.HandlerKind.APPLY) {
             if (handler.dynamicApplyResult()) {
                 local.forEach(slot -> slot.access |= WRITE);
             }
@@ -126,7 +126,7 @@ public final class ModelTargetResolver {
 
     private static void writeSlot(
             Payload payload,
-            ModelMetadata.HandlerMethod handler,
+            EntityMetadata.HandlerMethod handler,
             Class<?> type,
             List<Slot> slots,
             List<Deferred> deferred) {
@@ -158,13 +158,13 @@ public final class ModelTargetResolver {
     public static List<Class<?>> referencedModelTypes(Class<?> payloadType) {
         LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
         Payload.of(payloadType).properties.values().forEach(property -> property.modelType()
-                .filter(type -> ModelMetadata.of(type).isModel()).ifPresent(result::add));
+                .filter(type -> EntityMetadata.of(type).isModel()).ifPresent(result::add));
         return List.copyOf(result);
     }
 
     static DirectReferences directReferences(
             DeserializingMessage message,
-            ModelMetadata.ModelParameter parameter) {
+            EntityMetadata.ModelParameter parameter) {
         String association = parameter.associationProperty();
         if (metadataContains(message, parameter)) {
             Object value = message.getMetadata().get(association);
@@ -206,7 +206,7 @@ public final class ModelTargetResolver {
 
     private static boolean metadataContains(
             DeserializingMessage message,
-            ModelMetadata.ModelParameter parameter) {
+            EntityMetadata.ModelParameter parameter) {
         return parameter.associationProperty() != null && !parameter.associationExcludeMetadata()
                && message.getMetadata() != null
                && message.getMetadata().containsKey(parameter.associationProperty());
@@ -215,11 +215,11 @@ public final class ModelTargetResolver {
     static Optional<Resolution> resolveDependencies(
             DeserializingMessage message,
             Executable executable,
-            Collection<ModelMetadata.ModelParameter> parameters) {
+            Collection<EntityMetadata.ModelParameter> parameters) {
         Map<String, ResolvedModel> targets = new LinkedHashMap<>();
         Set<AncestorDependency> ancestors = new LinkedHashSet<>();
         boolean emptyCollection = false;
-        for (ModelMetadata.ModelParameter parameter : parameters) {
+        for (EntityMetadata.ModelParameter parameter : parameters) {
             DirectReferences references = directReferences(message, parameter);
             if (parameter.collectionWrapped()) {
                 if (references.present()) {
@@ -234,7 +234,7 @@ public final class ModelTargetResolver {
                             parameter.modelType(), parameter.associationProperty(), executable.toGenericString()));
                 } else if (references.modelId() != null) {
                     String source = parameter.associationProperty() == null
-                            ? ModelMetadata.of(parameter.modelType()).entityIdName()
+                            ? EntityMetadata.of(parameter.modelType()).entityIdName()
                             : parameter.associationProperty();
                     merge(targets, new ResolvedModel(
                             references.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
@@ -256,7 +256,7 @@ public final class ModelTargetResolver {
         }
         Map<String, ResolvedModel> result = new LinkedHashMap<>();
         Payload.of(payload.getClass()).properties.values().forEach(property -> property.modelType()
-                .filter(type -> ModelMetadata.of(type).isModel()).ifPresent(type -> {
+                .filter(type -> EntityMetadata.of(type).isModel()).ifPresent(type -> {
                     Object id = property.read(payload);
                     if (id != null) {
                         merge(result, new ResolvedModel(
@@ -538,7 +538,7 @@ public final class ModelTargetResolver {
 
     private static final class Slot {
         private final Class<?> modelType;
-        private final ModelMetadata metadata;
+        private final EntityMetadata metadata;
         private final Property property;
         private final boolean collection;
         private final String handler;
@@ -556,8 +556,8 @@ public final class ModelTargetResolver {
                 boolean apply) {
             this.modelType = collection || property.missing() ? requestedType
                     : property.modelType().filter(requestedType::isAssignableFrom)
-                            .filter(type -> ModelMetadata.of(type).isModel()).orElse(requestedType);
-            this.metadata = ModelMetadata.of(modelType);
+                            .filter(type -> EntityMetadata.of(type).isModel()).orElse(requestedType);
+            this.metadata = EntityMetadata.of(modelType);
             this.property = property;
             this.collection = collection;
             this.access = access;
@@ -591,7 +591,7 @@ public final class ModelTargetResolver {
         }
 
         private Optional<Class<?>> modelType() {
-            return missing() ? Optional.empty() : ModelMetadata.inferIdTarget(type, genericType);
+            return missing() ? Optional.empty() : EntityMetadata.inferIdTarget(type, genericType);
         }
 
         private Object read(Object target) {
@@ -633,7 +633,7 @@ public final class ModelTargetResolver {
             if (result != null) {
                 return result;
             }
-            String id = ModelMetadata.validate(modelType).entityIdName();
+            String id = EntityMetadata.validate(modelType).entityIdName();
             return Property.missing(
                     "Payload %s has no property named '%s' and no uniquely typed Id<%s> for model %s. ".formatted(
                             type.getName(), id, modelType.getSimpleName(), modelType.getName())
@@ -642,7 +642,7 @@ public final class ModelTargetResolver {
         }
 
         private Property direct(Class<?> modelType, String association) {
-            ModelMetadata model = validated(modelType);
+            EntityMetadata model = validated(modelType);
             if (association != null) {
                 return scalar(properties.get(association));
             }
@@ -689,8 +689,8 @@ public final class ModelTargetResolver {
             return property;
         }
 
-        private static ModelMetadata validated(Class<?> type) {
-            ModelMetadata result = ModelMetadata.validate(type);
+        private static EntityMetadata validated(Class<?> type) {
+            EntityMetadata result = EntityMetadata.validate(type);
             if (!result.isModel()) {
                 throw new IllegalStateException(
                         "Handler dependency %s is not annotated with @Model".formatted(type.getName()));
@@ -730,7 +730,7 @@ public final class ModelTargetResolver {
             String handler,
             Object source) {
         try {
-            ModelMetadata metadata = ModelMetadata.of(modelType);
+            EntityMetadata metadata = EntityMetadata.of(modelType);
             return metadata.parentScopedEntityId()
                     ? metadata.repositoryId(id, source) : metadata.repositoryId(id);
         } catch (RuntimeException e) {

@@ -655,7 +655,7 @@ final class ModelCommitProtocol {
 
     private static RelationshipUpdate relationshipUpdate(
             ModelExecutionPlan.Transition transition) {
-        List<ModelMetadata.ParentReference> parents =
+        List<EntityMetadata.ParentReference> parents =
                 transition.effect().metadata().parentReferences();
         if (parents.isEmpty()) {
             return transition.after() == null
@@ -679,12 +679,12 @@ final class ModelCommitProtocol {
     private static List<ModelRelationship> relationships(
             String modelId,
             Object model,
-            List<ModelMetadata.ParentReference> parentReferences) {
+            List<EntityMetadata.ParentReference> parentReferences) {
         if (model == null) {
             return List.of();
         }
         LinkedHashMap<RelationshipKey, ModelRelationship> result = new LinkedHashMap<>();
-        for (ModelMetadata.ParentReference parent : parentReferences) {
+        for (EntityMetadata.ParentReference parent : parentReferences) {
             Object parentId = parent.read(model);
             if (parentId == null) {
                 continue;
@@ -734,32 +734,28 @@ final class ModelCommitProtocol {
             ModelExecutionPlan.Transition transition,
             long nextSequence,
             Instant timestamp) {
-        ModelMetadata.RootConfiguration model = transition.effect().model();
+        EntityMetadata.RootConfiguration model = transition.effect().model();
+        EntityMetadata.SnapshotSettings snapshotSettings = transition.effect().snapshots();
         if (snapshotSerializer == null
             || !model.eventSourced()
             || !transition.effect().storeEvent()
             || transition.after() == null
-            || model.snapshotPeriod() <= 0
-            || Math.floorMod(
-                    nextSequence + 1L,
-                    model.snapshotPeriod()) != 0L) {
+            || !snapshotSettings.due(nextSequence, 1)) {
             return null;
         }
         return new ModelSnapshotMutation(
                 snapshotSerializer.serialize(
                         transition.after()),
                 timestamp.toEpochMilli(),
-                model.snapshotPeriod(),
-                Math.max(
-                        1,
-                        model.maxSnapshotCount()));
+                snapshotSettings.period(),
+                snapshotSettings.maxCount());
     }
 
     private ModelDocumentMutation directDocument(
             ModelExecutionPlan.Transition transition,
             Instant eventTimestamp,
             Metadata metadata) {
-        ModelMetadata.RootConfiguration model = transition.effect().model();
+        EntityMetadata.RootConfiguration model = transition.effect().model();
         if (transition.effect().directCollection() == null) {
             return null;
         }

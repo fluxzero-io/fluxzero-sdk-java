@@ -25,7 +25,7 @@ import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.Entity;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import lombok.extern.slf4j.Slf4j;
@@ -769,9 +769,9 @@ final class ModelCacheTracker implements AutoCloseable {
         }
         if (!target.isHistoryComplete()
             && entry.modelType != null
-            && ModelMetadata.validate(
+            && EntityMetadata.validate(
                             entry.modelType)
-                    .model().orElseThrow()
+                    .rootConfiguration().orElseThrow()
                     .eventSourced()) {
             cache.remove(
                     modelId);

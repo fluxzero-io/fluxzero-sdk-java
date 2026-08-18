@@ -40,15 +40,15 @@ public final class ModelGraphProjections {
      */
     public static Optional<ModelGraphProjectionConfiguration> configuration(
             Class<?> modelType) {
-        ModelMetadata.RootConfiguration model =
-                ModelMetadata.validate(modelType)
+        EntityMetadata.RootConfiguration model =
+                EntityMetadata.validate(modelType)
                         .rootConfiguration()
                         .orElseThrow(() ->
                                              new IllegalArgumentException(
                                                      modelType.getName()
                                                      + " is not an independent model"));
         if (model.kind()
-            != ModelMetadata.RootKind.MODEL
+            != EntityMetadata.RootKind.MODEL
             || model.graphProjection() == null
             || !model.materializeGraph()) {
             return Optional.empty();
@@ -86,7 +86,7 @@ public final class ModelGraphProjections {
 
     /** Returns every materialized projection root reachable from this model through parent relationships. */
     static List<Root> roots(Class<?> modelType) {
-        ModelMetadata.validate(modelType);
+        EntityMetadata.validate(modelType);
         return ReflectionUtils.getTypeMetadata(modelType)
                 .specializedMetadata(Roots.class, Roots::new)
                 .values();
@@ -103,13 +103,13 @@ public final class ModelGraphProjections {
                 return List.of();
             }
             List<Root> result = new ArrayList<>();
-            ModelMetadata metadata = ModelMetadata.of(modelType);
+            EntityMetadata metadata = EntityMetadata.of(modelType);
             metadata.model().flatMap(model -> configuration(modelType)
                             .map(configuration -> new Root(
                                     modelType, configuration, model.graphProjection())))
                     .ifPresent(result::add);
             metadata.parentReferences().stream()
-                    .map(ModelMetadata.ParentReference::parentModelType)
+                    .map(EntityMetadata.ParentReference::parentModelType)
                     .filter(java.util.Objects::nonNull)
                     .forEach(parent -> result.addAll(inspect(parent, visited)));
             return List.copyOf(result);

@@ -55,12 +55,12 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyType;
 
 /**
- * Cached structural metadata for an independently stored model or a type containing model handlers.
+ * Cached structural metadata for an entity, persisted root, or type containing model handlers.
  * <p>
  * Instances are owned by {@link ReflectionUtils.TypeMetadata}; callers must use {@link #of(Class)} instead of
  * constructing or caching this metadata independently.
  */
-public final class ModelMetadata {
+public final class EntityMetadata {
     private final Class<?> type;
     private final Model model;
     private final Aggregate aggregate;
@@ -75,21 +75,21 @@ public final class ModelMetadata {
     private final Map<Parameter, ModelParameter> modelParameters;
 
     /**
-     * Returns the centrally cached model metadata for a Java type.
+     * Returns the centrally cached entity metadata for a Java type.
      */
-    public static ModelMetadata of(Class<?> type) {
+    public static EntityMetadata of(Class<?> type) {
         return ReflectionUtils.getTypeMetadata(type)
-                .specializedMetadata(ModelMetadata.class, ModelMetadata::new);
+                .specializedMetadata(EntityMetadata.class, EntityMetadata::new);
     }
 
     /**
      * Returns and validates the centrally cached metadata, including all statically typed parent relations reachable
-     * from this model.
+     * from this type.
      * <p>
      * Relations using untyped IDs are checked for cycles when their relationship deltas are committed.
      */
-    public static ModelMetadata validate(Class<?> type) {
-        ModelMetadata result = of(type);
+    public static EntityMetadata validate(Class<?> type) {
+        EntityMetadata result = of(type);
         ReflectionUtils.getTypeMetadata(type)
                 .specializedMetadata(
                         ParentGraphValidation.class,
@@ -125,7 +125,7 @@ public final class ModelMetadata {
         return !unmatchedDomainParameter;
     }
 
-    private ModelMetadata(Class<?> type) {
+    private EntityMetadata(Class<?> type) {
         this.type = type;
         ReflectionUtils.TypeMetadata typeMetadata = ReflectionUtils.getTypeMetadata(type);
         this.model = typeMetadata.typeAnnotation(Model.class);
@@ -134,8 +134,8 @@ public final class ModelMetadata {
             throw invalid("%s cannot be annotated with both @Model and @Aggregate".formatted(type.getName()));
         }
         this.rootConfiguration = model == null
-                ? aggregate == null ? null : RootConfiguration.from(aggregate)
-                : RootConfiguration.from(model);
+                ? aggregate == null ? null : RootConfiguration.aggregate(aggregate)
+                : RootConfiguration.model(model);
         if (model != null) {
             validateGraphProjection(model);
         }
@@ -335,7 +335,7 @@ public final class ModelMetadata {
         if (!visited.add(descendant)) {
             return false;
         }
-        for (ParentReference parent : ModelMetadata.of(descendant).parentReferences()) {
+        for (ParentReference parent : EntityMetadata.of(descendant).parentReferences()) {
             for (Class<?> parentType : parent.parentModelTypes()) {
                 if (candidateAncestor.equals(parentType)
                     || isAncestor(candidateAncestor, parentType, visited)) {
@@ -1035,7 +1035,7 @@ public final class ModelMetadata {
             Class<?> parentModelType = parentModelType(parentId);
             return parentModelType == null
                     ? Objects.requireNonNull(parentId, "Parent ID must not be null").toString()
-                    : ModelMetadata.of(parentModelType).repositoryId(parentId);
+                    : EntityMetadata.of(parentModelType).repositoryId(parentId);
         }
 
         public boolean automaticallyComposed() {
@@ -1134,7 +1134,7 @@ public final class ModelMetadata {
             String timestampPath,
             String endPath) {
 
-        private static RootConfiguration from(Model annotation) {
+        static RootConfiguration model(Model annotation) {
             return new RootConfiguration(
                     RootKind.MODEL, annotation.conflictPolicy(), annotation.automaticHandling(),
                     annotation.eventSourced(), annotation.ignoreUnknownEvents(),
@@ -1146,7 +1146,7 @@ public final class ModelMetadata {
                     annotation.searchProjection().endPath());
         }
 
-        private static RootConfiguration from(Aggregate annotation) {
+        static RootConfiguration aggregate(Aggregate annotation) {
             return new RootConfiguration(
                     RootKind.AGGREGATE, ModelConflictPolicy.DEFAULT, AutomaticModelHandling.DEFAULT,
                     annotation.eventSourced(), annotation.ignoreUnknownEvents(),
@@ -1156,6 +1156,120 @@ public final class ModelMetadata {
                     annotation.searchable(), false, null, annotation.collection(), annotation.timestampPath(),
                     annotation.endPath());
         }
+
+        /** Resolves root and handler-level transition settings without retaining either annotation shape. */
+        public TransitionSettings transitionSettings(Apply apply) {
+            return transitionSettings(
+                    apply == null ? EventPublication.DEFAULT : apply.eventPublication(),
+                    apply == null ? EventPublicationStrategy.DEFAULT : apply.publicationStrategy(),
+                    apply == null ? AggregateEventRouting.DEFAULT : apply.eventRouting(),
+                    apply == null ? ModelConflictPolicy.DEFAULT : apply.conflictPolicy());
+        }
+
+        TransitionSettings transitionSettings(
+                EventPublication publicationOverride,
+                EventPublicationStrategy strategyOverride,
+                AggregateEventRouting routingOverride,
+                ModelConflictPolicy conflictOverride) {
+            EventPublication publication = publicationOverride == EventPublication.DEFAULT
+                    ? eventPublication : publicationOverride;
+            if (publication == EventPublication.DEFAULT) {
+                publication = kind == RootKind.MODEL ? EventPublication.IF_MODIFIED : EventPublication.ALWAYS;
+            }
+            EventPublicationStrategy strategy = strategyOverride == EventPublicationStrategy.DEFAULT
+                    ? publicationStrategy : strategyOverride;
+            EventPublicationStrategy eventStrategy = strategy;
+            if (strategy == EventPublicationStrategy.DEFAULT) {
+                strategy = EventPublicationStrategy.STORE_AND_PUBLISH;
+            }
+            AggregateEventRouting routing = routingOverride == AggregateEventRouting.DEFAULT
+                    ? eventRouting : routingOverride;
+            if (routing == AggregateEventRouting.DEFAULT) {
+                routing = AggregateEventRouting.MESSAGE_ROUTING_KEY;
+            }
+            ModelConflictPolicy conflict = conflictOverride == ModelConflictPolicy.DEFAULT
+                    ? conflictPolicy : conflictOverride;
+            return new TransitionSettings(this, publication, eventStrategy, strategy, routing, conflict);
+        }
+
+        RootConfiguration withTransitionDefaults(
+                boolean eventSourced,
+                EventPublication eventPublication,
+                EventPublicationStrategy publicationStrategy,
+                AggregateEventRouting eventRouting) {
+            return new RootConfiguration(
+                    kind, conflictPolicy, automaticHandling, eventSourced, ignoreUnknownEvents,
+                    snapshotPeriod, maxSnapshotCount, cached, cachingDepth, checkpointPeriod, commitPolicy,
+                    eventPublication, publicationStrategy, eventRouting, searchable, materializeGraph,
+                    graphProjection, collection, timestampPath, endPath);
+        }
+
+        /** Resolves the shared periodic snapshot policy for this persisted root. */
+        public SnapshotSettings snapshotSettings(boolean documentFallback) {
+            return new SnapshotSettings(documentFallback ? 1 : snapshotPeriod, Math.max(1, maxSnapshotCount));
+        }
+    }
+
+    /** Shared immutable snapshot trigger and retention settings for Aggregate and Model roots. */
+    public record SnapshotSettings(int period, int maxCount) {
+
+        public boolean enabled() {
+            return period > 0;
+        }
+
+        public boolean due(long sequenceNumber, int storedEventCount) {
+            return enabled() && storedEventCount > 0
+                   && periodIndex(sequenceNumber) > periodIndex(sequenceNumber - storedEventCount);
+        }
+
+        private long periodIndex(long sequenceNumber) {
+            return (sequenceNumber + 1L) / period;
+        }
+    }
+
+    /** Shared resolved policy for one Aggregate or Model transition. */
+    public record TransitionSettings(
+            RootConfiguration root,
+            EventPublication publication,
+            EventPublicationStrategy eventStrategy,
+            EventPublicationStrategy strategy,
+            AggregateEventRouting routing,
+            ModelConflictPolicy conflict) {
+
+        public boolean forceModified() {
+            return publication == EventPublication.ALWAYS
+                   && strategy != EventPublicationStrategy.PUBLISH_ONLY;
+        }
+
+        public TransitionDecision decide(
+                boolean modified, boolean cascadedDeletion,
+                boolean publishOnlyUpdatesState) {
+            if (cascadedDeletion) {
+                return new TransitionDecision(true, root.eventSourced(), false, true);
+            }
+            if (publication == EventPublication.IF_MODIFIED && !modified) {
+                return TransitionDecision.INACTIVE;
+            }
+            if (publication == EventPublication.NEVER) {
+                boolean updateState = root.kind() == RootKind.AGGREGATE || modified;
+                return new TransitionDecision(updateState, false, false, updateState);
+            }
+            return switch (strategy) {
+                case STORE_AND_PUBLISH -> new TransitionDecision(true, true, true, true);
+                case STORE_ONLY -> new TransitionDecision(true, true, false, true);
+                case PUBLISH_ONLY -> new TransitionDecision(
+                        true, false, true, modified && publishOnlyUpdatesState);
+                case DEFAULT -> throw new IllegalStateException("Unresolved root publication strategy");
+            };
+        }
+    }
+
+    /** Storage-neutral effects of one resolved transition. */
+    public record TransitionDecision(
+            boolean active, boolean storeEvent,
+            boolean publishEvent, boolean updateState) {
+        private static final TransitionDecision INACTIVE =
+                new TransitionDecision(false, false, false, false);
     }
 
     public enum RootKind {

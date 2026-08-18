@@ -235,7 +235,7 @@ class ModelBatchScopeTest {
     }
 
     @Test
-    void indexesConcreteModelMetadataWhenAnApplyTargetsAnInterface() {
+    void indexesConcreteEntityMetadataWhenAnApplyTargetsAnInterface() {
         PolymorphicAliasModel before =
                 new PolymorphicAliasModel("poly-1", "old");
         PolymorphicAliasModel after =

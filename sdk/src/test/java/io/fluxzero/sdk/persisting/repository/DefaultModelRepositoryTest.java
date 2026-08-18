@@ -52,7 +52,7 @@ import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.Graph;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -1143,14 +1143,14 @@ class DefaultModelRepositoryTest {
                         mock(EntityHelper.class), null,
                         cache, List.of());
         AccountId id = new AccountId("prevalidated");
-        ModelMetadata metadata =
-                ModelMetadata.validate(Account.class);
-        ModelMetadata.Property actualEntityId =
+        EntityMetadata metadata =
+                EntityMetadata.validate(Account.class);
+        EntityMetadata.Property actualEntityId =
                 metadata.entityId().orElseThrow();
         MemberInvoker unreadReader =
                 mock(MemberInvoker.class);
-        ModelMetadata.Property unreadEntityId =
-                new ModelMetadata.Property(
+        EntityMetadata.Property unreadEntityId =
+                new EntityMetadata.Property(
                         actualEntityId.name(),
                         actualEntityId.member(),
                         actualEntityId.type(),
@@ -1703,10 +1703,10 @@ class DefaultModelRepositoryTest {
         Object[] handlerTypes = Arrays.stream(
                         DefaultModelRepositoryTest.class.getDeclaredClasses())
                 .filter(type -> {
-                    ModelMetadata metadata = ModelMetadata.of(type);
+                    EntityMetadata metadata = EntityMetadata.of(type);
                     return metadata.isModel() || metadata.handlerMethods().stream()
-                            .anyMatch(handler -> handler.kind() == ModelMetadata.HandlerKind.INTERCEPT_APPLY
-                                                 || handler.kind() == ModelMetadata.HandlerKind.APPLY
+                            .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
+                                                 || handler.kind() == EntityMetadata.HandlerKind.APPLY
                                                     && !handler.targetModelTypes().isEmpty());
                 })
                 .toArray();

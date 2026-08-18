@@ -16,7 +16,6 @@
 
 package io.fluxzero.sdk.modeling;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
@@ -28,8 +27,6 @@ import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 
 import java.time.Instant;
-
-import static io.fluxzero.sdk.Fluxzero.currentTime;
 
 /**
  * Immutable entity wrapper for one independently stored model revision.
@@ -46,42 +43,43 @@ import static io.fluxzero.sdk.Fluxzero.currentTime;
 @Accessors(fluent = true)
 @Jacksonized
 @ToString(callSuper = true)
-public class ImmutableModelRoot<T> extends ImmutableEntity<T>
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
+public class ImmutableModelRoot<T> extends ImmutableRoot<T>
         implements ModelRoot<T> {
     @JsonProperty
-    String lastEventId;
-    @JsonProperty
-    Long lastEventIndex;
-    @JsonProperty
     @Builder.Default
-    Instant timestamp = currentTime();
-    @JsonProperty
-    @Builder.Default
-    long sequenceNumber = -1L;
-    @JsonProperty
-    @Builder.Default
+    @EqualsAndHashCode.Include
     long stateIndex = -1L;
 
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @JsonIgnore
-    transient Entity<T> previous;
+    /** Keeps the original builder descriptors while delegating their state to {@link ImmutableRoot}. */
+    public abstract static class ImmutableModelRootBuilder<
+            T, C extends ImmutableModelRoot<T>,
+            B extends ImmutableModelRootBuilder<T, C, B>>
+            extends ImmutableRoot.ImmutableRootBuilder<T, C, B> {
+        @Override
+        public B lastEventId(String value) {
+            return super.lastEventId(value);
+        }
 
-    private ImmutableModelRoot(
-            ImmutableModelRootBuilder<T, ?, ?> builder,
-            String lastEventId,
-            Long lastEventIndex,
-            Instant timestamp,
-            long sequenceNumber,
-            long stateIndex,
-            Entity<T> previous) {
-        super(builder);
-        this.lastEventId = lastEventId;
-        this.lastEventIndex = lastEventIndex;
-        this.timestamp = timestamp;
-        this.sequenceNumber = sequenceNumber;
-        this.stateIndex = stateIndex;
-        this.previous = previous;
+        @Override
+        public B lastEventIndex(Long value) {
+            return super.lastEventIndex(value);
+        }
+
+        @Override
+        public B timestamp(Instant value) {
+            return super.timestamp(value);
+        }
+
+        @Override
+        public B sequenceNumber(long value) {
+            return super.sequenceNumber(value);
+        }
+
+        @Override
+        public B previous(Entity<T> value) {
+            return super.previous(value);
+        }
     }
 
     private ImmutableModelRoot(
@@ -97,15 +95,9 @@ public class ImmutableModelRoot<T> extends ImmutableEntity<T>
             long sequenceNumber,
             long stateIndex,
             Entity<T> previous) {
-        super(
-                id, type, value, idProperty,
-                null, null, entityHelper, serializer);
-        this.lastEventId = lastEventId;
-        this.lastEventIndex = lastEventIndex;
-        this.timestamp = timestamp;
-        this.sequenceNumber = sequenceNumber;
+        super(id, type, idProperty, value, entityHelper, serializer,
+              lastEventId, lastEventIndex, timestamp, sequenceNumber, previous);
         this.stateIndex = stateIndex;
-        this.previous = previous;
     }
 
     private ImmutableModelRoot(
@@ -114,13 +106,8 @@ public class ImmutableModelRoot<T> extends ImmutableEntity<T>
             Long lastEventIndex,
             long sequenceNumber,
             Entity<T> previous) {
-        super(source);
-        this.lastEventId = lastEventId;
-        this.lastEventIndex = lastEventIndex;
-        this.timestamp = source.timestamp;
-        this.sequenceNumber = sequenceNumber;
+        super(source, lastEventId, lastEventIndex, sequenceNumber, previous);
         this.stateIndex = source.stateIndex;
-        this.previous = previous;
     }
 
     /**
@@ -150,22 +137,23 @@ public class ImmutableModelRoot<T> extends ImmutableEntity<T>
     public Entity<T> withEventIndex(Long index, String messageId) {
         return new ImmutableModelRoot<>(
                 this, messageId, index,
-                sequenceNumber, previous);
+                sequenceNumber(), previous());
     }
 
     @Override
     public Entity<T> withSequenceNumber(long sequenceNumber) {
         return new ImmutableModelRoot<>(
-                this, lastEventId, lastEventIndex,
-                sequenceNumber, previous);
+                this, lastEventId(), lastEventIndex(),
+                sequenceNumber, previous());
     }
 
     /**
      * Returns this revision with the supplied in-memory predecessor.
      */
+    @Override
     public ImmutableModelRoot<T> withPrevious(Entity<T> previous) {
         return new ImmutableModelRoot<>(
-                this, lastEventId, lastEventIndex,
-                sequenceNumber, previous);
+                this, lastEventId(), lastEventIndex(),
+                sequenceNumber(), previous);
     }
 }

@@ -49,8 +49,8 @@ class ModelCommitEngineTest {
     void evaluatesAllWritesAgainstSameBeginStateThenPublishesResultingState() {
         UpdateOrderAndInventory command = new UpdateOrderAndInventory(
                 new OrderId("1"), new InventoryId("1"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(UpdateOrderAndInventory.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(UpdateOrderAndInventory.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
@@ -72,8 +72,8 @@ class ModelCommitEngineTest {
     @Test
     void stagesOnlyReturnedModelsAndLeavesReadDependenciesUntouched() {
         ReserveOrder command = new ReserveOrder(new OrderId("1"), new InventoryId("1"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(ReserveOrder.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(ReserveOrder.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
@@ -91,8 +91,8 @@ class ModelCommitEngineTest {
     @Test
     void nullReturnStagesLogicalDeleteAndRetainsBeginState() {
         DeleteOrder command = new DeleteOrder(new OrderId("1"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(DeleteOrder.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(DeleteOrder.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
         ModelCommitContext begin = context(command, handlers, order);
@@ -108,8 +108,8 @@ class ModelCommitEngineTest {
     @Test
     void explicitNoArgumentDeleteStagesLogicalDelete() {
         DeleteOrderWithoutState command = new DeleteOrderWithoutState(new OrderId("1"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(DeleteOrderWithoutState.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(DeleteOrderWithoutState.class).handlerMethods();
         Entity<Order> order = entity(command.orderId(), new Order(command.orderId(), "pending"));
         ModelCommitContext begin = context(command, handlers, order);
 
@@ -123,8 +123,8 @@ class ModelCommitEngineTest {
     @Test
     void createsWriteOnlyTargetFromReturnedModel() {
         CreateOrder command = new CreateOrder(new OrderId("new"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(CreateOrder.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(CreateOrder.class).handlerMethods();
         Entity<Order> empty = entity(command.orderId(), null);
         ModelCommitContext begin = context(command, handlers, empty);
 
@@ -139,8 +139,8 @@ class ModelCommitEngineTest {
     void createsAnOrderedCollectionOfModelsInOneSubstep() {
         CreateOrders command = new CreateOrders(List.of(
                 new OrderId("first"), new OrderId("second")));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(CreateOrders.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(CreateOrders.class).handlerMethods();
         ModelCommitContext begin = context(command, handlers);
 
         List<ModelExecutionPlan.Transition> result =
@@ -160,8 +160,8 @@ class ModelCommitEngineTest {
     void createsHeterogeneousRuntimeValidatedModels() {
         CreateMixedModels command = new CreateMixedModels(
                 new OrderId("one"), new InventoryId("one"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(CreateMixedModels.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(CreateMixedModels.class).handlerMethods();
 
         List<ModelExecutionPlan.Transition> result = compiler.evaluate(
                 message(command), context(command, handlers), handlers);
@@ -182,8 +182,8 @@ class ModelCommitEngineTest {
     void createsOneRuntimeValidatedObjectResult() {
         CreateDynamicModel command =
                 new CreateDynamicModel(new OrderId("dynamic"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(CreateDynamicModel.class)
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(CreateDynamicModel.class)
                         .handlerMethods();
 
         List<ModelExecutionPlan.Transition> result = compiler.evaluate(
@@ -211,8 +211,8 @@ class ModelCommitEngineTest {
 
     private IllegalStateException collectionFailure(
             InvalidModelCollection command) {
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(InvalidModelCollection.class)
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(InvalidModelCollection.class)
                         .handlerMethods();
         return assertThrows(
                 IllegalStateException.class,
@@ -223,8 +223,8 @@ class ModelCommitEngineTest {
     @Test
     void skipsInapplicableInterceptorWithMissingModelAndStillCreatesTarget() {
         ConditionalCreateOrder command = new ConditionalCreateOrder(new OrderId("new"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(ConditionalCreateOrder.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(ConditionalCreateOrder.class).handlerMethods();
         Entity<Order> empty = entity(command.orderId(), null);
         ModelCommitContext begin = context(command, handlers, empty);
 
@@ -237,8 +237,8 @@ class ModelCommitEngineTest {
     @Test
     void rejectsDuplicateWritesWithoutMutatingBeginState() {
         DuplicateOrderWrite command = new DuplicateOrderWrite(new OrderId("1"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(DuplicateOrderWrite.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(DuplicateOrderWrite.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
         ModelCommitContext begin = context(command, handlers, order);
@@ -255,8 +255,8 @@ class ModelCommitEngineTest {
     void failureRollsBackAllStagedWritesInMemory() {
         FailingMultiWrite command = new FailingMultiWrite(
                 new OrderId("1"), new InventoryId("1"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(FailingMultiWrite.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(FailingMultiWrite.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
@@ -276,7 +276,7 @@ class ModelCommitEngineTest {
     void nonNullDeferredSameTypeReturnSelectsOneCandidateButNullIsAmbiguous() {
         Transfer transfer = new Transfer(
                 new AccountId("source"), new AccountId("destination"), false);
-        List<ModelMetadata.HandlerMethod> handlers = ModelMetadata.of(Transfer.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers = EntityMetadata.of(Transfer.class).handlerMethods();
         Entity<Account> source = entity(
                 transfer.sourceId(), new Account(transfer.sourceId(), 10));
         Entity<Account> destination = entity(
@@ -302,8 +302,8 @@ class ModelCommitEngineTest {
     @Test
     void rejectsReturnedIdentityOutsideResolvedTargets() {
         ReturnOtherOrder command = new ReturnOtherOrder(new OrderId("1"));
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(ReturnOtherOrder.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(ReturnOtherOrder.class).handlerMethods();
         Entity<Order> order = entity(
                 command.orderId(), new Order(command.orderId(), "pending"));
         ModelCommitContext begin = context(command, handlers, order);
@@ -672,8 +672,8 @@ class ModelCommitEngineTest {
         List<String> observations = new ArrayList<>();
         RenameReceiverOrder command =
                 new RenameReceiverOrder(id, "renamed", observations);
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(ReceiverOrder.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(ReceiverOrder.class).handlerMethods();
         ModelCommitContext begin = context(
                 command, handlers, entity(id, new ReceiverOrder(id, "initial")));
 
@@ -695,8 +695,8 @@ class ModelCommitEngineTest {
         OrderId id = new OrderId("assert");
         List<String> observations = new ArrayList<>();
         AssertedOrderUpdate command = new AssertedOrderUpdate(id, observations);
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(AssertedOrderUpdate.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(AssertedOrderUpdate.class).handlerMethods();
         ModelCommitContext begin = context(
                 command, handlers, entity(id, new Order(id, "pending")));
 
@@ -715,8 +715,8 @@ class ModelCommitEngineTest {
         OrderId id = new OrderId("validate-only");
         List<String> observations = new ArrayList<>();
         AssertedOrderUpdate command = new AssertedOrderUpdate(id, observations);
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(AssertedOrderUpdate.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(AssertedOrderUpdate.class).handlerMethods();
         Entity<Order> order = entity(id, new Order(id, "pending"));
         ModelCommitContext begin = context(command, handlers, order);
 
@@ -738,8 +738,8 @@ class ModelCommitEngineTest {
         List<String> observations = new ArrayList<>();
         RenameReceiverOrder command =
                 new RenameReceiverOrder(id, "ignored", observations);
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(ReceiverOrder.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(ReceiverOrder.class).handlerMethods();
         Entity<ReceiverOrder> order = entity(
                 id, new ReceiverOrder(id, "initial"));
         ModelCommitContext begin = context(command, handlers, order);
@@ -760,8 +760,8 @@ class ModelCommitEngineTest {
     void failingAfterAssertionExposesNoPartiallyUpdatedContext() {
         OrderId id = new OrderId("reject");
         RejectAfterOrderUpdate command = new RejectAfterOrderUpdate(id);
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(RejectAfterOrderUpdate.class).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(RejectAfterOrderUpdate.class).handlerMethods();
         ModelCommitContext begin = context(
                 command, handlers, entity(id, new Order(id, "pending")));
         DeserializingMessage message = message(command);
@@ -778,7 +778,7 @@ class ModelCommitEngineTest {
     void directlyInvokesSimpleSingleTargetModelReceiver() {
         FastOrderId id = new FastOrderId("one");
         RenameFastOrder command = new RenameFastOrder(id, "updated");
-        ModelMetadata.HandlerMethod handler = ModelMetadata.of(FastOrder.class)
+        EntityMetadata.HandlerMethod handler = EntityMetadata.of(FastOrder.class)
                 .applyMethods().getFirst();
         ModelCommitContext begin = context(
                 command, List.of(handler),
@@ -801,7 +801,7 @@ class ModelCommitEngineTest {
 
     @Test
     void directInvocationRejectsModelInjectionParameters() {
-        ModelMetadata.HandlerMethod handler = ModelMetadata.of(Transfer.class)
+        EntityMetadata.HandlerMethod handler = EntityMetadata.of(Transfer.class)
                 .applyMethods().getFirst();
 
         assertNull(ModelExecutionPlan.Compiler.directSingleTargetApply(
@@ -813,8 +813,8 @@ class ModelCommitEngineTest {
             long stateIndex,
             Map<String, Entity<?>> stored) {
         Object payload = message.getPayload();
-        List<ModelMetadata.HandlerMethod> handlers =
-                ModelMetadata.of(payload.getClass()).handlerMethods();
+        List<EntityMetadata.HandlerMethod> handlers =
+                EntityMetadata.of(payload.getClass()).handlerMethods();
         ModelTargetResolver.Resolution resolution =
                 ModelTargetResolver.compile(payload.getClass(), handlers)
                         .resolve(payload);
@@ -873,7 +873,7 @@ class ModelCommitEngineTest {
 
     private static ModelCommitContext context(
             Object command,
-            Collection<ModelMetadata.HandlerMethod> handlers,
+            Collection<EntityMetadata.HandlerMethod> handlers,
             Entity<?>... entities) {
         ModelTargetResolver.Resolution resolution =
                 ModelTargetResolver.compile(command.getClass(), handlers)

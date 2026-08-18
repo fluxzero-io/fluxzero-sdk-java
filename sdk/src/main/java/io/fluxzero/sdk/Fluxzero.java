@@ -1239,7 +1239,7 @@ public interface Fluxzero extends AutoCloseable {
         if (entityType.isAnnotationPresent(Model.class)) {
             return loadModel(entityId, entityType);
         }
-        String repositoryId = io.fluxzero.sdk.modeling.ModelMetadata.of(entityType).repositoryId(entityId);
+        String repositoryId = io.fluxzero.sdk.modeling.EntityMetadata.of(entityType).repositoryId(entityId);
         return loadAggregateFor(repositoryId).getEntity(entityId, entityType)
                 .orElseGet(() -> loadAggregate(entityId, entityType));
     }
@@ -1316,7 +1316,7 @@ public interface Fluxzero extends AutoCloseable {
         if (message != null && (message.getMessageType() == EVENT || message.getMessageType() == NOTIFICATION)
             && !Entity.isApplying()
             && entity.id().toString().equals(Entity.getAggregateId(message))
-            && entity.rootAnnotation().eventSourced()
+            && entity.rootConfiguration().eventSourced()
             && entity.sequenceNumber() >= 0L) {
             return entity.playBackToEvent(message.getIndex(), message.getMessageId())
                     .orElseThrow(() -> new IllegalStateException(

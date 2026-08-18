@@ -26,7 +26,6 @@ import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
-import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
@@ -40,7 +39,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Answers.CALLS_REAL_METHODS;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -207,23 +206,23 @@ class TestFixtureModelApiTest {
     }
 
     @Test
-    void modelEventsUseTheModelRepositoryWithoutAggregateMetadata() {
-        TestFixture fixture = mock(TestFixture.class, CALLS_REAL_METHODS);
+    void modelEventsUseTheSameCompiledStoredEventPipeline() {
+        TestFixture fixture = TestFixture.create();
         Fluxzero fluxzero = mock(Fluxzero.class);
-        ModelRepository repository = mock(ModelRepository.class);
-        @SuppressWarnings("unchecked")
-        Entity<TestModel> entity = (Entity<TestModel>) mock(Entity.class);
         List<Message> events = List.of(new Message("created"));
-        when(fluxzero.modelRepository()).thenReturn(repository);
-        when(repository.load("model-1", TestModel.class)).thenReturn(entity);
+        when(fluxzero.executeStoredModelEvent(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
 
-        fixture.applyModelEvents("model-1", TestModel.class, fluxzero, events);
+        fixture.applyEvents("model-1", TestModel.class, fluxzero, events);
 
-        verify(repository).load("model-1", TestModel.class);
-        verify(entity).apply(events);
+        verify(fluxzero).executeStoredModelEvent(argThat(event ->
+                "model-1".equals(event.getMetadata().get(Entity.AGGREGATE_ID_METADATA_KEY))
+                && TestModel.class.getName().equals(
+                        event.getMetadata().get(Entity.AGGREGATE_TYPE_METADATA_KEY))));
     }
 
-    private record TestModel(String id) {
+    @Model
+    private record TestModel(@EntityId String id) {
     }
 
     @Model

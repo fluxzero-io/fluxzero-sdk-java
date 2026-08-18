@@ -513,6 +513,14 @@ public interface Entity<T> {
     }
 
     /**
+     * Returns the persistence and revision settings of this root, independently of whether it is declared as an
+     * {@link Aggregate} or {@link Model}.
+     */
+    default EntityMetadata.RootConfiguration rootConfiguration() {
+        return DefaultEntityHelper.getRootConfiguration(root().type());
+    }
+
+    /**
      * Retrieves the previous version of this entity.
      *
      * @return the previous state of the entity, or null if this is the first known version
@@ -625,7 +633,7 @@ public interface Entity<T> {
         }
         Objects.requireNonNull(entityType, "entityType");
         String functionalId = entityId.toString();
-        String repositoryId = ModelMetadata.of(entityType).repositoryId(entityId);
+        String repositoryId = EntityMetadata.of(entityType).repositoryId(entityId);
         List<Entity<?>> entities = allEntities()
                 .filter(entity -> entity.type() != null && entityType.isAssignableFrom(entity.type()))
                 .toList();
@@ -670,7 +678,7 @@ public interface Entity<T> {
     private static String repositoryIdentity(Entity<?> entity) {
         return entity.type().isAnnotationPresent(Model.class)
                 ? entity.id().toString()
-                : ModelMetadata.of(entity.type()).repositoryId(entity.id());
+                : EntityMetadata.of(entity.type()).repositoryId(entity.id());
     }
 
     /**

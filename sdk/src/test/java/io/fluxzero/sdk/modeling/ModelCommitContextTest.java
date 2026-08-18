@@ -146,7 +146,7 @@ class ModelCommitContextTest {
     private static ModelTargetResolver.Resolution resolution(Object command) {
         return ModelTargetResolver.compile(
                         command.getClass(),
-                        ModelMetadata.of(command.getClass()).handlerMethods())
+                        EntityMetadata.of(command.getClass()).handlerMethods())
                 .resolve(command);
     }
 

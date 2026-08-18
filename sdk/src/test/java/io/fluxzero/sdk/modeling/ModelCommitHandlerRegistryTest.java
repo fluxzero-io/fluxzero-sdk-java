@@ -1069,7 +1069,7 @@ class ModelCommitHandlerRegistryTest {
         UpdateBatchChild update = new UpdateBatchChild(childId, 1);
         assertTrue(ModelTargetResolver.compile(
                 UpdateBatchChild.class,
-                ModelMetadata.of(UpdateBatchChild.class).handlerMethods())
+                EntityMetadata.of(UpdateBatchChild.class).handlerMethods())
                            .resolve(update)
                            .hasAncestorDependencies());
 
@@ -1535,7 +1535,7 @@ class ModelCommitHandlerRegistryTest {
                             target -> ImmutableModelRoot.<Object>builder()
                                     .id(target.modelId())
                                     .type((Class<Object>) target.modelType())
-                                    .idProperty(ModelMetadata.of(target.modelType())
+                                    .idProperty(EntityMetadata.of(target.modelType())
                                             .entityId().orElseThrow().name())
                                     .value(null)
                                     .sequenceNumber(-1L)
@@ -1576,8 +1576,8 @@ class ModelCommitHandlerRegistryTest {
                     if (child == null) {
                         continue;
                     }
-                    for (ModelMetadata.ParentReference parent :
-                            ModelMetadata.validate(child.getClass()).parentReferences()) {
+                    for (EntityMetadata.ParentReference parent :
+                            EntityMetadata.validate(child.getClass()).parentReferences()) {
                         Object parentId = parent.read(child);
                         Class<?> parentModelType = parentId == null ? null : parent.parentModelType(parentId);
                         if (parentModelType == null
@@ -1608,7 +1608,7 @@ class ModelCommitHandlerRegistryTest {
                            ImmutableModelRoot.<Object>builder()
                                    .id(target.modelId())
                                    .type((Class<Object>) target.modelType())
-                                   .idProperty(ModelMetadata.of(target.modelType())
+                                   .idProperty(EntityMetadata.of(target.modelType())
                                            .entityId().orElseThrow().name())
                                    .value(value)
                                    .sequenceNumber(value == null ? -1L : 0L)

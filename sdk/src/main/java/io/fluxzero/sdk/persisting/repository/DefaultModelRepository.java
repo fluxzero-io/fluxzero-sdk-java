@@ -44,12 +44,12 @@ import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
-import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.ModelExecutionPlan;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
@@ -276,7 +276,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private static String exactModelId(Object modelId) {
         Objects.requireNonNull(modelId, "Model ID must not be null");
         return modelId instanceof Id<?> id
-                ? ModelMetadata.of(id.getType()).repositoryId(id)
+                ? EntityMetadata.of(id.getType()).repositoryId(id)
                 : modelId.toString();
     }
 
@@ -339,12 +339,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     modelId,
                     resolvedType));
         }
-        ModelMetadata metadata = ModelMetadata.validate(modelType);
-        Model model = metadata.model().orElseThrow(() -> new IllegalArgumentException(
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration()
+                .filter(root -> root.kind() == EntityMetadata.RootKind.MODEL)
+                .orElseThrow(() -> new IllegalArgumentException(
                 modelType.getName() + " is not annotated with @Model"));
         if (replayCursor == null) {
-            if (!model.eventSourced() && handlerBoundary == null) {
-                return loadDocument(modelId, modelType, metadata, model);
+            if (!configuration.eventSourced() && handlerBoundary == null) {
+                return loadDocument(modelId, modelType, metadata, configuration);
             }
             requireEventReconstruction();
         }
@@ -361,7 +363,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (modelIds.isEmpty()) {
             return List.of();
         }
-        ModelMetadata metadata = ModelMetadata.validate(modelType);
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
         String idProperty = metadata.entityId().orElseThrow().name();
         LinkedHashSet<String> uniqueIds = new LinkedHashSet<>();
         List<String> ids = modelIds.stream()
@@ -402,7 +404,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Class<T> rootType,
             @NonNull Graph.Options options) {
         requireEventReconstruction();
-        ModelMetadata.validate(rootType);
+        EntityMetadata.validate(rootType);
         ModelReadBoundary.Pinned handlerBoundary =
                 handlerBoundary();
         return readGraph(
@@ -439,7 +441,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             ModelReadBoundary boundary,
             boolean all) {
         requireEventReconstruction();
-        ModelMetadata sourceMetadata = ModelMetadata.validate(modelType);
+        EntityMetadata sourceMetadata = EntityMetadata.validate(modelType);
         ModelTargetResolver.ResolvedModel source =
                 new ModelTargetResolver.ResolvedModel(
                         modelId, modelType,
@@ -621,7 +623,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean includeMessageBatch,
             boolean historical) {
         requireEventReconstruction();
-        ModelMetadata.validate(rootType);
+        EntityMetadata.validate(rootType);
         Map<String, ModelBatchScope.StagedModel> staged =
                 includeMessageBatch
                         ? ModelBatchScope.currentValues(
@@ -678,8 +680,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private Optional<Class<?>> payloadFactoryTarget(
             String modelId, Object payload) {
         try {
-            List<ModelMetadata.HandlerMethod> handlers =
-                    ModelMetadata.of(payload.getClass())
+            List<EntityMetadata.HandlerMethod> handlers =
+                    EntityMetadata.of(payload.getClass())
                             .applyMethods();
             if (handlers.isEmpty()) {
                 return Optional.empty();
@@ -692,7 +694,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .filter(target -> modelId.equals(
                             target.modelId()))
                     .map(ModelTargetResolver.ResolvedModel::modelType)
-                    .filter(type -> ModelMetadata.of(type)
+                    .filter(type -> EntityMetadata.of(type)
                             .isModel())
                     .findFirst();
         } catch (IllegalArgumentException
@@ -980,7 +982,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return current;
         }
         return committedEntity(
-                committed, ModelMetadata.of(committed.modelType()),
+                committed, EntityMetadata.of(committed.modelType()),
                 committed.model(), current);
     }
 
@@ -1045,10 +1047,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @SuppressWarnings("unchecked")
     private Entity<?> committedEntity(
             CommittedModel committed,
-            ModelMetadata metadata,
-            ModelMetadata.RootConfiguration model,
+            EntityMetadata metadata,
+            EntityMetadata.RootConfiguration model,
             Entity<?> previous) {
-        ModelMetadata.Property entityId = metadata.entityId().orElseThrow();
+        EntityMetadata.Property entityId = metadata.entityId().orElseThrow();
         Entity<?> result = previous;
         for (CommittedRevision revision : committed.revisions()) {
             if (!committed.valueIdsValidated()) {
@@ -1065,7 +1067,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     revision.timestamp(),
                     revision.sequenceNumber(),
                     revision.stateIndex(),
-                    castPrevious(retainPrevious(
+                    castPrevious(ImmutableRoot.retainPrevious(
                             result, model)));
         }
         if (result == null) {
@@ -1074,45 +1076,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     + committed.modelId());
         }
         return result;
-    }
-
-    private Entity<?> retainPrevious(
-            Entity<?> previous,
-            ModelMetadata.RootConfiguration model) {
-        if (previous == null || !model.cached()
-            || !model.eventSourced() || model.cachingDepth() == 0) {
-            return null;
-        }
-        if (model.cachingDepth() < 0) {
-            return previous;
-        }
-        return truncatePrevious(previous, model.cachingDepth() - 1);
-    }
-
-    private Entity<?> retainPrevious(
-            Entity<?> previous, Model model) {
-        if (previous == null || !model.cached()
-            || !model.eventSourced() || model.cachingDepth() == 0) {
-            return null;
-        }
-        if (model.cachingDepth() < 0) {
-            return previous;
-        }
-        return truncatePrevious(previous, model.cachingDepth() - 1);
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private Entity<?> truncatePrevious(
-            Entity<?> revision, int remainingDepth) {
-        if (!(revision instanceof ImmutableModelRoot root)) {
-            return revision;
-        }
-        Entity<?> previous = remainingDepth <= 0
-                ? null
-                : truncatePrevious(
-                        root.previous(), remainingDepth - 1);
-        return root.previous() == previous
-                ? root : root.withPrevious((Entity) previous);
     }
 
     @SuppressWarnings("unchecked")
@@ -1128,28 +1091,30 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private <T> Entity<T> loadDocument(
-            String modelId, Class<T> modelType, ModelMetadata metadata, Model annotation) {
-        return cast(loadDocumentUnchecked(modelId, modelType, metadata, annotation));
+            String modelId, Class<T> modelType, EntityMetadata metadata,
+            EntityMetadata.RootConfiguration configuration) {
+        return cast(loadDocumentUnchecked(modelId, modelType, metadata, configuration));
     }
 
     private Entity<?> loadDocumentProjection(String modelId, Class<?> modelType) {
-        ModelMetadata metadata = ModelMetadata.validate(modelType);
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
         return loadDocumentUnchecked(
-                modelId, modelType, metadata, metadata.model().orElseThrow());
+                modelId, modelType, metadata, metadata.rootConfiguration().orElseThrow());
     }
 
     @SuppressWarnings("unchecked")
     private Entity<?> loadDocumentUnchecked(
-            String modelId, Class<?> modelType, ModelMetadata metadata, Model annotation) {
-        String collection = annotation.searchable()
-                ? Optional.of(annotation.searchProjection().collection())
+            String modelId, Class<?> modelType, EntityMetadata metadata,
+            EntityMetadata.RootConfiguration configuration) {
+        String collection = configuration.searchable()
+                ? Optional.of(configuration.collection())
                         .filter(value -> !value.isEmpty())
                         .map(ApplicationProperties::substituteProperties)
                         .orElse(modelType.getSimpleName())
                 : metadata.participatesInGraphComposition()
                         ? ModelDocumentMutation
                                 .GRAPH_COMPONENT_COLLECTION
-                        : Optional.of(annotation.searchProjection().collection())
+                        : Optional.of(configuration.collection())
                                 .filter(value -> !value.isEmpty())
                                 .map(ApplicationProperties::substituteProperties)
                                 .orElse(modelType.getSimpleName());
@@ -1178,7 +1143,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private static void validateValueId(
-            String modelId, ModelMetadata metadata, Object value) {
+            String modelId, EntityMetadata metadata, Object value) {
         if (value == null) {
             return;
         }
@@ -1227,8 +1192,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     public record CommittedModel(
             String modelId,
             Class<?> modelType,
-            ModelMetadata.RootConfiguration model,
-            ModelMetadata.Property entityId,
+            EntityMetadata.RootConfiguration model,
+            EntityMetadata.Property entityId,
             boolean valueIdsValidated,
             boolean historyComplete,
             List<CommittedRevision> revisions) {
@@ -1240,7 +1205,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 CommittedRevision revision) {
             this(
                     modelId, modelType,
-                    ModelMetadata.validate(modelType),
+                    EntityMetadata.validate(modelType),
                     historyComplete, List.of(revision));
         }
 
@@ -1250,8 +1215,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         public CommittedModel(
                 String modelId,
                 Class<?> modelType,
-                ModelMetadata.RootConfiguration model,
-                ModelMetadata.Property entityId,
+                EntityMetadata.RootConfiguration model,
+                EntityMetadata.Property entityId,
                 boolean historyComplete,
                 CommittedRevision revision) {
             this(
@@ -1266,14 +1231,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 List<CommittedRevision> revisions) {
             this(
                     modelId, modelType,
-                    ModelMetadata.validate(modelType),
+                    EntityMetadata.validate(modelType),
                     historyComplete, revisions);
         }
 
         private CommittedModel(
                 String modelId,
                 Class<?> modelType,
-                ModelMetadata metadata,
+                EntityMetadata metadata,
                 boolean historyComplete,
                 List<CommittedRevision> revisions) {
             this(
@@ -1289,8 +1254,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         public CommittedModel(
                 String modelId,
                 Class<?> modelType,
-                ModelMetadata.RootConfiguration model,
-                ModelMetadata.Property entityId,
+                EntityMetadata.RootConfiguration model,
+                EntityMetadata.Property entityId,
                 boolean historyComplete,
                 List<CommittedRevision> revisions) {
             this(

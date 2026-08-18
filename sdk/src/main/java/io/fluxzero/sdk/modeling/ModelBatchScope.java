@@ -249,12 +249,12 @@ public final class ModelBatchScope {
         if (durable instanceof ImmutableEntity<?> immutable) {
             return (Entity<T>) immutable.toBuilder()
                     .id(id).type((Class) actualType)
-                    .idProperty(ModelMetadata.of(actualType).entityIdName())
+                    .idProperty(EntityMetadata.of(actualType).entityIdName())
                     .value(lookup.available() ? lookup.value() : null).build();
         }
         return (Entity<T>) ImmutableModelRoot.builder()
                 .id(id).type((Class) actualType)
-                .idProperty(ModelMetadata.of(actualType).entityIdName())
+                .idProperty(EntityMetadata.of(actualType).entityIdName())
                 .value(lookup.available() ? lookup.value() : null).build();
     }
 
@@ -344,7 +344,7 @@ public final class ModelBatchScope {
             }
             result.put(value.modelId(), value.available() ? value.value() : null);
             if (value.value() != null) {
-                ModelMetadata.validate(value.value().getClass()).parentReferences().forEach(parent -> {
+                EntityMetadata.validate(value.value().getClass()).parentReferences().forEach(parent -> {
                     Object parentId = parent.read(value.value());
                     if (parentId != null) {
                         pending.add(parent.repositoryId(parentId));
@@ -485,7 +485,7 @@ public final class ModelBatchScope {
         if (value == null || Object.class.equals(type)) {
             return Set.of();
         }
-        List<String> aliases = ModelMetadata.validate(type).aliases(value);
+        List<String> aliases = EntityMetadata.validate(type).aliases(value);
         return aliases == null || aliases.isEmpty() ? Set.of() : Set.copyOf(aliases);
     }
 

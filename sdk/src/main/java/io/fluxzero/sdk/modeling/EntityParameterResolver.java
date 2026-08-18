@@ -218,7 +218,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                                 || message.getMessageType() == MessageType.NOTIFICATION)
             && !Entity.isApplying()
             && entity.id().toString().equals(Entity.getAggregateId(message))
-            && entity.rootAnnotation().eventSourced()
+            && entity.rootConfiguration().eventSourced()
             && entity.sequenceNumber() >= 0L) {
             return entity.playBackToEvent(message.getIndex(), message.getMessageId())
                     .orElseThrow(() -> new IllegalStateException(

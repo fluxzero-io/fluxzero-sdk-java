@@ -16,20 +16,38 @@
 
 package io.fluxzero.sdk.modeling;
 
-/**
- * Root wrapper for an independently persisted {@link Model} revision.
- *
- * @param <T> the type of the underlying domain object
- */
-public interface ModelRoot<T> extends PersistedRoot<T> {
+import java.time.Instant;
 
-    /**
-     * Opaque, time-derived namespace-wide state boundary at which this model revision became current.
-     * Callers may compare boundaries and decode their approximate timestamp with
-     * {@link io.fluxzero.sdk.tracking.IndexUtils#timestampFromIndex(long)}, but must not assume dense adjacency.
-     */
-    default long stateIndex() {
-        return -1L;
+/**
+ * Shared revision contract for an independently persisted Aggregate or Model root.
+ *
+ * @param <T> underlying domain value type
+ */
+public interface PersistedRoot<T> extends Entity<T> {
+
+    @Override
+    default Entity<?> parent() {
+        return null;
     }
 
+    @Override
+    String lastEventId();
+
+    @Override
+    Long lastEventIndex();
+
+    @Override
+    Entity<T> withEventIndex(Long index, String messageId);
+
+    @Override
+    long sequenceNumber();
+
+    @Override
+    Entity<T> withSequenceNumber(long sequenceNumber);
+
+    @Override
+    Instant timestamp();
+
+    @Override
+    Entity<T> previous();
 }

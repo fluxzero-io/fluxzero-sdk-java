@@ -997,8 +997,8 @@ final class ModelPipeline {
                     || node.value() == null) {
                     continue;
                 }
-                ModelMetadata metadata =
-                        ModelMetadata.validate(node.modelType());
+                EntityMetadata metadata =
+                        EntityMetadata.validate(node.modelType());
                 boolean ownedByDeletedParent =
                         ownedByDeletedParent(
                                 metadata, node.value(), deleted);
@@ -1070,10 +1070,10 @@ final class ModelPipeline {
     }
 
     private static boolean ownedByDeletedParent(
-            ModelMetadata metadata,
+            EntityMetadata metadata,
             Object value,
             Set<String> deleted) {
-        for (ModelMetadata.ParentReference parent :
+        for (EntityMetadata.ParentReference parent :
                 metadata.parentReferences()) {
             if (!parent.deleteOnParentDeletion()) {
                 continue;
@@ -1469,7 +1469,7 @@ final class ModelPipeline {
         stagedValues.forEach((modelId, value) -> {
             List<ParentRelationship> parents = new ArrayList<>();
             if (value != null) {
-                ModelMetadata.validate(value.getClass()).parentReferences().forEach(parent -> {
+                EntityMetadata.validate(value.getClass()).parentReferences().forEach(parent -> {
                     Object parentId = parent.read(value);
                     if (parentId != null) {
                         parents.add(new ParentRelationship(

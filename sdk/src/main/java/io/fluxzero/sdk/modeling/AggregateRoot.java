@@ -20,15 +20,15 @@ import java.time.Instant;
  * Represents the root of a legacy aggregate in a domain model.
  * <p>
  * This compatibility specialization retains aggregate vocabulary while the shared persisted-root contract lives in
- * {@link ModelRoot}. Existing aggregate implementations and callers remain valid.
+ * {@link PersistedRoot}. Existing aggregate implementations and callers remain valid.
  *
  * @param <T> the type of the underlying domain object
  *
  * @see Entity
  * @see Aggregate
- * @see ModelRoot
+ * @see PersistedRoot
  */
-public interface AggregateRoot<T> extends ModelRoot<T> {
+public interface AggregateRoot<T> extends PersistedRoot<T> {
 
     @Override
     default Entity<?> parent() {

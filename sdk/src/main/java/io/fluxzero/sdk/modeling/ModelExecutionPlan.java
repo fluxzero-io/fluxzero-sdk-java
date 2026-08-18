@@ -168,14 +168,14 @@ public final class ModelExecutionPlan {
     List<Transition> evaluate(
             DeserializingMessage message,
             ModelCommitContext beginState,
-            Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
+            Collection<EntityMetadata.HandlerMethod> selectedHandlers) {
         return evaluate(message, beginState, selectedHandlers, true, null);
     }
 
     List<Transition> evaluate(
             DeserializingMessage message,
             ModelCommitContext beginState,
-            Collection<ModelMetadata.HandlerMethod> selectedHandlers,
+            Collection<EntityMetadata.HandlerMethod> selectedHandlers,
             DirectSingleTargetApply directApply) {
         return evaluate(message, beginState, selectedHandlers, true, directApply);
     }
@@ -183,7 +183,7 @@ public final class ModelExecutionPlan {
     private List<Transition> evaluate(
             DeserializingMessage message,
             ModelCommitContext beginState,
-            Collection<ModelMetadata.HandlerMethod> selectedHandlers,
+            Collection<EntityMetadata.HandlerMethod> selectedHandlers,
             boolean applyHandlers,
             DirectSingleTargetApply directApply) {
         return evaluate(
@@ -517,7 +517,7 @@ public final class ModelExecutionPlan {
 
         Map<String, Transition> transitions = null;
         for (CompiledHandler compiledHandler : plan.applies()) {
-            ModelMetadata.HandlerMethod handler = compiledHandler.method();
+            EntityMetadata.HandlerMethod handler = compiledHandler.method();
             ApplyResultShape resultShape = compiledHandler.resultShape();
             if (!resultShape.present()) {
                 continue;
@@ -566,9 +566,9 @@ public final class ModelExecutionPlan {
     }
 
     public static DirectSingleTargetApply directSingleTargetApply(
-            ModelMetadata.HandlerMethod handler,
+            EntityMetadata.HandlerMethod handler,
             Class<?> payloadType) {
-        if (handler.kind() != ModelMetadata.HandlerKind.APPLY
+        if (handler.kind() != EntityMetadata.HandlerKind.APPLY
             || handler.targetModelTypes().size() != 1
             || handler.collectionApplyResult()
             || handler.dynamicApplyResult()
@@ -611,7 +611,7 @@ public final class ModelExecutionPlan {
             throw new IllegalArgumentException(
                     "Direct single-target evaluation requires one compiled apply");
         }
-        ModelMetadata.HandlerMethod handler =
+        EntityMetadata.HandlerMethod handler =
                 plan.applies().getFirst().method();
         Object before = entity.get();
         if (directApply.receiver() && before == null) {
@@ -646,7 +646,7 @@ public final class ModelExecutionPlan {
     }
 
     private static void validateDirectSingleTargetResult(
-            ModelMetadata.HandlerMethod handler,
+            EntityMetadata.HandlerMethod handler,
             String expectedTargetId,
             Class<?> targetType,
             Object result) {
@@ -661,7 +661,7 @@ public final class ModelExecutionPlan {
                                     result.getClass().getName(),
                                     targetType.getName()));
         }
-        ModelMetadata metadata = ModelMetadata.of(result.getClass());
+        EntityMetadata metadata = EntityMetadata.of(result.getClass());
         Object resultId = metadata.entityId().orElseThrow().read(result);
         if (resultId == null) {
             throw new IllegalStateException(
@@ -714,7 +714,7 @@ public final class ModelExecutionPlan {
     public ModelExecutionPlan compileReplay(
             Class<?> payloadType,
             Class<?> modelType,
-            List<ModelMetadata.HandlerMethod> handlers) {
+            List<EntityMetadata.HandlerMethod> handlers) {
         DirectSingleTargetApply direct = handlers.size() == 1
                 && handlers.getFirst().targetModelTypes().size() == 1
                 && compatible(
@@ -736,11 +736,11 @@ public final class ModelExecutionPlan {
     }
 
     HandlerPlan compileHandlers(
-            Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
+            Collection<EntityMetadata.HandlerMethod> selectedHandlers) {
         @SuppressWarnings("unchecked")
-        List<ModelMetadata.HandlerMethod> handlers =
+        List<EntityMetadata.HandlerMethod> handlers =
                 selectedHandlers instanceof List<?> list
-                        ? (List<ModelMetadata.HandlerMethod>) list
+                        ? (List<EntityMetadata.HandlerMethod>) list
                         : List.copyOf(selectedHandlers);
         return new HandlerPlan(handlers, this);
     }
@@ -760,14 +760,14 @@ public final class ModelExecutionPlan {
             DeserializingMessage message,
             ModelCommitContext context) {
         context.attachTo(message);
-        ModelMetadata.HandlerMethod handler = compiledHandler.method();
+        EntityMetadata.HandlerMethod handler = compiledHandler.method();
         Object target = invocationTarget(handler, message, context);
         return target == MissingTarget.INSTANCE
                 ? null : compiledHandler.matcher().getInvokerOrNull(target, message);
     }
 
     private Object invocationTarget(
-            ModelMetadata.HandlerMethod handler,
+            EntityMetadata.HandlerMethod handler,
             DeserializingMessage message,
             ModelCommitContext context) {
         Executable executable = handler.executable();
@@ -791,7 +791,7 @@ public final class ModelExecutionPlan {
     }
 
     private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
-            ModelMetadata.HandlerMethod handler) {
+            EntityMetadata.HandlerMethod handler) {
         return inspect(
                         handler.executable().getDeclaringClass(), parameterResolvers,
                         HandlerConfiguration.<DeserializingMessage>builder()
@@ -802,7 +802,7 @@ public final class ModelExecutionPlan {
     }
 
     private static Class<? extends java.lang.annotation.Annotation> annotationType(
-            ModelMetadata.HandlerKind kind) {
+            EntityMetadata.HandlerKind kind) {
         return switch (kind) {
             case APPLY -> Apply.class;
             case ASSERT_LEGAL -> AssertLegal.class;
@@ -811,7 +811,7 @@ public final class ModelExecutionPlan {
     }
 
     private static String resolveWriteTarget(
-            ModelMetadata.HandlerMethod handler,
+            EntityMetadata.HandlerMethod handler,
             Class<?> targetType,
             Object result,
             ModelCommitContext context) {
@@ -822,7 +822,7 @@ public final class ModelExecutionPlan {
                                 .formatted(handler.executable().toGenericString(),
                                            result.getClass().getName(), targetType.getName()));
             }
-            ModelMetadata resultMetadata = ModelMetadata.of(result.getClass());
+            EntityMetadata resultMetadata = EntityMetadata.of(result.getClass());
             Object id = resultMetadata.entityId().orElseThrow().read(result);
             if (id == null) {
                 throw new IllegalStateException(
@@ -839,7 +839,7 @@ public final class ModelExecutionPlan {
         if (receiver != null && targetType.isAssignableFrom(handler.receiverModelType())) {
             return receiver.id().toString();
         }
-        List<ModelMetadata.ModelParameter> candidates = handler.modelParameters().stream()
+        List<EntityMetadata.ModelParameter> candidates = handler.modelParameters().stream()
                 .filter(parameter -> targetType.equals(parameter.modelType())).toList();
         if (candidates.size() == 1) {
             Entity<?> entity = context.resolve(
@@ -861,7 +861,7 @@ public final class ModelExecutionPlan {
             Object value,
             int resultIndex,
             ModelCommitContext beginState) {
-        ModelMetadata.HandlerMethod handler = compiledHandler.method();
+        EntityMetadata.HandlerMethod handler = compiledHandler.method();
         Class<?> targetType = compiledHandler.resultShape()
                 .targetType(handler, value, resultIndex);
         String targetId = resolveWriteTarget(
@@ -927,23 +927,23 @@ public final class ModelExecutionPlan {
     }
 
     private static int compareHandlers(
-            ModelMetadata.HandlerMethod left, ModelMetadata.HandlerMethod right) {
+            EntityMetadata.HandlerMethod left, EntityMetadata.HandlerMethod right) {
         return left.executable().toGenericString().compareTo(right.executable().toGenericString());
     }
 
     private static int compareAssertions(
-            ModelMetadata.HandlerMethod left, ModelMetadata.HandlerMethod right) {
+            EntityMetadata.HandlerMethod left, EntityMetadata.HandlerMethod right) {
         int priority = Integer.compare(assertionPriority(right), assertionPriority(left));
         return priority == 0 ? compareHandlers(left, right) : priority;
     }
 
-    private static int assertionPriority(ModelMetadata.HandlerMethod handler) {
+    private static int assertionPriority(EntityMetadata.HandlerMethod handler) {
         return io.fluxzero.common.reflection.ReflectionUtils
                 .<AssertLegal>getMethodAnnotation(handler.executable(), AssertLegal.class)
                 .map(AssertLegal::priority).orElse(AssertLegal.DEFAULT_PRIORITY);
     }
 
-    private static boolean assertAfterHandler(ModelMetadata.HandlerMethod handler) {
+    private static boolean assertAfterHandler(EntityMetadata.HandlerMethod handler) {
         return io.fluxzero.common.reflection.ReflectionUtils
                 .<AssertLegal>getMethodAnnotation(handler.executable(), AssertLegal.class)
                 .map(AssertLegal::afterHandler).orElse(false);
@@ -1028,7 +1028,7 @@ public final class ModelExecutionPlan {
                 graph.id(), "A staged graph deletion must have a model ID").toString();
         Class<?> modelType = Objects.requireNonNull(
                 graph.type(), "A staged graph deletion must have a model type");
-        if (!ModelMetadata.of(modelType).isModel()) {
+        if (!EntityMetadata.of(modelType).isModel()) {
             throw new IllegalStateException(
                     "Staged graph deletion target %s is not an independent @Model"
                             .formatted(modelType.getName()));
@@ -1166,8 +1166,10 @@ public final class ModelExecutionPlan {
         }
 
         private static ModelConflictPolicy modelPolicy(Class<?> type) {
-            Model model = type.getAnnotation(Model.class);
-            return model == null ? ModelConflictPolicy.DEFAULT : model.conflictPolicy();
+            return EntityMetadata.of(type).rootConfiguration()
+                    .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
+                    .map(EntityMetadata.RootConfiguration::conflictPolicy)
+                    .orElse(ModelConflictPolicy.DEFAULT);
         }
 
         private static ModelConflictPolicy inherit(
@@ -1305,8 +1307,9 @@ public final class ModelExecutionPlan {
     }
 
     record TransitionEffect(
-            ModelMetadata metadata,
-            ModelMetadata.RootConfiguration model,
+            EntityMetadata metadata,
+            EntityMetadata.RootConfiguration model,
+            EntityMetadata.SnapshotSettings snapshots,
             String directCollection,
             AggregateEventRouting eventRouting,
             ModelConflictPolicy conflictPolicy,
@@ -1331,59 +1334,26 @@ public final class ModelExecutionPlan {
                 Object after,
                 boolean cascadedDeletion,
                 EffectOverrides overrides) {
-            Class<?> effectiveType = ModelMetadata.of(modelType).isModel()
+            Class<?> effectiveType = EntityMetadata.of(modelType).isModel()
                     ? modelType : after != null ? after.getClass()
                             : before != null ? before.getClass() : modelType;
             EffectDefaults defaults = EffectDefaults.of(effectiveType);
-            EventPublication publication = overrides.publication() == EventPublication.DEFAULT
-                    ? defaults.publication() : overrides.publication();
-            EventPublicationStrategy strategy = overrides.strategy() == EventPublicationStrategy.DEFAULT
-                    ? defaults.strategy() : overrides.strategy();
-            AggregateEventRouting routing = overrides.routing() == AggregateEventRouting.DEFAULT
-                    ? defaults.routing() : overrides.routing();
-            ModelConflictPolicy conflict = overrides.conflict() == ModelConflictPolicy.DEFAULT
-                    ? defaults.conflict() : overrides.conflict();
-            if (cascadedDeletion) {
-                return checked(defaults, routing, conflict,
-                               true, defaults.model().eventSourced(), false, true);
-            }
-            boolean modified = publication == EventPublication.ALWAYS
-                               && strategy != EventPublicationStrategy.PUBLISH_ONLY
-                               || !Objects.equals(before, after);
-            if (publication == EventPublication.IF_MODIFIED && !modified) {
-                return checked(defaults, routing, conflict,
-                               false, false, false, false);
-            }
-            if (publication == EventPublication.NEVER) {
-                return checked(defaults, routing, conflict,
-                               modified, false, false, modified);
-            }
-            return switch (strategy) {
-                case STORE_AND_PUBLISH -> checked(
-                        defaults, routing, conflict,
-                        true, true, true, true);
-                case STORE_ONLY -> checked(
-                        defaults, routing, conflict,
-                        true, true, false, true);
-                case PUBLISH_ONLY -> checked(
-                        defaults, routing, conflict,
-                        true, false, true, modified);
-                case DEFAULT -> throw new IllegalStateException(
-                        "Unresolved model publication strategy");
-            };
+            EntityMetadata.TransitionSettings settings = defaults.model().transitionSettings(
+                    overrides.publication(), overrides.strategy(), overrides.routing(), overrides.conflict());
+            boolean modified = settings.forceModified() || !Objects.equals(before, after);
+            return checked(
+                    defaults, settings,
+                    settings.decide(modified, cascadedDeletion, true));
         }
 
         private static TransitionEffect checked(
                 EffectDefaults defaults,
-                AggregateEventRouting routing,
-                ModelConflictPolicy conflict,
-                boolean active,
-                boolean storeEvent,
-                boolean publishEvent,
-                boolean updateState) {
+                EntityMetadata.TransitionSettings settings,
+                EntityMetadata.TransitionDecision decision) {
             return new TransitionEffect(
-                    defaults.metadata(), defaults.model(), defaults.collection(), routing, conflict,
-                    active, storeEvent, publishEvent, updateState);
+                    defaults.metadata(), defaults.model(), defaults.snapshots(), defaults.collection(),
+                    settings.routing(), settings.conflict(),
+                    decision.active(), decision.storeEvent(), decision.publishEvent(), decision.updateState());
         }
 
         void validate(Transition transition) {
@@ -1403,42 +1373,32 @@ public final class ModelExecutionPlan {
                 boolean publishEvent,
                 boolean updateState) {
             return new TransitionEffect(
-                    metadata, model, directCollection, eventRouting, conflictPolicy,
+                    metadata, model, snapshots, directCollection, eventRouting, conflictPolicy,
                     active, storeEvent, publishEvent, updateState);
         }
     }
 
     private record EffectDefaults(
-            ModelMetadata metadata,
-            ModelMetadata.RootConfiguration model,
-            String collection,
-            EventPublication publication,
-            EventPublicationStrategy strategy,
-            AggregateEventRouting routing,
-            ModelConflictPolicy conflict) {
-        private EffectDefaults(ModelMetadata metadata, Class<?> type) {
+            EntityMetadata metadata,
+            EntityMetadata.RootConfiguration model,
+            EntityMetadata.SnapshotSettings snapshots,
+            String collection) {
+        private EffectDefaults(EntityMetadata metadata, Class<?> type) {
             this(metadata, metadata.rootConfiguration().orElseThrow(() ->
                          new IllegalStateException(type.getName() + " is not an independent model")), type);
         }
 
-        private EffectDefaults(ModelMetadata metadata, ModelMetadata.RootConfiguration model, Class<?> type) {
-            this(metadata, model,
+        private EffectDefaults(EntityMetadata metadata, EntityMetadata.RootConfiguration model, Class<?> type) {
+            this(metadata, model, model.snapshotSettings(false),
                  model.searchable() ? Optional.of(model.collection()).filter(value -> !value.isEmpty())
                          .map(ApplicationProperties::substituteProperties).orElse(type.getSimpleName())
                          : metadata.participatesInGraphComposition()
                                  ? io.fluxzero.common.api.modeling.ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION
-                                 : null,
-                 model.eventPublication() == EventPublication.DEFAULT
-                         ? EventPublication.IF_MODIFIED : model.eventPublication(),
-                 model.publicationStrategy() == EventPublicationStrategy.DEFAULT
-                         ? EventPublicationStrategy.STORE_AND_PUBLISH : model.publicationStrategy(),
-                 model.eventRouting() == AggregateEventRouting.DEFAULT
-                         ? AggregateEventRouting.MESSAGE_ROUTING_KEY : model.eventRouting(),
-                 model.conflictPolicy());
+                                 : null);
         }
 
         private static EffectDefaults of(Class<?> type) {
-            ModelMetadata metadata = ModelMetadata.of(type);
+            EntityMetadata metadata = EntityMetadata.of(type);
             return ReflectionUtils.getTypeMetadata(type)
                     .specializedMetadata(
                             EffectDefaults.class,
@@ -1486,7 +1446,7 @@ public final class ModelExecutionPlan {
                 List.of(), List.of(), List.of(), List.of(), List.of());
 
         private HandlerPlan(
-                List<ModelMetadata.HandlerMethod> handlers,
+                List<EntityMetadata.HandlerMethod> handlers,
                 Compiler compiler) {
             this(handlers.stream().map(handler -> new CompiledHandler(
                     handler, compiler.compileMatcher(handler),
@@ -1496,25 +1456,25 @@ public final class ModelExecutionPlan {
 
         private HandlerPlan(List<CompiledHandler> handlers) {
             this(List.copyOf(handlers),
-                 select(handlers, ModelMetadata.HandlerKind.ASSERT_LEGAL, false),
-                 select(handlers, ModelMetadata.HandlerKind.ASSERT_LEGAL, true),
-                 select(handlers, ModelMetadata.HandlerKind.APPLY, null),
-                 select(handlers, ModelMetadata.HandlerKind.INTERCEPT_APPLY, null));
+                 select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, false),
+                 select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, true),
+                 select(handlers, EntityMetadata.HandlerKind.APPLY, null),
+                 select(handlers, EntityMetadata.HandlerKind.INTERCEPT_APPLY, null));
         }
 
-        List<ModelMetadata.HandlerMethod> methods() {
+        List<EntityMetadata.HandlerMethod> methods() {
             return all.stream().map(CompiledHandler::method).toList();
         }
 
         private static List<CompiledHandler> select(
                 List<CompiledHandler> handlers,
-                ModelMetadata.HandlerKind kind,
+                EntityMetadata.HandlerKind kind,
                 Boolean afterHandler) {
             List<CompiledHandler> result = handlers.stream()
                     .filter(handler -> handler.method().kind() == kind)
                     .filter(handler -> afterHandler == null || Compiler.assertAfterHandler(
                             handler.method()) == afterHandler).collect(java.util.stream.Collectors.toList());
-            result.sort((left, right) -> kind == ModelMetadata.HandlerKind.ASSERT_LEGAL
+            result.sort((left, right) -> kind == EntityMetadata.HandlerKind.ASSERT_LEGAL
                     ? Compiler.compareAssertions(left.method(), right.method())
                     : Compiler.compareHandlers(left.method(), right.method()));
             return List.copyOf(result);
@@ -1522,9 +1482,9 @@ public final class ModelExecutionPlan {
     }
 
     private record CompiledHandler(
-            ModelMetadata.HandlerMethod method,
+            EntityMetadata.HandlerMethod method,
             HandlerMatcher<Object, DeserializingMessage> matcher,
-            List<ModelMetadata.ModelParameter> dependencyAccessors,
+            List<EntityMetadata.ModelParameter> dependencyAccessors,
             ApplyResultShape resultShape,
             EffectOverrides effect) {
         private CompiledHandler {
@@ -1537,7 +1497,7 @@ public final class ModelExecutionPlan {
             boolean collection,
             boolean dynamic,
             Class<?> targetType) {
-        private static ApplyResultShape of(ModelMetadata.HandlerMethod handler) {
+        private static ApplyResultShape of(EntityMetadata.HandlerMethod handler) {
             if (!handler.hasApplyResult()) {
                 return new ApplyResultShape(false, false, false, null);
             }
@@ -1554,7 +1514,7 @@ public final class ModelExecutionPlan {
             return collection || dynamic;
         }
 
-        private List<?> values(ModelMetadata.HandlerMethod handler, Object result) {
+        private List<?> values(EntityMetadata.HandlerMethod handler, Object result) {
             if (!collection) {
                 return Collections.singletonList(result);
             }
@@ -1583,7 +1543,7 @@ public final class ModelExecutionPlan {
         }
 
         private Class<?> targetType(
-                ModelMetadata.HandlerMethod handler,
+                EntityMetadata.HandlerMethod handler,
                 Object result,
                 int resultIndex) {
             if (!dynamic) {
@@ -1602,7 +1562,7 @@ public final class ModelExecutionPlan {
                         "Apply %s returned null for a dynamically typed model result"
                                 .formatted(handler.executable().toGenericString()));
             }
-            ModelMetadata metadata = ModelMetadata.validate(result.getClass());
+            EntityMetadata metadata = EntityMetadata.validate(result.getClass());
             if (!metadata.isModel()) {
                 throw new IllegalStateException(
                         "Apply %s returned %s%s, which is not annotated with @Model"

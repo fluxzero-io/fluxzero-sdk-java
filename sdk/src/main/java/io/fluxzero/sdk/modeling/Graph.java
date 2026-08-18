@@ -411,7 +411,7 @@ public interface Graph<T> {
         Objects.requireNonNull(modelType, "modelType");
         Objects.requireNonNull(lookupPolicy, "lookupPolicy");
         String requested = idOrAlias.toString();
-        ModelMetadata metadata = ModelMetadata.of(modelType);
+        EntityMetadata metadata = EntityMetadata.of(modelType);
         String repositoryId = metadata.parentScopedEntityId()
                 ? null : metadata.repositoryId(idOrAlias);
         Graph<M> identityMatch = null;

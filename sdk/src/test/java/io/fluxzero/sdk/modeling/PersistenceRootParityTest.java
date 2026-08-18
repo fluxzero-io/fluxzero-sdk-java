@@ -20,9 +20,11 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.test.TestFixture;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -30,8 +32,27 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 
 class PersistenceRootParityTest {
+
+    @Test
+    void missingAggregateRevisionFailsWithoutDereferencingTheTruncatedChain() {
+        ImmutableAggregateRoot<String> aggregate = ImmutableAggregateRoot.<String>builder()
+                .id("aggregate")
+                .type(String.class)
+                .value("value")
+                .entityHelper(mock(EntityHelper.class))
+                .serializer(mock(Serializer.class))
+                .lastEventId("current")
+                .sequenceNumber(1L)
+                .build();
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> aggregate.withEventIndex(42L, "not-retained"));
+    }
 
     @ParameterizedTest
     @EnumSource(PersistenceRoot.class)

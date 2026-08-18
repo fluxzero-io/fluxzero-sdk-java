@@ -25,7 +25,7 @@ import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
-import io.fluxzero.sdk.modeling.ModelMetadata;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 
 import java.time.Instant;
@@ -190,13 +190,13 @@ final class MaterializedGraphFactory {
                 Collection<Class<?>> modelTypes, Map<String, String> pathOverrides) {
             Map<Class<?>, LinkedHashSet<String>> mutable = new LinkedHashMap<>();
             for (Class<?> childType : modelTypes) {
-                ModelMetadata metadata;
+                EntityMetadata metadata;
                 try {
-                    metadata = ModelMetadata.of(childType);
+                    metadata = EntityMetadata.of(childType);
                 } catch (RuntimeException ignored) {
                     continue;
                 }
-                for (ModelMetadata.ParentReference reference : metadata.parentReferences()) {
+                for (EntityMetadata.ParentReference reference : metadata.parentReferences()) {
                     String path = reference.path();
                     if (path != null && !path.isBlank()) {
                         for (Class<?> parentType : reference.parentModelTypes()) {
