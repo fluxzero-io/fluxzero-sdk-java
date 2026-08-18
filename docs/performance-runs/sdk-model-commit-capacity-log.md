@@ -2797,3 +2797,33 @@ Evidence SHA-256: CP8 B0
 `db82ed15479e5aeaaa92c45acb2940bd1587f4b01ebe1e612fd2811fc97fc724`; CP8 no-model
 `ad8a8aa92508131176ac4c539bf5e041ae475c3254a85c3dea2e922c5fd0496d`; no-model direct control
 `7770c01c7a30f24731a69c94993dd9a78d04abbcb7de27bc00ccff10fee8d656`.
+
+## S60 CP11: final compiled SDK model pipeline
+
+SDK `bc213d593e9` completes Macro 2 after CP9 was reclassified as an intermediate ownership reduction. The exact
+control is CP10 `ac872d992423`; Runtime remains `d7c54eb086d`. All runs used the same isolated PostgreSQL database,
+Java 25, an 8-GiB fixed heap and eight visible processors. B0 retained the complete command -> automatic `@Apply` ->
+atomic model/event commit -> durable result route with 8,192 models, 262,144 warm-up updates and 1,048,576 measured
+updates. Every run verified exactly 1,048,576 results, stored model events and global events plus all 8,192 final
+states.
+
+| Run | Source | Throughput | p50 / p95 / p99 / max | Decision |
+| --- | --- | ---: | --- | --- |
+| E835 | CP10 control A1 | 223,175/s | 33.708 / 51.418 / 60.309 / 75.582 ms | matched control |
+| E836 | CP11 candidate B1 | 217,579/s | 34.094 / 56.139 / 85.027 / 118.251 ms | accepted candidate |
+| E837 | CP11 candidate B2 | 221,357/s | 34.590 / 51.308 / 62.751 / 77.213 ms | accepted candidate |
+| E838 | CP10 control A2 | 209,456/s | 34.550 / 63.126 / 90.501 / 124.592 ms | matched control |
+| E839 | final CP11 candidate | 215,100/s | 34.401 / 57.006 / 85.924 / 126.050 ms | accepted adjacent confirmation |
+
+The ABBA candidate geometric mean is **219,460/s** versus **216,207/s** control (**+1.50%**). The final candidate,
+after making the batch entry itself the one completion future, is **+2.69%** versus the immediately preceding A2
+control. Batch sizes remain comparable and the latency distributions overlap the same host drift. These reduced-model
+runs do not replace the quiet-host 425,606/s pin or active-host 358,973/s floor; they are the matched Macro-2 causal
+gate plus an absolute route-outage screen. No no-model run was required because CP11 changes no common wire, tracking
+or generic result-completion owner.
+
+Evidence SHA-256: E835 `c2e42954242f34f1d536a233c36568b6405c950f3f3df3c723be5decddddd2a7`, E836
+`9e2433c16fbbb304e9d44aa3586f6e2afc541fb24ea25435570d958058792771`, E837
+`fd23f2beea15bc7b322034bd69e08051eb263eadd68f5e1deb3e5c88e997017e`, E838
+`7440e7cb8a6abd21d0832bc16f41c4f23464d259529bfb386f9987852e281e5f`, E839
+`8ac58dcefadcf781436117c960b771ddf97925ab9ef44dc205d68f31aa76446a`.
