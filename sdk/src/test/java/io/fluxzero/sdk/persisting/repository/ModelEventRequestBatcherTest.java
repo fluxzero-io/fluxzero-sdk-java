@@ -50,7 +50,8 @@ class ModelEventRequestBatcherTest {
             invocationThread.set(Thread.currentThread());
             return response(invocation.getArgument(0));
         });
-        ModelEventRequestBatcher subject = new ModelEventRequestBatcher(client, 16, 20_000_000L);
+        ModelReplayCursor.ReadBatcher subject =
+                new ModelReplayCursor.ReadBatcher(client, 16, 20_000_000L);
 
         Thread callingThread = Thread.currentThread();
         subject.get(request("local"));
@@ -63,7 +64,8 @@ class ModelEventRequestBatcherTest {
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelEvents(any())).thenAnswer(
                 invocation -> response(invocation.getArgument(0)));
-        ModelEventRequestBatcher subject = new ModelEventRequestBatcher(client, 16, 20_000_000L);
+        ModelReplayCursor.ReadBatcher subject =
+                new ModelReplayCursor.ReadBatcher(client, 16, 20_000_000L);
 
         List<GetModelEventsResult> results = readConcurrently(subject, List.of("a", "b", "c", "d"));
 
@@ -77,7 +79,8 @@ class ModelEventRequestBatcherTest {
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelEvents(any())).thenAnswer(
                 invocation -> response(invocation.getArgument(0)));
-        ModelEventRequestBatcher subject = new ModelEventRequestBatcher(client, 4_096, 20_000_000L);
+        ModelReplayCursor.ReadBatcher subject =
+                new ModelReplayCursor.ReadBatcher(client, 4_096, 20_000_000L);
         List<ModelEventStreamRequest> streams = new ArrayList<>(1_024);
         for (int index = 0; index < 1_024; index++) {
             streams.add(new ModelEventStreamRequest("model-" + index, -1L, 16));
@@ -89,7 +92,7 @@ class ModelEventRequestBatcherTest {
     }
 
     private static List<GetModelEventsResult> readConcurrently(
-            ModelEventRequestBatcher subject, List<String> modelIds) throws Exception {
+            ModelReplayCursor.ReadBatcher subject, List<String> modelIds) throws Exception {
         CountDownLatch start = new CountDownLatch(1);
         try (ExecutorService executor = Executors.newFixedThreadPool(modelIds.size())) {
             List<Future<GetModelEventsResult>> futures = new ArrayList<>(modelIds.size());

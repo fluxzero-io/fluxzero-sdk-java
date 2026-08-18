@@ -52,8 +52,8 @@ class ModelEventBatchLoaderTest {
             requests.add(request);
             return emptyResponse(request, 42L);
         });
-        ModelEventBatchLoader loader = new ModelEventBatchLoader(
-                client, new ModelEventBatchLoader.Settings(2, 8, 4, 1_024L));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(2, 8, 4, 1_024L));
         List<GetModelEventsResult> pages = new ArrayList<>();
 
         long stateIndex = loader.load(List.of("a", "b", "c"), null, pages::add);
@@ -79,9 +79,9 @@ class ModelEventBatchLoaderTest {
             requests.add(request);
             return emptyResponse(request, 42L);
         });
-        ModelEventBatchLoader loader = new ModelEventBatchLoader(
+        ModelReplayCursor loader = new ModelReplayCursor(
                 client,
-                new ModelEventBatchLoader.Settings(
+                new ModelReplayCursor.Settings(
                         2, 8, 4, 1_024L));
         LinkedHashMap<String, Long> cursors =
                 new LinkedHashMap<>();
@@ -91,7 +91,7 @@ class ModelEventBatchLoaderTest {
 
         var result = loader.load(
                 cursors,
-                ModelEventBatchLoader.Boundary.commit("commit-991", 3),
+                ModelReadBoundary.commit("commit-991", 3),
                 ignored -> {
                 });
 
@@ -128,14 +128,14 @@ class ModelEventBatchLoaderTest {
                                     List.of()))
                             .toList());
         });
-        ModelEventBatchLoader loader = new ModelEventBatchLoader(
+        ModelReplayCursor loader = new ModelReplayCursor(
                 client,
-                new ModelEventBatchLoader.Settings(
+                new ModelReplayCursor.Settings(
                         2, 8, 4, 1_024L));
 
         var result = loader.loadHeads(
                 List.of("a", "b", "c"),
-                ModelEventBatchLoader.Boundary.commit("commit-991", 3));
+                ModelReadBoundary.commit("commit-991", 3));
 
         assertEquals(42L, result.stateIndex());
         assertEquals(List.of("a", "b", "c"),
@@ -177,8 +177,8 @@ class ModelEventBatchLoaderTest {
                                             : sequenceNumber - 1L,
                                     "commit-" + stateIndex, 0)))));
         });
-        ModelEventBatchLoader loader = new ModelEventBatchLoader(
-                client, new ModelEventBatchLoader.Settings(4, 1, 1, 16L));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(4, 1, 1, 16L));
 
         long stateIndex = loader.load(List.of("a"), null, ignored -> {
         });
@@ -216,8 +216,8 @@ class ModelEventBatchLoaderTest {
                                     "b", bHead, List.of(new ModelEventMembership(
                                             0L, 1L, 0L, "commit-b", 0)))));
         });
-        ModelEventBatchLoader loader = new ModelEventBatchLoader(
-                client, new ModelEventBatchLoader.Settings(4, 8, 8, 1L));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(4, 8, 8, 1L));
 
         loader.load(List.of("a", "b"), null, ignored -> {
         });
@@ -247,12 +247,12 @@ class ModelEventBatchLoaderTest {
 
         assertThrows(
                 EventSourcingException.class,
-                () -> new ModelEventBatchLoader(missingPayloadClient)
+                () -> new ModelReplayCursor(missingPayloadClient)
                         .load(List.of("a"), null, ignored -> {
                         }));
         assertThrows(
                 EventSourcingException.class,
-                () -> new ModelEventBatchLoader(incompleteClient)
+                () -> new ModelReplayCursor(incompleteClient)
                         .load(List.of("a"), null, ignored -> {
                         }));
     }
@@ -266,8 +266,8 @@ class ModelEventBatchLoaderTest {
             requests.add(request);
             return emptyResponse(request, 42L);
         });
-        ModelEventBatchLoader loader = new ModelEventBatchLoader(
-                client, new ModelEventBatchLoader.Settings(4, 3, 2, 1_024L));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(4, 3, 2, 1_024L));
 
         loader.load(List.of("a", "b", "c", "d"), null, ignored -> {
         });
@@ -291,7 +291,7 @@ class ModelEventBatchLoaderTest {
 
         assertThrows(
                 EventSourcingException.class,
-                () -> new ModelEventBatchLoader(client)
+                () -> new ModelReplayCursor(client)
                         .load(List.of("a"), null, ignored -> {
                         }));
     }

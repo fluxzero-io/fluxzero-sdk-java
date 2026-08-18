@@ -29,6 +29,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.repository.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
@@ -352,11 +353,11 @@ public class ModelEntityParameterResolver
             }
             addRoots(roots, ancestors.loadAncestorGraphs(
                     target.getModelId(), targetType, rootType,
-                    ModelAncestorResolver.Boundary.state(currentState, false)));
+                    ModelReadBoundary.state(currentState, false)));
             if (previousState >= -1L) {
                 addRoots(roots, ancestors.loadAncestorGraphs(
                         target.getModelId(), targetType, rootType,
-                        ModelAncestorResolver.Boundary.state(previousState, false)));
+                        ModelReadBoundary.state(previousState, false)));
             }
         }
         List<Graph<T>> result = new ArrayList<>(roots.size());

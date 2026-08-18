@@ -23,6 +23,7 @@ import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.repository.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import org.junit.jupiter.api.Test;
 
@@ -891,7 +892,7 @@ class GraphTest {
         private String modelId;
         private Class<?> modelType;
         private Class<?> ancestorType;
-        private ModelAncestorResolver.Boundary boundary;
+        private ModelReadBoundary boundary;
         private boolean sourceLoaded;
 
         private AncestorRepository(Graph<?> result) {
@@ -909,7 +910,7 @@ class GraphTest {
         public <A> Optional<Graph<A>> loadAncestorGraph(
                 String modelId, Class<?> modelType,
                 Class<A> ancestorType,
-                ModelAncestorResolver.Boundary boundary) {
+                ModelReadBoundary boundary) {
             this.modelId = modelId;
             this.modelType = modelType;
             this.ancestorType = ancestorType;
@@ -939,7 +940,7 @@ class GraphTest {
         public <A> Optional<Graph<A>> loadAncestorGraph(
                 String modelId, Class<?> modelType,
                 Class<A> ancestorType,
-                ModelAncestorResolver.Boundary boundary) {
+                ModelReadBoundary boundary) {
             identityLookups++;
             return Optional.empty();
         }
@@ -971,7 +972,7 @@ class GraphTest {
         public <A> Optional<Graph<A>> loadAncestorGraph(
                 String modelId, Class<?> modelType,
                 Class<A> ancestorType,
-                ModelAncestorResolver.Boundary boundary) {
+                ModelReadBoundary boundary) {
             identityLookups.add(modelId);
             return modelId.equals(source.id())
                     ? Optional.of((Graph<A>) ancestor)

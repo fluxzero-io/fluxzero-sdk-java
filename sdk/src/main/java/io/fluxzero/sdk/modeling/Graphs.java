@@ -16,14 +16,13 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
-import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.repository.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 
 import java.time.Instant;
@@ -58,7 +57,7 @@ public final class Graphs {
     /** Creates a lazy one-model graph without loading relationships. */
     public static <T> Graph<T> lazy(Entity<T> entity, long stateIndex, ModelRepository repository) {
         return GraphState.entity(entity, stateIndex, repository, Map.of(entity.id().toString(), entity),
-                                 false, false, GraphBoundary.current(stateIndex), Map.of()).root();
+                                 false, false, ModelReadBoundary.current(), Map.of()).root();
     }
 
     /** Creates a detached graph whose model and relationship state remain lazy. */
@@ -85,7 +84,7 @@ public final class Graphs {
         LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>();
         context.entries().forEach(entry -> models.put(entry.target().modelId(), entry.entity()));
         return GraphState.entity(entity, context.readStateIndex(), repository, models, false, true,
-                                 GraphBoundary.current(context.readStateIndex()), Map.of()).root();
+                                 ModelReadBoundary.forGraph(context.readStateIndex(), true, false), Map.of()).root();
     }
 
     /** Creates a complete graph from one coherent repository reconstruction. */
@@ -259,7 +258,7 @@ final class GraphState {
     private final boolean complete;
     private final boolean historical;
     private final boolean exactBoundary;
-    private final GraphBoundary boundary;
+    private final ModelReadBoundary boundary;
     private final Map<String, Entity<?>> knownModels;
     private final List<ModelGraphEdge> edges;
     private final Map<String, Graphs.StagedModelChange> stagedChanges;
@@ -273,7 +272,7 @@ final class GraphState {
 
     private GraphState(
             long stateIndex, ModelRepository repository, boolean complete, boolean historical, boolean exactBoundary,
-            GraphBoundary boundary, Map<String, Entity<?>> knownModels, List<ModelGraphEdge> edges,
+            ModelReadBoundary boundary, Map<String, Entity<?>> knownModels, List<ModelGraphEdge> edges,
             Map<String, Graphs.StagedModelChange> stagedChanges, List<Node> placements,
             Map<Class<?>, List<String>> declaredPaths, Node root, Identity identity) {
         this.stateIndex = stateIndex;
@@ -305,7 +304,7 @@ final class GraphState {
 
     static <T> GraphState entity(
             Entity<T> root, long stateIndex, ModelRepository repository, Map<String, Entity<?>> models,
-            boolean historical, boolean exactBoundary, GraphBoundary boundary,
+            boolean historical, boolean exactBoundary, ModelReadBoundary boundary,
             Map<String, Graphs.StagedModelChange> changes) {
         LinkedHashMap<String, NodeData> data = entityData(models);
         data.putIfAbsent(root.id().toString(), NodeData.entity(root));
@@ -329,7 +328,7 @@ final class GraphState {
                 ? repository.load(repositoryId, modelType) : repository.load(requestedId, modelType),
                                         !exact && ModelMetadata.of(modelType).hasAliases());
         Node root = new Node(data, null, null, true);
-        return indexed(-1L, repository, false, false, false, GraphBoundary.current(-1L), Map.of(), List.of(), Map.of(),
+        return indexed(-1L, repository, false, false, false, ModelReadBoundary.current(), Map.of(), List.of(), Map.of(),
                        List.of(root), Map.of(), root, identity);
     }
 
@@ -342,7 +341,7 @@ final class GraphState {
         List<Node> placements = new ArrayList<>();
         Node root = build(rootId, null, null, data, byParent, new LinkedHashSet<>(), placements);
         addDetached(data, placements);
-        return indexed(stateIndex, repository, true, historical, true, GraphBoundary.state(stateIndex), models, edges,
+        return indexed(stateIndex, repository, true, historical, true, ModelReadBoundary.state(stateIndex, false), models, edges,
                        changes, placements, Map.of(), root, null);
     }
 
@@ -379,7 +378,7 @@ final class GraphState {
                     "Materialized graph contains root type %s instead of %s"
                             .formatted(root.data().type().getName(), rootType.getName()));
         }
-        GraphState state = indexed(stateIndex, repository, true, true, true, GraphBoundary.state(stateIndex), Map.of(),
+        GraphState state = indexed(stateIndex, repository, true, true, true, ModelReadBoundary.state(stateIndex, false), Map.of(),
                                    List.of(), Map.of(), placements, declaredPaths, root, null);
         state.root.data().previousStateIndex = previousStateIndex;
         return state;
@@ -399,13 +398,13 @@ final class GraphState {
             placements.add(node);
         }
         placements.forEach(Node::freeze);
-        return indexed(graph.stateIndex(), null, true, true, true, GraphBoundary.state(graph.stateIndex()), Map.of(),
+        return indexed(graph.stateIndex(), null, true, true, true, ModelReadBoundary.state(graph.stateIndex(), false), Map.of(),
                        List.of(), Map.of(), placements, Map.of(), placements.getFirst(), null);
     }
 
     private static GraphState indexed(
             long stateIndex, ModelRepository repository, boolean complete, boolean historical, boolean exactBoundary,
-            GraphBoundary boundary, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
+            ModelReadBoundary boundary, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
             Map<String, Graphs.StagedModelChange> changes, List<Node> placements,
             Map<Class<?>, List<String>> declaredPaths, Node root, Identity identity) {
         return new GraphState(stateIndex, repository, complete, historical, exactBoundary, boundary, models, edges,
@@ -459,7 +458,7 @@ final class GraphState {
         return expansions.computeIfAbsent(node.data().id(), ignored -> {
             NodeData data = node.data();
             data.entity();
-            Graph<?> loaded = boundary.load(repository, data.id(), data.type(), historical);
+            Graph<?> loaded = boundary.loadGraph(repository, data.id(), data.type(), historical);
             if (!(loaded instanceof GraphView<?> graph) || !graph.state().complete() || knownModels.isEmpty()) {
                 return loaded;
             }
@@ -523,7 +522,7 @@ final class GraphState {
                 continue;
             }
             Graph<?> parent = historical || exactBoundary
-                    ? boundary.load(repository, repositoryId, parentType, true)
+                    ? boundary.loadGraph(repository, repositoryId, parentType, true)
                     : Graphs.lazy(repository.load(parentId, parentType), stateIndex, repository);
             if (parent.isPresent()) {
                 result.putIfAbsent(repositoryId, context.decorate(parent));
@@ -575,7 +574,7 @@ final class GraphState {
         return repository;
     }
 
-    GraphBoundary boundary() {
+    ModelReadBoundary boundary() {
         return boundary;
     }
 
@@ -1120,7 +1119,7 @@ final class GraphView<T> implements Graph<T> {
             && state.repository() instanceof ModelAncestorResolver resolver) {
             Optional<Graph<A>> resolved = resolver.loadAncestorGraph(
                     identity.repositoryId(), identity.type(), ancestorType,
-                    state.boundary().ancestorBoundary(state.stateIndex(), state.exactBoundary(), state.historical()));
+                    state.boundary());
             if (resolved.isPresent()) {
                 return resolved.map(graph -> Graphs.cast(context.decorate(graph)));
             }
@@ -1129,8 +1128,7 @@ final class GraphView<T> implements Graph<T> {
             if (identity.detachedLookup()) {
                 resolved = resolver.loadAncestorGraph(
                         resolvedId, identity.type(), ancestorType,
-                        state.boundary().ancestorBoundary(
-                                state.stateIndex(), state.exactBoundary(), state.historical()));
+                        state.boundary());
                 if (resolved.isPresent()) {
                     return resolved.map(graph -> Graphs.cast(context.decorate(graph)));
                 }
@@ -1361,11 +1359,11 @@ final class GraphView<T> implements Graph<T> {
         }
         long currentStateIndex = entity instanceof ModelRoot<?> root && root.stateIndex() >= -1L
                 ? root.stateIndex() : state.stateIndex();
-        GraphBoundary boundary = state.boundary();
+        ModelReadBoundary boundary = state.boundary();
         if (entity instanceof ModelRoot<?> current && previous instanceof ModelRoot<?> preceding
             && current.stateIndex() >= 0L && current.stateIndex() != preceding.stateIndex()) {
-            boundary = !boundary.before() && boundary.stateIndex() == current.stateIndex()
-                    ? boundary.asBefore() : GraphBoundary.state(current.stateIndex()).asBefore();
+            boundary = !boundary.before() && Objects.equals(boundary.stateIndex(), current.stateIndex())
+                    ? boundary.asBefore() : ModelReadBoundary.state(current.stateIndex(), false).asBefore();
         }
         Graph<T> result = GraphState.entity(
                 previous, currentStateIndex, state.repository(), Map.of(previous.id().toString(), previous),
@@ -1390,7 +1388,7 @@ final class GraphView<T> implements Graph<T> {
                 .map(previous -> GraphState.entity(
                         previous, previous instanceof ModelRoot<?> root ? root.stateIndex() : state.stateIndex(),
                         state.repository(), Map.of(previous.id().toString(), previous), true, true,
-                        GraphBoundary.state(state.stateIndex()), Map.of()).<T>root());
+                        ModelReadBoundary.state(state.stateIndex(), false), Map.of()).<T>root());
         return result.map(graph -> Graphs.cast(context.decorate(graph)));
     }
 
@@ -1406,83 +1404,5 @@ final class GraphView<T> implements Graph<T> {
     @SuppressWarnings("unchecked")
     private Entity<T> castEntity(Entity<?> entity) {
         return (Entity<T>) entity;
-    }
-}
-
-/** Current/state/commit/event graph boundary retained until repository replay adopts the shared type. */
-record GraphBoundary(
-        long stateIndex, String commitId, Integer substep, Long eventIndex, boolean before,
-        Metadata messageMetadata, boolean eventMessage) {
-
-    static GraphBoundary state(long stateIndex) {
-        return new GraphBoundary(stateIndex, null, null, null, false, null, false);
-    }
-
-    static GraphBoundary current(long stateIndex) {
-        DeserializingMessage message = DeserializingMessage.getCurrent();
-        return message == null ? state(stateIndex) : new GraphBoundary(
-                stateIndex, null, null, null, false, message.getMetadata(),
-                message.getMessageType() == MessageType.EVENT || message.getMessageType() == MessageType.NOTIFICATION);
-    }
-
-    GraphBoundary asBefore() {
-        GraphBoundary resolved = resolve();
-        return resolved.before ? resolved : new GraphBoundary(
-                resolved.stateIndex, resolved.commitId, resolved.substep, resolved.eventIndex, true, null,
-                resolved.eventMessage);
-    }
-
-    Graph<?> load(ModelRepository repository, String rootId, Class<?> rootType, boolean historical) {
-        GraphBoundary resolved = resolve();
-        if (resolved.commitId != null) {
-            return resolved.before
-                    ? repository.loadGraphBeforeCommit(rootId, rootType, resolved.stateIndex, resolved.commitId,
-                                                       resolved.substep, Graph.Options.DEFAULT)
-                    : repository.loadGraphAtCommit(rootId, rootType, resolved.stateIndex, resolved.commitId,
-                                                   resolved.substep, Graph.Options.DEFAULT);
-        }
-        if (resolved.eventIndex != null) {
-            return resolved.before
-                    ? repository.loadGraphBeforeEvent(rootId, rootType, resolved.stateIndex, resolved.eventIndex,
-                                                      Graph.Options.DEFAULT)
-                    : repository.loadGraphAtEvent(rootId, rootType, resolved.stateIndex, resolved.eventIndex,
-                                                  Graph.Options.DEFAULT);
-        }
-        if (resolved.before) {
-            return repository.loadGraphBefore(rootId, rootType, resolved.stateIndex, Graph.Options.DEFAULT);
-        }
-        return historical ? repository.loadGraphAt(rootId, rootType, resolved.stateIndex, Graph.Options.DEFAULT)
-                : repository.loadGraph(rootId, rootType, Graph.Options.DEFAULT);
-    }
-
-    ModelAncestorResolver.Boundary ancestorBoundary(long fallback, boolean exact, boolean historical) {
-        if (!exact) {
-            return ModelAncestorResolver.Boundary.current();
-        }
-        GraphBoundary resolved = resolve();
-        if (resolved.commitId != null) {
-            return ModelAncestorResolver.Boundary.commit(resolved.commitId, resolved.substep);
-        }
-        if (resolved.eventIndex != null) {
-            return ModelAncestorResolver.Boundary.event(resolved.eventIndex);
-        }
-        long value = resolved.stateIndex >= -1L ? resolved.stateIndex : fallback;
-        return ModelAncestorResolver.Boundary.state(value, !historical && !resolved.eventMessage);
-    }
-
-    private GraphBoundary resolve() {
-        if (messageMetadata == null) {
-            return this;
-        }
-        Object commit = messageMetadata.get(ModelEventMetadata.COMMIT_ID);
-        Object step = messageMetadata.get(ModelEventMetadata.SUBSTEP);
-        if (commit instanceof String id && !id.isBlank() && step != null) {
-            int parsed = step instanceof Number number ? number.intValue() : Integer.parseInt(step.toString());
-            if (parsed < 0) {
-                throw new IllegalArgumentException("Model event commit substep must be non-negative");
-            }
-            return new GraphBoundary(stateIndex, id, parsed, null, before, null, eventMessage);
-        }
-        return new GraphBoundary(stateIndex, null, null, null, before, null, eventMessage);
     }
 }

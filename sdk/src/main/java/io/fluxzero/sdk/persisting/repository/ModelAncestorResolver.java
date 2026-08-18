@@ -29,66 +29,6 @@ import java.util.List;
 public interface ModelAncestorResolver {
 
     /**
-     * Exact relationship read boundary for ancestor resolution. An empty selector means current state. Pending
-     * message-batch values are included only when {@code includeMessageBatch} is true.
-     */
-    record Boundary(
-            Long stateIndex,
-            String commitId,
-            Integer substep,
-            Long eventIndex,
-            boolean includeMessageBatch) {
-
-        public Boundary {
-            int specified = (stateIndex == null ? 0 : 1)
-                            + (commitId == null ? 0 : 1)
-                            + (eventIndex == null ? 0 : 1);
-            if (specified > 1) {
-                throw new IllegalArgumentException(
-                        "Specify one model state, commit, or event boundary");
-            }
-            if ((commitId == null) != (substep == null)) {
-                throw new IllegalArgumentException(
-                        "A model commit boundary requires both commitId and substep");
-            }
-            if (stateIndex != null && stateIndex < -1L) {
-                throw new IllegalArgumentException(
-                        "Model stateIndex must be at least -1");
-            }
-            if (commitId != null
-                && (commitId.isBlank() || substep < 0)) {
-                throw new IllegalArgumentException(
-                        "A model commit boundary requires a non-blank commitId and non-negative substep");
-            }
-            if (eventIndex != null && eventIndex < 0L) {
-                throw new IllegalArgumentException(
-                        "Model eventIndex must be non-negative");
-            }
-            if (includeMessageBatch
-                && (commitId != null || eventIndex != null)) {
-                throw new IllegalArgumentException(
-                        "Exact event boundaries cannot include pending message-batch state");
-            }
-        }
-
-        public static Boundary current() {
-            return new Boundary(null, null, null, null, true);
-        }
-
-        public static Boundary state(long stateIndex, boolean includeMessageBatch) {
-            return new Boundary(stateIndex, null, null, null, includeMessageBatch);
-        }
-
-        public static Boundary commit(String commitId, int substep) {
-            return new Boundary(null, commitId, substep, null, false);
-        }
-
-        public static Boundary event(long eventIndex) {
-            return new Boundary(null, null, null, eventIndex, false);
-        }
-    }
-
-    /**
      * Resolves and loads only the closest ancestor assignable to {@code ancestorType} at the graph's read boundary.
      * Intermediate parent values must remain unloaded.
      */
@@ -96,7 +36,7 @@ public interface ModelAncestorResolver {
             String modelId,
             Class<?> modelType,
             Class<A> ancestorType,
-            Boundary boundary);
+            ModelReadBoundary boundary);
 
     /**
      * Resolves every reachable ancestor assignable to {@code ancestorType} at one boundary.
@@ -108,7 +48,7 @@ public interface ModelAncestorResolver {
             String modelId,
             Class<?> modelType,
             Class<A> ancestorType,
-            Boundary boundary) {
+            ModelReadBoundary boundary) {
         return loadAncestorGraph(modelId, modelType, ancestorType, boundary)
                 .stream().toList();
     }
