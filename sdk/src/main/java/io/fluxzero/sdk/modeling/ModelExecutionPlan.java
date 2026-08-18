@@ -1069,9 +1069,17 @@ public record ModelExecutionPlan(
 
         ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
             ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
+            List<Transition> transitions = transitions();
+            if (transitions.size() == 1
+                && readModelTypes.size() == 1
+                && readModelTypes.containsKey(
+                        transitions.getFirst().modelId())) {
+                return transitionPolicy(
+                        transitions.getFirst(), application);
+            }
             ModelConflictPolicy result = ModelConflictPolicy.ACCEPT;
             Set<String> written = new java.util.HashSet<>();
-            for (Transition transition : transitions()) {
+            for (Transition transition : transitions) {
                 written.add(transition.modelId());
                 result = strictest(result, transitionPolicy(transition, application));
             }

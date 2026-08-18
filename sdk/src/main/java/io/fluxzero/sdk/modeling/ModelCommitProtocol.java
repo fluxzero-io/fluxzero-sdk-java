@@ -206,6 +206,15 @@ final class ModelCommitProtocol {
         Objects.requireNonNull(evaluation, "evaluation");
         Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
+        if (evaluation.substeps().size() == 1
+            && evaluation.substeps().getFirst().transitions().size() == 1
+            && !isGraphChange(evaluation.substeps().getFirst()
+                                      .transitions().getFirst())) {
+            return prepareSingle(
+                    commitId, evaluation, conflictPolicy,
+                    evaluation.substeps().getFirst());
+        }
+
         List<ModelExecutionPlan.AppliedSubstep> evaluatedSubsteps =
                 new ArrayList<>(evaluation.substeps().size());
         Map<String, List<ModelExecutionPlan.Transition>> graphPublications =
@@ -330,6 +339,59 @@ final class ModelCommitProtocol {
                 possibleDuplicate(evaluation, preparedSubsteps));
         return new PreparedCommit(
                 commit, List.copyOf(preparedSubsteps));
+    }
+
+    private PreparedCommit prepareSingle(
+            String commitId,
+            ModelExecutionPlan.CommitEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy,
+            ModelExecutionPlan.AppliedSubstep appliedSubstep) {
+        ModelExecutionPlan.Transition transition =
+                appliedSubstep.transitions().getFirst();
+        ModelExecutionPlan.TransitionEffect effect = transition.effect();
+        effect.validate(transition);
+        if (!effect.active()) {
+            return new PreparedCommit(null, List.of());
+        }
+        boolean eventRequired = effect.publishEvent()
+                                || effect.storeEvent();
+        SerializedMessage event = eventRequired
+                ? serialize(
+                        appliedSubstep.message(), commitId, 0,
+                        transition.cascadedDeletion()) : null;
+        if (event != null) {
+            event.setSource(source);
+            if (effect.publishEvent()
+                && effect.eventRouting()
+                   == AggregateEventRouting.AGGREGATE_ID) {
+                event.setSegment(
+                        ConsistentHashing.computeSegment(
+                                transition.modelId()));
+            }
+            event = SerializedMessage.encode(event);
+        }
+        long nextSequence = transition.beforeSequenceNumber()
+                            + (effect.storeEvent() ? 1L : 0L);
+        ModelCommitTarget target = target(
+                transition,
+                appliedSubstep.message(),
+                nextSequence,
+                evaluation.cascadeRootIds().contains(
+                        transition.modelId()));
+        ModelCommitStep step = new ModelCommitStep(
+                event, effect.publishEvent(),
+                List.of(target));
+        CommitModels commit = new CommitModels(
+                commitId,
+                evaluation.readStateIndex(),
+                evaluation.readModelIds(),
+                List.of(step),
+                conflictPolicy,
+                STORED,
+                possibleDuplicate(
+                        transition, effect));
+        return new PreparedCommit(
+                commit, List.of(appliedSubstep));
     }
 
     PreparedCommit prepareRebased(
@@ -548,6 +610,23 @@ final class ModelCommitProtocol {
                 .map(ModelExecutionPlan.Transition::beforeLastEventIndex)
                 .filter(Objects::nonNull)
                 .anyMatch(index -> index >= sourceIndex);
+    }
+
+    private static Boolean possibleDuplicate(
+            ModelExecutionPlan.Transition transition,
+            ModelExecutionPlan.TransitionEffect effect) {
+        Long sourceIndex = DeserializingMessage.getOptionally()
+                .map(DeserializingMessage::getIndex)
+                .orElse(null);
+        if (sourceIndex == null
+            || !effect.storeEvent()
+            || !effect.publishEvent()) {
+            return null;
+        }
+        Long beforeLastEventIndex =
+                transition.beforeLastEventIndex();
+        return beforeLastEventIndex != null
+               && beforeLastEventIndex >= sourceIndex;
     }
 
     private static void applyEventRouting(
