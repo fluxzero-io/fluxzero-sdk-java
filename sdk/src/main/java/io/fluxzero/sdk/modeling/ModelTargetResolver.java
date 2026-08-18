@@ -162,68 +162,46 @@ public final class ModelTargetResolver {
         return List.copyOf(result);
     }
 
-    static DirectModelReference resolveDirectModelReference(
-            Object input,
-            Class<?> modelType,
-            String association) {
-        Object payload = payload(input);
-        Property property = payload == null ? null : Payload.of(payload.getClass()).direct(modelType, association);
-        if (property == null) {
-            return DirectModelReference.missing();
-        }
-        Object id = property.read(payload);
-        return new DirectModelReference(
-                true, id == null ? null : repositoryId(id, modelType, property.name, null, payload));
-    }
-
-    static DirectModelReferences resolveDirectModelReferences(
-            Object input,
-            Class<?> modelType,
-            String association) {
-        Object payload = payload(input);
-        Property property = payload == null ? null : Payload.of(payload.getClass()).collection(modelType, association);
-        if (property == null) {
-            return DirectModelReferences.missing();
-        }
-        return new DirectModelReferences(true, ids(property.read(payload), modelType, property.name, null, payload));
-    }
-
-    static DirectModelReference directReference(
+    static DirectReferences directReferences(
             DeserializingMessage message,
             ModelMetadata.ModelParameter parameter) {
         String association = parameter.associationProperty();
         if (metadataContains(message, parameter)) {
             Object value = message.getMetadata().get(association);
-            return new DirectModelReference(true, value == null ? null : value.toString());
-        }
-        return resolveDirectModelReference(message.getPayload(), parameter.modelType(), association);
-    }
-
-    static DirectModelReferences directReferences(
-            DeserializingMessage message,
-            ModelMetadata.ModelParameter parameter) {
-        String association = parameter.associationProperty();
-        if (!metadataContains(message, parameter)) {
-            return resolveDirectModelReferences(message.getPayload(), parameter.modelType(), association);
-        }
-        Object value = message.getMetadata().get(association);
-        if (value == null) {
-            return new DirectModelReferences(true, List.of());
-        }
-        if (!(value instanceof Collection<?> collection)) {
-            throw new IllegalArgumentException(
-                    "Metadata property '%s' must contain a model ID collection, but found %s".formatted(
-                            association, value.getClass().getName()));
-        }
-        List<String> result = new ArrayList<>(collection.size());
-        collection.forEach(id -> {
-            if (id == null) {
-                throw new IllegalArgumentException(
-                        "Metadata property '%s' contains a null model ID".formatted(association));
+            if (!parameter.collectionWrapped()) {
+                return DirectReferences.scalar(value == null ? null : value.toString());
             }
-            result.add(id.toString());
-        });
-        return new DirectModelReferences(true, result);
+            if (value == null) {
+                return DirectReferences.collection(List.of());
+            }
+            if (!(value instanceof Collection<?> collection)) {
+                throw new IllegalArgumentException(
+                        "Metadata property '%s' must contain a model ID collection, but found %s".formatted(
+                                association, value.getClass().getName()));
+            }
+            List<String> result = new ArrayList<>(collection.size());
+            collection.forEach(id -> {
+                if (id == null) {
+                    throw new IllegalArgumentException(
+                            "Metadata property '%s' contains a null model ID".formatted(association));
+                }
+                result.add(id.toString());
+            });
+            return DirectReferences.collection(result);
+        }
+        Object directPayload = payload(message.getPayload());
+        Property property = directPayload == null ? null : parameter.collectionWrapped()
+                ? Payload.of(directPayload.getClass()).collection(parameter.modelType(), association)
+                : Payload.of(directPayload.getClass()).direct(parameter.modelType(), association);
+        if (property == null) {
+            return DirectReferences.missing();
+        }
+        Object value = property.read(directPayload);
+        return parameter.collectionWrapped()
+                ? DirectReferences.collection(ids(
+                        value, parameter.modelType(), property.name, null, directPayload))
+                : DirectReferences.scalar(value == null ? null : repositoryId(
+                        value, parameter.modelType(), property.name, null, directPayload));
     }
 
     private static boolean metadataContains(
@@ -242,8 +220,8 @@ public final class ModelTargetResolver {
         Set<AncestorDependency> ancestors = new LinkedHashSet<>();
         boolean emptyCollection = false;
         for (ModelMetadata.ModelParameter parameter : parameters) {
+            DirectReferences references = directReferences(message, parameter);
             if (parameter.collectionWrapped()) {
-                DirectModelReferences references = directReferences(message, parameter);
                 if (references.present()) {
                     emptyCollection |= references.modelIds().isEmpty();
                     references.modelIds().forEach(id -> merge(targets, new ResolvedModel(
@@ -251,16 +229,15 @@ public final class ModelTargetResolver {
                             List.of(parameter.associationProperty()))));
                 }
             } else {
-                DirectModelReference reference = directReference(message, parameter);
-                if (!reference.present()) {
+                if (!references.present()) {
                     ancestors.add(new AncestorDependency(
                             parameter.modelType(), parameter.associationProperty(), executable.toGenericString()));
-                } else if (reference.modelId() != null) {
+                } else if (references.modelId() != null) {
                     String source = parameter.associationProperty() == null
                             ? ModelMetadata.of(parameter.modelType()).entityIdName()
                             : parameter.associationProperty();
                     merge(targets, new ResolvedModel(
-                            reference.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
+                            references.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
                 }
             }
         }
@@ -438,19 +415,21 @@ public final class ModelTargetResolver {
         }
     }
 
-    record DirectModelReference(boolean present, String modelId) {
-        private static DirectModelReference missing() {
-            return new DirectModelReference(false, null);
-        }
-    }
-
-    record DirectModelReferences(boolean present, List<String> modelIds) {
-        DirectModelReferences {
+    record DirectReferences(boolean present, String modelId, List<String> modelIds) {
+        DirectReferences {
             modelIds = List.copyOf(modelIds);
         }
 
-        private static DirectModelReferences missing() {
-            return new DirectModelReferences(false, List.of());
+        private static DirectReferences missing() {
+            return new DirectReferences(false, null, List.of());
+        }
+
+        private static DirectReferences scalar(String modelId) {
+            return new DirectReferences(true, modelId, List.of());
+        }
+
+        private static DirectReferences collection(List<String> modelIds) {
+            return new DirectReferences(true, null, modelIds);
         }
     }
 

@@ -139,7 +139,7 @@ public class ModelEntityParameterResolver
             return true;
         }
         if (modelParameter.collectionWrapped()) {
-            ModelTargetResolver.DirectModelReferences references =
+            ModelTargetResolver.DirectReferences references =
                     directReferences(input, modelParameter);
             if (!references.present()) {
                 return false;
@@ -516,7 +516,7 @@ public class ModelEntityParameterResolver
             ModelMetadata.ModelParameter modelParameter,
             Object input,
             HandlerPlan plan) {
-        ModelTargetResolver.DirectModelReferences references = directReferences(input, modelParameter);
+        ModelTargetResolver.DirectReferences references = directReferences(input, modelParameter);
         if (!references.present()) {
             throw new IllegalStateException(
                     "Graph collection parameter %s in %s has no payload property '%s'"
@@ -579,24 +579,24 @@ public class ModelEntityParameterResolver
         if (message == null) {
             return false;
         }
-        ModelTargetResolver.DirectModelReference reference =
+        ModelTargetResolver.DirectReferences reference =
                 directReference(message, parameter);
         return reference.present() && reference.modelId() == null;
     }
 
-    private static ModelTargetResolver.DirectModelReferences directReferences(
+    private static ModelTargetResolver.DirectReferences directReferences(
             Object input,
             ModelMetadata.ModelParameter parameter) {
         DeserializingMessage message = input instanceof DeserializingMessage direct
                 ? direct : DeserializingMessage.getOptionally().orElse(null);
         if (message == null) {
-            return new ModelTargetResolver.DirectModelReferences(false, List.of());
+            return new ModelTargetResolver.DirectReferences(false, null, List.of());
         }
         return cache(message).collectionReferences.computeIfAbsent(
                 parameter, ignored -> computeDirectReferences(message, parameter));
     }
 
-    private static ModelTargetResolver.DirectModelReferences computeDirectReferences(
+    private static ModelTargetResolver.DirectReferences computeDirectReferences(
             DeserializingMessage message,
             ModelMetadata.ModelParameter parameter) {
         return ModelTargetResolver.directReferences(message, parameter);
@@ -716,10 +716,10 @@ public class ModelEntityParameterResolver
 
     }
 
-    private static ModelTargetResolver.DirectModelReference directReference(
+    private static ModelTargetResolver.DirectReferences directReference(
             DeserializingMessage message,
             ModelMetadata.ModelParameter parameter) {
-        return ModelTargetResolver.directReference(message, parameter);
+        return ModelTargetResolver.directReferences(message, parameter);
     }
 
     private static final class ResolvedHandlerPlan {
@@ -769,7 +769,7 @@ public class ModelEntityParameterResolver
                 Optional<ResolvedHandlerPlan>> plans =
                 new ConcurrentHashMap<>();
         private final Map<ModelMetadata.ModelParameter,
-                ModelTargetResolver.DirectModelReferences> collectionReferences =
+                ModelTargetResolver.DirectReferences> collectionReferences =
                 new ConcurrentHashMap<>();
     }
 }
