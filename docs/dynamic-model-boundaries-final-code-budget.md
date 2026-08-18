@@ -17,7 +17,8 @@ Date: 2026-08-18
 | CP6 stable batch metrics (`32ccf7b0c575` / `ecdd6d5a9fff`) | **165,457** | **41,471** | **3,881** | accepted; full model -0.26% amid bidirectional host drift |
 | CP7 unified batch model state (`8180b01df0e4` / `ecdd6d5a9fff`) | **165,141** | **41,471** | **4,197** | accepted; full model +2.08%, fewer scheduler allocations |
 | CP8 canonical Runtime blocks (`8180b01df0e4` / `d7c54eb086d`) | **165,141** | **36,809** | **8,859** | accepted; matched full model +4.65%, no-model +0.56% |
-| Required final ceiling | **136,000** | **32,000** | **33,950 still to remove** | pending |
+| CP9 compiled SDK execution (`6183d8a66a3` / `d7c54eb086d`) | **161,747** | **36,809** | **12,253** | accepted; clean adjacent full model -0.30%, loaded reverse pair +4.69% |
+| Required final ceiling | **136,000** | **32,000** | **30,556 still to remove** | pending |
 
 ## Objective
 
@@ -54,13 +55,20 @@ The remaining campaign therefore has four checkpoints at most after CP8:
 | Macro replacement | Owner after replacement | Owners and pipelines that must disappear | Structural target |
 | --- | --- | --- | ---: |
 | Runtime commit/storage — **CP8 complete** | one `ModelCommitPlan` and one block executor | general rows, initial-packed, update-packed, paired head/locator and paired replay routes | 4,809 direct-parent / 5,229 S60 Runtime lines |
-| SDK execution | one compiled payload plan and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 7,000-8,000 SDK lines |
+| SDK execution — **CP9 complete** | one compiled payload plan and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 3,397 SDK lines |
 | Graph/repository | one indexed graph state and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 7,000-8,000 SDK lines |
 | Aggregate/Model mechanics | neutral transition, identity, apply and replay mechanics | duplicated aggregate/model reflection, transition, repository and fixture implementations | 6,000-7,000 SDK lines |
 | Wire/integration residue | one envelope/codecpad plus thin integrations | remaining handwritten protocol variants, preview schema/codecs and branch-only adapters | 5,000-7,000 combined lines |
 
-Repository ceilings remain the final authority. A macro that falls short of its structural range is redesigned before
-the next subsystem is started; missing budget is not paid through another sequence of local cleanups.
+Repository ceilings remain the final authority. A macro that falls short of its estimate is either redesigned or must
+independently remove a complete owner and at least 3,000 lines; missing budget is never paid through another sequence
+of local cleanups or silently credited.
+
+CP9 is accepted through the independent 3,000-line structural gate rather than its original 7,000-8,000 estimate. The
+old lifecycle owners and alternate execution routes are physically gone, while the target and parameter semantics that
+the estimate assumed could disappear remain compiled inputs to the one plan. Further Macro 2 deletion had become local
+rule shaving rather than removal of another owner. The unremoved budget is not credited: it remains visible in the
+absolute SDK ceiling and must be solved by the next large graph/repository or shared-mechanics design.
 
 ## Causal baseline
 
@@ -305,6 +313,49 @@ from the S60 start. It adds no supported public API. Deleted Java types were pac
 the intentionally incompatible storage format has never been deployed. Detailed performance evidence is recorded in
 the model-capacity and feature-characterization logs.
 
+## Accepted checkpoint CP9 — one compiled SDK model execution pipeline
+
+SDK `6183d8a66a3` compiles handler order, direct invocation, target access and commit policy once per payload type in
+`ModelExecutionPlan`. Automatic handling, explicit assertion/apply, stored-event replay, Graph changes and conflict
+retry now submit the same evaluation shape. `ModelBatchScope` is the sole batch-local owner of staged values, exact
+dependencies, commit release and transport slots; `ModelCommitProtocol` is the sole transition-to-wire and
+authoritative-result boundary.
+
+The replacement physically deletes `ModelCommitEngine`, `ModelCommitter`, `ModelCommitCoordinator`,
+`MessageBatchModelView`, `ModelConflictPolicies`, `ModelEventReplayer` and the graph-change decorator/invocation
+lifecycle. Registry tickets, gates, waves and the separate automatic/manual commit continuations are gone. The direct
+single-target strategy remains inside the compiled plan and produces the same `CommitEvaluation` and protocol result;
+it is not a second engine or completion path.
+
+The first complete candidate lost both normal-case specializations while consolidating the owners. Two canonical runs
+then sustained 289,301 and 288,392/s against adjacent controls of 317,896 and 314,686/s (**-8.68%** geometric). Measured
+allocation and CPU samples identified generic multi-substep protocol grouping, conflict-set construction and generic
+evaluation maps on every one-model update. Restoring those as strategies inside the compiled plan/protocol removed the
+regression without restoring any deleted lifecycle owner.
+
+| Qualifying route | CP8 control | CP9 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| clean adjacent command -> `@Apply` -> model/event commit -> result | 334,168/s | 333,183/s | **-0.30%** | exact 4,194,304 results, model events and global events; 65,536 states |
+| loaded-host reverse observation of the same route | 304,732/s | 319,037/s | **+4.69%** | same exact counts; Spotlight, MediaAnalysis and VM work active |
+| no-model command -> durable result, first order | 782,632/s | 708,625/s | -9.46% | exact 10,485,760 results; zero events |
+| no-model command -> durable result, reverse order | 782,632/s | 825,476/s | **+5.47%** | exact 10,485,760 results; zero events |
+
+The bidirectional host movement prevents a new absolute pin, but neither the clean model pair nor the reverse loaded
+pair shows a causal regression after specialization. Model transaction batch sizes remained comparable. The no-model
+route moved in opposite directions around the same control, confirming that the generic WebSocket completion hook did
+not introduce a repeatable route loss.
+
+The focused execution/protocol/conflict suite passed 98 tests. The final complete nine-module reactor passed, including
+2,404 SDK tests, Proxy packaging, annotation processing and Java/Kotlin downstream projects. A separate ordinary
+StatefulHandler regression found during qualification was fixed by making payload property access lazy: ordinary
+command value types no longer open unselected JDK members merely because the automatic Model registry inspected the
+payload class.
+
+CP9 removes 3,397 physical production Java lines from its exact CP8 rollback `9bcfc2389b0` (165,144 -> 161,747).
+Several deleted types had public Java visibility for cross-package infrastructure, but repository-wide usage found no
+documented or downstream consumer; the supported `ModelCommitHandlerRegistry` and public Model/Graph entry points
+remain. This is an intentional branch-only source/binary break for unreleased implementation types.
+
 ## What caused the growth
 
 The growth is not proportional to added product behavior.
@@ -387,7 +438,7 @@ The same scope serves automatic handlers and explicit nested model operations. E
 unrelated model does not acquire a dependency. Context propagation and result publication retain their existing
 boundaries.
 
-#### SDK execution replacement blueprint — active Macro 2
+#### SDK execution replacement blueprint — implemented by CP9
 
 The replacement compiles one `ModelExecutionPlan` when a payload type first becomes reachable from a registered model.
 That immutable plan contains the ordered assertion/interceptor/apply invokers, direct and collection result shapes,
@@ -428,9 +479,11 @@ surface used by `DefaultFluxzero`; it delegates every operation to the compiled 
 `DefaultModelRepository` remains the durable/current/historical load owner until Macro 3 and is changed here only at
 the batch-overlay call boundary.
 
-The direct pre-rewrite footprint of those execution classes is just over 10,000 production Java lines. The replacement
-budget is at most roughly 3,000 lines, producing the required 7,000-8,000-line structural reduction. This budget may
-not be met by compressed formatting, deleted contracts or moving Graph/repository replay into this checkpoint.
+The direct pre-rewrite footprint of those execution classes was just over 10,000 production Java lines. The final
+replacement retains more target, parameter and completion semantics than the original estimate allowed and removes
+3,397 lines net. It qualifies because the superseded owners are physically gone and the independent 3,000-line gate is
+met; the 3,603-4,603-line planning gap remains part of the absolute SDK deficit rather than being attributed to this
+checkpoint or manufactured through compressed formatting.
 
 Qualification preserves automatic registration precedence, validation-only behavior, heterogeneous collections,
 Graph updates, conflict retry/acceptance, initial-create proof, batch-local ancestors and moves, all commit policies,
@@ -439,9 +492,8 @@ synchrony and Java/Kotlin downstream compilation. Focused execution and integrat
 reactor; the full command/model/event/result route then receives matched control/candidate throughput and allocation
 runs. The no-model route is rerun only if generic handler, tracking, result-completion or wire code changes.
 
-Rollback is the CP8 SDK commit `9bcfc2389b0`: the replacement remains uncommitted until the old owners are physically
-gone and every gate qualifies. A candidate that needs an adapter back to an old engine or materially regresses the
-matched route is discarded as one unit rather than checkpointed partially.
+Rollback is the CP8 SDK commit `9bcfc2389b0`; CP9 is accepted at `6183d8a66a3`. No adapter back to an old engine remains,
+and the losing generic-only normal route was corrected before acceptance rather than carried into Macro 3.
 
 ### 4. Graph is one indexed view
 
@@ -585,13 +637,13 @@ mechanics rather than justification for keeping a second SDK replay and apply en
 
 ## Removal budget
 
-These are design budgets, not credit for moving code. A workstream that cannot remove its budget without regression
-must be redesigned before another feature is sacrificed.
+These are planning budgets, not credit for moving code. CP9's explicit shortfall remains in the repository total; the
+next workstream starts from a new class/state design rather than attempting to shave that gap from execution rules.
 
 | SDK workstream | Required structural removal |
 | --- | ---: |
 | final binary envelope, metadata and wire protocol | 6,000–7,000 |
-| single commit plan, handler pipeline and batch scope | 7,000–8,000 |
+| single commit plan, handler pipeline and batch scope | 7,000–8,000 planned; **3,397 delivered at CP9** |
 | one graph state and one repository/replay cursor | 7,000–8,000 |
 | shared Aggregate/Model and in-memory transition mechanics | 6,000–7,000 |
 | preview migration, campaign diagnostics and thin integration cleanup | 3,500–4,500 |
@@ -614,8 +666,9 @@ preferred workstream.
 2. **Complete at CP8:** replace the complete Runtime commit/storage subsystem according to the blueprint above, with
    no adapter layer or coexistence state. The old representations are gone; Runtime is 5,229 lines below S60 start and
    the direct CP8 parent delta is 4,809 lines.
-3. Replace the complete SDK execution subsystem with one compiled payload plan and one batch scope. The registration,
-   manual invocation, retry and automatic paths must all enter it before the alternate lifecycle owners are deleted.
+3. **Complete at CP9:** replace the SDK execution subsystem with one compiled payload plan, one batch scope and one
+   protocol boundary. Registration, manual invocation, retry and automatic paths now share it; alternate lifecycle
+   owners are deleted. CP9 removes 3,397 lines and leaves its planning gap visible in the absolute ceiling.
 4. Replace Graph and repository loading together: one indexed graph state, one replay cursor and no repository-specific
    traversal/apply variants.
 5. Move Aggregate and Model behind neutral transition/identity/apply/replay mechanics and remove the superseded public-
