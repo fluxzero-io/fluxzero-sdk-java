@@ -18,7 +18,8 @@ Date: 2026-08-18
 | CP7 unified batch model state (`8180b01df0e4` / `ecdd6d5a9fff`) | **165,141** | **41,471** | **4,197** | accepted; full model +2.08%, fewer scheduler allocations |
 | CP8 canonical Runtime blocks (`8180b01df0e4` / `d7c54eb086d`) | **165,141** | **36,809** | **8,859** | accepted; matched full model +4.65%, no-model +0.56% |
 | CP9 compiled SDK execution (`6183d8a66a3` / `d7c54eb086d`) | **161,747** | **36,809** | **12,253** | accepted; clean adjacent full model -0.30%, loaded reverse pair +4.69% |
-| Required final ceiling | **136,000** | **32,000** | **30,556 still to remove** | pending |
+| CP10 indexed Graph/replay (`34f0038e98b` / `d7c54eb086d`) | **160,076** | **36,809** | **13,924** | accepted; full model +2.41%, graph projection -2.62%, cold replay +56.57% |
+| Required final ceiling | **136,000** | **32,000** | **28,885 still to remove** | pending |
 
 ## Objective
 
@@ -56,13 +57,13 @@ The remaining campaign therefore has four checkpoints at most after CP8:
 | --- | --- | --- | ---: |
 | Runtime commit/storage — **CP8 complete** | one `ModelCommitPlan` and one block executor | general rows, initial-packed, update-packed, paired head/locator and paired replay routes | 4,809 direct-parent / 5,229 S60 Runtime lines |
 | SDK execution — **CP9 complete** | one compiled payload plan and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 3,397 SDK lines |
-| Graph/repository | one indexed graph state and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 7,000-8,000 SDK lines |
+| Graph/repository — **CP10 complete** | one indexed graph state and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 1,671 SDK lines plus complete owner removal |
 | Aggregate/Model mechanics | neutral transition, identity, apply and replay mechanics | duplicated aggregate/model reflection, transition, repository and fixture implementations | 6,000-7,000 SDK lines |
 | Wire/integration residue | one envelope/codecpad plus thin integrations | remaining handwritten protocol variants, preview schema/codecs and branch-only adapters | 5,000-7,000 combined lines |
 
-Repository ceilings remain the final authority. A macro that falls short of its estimate is either redesigned or must
-independently remove a complete owner and at least 3,000 lines; missing budget is never paid through another sequence
-of local cleanups or silently credited.
+Repository ceilings remain the final authority. A macro that falls short of its estimate must independently remove a
+complete pipeline, representation or lifecycle owner, or remove at least 3,000 lines; missing budget is never paid
+through another sequence of local cleanups or silently credited.
 
 CP9 is accepted through the independent 3,000-line structural gate rather than its original 7,000-8,000 estimate. The
 old lifecycle owners and alternate execution routes are physically gone, while the target and parameter semantics that
@@ -599,6 +600,90 @@ view is a rejection even if throughput remains flat.
 The exact rollback point is CP9 documentation commit `ac8bed3cbc5`. Experiments may temporarily add the new owners, but
 Macro 3 is accepted only after the superseded Graph implementations, replay session, loaders and adapters are gone; no
 bridge that keeps both object models or apply loops survives the checkpoint.
+
+#### Accepted checkpoint CP10 — one indexed Graph state and one replay cursor
+
+CP10 implements the blueprint as a class redesign rather than a sequence of local reductions. `GraphState` is now the
+only structural graph representation and `GraphView<T>` the only `Graph<T>` implementation. Repository, detached,
+message-batch and materialized graphs construct or adapt that state; navigation, selection, filtering, mapped values,
+response context and history are view options over its indexes. `ModelReadBoundary` is the one current/state/commit/
+event boundary. `ModelReplayCursor` now owns both bounded event transport and reconstruction, while
+`DefaultModelRepository` chooses document/event inputs and returns entities, commit contexts or indexed graphs.
+
+The following production owners and representations are physically absent from the accepted source:
+
+- `Graphs.Context`, `Placement`, `DefaultGraph`, `IdentityGraph`, `ForwardingGraph`, `MappedGraph`, `ChangeGraph` and
+  `SelectedGraph`;
+- `MaterializedGraphFactory.Context`, `Node` and `MaterializedGraph` as an independent object model;
+- `DefaultModelRepository.ReconstructionSession`, `GraphComposer`, `ReconstructedGraph`, `GraphSelection`, parallel
+  graph reconstruction batches and `ModelEventStateBoundary`;
+- standalone `ModelEventBatchLoader` and `ModelEventRequestBatcher` lifecycles;
+- the ancestor-specific boundary and reachability implementation.
+
+Their tests are correspondingly owned by `ModelReplayCursorTest` and `ModelReplayReadBatcherTest`; the deleted owner
+names do not remain as a second conceptual test boundary. There is no compatibility adapter back to the old graph or
+replay object model.
+
+The CP9 six-owner footprint was 7,685 production lines. Their CP10 owners and direct successors contain 6,120 lines:
+
+| Owner | CP10 lines |
+| --- | ---: |
+| `Graphs` (`GraphState` and `GraphView`) | 1,601 |
+| `MaterializedGraphFactory` | 218 |
+| `DefaultModelRepository` | 2,227 |
+| `ModelReplayCursor` | 1,808 |
+| `ModelReadBoundary` | 211 |
+| `ModelAncestorResolver` | 55 |
+| **Total** | **6,120** |
+
+The direct successor footprint is therefore 1,565 lines smaller and the complete SDK production tree is 1,671 lines
+smaller than CP9, at 160,076. This misses the planned 4,500-line successor budget and does not receive 3,000-line
+credit. CP10 qualifies through S60's independent complete-owner gate: multiple graph implementations, the repository
+reconstruction engine and both batching lifecycles have disappeared. The missing estimate remains visible in the
+24,076-line SDK deficit. Further reduction here would retain the same owners while shaving their rules or would pull
+the update/recovery lifecycle from Macro 5 into this checkpoint, so it is deliberately not attributed to Macro 3.
+
+The final matched performance evidence uses Java 25, Runtime `d7c54eb086d`, PostgreSQL on port 64217, an 8 GiB heap
+and eight active processors. Every bracket ran candidate-control-candidate with exact data and completion counts:
+
+| Route | CP9 control | CP10 candidate geometric mean | Difference | Exactness |
+| --- | ---: | ---: | ---: | --- |
+| full command/model/event/result E2E | 306,583/s | 313,957/s | **+2.41%** | 4,194,304 results, model events and global events; 65,536 states |
+| current cached model load | 1,289,775 models/s | 1,833,082 models/s | **+42.12%** | 65,536 models with 21 events each |
+| cold event reconstruction | 14,681 models/s | 22,986 models/s | **+56.57%** | 20,480 models / 430,080 events |
+| representative graph projection, inclusive command plus catch-up | 5,430/s | 5,288/s | **-2.62%** | 4,096 upserts and exact direct/root documents |
+
+The graph run's foreground geometric mean is 5,658/s versus 5,755/s (**-1.68%**). Candidate observed-heap maximum is
+2,931.1 MiB versus 2,889.8 MiB (**+1.43%**), with no material retained-state growth. Complete graph traversal,
+serialization and projection are exercised by that run. Historical multi-node graph reconstruction is covered by the
+focused graph boundary tests; its two material costs are isolated by the graph traversal run and the cold cursor run
+rather than assigned an unstable one-shot latency claim.
+
+The matched log digests are retained here so accidental file substitution remains detectable:
+
+| Series | Candidate A | Control | Candidate B |
+| --- | --- | --- | --- |
+| full E2E | `98586488e94fea62937414ff1afc19fedb691e6bd6d31bd505b5733d0b795258` | `20ff4d9b47438d39d6bbbb8e2f6ac857c04abc71c35247e62d79b559d9d9643f` | `9939f9bda35f2964bf5bf04d2bc96ee4a21f6fa5a62f65672412b4ae8244be69` |
+| replay/load | `cf1589c8b75e1e41d330e472c6bfc60db32d14178e5bc6d4bf92b2cd11960c56` | `c9e182a7c8f0e074856d3940db0cd38c8918302e5813c0b8e3e957530ef71149` | `9c1e4f40c7796768681031341674b23e8857dd535a169dff955ae45ed8def430` |
+| graph projection | `650c3ed029cb22a89af9d0fa2d8a95b7590c2c22f9d891f3b23935abc96a14b7` | `94177b51524c8b65c8706018cf5569a7b250cad2abd1955a9fd351bcc049bc91` | `861938662e242a716c75cba6cbebb377c60e570f74450f6abb6c6bfb5a34ae55` |
+
+Focused graph, replay, cache, commit and integration qualification ran 176 tests; the renamed cursor boundary was
+rerun as an 11-test focused confirmation. The complete nine-module reactor, annotation-processor checks and
+Java/Kotlin downstream projects pass from the final production source. Adversarial review caught one metadata-only
+head path that incorrectly
+required replayable event history; the accepted cursor separates head proof from replayable-head validation, while
+event-sourced writes that depend on documents keep the strict incomplete-history failure. Source changes to
+branch-internal `ModelAncestorResolver` and repository cache helpers are intentional on this undeployed feature branch.
+
+One heavily loaded parallel reactor attempt produced a five-second cache-test timeout and a concurrent TestFixture
+fixed-ID failure. Both exact cases passed together without a source change, after which the complete reactor passed.
+They are treated as load-sensitive test isolation rather than accepted product failures. The aggregate site/Javadoc
+command still fails at Lombok's generated `ImmutableModelRootBuilder`; exact CP9 and CP10 runs fail identically before
+the new boundary documentation. This baseline site-tooling debt remains open for final S60, while the full reactor's
+documentation-link check passes.
+
+Rollback is the CP9 documentation commit `ac8bed3cbc5`; the behavioral implementation is `f2c6a6ed92b`, its cursor-test
+ownership rename is `ade0255e517`, and the documented final production boundary is `34f0038e98b`.
 
 ### 6. One packed Runtime model representation
 
