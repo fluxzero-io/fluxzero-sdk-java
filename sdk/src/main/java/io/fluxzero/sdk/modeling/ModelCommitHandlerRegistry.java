@@ -1223,6 +1223,25 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private ModelExecutionPlan.CommitEvaluation evaluate(
             DeserializingMessage initialMessage,
             PrefetchSlot prefetched) {
+        if (prefetched != null
+            && prefetched.entity != null
+            && prefetched.directApply != null
+            && prefetched.access.writes()) {
+            ModelExecutionPlan plan = planFor(
+                    initialMessage.getPayloadClass());
+            ModelExecutionPlan.CommitEvaluation direct =
+                    compiler.evaluateDirectSingleTarget(
+                            initialMessage,
+                            prefetched.stateIndex,
+                            prefetched.modelId,
+                            prefetched.modelType,
+                            prefetched.entity,
+                            plan.handlers(),
+                            prefetched.directApply);
+            if (direct != null) {
+                return expandCascadeDeletes(direct);
+            }
+        }
         return expandCascadeDeletes(
                 compiler.evaluate(initialMessage, new CommitLoader(
                         null, false, initialMessage, prefetched)));

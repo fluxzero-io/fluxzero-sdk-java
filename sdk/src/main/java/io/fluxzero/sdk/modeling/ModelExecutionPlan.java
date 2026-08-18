@@ -552,6 +552,95 @@ public record ModelExecutionPlan(
         return new DirectSingleTargetApply(invoker, receiver);
     }
 
+    CommitEvaluation evaluateDirectSingleTarget(
+            DeserializingMessage message,
+            long readStateIndex,
+            String modelId,
+            Class<?> modelType,
+            Entity<?> entity,
+            HandlerPlan plan,
+            DirectSingleTargetApply directApply) {
+        Objects.requireNonNull(message, "message");
+        Objects.requireNonNull(modelId, "modelId");
+        Objects.requireNonNull(modelType, "modelType");
+        Objects.requireNonNull(entity, "entity");
+        Objects.requireNonNull(plan, "plan");
+        Objects.requireNonNull(directApply, "directApply");
+        if (plan.applies().size() != 1) {
+            throw new IllegalArgumentException(
+                    "Direct single-target evaluation requires one compiled apply");
+        }
+        ModelMetadata.HandlerMethod handler =
+                plan.applies().getFirst().method();
+        Object before = entity.get();
+        if (directApply.receiver() && before == null) {
+            return null;
+        }
+        Object after = message.apply(ignored ->
+                directApply.invoker().invoke(
+                        directApply.receiver() ? before : null,
+                        (Object) message.getPayload()));
+        validateDirectSingleTargetResult(
+                handler, modelId, modelType, after);
+        Transition transition = new Transition(
+                modelId,
+                modelType,
+                entity instanceof ModelRoot<?> root
+                        ? root.sequenceNumber() : -1L,
+                entity instanceof ModelRoot<?> root
+                        ? root.lastEventIndex() : null,
+                before,
+                after,
+                handler.executable(),
+                null,
+                false);
+        return new CommitEvaluation(
+                readStateIndex,
+                List.of(modelId),
+                Map.of(modelId, modelType),
+                List.of(new AppliedSubstep(
+                        message, List.of(transition))),
+                Collections.singletonMap(
+                        modelId, after));
+    }
+
+    private static void validateDirectSingleTargetResult(
+            ModelMetadata.HandlerMethod handler,
+            String expectedTargetId,
+            Class<?> targetType,
+            Object result) {
+        if (result == null) {
+            return;
+        }
+        if (!targetType.isInstance(result)) {
+            throw new IllegalStateException(
+                    "Apply %s returned %s instead of %s"
+                            .formatted(
+                                    handler.executable().toGenericString(),
+                                    result.getClass().getName(),
+                                    targetType.getName()));
+        }
+        ModelMetadata metadata = ModelMetadata.of(result.getClass());
+        Object resultId = metadata.entityId().orElseThrow().read(result);
+        if (resultId == null) {
+            throw new IllegalStateException(
+                    "Apply %s returned a model with a null ID"
+                            .formatted(
+                                    handler.executable().toGenericString()));
+        }
+        String repositoryId = metadata.parentScopedEntityId()
+                ? metadata.repositoryId(resultId, result)
+                : metadata.repositoryId(resultId);
+        if (!expectedTargetId.equals(repositoryId)) {
+            throw new IllegalStateException(
+                    "Apply %s returned model '%s', which is not replay target '%s'"
+                            .formatted(
+                                    handler.executable().toGenericString(),
+                                    resultId,
+                                    expectedTargetId));
+        }
+    }
+
     /** Replays one stored event through the same compiled apply evaluator used for live model commits. */
     public Object replay(
             DeserializingMessage event,
