@@ -262,6 +262,33 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
+    void genericModelCommitRoundTripPreservesUnmanagedAliases() throws Exception {
+        CommitModels commit = new CommitModels(
+                "commit-without-alias-management", -1L, List.of("order-1"),
+                List.of(ModelCommitStep.builder()
+                                .event(serializedMessage())
+                                .publishEvent(true)
+                                .targets(List.of(ModelCommitTarget.builder()
+                                                         .modelId("order-1")
+                                                         .modelType("example.Order")
+                                                         .expectedSequenceNumber(-1L)
+                                                         .storeEvent(true)
+                                                         .updateState(true)
+                                                         .relationships(List.of())
+                                                         .aliases(null)
+                                                         .build()))
+                                .build()),
+                ModelConflictPolicy.FAIL, Guarantee.STORED, false);
+
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec, binaryCodec)) {
+            CommitModels decoded = assertInstanceOf(
+                    CommitModels.class, roundTrip(codec, commit));
+            assertNull(decoded.getSubsteps().getFirst()
+                               .getTargets().getFirst().getAliases());
+        }
+    }
+
+    @Test
     void cborRoundTripsReadResultAndMessageBatch() throws Exception {
         MessageBatch batch = new MessageBatch(new int[]{0, 7}, List.of(serializedMessage()), 99L, null, true);
         ReadResult result = new ReadResult(123L, batch);

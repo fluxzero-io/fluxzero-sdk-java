@@ -17,6 +17,8 @@
 package io.fluxzero.common.api.modeling;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
@@ -120,5 +122,6 @@ public class ModelCommitTarget {
      * removes every current alias. The runtime applies this replacement atomically with the model transition.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonSetter(nulls = Nulls.SET)
     List<String> aliases;
 }

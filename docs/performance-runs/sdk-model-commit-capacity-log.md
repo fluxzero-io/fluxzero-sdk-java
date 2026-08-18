@@ -2682,3 +2682,63 @@ PR #286 was subsequently merged into the model branch at SDK `190b82cc5f3`. The 
 rejected adaptive experiment, balanced no-model comparisons, model-route bracket, hashes and final decision are in
 [`sdk-pr286-runtime-ingress-gate.md`](sdk-pr286-runtime-ingress-gate.md). The accepted default is eight concurrent
 result completions; matched final-source runs improved both complete routes without replacing the clean absolute pins.
+
+## 2026-08-18 absolute-pin audit and packed-route recovery
+
+The reduction campaign was paused after the current 65,536-model route initially failed to finish its seed phase and
+later measured far below the clean P5 pin. Treating those observations only as host noise was incorrect. Rebuilding
+historical SDK and Runtime pairs exposed two real regressions in the initial-create and packed-update eligibility
+contracts:
+
+1. Independent-model aliases introduced a protocol-significant distinction between `null` (the client does not manage
+   aliases) and an empty list (remove every alias). Generic deserialization still converted a JSON, CBOR or binary
+   `null` collection to an empty collection. `JdbcModelCommitStore` therefore rejected ordinary commits from its packed
+   fast paths and silently used the much slower general path.
+2. Current clients use strict `FAIL` conflict handling for initial model creation. The packed initial-create route had
+   only admitted `ACCEPT`, although the preceding SDK model read had already established that the exact model ID was
+   absent. The correction retains a bounded exact-ID missing proof from the current repeatable-read boundary,
+   invalidates that proof for every published write to the same ID, and otherwise falls back to the general conflict
+   path. Unrelated model writes do not invalidate the proof.
+
+The wire correction preserves `aliases == null` for `ModelCommitTarget` without changing the global null-collection
+default. Focused JSON, CBOR and binary round trips prove the distinction. Runtime tests prove strict packed creation,
+same-ID invalidation, unrelated-ID preservation, stale proof rejection and post-restart rejection.
+
+The historical pairs below were rebuilt from source and run against the same isolated PostgreSQL database. Every
+completed canonical run used 65,536 models, 262,144 warm-up commands and 4,194,304 measured commands without JFR. It
+verified exactly 4,194,304 results, stored model events and global events; every post-S39 benchmark also verified all
+65,536 final model states.
+
+| run | run_type | route | accepted_base | candidate | command_count | warmup_count | profiling | control_throughput | candidate_throughput | canonical_comparable | decision | code_status |
+| --- | --- | --- | --- | --- | ---: | ---: | --- | ---: | ---: | --- | --- | --- |
+| E823 | canonical | full command -> automatic `@Apply` -> model/event commit -> result | P5 SDK `e0093736de4` + Runtime `0c23c91f` | fresh same-host P5 control | 4,194,304 | 262,144 | none | n/a | 331,330/s | true | exact historical control | diagnostic-only |
+| E824 | canonical | same | P5 | S39 SDK `d7506649e96` + Runtime `59faf5eb054` | 4,194,304 | 262,144 | none | 304,393/s following P5 | 294,040/s | true | S39 remains near its adjacent P5 control | diagnostic-only |
+| E825 | canonical | same | S39 | S40 SDK `8b47bb3301a` + Runtime `feee1d9a`, broken alias null semantics | 4,194,304 | 262,144 | none | 294,040/s | 202,998/s | true | reject broken transport semantics | diagnostic-only |
+| E826 | canonical | same | S40 broken | reverse S40 broken control | 4,194,304 | 262,144 | none | 297,588/s preceding P5 | 189,256/s | true | confirms packed-route loss | diagnostic-only |
+| E827 | canonical | same | S40 broken | S40 plus only alias-null preservation | 4,194,304 | 262,144 | none | 189,256/s | 319,513/s | true | packed route restored; exact gain magnitude remains host-sensitive | accepted |
+| E828 | canonical | same | corrected S40 | SDK `7555a29a8f9` on corrected S40 Runtime | 4,194,304 | 262,144 | none | n/a | 262,622/s | false | later SDK midpoint diagnostic during host decline | diagnostic-only |
+| E829 | canonical | same | corrected S40 | SDK `ca66b547177` on corrected S40 Runtime | 4,194,304 | 262,144 | none | n/a | 275,876/s | false | direct-commit midpoint does not expose a separate cap | diagnostic-only |
+| E830 | canonical | same | corrected S40 | corrected S40, bracket A | 4,194,304 | 262,144 | none | 258,142/s | 258,142/s | true | current comparison control | diagnostic-only |
+| E831 | canonical | same | interpolated corrected-S40 controls | current SDK `96bb99a3fe0` + Runtime `ecdd6d5a`, both corrections applied | 4,194,304 | 262,144 | none | 236,882/s | 234,561/s | true | -0.98%; no remaining material cumulative regression | accepted |
+| E832 | canonical | same | corrected S40 | corrected S40, bracket B | 4,194,304 | 262,144 | none | 217,373/s | 217,373/s | true | confirms host capacity fell across the bracket | diagnostic-only |
+
+The S40 controls around current decline from 258,142/s to 217,373/s. Their geometric interpolation at the current slot
+is 236,882/s, versus 234,561/s current (-0.98%). This excludes another material cumulative code regression after the
+packed-route corrections, but it does **not** replace the clean absolute P5 pin of **425,606/s**. That pin remains the
+required quiet-host qualification target. Future macro-reduction checkpoints must both pass a matched parent bracket
+and preserve a freshly reproducible absolute model-route pin; a chain of comparisons against already slow parents is
+not sufficient.
+
+Evidence SHA-256, in the most relevant order: E823
+`80a90e0e038b95b562ed0d52ce49c57d28e345895532d1c9a4f798db5013252b`, E824
+`bfd9ceeb28f8298e7fc4c0e36f600154f3c766e3dc42bef72d698197f828b784` with following P5 control
+`91bb609caa0cd448ceaf9dacd985cccdf074eb03a248c43a29b5a9b94483a8a8`, E825
+`43de4afbdc2c0c02a21fc920023f491c7129c8c761319fbe7e63380858c6de08`, E826
+`a226deab63fbf22623ff3fc986a41aef79788fc5b7b2bbd624a4577f2917ac21` with preceding P5 control
+`c282a3fcc0ad7542c5ca1a5111f92374b0ccc31ee3c48b0b7addd81215d02f28`, E827
+`7c26e1d812269ba3206671d3d20e8087e1ab359e4e00342d4146b4b24fa2ca90`, E828
+`1b5e4b70d32cf4170bf2c9925924b736861230f7918243d095a2f3195e148a3f`, E829
+`10d9b146a2f466410bf336640848f86b208c05d2ae4b092c73c6d9a3e1c71a1f`, E830
+`b8234b1981ee562996f154c2a6b5f409fd38a3350bb0ce6e0e63f5a59b34f47e`, E831
+`f4a347e60bd801352402ce1fcce7accd097cd004608decfd4e03a6469f724321`, E832
+`2584455b3eebc6cfa2865b78b33162fdebdab329021f94f6d63f89009ff1f839`.
