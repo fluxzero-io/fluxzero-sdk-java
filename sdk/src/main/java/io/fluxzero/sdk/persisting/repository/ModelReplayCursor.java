@@ -20,10 +20,15 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -33,8 +38,11 @@ import io.fluxzero.sdk.modeling.CascadedModelDeletion;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.ModelExecutionPlan;
 import io.fluxzero.sdk.modeling.ModelMetadata;
@@ -48,11 +56,14 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
@@ -61,8 +72,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -75,6 +87,8 @@ import static io.fluxzero.common.MessageType.EVENT;
  */
 final class ModelReplayCursor {
 
+    private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
+    private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
     static final Settings DEFAULT_SETTINGS =
             new Settings(32_768, 131_072, 128, 64L * 1_024L * 1_024L);
 
@@ -86,7 +100,8 @@ final class ModelReplayCursor {
     private final ModelExecutionPlan.Compiler modelExecution;
     private final Cache modelCache;
     private final ModelSnapshotStore snapshotStore;
-    private final AncestorReader ancestorReader;
+    private final DocumentReader documentReader;
+    private final ModelRepository repository;
     private final Map<HandlerKey, ModelExecutionPlan> replayPlans =
             new ConcurrentHashMap<>();
 
@@ -95,7 +110,7 @@ final class ModelReplayCursor {
     }
 
     ModelReplayCursor(EventStoreClient eventStoreClient, Settings settings) {
-        this(eventStoreClient, settings, null, null, null, null, null, null);
+        this(eventStoreClient, settings, null, null, null, null, null, null, null);
     }
 
     ModelReplayCursor(
@@ -105,9 +120,10 @@ final class ModelReplayCursor {
             ModelExecutionPlan.Compiler modelExecution,
             Cache modelCache,
             ModelSnapshotStore snapshotStore,
-            AncestorReader ancestorReader) {
+            DocumentReader documentReader,
+            ModelRepository repository) {
         this(eventStoreClient, DEFAULT_SETTINGS, serializer, entityHelper, modelExecution,
-             modelCache, snapshotStore, ancestorReader);
+             modelCache, snapshotStore, documentReader, repository);
     }
 
     private ModelReplayCursor(
@@ -118,7 +134,8 @@ final class ModelReplayCursor {
             ModelExecutionPlan.Compiler modelExecution,
             Cache modelCache,
             ModelSnapshotStore snapshotStore,
-            AncestorReader ancestorReader) {
+            DocumentReader documentReader,
+            ModelRepository repository) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.settings = Objects.requireNonNull(settings, "settings");
         this.requestBatcher = new ReadBatcher(
@@ -128,12 +145,13 @@ final class ModelReplayCursor {
         this.modelExecution = modelExecution;
         this.modelCache = modelCache;
         this.snapshotStore = snapshotStore;
-        this.ancestorReader = ancestorReader;
+        this.documentReader = documentReader;
+        this.repository = repository;
     }
 
     Session session() {
         if (serializer == null || entityHelper == null || modelExecution == null
-            || modelCache == null || ancestorReader == null) {
+            || modelCache == null) {
             throw new EventSourcingException(
                     "Event-sourced model reconstruction requires a configured serializer and model entity helper");
         }
@@ -263,6 +281,30 @@ final class ModelReplayCursor {
             pinned = ModelReadBoundary.state(stateIndex, false);
         }
         return new LoadResult(pinned.stateIndex(), heads);
+    }
+
+    FirstEvent firstEvent(String modelId, ModelReadBoundary boundary) {
+        Objects.requireNonNull(boundary, "boundary");
+        List<String> ids = validateIds(List.of(modelId));
+        GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
+                List.of(new ModelEventStreamRequest(modelId, -1L, 1)),
+                boundary.requestStateIndex(), boundary.commitId(), boundary.substep(), boundary.eventIndex(),
+                settings.maxPayloadBytes(), true));
+        long stateIndex = validateBoundary(response, boundary.stateIndex());
+        LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
+        cursors.put(modelId, -1L);
+        LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
+        validatePage(response, ids, cursors, heads, 1, settings.maxPayloadBytes(), false);
+        ModelEventStream stream = response.getStreams().getFirst();
+        if (stream.getMemberships().isEmpty()) {
+            return new FirstEvent(stateIndex, modelId, null);
+        }
+        long firstStateIndex = stream.getMemberships().getFirst().getStateIndex();
+        SerializedMessage event = response.getPayloads().stream()
+                .filter(payload -> payload.getStateIndex() == firstStateIndex)
+                .map(ModelEventPayload::getEvent).findFirst().orElse(null);
+        String resolvedId = stream.getHead() == null ? modelId : stream.getHead().getModelId();
+        return new FirstEvent(stateIndex, resolvedId, event);
     }
 
     private LoadResult loadChunk(
@@ -568,6 +610,636 @@ final class ModelReplayCursor {
         return new EventSourcingException(message);
     }
 
+    /**
+     * Resolves direct, collection and dependency targets at one replay boundary.
+     *
+     * <p>Event streams, documents, cache proofs, aliases and ancestor projections all converge here. The caller may
+     * still choose whether the resulting durable context is overlaid with pending message-batch values; that is a
+     * projection option and does not create a second load lifecycle.</p>
+     */
+    ModelCommitContext context(
+            ModelTargetResolver.Resolution resolution,
+            ModelReadBoundary boundary,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch,
+            String namespace,
+            ModelCacheTracker cacheTracker) {
+        Objects.requireNonNull(resolution, "resolution");
+        Objects.requireNonNull(boundary, "boundary");
+        Objects.requireNonNull(stagedValues, "stagedValues");
+        boolean historicalBoundary = boundary.historical();
+        if (!historicalBoundary
+            && cacheTracker != null
+            && resolution.models().stream().anyMatch(
+                    target -> ModelMetadata.validate(target.modelType())
+                            .model().orElseThrow().cached())) {
+            cacheTracker.prepare();
+        }
+
+        Long ancestorStateIndex = null;
+        if (resolution.hasAncestorDependencies()) {
+            AncestorResult ancestors = resolveAncestors(
+                    resolution, boundary, stagedValues, includeMessageBatch,
+                    includeMessageBatch ? namespace : null);
+            resolution = ancestors.resolution();
+            ancestorStateIndex = ancestors.stateIndex();
+            boundary = ModelReadBoundary.at(ancestorStateIndex);
+        }
+
+        List<ModelTargetResolver.ResolvedModel> eventTargets = new ArrayList<>();
+        List<ModelTargetResolver.ResolvedModel> documentTargets = new ArrayList<>();
+        for (ModelTargetResolver.ResolvedModel target : resolution.models()) {
+            Model model = ModelMetadata.validate(target.modelType()).model().orElseThrow();
+            (model.eventSourced() || historicalBoundary ? eventTargets : documentTargets).add(target);
+        }
+
+        Map<String, Entity<?>> loaded = new LinkedHashMap<>();
+        long stateIndex;
+        if (eventTargets.isEmpty()) {
+            stateIndex = ancestorStateIndex == null
+                    ? load(Map.of(), boundary, ignored -> {
+                    }).stateIndex()
+                    : ancestorStateIndex;
+        } else {
+            CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
+                    ? currentProjection(eventTargets, cacheTracker)
+                    : null;
+            if (current == null) {
+                ReconstructionBatch batch = session().reconstruct(eventTargets, boundary);
+                stateIndex = batch.stateIndex();
+                loaded.putAll(batch.entities());
+            } else {
+                stateIndex = current.stateIndex();
+                loaded.putAll(current.entities());
+            }
+        }
+
+        boolean writesEventSourcedModel = resolution.models().stream().anyMatch(
+                target -> target.access().writes()
+                          && ModelMetadata.validate(target.modelType())
+                                  .model().orElseThrow().eventSourced());
+        List<String> documentDependencies = documentTargets.stream()
+                .filter(target -> target.access().reads())
+                .map(ModelTargetResolver.ResolvedModel::modelId)
+                .toList();
+        if (writesEventSourcedModel && !documentDependencies.isEmpty()) {
+            loadReplayableHeads(documentDependencies, ModelReadBoundary.at(stateIndex));
+        }
+
+        Long documentCacheBoundary = !historicalBoundary
+                                     && cacheTracker != null
+                                     && documentTargets.stream().anyMatch(
+                target -> ModelMetadata.validate(target.modelType())
+                        .model().orElseThrow().cached())
+                ? cacheTracker.safeDocumentBoundary()
+                : null;
+        for (ModelTargetResolver.ResolvedModel target : documentTargets) {
+            Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
+            loaded.put(target.modelId(), entity);
+            if (ModelMetadata.validate(target.modelType()).model().orElseThrow().cached()
+                && documentCacheBoundary != null) {
+                modelCache.put(target.modelId(), entity);
+            }
+        }
+
+        LinkedHashMap<String, Entity<?>> canonicalLoaded = new LinkedHashMap<>(loaded.size());
+        List<ModelTargetResolver.ResolvedModel> canonicalTargets =
+                new ArrayList<>(resolution.models().size());
+        boolean aliasesResolved = false;
+        for (ModelTargetResolver.ResolvedModel target : resolution.models()) {
+            Entity<?> entity = loaded.get(target.modelId());
+            String resolvedId = entity != null && entity.isPresent() && entity.id() != null
+                    ? entity.id().toString() : target.modelId();
+            if (!resolvedId.equals(target.modelId())) {
+                if (target.access().writes()) {
+                    throw new EventSourcingException(
+                            "Writable model target '%s' resolved through alias to '%s'"
+                                    .formatted(target.modelId(), resolvedId));
+                }
+                aliasesResolved = true;
+                target = new ModelTargetResolver.ResolvedModel(
+                        resolvedId, target.modelType(), target.access(), target.sourceProperties());
+            }
+            if (canonicalLoaded.put(resolvedId, entity) != null) {
+                throw new EventSourcingException(
+                        "Multiple requested model IDs resolve to " + resolvedId);
+            }
+            canonicalTargets.add(target);
+        }
+        if (aliasesResolved) {
+            resolution = resolution.withResolvedModels(canonicalTargets);
+            loaded = canonicalLoaded;
+        }
+
+        if (!historicalBoundary && cacheTracker != null) {
+            for (ModelTargetResolver.ResolvedModel target : resolution.models()) {
+                Model model = ModelMetadata.validate(target.modelType()).model().orElseThrow();
+                if (!model.cached()) {
+                    continue;
+                }
+                if (model.eventSourced()) {
+                    cacheTracker.loaded(target.modelId(), target.modelType(), stateIndex);
+                } else if (documentCacheBoundary != null) {
+                    cacheTracker.loaded(
+                            target.modelId(), target.modelType(), documentCacheBoundary);
+                }
+            }
+        }
+        return ModelCommitContext.create(stateIndex, resolution, loaded);
+    }
+
+    /** Resolves one typed entity as the direct projection strategy of this cursor. */
+    EntityProjection entity(
+            String modelId,
+            Class<?> modelType,
+            ModelReadBoundary boundary,
+            ModelCacheTracker cacheTracker) {
+        ModelMetadata metadata = ModelMetadata.validate(modelType);
+        Model model = metadata.model().orElseThrow();
+        if (!boundary.historical() && cacheTracker != null && model.cached()) {
+            ModelCacheTracker.CurrentModel current = cacheTracker.currentVersion(modelId, modelType);
+            if (current != null
+                && (current.entity().isPresent() || !metadata.hasAliases())) {
+                return new EntityProjection(current.validThrough(), current.entity());
+            }
+        }
+        if (!model.eventSourced() && !boundary.historical()) {
+            Entity<?> loaded = documentReader.load(modelId, modelType);
+            long stateIndex = -1L;
+            if (loaded.isEmpty() && metadata.hasAliases()) {
+                LoadResult alias = loadHeads(List.of(modelId), ModelReadBoundary.CURRENT);
+                stateIndex = alias.stateIndex();
+                ModelHeadState head = alias.heads().get(modelId);
+                String resolvedId = head == null ? modelId : head.getModelId();
+                if (!resolvedId.equals(modelId)) {
+                    loaded = documentReader.load(resolvedId, modelType);
+                }
+            }
+            if (model.cached() && cacheTracker != null) {
+                Long safeBoundary = cacheTracker.safeDocumentBoundary();
+                if (safeBoundary != null
+                    && (loaded.isPresent() || !metadata.hasAliases())) {
+                    String resolvedId = loaded.isPresent() ? loaded.id().toString() : modelId;
+                    modelCache.put(resolvedId, loaded);
+                    cacheTracker.loaded(resolvedId, modelType, safeBoundary);
+                    stateIndex = safeBoundary;
+                }
+            }
+            return new EntityProjection(stateIndex, loaded);
+        }
+
+        ModelTargetResolver.ResolvedModel target = new ModelTargetResolver.ResolvedModel(
+                modelId, modelType, ModelTargetResolver.Access.READ_ONLY,
+                List.of(metadata.entityId().orElseThrow().name()));
+        ModelCommitContext context = context(
+                new ModelTargetResolver.Resolution(List.of(target), List.of()),
+                boundary, Map.of(), false, null, cacheTracker);
+        return new EntityProjection(
+                context.readStateIndex(), context.entries().getFirst().entity());
+    }
+
+    /** Advances cache projections through this cursor's current replay boundary. */
+    ModelCacheTracker.RefreshedBatch refresh(
+            Map<String, Class<?>> targets,
+            long safeStateIndex) {
+        List<ModelTargetResolver.ResolvedModel> eventTargets = new ArrayList<>();
+        List<ModelTargetResolver.ResolvedModel> documentTargets = new ArrayList<>();
+        targets.forEach((modelId, modelType) -> {
+            ModelMetadata metadata = ModelMetadata.validate(modelType);
+            ModelTargetResolver.ResolvedModel target = new ModelTargetResolver.ResolvedModel(
+                    modelId, modelType, ModelTargetResolver.Access.READ_ONLY,
+                    List.of(metadata.entityId().orElseThrow().name()));
+            (metadata.model().orElseThrow().eventSourced()
+                    ? eventTargets : documentTargets).add(target);
+        });
+        if (!eventTargets.isEmpty()) {
+            long reconstructedStateIndex = session().reconstruct(
+                    eventTargets, ModelReadBoundary.CURRENT).stateIndex();
+            if (reconstructedStateIndex < safeStateIndex) {
+                throw new EventSourcingException(
+                        "Model reconstruction stopped at state index %d before safe cache boundary %d"
+                                .formatted(reconstructedStateIndex, safeStateIndex));
+            }
+        }
+        documentTargets.forEach(target -> modelCache.put(
+                target.modelId(), documentReader.load(target.modelId(), target.modelType())));
+        return new ModelCacheTracker.RefreshedBatch(safeStateIndex);
+    }
+
+    /** Returns a coherent current cache projection, or {@code null} when replay must establish the boundary. */
+    private static CurrentProjection currentProjection(
+            List<ModelTargetResolver.ResolvedModel> targets,
+            ModelCacheTracker cacheTracker) {
+        if (cacheTracker == null || targets.isEmpty()) {
+            return null;
+        }
+        LinkedHashMap<String, Entity<?>> entities = new LinkedHashMap<>();
+        long latestModelStateIndex = -1L;
+        long sharedValidThrough = Long.MAX_VALUE;
+        for (ModelTargetResolver.ResolvedModel target : targets) {
+            ModelCacheTracker.CurrentModel current = cacheTracker.currentVersion(
+                    target.modelId(), target.modelType());
+            if (current == null
+                || current.entity().isEmpty()
+                   && ModelMetadata.validate(target.modelType()).hasAliases()) {
+                return null;
+            }
+            entities.put(target.modelId(), current.entity());
+            latestModelStateIndex = Math.max(
+                    latestModelStateIndex, current.modelStateIndex());
+            sharedValidThrough = Math.min(sharedValidThrough, current.validThrough());
+        }
+        return latestModelStateIndex > sharedValidThrough
+                ? null
+                : new CurrentProjection(sharedValidThrough, Map.copyOf(entities));
+    }
+
+    /** Resolves and reconstructs one Graph projection through this cursor and its pinned replay session. */
+    <T> Graph<T> graph(
+            String rootId,
+            Class<T> rootType,
+            Graph.Options options,
+            ModelReadBoundary boundary,
+            String namespace,
+            Map<String, ModelBatchScope.StagedModel> staged,
+            boolean historical) {
+        Objects.requireNonNull(rootId, "rootId");
+        Objects.requireNonNull(rootType, "rootType");
+        Objects.requireNonNull(options, "options");
+        Objects.requireNonNull(boundary, "boundary");
+        Objects.requireNonNull(staged, "staged");
+        if (documentReader == null || repository == null) {
+            throw new EventSourcingException(
+                    "Graph reconstruction requires a configured document projection and model repository");
+        }
+        GetModelGraph request = new GetModelGraph(
+                rootId, boundary.requestStateIndex(), boundary.commitId(), boundary.substep(),
+                boundary.eventIndex(), options.maxDepth(), options.maxModels(), 0, 0L, false);
+        GetModelGraphResult response = boundary.before()
+                ? eventStoreClient.getModelGraphBefore(new GetModelGraphBefore(request))
+                : eventStoreClient.getModelGraph(request);
+        long stateIndex = response.getStateIndex();
+        List<ModelTargetResolver.ResolvedModel> targets = new ArrayList<>(response.getStreams().size());
+        LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
+        for (ModelEventStream stream : response.getStreams()) {
+            Class<?> modelType = graphModelType(stream, rootId, rootType);
+            targets.add(new ModelTargetResolver.ResolvedModel(
+                    stream.getModelId(), modelType, ModelTargetResolver.Access.READ_ONLY,
+                    List.of(ModelMetadata.validate(modelType).entityId().orElseThrow().name())));
+            heads.put(stream.getModelId(), stream.getHead());
+        }
+        LinkedHashMap<String, Entity<?>> models = reconstructProjection(
+                targets, heads, stateIndex, !boundary.historical());
+        ModelBatchScope.StagedModel stagedRoot = staged.get(rootId);
+        if (stagedRoot != null && !stagedRoot.existedBefore() && !models.containsKey(rootId)) {
+            models.put(rootId, ImmutableModelRoot.builder()
+                    .id(rootId).type((Class) stagedRoot.modelType())
+                    .idProperty(ModelMetadata.validate(stagedRoot.modelType())
+                                        .entityId().orElseThrow().name())
+                    .value(null).build());
+        }
+        if (boundary.before()) {
+            models.replaceAll((ignored, entity) -> beforeBoundary(entity, stateIndex));
+        }
+        return Graphs.compose(
+                rootId, stateIndex, models, response.getEdges(), repository, historical,
+                namespace, rootType, options, staged,
+                candidate -> graph(
+                        candidate.modelId(), (Class) candidate.modelType(), Graph.Options.DEFAULT,
+                        ModelReadBoundary.at(stateIndex), namespace, Map.of(), true));
+    }
+
+    private LinkedHashMap<String, Entity<?>> reconstructProjection(
+            List<ModelTargetResolver.ResolvedModel> targets,
+            Map<String, ModelHeadState> heads,
+            long stateIndex,
+            boolean cacheAtBoundary) {
+        List<ModelTargetResolver.ResolvedModel> eventTargets = new ArrayList<>();
+        List<ModelTargetResolver.ResolvedModel> documentTargets = new ArrayList<>();
+        targets.forEach(target -> (ModelMetadata.validate(target.modelType()).model().orElseThrow().eventSourced()
+                ? eventTargets : documentTargets).add(target));
+        LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
+        if (!eventTargets.isEmpty()) {
+            ReconstructionBatch reconstructed = session().reconstruct(
+                    eventTargets, ModelReadBoundary.at(stateIndex), cacheAtBoundary);
+            if (reconstructed.stateIndex() != stateIndex) {
+                throw new EventSourcingException(
+                        "Model graph moved from state index %d to %d during reconstruction"
+                                .formatted(stateIndex, reconstructed.stateIndex()));
+            }
+            result.putAll(reconstructed.entities());
+        }
+        for (ModelTargetResolver.ResolvedModel target : documentTargets) {
+            Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
+            ModelHeadState expected = heads.get(target.modelId());
+            if (expected == null) {
+                if (entity.isPresent()) {
+                    throw new EventSourcingException(
+                            "Model graph has no head for document model " + target.modelId());
+                }
+            } else {
+                entity = withDocumentHead(entity, expected);
+            }
+            result.put(target.modelId(), entity);
+        }
+        if (!documentTargets.isEmpty()) {
+            Map<String, ModelHeadState> currentHeads = loadHeads(
+                    documentTargets.stream().map(ModelTargetResolver.ResolvedModel::modelId).toList(),
+                    ModelReadBoundary.CURRENT).heads();
+            for (ModelTargetResolver.ResolvedModel target : documentTargets) {
+                if (!Objects.equals(heads.get(target.modelId()), currentHeads.get(target.modelId()))) {
+                    throw new EventSourcingException(
+                            "Document model '%s' moved while reconstructing graph boundary"
+                                    .formatted(target.modelId()));
+                }
+            }
+        }
+        return result;
+    }
+
+    private Class<?> graphModelType(
+            ModelEventStream stream,
+            String rootId,
+            Class<?> rootType) {
+        ModelHeadState head = stream.getHead();
+        String storedType = head == null ? null : head.getModelType();
+        if (storedType == null) {
+            if (stream.getModelId().equals(rootId)) {
+                return rootType;
+            }
+            throw new EventSourcingException(
+                    "Graph child '%s' has no stored model type".formatted(stream.getModelId()));
+        }
+        Class<?> result;
+        try {
+            result = io.fluxzero.common.reflection.ReflectionUtils.classForName(
+                    serializer.upcastType(storedType));
+        } catch (Throwable failure) {
+            throw new EventSourcingException(
+                    "Could not resolve stored model type '%s' for %s"
+                            .formatted(storedType, stream.getModelId()), failure);
+        }
+        if (stream.getModelId().equals(rootId) && !rootType.isAssignableFrom(result)) {
+            throw new EventSourcingException(
+                    "Graph root '%s' has stored type %s instead of %s"
+                            .formatted(rootId, result.getName(), rootType.getName()));
+        }
+        ModelMetadata.validate(result);
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Entity<?> withDocumentHead(Entity<?> entity, ModelHeadState head) {
+        if (head.isDeleted() != entity.isEmpty()) {
+            throw new EventSourcingException(
+                    "Document model '%s' has document presence=%s but its head reports deletion=%s"
+                            .formatted(head.getModelId(), entity.isPresent(), head.isDeleted()));
+        }
+        return ImmutableModelRoot.<Object>builder()
+                .id(entity.id()).type((Class<Object>) entity.type()).idProperty(entity.idProperty())
+                .value(entity.get()).entityHelper(entityHelper).serializer(serializer)
+                .sequenceNumber(head.getSequenceNumber()).stateIndex(head.getStateIndex())
+                .timestamp(entity.timestamp()).build();
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Entity<?> beforeBoundary(Entity<?> entity, long stateIndex) {
+        if (!(entity instanceof ModelRoot<?> root) || root.stateIndex() != stateIndex) {
+            return entity;
+        }
+        Entity<?> previous = root.previous();
+        return previous != null ? previous : ImmutableModelRoot.builder()
+                .id(entity.id()).type((Class) entity.type())
+                .idProperty(ModelMetadata.validate(entity.type()).entityId().orElseThrow().name())
+                .entityHelper(entityHelper).serializer(serializer).value(null).build();
+    }
+
+    AncestorResult resolveAncestors(
+            ModelTargetResolver.Resolution resolution,
+            ModelReadBoundary boundary,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch,
+            String namespace) {
+        return resolveAncestors(
+                resolution, boundary, stagedValues, includeMessageBatch, namespace,
+                true, false, false,
+                COMMIT_ANCESTOR_MAX_DEPTH, COMMIT_ANCESTOR_MAX_MODELS);
+    }
+
+    AncestorResult resolveAncestors(
+            ModelTargetResolver.Resolution resolution,
+            ModelReadBoundary boundary,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch,
+            String namespace,
+            boolean requireAncestors,
+            boolean closestAncestorsOnly,
+            boolean allowMultipleAncestors,
+            int maxDepth,
+            int maxModels) {
+        if (resolution.models().isEmpty()) {
+            throw new IllegalStateException(
+                    "Ancestor injection requires at least one direct model target from which to traverse");
+        }
+        LinkedHashSet<String> roots = new LinkedHashSet<>();
+        resolution.models().forEach(target -> roots.add(target.modelId()));
+        LinkedHashMap<String, Object> effectiveStagedValues = new LinkedHashMap<>(stagedValues);
+        Map<String, Class<?>> stagedTypes;
+        List<ModelGraphEdge> stagedEdges;
+        GetModelGraphResult graph;
+        for (int expansion = 0; ; expansion++) {
+            if (maxDepth >= 0 && expansion > maxDepth) {
+                throw new IllegalStateException(
+                        "Message-batch ancestor overlay exceeds maximum depth " + maxDepth);
+            }
+            LinkedHashSet<String> requestRoots = new LinkedHashSet<>(roots);
+            stagedTypes = new LinkedHashMap<>();
+            stagedEdges = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : effectiveStagedValues.entrySet()) {
+                requestRoots.add(entry.getKey());
+                Object value = entry.getValue();
+                if (value == null) {
+                    continue;
+                }
+                ModelMetadata metadata = ModelMetadata.validate(value.getClass());
+                stagedTypes.put(entry.getKey(), value.getClass());
+                for (ModelMetadata.ParentReference parent : metadata.parentReferences()) {
+                    Object parentId = parent.read(value);
+                    if (parentId == null) {
+                        continue;
+                    }
+                    String parentIdString = Objects.requireNonNull(
+                            parent.repositoryId(parentId),
+                            () -> "@ParentId " + parent.property().name() + " returned a null ID string");
+                    requestRoots.add(parentIdString);
+                    Class<?> parentType = parent.parentModelType(parentId);
+                    stagedEdges.add(new ModelGraphEdge(
+                            entry.getKey(), parentIdString,
+                            parentType == null ? null : parentType.getName(),
+                            parent.path().isEmpty() ? null : parent.path(), -1L, null));
+                }
+            }
+            if (maxModels >= 0 && requestRoots.size() > maxModels) {
+                throw new IllegalStateException(
+                        "Model commit requires more than %d ancestor traversal roots".formatted(maxModels));
+            }
+            graph = eventStoreClient.getModelAncestors(new GetModelAncestors(
+                    List.copyOf(requestRoots), boundary.stateIndex(), boundary.commitId(), boundary.substep(),
+                    boundary.eventIndex(), maxDepth, maxModels, 0, 0L));
+            if (!includeMessageBatch || !addPendingAncestorValues(
+                    requestRoots, graph, effectiveStagedValues, namespace)) {
+                break;
+            }
+        }
+        List<ModelGraphEdge> edges = new ArrayList<>(graph.getEdges());
+        if (!effectiveStagedValues.isEmpty()) {
+            edges.removeIf(edge -> effectiveStagedValues.containsKey(edge.getChildId()));
+            edges.addAll(stagedEdges);
+        }
+        List<Graphs.AncestorPlacement> reachable =
+                Graphs.ancestors(roots, edges, maxDepth, maxModels);
+        Map<String, Graphs.AncestorPlacement> reachableById = reachable.stream().collect(
+                java.util.stream.Collectors.toMap(
+                        Graphs.AncestorPlacement::id, Function.identity(),
+                        (left, right) -> left, LinkedHashMap::new));
+        Map<String, ModelHeadState> heads = new LinkedHashMap<>();
+        graph.getStreams().forEach(stream -> heads.put(stream.getModelId(), stream.getHead()));
+        Map<String, Class<?>> knownTypes = new LinkedHashMap<>();
+        resolution.models().forEach(target -> knownTypes.put(target.modelId(), target.modelType()));
+        knownTypes.putAll(stagedTypes);
+        for (Graphs.AncestorPlacement placement : reachable) {
+            String modelId = placement.id();
+            Class<?> storedType = resolveAncestorType(
+                    modelId, heads.get(modelId), placement.incoming());
+            if (storedType != null) {
+                knownTypes.merge(modelId, storedType,
+                                 (left, right) -> compatible(left, right)
+                                         ? left.isAssignableFrom(right) ? right : left
+                                         : incompatibleStoredTypes(modelId, left, right));
+            }
+        }
+        LinkedHashMap<String, ModelTargetResolver.ResolvedModel> selected = new LinkedHashMap<>();
+        resolution.models().forEach(target -> selected.put(target.modelId(), target));
+        for (ModelTargetResolver.AncestorDependency dependency : resolution.ancestorDependencies()) {
+            List<String> candidates = reachable.stream()
+                    .map(Graphs.AncestorPlacement::id)
+                    .filter(modelId -> {
+                        Class<?> actualType = knownTypes.get(modelId);
+                        return actualType == null || compatible(dependency.modelType(), actualType);
+                    })
+                    .filter(modelId -> dependency.association() == null
+                                       || reachableById.get(modelId).incoming().stream().anyMatch(
+                            edge -> dependency.association().equals(edge.getPath())))
+                    .toList();
+            if (closestAncestorsOnly && candidates.size() > 1) {
+                int closestDepth = candidates.stream()
+                        .mapToInt(candidate -> reachableById.get(candidate).depth()).min().orElseThrow();
+                candidates = candidates.stream()
+                        .filter(candidate -> reachableById.get(candidate).depth() == closestDepth).toList();
+            }
+            if (candidates.isEmpty()) {
+                if (!requireAncestors) {
+                    continue;
+                }
+                throw new IllegalStateException(
+                        "No reachable ancestor of type %s%s was found for %s from model roots %s"
+                                .formatted(
+                                        dependency.modelType().getName(),
+                                        dependency.association() == null ? ""
+                                                : " at @ParentId path '" + dependency.association() + "'",
+                                        dependency.handler(), roots));
+            }
+            if (candidates.size() > 1 && !allowMultipleAncestors) {
+                throw new IllegalStateException(
+                        "Multiple reachable ancestors of type %s%s were found for %s: %s. "
+                                .formatted(
+                                        dependency.modelType().getName(),
+                                        dependency.association() == null ? ""
+                                                : " at @ParentId path '" + dependency.association() + "'",
+                                        dependency.handler(), candidates)
+                        + "Qualify the parameter with @Association(\"parentPath\").");
+            }
+            for (String modelId : candidates) {
+                Class<?> modelType = knownTypes.getOrDefault(modelId, dependency.modelType());
+                ModelMetadata.validate(modelType);
+                String sourceProperty = dependency.association() == null
+                        ? ModelMetadata.validate(modelType).entityId().orElseThrow().name()
+                        : dependency.association();
+                ModelTargetResolver.merge(
+                        selected, new ModelTargetResolver.ResolvedModel(
+                                modelId, modelType, ModelTargetResolver.Access.READ_ONLY,
+                                List.of(sourceProperty)));
+            }
+        }
+        return new AncestorResult(
+                graph.getStateIndex(),
+                resolution.withResolvedModels(List.copyOf(selected.values())));
+    }
+
+    private boolean addPendingAncestorValues(
+            Collection<String> requestRoots,
+            GetModelGraphResult graph,
+            Map<String, Object> stagedValues,
+            String namespace) {
+        LinkedHashSet<String> candidateIds = new LinkedHashSet<>(requestRoots);
+        graph.getStreams().forEach(stream -> candidateIds.add(stream.getModelId()));
+        graph.getEdges().forEach(edge -> {
+            candidateIds.add(edge.getChildId());
+            candidateIds.add(edge.getParentId());
+        });
+        boolean changed = false;
+        for (String modelId : candidateIds) {
+            if (stagedValues.containsKey(modelId)) {
+                continue;
+            }
+            ModelBatchScope.StagedModel pending = ModelBatchScope.currentValue(namespace, modelId);
+            if (pending != null) {
+                stagedValues.put(modelId, pending.value());
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    private Class<?> resolveAncestorType(
+            String modelId,
+            ModelHeadState head,
+            List<ModelGraphEdge> incoming) {
+        LinkedHashSet<String> storedTypes = new LinkedHashSet<>();
+        if (head != null && head.getModelType() != null) {
+            storedTypes.add(head.getModelType());
+        }
+        incoming.stream().map(ModelGraphEdge::getParentType)
+                .filter(Objects::nonNull).forEach(storedTypes::add);
+        Class<?> result = null;
+        for (String storedType : storedTypes) {
+            Class<?> candidate;
+            try {
+                candidate = io.fluxzero.common.reflection.ReflectionUtils.classForName(
+                        serializer.upcastType(storedType));
+            } catch (Throwable failure) {
+                throw new EventSourcingException(
+                        "Could not resolve stored model type '%s' for ancestor %s"
+                                .formatted(storedType, modelId), failure);
+            }
+            ModelMetadata.validate(candidate);
+            result = result == null ? candidate
+                    : compatible(result, candidate)
+                            ? result.isAssignableFrom(candidate) ? candidate : result
+                            : incompatibleStoredTypes(modelId, result, candidate);
+        }
+        return result;
+    }
+
+    private static Class<?> incompatibleStoredTypes(
+            String modelId,
+            Class<?> left,
+            Class<?> right) {
+        throw new EventSourcingException(
+                "Model ancestor '%s' is described by incompatible types %s and %s"
+                        .formatted(modelId, left.getName(), right.getName()));
+    }
+
     final class Session {
         private final Map<ViewKey, Entity<?>> reconstructed =
                 new LinkedHashMap<>(128, 0.75f, true) {
@@ -577,8 +1249,8 @@ final class ModelReplayCursor {
                         return size() > 1_024;
                     }
                 };
-        private final Map<ModelKey, TreeMap<Long, Entity<?>>> checkpoints =
-                new HashMap<>();
+        private final ConcurrentMap<ModelKey, NavigableMap<Long, Entity<?>>> checkpoints =
+                new ConcurrentHashMap<>();
         private final ConcurrentMap<PayloadKey, List<DeserializingMessage>>
                 deserializedEvents = new ConcurrentHashMap<>();
         private final Map<ReplayAncestorKey, ModelTargetResolver.Resolution>
@@ -701,7 +1373,7 @@ final class ModelReplayCursor {
                         .orElse(null);
             }
             if (maxStateIndex != null) {
-                TreeMap<Long, Entity<?>> known = checkpoints.get(
+                NavigableMap<Long, Entity<?>> known = checkpoints.get(
                         new ModelKey(target.modelId(), target.modelType()));
                 if (known != null) {
                     Map.Entry<Long, Entity<?>> floor =
@@ -1097,12 +1769,14 @@ final class ModelReplayCursor {
                 || Math.floorMod(entity.sequenceNumber() + 1L, period) != 0L) {
                 return;
             }
-            TreeMap<Long, Entity<?>> known = checkpoints.computeIfAbsent(
+            NavigableMap<Long, Entity<?>> known = checkpoints.computeIfAbsent(
                     new ModelKey(target.modelId(), target.modelType()),
-                    ignored -> new TreeMap<>());
-            known.put(stateIndex(entity), entity);
-            while (known.size() > 1_024) {
-                known.pollFirstEntry();
+                    ignored -> Collections.synchronizedNavigableMap(new TreeMap<>()));
+            synchronized (known) {
+                known.put(stateIndex(entity), entity);
+                while (known.size() > 1_024) {
+                    known.pollFirstEntry();
+                }
             }
         }
 
@@ -1184,14 +1858,18 @@ final class ModelReplayCursor {
                             replayAncestorResolutions.computeIfAbsent(
                                     key, ignored -> {
                                         AncestorResult ancestors =
-                                                ancestorReader.resolve(
+                                                resolveAncestors(
                                                         directResolution,
                                                         firstSubstep
                                                                 ? ModelReadBoundary.at(
                                                                         relationshipBoundary)
                                                                 : ModelReadBoundary.commit(
                                                                         membership.getCommitId(),
-                                                                        membership.getSubstep() - 1));
+                                                                        membership.getSubstep() - 1),
+                                                        Map.of(), false, null,
+                                                        true, false, false,
+                                                        COMMIT_ANCESTOR_MAX_DEPTH,
+                                                        COMMIT_ANCESTOR_MAX_MODELS);
                                         boolean invalidBoundary =
                                                 firstSubstep
                                                         ? ancestors
@@ -1611,11 +2289,14 @@ final class ModelReplayCursor {
             ModelTargetResolver.Resolution resolution) {
     }
 
+    private record CurrentProjection(
+            long stateIndex,
+            Map<String, Entity<?>> entities) {
+    }
+
     @FunctionalInterface
-    interface AncestorReader {
-        AncestorResult resolve(
-                ModelTargetResolver.Resolution resolution,
-                ModelReadBoundary boundary);
+    interface DocumentReader {
+        Entity<?> load(String modelId, Class<?> modelType);
     }
 
     record Settings(
@@ -1637,6 +2318,12 @@ final class ModelReplayCursor {
         LoadResult {
             heads = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(heads));
         }
+    }
+
+    record FirstEvent(long stateIndex, String modelId, SerializedMessage event) {
+    }
+
+    record EntityProjection(long stateIndex, Entity<?> entity) {
     }
 
     /** Coalesces compatible concurrent current reads while leaving local, large and historical reads direct. */

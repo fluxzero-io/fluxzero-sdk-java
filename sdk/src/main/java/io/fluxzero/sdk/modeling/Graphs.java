@@ -95,28 +95,35 @@ public final class Graphs {
         return GraphState.composed(rootId, stateIndex, models, edges, repository, historical, Map.of()).root();
     }
 
-    /** Applies the visible message-batch values before graph selection on the same indexed state. */
-    public static <T> Graph<T> overlayMessageBatch(
-            Graph<T> durable, String namespace, Class<T> rootType, Graph.Options options,
+    /** Builds one indexed state with visible message-batch values applied before graph selection. */
+    public static <T> Graph<T> compose(
+            String rootId, long stateIndex, Map<String, Entity<?>> durableModels, List<ModelGraphEdge> durableEdges,
+            ModelRepository repository, boolean historical,
+            String namespace, Class<T> rootType, Graph.Options options,
             Map<String, ModelBatchScope.StagedModel> staged,
             Function<ModelBatchScope.StagedModel, Graph<?>> supplementalLoader) {
         if (staged.isEmpty()) {
-            return durable;
+            return compose(rootId, stateIndex, durableModels, durableEdges, repository, historical);
         }
-        GraphView<T> source = adapt(durable);
-        GraphState state = source.state();
-        String rootId = source.node().data().id();
         ModelBatchScope.StagedModel stagedRoot = staged.get(rootId);
         if (stagedRoot != null && stagedRoot.value() == null) {
+            Entity<?> durableRoot = durableModels.get(rootId);
+            if (durableRoot == null) {
+                durableRoot = ImmutableModelRoot.builder()
+                        .id(rootId).type((Class) stagedRoot.modelType())
+                        .idProperty(ModelMetadata.validate(stagedRoot.modelType())
+                                            .entityId().orElseThrow().name())
+                        .value(null).build();
+            }
             Entity<?> deleted = ModelBatchScope.overlayCurrent(
                     namespace, rootId, (Class) stagedRoot.modelType(),
-                    source.node().data().entity());
+                    durableRoot);
             return GraphState.composed(
-                    rootId, state.stateIndex, Map.of(rootId, deleted), List.of(),
-                    state.repository, state.historical, Map.of()).root();
+                    rootId, stateIndex, Map.of(rootId, deleted), List.of(),
+                    repository, historical, Map.of()).root();
         }
-        LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(state.knownModels);
-        LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>(state.edges);
+        LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(durableModels);
+        LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>(durableEdges);
         edges.removeIf(edge -> staged.containsKey(edge.getChildId()));
         staged.values().stream().filter(value -> value.value() != null).forEach(value ->
                 addParentEdges(value.modelId(), value.modelType(), value.value(), edges));
@@ -167,8 +174,8 @@ public final class Graphs {
                                 && finalSelection.contains(edge.getChildId()))
                 .toList();
         return GraphState.composed(
-                rootId, state.stateIndex, selectedModels, selectedEdges,
-                state.repository, state.historical, Map.of()).root();
+                rootId, stateIndex, selectedModels, selectedEdges,
+                repository, historical, Map.of()).root();
     }
 
     private static LinkedHashSet<String> selectedIds(
@@ -395,6 +402,7 @@ final class GraphState {
     private final Map<Class<?>, List<String>> declaredPaths;
     private final Node root;
     private final Identity identity;
+    private final NodeResolver nodeResolver;
     private final Map<String, Graph<?>> expansions = new ConcurrentHashMap<>();
     private final ViewContext canonical;
 
@@ -416,6 +424,9 @@ final class GraphState {
         this.declaredPaths = Map.copyOf(declaredPaths);
         this.root = root;
         this.identity = identity;
+        this.nodeResolver = new NodeResolver(repository, stateIndex);
+        Set<NodeData> bound = Collections.newSetFromMap(new IdentityHashMap<>());
+        placements.stream().map(Node::data).filter(bound::add).forEach(data -> data.bind(nodeResolver));
         LinkedHashMap<String, List<Node>> indexed = new LinkedHashMap<>();
         LinkedHashMap<String, Node> detached = new LinkedHashMap<>();
         placements.forEach(node -> {
@@ -452,9 +463,9 @@ final class GraphState {
     static GraphState identity(
             Object requestedId, String repositoryId, boolean exact, Class<?> modelType, ModelRepository repository) {
         Identity identity = new Identity(requestedId, repositoryId, exact, modelType, true);
-        NodeData data = NodeData.entity(repositoryId, modelType, () -> exact
-                ? repository.load(repositoryId, modelType) : repository.load(requestedId, modelType),
-                                        !exact && ModelMetadata.of(modelType).hasAliases());
+        NodeData data = NodeData.identity(
+                repositoryId, modelType, requestedId, exact,
+                !exact && ModelMetadata.of(modelType).hasAliases());
         Node root = new Node(data, null, null, true);
         return indexed(-1L, repository, false, false, false, ModelReadBoundary.current(), Map.of(), List.of(), Map.of(),
                        List.of(root), Map.of(), root, identity);
@@ -487,11 +498,8 @@ final class GraphState {
                         "Invalid parent placement %d for model graph node %s"
                                 .formatted(specification.parent(), specification.id()));
             }
-            Supplier<Graph<?>> durable = repository == null ? null : () -> stateIndex >= 0L
-                    ? repository.loadGraphAt(specification.id(), specification.type(), stateIndex, Graph.Options.DEFAULT)
-                    : repository.loadGraph(specification.id(), specification.type(), Graph.Options.DEFAULT);
             NodeData data = NodeData.materialized(
-                    specification.id(), specification.type(), specification.value(), durable);
+                    specification.id(), specification.type(), specification.value());
             Node parent = specification.parent() < 0 ? null : placements.get(specification.parent());
             Node node = new Node(data, parent, specification.relationshipPath(), false);
             if (parent != null) {
@@ -700,7 +708,7 @@ final class GraphState {
                 result.putIfAbsent(repositoryId, context.view(internal));
                 continue;
             }
-            if (node.data().entitySupplier == null && node.data().durableSupplier != null) {
+            if (node.data().hasDurableProjection()) {
                 Graph<?> durable = node.data().durable();
                 if (durable != null) {
                     durable.parents().stream()
@@ -836,10 +844,9 @@ final class GraphState {
     static final class NodeData {
         private final String id;
         private final Class<?> type;
-        private final Supplier<? extends Entity<?>> entitySupplier;
-        private final Supplier<?> valueSupplier;
-        private final Supplier<? extends Graph<?>> durableSupplier;
+        private final Resolution resolution;
         private final boolean resolveId;
+        private NodeResolver resolver;
         private volatile boolean entityResolved;
         private Entity<?> entity;
         private volatile boolean valueResolved;
@@ -848,35 +855,40 @@ final class GraphState {
         private Long previousStateIndex;
 
         private NodeData(
-                String id, Class<?> type, Supplier<? extends Entity<?>> entitySupplier, Supplier<?> valueSupplier,
-                Supplier<? extends Graph<?>> durableSupplier, boolean resolveId) {
+                String id, Class<?> type, Resolution resolution, boolean resolveId) {
             this.id = id;
             this.type = type;
-            this.entitySupplier = entitySupplier;
-            this.valueSupplier = valueSupplier;
-            this.durableSupplier = durableSupplier;
+            this.resolution = resolution;
             this.resolveId = resolveId;
         }
 
         static NodeData entity(Entity<?> entity) {
-            NodeData result = new NodeData(entity.id().toString(), entity.type(), () -> entity, null, null, false);
+            NodeData result = new NodeData(
+                    entity.id().toString(), entity.type(), new Loaded(entity), false);
             result.entity = entity;
             result.entityResolved = true;
             return result;
         }
 
-        static NodeData entity(
-                String id, Class<?> type, Supplier<? extends Entity<?>> entitySupplier, boolean resolveId) {
-            return new NodeData(id, type, entitySupplier, null, null, resolveId);
+        static NodeData identity(
+                String id, Class<?> type, Object requestedId, boolean exact, boolean resolveId) {
+            return new NodeData(id, type, new LazyIdentity(requestedId, exact), resolveId);
         }
 
         static NodeData materialized(
-                String id, Class<?> type, Supplier<?> value, Supplier<? extends Graph<?>> durable) {
-            return new NodeData(id, type, null, value, durable, false);
+                String id, Class<?> type, Supplier<?> value) {
+            return new NodeData(id, type, new Materialized(value), false);
         }
 
         static NodeData external(Graph<?> graph) {
-            return new NodeData(graph.id().toString(), graph.type(), null, graph::get, () -> graph, false);
+            return new NodeData(graph.id().toString(), graph.type(), new External(graph), false);
+        }
+
+        void bind(NodeResolver resolver) {
+            if (this.resolver != null && this.resolver != resolver) {
+                throw new IllegalStateException("Graph node belongs to multiple states");
+            }
+            this.resolver = resolver;
         }
 
         String id() {
@@ -896,54 +908,115 @@ final class GraphState {
         }
 
         Entity<?> entity() {
-            if (entitySupplier == null) {
-                return null;
-            }
-            if (!entityResolved) {
-                synchronized (this) {
-                    if (!entityResolved) {
-                        entity = Objects.requireNonNull(entitySupplier.get(), "Resolved graph entity");
-                        entityResolved = true;
-                    }
-                }
-            }
-            return entity;
+            return resolver.entity(this);
         }
 
         Object value() {
-            Entity<?> entity = entity();
-            if (entity != null) {
-                return entity.get();
-            }
-            if (!valueResolved) {
-                synchronized (this) {
-                    if (!valueResolved) {
-                        value = valueSupplier.get();
-                        valueResolved = true;
-                    }
-                }
-            }
-            return value;
+            return resolver.value(this);
         }
 
         Graph<?> durable() {
-            Graph<?> result = durable;
-            if (result == null) {
-                if (durableSupplier == null) {
-                    throw new IllegalStateException("Graph history and updates require a model repository");
-                }
-                synchronized (this) {
-                    result = durable;
-                    if (result == null) {
-                        durable = result = durableSupplier.get();
-                    }
-                }
-            }
-            return result;
+            return resolver.durable(this);
+        }
+
+        boolean hasDurableProjection() {
+            return resolution instanceof Materialized || resolution instanceof External;
         }
 
         Long previousStateIndex() {
             return previousStateIndex;
+        }
+
+        private interface Resolution {
+        }
+
+        private record Loaded(Entity<?> entity) implements Resolution {
+        }
+
+        private record LazyIdentity(Object requestedId, boolean exact) implements Resolution {
+        }
+
+        private record Materialized(Supplier<?> value) implements Resolution {
+        }
+
+        private record External(Graph<?> graph) implements Resolution {
+        }
+    }
+
+    /** One lazy resolution lifecycle shared by every typed node view on this state. */
+    private static final class NodeResolver {
+        private final ModelRepository repository;
+        private final long stateIndex;
+
+        private NodeResolver(ModelRepository repository, long stateIndex) {
+            this.repository = repository;
+            this.stateIndex = stateIndex;
+        }
+
+        private Entity<?> entity(NodeData node) {
+            if (node.resolution instanceof NodeData.Materialized
+                || node.resolution instanceof NodeData.External) {
+                return null;
+            }
+            if (!node.entityResolved) {
+                synchronized (node) {
+                    if (!node.entityResolved) {
+                        NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
+                        node.entity = Objects.requireNonNull(
+                                identity.exact()
+                                        ? repository.load(node.id, node.type)
+                                        : repository.load(identity.requestedId(), node.type),
+                                "Resolved graph entity");
+                        node.entityResolved = true;
+                    }
+                }
+            }
+            return node.entity;
+        }
+
+        private Object value(NodeData node) {
+            Entity<?> entity = entity(node);
+            if (entity != null) {
+                return entity.get();
+            }
+            if (!node.valueResolved) {
+                synchronized (node) {
+                    if (!node.valueResolved) {
+                        node.value = node.resolution instanceof NodeData.External external
+                                ? external.graph().get()
+                                : ((NodeData.Materialized) node.resolution).value().get();
+                        node.valueResolved = true;
+                    }
+                }
+            }
+            return node.value;
+        }
+
+        private Graph<?> durable(NodeData node) {
+            Graph<?> result = node.durable;
+            if (result == null) {
+                if (node.resolution instanceof NodeData.Loaded
+                    || node.resolution instanceof NodeData.LazyIdentity
+                    || repository == null && !(node.resolution instanceof NodeData.External)) {
+                    throw new IllegalStateException("Graph history and updates require a model repository");
+                }
+                synchronized (node) {
+                    result = node.durable;
+                    if (result == null) {
+                        if (node.resolution instanceof NodeData.External external) {
+                            result = external.graph();
+                        } else {
+                            result = stateIndex >= 0L
+                                    ? repository.loadGraphAt(
+                                            node.id, node.type, stateIndex, Graph.Options.DEFAULT)
+                                    : repository.loadGraph(
+                                            node.id, node.type, Graph.Options.DEFAULT);
+                        }
+                        node.durable = result;
+                    }
+                }
+            }
+            return result;
         }
     }
 

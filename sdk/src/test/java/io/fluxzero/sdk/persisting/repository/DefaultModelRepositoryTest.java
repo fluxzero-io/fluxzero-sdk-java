@@ -76,6 +76,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -353,6 +354,35 @@ class DefaultModelRepositoryTest {
                     assertInstanceOf(
                             ModelRoot.class,
                             loaded).stateIndex());
+        }
+    }
+
+    @Test
+    void reconstructsCheckpointedStreamsInParallelWithinOneReplaySession() {
+        List<CreateCheckpointAccount> creates = IntStream.range(0, 256)
+                .mapToObj(index -> new CreateCheckpointAccount(
+                        new CheckpointAccountId(Integer.toString(index)), index))
+                .toList();
+        try (Fluxzero fluxzero = configuredFluxzero()) {
+            fluxzero.commandGateway()
+                    .send(new CreateCheckpointAccounts(creates))
+                    .join();
+            List<CheckpointAccountId> ids = creates.stream()
+                    .map(CreateCheckpointAccount::accountId)
+                    .toList();
+            DefaultModelRepository repository =
+                    (DefaultModelRepository) fluxzero.modelRepository();
+            repository.invalidateModels(ids.stream().map(Object::toString).toList());
+
+            List<Entity<CheckpointAccount>> loaded =
+                    repository.loadAll(ids, CheckpointAccount.class);
+
+            assertEquals(
+                    creates.stream()
+                            .map(create -> new CheckpointAccount(
+                                    create.accountId(), create.balance()))
+                            .toList(),
+                    loaded.stream().map(Entity::get).toList());
         }
     }
 
@@ -1833,6 +1863,36 @@ class DefaultModelRepositoryTest {
         @Apply
         Account apply() {
             return new Account(accountId, balance);
+        }
+    }
+
+    @Model(checkpointPeriod = 1)
+    private record CheckpointAccount(
+            @EntityId CheckpointAccountId accountId,
+            int balance) {
+    }
+
+    private static class CheckpointAccountId
+            extends Id<CheckpointAccount> {
+        private CheckpointAccountId(String id) {
+            super(id, "checkpoint-account-");
+        }
+    }
+
+    private record CreateCheckpointAccount(
+            CheckpointAccountId accountId,
+            int balance) {
+        @Apply
+        CheckpointAccount apply() {
+            return new CheckpointAccount(accountId, balance);
+        }
+    }
+
+    private record CreateCheckpointAccounts(
+            List<CreateCheckpointAccount> accounts) {
+        @InterceptApply
+        List<CreateCheckpointAccount> expand() {
+            return accounts;
         }
     }
 
