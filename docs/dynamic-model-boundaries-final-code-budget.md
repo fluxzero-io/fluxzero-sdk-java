@@ -16,7 +16,8 @@ Date: 2026-08-18
 | CP5 final stream previews (`19ae14899ed` / `9f74e3d0`) | **166,033** | **41,696** | **3,080** | accepted; full model -0.51%, sustained reconstruction +14.65% |
 | CP6 stable batch metrics (`32ccf7b0c575` / `ecdd6d5a9fff`) | **165,457** | **41,471** | **3,881** | accepted; full model -0.26% amid bidirectional host drift |
 | CP7 unified batch model state (`8180b01df0e4` / `ecdd6d5a9fff`) | **165,141** | **41,471** | **4,197** | accepted; full model +2.08%, fewer scheduler allocations |
-| Required final ceiling | **136,000** | **32,000** | **38,612 still to remove** | pending |
+| CP8 canonical Runtime blocks (`8180b01df0e4` / `d7c54eb086d`) | **165,141** | **36,809** | **8,859** | accepted; matched full model +4.65%, no-model +0.56% |
+| Required final ceiling | **136,000** | **32,000** | **33,950 still to remove** | pending |
 
 ## Objective
 
@@ -32,9 +33,10 @@ one execution pipeline and reuse of existing Fluxzero foundations.
 
 ## Macro-replacement rule
 
-CP7 is the final small preparatory checkpoint. It is retained because it removed a second batch-state owner and
-materially reduced scheduler allocation, but its 316-line reduction is not representative progress toward this code
-budget.
+CP7 is the final small preparatory checkpoint. CP8 is the first accepted macro replacement: it removes the complete
+general/initial-packed/update-packed Runtime storage multiplication and 4,809 production Java lines from its direct
+parent. Runtime is now 5,229 lines below the S60 start, so the first Runtime structural budget is paid even though the
+direct-parent delta rounds to 4.8k rather than 5k.
 
 No later reduction checkpoint is accepted merely because it makes several local classes smaller. A candidate must
 instead satisfy at least one of these structural gates:
@@ -47,11 +49,11 @@ Correctness and performance are still release contracts, but they are verified a
 Diagnostic commits and losing experiments may exist temporarily and are recorded in the run registry; they do not
 become named production checkpoints and later work does not build on them.
 
-The remaining campaign therefore has five checkpoints at most:
+The remaining campaign therefore has four checkpoints at most after CP8:
 
 | Macro replacement | Owner after replacement | Owners and pipelines that must disappear | Structural target |
 | --- | --- | --- | ---: |
-| Runtime commit/storage | one `ModelCommitPlan` and one block executor | general rows, initial-packed, update-packed, paired head/locator and paired replay routes | 5,000-7,000 Runtime lines |
+| Runtime commit/storage — **CP8 complete** | one `ModelCommitPlan` and one block executor | general rows, initial-packed, update-packed, paired head/locator and paired replay routes | 4,809 direct-parent / 5,229 S60 Runtime lines |
 | SDK execution | one compiled payload plan and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 7,000-8,000 SDK lines |
 | Graph/repository | one indexed graph state and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 7,000-8,000 SDK lines |
 | Aggregate/Model mechanics | neutral transition, identity, apply and replay mechanics | duplicated aggregate/model reflection, transition, repository and fixture implementations | 6,000-7,000 SDK lines |
@@ -261,6 +263,48 @@ reactor attempt observed a pathless cascade child before deletion completion; th
 isolated repetitions and the immediately repeated complete reactor passed. CP7 removes 316 production Java lines,
 adds no public API and leaves Runtime production code unchanged.
 
+## Accepted checkpoint CP8 — one canonical Runtime model block
+
+Runtime `d7c54eb086d` replaces the general row engine, initial-packed engine and update-packed engine with one
+`ModelCommitPlan`, one ordered transition type, one version-2 block codec and one atomic JDBC block insert. A block
+contains both its transition sequence and durable receipts; local payloads and materialization recovery data live in
+that representation, while globally published payloads remain owned by the event log. The old `model_commit`,
+`model_update` and `model_payload` tables and their four independent block/update codecs are physically gone.
+
+One asynchronous `model_lookup` GIN locator indexes candidate blocks by privacy-safe model hashes. Reads combine the
+located prefix with the not-yet-indexed tail from the same database snapshot, decode the same canonical transitions
+and update one bounded lifecycle-local head cache. Current, historical, long-stream, duplicate-result, update-feed and
+hard-erasure reads therefore no longer merge general and packed representations. The durable `model_update_feed` is a
+view over canonical blocks and completed deletions; graph projection, tracking and retention use its cursor instead of
+owning a separately serialized update log.
+
+Hard erasure rewrites the affected canonical blocks, receipts, locator hashes and materialization bytes in place while
+retaining unrelated transitions and globally shared events. Temporal relationships, aliases, deletion progress and
+erasure fences remain normalized because they have independent query and lifecycle semantics, but the one executor
+writes them from the same plan. Graph rebuild scans use the projection's captured state boundary, preventing models
+created after registration from racing into both rebuild and update-feed materialization.
+
+| Qualifying route | Direct control | CP8 candidate | Difference | Correctness |
+| --- | ---: | ---: | ---: | --- |
+| command -> `@Apply` -> model/event commit -> result, 4,194,304 commands | 331,383/s | **346,809/s** | **+4.65%** | exact results, model events, global events and 65,536 states |
+| no-model command -> result, 10,485,760 commands | 876,053/s | **880,980/s** | **+0.56%** | exact results; zero model and global events |
+
+The absolute active-host model floor remains 358,973/s and the quiet-host P5 pin remains 425,606/s. Both the direct
+control and CP8 candidate ran below those absolute identities in the current host state, so they do not establish a
+new pin; the adjacent +4.65% comparison rejects a causal storage regression. The no-model route is neutral and confirms
+that completion/tracking boundary changes did not move generic command/result capacity.
+
+Relationship, graph, aging/deletion, hard-erasure, cold-restart and 73,984-event long-stream characterizations all
+completed with exact final state and durable counts. The focused store/codec suite passed 128 tests, and the complete
+four-module Runtime reactor passed from final source. The separate adversarial review found and fixed a historical
+graph-rebuild race: rebuild enumeration now respects the boundary captured at registration rather than reading a
+later current head.
+
+CP8 removes 4,809 production Java lines from direct parent `8d5ac5cff0d` (41,618 -> 36,809) and 5,229 Runtime lines
+from the S60 start. It adds no supported public API. Deleted Java types were package-private branch-preview internals;
+the intentionally incompatible storage format has never been deployed. Detailed performance evidence is recorded in
+the model-capacity and feature-characterization logs.
+
 ## What caused the growth
 
 The growth is not proportional to added product behavior.
@@ -291,12 +335,11 @@ graph overlays. These are fast, but their control flow is still multiplied rathe
 ### Runtime
 
 `1c3e8a9b2f0b` added the high-throughput independent-model storage route in one step: **+5,759** production lines.
-`JdbcModelCommitStore` grew from the 5,046-line `JdbcModelActionStore` to 10,887 lines. It retains the prior general
-commit, stream and replay representation while adding packed initial streams, packed updates, derived locators,
-locator recovery, block caches and specialized reads. Four new block/update codecs add another 1,134 lines.
-
-This is the principal Runtime issue: the fast representation is an additional storage system instead of the only
-model storage representation.
+Before CP8, `JdbcModelCommitStore` had grown from the 5,046-line `JdbcModelActionStore` to 10,887 lines. It retained the
+prior general commit, stream and replay representation while adding packed initial streams, packed updates, derived
+locators, locator recovery, block caches and specialized reads. Four extra block/update codecs added another 1,134
+lines. CP8 removes that multiplication; remaining Runtime budget now lies in shared update/recovery lifecycle, generic
+JDBC reuse and final preview/integration residue rather than a second model storage engine.
 
 ### Branch-internal compatibility and diagnostics
 
@@ -380,9 +423,9 @@ The existing global event log remains the single publication owner. Any reuse of
 transaction preparation, binary copy, batching and ordered publication primitives; model commits do not introduce a
 second message-store transaction or duplicate publication.
 
-#### Runtime replacement blueprint
+#### Runtime replacement blueprint — implemented by CP8
 
-The current 10,779-line store makes the representation choice before canonical preparation:
+The pre-CP8 10,779-line store made the representation choice before canonical preparation:
 
 ```text
 Job
@@ -395,28 +438,27 @@ Reads then merge ordinary heads/stream rows with packed pseudo-stream rows, deri
 Commit receipts likewise exist as ordinary rows, compact commit blocks and stream-embedded receipts. This multiplication
 is the first macro replacement.
 
-The final intake and transaction shape is:
+CP8 implements this intake and transaction shape:
 
 ```text
 List<Job>
-  -> prepareBatch(...)
-       -> ModelCommitPlan
-            receipts[]
-            transitions[]
-            payloads[]
-            optional aliases[]
-            optional relationships[]
-            optional materializations[]
-  -> execute(connection, plan)
+  -> derive canonical target/conflict/materialization intake
+  -> ModelCommitPlan.assign(...)
+       -> ordered Commit[]
+            Transition[]
+            Receipt
+  -> ModelBlockBatch.partition(...)
+       -> canonical blocks containing transitions + receipts
+  -> insertBlocks(connection, blocks)
        lock/validate one state boundary
        resolve duplicates and conflicts
        assign contiguous state and per-model sequence ranges
-       write receipt blocks + transition blocks + payload blocks
+       insert all canonical blocks and advance one boundary atomically
        apply non-empty optional mutations
        append published events through the same JDBC transaction
-       advance one boundary
   -> publish(plan)
-       update one locator/head view and one cache
+       update one bounded head cache
+       advance one asynchronous block locator
        publish update cursors
        materialize direct documents
        complete each real durable result
@@ -435,16 +477,16 @@ One final transition entry can express every target case:
 - document collection and the information needed by direct materialization;
 - enough target identity to serve `GetModelChange`, hard erasure and exact duplicate results.
 
-Receipt blocks are the sole idempotency/result form. Transition blocks are the sole current and historical stream form.
-A sparse materialization outbox may remain because its bytes must be cleared independently after an external search
-write; it is an optional durability mutation, not another commit representation. Temporal relationships, aliases,
-erasure fences and deletion progress remain normalized tables because they have independent query/lifecycle semantics,
-but they are written only by the same executor from the same plan.
+Receipts and transitions coexist in the same canonical block: receipts are the sole idempotency/result form and
+transitions are the sole current and historical stream form. Pending materialization is receipt data plus a sparse
+block marker that is cleared after the external search write, not another commit representation. Temporal
+relationships, aliases, erasure fences and deletion progress remain normalized tables because they have independent
+query/lifecycle semantics, but they are written only by the same executor from the same plan.
 
-The final locator is one derived index over transition blocks. It carries the current head fields and ordered block
-locations for a model. Ordinary and freshly created models no longer have separate head/cache/loader families. Local
-publication may update the same in-memory view immediately; cold/restart reads first advance the durable locator through
-the requested state boundary. There is no fallback to a general row stream.
+The final locator is one derived candidate index over canonical blocks. It stores model lookup hashes and block
+locations; readers decode and identity-filter the candidates, then include the not-yet-located tail from the same
+snapshot. Ordinary and freshly created models no longer have separate head/cache/loader families. Local publication
+updates the same bounded in-memory head cache immediately. There is no fallback to a general row stream.
 
 The durable update feed references or projects the same committed transition/receipt data instead of serializing an
 independent model-update representation. Cache tracking, graph projection and recovery keep their different actions,
@@ -466,14 +508,15 @@ then-current lifecycle in 5,453 lines. The rewrite does not restore its slower r
 lifecycle shape as the skeleton and makes the later measured block representation its only storage form, then carries
 forward aliases, before-state graph boundaries, cascade deletion and other later contracts as plan mutations.
 
-This macro is accepted only when the old modes and representations are physically gone, Runtime production Java falls
-by at least 5,000 lines, and the current/historical/long-stream/relationship/deletion/restart/full-E2E gates pass. A
-temporary bridge that leaves both stores in place is an experiment, not a checkpoint.
+CP8 is accepted because the old modes and representations are physically gone, Runtime is 5,229 lines below the S60
+start and the current/historical/long-stream/relationship/deletion/restart/full-E2E gates pass. Its 4,809-line direct
+delta is recorded exactly rather than rounded up. A temporary bridge that leaves both stores in place remains an
+experiment, not a checkpoint.
 
 ### 7. One durable update-consumer mechanism
 
 Cache tracking, direct materialization recovery, graph projection and derived locator work retain distinct domain
-actions but share one cursor/wakeup/retry lifecycle over the existing model update log. No capability owns a private
+actions but share one cursor/wakeup/retry lifecycle over the canonical block-derived update feed. No capability owns a private
 polling, retention or completion platform. Direct materialization remains awaited, graph projection retains
 `ASYNC`/`AWAIT`, and restart recovery remains autonomous.
 
@@ -512,9 +555,9 @@ preferred workstream.
 ## Execution order
 
 1. Freeze CP7's exact functional matrices, schemas and matched performance pins as immutable controls.
-2. Replace the complete Runtime commit/storage subsystem according to the blueprint above. Do not checkpoint an
-   adapter layer or coexistence state; accept only after the old representations are gone and at least 5,000 Runtime
-   production lines have disappeared.
+2. **Complete at CP8:** replace the complete Runtime commit/storage subsystem according to the blueprint above, with
+   no adapter layer or coexistence state. The old representations are gone; Runtime is 5,229 lines below S60 start and
+   the direct CP8 parent delta is 4,809 lines.
 3. Replace the complete SDK execution subsystem with one compiled payload plan and one batch scope. The registration,
    manual invocation, retry and automatic paths must all enter it before the alternate lifecycle owners are deleted.
 4. Replace Graph and repository loading together: one indexed graph state, one replay cursor and no repository-specific

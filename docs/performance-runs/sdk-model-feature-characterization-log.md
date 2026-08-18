@@ -700,7 +700,57 @@ throughput and is explicitly not a benchmark result. The Runtime worktree is cle
 full default-PostgreSQL candidate/reverse-control pair on a quiet host, then running the full Runtime suite and an
 adversarial durability review before deciding whether to commit or revert it.
 
+## S60 CP8 canonical-block characterization
+
+Runtime `d7c54eb086d` makes one transition/receipt block the only durable model stream representation. The final
+characterization deliberately re-exercised the shapes most likely to regress when general rows, packed initial
+streams, packed updates, separate receipt/update blocks and their caches disappeared.
+
+| Scenario | Final CP8 observation | Exact contract evidence |
+| --- | --- | --- |
+| B0 full route | 346,809 commands/s over 4,194,304 commands | exact results, stored model events, global events and 65,536 final states |
+| R1 relationships | 117,921 commands/s over 131,072 updates | 4,096 exact states, 4,096 active and 4,096 historical relationships |
+| G1 graphs | 30,653 commands/s; catch-up high-watermark exact | 31,638 root upserts in 253 batches; 4,096 exact roots and children |
+| Q1 aging/deletion | 41,128 / 60,890 / 73,252 update commands/s | 98,304 updates, 4,096 exact final models and 82 delete/recreates per round |
+| L1 cold restart | 2,660 create/s; 3,576 first post-restart update/s | 4,096 exact states after new Runtime and SDK; bounded 1,024-entry cache |
+| long-stream replay | 25,475 write commands/s; 53,888,220 replayed events/s hot | 256 exact models and 73,984 replayed events |
+
+G1 reached its exact graph cursor after 2,154.569 ms. The 31,638 root upserts formed 253 real batches and produced
+4,096 exact graph-root documents with one exact child each. The final adversarial review additionally fixed rebuild
+enumeration to filter transitions at the registered projection boundary. This prevents models committed after a
+registration boundary from being materialized once by rebuild and again by the canonical update feed.
+
+Hard erasure used a published root with 2,000 wide descendants. Creation, planning and execution were respectively
+5,389, 45,085 and 18,374 models/s; the exact plan and result contained 2,000 models and 2,000 memberships. The one
+globally published event remained retained and no erased local payload was externally shared. Store tests verify that
+rewriting canonical blocks removes selected transitions, sanitizes receipt results and materialization bytes, updates
+locator hashes and retains unrelated transitions.
+
+L1 stopped and recreated both Runtime and SDK with a model set four times larger than the configured head cache.
+Runtime seed/new verification took 649.850/66.955 ms and the new SDK verified in 1,026.002 ms. Q1 retained exact state
+through three rounds and advanced update retention without overtaking graph cursors. Initial creation was also covered
+by every seed phase; the final B0 seed completed at 3,791 creates/s.
+
+Two diagnostic limitations are kept explicit. R1 with benchmark-side `measureLoads=true` reports a missing SDK model
+after its relationship assertions on both CP8 and its direct control; the ordinary R1 characterization is exact and
+the failure is not attributed to Runtime. A parallel large B0 `loadModel` diagnostic hit a benchmark-side
+`DefaultModelRepository` `HashMap` concurrency failure. Serial hot reconstruction completed exactly; a deliberately
+serial cold loop was stopped because per-model locator queries made it non-representatively slow. L1 and the Runtime
+restart/reconstruction tests are the accepted cold-restart evidence, not that stopped diagnostic.
+
+The complete Runtime reactor passed after the final source review. Focused coverage includes create/update and large
+batches, conflicts/retries/idempotency, aliases, current and historical reconstruction, relationships and cascades,
+logical deletion and hard erasure, materialization recovery, graph cursors, update retention, locator failure/restart,
+long streams and both JDBC-backed and external event logs.
+
 ## Evidence
+
+- CP8 B0 final SHA-256: `db82ed15479e5aeaaa92c45acb2940bd1587f4b01ebe1e612fd2811fc97fc724`;
+- CP8 R1 final SHA-256: `26f8baa3ae48a9358bbeedf55bb9facac6a993040010f17f3ed383ba12694824`;
+- CP8 G1 final SHA-256: `f20c9a1ec73146ab229e8b6d03f8192a6be3a18fc1439be351176f0bf3aa5085`;
+- CP8 Q1 final SHA-256: `c24860a302ab83f7db9de1bfca966ad4e8dfd3241cc21cd897dbc91d07f7b022`;
+- CP8 L1 final SHA-256: `9780d26d425d3cfe4f6d4bbb75b2596ad5755ef60a3021597365d8344a1368bc`;
+- CP8 long-stream serial SHA-256: `5f47145eaa2126f93fc2016ba46ccf2db86d076d27a0b148d495ba610c62984e`;
 
 - F1-B0-1 log SHA-256: `30fbfdd4dfa1886574b5d3acd711e2ea728f9ccaec0790fb9afa06439e935960`;
 - F1-B0-D0 log SHA-256: `7d3b971de4ded3ac94780c97896505dfef73c9f4af33955fdc6664ef788573c1`;

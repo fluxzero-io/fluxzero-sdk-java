@@ -2762,3 +2762,38 @@ the earlier 217-258k host state but not a replacement for the quieter-host P5 qu
 
 E833 log SHA-256:
 `0f84eccff6f2d8a489b159688818c0e4a60fde8f1a9817acb91c9a8df9eaec2c`.
+
+## S60 CP8: canonical Runtime model blocks
+
+Runtime `d7c54eb086d` is the first S60 macro-reduction checkpoint. It replaces the general, initial-packed and
+update-packed model stores with one `ModelCommitPlan`, one transition/receipt block format, one atomic JDBC executor,
+one asynchronous block locator, one bounded head cache and one replay implementation. The independently serialized
+`model_update` log is gone; tracking and graph projection read a view derived from canonical blocks and completed hard
+deletions. Production Java falls from 41,618 lines at direct parent `8d5ac5cff0d` to 36,809 (-4,809).
+
+The full B0 qualification retained 65,536 models, 262,144 warm-up updates and 4,194,304 measured commands. The direct
+same-host control reached 331,383/s; the final candidate reached **346,809/s (+4.65%)**. The candidate completed all
+4,194,304 results, stored model events and global events and verified all 65,536 final states. Seed and warm-up were
+3,791 and 236,247/s. Result latency p50/p95/p99/max was
+160.349/213.648/235.363/281.322 ms.
+
+| Run | Route | Direct control | CP8 | Exactness | Decision |
+| --- | --- | ---: | ---: | --- | --- |
+| CP8-B0 | command -> automatic `@Apply` -> model/event commit -> result | 331,383/s | **346,809/s** | 4,194,304 results/model events/global events; 65,536 states | accepted matched +4.65% |
+| CP8-N0 | no-model command -> result | 876,053/s | **880,980/s** | 10,485,760 results; zero model/global events | accepted matched +0.56% |
+
+Neither B0 process reproduced the active-host 358,973/s floor or quiet-host 425,606/s P5 pin in this later host state;
+the absolute identities remain unchanged. Because the adjacent control was equally below the pins and the candidate is
+4.65% faster, the pair excludes a causal storage regression without promoting a new absolute result. The no-model
+pair is neutral and verifies that changed tracking/completion boundaries did not reduce generic command/result
+capacity.
+
+The focused final store/codec run passed 128 tests. The complete four-module Runtime reactor passed from final source.
+An adversarial review also corrected graph rebuild enumeration so it reads heads at the projection's captured boundary,
+not later current heads. Detailed relationship, graph, deletion/aging, erasure, restart and long-stream evidence is in
+the feature-characterization log.
+
+Evidence SHA-256: CP8 B0
+`db82ed15479e5aeaaa92c45acb2940bd1587f4b01ebe1e612fd2811fc97fc724`; CP8 no-model
+`ad8a8aa92508131176ac4c539bf5e041ae475c3254a85c3dea2e922c5fd0496d`; no-model direct control
+`7770c01c7a30f24731a69c94993dd9a78d04abbcb7de27bc00ccff10fee8d656`.
