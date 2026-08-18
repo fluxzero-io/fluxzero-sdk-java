@@ -4,9 +4,7 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,8 +16,10 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -34,24 +34,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getGenericPropertyType;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyType;
-import static java.util.function.Predicate.not;
 
 /**
- * Compiles and resolves the direct model IDs and ancestor dependencies needed by model-aware handlers.
- * <p>
- * An unqualified model dependency first matches a payload property with the same name as the model's
- * {@link EntityId}; when that property is absent, one uniquely typed {@link Id}{@code <Model>} property is accepted.
- * A read-only parameter without such a direct ID is resolved through temporal parent relations. A parameter-level
- * {@link io.fluxzero.sdk.tracking.handling.Association @Association("qualifier")} selects a payload property when it
- * exists and otherwise qualifies an ancestor edge by its explicit {@link ParentId#path()}.
- * <p>
- * Plans are structural and may be created during handler registration. Payload property readers are cached in
- * {@link ReflectionUtils.TypeMetadata}; resolving a message performs no reflective discovery.
+ * Compiles payload and metadata ID access into the immutable target slots shared by evaluation and parameter injection.
  */
 public final class ModelTargetResolver {
     private static final int READ = 1;
@@ -60,145 +51,391 @@ public final class ModelTargetResolver {
     private ModelTargetResolver() {
     }
 
-    /**
-     * Compiles a target plan for the selected model-aware handlers.
-     *
-     * @throws IllegalStateException when a required ID property is missing or ambiguous
-     */
+    /** Compiles and validates a target plan without an explicit target override. */
     public static TargetPlan plan(
-            Class<?> payloadType, Collection<ModelMetadata.HandlerMethod> handlerMethods) {
-        return plan(payloadType, handlerMethods, null);
-    }
-
-    /**
-     * Compiles a target plan while leaving one model type to an explicit graph selection owned by the caller.
-     */
-    static TargetPlan plan(
             Class<?> payloadType,
-            Collection<ModelMetadata.HandlerMethod> handlerMethods,
-            Class<?> explicitModelType) {
-        Objects.requireNonNull(payloadType, "payloadType");
-        Objects.requireNonNull(handlerMethods, "handlerMethods");
-        PayloadMetadata payload = PayloadMetadata.of(payloadType);
-        List<MutableSlot> slots = new ArrayList<>();
-        List<MutableDeferredWrite> deferredWrites = new ArrayList<>();
-        List<AncestorDependency> ancestorDependencies = new ArrayList<>();
-        for (ModelMetadata.HandlerMethod handler : handlerMethods) {
-            compileHandler(
-                    payload, handler, slots,
-                    deferredWrites, ancestorDependencies,
-                    explicitModelType);
-        }
-        List<SlotPlan> compiledSlots = slots.stream().map(MutableSlot::freeze).toList();
-        Map<MutableSlot, Integer> slotIndexes = new IdentityHashMap<>();
-        for (int i = 0; i < slots.size(); i++) {
-            slotIndexes.put(slots.get(i), i);
-        }
+            Collection<ModelMetadata.HandlerMethod> handlers) {
+        return compile(payloadType, handlers).validate(null, false);
+    }
+
+    /** Compiles one target accessor plan for a payload and its selected handlers. */
+    public static TargetPlan compile(
+            Class<?> payloadType,
+            Collection<ModelMetadata.HandlerMethod> handlers) {
+        Payload payload = Payload.of(Objects.requireNonNull(payloadType, "payloadType"));
+        List<Slot> slots = new ArrayList<>();
+        List<Deferred> deferred = new ArrayList<>();
+        Set<PlannedAncestor> ancestors = new LinkedHashSet<>();
+        Set<Class<?>> explicitTypes = new LinkedHashSet<>();
+        boolean[] dynamic = {false};
+        Objects.requireNonNull(handlers, "handlerMethods").forEach(handler -> {
+            compile(payload, handler, slots, deferred, ancestors);
+            if (handler.receiverModelType() != null) {
+                explicitTypes.add(handler.receiverModelType());
+            }
+            handler.modelParameters().forEach(parameter -> explicitTypes.add(parameter.modelType()));
+            explicitTypes.addAll(handler.targetModelTypes());
+            dynamic[0] |= handler.dynamicApplyResult();
+        });
         return new TargetPlan(
-                payloadType,
-                compiledSlots,
-                deferredWrites.stream()
-                        .map(write -> write.freeze(slotIndexes))
-                        .toList(),
-                List.copyOf(new LinkedHashSet<>(ancestorDependencies)));
+                payloadType, List.copyOf(slots), List.copyOf(deferred), List.copyOf(ancestors),
+                Set.copyOf(explicitTypes), dynamic[0]);
     }
 
-    /**
-     * Resolves the selected handlers against one payload using a freshly compiled plan.
-     * <p>
-     * Registration paths should retain the {@link TargetPlan} instead of using this convenience method repeatedly.
-     */
-    public static Resolution resolve(
-            Object payload, Collection<ModelMetadata.HandlerMethod> handlerMethods) {
-        Object value = payloadValue(payload);
-        if (value == null) {
-            throw new IllegalArgumentException("Cannot resolve model targets from a null payload");
+    private static void compile(
+            Payload payload,
+            ModelMetadata.HandlerMethod handler,
+            List<Slot> slots,
+            List<Deferred> deferred,
+            Set<PlannedAncestor> ancestors) {
+        String signature = handler.executable().toGenericString();
+        boolean apply = handler.kind() == ModelMetadata.HandlerKind.APPLY;
+        List<Slot> local = new ArrayList<>();
+        if (handler.receiverModelType() != null) {
+            local.add(new Slot(
+                    handler.receiverModelType(), payload.required(handler.receiverModelType(), signature),
+                    false, READ, signature, true, apply));
         }
-        return plan(value.getClass(), handlerMethods).resolve(value);
+        for (ModelMetadata.ModelParameter parameter : handler.modelParameters()) {
+            Property property = parameter.collectionWrapped()
+                    ? payload.collection(parameter.modelType(), parameter.associationProperty())
+                    : payload.direct(parameter.modelType(), parameter.associationProperty());
+            if (property != null) {
+                local.add(new Slot(
+                        parameter.modelType(), property, parameter.collectionWrapped(),
+                        READ, signature, false, apply));
+            } else if (parameter.collectionWrapped()) {
+                local.add(new Slot(
+                        parameter.modelType(), Property.missing(
+                                "Payload %s has no model ID collection property '%s' required by %s".formatted(
+                                payload.type.getName(), parameter.associationProperty(), signature)),
+                        true, READ, signature, false, apply));
+            } else {
+                ancestors.add(new PlannedAncestor(new AncestorDependency(
+                        parameter.modelType(), parameter.associationProperty(), signature), apply));
+            }
+        }
+        if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
+            if (handler.dynamicApplyResult()) {
+                local.forEach(slot -> slot.access |= WRITE);
+            }
+            handler.targetModelTypes().forEach(type -> writeSlot(payload, handler, type, local, deferred));
+        }
+        slots.addAll(local);
     }
 
-    /**
-     * Returns statically typed independent model types referenced by {@link Id} properties on a payload.
-     * <p>
-     * This supports receiver-side model handler discovery without traversing relationships or inspecting an ID value.
-     */
+    private static void writeSlot(
+            Payload payload,
+            ModelMetadata.HandlerMethod handler,
+            Class<?> type,
+            List<Slot> slots,
+            List<Deferred> deferred) {
+        String signature = handler.executable().toGenericString();
+        List<Slot> candidates = slots.stream().filter(slot -> slot.modelType.equals(type)).toList();
+        Slot receiver = candidates.stream().filter(slot -> slot.receiver).findFirst().orElse(null);
+        if (receiver != null || candidates.size() == 1) {
+            (receiver == null ? candidates.getFirst() : receiver).access |= WRITE;
+        } else if (candidates.isEmpty()) {
+            if (!handler.collectionApplyResult()) {
+                slots.add(new Slot(
+                        type, payload.required(type, signature), false, WRITE, signature, false, true));
+            }
+        } else {
+            Property exact = payload.exact(type);
+            Slot exactSlot = exact == null ? null : candidates.stream()
+                    .filter(slot -> slot.property.name.equals(exact.name)).findFirst().orElse(null);
+            if (exactSlot != null) {
+                exactSlot.access |= WRITE;
+            } else if (exact != null) {
+                slots.add(new Slot(type, exact, false, WRITE, signature, false, true));
+            } else {
+                deferred.add(new Deferred(type, candidates, signature, true));
+            }
+        }
+    }
+
+    /** Returns independent model types referenced by typed ID properties. */
     public static List<Class<?>> referencedModelTypes(Class<?> payloadType) {
-        Objects.requireNonNull(payloadType, "payloadType");
         LinkedHashSet<Class<?>> result = new LinkedHashSet<>();
-        PayloadMetadata.of(payloadType).properties.values().forEach(property ->
-                ModelMetadata.inferIdTarget(property.type, property.genericType)
-                        .filter(type -> ModelMetadata.of(type).isModel())
-                        .ifPresent(result::add));
+        Payload.of(payloadType).properties.values().forEach(property -> property.modelType()
+                .filter(type -> ModelMetadata.of(type).isModel()).ifPresent(result::add));
         return List.copyOf(result);
     }
 
-    /**
-     * Resolves one direct model ID from an arbitrary payload using the same rules as model-aware apply handlers.
-     * <p>
-     * This method deliberately does not traverse parent relations. An empty result means that the payload has no
-     * matching direct ID property for the requested model type.
-     */
-    static Optional<String> resolveDirectModelId(
-            Object payload, Class<?> modelType, String associationProperty) {
-        return Optional.ofNullable(resolveDirectModelReference(
-                payload, modelType, associationProperty).modelId());
-    }
-
     static DirectModelReference resolveDirectModelReference(
-            Object payload, Class<?> modelType, String associationProperty) {
-        Object value = payloadValue(payload);
-        if (value == null) {
-            return DirectModelReference.missing();
-        }
-        PayloadProperty property = PayloadMetadata.of(value.getClass())
-                .resolveIfDirect(modelType, associationProperty);
+            Object input,
+            Class<?> modelType,
+            String association) {
+        Object payload = payload(input);
+        Property property = payload == null ? null : Payload.of(payload.getClass()).direct(modelType, association);
         if (property == null) {
             return DirectModelReference.missing();
         }
-        Object idValue = property.read(value);
-        if (idValue == null) {
-            return new DirectModelReference(true, null);
-        }
+        Object id = property.read(payload);
         return new DirectModelReference(
-                true, repositoryId(idValue, modelType, property.name, null, value));
+                true, id == null ? null : repositoryId(id, modelType, property.name, null, payload));
     }
 
-    /**
-     * Resolves an ordered collection of direct model IDs from one explicitly associated payload property.
-     * Duplicate IDs remain present in the returned order; callers can deduplicate physical loads independently.
-     */
     static DirectModelReferences resolveDirectModelReferences(
-            Object payload, Class<?> modelType, String associationProperty) {
-        Object value = payloadValue(payload);
-        if (value == null) {
-            return DirectModelReferences.missing();
-        }
-        PayloadProperty property = PayloadMetadata.of(value.getClass())
-                .resolveCollectionIfDirect(modelType, associationProperty);
+            Object input,
+            Class<?> modelType,
+            String association) {
+        Object payload = payload(input);
+        Property property = payload == null ? null : Payload.of(payload.getClass()).collection(modelType, association);
         if (property == null) {
             return DirectModelReferences.missing();
         }
-        Object ids = property.read(value);
-        if (ids == null) {
+        return new DirectModelReferences(true, ids(property.read(payload), modelType, property.name, null, payload));
+    }
+
+    static DirectModelReference directReference(
+            DeserializingMessage message,
+            ModelMetadata.ModelParameter parameter) {
+        String association = parameter.associationProperty();
+        if (metadataContains(message, parameter)) {
+            Object value = message.getMetadata().get(association);
+            return new DirectModelReference(true, value == null ? null : value.toString());
+        }
+        return resolveDirectModelReference(message.getPayload(), parameter.modelType(), association);
+    }
+
+    static DirectModelReferences directReferences(
+            DeserializingMessage message,
+            ModelMetadata.ModelParameter parameter) {
+        String association = parameter.associationProperty();
+        if (!metadataContains(message, parameter)) {
+            return resolveDirectModelReferences(message.getPayload(), parameter.modelType(), association);
+        }
+        Object value = message.getMetadata().get(association);
+        if (value == null) {
             return new DirectModelReferences(true, List.of());
         }
-        if (!(ids instanceof Collection<?> collection)) {
-            throw new IllegalStateException(
-                    "Payload property %s.%s was expected to contain a model ID collection, but found %s"
-                            .formatted(value.getClass().getName(), property.name(), ids.getClass().getName()));
+        if (!(value instanceof Collection<?> collection)) {
+            throw new IllegalArgumentException(
+                    "Metadata property '%s' must contain a model ID collection, but found %s".formatted(
+                            association, value.getClass().getName()));
         }
-        List<String> modelIds = new ArrayList<>(collection.size());
-        int index = 0;
-        for (Object id : collection) {
+        List<String> result = new ArrayList<>(collection.size());
+        collection.forEach(id -> {
             if (id == null) {
                 throw new IllegalArgumentException(
-                        "Payload property %s.%s contains a null model ID at index %d"
-                                .formatted(value.getClass().getName(), property.name(), index));
+                        "Metadata property '%s' contains a null model ID".formatted(association));
             }
-            modelIds.add(repositoryId(id, modelType, property.name(), null, value));
-            index++;
+            result.add(id.toString());
+        });
+        return new DirectModelReferences(true, result);
+    }
+
+    private static boolean metadataContains(
+            DeserializingMessage message,
+            ModelMetadata.ModelParameter parameter) {
+        return parameter.associationProperty() != null && !parameter.associationExcludeMetadata()
+               && message.getMetadata() != null
+               && message.getMetadata().containsKey(parameter.associationProperty());
+    }
+
+    static Optional<Resolution> resolveDependencies(
+            DeserializingMessage message,
+            Executable executable,
+            Collection<ModelMetadata.ModelParameter> parameters) {
+        Map<String, ResolvedModel> targets = new LinkedHashMap<>();
+        Set<AncestorDependency> ancestors = new LinkedHashSet<>();
+        boolean emptyCollection = false;
+        for (ModelMetadata.ModelParameter parameter : parameters) {
+            if (parameter.collectionWrapped()) {
+                DirectModelReferences references = directReferences(message, parameter);
+                if (references.present()) {
+                    emptyCollection |= references.modelIds().isEmpty();
+                    references.modelIds().forEach(id -> merge(targets, new ResolvedModel(
+                            id, parameter.modelType(), Access.READ_ONLY,
+                            List.of(parameter.associationProperty()))));
+                }
+            } else {
+                DirectModelReference reference = directReference(message, parameter);
+                if (!reference.present()) {
+                    ancestors.add(new AncestorDependency(
+                            parameter.modelType(), parameter.associationProperty(), executable.toGenericString()));
+                } else if (reference.modelId() != null) {
+                    String source = parameter.associationProperty() == null
+                            ? ModelMetadata.of(parameter.modelType()).entityIdName()
+                            : parameter.associationProperty();
+                    merge(targets, new ResolvedModel(
+                            reference.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
+                }
+            }
         }
-        return new DirectModelReferences(true, List.copyOf(modelIds));
+        if (!ancestors.isEmpty()) {
+            resolveReferencedModels(message.getPayload()).forEach(target -> merge(targets, target));
+        }
+        return targets.isEmpty() && !emptyCollection ? Optional.empty()
+                : Optional.of(new Resolution(
+                        List.copyOf(targets.values()), List.of(), List.copyOf(ancestors)));
+    }
+
+    static List<ResolvedModel> resolveReferencedModels(Object input) {
+        Object payload = payload(input);
+        if (payload == null) {
+            return List.of();
+        }
+        Map<String, ResolvedModel> result = new LinkedHashMap<>();
+        Payload.of(payload.getClass()).properties.values().forEach(property -> property.modelType()
+                .filter(type -> ModelMetadata.of(type).isModel()).ifPresent(type -> {
+                    Object id = property.read(payload);
+                    if (id != null) {
+                        merge(result, new ResolvedModel(
+                                repositoryId(id, type, property.name, null, payload),
+                                type, Access.READ_ONLY, List.of(property.name)));
+                    }
+                }));
+        return List.copyOf(result.values());
+    }
+
+    /** Merges access to one identity and rejects incompatible global-ID claims. */
+    public static void merge(Map<String, ResolvedModel> targets, ResolvedModel addition) {
+        targets.merge(addition.modelId(), addition, ResolvedModel::merge);
+    }
+
+    /** Precompiled target-ID readers for one payload type. */
+    public static final class TargetPlan {
+        private final Class<?> payloadType;
+        private final List<Slot> slots;
+        private final List<Deferred> deferred;
+        private final List<PlannedAncestor> ancestors;
+        private final Set<Class<?>> explicitTypes;
+        private final boolean dynamic;
+
+        private TargetPlan(
+                Class<?> payloadType,
+                List<Slot> slots,
+                List<Deferred> deferred,
+                List<PlannedAncestor> ancestors,
+                Set<Class<?>> explicitTypes,
+                boolean dynamic) {
+            this.payloadType = payloadType;
+            this.slots = slots;
+            this.deferred = deferred;
+            this.ancestors = ancestors;
+            this.explicitTypes = explicitTypes;
+            this.dynamic = dynamic;
+        }
+
+        public Class<?> payloadType() {
+            return payloadType;
+        }
+
+        boolean isDirectSingleTarget() {
+            return slots.size() == 1 && !slots.getFirst().collection
+                   && deferred.isEmpty() && ancestors.isEmpty();
+        }
+
+        String resolveSingleModelId(Object input) {
+            Object value = checkedPayload(input);
+            Slot slot = slots.getFirst();
+            Object id = slot.property.read(value);
+            if (id == null) {
+                throw nullId(slot);
+            }
+            return repositoryId(id, slot, value);
+        }
+
+        Class<?> singleModelType() {
+            return slots.getFirst().modelType;
+        }
+
+        Access singleAccess() {
+            return Access.from(slots.getFirst().access);
+        }
+
+        List<String> singleSourceProperties() {
+            return List.of(slots.getFirst().property.name);
+        }
+
+        public Resolution resolve(Object input) {
+            return resolve(input, null, false);
+        }
+
+        Resolution resolve(Object input, Class<?> explicitType) {
+            return resolve(input, explicitType, false);
+        }
+
+        Resolution resolve(Object input, Class<?> explicitType, boolean appliesOnly) {
+            return resolve(input, null, explicitType, appliesOnly);
+        }
+
+        Resolution resolve(
+                Object input,
+                String explicitId,
+                Class<?> explicitType,
+                boolean appliesOnly) {
+            validate(explicitType, appliesOnly);
+            Object payload = checkedPayload(input);
+            Map<String, ResolvedModel> result = new LinkedHashMap<>();
+            Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
+            for (Slot slot : slots) {
+                if (appliesOnly && !slot.apply || compatible(slot.modelType, explicitType)) {
+                    continue;
+                }
+                Object raw = slot.property.read(payload);
+                if (raw == null && !slot.collection) {
+                    throw nullId(slot);
+                }
+                List<String> ids = slot.collection
+                        ? ids(raw, slot.modelType, slot.property.name, slot.handler, payload)
+                        : List.of(repositoryId(raw, slot, payload));
+                if (!deferred.isEmpty()) {
+                    slotIds.put(slot, ids);
+                }
+                ids.forEach(id -> merge(result, new ResolvedModel(
+                        id, slot.modelType, Access.from(slot.access), List.of(slot.property.name))));
+            }
+            List<DeferredWriteTarget> unresolved = new ArrayList<>();
+            for (Deferred target : deferred) {
+                if (appliesOnly && !target.apply || compatible(target.modelType, explicitType)) {
+                    continue;
+                }
+                Set<String> candidates = new LinkedHashSet<>();
+                target.candidates.forEach(slot -> candidates.addAll(slotIds.get(slot)));
+                if (candidates.size() == 1) {
+                    merge(result, new ResolvedModel(
+                            candidates.iterator().next(), target.modelType, Access.WRITE_ONLY, List.of()));
+                } else {
+                    unresolved.add(new DeferredWriteTarget(
+                            target.modelType, List.copyOf(candidates), target.handler));
+                }
+            }
+            if (explicitId != null && (dynamic || explicitTypes.stream()
+                    .anyMatch(type -> compatible(type, explicitType)))) {
+                List<String> sources = slots.stream()
+                        .filter(slot -> !slot.receiver && compatible(slot.modelType, explicitType))
+                        .map(slot -> slot.property.name).filter(Objects::nonNull).distinct().toList();
+                merge(result, new ResolvedModel(
+                        explicitId, explicitType, Access.READ_WRITE, sources));
+            }
+            return new Resolution(
+                    List.copyOf(result.values()), unresolved,
+                    ancestors.stream()
+                            .filter(dependency -> !appliesOnly || dependency.apply)
+                            .map(PlannedAncestor::dependency)
+                            .filter(dependency -> !compatible(dependency.modelType(), explicitType)).toList());
+        }
+
+        private Object checkedPayload(Object input) {
+            Object value = payload(input);
+            if (value == null || !payloadType.isInstance(value)) {
+                throw new IllegalArgumentException("Expected payload of type %s but got %s".formatted(
+                        payloadType.getName(), value == null ? "null" : value.getClass().getName()));
+            }
+            return value;
+        }
+
+        private TargetPlan validate(Class<?> explicitType, boolean appliesOnly) {
+            slots.stream().filter(slot -> !appliesOnly || slot.apply)
+                    .filter(slot -> !compatible(slot.modelType, explicitType))
+                    .map(slot -> slot.property).filter(Property::missing).findFirst().ifPresent(property -> {
+                        throw new IllegalStateException(property.error);
+                    });
+            return this;
+        }
     }
 
     record DirectModelReference(boolean present, String modelId) {
@@ -217,385 +454,12 @@ public final class ModelTargetResolver {
         }
     }
 
-    /**
-     * Resolves every statically typed independent-model ID carried by a payload.
-     * <p>
-     * Message-handler parameter injection uses these values only as graph anchors when a selected handler requests an
-     * ancestor without also declaring the addressed descendant as a parameter.
-     */
-    static List<ResolvedModel> resolveReferencedModels(
-            Object payload) {
-        Object value = payloadValue(payload);
-        if (value == null) {
-            return List.of();
-        }
-        PayloadMetadata metadata =
-                PayloadMetadata.of(value.getClass());
-        LinkedHashMap<String, ResolvedModel> resolved =
-                new LinkedHashMap<>();
-        for (PayloadProperty property :
-                metadata.properties.values()) {
-            Optional<Class<?>> modelType =
-                    ModelMetadata.inferIdTarget(
-                                    property.type,
-                                    property.genericType)
-                            .filter(type ->
-                                            ModelMetadata.of(type)
-                                                    .isModel());
-            if (modelType.isEmpty()) {
-                continue;
-            }
-            PayloadProperty readable =
-                    property.withReader(
-                            metadata.typeMetadata.getter(
-                                    property.name));
-            Object idValue = readable.read(value);
-            if (idValue == null) {
-                continue;
-            }
-            String modelId = repositoryId(idValue, modelType.get(), property.name, null, value);
-            merge(resolved, new ResolvedModel(
-                    modelId, modelType.get(), Access.READ_ONLY, List.of(property.name)));
-        }
-        return List.copyOf(resolved.values());
-    }
-
-    /**
-     * Merges one resolved identity into an insertion-ordered target map.
-     * <p>
-     * All model-aware handler paths use this operation so compatible type narrowing, access widening and source
-     * qualifiers cannot diverge between commands, regular message handlers and ancestor resolution.
-     */
-    public static void merge(
-            Map<String, ResolvedModel> targets, ResolvedModel addition) {
-        targets.merge(addition.modelId(), addition, ResolvedModel::merge);
-    }
-
-    private static void compileHandler(
-            PayloadMetadata payload,
-            ModelMetadata.HandlerMethod handler,
-            List<MutableSlot> allSlots,
-            List<MutableDeferredWrite> allDeferredWrites,
-            List<AncestorDependency> allAncestorDependencies,
-            Class<?> explicitModelType) {
-        List<MutableSlot> handlerSlots = new ArrayList<>();
-        if (handler.receiverModelType() != null
-            && !compatible(handler.receiverModelType(), explicitModelType)) {
-            handlerSlots.add(new MutableSlot(
-                    handler.receiverModelType(), Source.RECEIVER,
-                    payload.resolve(handler.receiverModelType(), null, false),
-                    false, READ, handler.executable().toGenericString()));
-        }
-        for (ModelMetadata.ModelParameter parameter : handler.modelParameters()) {
-            if (compatible(parameter.modelType(), explicitModelType)) {
-                continue;
-            }
-            PayloadProperty direct = parameter.collectionWrapped()
-                    ? payload.resolveCollectionIfDirect(
-                            parameter.modelType(), parameter.associationProperty())
-                    : payload.resolveIfDirect(
-                            parameter.modelType(), parameter.associationProperty());
-            if (direct == null) {
-                if (parameter.collectionWrapped()) {
-                    throw new IllegalStateException(
-                            "Payload %s has no model ID collection property '%s' required by %s"
-                                    .formatted(payload.payloadType.getName(), parameter.associationProperty(),
-                                               handler.executable().toGenericString()));
-                }
-                allAncestorDependencies.add(
-                        new AncestorDependency(
-                                parameter.modelType(),
-                                parameter.associationProperty(),
-                                handler.executable()
-                                        .toGenericString()));
-            } else {
-                handlerSlots.add(new MutableSlot(
-                        parameter.modelType(), Source.PARAMETER,
-                        direct, parameter.collectionWrapped(), READ,
-                        handler.executable().toGenericString()));
-            }
-        }
-
-        if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
-            if (handler.dynamicApplyResult()) {
-                /*
-                 * Object-returning applies deliberately choose their concrete model targets at runtime. Every
-                 * explicitly injected model is therefore a possible update target; values not present in this
-                 * context are validated as new models by the evaluator.
-                 */
-                handlerSlots.forEach(slot -> slot.access |= WRITE);
-            }
-            for (Class<?> targetType : handler.targetModelTypes()) {
-                if (compatible(targetType, explicitModelType)) {
-                    continue;
-                }
-                MutableSlot receiver = handlerSlots.stream()
-                        .filter(slot -> slot.source == Source.RECEIVER && slot.modelType.equals(targetType))
-                        .findFirst().orElse(null);
-                if (receiver != null) {
-                    receiver.access |= WRITE;
-                    continue;
-                }
-                List<MutableSlot> matchingParameters = handlerSlots.stream()
-                        .filter(slot -> slot.source == Source.PARAMETER && slot.modelType.equals(targetType))
-                        .toList();
-                if (matchingParameters.size() == 1) {
-                    matchingParameters.getFirst().access |= WRITE;
-                    continue;
-                }
-                if (matchingParameters.isEmpty()) {
-                    if (handler.collectionApplyResult()) {
-                        /*
-                         * A collection apply may consist entirely of newly created models. Unlike a scalar apply it
-                         * has no single payload identity that can be resolved before invocation.
-                         */
-                        continue;
-                    }
-                    handlerSlots.add(new MutableSlot(
-                            targetType, Source.RETURN_TARGET, payload.resolve(targetType, null, false),
-                            false, WRITE, handler.executable().toGenericString()));
-                    continue;
-                }
-
-                PayloadProperty exactTarget = payload.resolve(targetType, null, true);
-                if (exactTarget != null) {
-                    MutableSlot existing = matchingParameters.stream()
-                            .filter(slot -> slot.property.name.equals(exactTarget.name))
-                            .findFirst().orElse(null);
-                    if (existing == null) {
-                        handlerSlots.add(new MutableSlot(
-                                targetType, Source.RETURN_TARGET, exactTarget, false, WRITE,
-                                handler.executable().toGenericString()));
-                    } else {
-                        existing.access |= WRITE;
-                    }
-                } else {
-                    allDeferredWrites.add(new MutableDeferredWrite(
-                            targetType, matchingParameters, handler.executable().toGenericString()));
-                }
-            }
-        }
-        allSlots.addAll(handlerSlots);
-    }
-
-    private static boolean compatible(
-            Class<?> candidate,
-            Class<?> explicitModelType) {
-        return explicitModelType != null
-               && (candidate.isAssignableFrom(explicitModelType)
-                   || explicitModelType.isAssignableFrom(candidate));
-    }
-
-    private static Object payloadValue(Object payload) {
-        return payload instanceof HasMessage message ? message.getPayload() : payload;
-    }
-
-    /**
-     * Precompiled target-ID readers for one payload type and a selected set of handlers.
-     */
-    public static final class TargetPlan {
-        private final Class<?> payloadType;
-        private final List<SlotPlan> slots;
-        private final List<DeferredWritePlan> deferredWrites;
-        private final List<AncestorDependency> ancestorDependencies;
-        private final List<String> singleSourceProperties;
-
-        private TargetPlan(
-                Class<?> payloadType,
-                List<SlotPlan> slots,
-                List<DeferredWritePlan> deferredWrites,
-                List<AncestorDependency> ancestorDependencies) {
-            this.payloadType = payloadType;
-            this.slots = List.copyOf(slots);
-            this.deferredWrites = List.copyOf(deferredWrites);
-            this.ancestorDependencies =
-                    List.copyOf(ancestorDependencies);
-            this.singleSourceProperties = this.slots.size() == 1
-                    ? List.of(this.slots.getFirst().property.name) : List.of();
-        }
-
-        /**
-         * Payload type for which this plan was compiled.
-         */
-        public Class<?> payloadType() {
-            return payloadType;
-        }
-
-        boolean isDirectSingleTarget() {
-            return slots.size() == 1
-                   && !slots.getFirst().collection
-                   && deferredWrites.isEmpty()
-                   && ancestorDependencies.isEmpty();
-        }
-
-        String resolveSingleModelId(Object payload) {
-            if (!isDirectSingleTarget()) {
-                throw new IllegalStateException(
-                        "Target plan is not a direct single-target plan");
-            }
-            Object value = payloadValue(payload);
-            if (value == null || !payloadType.isInstance(value)) {
-                throw new IllegalArgumentException(
-                        "Expected payload of type %s but got %s".formatted(
-                                payloadType.getName(),
-                                value == null ? "null" : value.getClass().getName()));
-            }
-            SlotPlan slot = slots.getFirst();
-            Object idValue = slot.property.read(value);
-            if (idValue == null) {
-                throw nullId(slot);
-            }
-            return modelId(idValue, slot, value);
-        }
-
-        Class<?> singleModelType() {
-            return slots.getFirst().modelType;
-        }
-
-        Access singleAccess() {
-            return Access.from(slots.getFirst().access);
-        }
-
-        List<String> singleSourceProperties() {
-            return singleSourceProperties;
-        }
-
-        /**
-         * Resolves and deduplicates every required model load.
-         */
-        public Resolution resolve(Object payload) {
-            Object value = payloadValue(payload);
-            if (value == null || !payloadType.isInstance(value)) {
-                throw new IllegalArgumentException(
-                        "Expected payload of type %s but got %s".formatted(
-                                payloadType.getName(), value == null ? "null" : value.getClass().getName()));
-            }
-            if (slots.size() == 1 && !slots.getFirst().collection && deferredWrites.isEmpty()) {
-                SlotPlan slot = slots.getFirst();
-                Object idValue = slot.property.read(value);
-                if (idValue == null) {
-                    throw nullId(slot);
-                }
-                return new Resolution(
-                        List.of(new ResolvedModel(
-                                modelId(idValue, slot, value), slot.modelType, Access.from(slot.access),
-                                List.of(slot.property.name))),
-                        List.of(), ancestorDependencies);
-            }
-
-            LinkedHashMap<String, ResolvedModel> resolved =
-                    new LinkedHashMap<>(slots.size());
-            @SuppressWarnings("unchecked")
-            List<String>[] idsBySlot = deferredWrites.isEmpty() ? null : new List[slots.size()];
-            for (int i = 0; i < slots.size(); i++) {
-                SlotPlan slot = slots.get(i);
-                Object idValue = slot.property.read(value);
-                if (idValue == null && !slot.collection) {
-                    throw nullId(slot);
-                }
-                List<String> modelIds = slot.collection
-                        ? modelIds(idValue, slot, value)
-                        : List.of(modelId(idValue, slot, value));
-                if (idsBySlot != null) {
-                    idsBySlot[i] = modelIds;
-                }
-                for (String modelId : modelIds) {
-                    merge(resolved, new ResolvedModel(
-                            modelId, slot.modelType, Access.from(slot.access),
-                            List.of(slot.property.name)));
-                }
-            }
-
-            List<DeferredWriteTarget> unresolvedWrites = new ArrayList<>();
-            for (DeferredWritePlan deferred : deferredWrites) {
-                List<String> candidateIds = new ArrayList<>(deferred.candidateSlotIndexes.size());
-                for (Integer index : deferred.candidateSlotIndexes) {
-                    for (String id : idsBySlot[index]) {
-                        if (!candidateIds.contains(id)) {
-                            candidateIds.add(id);
-                        }
-                    }
-                }
-                if (candidateIds.size() == 1) {
-                    String modelId = candidateIds.getFirst();
-                    merge(resolved, new ResolvedModel(
-                            modelId, deferred.modelType, Access.WRITE_ONLY, List.of()));
-                } else {
-                    unresolvedWrites.add(new DeferredWriteTarget(
-                            deferred.modelType, List.copyOf(candidateIds), deferred.handler));
-                }
-            }
-            return new Resolution(
-                    List.copyOf(resolved.values()),
-                    unresolvedWrites,
-                    ancestorDependencies);
-        }
-
-        private static IllegalArgumentException nullId(SlotPlan slot) {
-            return new IllegalArgumentException(
-                    "Payload property '%s' resolved to null for %s model required by %s"
-                            .formatted(slot.property.name, slot.modelType.getName(), slot.handler));
-        }
-
-        private static String modelId(Object idValue, SlotPlan slot, Object source) {
-            return repositoryId(
-                    idValue, slot.metadata, slot.modelType,
-                    slot.property.name, slot.handler, source);
-        }
-
-        private static List<String> modelIds(Object idValue, SlotPlan slot, Object source) {
-            if (idValue == null) {
-                return List.of();
-            }
-            if (!(idValue instanceof Collection<?> values)) {
-                throw new IllegalArgumentException(
-                        "Payload property '%s' required by %s must contain a model ID collection"
-                                .formatted(slot.property.name, slot.handler));
-            }
-            List<String> result = new ArrayList<>(values.size());
-            int index = 0;
-            for (Object value : values) {
-                if (value == null) {
-                    throw new IllegalArgumentException(
-                            "Payload property '%s' required by %s contains a null model ID at index %d"
-                                    .formatted(slot.property.name, slot.handler, index));
-                }
-                result.add(modelId(value, slot, source));
-                index++;
-            }
-            return List.copyOf(result);
-        }
-    }
-
-    private static String repositoryId(
-            Object idValue, Class<?> modelType, String property, String handler, Object source) {
-        return repositoryId(idValue, ModelMetadata.of(modelType), modelType, property, handler, source);
-    }
-
-    private static String repositoryId(
-            Object idValue, ModelMetadata metadata, Class<?> modelType, String property, String handler,
-            Object source) {
-        try {
-            return metadata.parentScopedEntityId()
-                    ? metadata.repositoryId(idValue, source)
-                    : metadata.repositoryId(idValue);
-        } catch (RuntimeException e) {
-            String requirement = handler == null ? "" : " required by " + handler;
-            throw new IllegalArgumentException(
-                    "Payload property '%s' has an invalid ID for %s model%s"
-                            .formatted(property, modelType.getName(), requirement), e);
-        }
-    }
-
-    /**
-     * One direct model load required by the selected handlers.
-     *
-     * @param modelId          exact persisted model key
-     * @param access           whether the model is read and/or may be written
-     * @param sourceProperties payload properties that resolved to this identity
-     */
+    /** One direct model load required by the selected handlers. */
     public record ResolvedModel(
-            String modelId, Class<?> modelType, Access access, List<String> sourceProperties) {
+            String modelId,
+            Class<?> modelType,
+            Access access,
+            List<String> sourceProperties) {
         public ResolvedModel {
             Objects.requireNonNull(modelId, "modelId");
             Objects.requireNonNull(modelType, "modelType");
@@ -603,30 +467,21 @@ public final class ModelTargetResolver {
             sourceProperties = List.copyOf(sourceProperties);
         }
 
-        private ResolvedModel merge(ResolvedModel addition) {
-            if (!modelType.isAssignableFrom(addition.modelType)
-                && !addition.modelType.isAssignableFrom(modelType)) {
+        private ResolvedModel merge(ResolvedModel other) {
+            if (!compatible(modelType, other.modelType)) {
                 throw new IllegalStateException(
-                        "Model ID '%s' is requested as incompatible types %s and %s"
-                                .formatted(modelId, modelType.getName(), addition.modelType.getName()));
+                        "Model ID '%s' is requested as incompatible types %s and %s".formatted(
+                                modelId, modelType.getName(), other.modelType.getName()));
             }
-            LinkedHashSet<String> sources = new LinkedHashSet<>(sourceProperties);
-            sources.addAll(addition.sourceProperties);
+            Set<String> sources = new LinkedHashSet<>(sourceProperties);
+            sources.addAll(other.sourceProperties);
             return new ResolvedModel(
-                    modelId,
-                    modelType.isAssignableFrom(addition.modelType) ? addition.modelType : modelType,
-                    access.merge(addition.access),
-                    List.copyOf(sources));
+                    modelId, modelType.isAssignableFrom(other.modelType) ? other.modelType : modelType,
+                    access.merge(other.access), List.copyOf(sources));
         }
     }
 
-    /**
-     * Read-only model dependency resolved by following temporal parent relations from the direct commit targets.
-     *
-     * @param modelType   required ancestor model type
-     * @param association optional explicit {@link ParentId#path()} qualifier
-     * @param handler     handler signature used in actionable resolution failures
-     */
+    /** Read-only dependency resolved through temporal parent relations. */
     public record AncestorDependency(Class<?> modelType, String association, String handler) {
         public AncestorDependency {
             Objects.requireNonNull(modelType, "modelType");
@@ -634,14 +489,7 @@ public final class ModelTargetResolver {
         }
     }
 
-    /**
-     * Resolution result containing deduplicated direct model loads and read-only ancestor dependencies.
-     * <p>
-     * A deferred write occurs only when an external apply has multiple qualified parameters of its return model type
-     * and no canonical entity-ID property. All candidates are still direct, preloaded IDs. A non-null apply result
-     * selects one by its returned {@link EntityId}; returning {@code null} is invalid until the write target is
-     * otherwise disambiguated.
-     */
+    /** Resolved direct targets, deferred writes and ancestor dependencies. */
     public record Resolution(
             List<ResolvedModel> models,
             List<DeferredWriteTarget> deferredWrites,
@@ -656,37 +504,28 @@ public final class ModelTargetResolver {
             ancestorDependencies = List.copyOf(ancestorDependencies);
         }
 
-        /**
-         * Whether this resolution still requires a temporal ancestor graph lookup.
-         */
         public boolean hasAncestorDependencies() {
             return !ancestorDependencies.isEmpty();
         }
 
-        /**
-         * Replaces the load targets after ancestor resolution while preserving deferred write selection.
-         */
         public Resolution withResolvedModels(List<ResolvedModel> resolvedModels) {
             return new Resolution(resolvedModels, deferredWrites, List.of());
         }
     }
 
-    /**
-     * Return target that is selected from preloaded candidates after an apply result is available.
-     */
-    public record DeferredWriteTarget(Class<?> modelType, List<String> candidateModelIds, String handler) {
+    /** Runtime-selected write target among already loaded candidates. */
+    public record DeferredWriteTarget(
+            Class<?> modelType,
+            List<String> candidateModelIds,
+            String handler) {
         public DeferredWriteTarget {
             candidateModelIds = List.copyOf(candidateModelIds);
         }
     }
 
-    /**
-     * State access required from a resolved model.
-     */
+    /** Required state access for one resolved model. */
     public enum Access {
-        READ_ONLY(true, false),
-        WRITE_ONLY(false, true),
-        READ_WRITE(true, true);
+        READ_ONLY(true, false), WRITE_ONLY(false, true), READ_WRITE(true, true);
 
         private final boolean read;
         private final boolean write;
@@ -718,202 +557,242 @@ public final class ModelTargetResolver {
         }
     }
 
-    private enum Source {
-        RECEIVER,
-        PARAMETER,
-        RETURN_TARGET
-    }
-
-    private record SlotPlan(
-            Class<?> modelType, ModelMetadata metadata,
-            PayloadProperty property, boolean collection, int access, String handler) {
-    }
-
-    private record DeferredWritePlan(Class<?> modelType, List<Integer> candidateSlotIndexes, String handler) {
-        private DeferredWritePlan {
-            candidateSlotIndexes = List.copyOf(candidateSlotIndexes);
-        }
-    }
-
-    private static final class MutableSlot {
+    private static final class Slot {
         private final Class<?> modelType;
-        private final Source source;
-        private final PayloadProperty property;
+        private final ModelMetadata metadata;
+        private final Property property;
         private final boolean collection;
-        private int access;
         private final String handler;
+        private final boolean receiver;
+        private final boolean apply;
+        private int access;
 
-        private MutableSlot(
-                Class<?> modelType, Source source, PayloadProperty property, boolean collection,
-                int access, String handler) {
-            this.modelType = modelType;
-            this.source = source;
+        private Slot(
+                Class<?> requestedType,
+                Property property,
+                boolean collection,
+                int access,
+                String handler,
+                boolean receiver,
+                boolean apply) {
+            this.modelType = collection || property.missing() ? requestedType
+                    : property.modelType().filter(requestedType::isAssignableFrom)
+                            .filter(type -> ModelMetadata.of(type).isModel()).orElse(requestedType);
+            this.metadata = ModelMetadata.of(modelType);
             this.property = property;
             this.collection = collection;
             this.access = access;
             this.handler = handler;
-        }
-
-        private SlotPlan freeze() {
-            Class<?> effectiveType = collection ? modelType
-                    : ModelMetadata.inferIdTarget(property.type, property.genericType)
-                            .filter(modelType::isAssignableFrom)
-                            .filter(type -> ModelMetadata.of(type).isModel())
-                            .orElse(modelType);
-            return new SlotPlan(
-                    effectiveType, ModelMetadata.of(effectiveType),
-                    property, collection, access, handler);
+            this.receiver = receiver;
+            this.apply = apply;
         }
     }
 
-    private record MutableDeferredWrite(Class<?> modelType, List<MutableSlot> candidates, String handler) {
-        private DeferredWritePlan freeze(Map<MutableSlot, Integer> slotIndexes) {
-            return new DeferredWritePlan(
-                    modelType, candidates.stream().map(slotIndexes::get).toList(), handler);
+    private record Deferred(Class<?> modelType, List<Slot> candidates, String handler, boolean apply) {
+        private Deferred {
+            candidates = List.copyOf(candidates);
         }
     }
 
-    private record PayloadProperty(
-            String name, Class<?> type, Type genericType, Function<Object, Object> reader) {
-        private PayloadProperty withReader(Function<Object, Object> reader) {
-            return new PayloadProperty(name, type, genericType, reader);
+    private record PlannedAncestor(AncestorDependency dependency, boolean apply) {
+    }
+
+    private record Property(
+            String name,
+            Class<?> type,
+            Type genericType,
+            Function<Object, Object> reader,
+            String error) {
+        private static Property missing(String error) {
+            return new Property(null, null, null, null, error);
         }
 
-        private Object read(Object payload) {
-            return reader.apply(payload);
+        private boolean missing() {
+            return error != null;
+        }
+
+        private Optional<Class<?>> modelType() {
+            return missing() ? Optional.empty() : ModelMetadata.inferIdTarget(type, genericType);
+        }
+
+        private Object read(Object target) {
+            return reader.apply(target);
         }
     }
 
-    private static final class PayloadMetadata {
-        private final Class<?> payloadType;
-        private final ReflectionUtils.TypeMetadata typeMetadata;
-        private final Map<String, PayloadProperty> properties;
+    private static final class Payload {
+        private final Class<?> type;
+        private final Map<String, Property> properties;
 
-        private static PayloadMetadata of(Class<?> payloadType) {
-            return ReflectionUtils.getTypeMetadata(payloadType)
-                    .specializedMetadata(PayloadMetadata.class, PayloadMetadata::new);
+        private static Payload of(Class<?> type) {
+            return ReflectionUtils.getTypeMetadata(type).specializedMetadata(Payload.class, Payload::new);
         }
 
-        private PayloadMetadata(Class<?> payloadType) {
-            this.payloadType = payloadType;
-            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(payloadType);
-            this.typeMetadata = metadata;
-            LinkedHashMap<String, AccessibleObject> members = new LinkedHashMap<>();
-            metadata.fields().stream()
-                    .filter(not(Field::isSynthetic))
+        private Payload(Class<?> type) {
+            this.type = type;
+            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(type);
+            Map<String, AccessibleObject> members = new LinkedHashMap<>();
+            metadata.fields().stream().filter(field -> !field.isSynthetic())
                     .filter(field -> !Modifier.isStatic(field.getModifiers()))
                     .forEach(field -> members.putIfAbsent(field.getName(), field));
-            metadata.methods().stream()
-                    .filter(not(Method::isSynthetic))
-                    .filter(not(Method::isBridge))
+            metadata.methods().stream().filter(method -> !method.isSynthetic() && !method.isBridge())
                     .filter(method -> !Object.class.equals(method.getDeclaringClass()))
-                    .filter(method -> !Modifier.isStatic(method.getModifiers()))
-                    .filter(method -> method.getParameterCount() == 0)
-                    .filter(method -> !void.class.equals(method.getReturnType()))
-                    .filter(method -> !method.getName().equals("getClass"))
+                    .filter(method -> !Modifier.isStatic(method.getModifiers())
+                                      && method.getParameterCount() == 0
+                                      && !void.class.equals(method.getReturnType())
+                                      && !method.getName().equals("getClass"))
                     .forEach(method -> members.putIfAbsent(getPropertyName(method), method));
-            LinkedHashMap<String, PayloadProperty> properties = new LinkedHashMap<>();
-            members.forEach((name, member) -> properties.put(name, new PayloadProperty(
-                    name, getPropertyType(member), getGenericPropertyType(member), null)));
-            this.properties = Collections.unmodifiableMap(properties);
+            Map<String, Property> result = new LinkedHashMap<>();
+            members.forEach((name, member) -> result.put(name, new Property(
+                    name, getPropertyType(member), getGenericPropertyType(member), metadata.getter(name), null)));
+            properties = Collections.unmodifiableMap(result);
         }
 
-        private PayloadProperty resolve(Class<?> modelType, String explicitProperty, boolean exactOnly) {
-            if (exactOnly && explicitProperty == null) {
-                ModelMetadata model = ModelMetadata.validate(modelType);
-                if (!model.isModel()) {
-                    throw new IllegalStateException(
-                            "Handler dependency %s is not annotated with @Model"
-                                    .formatted(modelType.getName()));
-                }
-                String entityIdProperty = model.entityId().orElseThrow().name();
-                PayloadProperty exact = properties.get(entityIdProperty);
-                return exact == null ? null : requireScalar(exact.name, modelType);
+        private Property required(Class<?> modelType, String handler) {
+            Property result = direct(modelType, null);
+            if (result != null) {
+                return result;
             }
-            PayloadProperty direct = resolveIfDirect(modelType, explicitProperty);
-            if (direct != null || exactOnly) {
-                return direct;
-            }
-            ModelMetadata model = ModelMetadata.validate(modelType);
-            String entityIdProperty = model.entityId().orElseThrow().name();
-            throw new IllegalStateException(
-                    "Payload %s has no property named '%s' and no uniquely typed Id<%s> for model %s. "
-                            .formatted(payloadType.getName(), entityIdProperty, modelType.getSimpleName(),
-                                       modelType.getName())
+            String id = ModelMetadata.validate(modelType).entityIdName();
+            return Property.missing(
+                    "Payload %s has no property named '%s' and no uniquely typed Id<%s> for model %s. ".formatted(
+                            type.getName(), id, modelType.getSimpleName(), modelType.getName())
                     + "Add the direct target ID or qualify the model parameter with "
-                    + "@Association(\"payloadProperty\").");
+                    + "@Association(\"payloadProperty\"). Required by " + handler);
         }
 
-        private PayloadProperty resolveIfDirect(Class<?> modelType, String explicitProperty) {
-            ModelMetadata model = ModelMetadata.validate(modelType);
-            if (!model.isModel()) {
-                throw new IllegalStateException(
-                        "Handler dependency %s is not annotated with @Model".formatted(modelType.getName()));
+        private Property direct(Class<?> modelType, String association) {
+            ModelMetadata model = validated(modelType);
+            if (association != null) {
+                return scalar(properties.get(association));
             }
-            String entityIdProperty = model.entityId().orElseThrow().name();
-            if (explicitProperty != null) {
-                return properties.containsKey(explicitProperty)
-                        ? requireScalar(explicitProperty, modelType) : null;
-            }
-            PayloadProperty exact = properties.get(entityIdProperty);
+            Property exact = properties.get(model.entityIdName());
             if (exact != null) {
-                return requireScalar(exact.name, modelType);
+                return scalar(exact);
             }
-            List<PayloadProperty> typedCandidates = properties.values().stream()
-                    .filter(property -> ModelMetadata.inferIdTarget(property.type, property.genericType)
-                            .filter(modelType::equals).isPresent())
-                    .toList();
-            if (typedCandidates.size() == 1) {
-                PayloadProperty result = typedCandidates.getFirst();
-                return result.withReader(typeMetadata.getter(result.name));
-            }
-            if (typedCandidates.isEmpty()) {
-                return null;
+            List<Property> typed = properties.values().stream()
+                    .filter(property -> property.modelType().filter(modelType::equals).isPresent()).toList();
+            if (typed.size() < 2) {
+                return typed.isEmpty() ? null : typed.getFirst();
             }
             throw new IllegalStateException(
-                    "Payload %s has ambiguous Id<%s> properties %s for model %s. "
-                            .formatted(payloadType.getName(), modelType.getSimpleName(),
-                                       typedCandidates.stream().map(PayloadProperty::name).toList(),
-                                       modelType.getName())
+                    "Payload %s has ambiguous Id<%s> properties %s for model %s. ".formatted(
+                            type.getName(), modelType.getSimpleName(),
+                            typed.stream().map(Property::name).toList(), modelType.getName())
                     + "Qualify the model parameter with @Association(\"payloadProperty\").");
         }
 
-        private PayloadProperty resolveCollectionIfDirect(
-                Class<?> modelType, String explicitProperty) {
-            ModelMetadata model = ModelMetadata.validate(modelType);
-            if (!model.isModel()) {
-                throw new IllegalStateException(
-                        "Handler dependency %s is not annotated with @Model".formatted(modelType.getName()));
-            }
-            if (explicitProperty == null) {
-                return null;
-            }
-            PayloadProperty result = properties.get(explicitProperty);
-            if (result == null) {
-                return null;
-            }
-            if (!Collection.class.isAssignableFrom(result.type)) {
-                throw new IllegalStateException(
-                        "Payload property %s.%s must contain an ordered model ID collection, but has type %s"
-                                .formatted(payloadType.getName(), explicitProperty, result.type.getTypeName()));
-            }
-            return result.withReader(typeMetadata.getter(result.name));
+        private Property exact(Class<?> modelType) {
+            Property result = properties.get(validated(modelType).entityIdName());
+            return scalar(result);
         }
 
-        private PayloadProperty requireScalar(String propertyName, Class<?> modelType) {
-            PayloadProperty result = properties.get(propertyName);
-            if (result == null) {
+        private Property collection(Class<?> modelType, String association) {
+            validated(modelType);
+            Property result = association == null ? null : properties.get(association);
+            if (result != null && !Collection.class.isAssignableFrom(result.type)) {
                 throw new IllegalStateException(
-                        "Payload %s has no property '%s' required for model %s"
-                                .formatted(payloadType.getName(), propertyName, modelType.getName()));
+                        "Payload property %s.%s must contain an ordered model ID collection, but has type %s".formatted(
+                                type.getName(), association, result.type.getTypeName()));
             }
-            if (result.type.isArray() || Collection.class.isAssignableFrom(result.type)
-                || Map.class.isAssignableFrom(result.type)) {
-                throw new IllegalStateException(
-                        "Payload property %s.%s must contain one direct model ID, but has type %s"
-                                .formatted(payloadType.getName(), propertyName, result.type.getTypeName()));
-            }
-            return result.withReader(typeMetadata.getter(result.name));
+            return result;
         }
+
+        private Property scalar(Property property) {
+            if (property != null && (property.type.isArray()
+                    || Collection.class.isAssignableFrom(property.type)
+                    || Map.class.isAssignableFrom(property.type))) {
+                throw new IllegalStateException(
+                        "Payload property %s.%s must contain one direct model ID, but has type %s".formatted(
+                                type.getName(), property.name, property.type.getTypeName()));
+            }
+            return property;
+        }
+
+        private static ModelMetadata validated(Class<?> type) {
+            ModelMetadata result = ModelMetadata.validate(type);
+            if (!result.isModel()) {
+                throw new IllegalStateException(
+                        "Handler dependency %s is not annotated with @Model".formatted(type.getName()));
+            }
+            return result;
+        }
+    }
+
+    private static Object payload(Object input) {
+        return input instanceof HasMessage message ? message.getPayload() : input;
+    }
+
+    private static boolean compatible(Class<?> candidate, Class<?> explicit) {
+        return explicit != null
+               && (candidate.isAssignableFrom(explicit) || explicit.isAssignableFrom(candidate));
+    }
+
+    private static IllegalArgumentException nullId(Slot slot) {
+        return new IllegalArgumentException(
+                "Payload property '%s' resolved to null for %s model required by %s".formatted(
+                        slot.property.name, slot.modelType.getName(), slot.handler));
+    }
+
+    private static String repositoryId(Object id, Slot slot, Object source) {
+        try {
+            return slot.metadata.parentScopedEntityId()
+                    ? slot.metadata.repositoryId(id, source) : slot.metadata.repositoryId(id);
+        } catch (RuntimeException e) {
+            throw invalidId(slot.property.name, slot.modelType, slot.handler, e);
+        }
+    }
+
+    private static String repositoryId(
+            Object id,
+            Class<?> modelType,
+            String property,
+            String handler,
+            Object source) {
+        try {
+            ModelMetadata metadata = ModelMetadata.of(modelType);
+            return metadata.parentScopedEntityId()
+                    ? metadata.repositoryId(id, source) : metadata.repositoryId(id);
+        } catch (RuntimeException e) {
+            throw invalidId(property, modelType, handler, e);
+        }
+    }
+
+    private static IllegalArgumentException invalidId(
+            String property,
+            Class<?> modelType,
+            String handler,
+            RuntimeException cause) {
+        return new IllegalArgumentException(
+                "Payload property '%s' has an invalid ID for %s model%s".formatted(
+                        property, modelType.getName(), handler == null ? "" : " required by " + handler), cause);
+    }
+
+    private static List<String> ids(
+            Object raw,
+            Class<?> modelType,
+            String property,
+            String handler,
+            Object source) {
+        if (raw == null) {
+            return List.of();
+        }
+        if (!(raw instanceof Collection<?> collection)) {
+            throw new IllegalArgumentException(
+                    "Payload property '%s' required by %s must contain a model ID collection".formatted(
+                            property, handler));
+        }
+        List<String> result = new ArrayList<>(collection.size());
+        int index = 0;
+        for (Object id : collection) {
+            if (id == null) {
+                throw new IllegalArgumentException(
+                        "Payload property '%s' required by %s contains a null model ID at index %d".formatted(
+                                property, handler, index));
+            }
+            result.add(repositoryId(id, modelType, property, handler, source));
+            index++;
+        }
+        return List.copyOf(result);
     }
 }

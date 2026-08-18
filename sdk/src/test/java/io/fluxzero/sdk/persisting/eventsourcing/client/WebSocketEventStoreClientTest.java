@@ -36,10 +36,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
 class WebSocketEventStoreClientTest {
@@ -54,6 +58,42 @@ class WebSocketEventStoreClientTest {
             assertEquals("RESULT", subject.resultType(List.of(
                     mock(CommitModelsResult.class), mock(TrackModelUpdatesResult.class))));
             assertEquals("RESULT", subject.resultType(List.of()));
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void completesAlignedModelResultsOncePerRequestOwnedProcessor() {
+        RecordingEventStoreClient subject = new RecordingEventStoreClient();
+        AtomicInteger invocations = new AtomicInteger();
+        AtomicReference<List<CommitModelsResult>> processedResults = new AtomicReference<>();
+        AtomicReference<List<Object>> processedContexts = new AtomicReference<>();
+        CompletableFuture<Void> gate = new CompletableFuture<>();
+        ModelCommitBatchingClient.ModelCommitResultProcessor processor =
+                (results, contexts) -> {
+                    invocations.incrementAndGet();
+                    processedResults.set(results);
+                    processedContexts.set(contexts);
+                    return gate;
+                };
+        CommitModelsResult first = mock(CommitModelsResult.class);
+        CommitModelsResult second = mock(CommitModelsResult.class);
+
+        try {
+            CompletableFuture<Void> completion = subject.prepareResultsForTest(
+                    List.of(first, second),
+                    List.of(
+                            new ModelCommitBatchingClient.ModelCommitCompletion("first", processor),
+                            new ModelCommitBatchingClient.ModelCommitCompletion("second", processor)));
+
+            assertEquals(1, invocations.get());
+            assertEquals(List.of(first, second), processedResults.get());
+            assertEquals(List.of("first", "second"), processedContexts.get());
+            assertFalse(completion.isDone());
+
+            gate.complete(null);
+            completion.join();
         } finally {
             subject.close();
         }
@@ -79,6 +119,43 @@ class WebSocketEventStoreClientTest {
             batch.flush();
             assertEquals(List.of(256, 1), subject.sentBatchSizes);
         } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void fixedModelCommitBatchReleasesWhenCommitsAndSkippedSlotsSettle() {
+        RecordingEventStoreClient subject = new RecordingEventStoreClient();
+        ModelCommitBatchingClient.ModelCommitBatch batch =
+                subject.beginModelCommitBatch(3);
+
+        try {
+            assertFalse(batch.add(0, commit("first")).isDone());
+            batch.skip(1);
+            assertEquals(List.of(), subject.sentBatchSizes);
+
+            assertFalse(batch.add(2, commit("last")).isDone());
+            assertEquals(List.of(2), subject.sentBatchSizes);
+            batch.skip(2);
+            batch.flush();
+            assertEquals(List.of(2), subject.sentBatchSizes);
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void fixedModelCommitBatchRejectsDuplicateCommits() {
+        RecordingEventStoreClient subject = new RecordingEventStoreClient();
+        ModelCommitBatchingClient.ModelCommitBatch batch =
+                subject.beginModelCommitBatch(2);
+
+        try {
+            batch.add(0, commit("first"));
+            assertThrows(IllegalStateException.class,
+                         () -> batch.add(0, commit("duplicate")));
+        } finally {
+            batch.fail(new IllegalStateException("test complete"));
             subject.close();
         }
     }
@@ -141,6 +218,12 @@ class WebSocketEventStoreClientTest {
 
         private String resultType(List<RequestResult> results) {
             return jfrResultType(results);
+        }
+
+        private CompletableFuture<Void> prepareResultsForTest(
+                List<RequestResult> results,
+                List<Object> contexts) {
+            return prepareResults(results, contexts);
         }
     }
 }

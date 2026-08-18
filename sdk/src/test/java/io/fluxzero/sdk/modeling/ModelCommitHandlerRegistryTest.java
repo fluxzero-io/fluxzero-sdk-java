@@ -68,6 +68,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -287,7 +288,7 @@ class ModelCommitHandlerRegistryTest {
         ModelCommitBatchingClient batchingClient =
                 (ModelCommitBatchingClient) eventStoreClient;
         ModelCommitBatchingClient.ModelCommitBatch transportBatch =
-                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class, CALLS_REAL_METHODS);
         Map<CommitModels, CompletableFuture<CommitModelsResult>> responses =
                 new ConcurrentHashMap<>();
         CountDownLatch prepared = new CountDownLatch(2);
@@ -369,7 +370,7 @@ class ModelCommitHandlerRegistryTest {
                                         .build();
                         assertEquals(
                                 new TimingModel("manual-batch"),
-                                MessageBatchModelView.overlayCurrent(
+                                ModelBatchScope.overlayCurrent(
                                         null, "manual-batch",
                                         TimingModel.class,
                                         durable).get());
@@ -490,7 +491,7 @@ class ModelCommitHandlerRegistryTest {
                         assertEquals(
                                 new TimingModel(
                                         "stored-event-batch"),
-                                MessageBatchModelView.overlayCurrent(
+                                ModelBatchScope.overlayCurrent(
                                         null, "stored-event-batch",
                                         TimingModel.class,
                                         durable).get());
@@ -516,7 +517,7 @@ class ModelCommitHandlerRegistryTest {
         ModelCommitBatchingClient batchingClient =
                 (ModelCommitBatchingClient) eventStoreClient;
         ModelCommitBatchingClient.ModelCommitBatch transportBatch =
-                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class, CALLS_REAL_METHODS);
         CompletableFuture<CommitModels> prepared = new CompletableFuture<>();
         CompletableFuture<CommitModelsResult> response = new CompletableFuture<>();
         when(batchingClient.beginReadyModelCommitBatch()).thenReturn(transportBatch);
@@ -837,7 +838,7 @@ class ModelCommitHandlerRegistryTest {
         ModelCommitBatchingClient batchingClient =
                 (ModelCommitBatchingClient) eventStoreClient;
         ModelCommitBatchingClient.ModelCommitBatch transportBatch =
-                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class, CALLS_REAL_METHODS);
         CompletableFuture<CommitModels> commitPrepared = new CompletableFuture<>();
         CompletableFuture<Void> transportFlushed = new CompletableFuture<>();
         CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
@@ -907,7 +908,7 @@ class ModelCommitHandlerRegistryTest {
         ModelCommitBatchingClient batchingClient =
                 (ModelCommitBatchingClient) eventStoreClient;
         ModelCommitBatchingClient.ModelCommitBatch transportBatch =
-                mock(ModelCommitBatchingClient.ModelCommitBatch.class);
+                mock(ModelCommitBatchingClient.ModelCommitBatch.class, CALLS_REAL_METHODS);
         CompletableFuture<CommitModels> firstPrepared = new CompletableFuture<>();
         CompletableFuture<CommitModelsResult> firstResponse = new CompletableFuture<>();
         CompletableFuture<Void> transportFlushed = new CompletableFuture<>();
@@ -1066,9 +1067,11 @@ class ModelCommitHandlerRegistryTest {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         BATCH_PARENT_OBSERVATIONS.clear();
         BATCH_INCREMENT_OBSERVATIONS.clear();
-        assertTrue(ModelTargetResolver.resolve(
-                new UpdateBatchChild(childId, 1),
+        UpdateBatchChild update = new UpdateBatchChild(childId, 1);
+        assertTrue(ModelTargetResolver.compile(
+                UpdateBatchChild.class,
                 ModelMetadata.of(UpdateBatchChild.class).handlerMethods())
+                           .resolve(update)
                            .hasAncestorDependencies());
 
         try {
@@ -1284,13 +1287,13 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void graphProjectionCompletionUsesApplyThenRootThenApplicationPrecedence()
             throws Exception {
-        ModelCommitEngine.Transition inherited =
+        ModelExecutionPlan.Transition inherited =
                 transition(
                         ProjectionChild.class,
                         ProjectionApplies.class
                                 .getDeclaredMethod(
                                         "inherit"));
-        ModelCommitEngine.Transition asynchronous =
+        ModelExecutionPlan.Transition asynchronous =
                 transition(
                         ProjectionChild.class,
                         ProjectionApplies.class
@@ -1327,13 +1330,14 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void cascadedDeletionWithoutApplyHandlerUsesProjectionDefaults() {
-        ModelCommitEngine.Transition cascadedDeletion =
-                new ModelCommitEngine.Transition(
+        ModelExecutionPlan.Transition cascadedDeletion =
+                new ModelExecutionPlan.Transition(
                         "cascade-child",
                         ProjectionChild.class,
                         0L,
                         null,
                         new Object(),
+                        null,
                         null,
                         null,
                         true);
@@ -1354,14 +1358,14 @@ class ModelCommitHandlerRegistryTest {
                 subject(
                         AutomaticModelHandling.ENABLED,
                         GraphProjectionCompletion.ASYNC);
-        ModelCommitEngine.Transition asynchronous =
+        ModelExecutionPlan.Transition asynchronous =
                 transition(
                         "shared-child",
                         ProjectionChild.class,
                         ProjectionApplies.class
                                 .getDeclaredMethod(
                                         "asynchronous"));
-        ModelCommitEngine.Transition awaiting =
+        ModelExecutionPlan.Transition awaiting =
                 transition(
                         "shared-child",
                         ProjectionChild.class,
@@ -1664,28 +1668,28 @@ class ModelCommitHandlerRegistryTest {
         return result;
     }
 
-    private static ModelCommitEngine.CommitEvaluation evaluation(
-            ModelCommitEngine.Transition... transitions) {
-        return new ModelCommitEngine.CommitEvaluation(
+    private static ModelExecutionPlan.CommitEvaluation evaluation(
+            ModelExecutionPlan.Transition... transitions) {
+        return new ModelExecutionPlan.CommitEvaluation(
                 1L,
                 java.util.Arrays.stream(transitions)
-                        .map(ModelCommitEngine.Transition::modelId)
+                        .map(ModelExecutionPlan.Transition::modelId)
                         .toList(),
                 java.util.Arrays.stream(transitions)
                         .collect(
                                 java.util.stream.Collectors.toMap(
-                                        ModelCommitEngine.Transition::modelId,
-                                        ModelCommitEngine.Transition::modelType,
+                                        ModelExecutionPlan.Transition::modelId,
+                                        ModelExecutionPlan.Transition::modelType,
                                         (first, second) ->
                                                 first)),
                 List.of(
-                        new ModelCommitEngine.AppliedSubstep(
+                        new ModelExecutionPlan.AppliedSubstep(
                                 null,
                                 List.of(transitions))),
                 Map.of());
     }
 
-    private static ModelCommitEngine.Transition transition(
+    private static ModelExecutionPlan.Transition transition(
             Class<?> modelType,
             java.lang.reflect.Executable handler) {
         return transition(
@@ -1695,14 +1699,14 @@ class ModelCommitHandlerRegistryTest {
                 modelType, handler);
     }
 
-    private static ModelCommitEngine.Transition transition(
+    private static ModelExecutionPlan.Transition transition(
             String modelId,
             Class<?> modelType,
             java.lang.reflect.Executable handler) {
-        return new ModelCommitEngine.Transition(
-                modelId,
-                modelType, 0L, null,
-                new Object(), handler);
+        return new ModelExecutionPlan.Transition(
+                modelId, modelType, 0L, null,
+                null, new Object(), handler,
+                null, false);
     }
 
     @Model(

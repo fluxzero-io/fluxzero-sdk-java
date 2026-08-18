@@ -16,27 +16,24 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.Backlog;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
-import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.Message;
-import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
@@ -50,11 +47,9 @@ import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Parameter;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -65,7 +60,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -82,18 +76,9 @@ import java.util.stream.Stream;
 public final class ModelCommitHandlerRegistry implements HandlerRegistry, HandlerFactory, AutoCloseable {
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
-    private static final boolean DISABLE_BATCH_GATES =
-            Boolean.getBoolean(
-                    "fluxzero.disableModelCommitBatchGates");
-    private static final int MAX_COMMIT_BATCH_SIZE = Math.max(
-            1, Integer.getInteger("fluxzero.modelCommitBatchSize", 65_536));
-    private static final int MAX_COLD_PREFETCH_SIZE = Math.max(
-            1, Integer.getInteger("fluxzero.modelColdPrefetchSize", 1_024));
-    private static final long COMMIT_BATCH_COLLECTION_NANOS = Math.max(
-            0L, Long.getLong("fluxzero.modelCommitBatchCollectionNanos", 1_000_000L));
     private final DefaultModelRepository repository;
-    private final ModelCommitEngine engine;
-    private final ModelCommitter committer;
+    private final ModelExecutionPlan.Compiler compiler;
+    private final ModelCommitProtocol protocol;
     private final Handler<DeserializingMessage> decoratedHandler;
     private final HandlerDecorator handlerDecorator;
     private final ModelConflictPolicy conflictPolicy;
@@ -101,10 +86,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final int maxConflictRetries;
     private final AutomaticModelHandling automaticHandling;
     private final GraphProjectionCompletion graphProjectionCompletion;
-    private final ModelCommitCoordinator commitCoordinator =
-            new ModelCommitCoordinator();
-    private final Backlog<BatchCommitTicket> commitBacklog;
-    private final Object handlerCommitBatchKey = new Object();
+    private final ModelBatchScope.BatchLifecycle batchLifecycle;
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
     private final EventStoreClient eventStoreClient;
@@ -114,15 +96,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
             graphProjectionRegistrations =
             new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Class<?>, CommitPlan> commitPlans =
+    private final ConcurrentHashMap<Class<?>, ModelExecutionPlan> commitPlans =
             new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Class<?>, Boolean> automaticPayloads =
-            new ConcurrentHashMap<>();
-    private volatile CachedCommitPlan recentCommitPlan;
-    private volatile CachedAutomaticPayload recentAutomaticPayload;
-    private final ConcurrentHashMap<Class<?>, List<ProjectionRoot>> projectionPlans =
-            new ConcurrentHashMap<>();
-    private volatile CachedProjectionRoots recentProjectionRoots;
+    private volatile CachedExecutionPlan recentCommitPlan;
     private volatile boolean localHandlingEnabled;
 
     /**
@@ -184,11 +160,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         this.eventStoreClient =
                 Objects.requireNonNull(eventStoreClient, "eventStoreClient");
-        this.committer = new ModelCommitter(
+        this.protocol = new ModelCommitProtocol(
                 eventStoreClient, serializer, documentSerializer,
                 eventDispatchInterceptor, source, snapshotSerializer,
                 this::afterCommitBatch);
-        this.engine = new ModelCommitEngine(parameterResolvers);
+        ModelExecutionPlan.Compiler sharedExecution = repository.modelExecution();
+        this.compiler = sharedExecution == null
+                ? new ModelExecutionPlan.Compiler(parameterResolvers)
+                : sharedExecution;
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
         this.conflictResolver = Objects.requireNonNull(
                 conflictResolver, "conflictResolver");
@@ -213,14 +192,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty(
                         ModelCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY,
                         true);
+        this.batchLifecycle = new ModelBatchScope.BatchLifecycle(
+                protocol::beginReadyBatch, protocol::beginBatch,
+                () -> awaitAfterHandlerCommitsBeforeResults);
         this.decoratedHandler = handlerDecorator.wrap(new CommitHandler(null));
-        this.commitBacklog = Backlog.forAsyncConsumer(
-                this::startBatch,
-                MAX_COMMIT_BATCH_SIZE,
-                ignored -> 1L,
-                MAX_COMMIT_BATCH_SIZE,
-                1,
-                Duration.ofNanos(COMMIT_BATCH_COLLECTION_NANOS));
     }
 
     /**
@@ -258,32 +233,25 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         if (messages.isEmpty()) {
             return COMPLETED_VOID;
         }
-        ModelCommitter.CommitBatch transportBatch = committer.beginReadyBatch();
+        ModelCommitBatchingClient.ModelCommitBatch transportBatch =
+                protocol.beginReadyBatch();
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
-        @SuppressWarnings("unchecked")
-        CompletableFuture<CompletableFuture<Void>>[] starts = new CompletableFuture[messages.size()];
+        List<CompletableFuture<CompletableFuture<Void>>> starts =
+                new ArrayList<>(messages.size());
         for (int index = 0; index < messages.size(); index++) {
             Message update = messages.get(index);
             int slot = index;
-            CompletableFuture<CompletableFuture<Void>> started = new CompletableFuture<>();
-            starts[index] = started;
-            try {
-                Thread.ofVirtual().name("Fluxzero-model-commit").start(context.wrap(() -> {
-                    try {
-                        started.complete(assertAndApply(update, transportBatch, slot));
-                    } catch (Throwable failure) {
-                        started.complete(CompletableFuture.failedFuture(failure));
-                    }
-                }));
-            } catch (Throwable failure) {
-                started.complete(CompletableFuture.failedFuture(failure));
-            }
+            starts.add(CompletableFuture.supplyAsync(
+                    context.wrap(() -> assertAndApply(
+                            update, transportBatch, slot)),
+                    task -> Thread.ofVirtual()
+                            .name("Fluxzero-model-commit").start(task)));
         }
-        return CompletableFuture.allOf(starts).thenCompose(ignored -> {
+        return CompletableFuture.allOf(starts.toArray(CompletableFuture[]::new)).thenCompose(ignored -> {
             if (transportBatch != null) {
                 transportBatch.flush();
             }
-            return CompletableFuture.allOf(Stream.of(starts)
+            return CompletableFuture.allOf(starts.stream()
                     .map(CompletableFuture::join)
                     .toArray(CompletableFuture[]::new));
         });
@@ -291,7 +259,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Void> assertAndApply(
             Message update,
-            ModelCommitter.CommitBatch transportBatch,
+            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
         return assertAndApply(new DeserializingMessage(
                 Objects.requireNonNull(update, "update"),
@@ -300,28 +268,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Void> assertAndApply(
             DeserializingMessage message,
-            ModelCommitter.CommitBatch transportBatch,
+            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
         try {
-            if (!hasModelApplies(
-                    message.getPayloadClass())) {
-                return evaluateExplicit(
-                        message, () -> {
-                            ModelCommitEngine.CommitEvaluation evaluation =
-                                    evaluateExplicitMessage(message);
-                            if (evaluation.transitions().isEmpty()
-                                && !evaluation.substeps().isEmpty()) {
-                                log.warn(
-                                        "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this "
-                                        + "application has no locally reachable model @Apply handler. No model changes "
-                                        + "were committed.",
-                                        message.getPayloadClass().getName());
-                            }
-                            return evaluation;
-                        }, transportBatch, transportSlot, true)
-                        .thenApply(ignored -> null);
-            }
-            return execute(message, transportBatch, transportSlot)
+            return evaluateExplicit(
+                    message, Evaluation.APPLY,
+                    transportBatch, transportSlot, true)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -340,8 +292,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             Objects.requireNonNull(update, "update");
             DeserializingMessage message =
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
-            engine.assertLegal(message, new CommitLoader(null));
-            return COMPLETED_VOID;
+            return evaluateExplicit(
+                    message, Evaluation.ASSERT, null, -1, true)
+                    .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
@@ -355,10 +308,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             Objects.requireNonNull(event, "event");
             DeserializingMessage message = new DeserializingMessage(event, MessageType.EVENT, serializer);
             return evaluateExplicit(
-                    message,
-                    () -> engine.rebase(
-                            List.of(message),
-                            new CommitLoader(null, true)),
+                    message, Evaluation.STORED,
                     null, -1, false).thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -398,61 +348,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private boolean canAutomaticallyHandle(DeserializingMessage message) {
-        if (message.getMessageType() != MessageType.COMMAND) {
-            return false;
-        }
-        Class<?> payloadType = message.getPayloadClass();
-        CachedAutomaticPayload recent = recentAutomaticPayload;
-        if (recent != null && recent.payloadType() == payloadType) {
-            return recent.automatic();
-        }
-        boolean automatic = automaticPayloads.computeIfAbsent(
-                       payloadType,
-                       type -> hasModelApplies(type)
-                                      && automaticHandlingEnabled(
-                                              type,
-                                              new LinkedHashSet<>()));
-        recentAutomaticPayload = new CachedAutomaticPayload(
-                payloadType, automatic);
-        return automatic;
+        return message.getMessageType() == MessageType.COMMAND
+               && planFor(message.getPayloadClass()).automatic();
     }
 
     private boolean hasModelApplies(
             Class<?> payloadType) {
-        return declaresModelCommit(payloadType, new LinkedHashSet<>());
-    }
-
-    private boolean automaticHandlingEnabled(
-            Class<?> payloadType,
-            Set<Class<?>> visiting) {
-        if (!visiting.add(payloadType)) {
-            return true;
-        }
-        try {
-            for (ModelMetadata.HandlerMethod handler :
-                    planFor(payloadType).handlers()) {
-                if (handler.kind()
-                    == ModelMetadata.HandlerKind.APPLY
-                    && handler.hasApplyResult()
-                    && !automaticHandlingEnabled(
-                            handler)) {
-                    return false;
-                }
-                if (handler.kind()
-                    == ModelMetadata.HandlerKind.INTERCEPT_APPLY) {
-                    for (Class<?> emitted :
-                            handler.emittedPayloadTypes()) {
-                        if (!automaticHandlingEnabled(
-                                emitted, visiting)) {
-                            return false;
-                        }
-                    }
-                }
-            }
-            return true;
-        } finally {
-            visiting.remove(payloadType);
-        }
+        return planFor(payloadType).commit();
     }
 
     private boolean automaticHandlingEnabled(
@@ -487,62 +389,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     ModelCommitPolicy commitPolicyFor(Class<?> payloadType) {
-        CommitPlan plan = planFor(payloadType);
-        ModelCommitPolicy cached = plan.commitPolicy();
-        if (cached != null) {
-            return cached;
-        }
-        synchronized (plan) {
-            cached = plan.commitPolicy();
-            if (cached == null) {
-                LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>();
-                collectCommitPolicies(payloadType, new LinkedHashSet<>(), policies);
-                cached = mergeCommitPolicies(policies);
-                plan.commitPolicy(cached);
-            }
-        }
-        return cached;
-    }
-
-    private void collectCommitPolicies(
-            Class<?> payloadType,
-            Set<Class<?>> visiting,
-            Set<ModelCommitPolicy> policies) {
-        if (!visiting.add(payloadType)) {
-            return;
-        }
-        try {
-            for (ModelMetadata.HandlerMethod handler : planFor(payloadType).handlers()) {
-                if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
-                    if (handler.dynamicApplyResult()) {
-                        /*
-                         * The participating model policies are unknowable until after invocation. Use the strongest
-                         * lifecycle guarantee so a runtime-selected model can never weaken its declared completion
-                         * contract. Typed collection results retain their normal model-derived policy.
-                         */
-                        policies.add(
-                                ModelCommitPolicy.SYNC_AFTER_HANDLER);
-                    }
-                    handler.targetModelTypes().stream()
-                            .map(ModelMetadata::of)
-                            .map(ModelMetadata::model)
-                            .flatMap(Optional::stream)
-                            .map(Model::commitPolicy)
-                            .map(ModelCommitPolicy::resolve)
-                            .forEach(policies::add);
-                } else if (handler.kind() == ModelMetadata.HandlerKind.INTERCEPT_APPLY) {
-                    handler.emittedPayloadTypes().forEach(
-                            emitted -> collectCommitPolicies(emitted, visiting, policies));
-                }
-            }
-        } finally {
-            visiting.remove(payloadType);
-        }
-    }
-
-    private static ModelCommitPolicy mergeCommitPolicies(
-            Set<ModelCommitPolicy> policies) {
-        return ModelCommitPolicy.merge(policies);
+        return planFor(payloadType).commitPolicy();
     }
 
     @Override
@@ -553,7 +400,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         }
         registeredModelTypes.addIfAbsent(targetType);
         knownModelTypes.addIfAbsent(targetType);
-        projectionRoots(targetType).forEach(this::registerGraphProjection);
+        ModelGraphProjections.roots(targetType).forEach(this::registerGraphProjection);
         clearPlans();
         return () -> {
             registeredModelTypes.remove(targetType);
@@ -604,22 +451,18 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             HandlerFilter handlerFilter,
             List<HandlerInterceptor> extraInterceptors) {
         Class<?> targetType = ReflectionUtils.asClass(target);
-        boolean modelReceiver = ModelMetadata.of(targetType).isModel();
-        boolean payloadCommit = declaresModelCommit(
-                targetType, new LinkedHashSet<>())
-                                && automaticHandlingEnabled(
-                                        targetType,
-                                        new LinkedHashSet<>())
-                                && planFor(targetType).handlers().stream()
+        if (ModelMetadata.of(targetType).isModel()) {
+            return Optional.empty();
+        }
+        ModelExecutionPlan executionPlan = planFor(targetType);
+        boolean payloadCommit = executionPlan.automatic()
+                                && executionPlan.handlers().methods().stream()
                                         .anyMatch(handler ->
                                                 handlerFilter.test(
                                                         handler.executable()
                                                                 .getDeclaringClass(),
                                                         handler.executable()));
-        if (!modelReceiver && !payloadCommit) {
-            return Optional.empty();
-        }
-        if (modelReceiver) {
+        if (!payloadCommit) {
             return Optional.empty();
         }
         HandlerDecorator decorator = Stream.concat(
@@ -653,438 +496,204 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private CompletableFuture<Object> execute(DeserializingMessage message) {
-        return execute(message, null);
+        return execute(new ExecutionRequest(
+                message, new ModelBatchScope.Operation(),
+                Evaluation.AUTOMATIC, null, -1, false));
     }
 
     private CompletableFuture<Object> execute(
             DeserializingMessage message,
-            ModelCommitter.CommitBatch transportBatch,
-            int transportSlot) {
-        return execute(
-                message, null, null,
-                transportBatch, transportSlot);
-    }
-
-    private CompletableFuture<Object> execute(
-            DeserializingMessage message,
-            BatchCommitTicket batchTicket) {
-        return execute(
-                message, batchTicket, null);
-    }
-
-    private CompletableFuture<Object> execute(
-            DeserializingMessage message,
-            BatchCommitTicket batchTicket,
-            BatchPrefetch prefetch) {
-        return execute(
-                message, batchTicket, prefetch,
-                null, -1);
-    }
-
-    private CompletableFuture<Object> execute(
-            DeserializingMessage message,
-            BatchCommitTicket batchTicket,
-            BatchPrefetch prefetch,
-            ModelCommitter.CommitBatch transportBatch,
-            int transportSlot) {
-        CompletableFuture<Object> result;
-        if (graphProjectionRegistrations.isEmpty()) {
-            result = executeRegistered(
-                    message,
-                    batchTicket,
-                    prefetch,
-                    transportBatch,
-                    transportSlot);
-        } else {
-            CompletableFuture<?> registrations =
-                    CompletableFuture.allOf(
-                            graphProjectionRegistrations
-                                    .values()
-                                    .toArray(
-                                            CompletableFuture[]::new));
-            ThreadLocalContext.Snapshot context =
-                    message.captureContext();
-            result = registrations.thenCompose(
-                    context.wrap(ignored ->
-                            executeRegistered(
-                                    message,
-                                    batchTicket,
-                                    prefetch,
-                                    transportBatch,
-                                    transportSlot)));
-        }
-        if (batchTicket != null) {
-            result.whenComplete((ignored, failure) -> {
-                if (failure != null) {
-                    batchTicket.exclude();
-                }
-            });
-        }
-        return result;
-    }
-
-    private CompletableFuture<Object> executeRegistered(
-            DeserializingMessage message,
-            BatchCommitTicket batchTicket,
-            BatchPrefetch prefetch,
-            ModelCommitter.CommitBatch transportBatch,
-            int transportSlot) {
-        if (batchTicket == null) {
-            return evaluateExplicit(
-                    message,
-                    () -> prefetch == null
-                            ? evaluateExplicitMessage(message)
-                            : evaluatePrefetched(
-                                    message, prefetch, null),
-                    transportBatch,
-                    transportSlot,
-                    false);
-        }
-        ModelCommitEngine.CommitEvaluation initialEvaluation =
-                MessageBatchModelView.withDependency(
-                        batchTicket,
-                        () -> batchTicket.hasBatchDependencies()
-                                ? evaluateGeneric(message)
-                                : prefetch == null
-                                ? batchTicket.gates() == null
-                                        ? evaluateKnown(
-                                                message,
-                                                batchTicket.prefetchInput())
-                                        : evaluate(message)
-                                : evaluatePrefetched(
-                                        message, prefetch, batchTicket));
-        MessageBatchModelView.Stage messageBatchStage =
-                MessageBatchModelView.stage(
-                        io.fluxzero.sdk.common.ClientUtils
-                                .getConsumerNamespace(message),
-                        initialEvaluation, batchTicket);
-        if (batchTicket != null) {
-            batchTicket.resolve(
-                    initialEvaluation.readModelIds());
-        }
-        CompletableFuture<Object> result;
-        try {
-            result = executeRegistered(
-                    message, initialEvaluation,
-                    batchTicket,
-                    transportBatch,
-                    transportSlot);
-        } catch (Throwable failure) {
-            if (messageBatchStage != null) {
-                messageBatchStage.complete(failure);
-            }
-            throw failure;
-        }
-        if (messageBatchStage != null) {
-            result.whenComplete((ignored, failure) ->
-                    messageBatchStage.complete(failure));
-        }
-        if (batchTicket != null) {
-            batchTicket.completeInitialization();
-        }
-        return result;
+            ModelBatchScope.Operation operation) {
+        return execute(new ExecutionRequest(
+                message, operation, Evaluation.AUTOMATIC,
+                null, -1, false));
     }
 
     private CompletableFuture<Object> evaluateExplicit(
             DeserializingMessage message,
-            Supplier<ModelCommitEngine.CommitEvaluation> evaluator,
-            ModelCommitter.CommitBatch transportBatch,
-            int transportSlot,
+            Evaluation evaluation,
+            ModelCommitBatchingClient.ModelCommitBatch transport,
+            int slot,
             boolean skipEmpty) {
-        MessageBatchModelView.Operation operation =
-                MessageBatchModelView.newOperation();
-        if (operation == null) {
-            return executeExplicitEvaluation(
-                    message, evaluator.get(),
-                    transportBatch, transportSlot,
-                    skipEmpty);
-        }
-        ThreadLocalContext.Snapshot context =
-                ThreadLocalContext.capture();
-        ModelCommitEngine.CommitEvaluation initialEvaluation;
+        return execute(new ExecutionRequest(
+                message, new ModelBatchScope.Operation(), evaluation,
+                transport, slot, skipEmpty));
+    }
+
+    private CompletableFuture<Object> execute(ExecutionRequest request) {
+        ThreadLocalContext.Snapshot context = request.message().captureContext();
+        CompletableFuture<Object> result = evaluate(request, context);
+        request.operation().bind(result);
+        return request.operation();
+    }
+
+    private CompletableFuture<Object> evaluate(
+            ExecutionRequest request,
+            ThreadLocalContext.Snapshot context) {
+        ModelBatchScope.Operation operation = request.operation();
+        ModelExecutionPlan.CommitEvaluation initial;
         try {
-            initialEvaluation = MessageBatchModelView.withDependency(
-                    operation, evaluator);
+            initial = context.supply(() -> ModelBatchScope.withDependency(
+                    operation, () -> evaluate(request, false)));
+            warnEmptyExplicitApply(request, initial);
+            ModelBatchScope.stage(
+                    currentConsumerNamespace(request.message()),
+                    initial, operation);
+            operation.initialize(initial.readModelIds());
         } catch (Throwable failure) {
             operation.fail(failure);
-            throw failure;
+            return CompletableFuture.failedFuture(failure);
         }
-        MessageBatchModelView.Stage stage;
         try {
-            stage = MessageBatchModelView.stage(
-                    currentConsumerNamespace(message),
-                    initialEvaluation, operation);
+            return submit(request, initial, context);
         } catch (Throwable failure) {
             operation.fail(failure);
-            throw failure;
+            return CompletableFuture.failedFuture(failure);
         }
-        CompletableFuture<Object> result;
-        try {
-            result = operation.hasDependencies()
-                    ? evaluateExplicitAfterDependencies(
-                            evaluator, operation, context)
-                            .thenCompose(evaluation ->
-                                    executeExplicitEvaluation(
-                                            message, evaluation,
-                                            transportBatch,
-                                            transportSlot,
-                                            skipEmpty))
-                    : executeExplicitEvaluation(
-                            message, initialEvaluation,
-                            transportBatch,
-                            transportSlot,
-                            skipEmpty);
-        } catch (Throwable failure) {
-            if (stage != null) {
-                stage.complete(failure);
+    }
+
+    private CompletableFuture<Object> submit(
+            ExecutionRequest request,
+            ModelExecutionPlan.CommitEvaluation initial,
+            ThreadLocalContext.Snapshot context) {
+        ModelBatchScope.Operation operation = request.operation();
+        if (operation.hasBatchDependencies()) {
+            if (operation.batched()
+                && !operation.policy().commitAfterBatch()
+                && operation.transportBatch() != null) {
+                operation.flushTransport();
             }
-            operation.fail(failure);
-            throw failure;
+            operation.detachTransport();
         }
-        operation.bind(result);
-        if (stage != null) {
-            result.whenComplete((ignored, failure) ->
-                    stage.complete(failure));
-        }
-        return result;
+        return operation.executeAfterRelease(dependent -> {
+            CompletableFuture<ModelExecutionPlan.CommitEvaluation> ready = dependent
+                    ? reevaluate(request, context)
+                    : CompletableFuture.completedFuture(initial);
+            return ready.thenCompose(context.wrap(evaluation ->
+                    request.skipEmpty() && evaluation.transitions().isEmpty()
+                            ? CompletableFuture.completedFuture(null)
+                            : executeEvaluation(
+                                    request.message(), evaluation,
+                                    !operation.batched()
+                                            ? request.transport()
+                                            : operation.transportBatch(),
+                                    !operation.batched()
+                                            ? request.transportSlot()
+                                            : operation.transportSlot())));
+        });
     }
 
-    private ModelCommitEngine.CommitEvaluation evaluateExplicitMessage(
-            DeserializingMessage message) {
-        return DeserializingMessage.getMessageBatchIndex() < 0
-                ? evaluate(message)
-                : evaluateGeneric(message);
-    }
-
-    private CompletableFuture<Object> executeExplicitEvaluation(
-            DeserializingMessage message,
-            ModelCommitEngine.CommitEvaluation evaluation,
-            ModelCommitter.CommitBatch transportBatch,
-            int transportSlot,
-            boolean skipEmpty) {
-        return skipEmpty && evaluation.transitions().isEmpty()
-                ? CompletableFuture.completedFuture(null)
-                : executeRegistered(
-                        message, evaluation,
-                        null, transportBatch, transportSlot);
-    }
-
-    private CompletableFuture<ModelCommitEngine.CommitEvaluation>
-            evaluateExplicitAfterDependencies(
-                    Supplier<ModelCommitEngine.CommitEvaluation> evaluator,
-                    MessageBatchModelView.Operation operation,
-                    ThreadLocalContext.Snapshot context) {
+    private CompletableFuture<ModelExecutionPlan.CommitEvaluation> reevaluate(
+            ExecutionRequest request,
+            ThreadLocalContext.Snapshot context) {
+        ModelBatchScope.Operation operation = request.operation();
         int dependencyCount = operation.dependencyCount();
-        return operation.dependencyCompletion()
-                .thenCompose(ignored -> {
-                    ModelCommitEngine.CommitEvaluation evaluation =
-                            context.supply(() ->
-                                    MessageBatchModelView.withDependency(
-                                            operation, evaluator));
-                    return operation.dependencyCount()
-                           == dependencyCount
-                            ? CompletableFuture.completedFuture(
-                                    evaluation)
-                            : evaluateExplicitAfterDependencies(
-                                    evaluator, operation, context);
-                });
+        Function<Void, ModelExecutionPlan.CommitEvaluation> evaluation = ignored ->
+                context.supply(() -> ModelBatchScope.withDependency(
+                        operation, () -> evaluate(request, true)));
+        CompletableFuture<ModelExecutionPlan.CommitEvaluation> result =
+                operation.batched() && !localHandlingEnabled
+                        ? operation.dependencyCompletion().thenCompose(ignored ->
+                                CompletableFuture.supplyAsync(
+                                        context.wrap(() -> evaluation.apply(null))))
+                        : operation.dependencyCompletion().thenApply(evaluation);
+        return result.thenCompose(value ->
+                operation.dependencyCount() == dependencyCount
+                        ? CompletableFuture.completedFuture(value)
+                        : reevaluate(request, context));
+    }
+
+    private ModelExecutionPlan.CommitEvaluation evaluate(
+            ExecutionRequest request, boolean retry) {
+        return switch (request.evaluation()) {
+            case ASSERT -> compiler.assertLegal(
+                    request.message(), new CommitLoader(null));
+            case STORED -> compiler.rebase(
+                    List.of(request.message()), new CommitLoader(null, true));
+            case APPLY -> DeserializingMessage.getMessageBatchIndex() < 0
+                    ? evaluate(request.message()) : evaluate(request.message(), null);
+            case AUTOMATIC -> retry && request.operation().batched()
+                    || !retry && !request.operation().hasBatchDependencies()
+                    ? evaluate(request.message()) : evaluate(request.message(), null);
+        };
+    }
+
+    private void warnEmptyExplicitApply(
+            ExecutionRequest request,
+            ModelExecutionPlan.CommitEvaluation evaluation) {
+        if (request.evaluation() == Evaluation.APPLY
+            && !hasModelApplies(request.message().getPayloadClass())
+            && evaluation.transitions().isEmpty()
+            && !evaluation.substeps().isEmpty()) {
+            log.warn(
+                    "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this application has no "
+                    + "locally reachable model @Apply handler. No model changes were committed.",
+                    request.message().getPayloadClass().getName());
+        }
     }
 
     private static String currentConsumerNamespace(
             DeserializingMessage message) {
-        DeserializingMessage current =
-                DeserializingMessage.getCurrent();
-        return io.fluxzero.sdk.common.ClientUtils
-                .getConsumerNamespace(
-                        current == null ? message : current);
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        return io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace(
+                current == null ? message : current);
     }
 
-    private CompletableFuture<Object> executeRegistered(
+    private record ExecutionRequest(
             DeserializingMessage message,
-            ModelCommitEngine.CommitEvaluation initialEvaluation,
-            BatchCommitTicket batchTicket,
-            ModelCommitter.CommitBatch transportBatch,
-            int transportSlot) {
-        boolean batchDependent = batchTicket != null
-                                 && batchTicket.hasBatchDependencies();
-        if (!batchDependent
-            && ModelConflictPolicies.resolve(
-                    initialEvaluation,
-                    conflictPolicy)
-               != ModelConflictPolicy.ACCEPT) {
-            return executeBatched(
-                    message, initialEvaluation,
-                    batchTicket,
-                    transportBatch,
-                    transportSlot);
+            ModelBatchScope.Operation operation,
+            Evaluation evaluation,
+            ModelCommitBatchingClient.ModelCommitBatch transport,
+            int transportSlot,
+            boolean skipEmpty) {
+    }
+
+    private enum Evaluation { AUTOMATIC, APPLY, ASSERT, STORED }
+
+    record Retry(
+            ModelConflictResolver resolver,
+            int maxAttempts,
+            RetryEvaluator evaluator) {
+        static Retry accepting(RetryEvaluator evaluator) {
+            return new Retry(
+                    null, 10,
+                    Objects.requireNonNull(evaluator));
         }
-        if (batchDependent) {
-            /*
-             * A dependent command cannot remain a producer in the shared transport batch: that batch only flushes
-             * after every producer is ready, while this command intentionally waits for an earlier producer to be
-             * durably complete. Detach before entering the coordinator so the predecessor can actually be sent.
-             */
-            if (batchTicket.gates() == null
-                && batchTicket.transportBatch() != null) {
-                /*
-                 * Handler-time transport batches release full chunks eagerly but retain their tail until the handler
-                 * batch closes. A handler may itself await this dependent command, so waiting for batch close here
-                 * would deadlock with the predecessor still retained in that tail. Flush only the ready tail; the
-                 * dependent commit is detached below and therefore cannot enter it.
-                 */
-                batchTicket.transportBatch().flush();
+
+        static Retry conflicts(
+                ModelConflictResolver resolver,
+                int maxAttempts,
+                RetryEvaluator evaluator) {
+            if (maxAttempts < 0) {
+                throw new IllegalArgumentException(
+                        "Maximum model conflict retries must not be negative");
             }
-            batchTicket.detachTransport();
+            return new Retry(
+                    Objects.requireNonNull(resolver),
+                    maxAttempts,
+                    Objects.requireNonNull(evaluator));
         }
-        return commitCoordinator.coordinate(
-                initialEvaluation.readModelIds(),
-                contended -> {
-                    if (batchDependent) {
-                        ThreadLocalContext.Snapshot context =
-                                executionContext(
-                                        message,
-                                        batchTicket);
-                        return executeBatchDependent(
-                                message, batchTicket,
-                                context);
-                    }
-                    if (!contended) {
-                        return executeBatched(
-                                message,
-                                initialEvaluation,
-                                batchTicket,
-                                transportBatch,
-                                transportSlot);
-                    }
-                    ThreadLocalContext.Snapshot context =
-                            executionContext(
-                                    message,
-                                    batchTicket);
-                    /*
-                     * The predecessor commonly completes on the websocket result callback. A fresh evaluation may
-                     * synchronously load a model, so it must not make that callback wait for a response that the same
-                     * callback has to dispatch.
-                     */
-                    return CompletableFuture
-                            .supplyAsync(
-                                    context.wrap(
-                                            () -> evaluate(
-                                                    message)))
-                            .thenCompose(
-                                    context.wrap(
-                                            evaluation ->
-                                                    executeBatched(
-                                                            message,
-                                                            evaluation,
-                                                            batchTicket,
-                                                            transportBatch,
-                                                            transportSlot)));
-                });
-    }
 
-    private CompletableFuture<Object> executeBatchDependent(
-            DeserializingMessage message,
-            BatchCommitTicket batchTicket,
-            ThreadLocalContext.Snapshot context) {
-        return batchTicket.executeAfterRelease(
-                () -> evaluateAfterDependencies(
-                        message, batchTicket, context)
-                        .thenCompose(context.wrap(
-                                evaluation -> executeEvaluation(
-                                        message, evaluation))));
-    }
-
-    private CompletableFuture<ModelCommitEngine.CommitEvaluation>
-            evaluateAfterDependencies(
-                    DeserializingMessage message,
-                    BatchCommitTicket batchTicket,
-                    ThreadLocalContext.Snapshot context) {
-        int dependencyCount = batchTicket.dependencyCount();
-        CompletableFuture<Void> dependencies =
-                batchTicket.dependencyCompletion();
-        CompletableFuture<ModelCommitEngine.CommitEvaluation> evaluation;
-        if (localHandlingEnabled) {
-            /*
-             * The synchronous TestFixture deliberately executes every local handler on the caller thread. Do not
-             * introduce a worker boundary there: its public command future must be complete when local dispatch
-             * returns. Production handling keeps the asynchronous re-evaluation below so a websocket completion
-             * callback can never be blocked by a model load.
-             */
-            evaluation = dependencies.thenApply(
-                    context.wrap(ignored ->
-                            MessageBatchModelView.withDependency(
-                                    batchTicket,
-                                    () -> evaluate(message))));
-        } else {
-            evaluation = dependencies.thenCompose(ignored ->
-                    CompletableFuture.supplyAsync(
-                            context.wrap(() ->
-                                    MessageBatchModelView.withDependency(
-                                            batchTicket,
-                                            () -> evaluate(message)))));
+        boolean accepting() {
+            return resolver == null;
         }
-        return evaluation.thenCompose(result ->
-                batchTicket.dependencyCount() == dependencyCount
-                        ? CompletableFuture.completedFuture(result)
-                        : evaluateAfterDependencies(
-                                message, batchTicket, context));
     }
 
-    private CompletableFuture<Object> executeBatched(
-            DeserializingMessage message,
-            ModelCommitEngine.CommitEvaluation evaluation,
-            BatchCommitTicket batchTicket,
-            ModelCommitter.CommitBatch transportBatch,
-            int transportSlot) {
-        if (batchTicket == null) {
-            return executeEvaluation(
-                    message, evaluation,
-                    transportBatch, transportSlot);
-        }
-        ThreadLocalContext.Snapshot context =
-                executionContext(
-                        message,
-                        batchTicket);
-        return batchTicket.executeAfterRelease(
-                () -> batchTicket.hasBatchDependencies()
-                        ? evaluateAfterDependencies(
-                                message, batchTicket, context)
-                                .thenCompose(context.wrap(
-                                        updated -> executeEvaluation(
-                                                message, updated)))
-                        : context.supply(
-                                () -> executeEvaluation(
-                                        message,
-                                        evaluation,
-                                        batchTicket.transportBatch(),
-                                        batchTicket.transportSlot())));
-    }
-
-    private static ThreadLocalContext.Snapshot executionContext(
-            DeserializingMessage message,
-            BatchCommitTicket batchTicket) {
-        return batchTicket == null
-                ? message.captureContext()
-                : batchTicket.context();
+    @FunctionalInterface
+    interface RetryEvaluator {
+        CompletableFuture<ModelExecutionPlan.CommitEvaluation> reevaluate(
+                CommitModelsResult result,
+                ModelExecutionPlan.CommitEvaluation current,
+                ModelCommitProtocol.PreparedCommit original);
     }
 
     private CompletableFuture<Object> executeEvaluation(
             DeserializingMessage message,
-            ModelCommitEngine.CommitEvaluation evaluation) {
-        return executeEvaluation(
-                message, evaluation,
-                null, -1);
-    }
-
-    private CompletableFuture<Object> executeEvaluation(
-            DeserializingMessage message,
-            ModelCommitEngine.CommitEvaluation evaluation,
-            ModelCommitter.CommitBatch transportBatch,
+            ModelExecutionPlan.CommitEvaluation evaluation,
+            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
         ModelConflictPolicy effectiveConflictPolicy =
-                ModelConflictPolicies.resolve(
-                        evaluation,
-                        conflictPolicy);
+                evaluation.conflictPolicy(conflictPolicy);
         Map<String, Set<String>> awaitedGraphProjections =
                 awaitedGraphProjectionTargets(
                         evaluation);
@@ -1112,81 +721,168 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private CompletableFuture<Object> executeEvaluation(
             DeserializingMessage message,
-            ModelCommitEngine.CommitEvaluation evaluation,
+            ModelExecutionPlan.CommitEvaluation evaluation,
             ModelConflictPolicy effectiveConflictPolicy,
             Map<String, Set<String>> awaitedGraphProjections,
-            ModelCommitter.CommitBatch transportBatch,
+            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
                     Runnable localCommitComplete =
                             repository.beginLocalCommit(
                                     writtenModelIds(evaluation));
                     try {
-                        CompletableFuture<Optional<CommitModelsResult>> result =
-                                effectiveConflictPolicy
+                        Retry retry = effectiveConflictPolicy
                                 == ModelConflictPolicy.ACCEPT
-                                        ? committer.commitAcceptingRebase(
-                                                message.getMessageId(),
-                                                evaluation,
-                                                (messages, stateIndex) -> {
-                                                    try {
-                                                        return CompletableFuture
-                                                                .completedFuture(
-                                                                        rebase(
-                                                                                messages,
-                                                                                stateIndex));
-                                                    } catch (Throwable failure) {
-                                                        return CompletableFuture
-                                                                .failedFuture(
-                                                                        failure);
-                                                    }
-                                                },
-                                                transportBatch,
-                                                transportSlot)
-                                        : committer.commit(
-                                                message.getMessageId(),
-                                                evaluation,
-                                                effectiveConflictPolicy,
-                                                conflictResolver,
-                                                maxConflictRetries,
-                                                (conflict, currentEvaluation) ->
-                                                        reload(
-                                                                message,
-                                                                currentEvaluation,
-                                                                conflict),
-                                                transportBatch,
-                                                transportSlot);
-                        if (awaitedGraphProjections.isEmpty()) {
-                            return result.handle(
-                                    (commitResult, failure) -> {
-                                        localCommitComplete.run();
-                                        return finishEvaluation(
-                                                evaluation,
-                                                effectiveConflictPolicy,
-                                                failure);
-                                    });
-                        }
-                        return result.whenComplete(
-                                             (commitResult, failure) ->
-                                                     localCommitComplete.run())
-                                .thenCompose(commitResult ->
-                                                     awaitGraphProjections(
-                                                             commitResult,
-                                                             awaitedGraphProjections))
-                                .handle(
-                                (commitResult, failure) -> {
-                                    return finishEvaluation(
-                                            evaluation,
-                                            effectiveConflictPolicy,
-                                            failure);
-                                });
+                                ? Retry.accepting(
+                                        (result, current, original) -> {
+                                            try {
+                                                return CompletableFuture.completedFuture(
+                                                        rebase(
+                                                                original.rebaseMessages(),
+                                                                result.getRebaseStateIndex()));
+                                            } catch (Throwable failure) {
+                                                return CompletableFuture.failedFuture(failure);
+                                            }
+                                        })
+                                : Retry.conflicts(
+                                        conflictResolver,
+                                        maxConflictRetries,
+                                        (conflict, current, original) ->
+                                                reload(message, current, conflict));
+                        CompletableFuture<Optional<CommitModelsResult>> result =
+                                commit(
+                                        protocol, message.getMessageId(), evaluation,
+                                        effectiveConflictPolicy, retry,
+                                        transportBatch, transportSlot);
+                        CompletableFuture<Optional<CommitModelsResult>> committed =
+                                result.whenComplete(
+                                        (commitResult, failure) -> localCommitComplete.run());
+                        CompletableFuture<Optional<CommitModelsResult>> completed =
+                                awaitedGraphProjections.isEmpty()
+                                        ? committed
+                                        : committed.thenCompose(commitResult ->
+                                                awaitGraphProjections(
+                                                        commitResult,
+                                                        awaitedGraphProjections));
+                        return completed.handle((commitResult, failure) ->
+                                    finishEvaluation(
+                                        evaluation,
+                                        effectiveConflictPolicy,
+                                        failure));
                     } catch (Throwable failure) {
                         localCommitComplete.run();
                         throw failure;
                     }
     }
 
+    static CompletableFuture<Optional<CommitModelsResult>> commit(
+            ModelCommitProtocol protocol,
+            String commitId,
+            ModelExecutionPlan.CommitEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy,
+            Retry retry,
+            ModelCommitBatchingClient.ModelCommitBatch batch,
+            int batchSlot) {
+        Objects.requireNonNull(retry, "retry");
+        ModelCommitProtocol.PreparedCommit original = protocol.prepare(
+                commitId, evaluation, conflictPolicy);
+        return commit(
+                protocol, commitId, evaluation, conflictPolicy,
+                original, original, retry,
+                ThreadLocalContext.capture(), 0, batch, batchSlot);
+    }
+
+    private static CompletableFuture<Optional<CommitModelsResult>> commit(
+            ModelCommitProtocol protocol,
+            String commitId,
+            ModelExecutionPlan.CommitEvaluation evaluation,
+            ModelConflictPolicy conflictPolicy,
+            ModelCommitProtocol.PreparedCommit original,
+            ModelCommitProtocol.PreparedCommit prepared,
+            Retry retry,
+            ThreadLocalContext.Snapshot context,
+            int attempts,
+            ModelCommitBatchingClient.ModelCommitBatch batch,
+            int batchSlot) {
+        return protocol.commitPrepared(prepared, batch, batchSlot)
+                .thenCompose(optional -> {
+                    if (optional.isEmpty()) {
+                        return CompletableFuture.completedFuture(optional);
+                    }
+                    CommitModelsResult result = optional.get();
+                    if (retry.accepting()) {
+                        if (!result.isRebaseRequired()) {
+                            return CompletableFuture.completedFuture(optional);
+                        }
+                        if (attempts >= retry.maxAttempts()) {
+                            return CompletableFuture.failedFuture(new IllegalStateException(
+                                    "Model commit '%s' remained stale after %d apply-only rebases"
+                                            .formatted(commitId, retry.maxAttempts())));
+                        }
+                    } else if (result.isAccepted()) {
+                        return CompletableFuture.completedFuture(optional);
+                    }
+                    return retryDecision(result, attempts, retry, context)
+                            .thenCompose(ignored -> invokeAsync(
+                                    context,
+                                    () -> retry.evaluator().reevaluate(
+                                            result, evaluation, original),
+                                    "Model commit reevaluation returned null"))
+                            .thenCompose(next -> {
+                                if (retry.accepting()
+                                    && next.readStateIndex() != result.getRebaseStateIndex()) {
+                                    return CompletableFuture.failedFuture(new IllegalStateException(
+                                            "Model commit '%s' rebase loaded state index %d instead of requested %d"
+                                                    .formatted(
+                                                            commitId, next.readStateIndex(),
+                                                            result.getRebaseStateIndex())));
+                                }
+                                ModelCommitProtocol.PreparedCommit nextPrepared =
+                                        retry.accepting()
+                                        && !original.hasCascadedDeletion()
+                                                ? protocol.prepareRebased(commitId, original, next)
+                                                : protocol.prepare(commitId, next, conflictPolicy);
+                                return commit(
+                                        protocol, commitId, next, conflictPolicy,
+                                        original, nextPrepared, retry,
+                                        context, attempts + 1, null, -1);
+                            });
+                });
+    }
+
+    private static CompletableFuture<Void> retryDecision(
+            CommitModelsResult result,
+            int attempts,
+            Retry retry,
+            ThreadLocalContext.Snapshot context) {
+        if (retry.accepting()) {
+            return COMPLETED_VOID;
+        }
+        return CompletableFuture.supplyAsync(context.wrap(() ->
+                        Objects.requireNonNull(
+                                retry.resolver().resolve(
+                                        new ModelConflictResolver.Context(
+                                                result, attempts, retry.maxAttempts())),
+                                "Model conflict resolver returned null")))
+                .thenCompose(resolution ->
+                        resolution == ModelConflictResolver.Resolution.RETRY
+                        && result.isRetryAllowed()
+                        && attempts < retry.maxAttempts()
+                                ? COMPLETED_VOID
+                                : CompletableFuture.failedFuture(
+                                        new ModelCommitConflictException(result)));
+    }
+
+    private static <T> CompletableFuture<T> invokeAsync(
+            ThreadLocalContext.Snapshot context,
+            Supplier<CompletableFuture<T>> operation,
+            String nullMessage) {
+        return CompletableFuture.supplyAsync(context.wrap(() ->
+                        Objects.requireNonNull(operation.get(), nullMessage)))
+                .thenCompose(Function.identity());
+    }
+
     private Object finishEvaluation(
-            ModelCommitEngine.CommitEvaluation evaluation,
+            ModelExecutionPlan.CommitEvaluation evaluation,
             ModelConflictPolicy effectiveConflictPolicy,
             Throwable failure) {
         if (failure == null) {
@@ -1207,15 +903,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private static List<String> writtenModelIds(
-            ModelCommitEngine.CommitEvaluation evaluation) {
-        List<ModelCommitEngine.Transition> transitions =
+            ModelExecutionPlan.CommitEvaluation evaluation) {
+        List<ModelExecutionPlan.Transition> transitions =
                 evaluation.transitions();
         if (transitions.size() == 1) {
             return List.of(
                     transitions.getFirst().modelId());
         }
         return transitions.stream()
-                .map(ModelCommitEngine.Transition::modelId)
+                .map(ModelExecutionPlan.Transition::modelId)
                 .distinct()
                 .toList();
     }
@@ -1251,67 +947,46 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     Set<String> awaitedGraphProjections(
-            ModelCommitEngine.CommitEvaluation evaluation) {
+            ModelExecutionPlan.CommitEvaluation evaluation) {
         return awaitedGraphProjectionTargets(
                 evaluation).keySet();
     }
 
     Map<String, Set<String>> awaitedGraphProjectionTargets(
-            ModelCommitEngine.CommitEvaluation evaluation) {
+            ModelExecutionPlan.CommitEvaluation evaluation) {
         GraphProjectionCompletion consumer = null;
-        LinkedHashMap<String, LinkedHashSet<String>> result =
-                null;
-        for (ModelCommitEngine.Transition transition :
+        LinkedHashMap<String, LinkedHashSet<String>> result = new LinkedHashMap<>();
+        for (ModelExecutionPlan.Transition transition :
                 evaluation.transitions()) {
-            List<ProjectionRoot> roots =
-                    projectionRoots(
-                            transition.modelType());
+            List<ModelGraphProjections.Root> roots =
+                    ModelGraphProjections.roots(transition.modelType());
             if (roots.isEmpty()) {
                 continue;
             }
             if (consumer == null) {
                 consumer = Tracker.current()
                         .map(Tracker::getConfiguration)
-                        .map(configuration ->
-                                     configuration
-                                             .getGraphProjectionCompletion())
-                        .orElse(
-                                GraphProjectionCompletion.DEFAULT);
+                        .map(configuration -> configuration.getGraphProjectionCompletion())
+                        .orElse(GraphProjectionCompletion.DEFAULT);
             }
             Apply apply = transition.handler() == null
                     ? null
-                    : transition.handler().getAnnotation(
-                            Apply.class);
+                    : transition.handler().getAnnotation(Apply.class);
             GraphProjectionCompletion applyPolicy =
                     apply == null
                             ? GraphProjectionCompletion.DEFAULT
                             : apply.graphProjectionCompletion();
-            if (result == null) {
-                result = new LinkedHashMap<>();
+            for (ModelGraphProjections.Root root : roots) {
+                if (resolveProjectionCompletion(
+                        applyPolicy, consumer,
+                        root.projection().completion()) == GraphProjectionCompletion.AWAIT) {
+                    result.computeIfAbsent(
+                                    root.collection(), ignored -> new LinkedHashSet<>())
+                            .add(transition.modelId());
+                }
             }
-            LinkedHashMap<String, LinkedHashSet<String>> targets =
-                    result;
-            GraphProjectionCompletion consumerPolicy =
-                    consumer;
-            roots.forEach(root -> {
-                        GraphProjectionCompletion policy =
-                                resolveProjectionCompletion(
-                                        applyPolicy,
-                                        consumerPolicy,
-                                        root.projection()
-                                                .completion());
-                        if (policy
-                            == GraphProjectionCompletion.AWAIT) {
-                            targets.computeIfAbsent(
-                                            root.collection(),
-                                            ignored ->
-                                                    new LinkedHashSet<>())
-                                    .add(
-                                            transition.modelId());
-                        }
-                    });
         }
-        if (result == null || result.isEmpty()) {
+        if (result.isEmpty()) {
             return Map.of();
         }
         return result.entrySet().stream()
@@ -1340,54 +1015,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return graphProjectionCompletion;
     }
 
-    private List<ProjectionRoot> projectionRoots(
-            Class<?> modelType) {
-        CachedProjectionRoots recent = recentProjectionRoots;
-        if (recent != null
-            && recent.modelType() == modelType) {
-            return recent.roots();
-        }
-        List<ProjectionRoot> roots =
-                projectionPlans.computeIfAbsent(
-                        modelType,
-                        this::inspectProjectionRoots);
-        recentProjectionRoots =
-                new CachedProjectionRoots(
-                        modelType, roots);
-        return roots;
-    }
-
-    private List<ProjectionRoot> inspectProjectionRoots(Class<?> modelType) {
-        return inspectProjectionRoots(modelType, new LinkedHashSet<>());
-    }
-
-    private List<ProjectionRoot> inspectProjectionRoots(
-            Class<?> modelType, Set<Class<?>> visited) {
-        if (!visited.add(modelType)) {
-            return List.of();
-        }
-        List<ProjectionRoot> result = new ArrayList<>();
-        ModelMetadata metadata = ModelMetadata.of(modelType);
-        metadata.model()
-                .flatMap(model -> ModelGraphProjections.configuration(modelType)
-                        .map(configuration -> new ProjectionRoot(
-                                modelType, configuration, model.graphProjection())))
-                .ifPresent(result::add);
-        metadata.parentReferences().stream()
-                .map(ModelMetadata.ParentReference::parentModelType)
-                .filter(Objects::nonNull)
-                .forEach(parent ->
-                        result.addAll(inspectProjectionRoots(parent, visited)));
-        return List.copyOf(result);
-    }
-
     private CompletableFuture<Void> ensureGraphProjections(
-            ModelCommitEngine.CommitEvaluation evaluation) {
-        LinkedHashSet<ProjectionRoot> roots = null;
-        for (ModelCommitEngine.Transition transition :
+            ModelExecutionPlan.CommitEvaluation evaluation) {
+        LinkedHashSet<ModelGraphProjections.Root> roots = null;
+        for (ModelExecutionPlan.Transition transition :
                 evaluation.transitions()) {
-            List<ProjectionRoot> candidates =
-                    projectionRoots(transition.modelType());
+            List<ModelGraphProjections.Root> candidates =
+                    ModelGraphProjections.roots(transition.modelType());
             if (!candidates.isEmpty()) {
                 if (roots == null) {
                     roots = new LinkedHashSet<>();
@@ -1401,7 +1035,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         roots.forEach(this::registerGraphProjection);
         return CompletableFuture.allOf(
                 roots.stream()
-                        .map(ProjectionRoot::modelType)
+                        .map(ModelGraphProjections.Root::modelType)
                         .distinct()
                         .map(graphProjectionRegistrations::get)
                         .filter(Objects::nonNull)
@@ -1409,7 +1043,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private void registerGraphProjection(
-            ProjectionRoot root) {
+            ModelGraphProjections.Root root) {
         CompletableFuture<ModelGraphProjectionStatus> registration =
                 graphProjectionRegistrations.computeIfAbsent(
                         root.modelType(),
@@ -1422,9 +1056,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         });
     }
 
-    private CompletableFuture<ModelCommitEngine.CommitEvaluation> reload(
+    private CompletableFuture<ModelExecutionPlan.CommitEvaluation> reload(
             DeserializingMessage message,
-            ModelCommitEngine.CommitEvaluation staleEvaluation,
+            ModelExecutionPlan.CommitEvaluation staleEvaluation,
             CommitModelsResult conflict) {
         repository.invalidateModels(
                 staleEvaluation.readModelIds());
@@ -1434,10 +1068,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         conflict);
         try {
             return CompletableFuture.completedFuture(
-                    MessageBatchModelView.withMessageDependency(
+                    ModelBatchScope.withMessageDependency(
                             message,
                             () -> expandCascadeDeletes(
-                                    engine.evaluate(
+                                    compiler.evaluate(
                                             message,
                                             new CommitLoader(
                                                     retryStateIndex)))));
@@ -1447,7 +1081,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private static long retryStateIndex(
-            ModelCommitEngine.CommitEvaluation evaluation,
+            ModelExecutionPlan.CommitEvaluation evaluation,
             CommitModelsResult conflict) {
         long result = evaluation.readStateIndex();
         for (var current : conflict.getConflicts()) {
@@ -1461,45 +1095,36 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private CompletableFuture<Void> afterCommitBatch(
-            List<ModelCommitter.CommittedCommit> committed) {
+            List<ModelCommitProtocol.CommittedCommit> committed) {
         List<DefaultModelRepository.CommittedModel> committedModels =
                 new ArrayList<>(committed.size());
-        for (ModelCommitter.CommittedCommit item : committed) {
-            appendCommittedModels(
-                    item, committedModels);
+        for (ModelCommitProtocol.CommittedCommit item : committed) {
+            createCommittedModels(item, committedModels);
         }
         repository.updateAfterCommit(committedModels);
         return CompletableFuture.completedFuture(null);
     }
 
-    private void appendCommittedModels(
-            ModelCommitter.CommittedCommit committed,
-            List<DefaultModelRepository.CommittedModel> target) {
-        createCommittedModels(committed, target);
-    }
-
     private void createCommittedModels(
-            ModelCommitter.CommittedCommit committed,
+            ModelCommitProtocol.CommittedCommit committed,
             List<DefaultModelRepository.CommittedModel> target) {
-        if (committed.prepared().transitionGroups().size()
+        if (committed.prepared().substeps().size()
             != committed.result().getSubsteps().size()) {
             throw new IllegalStateException(
                     "Model commit returned a different number of substeps than requested");
         }
-        if (committed.prepared().transitionGroups().size() == 1
-            && committed.prepared().transitionGroups().getFirst().size() == 1) {
-            ModelCommitter.EffectiveTransition effective =
-                    committed.prepared().transitionGroups()
-                            .getFirst().getFirst();
+        if (committed.prepared().substeps().size() == 1
+            && committed.prepared().substeps().getFirst().transitions().size() == 1) {
+            ModelExecutionPlan.Transition transition =
+                    committed.prepared().substeps().getFirst()
+                            .transitions().getFirst();
             if (!committed.result().hasSingleTargetResult()) {
                 throw new IllegalStateException(
                         "Model commit returned a different number of targets than requested");
             }
-            if (!effective.updateState()) {
+            if (!transition.effect().updateState()) {
                 return;
             }
-            ModelCommitEngine.Transition transition =
-                    effective.transition();
             var commitStep = committed.prepared().commit()
                     .getSubsteps().getFirst();
             Instant timestamp = commitStep.getEvent() == null
@@ -1510,8 +1135,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     new DefaultModelRepository.CommittedModel(
                             transition.modelId(),
                             transition.modelType(),
-                            effective.model(),
-                            effective.entityId(),
+                            transition.effect().model(),
+                            transition.effect().metadata().entityId().orElseThrow(),
                             committed.result().isSingleTargetHistoryComplete(),
                             new DefaultModelRepository.CommittedRevision(
                                     transition.after(),
@@ -1525,10 +1150,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         LinkedHashMap<String, DefaultModelRepository.CommittedModel> finalStates =
                 new LinkedHashMap<>();
         for (int substep = 0;
-             substep < committed.prepared().transitionGroups().size();
+             substep < committed.prepared().substeps().size();
              substep++) {
-            List<ModelCommitter.EffectiveTransition> transitions =
-                    committed.prepared().transitionGroups().get(substep);
+            List<ModelExecutionPlan.Transition> transitions =
+                    committed.prepared().substeps().get(substep).transitions();
             var substepResult = committed.result().getSubsteps().get(substep);
             var commitStep = committed.prepared().commit().getSubsteps().get(substep);
             if (commitStep.getTargets().size()
@@ -1549,10 +1174,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             for (int targetIndex = 0;
                  targetIndex < transitions.size();
                  targetIndex++) {
-                ModelCommitter.EffectiveTransition effective =
-                        transitions.get(targetIndex);
-                ModelCommitEngine.Transition transition = effective.transition();
-                if (!effective.updateState()) {
+                ModelExecutionPlan.Transition transition = transitions.get(targetIndex);
+                if (!transition.effect().updateState()) {
                     continue;
                 }
                 var targetResult = substepResult.getTargets().get(targetIndex);
@@ -1576,7 +1199,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         transition.modelId(),
                         new DefaultModelRepository.CommittedModel(
                                 transition.modelId(), transition.modelType(),
-                                effective.model(), effective.entityId(),
+                                transition.effect().model(),
+                                transition.effect().metadata().entityId().orElseThrow(),
                                 targetResult.isHistoryComplete(),
                                 revisions));
             }
@@ -1584,120 +1208,32 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         target.addAll(finalStates.values());
     }
 
-    private ModelCommitEngine.CommitEvaluation evaluate(DeserializingMessage initialMessage) {
-        if (initialMessage.getContext(ExplicitModelTarget.class).isPresent()) {
-            return evaluateGeneric(initialMessage);
-        }
-        return evaluateKnown(
-                initialMessage,
-                prefetchInput(initialMessage));
-    }
-
-    private ModelCommitEngine.CommitEvaluation evaluateKnown(
-            DeserializingMessage initialMessage,
-            PrefetchInput input) {
-        if (input != null) {
-            PrefetchSlot cached = new PrefetchSlot(
-                    input.modelId(),
-                    input.modelType());
+    private ModelExecutionPlan.CommitEvaluation evaluate(DeserializingMessage initialMessage) {
+        PrefetchSlot cached = initialMessage.getContext(ExplicitModelTarget.class).isPresent()
+                ? null : prefetch(initialMessage);
+        if (cached != null) {
             if (repository.supplyCurrentModel(
-                    input.modelId(), input.modelType(), cached)) {
-                return evaluateSingleTarget(initialMessage, input, cached);
+                    cached.modelId(), cached.modelType(), cached)) {
+                return evaluate(initialMessage, cached);
             }
         }
-        return evaluateGeneric(initialMessage);
+        return evaluate(initialMessage, null);
     }
 
-    private ModelCommitEngine.CommitEvaluation evaluateGeneric(
-            DeserializingMessage initialMessage) {
-        return expandCascadeDeletes(
-                engine.evaluate(initialMessage, new CommitLoader(null)));
-    }
-
-    private ModelCommitEngine.CommitEvaluation evaluatePrefetched(
-            DeserializingMessage message,
-            BatchPrefetch prefetch,
-            BatchCommitTicket ticket) {
-        PrefetchInput input = ticket.prefetchInput();
-        if (input == null) {
-            return evaluate(message);
-        }
-        PrefetchSlot prefetched =
-                prefetch.models().get(input.modelId());
-        if (prefetched == null || prefetched.entity == null) {
-            return evaluate(message);
-        }
-        return evaluateSingleTarget(message, input, prefetched);
-    }
-
-    private ModelCommitEngine.CommitEvaluation evaluateSingleTarget(
-            DeserializingMessage message,
-            PrefetchInput input,
+    private ModelExecutionPlan.CommitEvaluation evaluate(
+            DeserializingMessage initialMessage,
             PrefetchSlot prefetched) {
-        ModelMetadata.HandlerMethod handler = input.handler();
-        Entity<?> entity = prefetched.entity;
-        ModelCommitEngine.SingleTargetEvaluation applied =
-                input.directApply() != null
-                && input.access().writes()
-                        ? engine.evaluateDirectSingleTarget(
-                                message,
-                                entity,
-                                handler,
-                                input.modelId(),
-                                input.directApply())
-                        : engine.evaluateSingleTarget(
-                                message,
-                                ModelCommitContext.createSingle(
-                                        prefetched.stateIndex,
-                                        input.modelId(),
-                                        input.modelType(),
-                                        input.access(),
-                                        input.sourceProperties(),
-                                        entity),
-                                handler,
-                                input.modelId(),
-                                input.directApply());
-        if (!applied.applied()) {
-            return evaluateGeneric(message);
-        }
-        Object before = entity.get();
-        Object after = applied.value();
-        ModelCommitEngine.Transition transition =
-                new ModelCommitEngine.Transition(
-                        input.modelId(),
-                        input.modelType(),
-                        entity instanceof ModelRoot<?> root
-                                ? root.sequenceNumber()
-                                : -1L,
-                        entity instanceof ModelRoot<?> root
-                                ? root.lastEventIndex()
-                                : null,
-                        before,
-                        after,
-                        handler.executable());
-        LinkedHashMap<String, Object> finalValues =
-                new LinkedHashMap<>(1);
-        finalValues.put(
-                input.modelId(), after);
-        return expandCascadeDeletes(new ModelCommitEngine.CommitEvaluation(
-                prefetched.stateIndex,
-                List.of(input.modelId()),
-                Map.of(
-                        input.modelId(),
-                        input.modelType()),
-                List.of(
-                        new ModelCommitEngine.AppliedSubstep(
-                                message,
-                                List.of(transition))),
-                finalValues));
+        return expandCascadeDeletes(
+                compiler.evaluate(initialMessage, new CommitLoader(
+                        null, false, initialMessage, prefetched)));
     }
 
-    private ModelCommitEngine.CommitEvaluation rebase(
+    private ModelExecutionPlan.CommitEvaluation rebase(
             List<DeserializingMessage> messages,
             long stateIndex) {
-        return MessageBatchModelView.withMessageDependency(
+        return ModelBatchScope.withMessageDependency(
                 messages.getFirst(),
-                () -> expandCascadeDeletes(engine.rebase(
+                () -> expandCascadeDeletes(compiler.rebase(
                         messages.stream()
                                 .filter(message -> !(message.getPayload()
                                         instanceof CascadedModelDeletion))
@@ -1710,11 +1246,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
      * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
      * actual logical deletions.
      */
-    private ModelCommitEngine.CommitEvaluation expandCascadeDeletes(
-            ModelCommitEngine.CommitEvaluation evaluation) {
+    private ModelExecutionPlan.CommitEvaluation expandCascadeDeletes(
+            ModelExecutionPlan.CommitEvaluation evaluation) {
         LinkedHashSet<String> explicitlyDeleted = null;
-        for (ModelCommitEngine.AppliedSubstep substep : evaluation.substeps()) {
-            for (ModelCommitEngine.Transition transition : substep.transitions()) {
+        LinkedHashMap<String, ModelExecutionPlan.Transition> latestTransitions =
+                new LinkedHashMap<>();
+        for (ModelExecutionPlan.AppliedSubstep substep : evaluation.substeps()) {
+            for (ModelExecutionPlan.Transition transition : substep.transitions()) {
+                latestTransitions.put(transition.modelId(), transition);
                 if (transition.before() != null
                     && transition.after() == null
                     && evaluation.finalValues().get(transition.modelId()) == null) {
@@ -1728,45 +1267,31 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         if (explicitlyDeleted == null) {
             return evaluation;
         }
-
-        LinkedHashMap<String, ModelCommitEngine.Transition> latestTransitions =
-                new LinkedHashMap<>();
-        for (ModelCommitEngine.AppliedSubstep substep : evaluation.substeps()) {
-            for (ModelCommitEngine.Transition transition : substep.transitions()) {
-                latestTransitions.put(transition.modelId(), transition);
-            }
-        }
         LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
-        LinkedHashSet<String> expanded = new LinkedHashSet<>();
-        java.util.ArrayDeque<String> pendingExpansion =
-                new java.util.ArrayDeque<>(explicitlyDeleted);
         LinkedHashSet<String> deleted = new LinkedHashSet<>(explicitlyDeleted);
         LinkedHashSet<String> cascaded = new LinkedHashSet<>();
 
-        while (true) {
-            while (!pendingExpansion.isEmpty()) {
-                String rootId = pendingExpansion.removeFirst();
-                if (!expanded.add(rootId)) {
-                    continue;
-                }
-                Class<?> rootType = modelType(
-                        rootId, evaluation, latestTransitions, nodes);
-                if (rootType == null) {
-                    continue;
-                }
-                Graph<?> graph = repository.loadGraphAtIncludingMessageBatch(
-                        rootId, rootType,
-                        evaluation.readStateIndex(),
-                        Graph.Options.DEFAULT);
-                addCascadeNode(nodes, graph);
-                graph.descendants(Object.class).forEach(
-                        descendant -> addCascadeNode(nodes, descendant));
+        for (String rootId : explicitlyDeleted) {
+            Class<?> rootType = modelType(
+                    rootId, evaluation, latestTransitions);
+            if (rootType == null) {
+                continue;
             }
+            Graph<?> graph = repository.loadGraphAtIncludingMessageBatch(
+                    rootId, rootType,
+                    evaluation.readStateIndex(),
+                    Graph.Options.DEFAULT);
+            addCascadeNode(nodes, graph);
+            graph.descendants(Object.class).forEach(
+                    descendant -> addCascadeNode(nodes, descendant));
+        }
 
-            overlayFinalValues(
-                    evaluation, latestTransitions, nodes);
-            boolean changed = false;
-            for (CascadeNode node : List.copyOf(nodes.values())) {
+        overlayFinalValues(
+                evaluation, latestTransitions, nodes);
+        boolean changed;
+        do {
+            changed = false;
+            for (CascadeNode node : nodes.values()) {
                 if (deleted.contains(node.modelId())
                     || node.value() == null) {
                     continue;
@@ -1778,16 +1303,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 metadata, node.value(), deleted);
                 if (ownedByDeletedParent && deleted.add(node.modelId())) {
                     cascaded.add(node.modelId());
-                    pendingExpansion.addLast(node.modelId());
                     changed = true;
                 }
             }
-            if (!changed && pendingExpansion.isEmpty()) {
-                break;
-            }
-        }
+        } while (changed);
         if (cascaded.isEmpty()) {
-            return new ModelCommitEngine.CommitEvaluation(
+            return new ModelExecutionPlan.CommitEvaluation(
                     evaluation.readStateIndex(),
                     evaluation.readModelIds(),
                     evaluation.readModelTypes(),
@@ -1796,13 +1317,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     explicitlyDeleted);
         }
 
-        List<ModelCommitEngine.Transition> transitions = cascaded.stream()
+        List<ModelExecutionPlan.Transition> transitions = cascaded.stream()
                 .map(nodes::get)
                 .filter(Objects::nonNull)
-                .map(node -> new ModelCommitEngine.Transition(
+                .map(node -> new ModelExecutionPlan.Transition(
                         node.modelId(), node.modelType(),
                         node.sequenceNumber(), node.lastEventIndex(),
-                        node.value(), null, null, true))
+                        node.value(), null, null, null, true))
                 .toList();
         DeserializingMessage source =
                 evaluation.substeps().getFirst().message();
@@ -1812,9 +1333,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 List.copyOf(explicitlyDeleted)),
                         source.getMetadata(), null,
                         source.getTimestamp()));
-        List<ModelCommitEngine.AppliedSubstep> substeps =
+        List<ModelExecutionPlan.AppliedSubstep> substeps =
                 new ArrayList<>(evaluation.substeps());
-        substeps.add(new ModelCommitEngine.AppliedSubstep(
+        substeps.add(new ModelExecutionPlan.AppliedSubstep(
                 cascadeMessage, transitions));
         LinkedHashSet<String> readModelIds =
                 new LinkedHashSet<>(evaluation.readModelIds());
@@ -1828,7 +1349,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     transition.modelId(), transition.modelType());
             finalValues.put(transition.modelId(), null);
         });
-        return new ModelCommitEngine.CommitEvaluation(
+        return new ModelExecutionPlan.CommitEvaluation(
                 evaluation.readStateIndex(),
                 List.copyOf(readModelIds),
                 readModelTypes,
@@ -1867,14 +1388,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     }
 
     private static void overlayFinalValues(
-            ModelCommitEngine.CommitEvaluation evaluation,
-            Map<String, ModelCommitEngine.Transition> latestTransitions,
+            ModelExecutionPlan.CommitEvaluation evaluation,
+            Map<String, ModelExecutionPlan.Transition> latestTransitions,
             Map<String, CascadeNode> nodes) {
         evaluation.finalValues().forEach((modelId, value) -> {
             if (value == null) {
                 return;
             }
-            ModelCommitEngine.Transition transition =
+            ModelExecutionPlan.Transition transition =
                     latestTransitions.get(modelId);
             CascadeNode known = nodes.get(modelId);
             Class<?> type = transition == null
@@ -1898,14 +1419,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     private static Class<?> modelType(
             String modelId,
-            ModelCommitEngine.CommitEvaluation evaluation,
-            Map<String, ModelCommitEngine.Transition> transitions,
-            Map<String, CascadeNode> nodes) {
-        CascadeNode node = nodes.get(modelId);
-        if (node != null) {
-            return node.modelType();
-        }
-        ModelCommitEngine.Transition transition =
+            ModelExecutionPlan.CommitEvaluation evaluation,
+            Map<String, ModelExecutionPlan.Transition> transitions) {
+        ModelExecutionPlan.Transition transition =
                 transitions.get(modelId);
         return transition == null
                 ? evaluation.readModelTypes().get(modelId)
@@ -1923,24 +1439,36 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     record ExplicitModelTarget(String modelId, Class<?> modelType) {
     }
 
-    private final class CommitLoader implements ModelCommitEngine.SubstepResolver {
+    private final class CommitLoader implements ModelExecutionPlan.SubstepResolver {
         private final Long pinnedStateIndex;
         private final boolean applyOnly;
+        private final DeserializingMessage directMessage;
+        private final PrefetchSlot prefetched;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
         private final Map<AncestorPlanKey, List<ModelTargetResolver.ResolvedModel>> ancestorPlans =
                 new LinkedHashMap<>();
 
         private CommitLoader(Long pinnedStateIndex) {
-            this(pinnedStateIndex, false);
+            this(pinnedStateIndex, false, null, null);
         }
 
         private CommitLoader(Long pinnedStateIndex, boolean applyOnly) {
+            this(pinnedStateIndex, applyOnly, null, null);
+        }
+
+        private CommitLoader(
+                Long pinnedStateIndex,
+                boolean applyOnly,
+                DeserializingMessage directMessage,
+                PrefetchSlot prefetched) {
             this.pinnedStateIndex = pinnedStateIndex;
             this.applyOnly = applyOnly;
+            this.directMessage = directMessage;
+            this.prefetched = prefetched;
         }
 
         @Override
-        public ModelCommitEngine.ResolvedSubstep resolve(
+        public ModelExecutionPlan.ResolvedSubstep resolve(
                 DeserializingMessage substep,
                 Long requestedStateIndex,
                 Map<String, Object> stagedValues) {
@@ -1950,39 +1478,49 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         "Pinned model evaluation moved from state index %d to %d"
                                 .formatted(pinnedStateIndex, boundary));
             }
-            CommitPlan plan = planFor(substep.getPayloadClass());
-            List<ModelMetadata.HandlerMethod> handlers =
-                    applyOnly ? plan.applies() : plan.handlers();
+            ModelExecutionPlan plan = planFor(substep.getPayloadClass());
+            ModelExecutionPlan.HandlerPlan handlers = plan.handlers();
+            if (substep == directMessage
+                && prefetched != null
+                && prefetched.entity != null
+                && requestedStateIndex == null
+                && stagedValues.isEmpty()) {
+                commitEntities.put(prefetched.modelId(), prefetched.entity);
+                return new ModelExecutionPlan.ResolvedSubstep(
+                        ModelCommitContext.createSingle(
+                                prefetched.stateIndex,
+                                prefetched.modelId(),
+                                prefetched.modelType(),
+                                prefetched.access,
+                                prefetched.sourceProperties,
+                                prefetched.entity),
+                        handlers,
+                        prefetched.access.writes()
+                                ? prefetched.directApply : null);
+            }
             ExplicitModelTarget explicitTarget = substep.getContext(
                     ExplicitModelTarget.class).orElse(null);
             ModelTargetResolver.Resolution resolution =
-                    targetPlan(
-                            substep.getPayloadClass(), plan,
-                            applyOnly, explicitTarget)
-                            .resolve(substep.getPayload());
-            if (explicitTarget != null) {
-                resolution = retarget(
-                        resolution, explicitTarget,
-                        substep.getPayloadClass(), handlers);
-            }
+                    plan.targets().resolve(
+                            substep.getPayload(),
+                            explicitTarget == null ? null : explicitTarget.modelId(),
+                            explicitTarget == null ? null : explicitTarget.modelType(),
+                            applyOnly);
             AncestorPlanKey planKey = resolution.hasAncestorDependencies()
                     ? ancestorPlanKey(resolution, stagedValues) : null;
             List<ModelTargetResolver.ResolvedModel> effectiveTargets = planKey == null
                     ? resolution.models() : ancestorPlans.get(planKey);
             List<ModelTargetResolver.ResolvedModel> missing = effectiveTargets == null ? List.of()
                     : effectiveTargets.stream()
-                            .filter(target -> !containsEntity(
-                                    target.modelId()))
+                            .filter(target -> !commitEntities.containsKey(target.modelId()))
                             .toList();
-
             long stateIndex = boundary == null ? -1L : boundary;
             if (effectiveTargets == null) {
                 ModelCommitContext loaded = load(resolution, boundary, stagedValues);
                 stateIndex = loaded.readStateIndex();
                 effectiveTargets = targets(loaded);
                 ancestorPlans.put(planKey, effectiveTargets);
-            } else if ((pinnedStateIndex == null
-                        && requestedStateIndex == null)
+            } else if (pinnedStateIndex == null && requestedStateIndex == null
                        || !missing.isEmpty()) {
                 ModelTargetResolver.Resolution loadResolution =
                         pinnedStateIndex == null && requestedStateIndex == null
@@ -1991,86 +1529,48 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                                 : new ModelTargetResolver.Resolution(missing, List.of());
                 stateIndex = load(loadResolution, boundary, stagedValues).readStateIndex();
             }
-
             ModelTargetResolver.Resolution effectiveResolution = planKey == null
                     ? resolution : resolution.withResolvedModels(effectiveTargets);
             LinkedHashMap<String, Entity<?>> selected = new LinkedHashMap<>();
-            for (ModelTargetResolver.ResolvedModel target : effectiveTargets) {
-                selected.put(target.modelId(), Objects.requireNonNull(
-                        entity(target.modelId()),
-                        "Missing commit-scoped model " + target.modelId()));
-            }
-            return new ModelCommitEngine.ResolvedSubstep(
-                    ModelCommitContext.create(stateIndex, effectiveResolution, selected), handlers);
-        }
-
-        private ModelTargetResolver.Resolution retarget(
-                ModelTargetResolver.Resolution resolution,
-                ExplicitModelTarget explicitTarget,
-                Class<?> payloadType,
-                List<ModelMetadata.HandlerMethod> handlers) {
-            List<ModelTargetResolver.ResolvedModel> matches = resolution.models().stream()
-                    .filter(target -> compatibleModelTypes(
-                            target.modelType(), explicitTarget.modelType()))
-                    .toList();
-            if (matches.isEmpty()) {
-                boolean referenced = handlers.stream().anyMatch(handler ->
-                        compatibleModelTypes(
-                                handler.receiverModelType(), explicitTarget.modelType())
-                        || handler.modelParameters().stream().anyMatch(parameter ->
-                                compatibleModelTypes(
-                                        parameter.modelType(), explicitTarget.modelType()))
-                        || handler.targetModelTypes().stream().anyMatch(targetType ->
-                                compatibleModelTypes(
-                                        targetType, explicitTarget.modelType()))
-                        || handler.dynamicApplyResult());
-                if (!referenced) {
-                    return resolution;
-                }
-                List<String> sourceProperties = handlers.stream()
-                        .flatMap(handler -> handler.modelParameters().stream())
-                        .filter(parameter -> compatibleModelTypes(
-                                parameter.modelType(), explicitTarget.modelType()))
-                        .map(ModelMetadata.ModelParameter::associationProperty)
-                        .filter(Objects::nonNull)
-                        .distinct()
-                        .toList();
-                List<ModelTargetResolver.ResolvedModel> retargeted =
-                        new ArrayList<>(resolution.models());
-                retargeted.add(new ModelTargetResolver.ResolvedModel(
-                        explicitTarget.modelId(), explicitTarget.modelType(),
-                        ModelTargetResolver.Access.READ_WRITE, sourceProperties));
-                return new ModelTargetResolver.Resolution(
-                        retargeted, resolution.deferredWrites(),
-                        resolution.ancestorDependencies());
-            }
-            if (matches.size() > 1) {
-                throw new IllegalStateException(
-                        "Explicit %s graph target is ambiguous for %s: resolved %s"
-                                .formatted(explicitTarget.modelType().getName(), payloadType.getName(),
-                                           matches.stream().map(ModelTargetResolver.ResolvedModel::modelId).toList()));
-            }
-            ModelTargetResolver.ResolvedModel match = matches.getFirst();
-            List<ModelTargetResolver.ResolvedModel> retargeted = resolution.models().stream()
-                    .map(target -> target == match
-                            ? new ModelTargetResolver.ResolvedModel(
-                                    explicitTarget.modelId(), explicitTarget.modelType(),
-                                    target.access(), target.sourceProperties())
-                            : target)
-                    .toList();
-            return new ModelTargetResolver.Resolution(
-                    retargeted, resolution.deferredWrites(),
-                    resolution.ancestorDependencies());
-        }
-
-        private boolean compatibleModelTypes(Class<?> resolved, Class<?> explicit) {
-            return resolved != null
-                   && (resolved.isAssignableFrom(explicit)
-                       || explicit.isAssignableFrom(resolved));
+            effectiveTargets.forEach(target -> selected.put(
+                    target.modelId(), Objects.requireNonNull(
+                            commitEntities.get(target.modelId()),
+                            "Missing commit-scoped model " + target.modelId())));
+            return new ModelExecutionPlan.ResolvedSubstep(
+                    ModelCommitContext.create(
+                            stateIndex, effectiveResolution, selected), handlers);
         }
 
         @Override
-        public ModelCommitEngine.ResolvedSubstep resolveGraph(
+        public void prefetch(
+                List<DeserializingMessage> messages,
+                long readStateIndex,
+                Map<String, Object> stagedValues) {
+            LinkedHashMap<String, ModelTargetResolver.ResolvedModel> targets =
+                    new LinkedHashMap<>();
+            for (DeserializingMessage message : messages) {
+                if (message.getContext(ExplicitModelTarget.class).isPresent()) {
+                    continue;
+                }
+                ModelTargetResolver.Resolution resolution = planFor(
+                                message.getPayloadClass())
+                        .targets().resolve(message.getPayload(), null, applyOnly);
+                if (resolution.hasAncestorDependencies()) {
+                    continue;
+                }
+                resolution.models().stream()
+                        .filter(target -> !commitEntities.containsKey(target.modelId()))
+                        .forEach(target -> ModelTargetResolver.merge(targets, target));
+            }
+            if (!targets.isEmpty()) {
+                load(new ModelTargetResolver.Resolution(
+                                List.copyOf(targets.values()), List.of()),
+                     readStateIndex, stagedValues);
+            }
+        }
+
+        @Override
+        public ModelExecutionPlan.ResolvedSubstep resolveGraph(
                 String modelId,
                 Class<?> modelType,
                 Long requestedStateIndex,
@@ -2089,53 +1589,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     requestedStateIndex == null
                             ? pinnedStateIndex : requestedStateIndex,
                     stagedValues);
-            return new ModelCommitEngine.ResolvedSubstep(
-                    loaded, List.of());
-        }
-
-        @Override
-        public void prefetch(
-                List<DeserializingMessage> messages,
-                long readStateIndex,
-                Map<String, Object> stagedValues) {
-            if (pinnedStateIndex != null) {
-                return;
-            }
-            LinkedHashMap<String, ModelTargetResolver.ResolvedModel> missing = new LinkedHashMap<>();
-            for (DeserializingMessage message : messages) {
-                Object payload = message.getPayload();
-                CommitPlan plan = planFor(payload.getClass());
-                List<ModelMetadata.HandlerMethod> handlers =
-                        applyOnly ? plan.applies() : plan.handlers();
-                ExplicitModelTarget explicitTarget = message.getContext(
-                        ExplicitModelTarget.class).orElse(null);
-                ModelTargetResolver.Resolution resolution =
-                        targetPlan(
-                                payload.getClass(), plan,
-                                applyOnly, explicitTarget)
-                                .resolve(payload);
-                if (explicitTarget != null) {
-                    resolution = retarget(
-                            resolution, explicitTarget,
-                            payload.getClass(), handlers);
-                }
-                if (resolution.hasAncestorDependencies()) {
-                    AncestorPlanKey key = ancestorPlanKey(resolution, stagedValues);
-                    if (!ancestorPlans.containsKey(key)) {
-                        ancestorPlans.put(
-                                key, targets(load(resolution, readStateIndex, stagedValues)));
-                    }
-                    continue;
-                }
-                resolution.models().stream()
-                        .filter(target -> !containsEntity(
-                                target.modelId()))
-                        .forEach(target -> missing.putIfAbsent(target.modelId(), target));
-            }
-            if (!missing.isEmpty()) {
-                load(new ModelTargetResolver.Resolution(
-                        List.copyOf(missing.values()), List.of()), readStateIndex, stagedValues);
-            }
+            return new ModelExecutionPlan.ResolvedSubstep(
+                    loaded, ModelExecutionPlan.HandlerPlan.EMPTY);
         }
 
         private ModelCommitContext load(
@@ -2149,7 +1604,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                     : io.fluxzero.sdk.common.ClientUtils
                             .getConsumerNamespace(current);
             Map<String, Object> batchValues =
-                    MessageBatchModelView.currentValues(
+                    ModelBatchScope.currentValues(
                             namespace, resolution);
             Map<String, Object> effectiveStagedValues;
             if (batchValues.isEmpty()) {
@@ -2165,7 +1620,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             ModelCommitContext loaded = repository.loadContext(
                     resolution, boundary, effectiveStagedValues, false);
             Map<String, Object> loadedBatchValues =
-                    MessageBatchModelView.currentValues(
+                    ModelBatchScope.currentValues(
                             namespace, loaded);
             if (!loadedBatchValues.isEmpty()) {
                 loaded = loaded.withValues(loadedBatchValues);
@@ -2175,101 +1630,76 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                         "Model commit requested state index %d but loaded %d"
                                 .formatted(boundary, loaded.readStateIndex()));
             }
-            loaded.entries().forEach(entry ->
-                    commitEntities.put(entry.target().modelId(), entry.entity()));
+            loaded.entries().forEach(entry -> commitEntities.put(
+                    entry.target().modelId(), entry.entity()));
             return loaded;
         }
 
-        private boolean containsEntity(
-                String modelId) {
-            return commitEntities.containsKey(modelId);
-        }
-
-        private Entity<?> entity(
-                String modelId) {
-            return commitEntities.get(modelId);
-        }
-
-        private static List<ModelTargetResolver.ResolvedModel> targets(ModelCommitContext context) {
-            return context.entries().stream().map(ModelCommitContext.Entry::target).toList();
+        private static List<ModelTargetResolver.ResolvedModel> targets(
+                ModelCommitContext context) {
+            return context.entries().stream()
+                    .map(ModelCommitContext.Entry::target).toList();
         }
     }
 
-    private CommitPlan planFor(Class<?> payloadType) {
-        CachedCommitPlan recent = recentCommitPlan;
+    private ModelExecutionPlan planFor(Class<?> payloadType) {
+        CachedExecutionPlan recent = recentCommitPlan;
         if (recent != null && recent.payloadType() == payloadType) {
             return recent.plan();
         }
-        CommitPlan plan = commitPlans.computeIfAbsent(payloadType, type -> {
+        ModelExecutionPlan plan = commitPlans.computeIfAbsent(payloadType, type -> {
             List<ModelMetadata.HandlerMethod> handlers = inspectHandlers(type);
             List<ModelMetadata.HandlerMethod> applies = handlers.stream()
                     .filter(handler -> handler.kind() == ModelMetadata.HandlerKind.APPLY)
                     .toList();
             applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
                     .forEach(knownModelTypes::addIfAbsent);
-            ModelCommitEngine.DirectSingleTargetApply directApply =
+            ModelExecutionPlan.DirectSingleTargetApply directApply =
                     handlers.size() == 1 && applies.size() == 1
-                            ? ModelCommitEngine.directSingleTargetApply(
+                            ? ModelExecutionPlan.Compiler.directSingleTargetApply(
                                     applies.getFirst(), type)
                             : null;
-            return new CommitPlan(
-                    handlers, applies, directApply);
+            PlanTraits traits = inspectPlanTraits(
+                    type, new LinkedHashSet<>());
+            ModelExecutionPlan.HandlerPlan compiledHandlers =
+                    compiler.compileHandlers(handlers);
+            return new ModelExecutionPlan(
+                    compiledHandlers,
+                    ModelTargetResolver.compile(type, handlers),
+                    directApply,
+                    ModelCommitPolicy.merge(traits.policies()),
+                    traits.commit(),
+                    traits.commit() && traits.automatic());
         });
-        recentCommitPlan = new CachedCommitPlan(payloadType, plan);
+        recentCommitPlan = new CachedExecutionPlan(payloadType, plan);
         return plan;
-    }
-
-    private ModelTargetResolver.TargetPlan targetPlan(
-            Class<?> payloadType, CommitPlan plan, boolean appliesOnly) {
-        return plan.targetPlan(payloadType, appliesOnly);
-    }
-
-    private ModelTargetResolver.TargetPlan targetPlan(
-            Class<?> payloadType,
-            CommitPlan plan,
-            boolean appliesOnly,
-            ExplicitModelTarget explicitTarget) {
-        return explicitTarget == null
-                ? targetPlan(payloadType, plan, appliesOnly)
-                : plan.targetPlan(
-                        payloadType, appliesOnly,
-                        explicitTarget.modelType());
     }
 
     private void clearPlans() {
         commitPlans.clear();
-        automaticPayloads.clear();
         recentCommitPlan = null;
-        recentAutomaticPayload = null;
     }
 
     private static AncestorPlanKey ancestorPlanKey(
             ModelTargetResolver.Resolution resolution,
             Map<String, Object> stagedValues) {
-        List<StagedRelationships> relationships =
-                new ArrayList<>(stagedValues.size());
+        List<StagedRelationships> relationships = new ArrayList<>(stagedValues.size());
         stagedValues.forEach((modelId, value) -> {
             List<ParentRelationship> parents = new ArrayList<>();
             if (value != null) {
-                for (ModelMetadata.ParentReference parent :
-                        ModelMetadata.validate(
-                                value.getClass()).parentReferences()) {
+                ModelMetadata.validate(value.getClass()).parentReferences().forEach(parent -> {
                     Object parentId = parent.read(value);
                     if (parentId != null) {
                         parents.add(new ParentRelationship(
                                 Objects.requireNonNull(
-                                        parent.repositoryId(parentId),
-                                        "Parent ID string"),
-                                parent.parentModelType(parentId),
-                                parent.path()));
+                                        parent.repositoryId(parentId), "Parent ID string"),
+                                parent.parentModelType(parentId), parent.path()));
                     }
-                }
+                });
             }
-            relationships.add(new StagedRelationships(
-                    modelId, List.copyOf(parents)));
+            relationships.add(new StagedRelationships(modelId, List.copyOf(parents)));
         });
-        return new AncestorPlanKey(
-                resolution, List.copyOf(relationships));
+        return new AncestorPlanKey(resolution, List.copyOf(relationships));
     }
 
     private List<ModelMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType) {
@@ -2288,31 +1718,47 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return List.copyOf(result);
     }
 
-    private boolean declaresModelCommit(
+    private PlanTraits inspectPlanTraits(
             Class<?> payloadType,
-            LinkedHashSet<Class<?>> visiting) {
+            Set<Class<?>> visiting) {
         if (!visiting.add(payloadType)) {
-            return false;
+            return PlanTraits.NEUTRAL;
         }
         try {
-            List<ModelMetadata.HandlerMethod> handlers = planFor(payloadType).handlers();
-            if (handlers.stream().anyMatch(handler ->
-                    handler.kind() == ModelMetadata.HandlerKind.APPLY
-                    && handler.hasApplyResult())) {
-                return true;
+            List<ModelMetadata.HandlerMethod> handlers = inspectHandlers(payloadType);
+            boolean commit = false;
+            boolean automatic = true;
+            LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>();
+            for (ModelMetadata.HandlerMethod handler : handlers) {
+                if (handler.kind() == ModelMetadata.HandlerKind.APPLY) {
+                    commit |= handler.hasApplyResult();
+                    if (handler.hasApplyResult()) {
+                        automatic &= automaticHandlingEnabled(handler);
+                    }
+                    if (handler.dynamicApplyResult()) {
+                        policies.add(ModelCommitPolicy.SYNC_AFTER_HANDLER);
+                    }
+                    handler.targetModelTypes().stream()
+                            .map(ModelMetadata::of)
+                            .map(ModelMetadata::model)
+                            .flatMap(Optional::stream)
+                            .map(Model::commitPolicy)
+                            .map(ModelCommitPolicy::resolve)
+                            .forEach(policies::add);
+                    continue;
+                }
+                if (handler.kind() != ModelMetadata.HandlerKind.INTERCEPT_APPLY) {
+                    continue;
+                }
+                commit |= handler.emittedPayloadTypes().isEmpty();
+                for (Class<?> emitted : handler.emittedPayloadTypes()) {
+                    PlanTraits nested = inspectPlanTraits(emitted, visiting);
+                    commit |= nested.commit();
+                    automatic &= nested.automatic();
+                    policies.addAll(nested.policies());
+                }
             }
-            List<ModelMetadata.HandlerMethod> interceptors = handlers.stream()
-                    .filter(handler -> handler.kind()
-                            == ModelMetadata.HandlerKind.INTERCEPT_APPLY)
-                    .toList();
-            if (interceptors.stream().anyMatch(handler -> handler.emittedPayloadTypes().isEmpty())) {
-                return !interceptors.isEmpty();
-            }
-            return interceptors.stream()
-                    .flatMap(handler ->
-                            handler.emittedPayloadTypes().stream())
-                    .anyMatch(emitted ->
-                            declaresModelCommit(emitted, visiting));
+            return new PlanTraits(commit, automatic, policies);
         } finally {
             visiting.remove(payloadType);
         }
@@ -2323,20 +1769,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                || parameterType.equals(io.fluxzero.common.api.Metadata.class)
                || parameterType.equals(Message.class)
                || parameterType.equals(DeserializingMessage.class);
-    }
-
-    private boolean ownsRegisteredModelCommit(
-            Class<?> receiverType, Class<?> payloadType) {
-        return registeredModelTypes.stream()
-                .distinct()
-                .filter(type -> ModelMetadata.of(type).handlerMethods().stream()
-                        .filter(handler -> handler.kind()
-                                == ModelMetadata.HandlerKind.APPLY)
-                        .anyMatch(handler -> ModelMetadata.acceptsPayload(
-                                handler, payloadType)))
-                .min(java.util.Comparator.comparing(Class::getName))
-                .map(receiverType::equals)
-                .orElse(false);
     }
 
     private record AncestorPlanKey(
@@ -2355,120 +1787,29 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             String path) {
     }
 
-    private static final class CommitPlan {
-        private final List<ModelMetadata.HandlerMethod> handlers;
-        private final List<ModelMetadata.HandlerMethod> applies;
-        private final ModelCommitEngine.DirectSingleTargetApply directApply;
-        private volatile ModelTargetResolver.TargetPlan targetPlan;
-        private volatile ModelTargetResolver.TargetPlan applyTargetPlan;
-        private final ConcurrentHashMap<Class<?>, ModelTargetResolver.TargetPlan>
-                explicitTargetPlans = new ConcurrentHashMap<>();
-        private final ConcurrentHashMap<Class<?>, ModelTargetResolver.TargetPlan>
-                explicitApplyTargetPlans = new ConcurrentHashMap<>();
-        private volatile ModelCommitPolicy commitPolicy;
-
-        private CommitPlan(
-                List<ModelMetadata.HandlerMethod> handlers,
-                List<ModelMetadata.HandlerMethod> applies,
-                ModelCommitEngine.DirectSingleTargetApply directApply) {
-            this.handlers = handlers;
-            this.applies = applies;
-            this.directApply = directApply;
-        }
-
-        private List<ModelMetadata.HandlerMethod> handlers() {
-            return handlers;
-        }
-
-        private List<ModelMetadata.HandlerMethod> applies() {
-            return applies;
-        }
-
-        private ModelCommitEngine.DirectSingleTargetApply directApply() {
-            return directApply;
-        }
-
-        private ModelCommitPolicy commitPolicy() {
-            return commitPolicy;
-        }
-
-        private void commitPolicy(ModelCommitPolicy commitPolicy) {
-            this.commitPolicy = commitPolicy;
-        }
-
-        private ModelTargetResolver.TargetPlan targetPlan(
-                Class<?> payloadType,
-                boolean appliesOnly) {
-            ModelTargetResolver.TargetPlan current = appliesOnly
-                    ? applyTargetPlan : targetPlan;
-            if (current != null) {
-                return current;
-            }
-            synchronized (this) {
-                current = appliesOnly ? applyTargetPlan : targetPlan;
-                if (current == null) {
-                    current = ModelTargetResolver.plan(
-                            payloadType,
-                            appliesOnly ? applies : handlers);
-                    if (appliesOnly) {
-                        applyTargetPlan = current;
-                    } else {
-                        targetPlan = current;
-                    }
-                }
-                return current;
-            }
-        }
-
-        private ModelTargetResolver.TargetPlan targetPlan(
-                Class<?> payloadType,
-                boolean appliesOnly,
-                Class<?> explicitModelType) {
-            return (appliesOnly
-                    ? explicitApplyTargetPlans
-                    : explicitTargetPlans).computeIfAbsent(
-                            explicitModelType,
-                            type -> ModelTargetResolver.plan(
-                                    payloadType,
-                                    appliesOnly ? applies : handlers,
-                                    type));
-        }
-
-    }
-
-    private record CachedCommitPlan(
+    private record CachedExecutionPlan(
             Class<?> payloadType,
-            CommitPlan plan) {
+            ModelExecutionPlan plan) {
     }
 
-    private record CachedAutomaticPayload(
-            Class<?> payloadType,
-            boolean automatic) {
-    }
+    private record PlanTraits(
+            boolean commit,
+            boolean automatic,
+            Set<ModelCommitPolicy> policies) {
+        private static final PlanTraits NEUTRAL =
+                new PlanTraits(false, true, Set.of());
 
-    private record ProjectionRoot(
-            Class<?> modelType,
-            ModelGraphProjectionConfiguration configuration,
-            GraphProjection projection) {
-        private String collection() {
-            return configuration.getCollection();
+        private PlanTraits {
+            policies = Set.copyOf(policies);
         }
-    }
-
-    private record CachedProjectionRoots(
-            Class<?> modelType,
-            List<ProjectionRoot> roots) {
     }
 
     private final class CommitHandler
             implements Handler<DeserializingMessage> {
         private final Class<?> trackingTarget;
-        private final boolean modelReceiver;
 
         private CommitHandler(Class<?> trackingTarget) {
             this.trackingTarget = trackingTarget;
-            this.modelReceiver = trackingTarget != null
-                                 && ModelMetadata.of(trackingTarget).isModel();
         }
 
         @Override
@@ -2485,35 +1826,27 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         @Override
         public HandlerInvoker getInvokerOrNull(DeserializingMessage message) {
             boolean selected = trackingTarget == null
-                    || modelReceiver
-                       && ownsRegisteredModelCommit(
-                               trackingTarget, message.getPayloadClass())
-                    || !modelReceiver
-                       && trackingTarget.isAssignableFrom(
+                    || trackingTarget.isAssignableFrom(
                                message.getPayloadClass());
             if (!selected || !canAutomaticallyHandle(message)) {
                 return null;
             }
             ModelCommitPolicy commitPolicy =
                     commitPolicyFor(message.getPayloadClass());
-            BatchCommitTicket batchTicket =
-                    DISABLE_BATCH_GATES
+            ModelBatchScope.Operation batchTicket =
+                    DeserializingMessage.getCurrent() == null
                     || !commitPolicy.commitAfterBatch()
-                    || DeserializingMessage.getCurrent() == null
+                       && !commitPolicy.awaitAfterBatch()
                             ? null
-                            : batchCommitTicket(message, commitPolicy);
-            HandlerCommitTicket handlerTicket =
-                    commitPolicy.awaitAfterBatch()
-                    && !commitPolicy.commitAfterBatch()
-                    && DeserializingMessage.getCurrent() != null
-                            ? handlerCommitTicket(message)
-                            : null;
+                            : ModelBatchScope.register(
+                                    this, message, commitPolicy,
+                                    batchLifecycle);
             return new HandlerInvoker.DelegatingHandlerInvoker(
                     HandlerInvoker.call(
                             () -> {
                                 return execute(
                                         message, commitPolicy,
-                                        batchTicket, handlerTicket);
+                                        batchTicket);
                             })) {
                 @Override
                 public boolean requiresBatchSegmentOrder() {
@@ -2536,16 +1869,10 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private Object execute(
             DeserializingMessage message,
             ModelCommitPolicy commitPolicy,
-            BatchCommitTicket batchTicket,
-            HandlerCommitTicket handlerTicket) {
-        if (batchTicket != null) {
-            return batchTicket.execute();
-        }
-        CompletableFuture<Object> completion = handlerTicket == null
+            ModelBatchScope.Operation batchTicket) {
+        CompletableFuture<Object> completion = batchTicket == null
                 ? execute(message)
-                : handlerTicket.start(() ->
-                        executeHandlerBatch(
-                                message, handlerTicket));
+                : execute(message, batchTicket);
         if (commitPolicy.awaitAfterBatch()) {
             return awaitAfterHandlerCommitsBeforeResults
                     ? completion : null;
@@ -2558,344 +1885,14 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         return completion.join();
     }
 
-    private CompletableFuture<Object> executeHandlerBatch(
-            DeserializingMessage message,
-            HandlerCommitTicket handlerTicket) {
-        BatchCommitTicket modelTicket =
-                handlerTicket.modelTicket();
-        if (modelTicket == null) {
-            return execute(
-                    message,
-                    handlerTicket.transportBatch(),
-                    handlerTicket.transportSlot());
-        }
-        if (!modelTicket.hasBatchDependencies()) {
-            return execute(message, modelTicket);
-        }
-        Function<Void, CompletableFuture<Object>> operation =
-                ignored -> modelTicket.context().supply(
-                        () -> execute(message, modelTicket));
-        // Preserve the synchronous TestFixture contract; tracked production handlers retain their worker boundary.
-        CompletableFuture<Object> result = localHandlingEnabled
-                ? modelTicket.initializationPrerequisite()
-                        .thenCompose(operation)
-                : modelTicket.initializationPrerequisite()
-                        .thenComposeAsync(operation);
-        result.whenComplete((ignored, failure) -> {
-            if (failure != null
-                && !modelTicket.initializationDone()) {
-                modelTicket.failInitialization(failure);
-            }
-        });
-        return result;
-    }
-
-    private BatchCommitTicket batchCommitTicket(
-            DeserializingMessage message,
-            ModelCommitPolicy commitPolicy) {
-        BatchCommitGates gates =
-                DeserializingMessage.computeForBatchIfAbsent(
-                        this, ignored -> {
-                            BatchCommitGates created =
-                                    new BatchCommitGates();
-                            DeserializingMessage.whenBatchCompletes(
-                                    created::close);
-                            return created;
-                        });
-        return gates.register(message, commitPolicy);
-    }
-
-    private HandlerCommitTicket handlerCommitTicket(
-            DeserializingMessage message) {
-        HandlerCommitBatch batch =
-                DeserializingMessage.computeForBatchIfAbsent(
-                        handlerCommitBatchKey, ignored -> {
-                            HandlerCommitBatch created = new HandlerCommitBatch();
-                            DeserializingMessage.whenBatchCompletes(created::close);
-                            return created;
-                        });
-        HandlerCommitTicket ticket = batch.register(message);
-        if (awaitAfterHandlerCommitsBeforeResults) {
-            io.fluxzero.sdk.tracking.handling.Invocation.awaitBeforeResultPublication(
-                    message, ticket.execution());
-        }
-        return ticket;
-    }
-
-    private CompletableFuture<Void> startBatch(
-            List<BatchCommitTicket> batch) {
-        long started = FluxzeroJfr.batchEnabled() ? System.nanoTime() : 0L;
-        if (started != 0L) {
-            batch.stream()
-                    .map(BatchCommitTicket::gates)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .forEach(gates -> gates.markBacklogStart(started));
-        }
-        boolean batchDependencies = batch.stream()
-                .map(BatchCommitTicket::gates)
-                .filter(Objects::nonNull)
-                .distinct()
-                .map(BatchCommitGates::planDependencies)
-                .reduce(false, Boolean::logicalOr);
-        BatchPrefetch prefetch;
-        try {
-            prefetch = batchDependencies ? null : prefetchBatch(batch);
-        } catch (Throwable batchFailure) {
-            failGates(batch, batchFailure);
-            return CompletableFuture.completedFuture(null);
-        }
-        boolean concurrent = batch.stream()
-                .allMatch(ticket -> ticket.commitPolicy().async());
-        ModelCommitter.CommitBatch transportBatch = concurrent
-                ? committer.beginBatch(batch.size()) : null;
-        for (int index = 0; index < batch.size(); index++) {
-            batch.get(index).transport(
-                    transportBatch, index);
-        }
-        if (batchDependencies) {
-            batch.forEach(ticket -> startAfterDependencies(
-                    ticket, prefetch));
-            return CompletableFuture.allOf(
-                            batch.stream()
-                                    .map(BatchCommitTicket::initialization)
-                                    .toArray(CompletableFuture[]::new))
-                    .handle((ignored, failure) -> {
-                        releaseGates(batch);
-                        markBatchStarted(batch, started);
-                        return null;
-                    });
-        }
-        if (batch.size() < 256) {
-            batch.forEach(ticket -> start(ticket, prefetch));
-            releaseGates(batch);
-            markBatchStarted(batch, started);
-            return CompletableFuture.completedFuture(null);
-        }
-        int workers = Math.min(
-                Runtime.getRuntime().availableProcessors(),
-                (batch.size() + 255) / 256);
-        int chunkSize = (batch.size() + workers - 1) / workers;
-        CompletableFuture<?>[] starts =
-                new CompletableFuture<?>[workers];
-        for (int worker = 0; worker < workers; worker++) {
-            int from = worker * chunkSize;
-            int until = Math.min(batch.size(), from + chunkSize);
-            starts[worker] = CompletableFuture.runAsync(() -> {
-                for (int index = from; index < until; index++) {
-                    start(batch.get(index), prefetch);
-                }
-            });
-        }
-        return CompletableFuture.allOf(starts)
-                .whenComplete((ignored, failure) -> {
-                    if (failure == null) {
-                        releaseGates(batch);
-                        markBatchStarted(batch, started);
-                    } else {
-                        if (transportBatch != null) {
-                            transportBatch.fail(failure);
-                        }
-                        failGates(batch, failure);
-                    }
-                });
-    }
-
-    private static void markBatchStarted(
-            List<BatchCommitTicket> batch,
-            long started) {
-        if (!FluxzeroJfr.batchEnabled()) {
-            return;
-        }
-        long completed = System.nanoTime();
-        batch.stream()
-                .map(BatchCommitTicket::gates)
-                .filter(Objects::nonNull)
-                .distinct()
-                .forEach(gates -> gates.markCommitsStarted(
-                        completed, completed - started));
-    }
-
-    private static void releaseGates(
-            List<BatchCommitTicket> batch) {
-        batch.stream()
-                .map(BatchCommitTicket::gates)
-                .filter(Objects::nonNull)
-                .distinct()
-                .forEach(BatchCommitGates::release);
-    }
-
-    private static void failGates(
-            List<BatchCommitTicket> batch,
-            Throwable failure) {
-        batch.stream()
-                .map(BatchCommitTicket::gates)
-                .filter(Objects::nonNull)
-                .distinct()
-                .forEach(gates -> gates.fail(failure));
-    }
-
-    private void start(
-            BatchCommitTicket ticket,
-            BatchPrefetch prefetch) {
-        CompletableFuture<Object> execution;
-        try {
-            execution = ticket.context().supply(() -> prefetch == null
-                    ? execute(ticket.message(), ticket)
-                    : execute(ticket.message(), ticket, prefetch));
-        } catch (Throwable executionFailure) {
-            ticket.exclude();
-            ticket.failInitialization(executionFailure);
-            ticket.fail(executionFailure);
-            return;
-        }
-        execution.whenComplete(ticket.context().wrap(
-                (result, executionFailure) -> {
-                    if (executionFailure == null) {
-                        ticket.complete(result);
-                    } else {
-                        ticket.fail(executionFailure);
-                    }
-                }));
-    }
-
-    private void startAfterDependencies(
-            BatchCommitTicket ticket,
-            BatchPrefetch prefetch) {
-        ticket.initializationPrerequisite()
-                .whenComplete((ignored, prerequisiteFailure) -> {
-                    if (prerequisiteFailure != null) {
-                        ticket.exclude();
-                        ticket.failInitialization(
-                                prerequisiteFailure);
-                        ticket.fail(prerequisiteFailure);
-                        return;
-                    }
-                    CompletableFuture.runAsync(
-                                    ticket.context().wrap(
-                                            () -> start(
-                                                    ticket,
-                                                    prefetch)))
-                            .exceptionally(failure -> {
-                                ticket.exclude();
-                                ticket.failInitialization(failure);
-                                ticket.fail(failure);
-                                return null;
-                            });
-                });
-    }
-
-    private BatchPrefetch prefetchBatch(
-            List<BatchCommitTicket> tickets) {
-        if (tickets.size() < 2) {
-            return null;
-        }
-        LinkedHashMap<String, PrefetchSlot> models =
-                new LinkedHashMap<>();
-        PrefetchInput[] resolved = new PrefetchInput[tickets.size()];
-        for (int i = 0; i < tickets.size(); i++) {
-            resolved[i] = prefetchInput(tickets.get(i).message());
-            if (resolved[i] == null) {
-                return null;
-            }
-        }
-        for (int i = 0; i < tickets.size(); i++) {
-            PrefetchInput input = resolved[i];
-            BatchCommitTicket ticket = tickets.get(i);
-            ticket.prefetchInput(input);
-            /*
-             * This fast path has already proven that the command reads and writes one direct model. Assign its
-             * ordering wave before parallel evaluation starts, avoiding thousands of contending synchronized target
-             * registrations while retaining exact same-model ordering.
-             */
-            ticket.resolve(Set.of(input.modelId()));
-            PrefetchSlot slot = models.get(input.modelId());
-            if (slot == null) {
-                models.put(
-                        input.modelId(),
-                        new PrefetchSlot(
-                                input.modelId(),
-                                input.modelType()));
-            } else {
-                slot.modelType = mergeTargetTypes(
-                        slot.modelType,
-                        input.modelType());
-            }
-        }
-        if (models.isEmpty()) {
-            return null;
-        }
-        repository.supplyCurrentModels(
-                models.values());
-        LinkedHashMap<String, ModelTargetResolver.ResolvedModel> misses = null;
-        for (PrefetchInput input : resolved) {
-            if (models.get(input.modelId()).entity == null) {
-                if (misses == null) {
-                    misses = new LinkedHashMap<>();
-                }
-                misses.putIfAbsent(
-                        input.modelId(),
-                        new ModelTargetResolver.ResolvedModel(
-                                input.modelId(),
-                                input.modelType(),
-                                input.access(),
-                                input.sourceProperties()));
-            }
-        }
-        if (misses != null) {
-            /*
-             * Cache pressure can expose many unrelated cold targets in one tracking batch. Reconstructing all of
-             * them in one request retains every decoded stream block and intermediate state until the last target is
-             * complete. In a long-running application that turns an ordinary bounded cache eviction into an
-             * unbounded recovery wave.
-             *
-             * This fast path contains independent single-target commands. They do not share one consistency
-             * boundary, so load bounded groups and retain only the finalized entities between groups. A command still
-             * records the exact state boundary at which its own model was loaded. Hot batches do not enter this loop.
-             */
-            List<ModelTargetResolver.ResolvedModel> coldTargets =
-                    List.copyOf(misses.values());
-            for (int offset = 0;
-                 offset < coldTargets.size();
-                 offset += MAX_COLD_PREFETCH_SIZE) {
-                int until = Math.min(
-                        coldTargets.size(),
-                        offset + MAX_COLD_PREFETCH_SIZE);
-                ModelCommitContext loaded =
-                        repository.loadContext(
-                                new ModelTargetResolver.Resolution(
-                                        coldTargets.subList(offset, until),
-                                        List.of()),
-                                null,
-                                Map.of(), false);
-                loaded.entries().forEach(entry ->
-                        models.get(entry.target().modelId()).set(
-                                entry.entity(),
-                                loaded.readStateIndex()));
-            }
-        }
-        return new BatchPrefetch(
-                java.util.Collections.unmodifiableMap(models));
-    }
-
-    private PrefetchInput prefetchInput(DeserializingMessage message) {
-        CommitPlan plan = planFor(message.getPayloadClass());
-        if (plan.handlers().size() != 1
-            || plan.applies().size() != 1
-            || plan.applies().getFirst().targetModelTypes().size() != 1
-            || plan.applies().getFirst().collectionApplyResult()
-            || plan.applies().getFirst().dynamicApplyResult()) {
-            return null;
-        }
+    private PrefetchSlot prefetch(DeserializingMessage message) {
+        ModelExecutionPlan plan = planFor(message.getPayloadClass());
         ModelTargetResolver.TargetPlan targetPlan =
-                targetPlan(
-                        message.getPayloadClass(),
-                        plan, false);
+                plan.targets();
         if (!targetPlan.isDirectSingleTarget()) {
             return null;
         }
-        return new PrefetchInput(
-                plan.applies().getFirst(),
+        return new PrefetchSlot(
                 targetPlan.resolveSingleModelId(
                         message.getPayload()),
                 targetPlan.singleModelType(),
@@ -2904,762 +1901,27 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 plan.directApply());
     }
 
-    private static Class<?> mergeTargetTypes(
-            Class<?> firstType,
-            Class<?> secondType) {
-        if (!firstType.isAssignableFrom(secondType)
-            && !secondType.isAssignableFrom(firstType)) {
-            throw new IllegalStateException(
-                    "One model ID is requested as incompatible types %s and %s"
-                            .formatted(
-                                    firstType.getName(),
-                                    secondType.getName()));
-        }
-        return firstType.isAssignableFrom(secondType)
-                ? secondType : firstType;
-    }
-
-    private static boolean planModelDependencies(
-            BatchCommitTicket ticket,
-            ModelTargetResolver.Resolution resolution,
-            Map<String, BatchCommitTicket> lastWriters) {
-        boolean dependent = false;
-        if (resolution.hasAncestorDependencies()) {
-            for (BatchCommitTicket predecessor :
-                    new LinkedHashSet<>(lastWriters.values())) {
-                if (predecessor.segment == ticket.segment) {
-                    ticket.addInitialDependency(predecessor);
-                    dependent = true;
-                }
-            }
-        }
-        for (ModelTargetResolver.ResolvedModel target :
-                resolution.models()) {
-            BatchCommitTicket predecessor =
-                    lastWriters.get(target.modelId());
-            if (predecessor != null) {
-                ticket.addInitialDependency(predecessor);
-                dependent = true;
-            }
-            if (target.access().writes()) {
-                lastWriters.put(
-                        target.modelId(), ticket);
-            }
-        }
-        for (ModelTargetResolver.DeferredWriteTarget target :
-                resolution.deferredWrites()) {
-            for (String modelId :
-                    target.candidateModelIds()) {
-                BatchCommitTicket predecessor =
-                        lastWriters.put(modelId, ticket);
-                if (predecessor != null) {
-                    ticket.addInitialDependency(predecessor);
-                    dependent = true;
-                }
-            }
-        }
-        return dependent;
-    }
-
-    private final class HandlerCommitBatch {
-        private final List<HandlerCommitTicket> tickets = new ArrayList<>();
-        private final ModelCommitter.CommitBatch transportBatch =
-                committer.beginReadyBatch();
-        private final Map<String, BatchCommitTicket> lastWriters =
-                new HashMap<>();
-        private final FluxzeroJfr.Batch jfrEvent = FluxzeroJfr.startBatch(
-                "sdk.model-handler", "commit-after-handler", MessageType.COMMAND.name(),
-                0, 0L, 0L, 0L);
-        private final long createdNanos = jfrEvent == null ? 0L : System.nanoTime();
-        private boolean closed;
-
-        synchronized HandlerCommitTicket register(DeserializingMessage message) {
-            if (closed) {
-                return HandlerCommitTicket.failed(
-                        message,
-                        new IllegalStateException(
-                                "Model handler commit batch was already closed"));
-            }
-            int slot = tickets.size();
-            HandlerCommitTicket ticket = new HandlerCommitTicket(
-                    message,
-                    transportBatch, slot,
-                    commitPolicyFor(
-                            message.getPayloadClass()));
-            planDependencies(ticket);
-            tickets.add(ticket);
-            return ticket;
-        }
-
-        private void planDependencies(
-                BatchCommitTicket ticket) {
-            PrefetchInput direct =
-                    prefetchInput(ticket.message());
-            if (direct != null) {
-                ticket.prefetchInput(direct);
-                BatchCommitTicket predecessor =
-                        lastWriters.put(
-                                direct.modelId(), ticket);
-                if (predecessor != null) {
-                    ticket.addInitialDependency(predecessor);
-                }
-                return;
-            }
-            DeserializingMessage message = ticket.message();
-            CommitPlan plan = planFor(
-                    message.getPayloadClass());
-            ModelTargetResolver.Resolution resolution =
-                    targetPlan(
-                            message.getPayloadClass(),
-                            plan, false)
-                            .resolve(message.getPayload());
-            planModelDependencies(
-                    ticket, resolution,
-                    lastWriters);
-        }
-
-        void close(Throwable failure) {
-            List<HandlerCommitTicket> snapshot;
-            synchronized (this) {
-                closed = true;
-                snapshot = List.copyOf(tickets);
-            }
-            if (failure != null) {
-                if (transportBatch != null) {
-                    transportBatch.fail(failure);
-                }
-                snapshot.forEach(ticket -> ticket.fail(failure));
-                finishJfr(snapshot, failure);
-                return;
-            }
-            if (transportBatch != null) {
-                transportBatch.flush();
-            }
-            CompletableFuture<Void> completion =
-                    CompletableFuture.allOf(
-                            snapshot.stream()
-                                    .map(HandlerCommitTicket::execution)
-                                    .toArray(CompletableFuture[]::new));
-            AsyncCompletionScope.register(
-                    completion);
-            if (jfrEvent != null) {
-                completion.whenComplete((ignored, completionFailure) ->
-                        finishJfr(snapshot, completionFailure));
-            }
-        }
-
-        private void finishJfr(
-                List<HandlerCommitTicket> snapshot, Throwable failure) {
-            if (jfrEvent != null) {
-                jfrEvent.itemCount = snapshot.size();
-                jfrEvent.outputItemCount = snapshot.size();
-                jfrEvent.storageNanos = Math.max(0L, System.nanoTime() - createdNanos);
-            }
-            FluxzeroJfr.finish(jfrEvent, failure);
-        }
-    }
-
-    private static final class HandlerCommitTicket
-            extends BatchCommitTicket {
-        private final AtomicBoolean started = new AtomicBoolean();
-
-        private HandlerCommitTicket(
-                DeserializingMessage message,
-                ModelCommitter.CommitBatch transportBatch,
-                int transportSlot,
-                ModelCommitPolicy commitPolicy) {
-            super(
-                    null, message,
-                    ThreadLocalContext.capture(),
-                    commitPolicy, transportSlot);
-            transport(transportBatch, transportSlot);
-        }
-
-        static HandlerCommitTicket failed(
-                DeserializingMessage message, Throwable failure) {
-            HandlerCommitTicket ticket = new HandlerCommitTicket(
-                    message, null, -1,
-                    ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH);
-            ticket.fail(failure);
-            return ticket;
-        }
-
-        CompletableFuture<Object> start(
-                Supplier<CompletableFuture<Object>> operation) {
-            if (!started.compareAndSet(false, true)) {
-                return execution;
-            }
-            CompletableFuture<Object> startedExecution;
-            try {
-                startedExecution = Objects.requireNonNull(
-                        operation.get(), "Model handler commit returned null");
-            } catch (Throwable failure) {
-                fail(failure);
-                return execution;
-            }
-            startedExecution.whenComplete((result, failure) -> {
-                if (failure == null) {
-                    complete(result);
-                } else {
-                    fail(failure);
-                }
-            });
-            return execution;
-        }
-
-        CompletableFuture<Object> execution() {
-            return execution;
-        }
-
-        BatchCommitTicket modelTicket() {
-            return this;
-        }
-
-        @Override
-        void fail(Throwable failure) {
-            super.fail(failure);
-            failInitialization(failure);
-        }
-    }
-
-    private final class BatchCommitGates {
-        private final List<BatchCommitTicket> tickets =
-                new ArrayList<>();
-        private int registered;
-        private boolean closed;
-        private boolean dependenciesFinalized;
-        private boolean released;
-        private final long createdNanos;
-        private final FluxzeroJfr.Batch jfrEvent;
-        private final AtomicBoolean jfrCompleted = new AtomicBoolean();
-        private volatile long backlogStartNanos;
-        private volatile long commitsStartedNanos;
-
-        private BatchCommitGates() {
-            jfrEvent = FluxzeroJfr.startBatch(
-                    "sdk.model-handler", "commit-wave", MessageType.COMMAND.name(),
-                    0, 0L, 0L, 0L);
-            createdNanos = timingEnabled() ? System.nanoTime() : 0L;
-        }
-
-        synchronized BatchCommitTicket register(
-                DeserializingMessage message,
-                ModelCommitPolicy commitPolicy) {
-            if (closed) {
-                return BatchCommitTicket.released(
-                        message, commitPolicy);
-            }
-            registered++;
-            BatchCommitTicket ticket =
-                    new BatchCommitTicket(
-                            this, message,
-                            ThreadLocalContext.capture(),
-                            commitPolicy,
-                            registered - 1);
-            tickets.add(ticket);
-            return ticket;
-        }
-
-        synchronized boolean planDependencies() {
-            Map<String, BatchCommitTicket> lastWriters =
-                    new HashMap<>();
-            boolean required = false;
-            boolean sequential = tickets.stream()
-                    .anyMatch(ticket -> !ticket.commitPolicy().async());
-            BatchCommitTicket previous = null;
-            for (BatchCommitTicket ticket : tickets) {
-                if (sequential && previous != null) {
-                    ticket.addInitialDependency(previous);
-                    required = true;
-                }
-                DeserializingMessage message = ticket.message();
-                CommitPlan plan = planFor(
-                        message.getPayloadClass());
-                ModelTargetResolver.Resolution resolution =
-                        targetPlan(
-                                message.getPayloadClass(),
-                                plan, false)
-                                .resolve(message.getPayload());
-                required |= planModelDependencies(
-                        ticket, resolution,
-                        lastWriters);
-                previous = ticket;
-            }
-            return required;
-        }
-
-        void close(Throwable failure) {
-            List<BatchCommitTicket> batch;
-            synchronized (this) {
-                closed = true;
-                batch = List.copyOf(tickets);
-                if (jfrEvent != null) {
-                    jfrEvent.itemCount = registered;
-                    jfrEvent.outputItemCount = registered;
-                    jfrEvent.subBatchCount = batch.isEmpty() ? 0 : 1;
-                }
-            }
-            if (failure != null) {
-                batch.forEach(ticket -> {
-                    ticket.failRelease(failure);
-                    ticket.fail(failure);
-                });
-                completeJfr(failure);
-                return;
-            }
-            if (batch.isEmpty()) {
-                completeJfr(null);
-                return;
-            }
-            commitBacklog.addAllUntracked(batch);
-            AsyncCompletionScope.register(
-                    CompletableFuture.allOf(
-                            batch.stream()
-                                    .map(ticket -> ticket.execution)
-                                    .toArray(CompletableFuture[]::new)));
-        }
-
-        void release() {
-            List<BatchCommitTicket> batch;
-            synchronized (this) {
-                if (released) {
-                    return;
-                }
-                released = true;
-                if (!dependenciesFinalized) {
-                    Map<String, BatchCommitTicket> lastReaders =
-                            new HashMap<>();
-                    for (BatchCommitTicket ticket : tickets) {
-                        Set<String> modelIds = ticket.resolvedModelIds();
-                        if (modelIds == null) {
-                            continue;
-                        }
-                        modelIds.forEach(modelId -> {
-                            BatchCommitTicket predecessor =
-                                    lastReaders.put(modelId, ticket);
-                            if (predecessor != null) {
-                                ticket.addBatchDependency(predecessor);
-                            }
-                        });
-                    }
-                    tickets.stream()
-                            .filter(BatchCommitTicket::hasBatchDependencies)
-                            .forEach(BatchCommitTicket::detachTransport);
-                    dependenciesFinalized = true;
-                }
-                batch = List.copyOf(tickets);
-            }
-            int workers = Math.min(
-                    Runtime.getRuntime().availableProcessors(),
-                    Math.max(1, (batch.size() + 255) / 256));
-            if (workers == 1) {
-                batch.forEach(BatchCommitTicket::release);
-                return;
-            }
-            int chunkSize = (batch.size() + workers - 1) / workers;
-            for (int worker = 0; worker < workers; worker++) {
-                int from = worker * chunkSize;
-                int until = Math.min(batch.size(), from + chunkSize);
-                CompletableFuture.runAsync(() -> {
-                    for (int index = from; index < until; index++) {
-                        batch.get(index).release();
-                    }
-                });
-            }
-        }
-
-        void fail(Throwable failure) {
-            tickets.forEach(ticket -> {
-                ticket.failRelease(failure);
-                ticket.fail(failure);
-            });
-            completeJfr(failure);
-        }
-
-        void markBacklogStart(long now) {
-            if (!timingEnabled()) {
-                return;
-            }
-            backlogStartNanos = now;
-        }
-
-        void markCommitsStarted(long now, long preparationNanos) {
-            if (!timingEnabled()) {
-                return;
-            }
-            commitsStartedNanos = now;
-            CompletableFuture.allOf(
-                            tickets.stream()
-                                    .map(ticket -> ticket.execution)
-                                    .toArray(CompletableFuture[]::new))
-                    .whenComplete((ignored, failure) -> {
-                        long completed = System.nanoTime();
-                        if (jfrEvent != null) {
-                            jfrEvent.queueWaitNanos = Math.max(0L, backlogStartNanos - createdNanos);
-                            jfrEvent.preparationNanos = preparationNanos;
-                            jfrEvent.storageNanos = Math.max(0L, completed - commitsStartedNanos);
-                        }
-                        completeJfr(failure);
-                    });
-        }
-
-        private boolean timingEnabled() {
-            return jfrEvent != null;
-        }
-
-        private void completeJfr(Throwable failure) {
-            if (!jfrCompleted.compareAndSet(false, true)) {
-                return;
-            }
-            FluxzeroJfr.finish(jfrEvent, failure);
-        }
-    }
-
-    private static class BatchCommitTicket
-            implements MessageBatchModelView.Dependency {
-        private final BatchCommitGates gates;
-        private final DeserializingMessage message;
-        private final ThreadLocalContext.Snapshot context;
-        private final ModelCommitPolicy commitPolicy;
-        private final int ordinal;
-        private final int segment;
-        protected final CompletableFuture<Object> execution =
-                new CompletableFuture<>();
-        private final CompletableFuture<Void> release;
-        private volatile CompletableFuture<Void> initialization;
-        private List<BatchCommitTicket> initialDependencies;
-        private volatile Set<MessageBatchModelView.Dependency>
-                batchDependencies;
-        private boolean initializationFinished;
-        private Throwable initializationFailure;
-        private final AtomicBoolean resolved;
-        private final AtomicBoolean arrived;
-        private boolean transportProducerDone;
-        private volatile Set<String> resolvedModelIds;
-        private volatile PrefetchInput prefetchInput;
-        private volatile ModelCommitter.CommitBatch transportBatch;
-        private volatile int transportSlot = -1;
-
-        protected BatchCommitTicket(
-                BatchCommitGates gates,
-                DeserializingMessage message,
-                ThreadLocalContext.Snapshot context,
-                ModelCommitPolicy commitPolicy,
-                int ordinal) {
-            this.gates = gates;
-            this.message = message;
-            this.context = context;
-            this.commitPolicy = commitPolicy;
-            this.ordinal = ordinal;
-            this.resolved = gates == null
-                    ? null : new AtomicBoolean();
-            this.arrived = gates == null
-                    ? null : new AtomicBoolean();
-            this.release = gates == null
-                    ? null : new CompletableFuture<>();
-            this.segment = Optional.ofNullable(
-                            message.getSerializedObject()
-                                    .getSegment())
-                    .orElse(-1);
-        }
-
-        static BatchCommitTicket released(
-                DeserializingMessage message,
-                ModelCommitPolicy commitPolicy) {
-            return new BatchCommitTicket(
-                    null, message,
-                    message.captureContext(),
-                    commitPolicy, -1);
-        }
-
-        DeserializingMessage message() {
-            return message;
-        }
-
-        BatchCommitGates gates() {
-            return gates;
-        }
-
-        ThreadLocalContext.Snapshot context() {
-            return context;
-        }
-
-        ModelCommitPolicy commitPolicy() {
-            return commitPolicy;
-        }
-
-        PrefetchInput prefetchInput() {
-            return prefetchInput;
-        }
-
-        void prefetchInput(PrefetchInput input) {
-            this.prefetchInput = input;
-        }
-
-        void transport(
-                ModelCommitter.CommitBatch batch,
-                int slot) {
-            transportBatch = batch;
-            transportSlot = slot;
-        }
-
-        ModelCommitter.CommitBatch transportBatch() {
-            return transportBatch;
-        }
-
-        int transportSlot() {
-            return transportSlot;
-        }
-
-        synchronized void addInitialDependency(
-                BatchCommitTicket predecessor) {
-            if (predecessor == this
-                || initialDependencies != null
-                   && initialDependencies.contains(predecessor)) {
-                return;
-            }
-            if (initialDependencies == null) {
-                initialDependencies = new ArrayList<>(1);
-            }
-            initialDependencies.add(predecessor);
-            dependencies().add(predecessor);
-        }
-
-        void addBatchDependency(
-                MessageBatchModelView.Dependency predecessor) {
-            if (predecessor != this) {
-                dependencies().add(predecessor);
-            }
-        }
-
-        @Override
-        public void dependsOn(
-                MessageBatchModelView.Dependency producer) {
-            addBatchDependency(producer);
-        }
-
-        @Override
-        public CompletableFuture<?> completion() {
-            return execution;
-        }
-
-        boolean hasBatchDependencies() {
-            Set<MessageBatchModelView.Dependency> dependencies =
-                    batchDependencies;
-            return dependencies != null
-                   && !dependencies.isEmpty();
-        }
-
-        int dependencyCount() {
-            Set<MessageBatchModelView.Dependency> dependencies =
-                    batchDependencies;
-            return dependencies == null ? 0 : dependencies.size();
-        }
-
-        synchronized CompletableFuture<Void> initializationPrerequisite() {
-            if (initialDependencies == null) {
-                return COMPLETED_VOID;
-            }
-            return CompletableFuture.allOf(
-                    initialDependencies.stream()
-                            .map(BatchCommitTicket::initialization)
-                            .toArray(CompletableFuture[]::new));
-        }
-
-        synchronized CompletableFuture<Void> initialization() {
-            CompletableFuture<Void> future = initialization;
-            if (future == null) {
-                future = new CompletableFuture<>();
-                initialization = future;
-                if (initializationFinished) {
-                    if (initializationFailure == null) {
-                        future.complete(null);
-                    } else {
-                        future.completeExceptionally(
-                                initializationFailure);
-                    }
-                }
-            }
-            return future;
-        }
-
-        synchronized boolean initializationDone() {
-            return initializationFinished;
-        }
-
-        synchronized void completeInitialization() {
-            finishInitialization(null);
-        }
-
-        synchronized void failInitialization(Throwable failure) {
-            finishInitialization(failure);
-        }
-
-        CompletableFuture<Void> dependencyCompletion() {
-            Set<MessageBatchModelView.Dependency> dependencies =
-                    batchDependencies;
-            if (dependencies == null
-                || dependencies.isEmpty()) {
-                return COMPLETED_VOID;
-            }
-            return CompletableFuture.allOf(
-                    dependencies.stream()
-                            .map(MessageBatchModelView.Dependency::completion)
-                            .toArray(CompletableFuture[]::new));
-        }
-
-        private Set<MessageBatchModelView.Dependency> dependencies() {
-            Set<MessageBatchModelView.Dependency> dependencies =
-                    batchDependencies;
-            if (dependencies != null) {
-                return dependencies;
-            }
-            synchronized (this) {
-                dependencies = batchDependencies;
-                if (dependencies == null) {
-                    dependencies = ConcurrentHashMap.newKeySet();
-                    batchDependencies = dependencies;
-                }
-                return dependencies;
-            }
-        }
-
-        private void finishInitialization(Throwable failure) {
-            if (initializationFinished) {
-                return;
-            }
-            initializationFinished = true;
-            initializationFailure = failure;
-            CompletableFuture<Void> future = initialization;
-            if (future != null) {
-                if (failure == null) {
-                    future.complete(null);
-                } else {
-                    future.completeExceptionally(failure);
-                }
-            }
-        }
-
-        CompletableFuture<Object> execute() {
-            if (gates == null) {
-                return CompletableFuture.failedFuture(
-                        new IllegalStateException(
-                                "Model commit batch was already closed before handler invocation"));
-            }
-            return execution;
-        }
-
-        void complete(Object result) {
-            execution.complete(result);
-        }
-
-        void fail(Throwable failure) {
-            execution.completeExceptionally(failure);
-        }
-
-        void resolve(Collection<String> modelIds) {
-            if (gates != null
-                && resolved.compareAndSet(
-                        false, true)) {
-                resolvedModelIds = Set.copyOf(modelIds);
-            }
-        }
-
-        Set<String> resolvedModelIds() {
-            return resolvedModelIds;
-        }
-
-        void exclude() {
-            if (gates != null
-                && resolved.compareAndSet(
-                        false, true)) {
-                producerDone();
-            }
-        }
-
-        <T> CompletableFuture<T> executeAfterRelease(
-                Supplier<CompletableFuture<T>> operation) {
-            if (gates == null) {
-                try {
-                    return operation.get();
-                } catch (Throwable failure) {
-                    return CompletableFuture.failedFuture(
-                            failure);
-                }
-            }
-            if (!resolved.get()) {
-                throw new IllegalStateException(
-                        "Model commit batch ticket was awaited before target assignment");
-            }
-            if (!arrived.compareAndSet(
-                    false, true)) {
-                throw new IllegalStateException(
-                        "Model commit batch ticket was awaited more than once");
-            }
-            return release.thenCompose(ignored -> {
-                try {
-                    return Objects.requireNonNull(
-                            operation.get(),
-                            "Model commit operation returned null");
-                } finally {
-                    producerDone();
-                }
-            }).whenComplete((ignored, failure) -> {
-                if (failure != null) {
-                    producerDone();
-                }
-            });
-        }
-
-        void release() {
-            release.complete(null);
-        }
-
-        void failRelease(Throwable failure) {
-            release.completeExceptionally(failure);
-        }
-
-        private synchronized void producerDone() {
-            ModelCommitter.CommitBatch batch = transportBatch;
-            if (batch != null
-                && !transportProducerDone) {
-                transportProducerDone = true;
-                batch.producerDone();
-            }
-        }
-
-        void detachTransport() {
-            producerDone();
-            transportBatch = null;
-            transportSlot = -1;
-        }
-    }
-
-    private record BatchPrefetch(
-            Map<String, PrefetchSlot> models) {
-    }
-
-    private record PrefetchInput(
-            ModelMetadata.HandlerMethod handler,
-            String modelId,
-            Class<?> modelType,
-            ModelTargetResolver.Access access,
-            List<String> sourceProperties,
-            ModelCommitEngine.DirectSingleTargetApply directApply) {
-    }
-
     private static final class PrefetchSlot
             implements DefaultModelRepository.CurrentModelLookup {
         private final String modelId;
-        private Class<?> modelType;
+        private final Class<?> modelType;
+        private final ModelTargetResolver.Access access;
+        private final List<String> sourceProperties;
+        private final ModelExecutionPlan.DirectSingleTargetApply directApply;
         private Entity<?> entity;
         private long stateIndex;
 
         private PrefetchSlot(
                 String modelId,
-                Class<?> modelType) {
+                Class<?> modelType,
+                ModelTargetResolver.Access access,
+                List<String> sourceProperties,
+                ModelExecutionPlan.DirectSingleTargetApply directApply) {
             this.modelId = modelId;
             this.modelType = modelType;
+            this.access = access;
+            this.sourceProperties = sourceProperties;
+            this.directApply = directApply;
         }
 
         @Override
@@ -3677,18 +1939,12 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 Entity<?> entity,
                 long validThrough,
                 long modelStateIndex) {
-            set(entity, validThrough);
-        }
-
-        private void set(Entity<?> entity, long stateIndex) {
             this.entity = entity;
-            this.stateIndex = stateIndex;
+            this.stateIndex = validThrough;
         }
     }
 
     @Override
     public void close() {
-        commitBacklog.shutDown();
-        committer.close();
     }
 }

@@ -34,6 +34,7 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -66,11 +67,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
-class ModelCommitterTest {
+class ModelCommitProtocolTest {
 
     private final EventStoreClient eventStoreClient = mock(EventStoreClient.class);
     private final JacksonSerializer serializer = new JacksonSerializer();
-    private final ModelCommitter committer = new ModelCommitter(
+    private final ModelCommitProtocol protocol = new ModelCommitProtocol(
             eventStoreClient, serializer, serializer,
             DispatchInterceptor.noOp, "client-1");
 
@@ -83,12 +84,13 @@ class ModelCommitterTest {
                 List.of(id.toString()),
                 substep(
                         event,
-                        new ModelCommitEngine.Transition(
+                        new ModelExecutionPlan.Transition(
                                 id.toString(), StoredOnly.class, 0L,
-                                before, null, null)),
+                                null, before, null, null,
+                                null, false)),
                 Map.of());
 
-        CommitModels commit = committer.prepare(
+        CommitModels commit = protocol.prepare(
                 "graph-delete", evaluation).commit();
 
         assertEquals(1, commit.getSubsteps().size());
@@ -119,21 +121,22 @@ class ModelCommitterTest {
         var evaluation = evaluation(
                 List.of(storedId.toString(), publishedId.toString()),
                 List.of(
-                        new ModelCommitEngine.AppliedSubstep(
+                        new ModelExecutionPlan.AppliedSubstep(
                                 message, List.of(
                                 transition(
                                         publishedId, PublishedOnly.class,
                                         published, published,
                                         MixedUpdate.class, "apply", PublishedOnly.class))),
-                        new ModelCommitEngine.AppliedSubstep(
+                        new ModelExecutionPlan.AppliedSubstep(
                                 message, List.of(
-                                new ModelCommitEngine.Transition(
+                                new ModelExecutionPlan.Transition(
                                         storedId.toString(), StoredOnly.class, 0L,
-                                        stored, null, null)))),
+                                        null, stored, null, null,
+                                        null, false)))),
                 Map.of(publishedId.toString(), published));
 
-        ModelCommitter.PreparedCommit prepared =
-                committer.prepare("shared-event-delete", evaluation);
+        ModelCommitProtocol.PreparedCommit prepared =
+                protocol.prepare("shared-event-delete", evaluation);
 
         assertEquals(2, prepared.commit().getSubsteps().size());
         assertEquals(1, prepared.commit().getSubsteps().getFirst()
@@ -166,15 +169,15 @@ class ModelCommitterTest {
         Order before = new Order(id, null, "before", Instant.EPOCH);
         Order after = new Order(id, null, "after", Instant.EPOCH.plusSeconds(1));
         UpdateOrder event = new UpdateOrder(id);
-        var transition = new ModelCommitEngine.Transition(
+        var transition = new ModelExecutionPlan.Transition(
                 id.toString(), Order.class, 0L, null,
                 before, after, null, current -> current, false);
         var evaluation = evaluation(
                 List.of(id.toString()), substep(event, transition),
                 Map.of(id.toString(), after));
 
-        ModelCommitter.PreparedCommit prepared =
-                committer.prepare("standalone-graph", evaluation);
+        ModelCommitProtocol.PreparedCommit prepared =
+                protocol.prepare("standalone-graph", evaluation);
 
         ModelCommitValidator.validate(prepared.commit());
         assertEquals(2, prepared.commit().getSubsteps().size());
@@ -211,13 +214,13 @@ class ModelCommitterTest {
         UpdateOrder event = new UpdateOrder(id);
         var original = evaluation(
                 List.of(id.toString()),
-                substep(event, new ModelCommitEngine.Transition(
+                substep(event, new ModelExecutionPlan.Transition(
                         id.toString(), Order.class, 0L, null,
                         before, stale, null, current -> current, false)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelCommitEngine.CommitEvaluation(
+        var rebased = new ModelExecutionPlan.CommitEvaluation(
                 51L, List.of(id.toString()), Map.of(id.toString(), Order.class),
-                List.of(substep(event, new ModelCommitEngine.Transition(
+                List.of(substep(event, new ModelExecutionPlan.Transition(
                         id.toString(), Order.class, 0L, null,
                         before, merged, null, current -> current, false))),
                 Map.of(id.toString(), merged));
@@ -234,13 +237,13 @@ class ModelCommitterTest {
             return CompletableFuture.completedFuture(result(request));
         });
 
-        var accepted = committer.commitAcceptingRebase(
-                "standalone-rebase", original,
-                (messages, boundary) -> {
-                    assertEquals(51L, boundary);
-                    assertEquals(1, messages.size());
+        var accepted = ModelCommitHandlerRegistry.commit(
+                protocol, "standalone-rebase", original, ModelConflictPolicy.ACCEPT,
+                ModelCommitHandlerRegistry.Retry.accepting((result, current, prepared) -> {
+                    assertEquals(51L, result.getRebaseStateIndex());
+                    assertEquals(1, prepared.rebaseMessages().size());
                     return CompletableFuture.completedFuture(rebased);
-                }).join();
+                }), null, -1).join();
 
         assertTrue(accepted.orElseThrow().isAccepted());
         ArgumentCaptor<CommitModels> requests =
@@ -272,7 +275,7 @@ class ModelCommitterTest {
                                 UpdateAliased.class, "apply", AliasedModel.class)),
                 Map.of(id.toString(), value));
 
-        var target = committer.prepare("commit-alias", evaluation)
+        var target = protocol.prepare("commit-alias", evaluation)
                 .commit().getSubsteps().getFirst().getTargets().getFirst();
 
         assertEquals(
@@ -289,7 +292,7 @@ class ModelCommitterTest {
                 Map.of());
         assertEquals(
                 List.of(),
-                committer.prepare("delete-alias", deletion)
+                protocol.prepare("delete-alias", deletion)
                         .commit().getSubsteps().getFirst().getTargets().getFirst()
                         .getAliases());
 
@@ -303,7 +306,7 @@ class ModelCommitterTest {
                                 orderId, Order.class, null, order,
                                 UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), order));
-        var ordinaryTarget = committer.prepare("commit-ordinary", ordinary)
+        var ordinaryTarget = protocol.prepare("commit-ordinary", ordinary)
                 .commit().getSubsteps().getFirst().getTargets().getFirst();
         assertNull(ordinaryTarget.getAliases());
         assertEquals(-1L, ordinaryTarget.getExpectedSequenceNumber());
@@ -325,7 +328,7 @@ class ModelCommitterTest {
                 Map.of(orderId.toString(), after));
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        var result = committer.commit("commit-1", evaluation).join();
+        var result = protocol.commit("commit-1", evaluation).join();
 
         assertTrue(result.isPresent());
         ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
@@ -392,7 +395,7 @@ class ModelCommitterTest {
                                                            invocation.getArgument(
                                                                    0))));
 
-        committer.commit(
+        protocol.commit(
                         "graph-component",
                         evaluation)
                 .join();
@@ -446,7 +449,7 @@ class ModelCommitterTest {
                                                            invocation.getArgument(
                                                                    0))));
 
-        committer.commit(
+        protocol.commit(
                         "document-free",
                         evaluation)
                 .join();
@@ -490,7 +493,7 @@ class ModelCommitterTest {
                 .thenAnswer(invocation ->
                                     CompletableFuture.completedFuture(
                                             result(invocation.getArgument(0))));
-        committer.commit("move-order", evaluation).join();
+        protocol.commit("move-order", evaluation).join();
 
         ArgumentCaptor<CommitModels> captor =
                 ArgumentCaptor.forClass(CommitModels.class);
@@ -517,12 +520,13 @@ class ModelCommitterTest {
         var evaluation = evaluation(
                 List.of("contact-1", parentId.toString()),
                 substep(new CreatePolymorphicContact(),
-                        new ModelCommitEngine.Transition(
+                        new ModelExecutionPlan.Transition(
                                 "contact-1", PolymorphicContact.class, -1L,
-                                null, after, null)),
+                                null, null, after, null,
+                                null, false)),
                 Map.of("contact-1", after));
 
-        CommitModels commit = committer.prepare("polymorphic-parent", evaluation).commit();
+        CommitModels commit = protocol.prepare("polymorphic-parent", evaluation).commit();
 
         var target = commit.getSubsteps().stream()
                 .flatMap(step -> step.getTargets().stream())
@@ -551,7 +555,7 @@ class ModelCommitterTest {
             return CompletableFuture.completedFuture(conflict(request, false));
         });
 
-        var result = committer.commit(
+        var result = protocol.commit(
                 "commit-1", evaluation, ModelConflictPolicy.FAIL).join();
 
         assertFalse(result.orElseThrow().isAccepted());
@@ -572,7 +576,7 @@ class ModelCommitterTest {
                         new UpdateOrder(orderId),
                         transition(orderId, Order.class, before, first, UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), first));
-        var reloadedEvaluation = new ModelCommitEngine.CommitEvaluation(
+        var reloadedEvaluation = new ModelExecutionPlan.CommitEvaluation(
                 42L, firstEvaluation.readModelIds(),
                 firstEvaluation.readModelTypes(),
                 List.of(substep(
@@ -589,14 +593,15 @@ class ModelCommitterTest {
         });
         AtomicInteger reloads = new AtomicInteger();
 
-        var result = committer.commit(
-                "commit-1", firstEvaluation,
+        var result = ModelCommitHandlerRegistry.commit(
+                protocol, "commit-1", firstEvaluation,
                 ModelConflictPolicy.RETRY,
-                ModelConflictResolver.retryIfAllowed(), 1,
-                () -> {
+                ModelCommitHandlerRegistry.Retry.conflicts(
+                        ModelConflictResolver.retryIfAllowed(), 1,
+                        (conflict, current, original) -> {
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(reloadedEvaluation);
-                }).join();
+                }), null, -1).join();
 
         assertTrue(result.orElseThrow().isAccepted());
         assertEquals(2, commits.get());
@@ -633,26 +638,30 @@ class ModelCommitterTest {
         });
         AtomicInteger reloads = new AtomicInteger();
 
-        CompletionException bounded = assertThrows(CompletionException.class, () -> committer.commit(
-                "commit-1", evaluation,
+        CompletionException bounded = assertThrows(CompletionException.class, () -> ModelCommitHandlerRegistry.commit(
+                protocol, "commit-1", evaluation,
                 ModelConflictPolicy.RETRY,
-                ModelConflictResolver.retryIfAllowed(), 1,
-                () -> {
+                ModelCommitHandlerRegistry.Retry.conflicts(
+                        ModelConflictResolver.retryIfAllowed(), 1,
+                        (conflict, current, original) -> {
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(evaluation);
-                }).join());
+                }), null, -1).join());
 
         assertInstanceOf(ModelCommitConflictException.class, bounded.getCause());
         assertEquals(1, reloads.get());
         verify(eventStoreClient, times(2)).commitModels(any());
 
         IllegalStateException applicationError = new IllegalStateException("try again later");
-        CompletionException mapped = assertThrows(CompletionException.class, () -> committer.commit(
-                "commit-2", evaluation, ModelConflictPolicy.FAIL,
-                ignored -> {
-                    throw applicationError;
-                },
-                0, () -> CompletableFuture.completedFuture(evaluation)).join());
+        CompletionException mapped = assertThrows(CompletionException.class, () -> ModelCommitHandlerRegistry.commit(
+                protocol, "commit-2", evaluation, ModelConflictPolicy.FAIL,
+                ModelCommitHandlerRegistry.Retry.conflicts(
+                        ignored -> {
+                            throw applicationError;
+                        }, 0,
+                        (conflict, current, original) ->
+                                CompletableFuture.completedFuture(evaluation)),
+                null, -1).join());
         assertEquals(applicationError, mapped.getCause());
     }
 
@@ -676,7 +685,7 @@ class ModelCommitterTest {
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
 
-        committer.commit("mixed-commit", evaluation).join();
+        protocol.commit("mixed-commit", evaluation).join();
 
         ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
         verify(eventStoreClient).commitModels(captor.capture());
@@ -729,7 +738,7 @@ class ModelCommitterTest {
             IllegalStateException failure =
                     assertThrows(
                             IllegalStateException.class,
-                            () -> committer.commit(
+                            () -> protocol.commit(
                                     commitId,
                                     evaluation));
 
@@ -757,7 +766,7 @@ class ModelCommitterTest {
         when(eventStoreClient.commitModels(any()))
                 .thenReturn(stored);
 
-        var completion = committer.commit("commit-1", evaluation);
+        var completion = protocol.commit("commit-1", evaluation);
 
         assertFalse(completion.isDone());
         ArgumentCaptor<CommitModels> request =
@@ -768,6 +777,72 @@ class ModelCommitterTest {
         stored.complete(
                 result(request.getValue()));
         assertTrue(completion.join().isPresent());
+    }
+
+    @Test
+    void batchedCommitCompletionAppliesOneRequestOwnedPostCommitGroup() throws Exception {
+        OrderId id = new OrderId("batch-completion");
+        Order after = new Order(
+                id, null, "confirmed", Instant.parse("2026-01-02T00:00:00Z"));
+        var evaluation = evaluation(
+                List.of(id.toString()),
+                substep(new UpdateOrder(id), transition(
+                        id, Order.class, null, after, UpdateOrder.class, "apply", Order.class)),
+                Map.of(id.toString(), after));
+        AtomicReference<List<ModelCommitProtocol.CommittedCommit>> processed = new AtomicReference<>();
+        CompletableFuture<Void> postCommit = new CompletableFuture<>();
+        ModelCommitProtocol batchProtocol = new ModelCommitProtocol(
+                eventStoreClient, serializer, serializer,
+                DispatchInterceptor.noOp, "client-1", serializer,
+                commits -> {
+                    processed.set(commits);
+                    return postCommit;
+                });
+        ModelCommitProtocol.PreparedCommit prepared =
+                batchProtocol.prepare("batch-completion", evaluation);
+        CompletableFuture<CommitModelsResult> transport = new CompletableFuture<>();
+        ModelCommitBatchingClient.ModelCommitBatch batch = new ModelCommitBatchingClient.ModelCommitBatch() {
+            @Override
+            public CompletableFuture<CommitModelsResult> add(int slot, CommitModels commit) {
+                throw new AssertionError("Missing request-owned completion context");
+            }
+
+            @Override
+            public CompletableFuture<CommitModelsResult> add(
+                    int slot,
+                    CommitModels commit,
+                    ModelCommitBatchingClient.ModelCommitCompletion completion) {
+                return transport.thenCompose(result -> completion.processor()
+                        .process(List.of(result), List.of(completion.value()))
+                        .thenApply(ignored -> result));
+            }
+
+            @Override
+            public void skip(int slot) {
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void fail(Throwable failure) {
+                transport.completeExceptionally(failure);
+            }
+        };
+
+        CompletableFuture<Optional<CommitModelsResult>> completion =
+                batchProtocol.commitPrepared(prepared, batch, 0);
+        CommitModelsResult result = result(prepared.commit());
+        transport.complete(result);
+
+        assertFalse(completion.isDone());
+        assertEquals(1, processed.get().size());
+        assertSame(prepared, processed.get().getFirst().prepared());
+        assertSame(result, processed.get().getFirst().result());
+
+        postCommit.complete(null);
+        assertSame(result, completion.join().orElseThrow());
     }
 
     @Test
@@ -792,7 +867,7 @@ class ModelCommitterTest {
                                     CompletableFuture.completedFuture(
                                             result(invocation.getArgument(0))));
 
-        assertTrue(committer.commit("always", evaluation)
+        assertTrue(protocol.commit("always", evaluation)
                            .join().isPresent());
         assertEquals(0, EqualsProbeModel.equalsCalls.get());
     }
@@ -815,7 +890,7 @@ class ModelCommitterTest {
                         EqualsProbeModel.class)),
                 Map.of(id.toString(), after));
 
-        assertTrue(committer.commit("conditional", evaluation)
+        assertTrue(protocol.commit("conditional", evaluation)
                            .join().isEmpty());
         assertEquals(1, EqualsProbeModel.equalsCalls.get());
         verify(eventStoreClient, never()).commitModels(any());
@@ -838,7 +913,7 @@ class ModelCommitterTest {
                         UpdateOrder.class, "apply",
                         Order.class)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelCommitEngine.CommitEvaluation(
+        var rebased = new ModelExecutionPlan.CommitEvaluation(
                 51L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
@@ -866,14 +941,14 @@ class ModelCommitterTest {
                             result(request));
                 });
 
-        var accepted = committer.commitAcceptingRebase(
-                "commit-rebase", original,
-                (messages, boundary) -> {
-                    assertEquals(51L, boundary);
-                    assertEquals(1, messages.size());
+        var accepted = ModelCommitHandlerRegistry.commit(
+                protocol, "commit-rebase", original, ModelConflictPolicy.ACCEPT,
+                ModelCommitHandlerRegistry.Retry.accepting((result, current, prepared) -> {
+                    assertEquals(51L, result.getRebaseStateIndex());
+                    assertEquals(1, prepared.rebaseMessages().size());
                     return CompletableFuture.completedFuture(
                             rebased);
-                }).join();
+                }), null, -1).join();
 
         assertTrue(accepted.orElseThrow().isAccepted());
         ArgumentCaptor<CommitModels> requests =
@@ -917,7 +992,7 @@ class ModelCommitterTest {
                         UpdateOrder.class, "apply",
                         Order.class)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelCommitEngine.CommitEvaluation(
+        var rebased = new ModelExecutionPlan.CommitEvaluation(
                 51L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
@@ -952,11 +1027,10 @@ class ModelCommitterTest {
         Fluxzero.instance.set(
                 expectedContext);
         try {
-            completion =
-                    committer.commitAcceptingRebase(
-                            "callback-rebase",
-                            original,
-                            (messages, boundary) -> {
+            completion = ModelCommitHandlerRegistry.commit(
+                            protocol, "callback-rebase", original,
+                            ModelConflictPolicy.ACCEPT,
+                            ModelCommitHandlerRegistry.Retry.accepting((result, current, prepared) -> {
                                 assertSame(
                                         expectedContext,
                                         Fluxzero.instance.get());
@@ -965,7 +1039,7 @@ class ModelCommitterTest {
                                                 .getName());
                                 return CompletableFuture.completedFuture(
                                         rebased);
-                            });
+                            }), null, -1);
         } finally {
             Fluxzero.instance.remove();
         }
@@ -1009,7 +1083,7 @@ class ModelCommitterTest {
                 java.util.Collections.singletonMap(id.toString(), null));
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        committer.commit("commit-1", evaluation).join();
+        protocol.commit("commit-1", evaluation).join();
 
         ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
         verify(eventStoreClient).commitModels(captor.capture());
@@ -1042,7 +1116,7 @@ class ModelCommitterTest {
                 Map.of(id.toString(), after));
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
                 CompletableFuture.completedFuture(result(invocation.getArgument(0))));
-        committer.commit("commit-1", evaluation).join();
+        protocol.commit("commit-1", evaluation).join();
 
         ArgumentCaptor<CommitModels> captor = ArgumentCaptor.forClass(CommitModels.class);
         verify(eventStoreClient).commitModels(captor.capture());
@@ -1073,7 +1147,7 @@ class ModelCommitterTest {
                         TouchConditional.class, "apply", ConditionalModel.class)),
                 Map.of(id.toString(), value));
 
-        var result = committer.commit("commit-1", evaluation).join();
+        var result = protocol.commit("commit-1", evaluation).join();
 
         assertTrue(result.isEmpty());
         verify(eventStoreClient, never()).commitModels(any());
@@ -1091,11 +1165,11 @@ class ModelCommitterTest {
         DocumentSerializer failingSerializer = mock(DocumentSerializer.class);
         when(failingSerializer.toDocument(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new MockSearchFailure());
-        ModelCommitter failingCommitter = new ModelCommitter(
+        ModelCommitProtocol failingProtocol = new ModelCommitProtocol(
                 eventStoreClient, serializer, failingSerializer,
                 DispatchInterceptor.noOp, "client-1");
 
-        assertThrows(MockSearchFailure.class, () -> failingCommitter.commit("commit-1", evaluation));
+        assertThrows(MockSearchFailure.class, () -> failingProtocol.commit("commit-1", evaluation));
 
         verify(eventStoreClient, never()).commitModels(any());
     }
@@ -1118,7 +1192,7 @@ class ModelCommitterTest {
                                 SnapshotModel.class)),
                 Map.of(id.toString(), after));
 
-        CommitModels commit = committer.prepare(
+        CommitModels commit = protocol.prepare(
                 "commit-snapshot", evaluation).commit();
 
         var snapshot = commit.getSubsteps().getFirst()
@@ -1142,25 +1216,25 @@ class ModelCommitterTest {
                                 SnapshotModel.class)),
                 Map.of(id.toString(),
                        new SnapshotModel(id, "third")));
-        assertNull(committer.prepare(
+        assertNull(protocol.prepare(
                         "commit-no-snapshot",
                         nextEvaluation)
                            .commit().getSubsteps().getFirst()
                            .getTargets().getFirst().getSnapshot());
     }
 
-    private static ModelCommitEngine.CommitEvaluation evaluation(
+    private static ModelExecutionPlan.CommitEvaluation evaluation(
             List<String> readModelIds,
-            ModelCommitEngine.AppliedSubstep substep,
+            ModelExecutionPlan.AppliedSubstep substep,
             Map<String, Object> finalValues) {
         return evaluation(readModelIds, List.of(substep), finalValues);
     }
 
-    private static ModelCommitEngine.CommitEvaluation evaluation(
+    private static ModelExecutionPlan.CommitEvaluation evaluation(
             List<String> readModelIds,
-            List<ModelCommitEngine.AppliedSubstep> substeps,
+            List<ModelExecutionPlan.AppliedSubstep> substeps,
             Map<String, Object> finalValues) {
-        return new ModelCommitEngine.CommitEvaluation(
+        return new ModelExecutionPlan.CommitEvaluation(
                 41L, readModelIds,
                 finalValues.entrySet().stream()
                         .filter(entry ->
@@ -1172,19 +1246,19 @@ class ModelCommitterTest {
                 substeps, finalValues);
     }
 
-    private static ModelCommitEngine.AppliedSubstep substep(
-            Object event, ModelCommitEngine.Transition... transitions) {
+    private static ModelExecutionPlan.AppliedSubstep substep(
+            Object event, ModelExecutionPlan.Transition... transitions) {
         return substep(Metadata.empty(), event, transitions);
     }
 
-    private static ModelCommitEngine.AppliedSubstep substep(
-            Metadata metadata, Object event, ModelCommitEngine.Transition... transitions) {
-        return new ModelCommitEngine.AppliedSubstep(
+    private static ModelExecutionPlan.AppliedSubstep substep(
+            Metadata metadata, Object event, ModelExecutionPlan.Transition... transitions) {
+        return new ModelExecutionPlan.AppliedSubstep(
                 new DeserializingMessage(new Message(event, metadata), MessageType.EVENT, null),
                 List.of(transitions));
     }
 
-    private static ModelCommitEngine.Transition transition(
+    private static ModelExecutionPlan.Transition transition(
             Object id, Class<?> modelType, Object before, Object after,
             Class<?> handlerType, String methodName, Class<?> parameterType) throws Exception {
         return transition(
@@ -1192,15 +1266,16 @@ class ModelCommitterTest {
                 handlerType, methodName, parameterType);
     }
 
-    private static ModelCommitEngine.Transition transition(
+    private static ModelExecutionPlan.Transition transition(
             Object id, Class<?> modelType, long beforeSequenceNumber,
             Object before, Object after,
             Class<?> handlerType, String methodName,
             Class<?> parameterType) throws Exception {
         Method handler = handlerType.getDeclaredMethod(methodName, parameterType);
-        return new ModelCommitEngine.Transition(
+        return new ModelExecutionPlan.Transition(
                 id.toString(), modelType, beforeSequenceNumber,
-                before, after, handler);
+                null, before, after, handler,
+                null, false);
     }
 
     private static CommitModelsResult result(CommitModels request) {

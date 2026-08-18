@@ -387,6 +387,62 @@ The same scope serves automatic handlers and explicit nested model operations. E
 unrelated model does not acquire a dependency. Context propagation and result publication retain their existing
 boundaries.
 
+#### SDK execution replacement blueprint — active Macro 2
+
+The replacement compiles one `ModelExecutionPlan` when a payload type first becomes reachable from a registered model.
+That immutable plan contains the ordered assertion/interceptor/apply invokers, direct and collection result shapes,
+payload and metadata ID accessors, direct and ancestor target slots, graph-change delivery, automatic-handling choice,
+conflict policy and the merged start/await policy. Registration invalidates the payload-plan cache as one unit; runtime
+evaluation performs no second handler, target or dependency discovery.
+
+Every entry point creates the same execution request. `AUTOMATIC`, `ASSERT_ONLY`, `APPLY`, `STORED_EVENT`, explicit
+Graph operations and conflict retries differ only in plan options and read boundary. The fixed lifecycle is:
+
+```text
+request -> compiled plan -> one pinned load -> evaluate ordered substeps
+        -> stage in batch scope -> await exact predecessors -> prepare wire commit
+        -> authoritative Runtime result -> repository/cache/projection completion
+```
+
+The direct single-model route is a plan strategy that supplies its proven cache entry to the same evaluator and commit
+continuation. It does not select another engine, scheduler or completion path. A retry reruns the same request and plan
+at the conflict boundary; stored events disable assertions/interception through plan options rather than entering a
+separate replayer.
+
+One `ModelBatchScope` is attached to the tracking batch and owns all mutable execution state: ordered operations,
+pending model/alias values, exact read dependencies, same-model tails, transport slots and completion futures. The four
+public commit policies reduce to the declared start and await moments. Explicit nested operations join this same scope.
+Outside a tracking batch, the same scope implementation is used as a one-operation scope without batch arrays. The
+scope releases unrelated targets independently and flushes a ready transport tail before a dependent operation waits,
+preserving bounded batching without ticket, gate, wave or producer-wrapper lifecycles.
+
+The Runtime request builder becomes a narrow protocol step: it turns evaluated transitions into one `CommitModels`
+request and maps the authoritative result back to committed repository revisions. It owns neither evaluation, retry,
+ordering, batch completion nor projection waiting.
+
+The accepted checkpoint removes the current execution ownership represented by `ModelCommitEngine`,
+`ModelCommitter`, `ModelCommitCoordinator`, `MessageBatchModelView`, the registry's nested commit plans/tickets/gates
+and its alternate explicit/automatic methods, plus the separate target, model-parameter, conflict, event-replay and
+graph-change execution planners. A small registration facade may retain the supported `ModelCommitHandlerRegistry`
+surface used by `DefaultFluxzero`; it delegates every operation to the compiled pipeline and owns no execution state.
+`DefaultModelRepository` remains the durable/current/historical load owner until Macro 3 and is changed here only at
+the batch-overlay call boundary.
+
+The direct pre-rewrite footprint of those execution classes is just over 10,000 production Java lines. The replacement
+budget is at most roughly 3,000 lines, producing the required 7,000-8,000-line structural reduction. This budget may
+not be met by compressed formatting, deleted contracts or moving Graph/repository replay into this checkpoint.
+
+Qualification preserves automatic registration precedence, validation-only behavior, heterogeneous collections,
+Graph updates, conflict retry/acceptance, initial-create proof, batch-local ancestors and moves, all commit policies,
+result publication barriers, exact once-only event publication, projection `ASYNC`/`AWAIT`, cache fencing, TestFixture
+synchrony and Java/Kotlin downstream compilation. Focused execution and integration suites run before the complete
+reactor; the full command/model/event/result route then receives matched control/candidate throughput and allocation
+runs. The no-model route is rerun only if generic handler, tracking, result-completion or wire code changes.
+
+Rollback is the CP8 SDK commit `9bcfc2389b0`: the replacement remains uncommitted until the old owners are physically
+gone and every gate qualifies. A candidate that needs an adapter back to an old engine or materially regresses the
+matched route is discarded as one unit rather than checkpointed partially.
+
 ### 4. Graph is one indexed view
 
 Represent a graph as one immutable adjacency/index state plus lazy node resolver. `Graph<T>` is a typed view onto that

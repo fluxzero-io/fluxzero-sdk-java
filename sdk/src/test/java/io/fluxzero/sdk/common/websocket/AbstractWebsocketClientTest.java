@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -139,26 +138,6 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void synchronousResultPreparationFailureBecomesAFailedFuture() {
-        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
-                .runtimeBaseUrl("ws://localhost")
-                .name("test-client")
-                .build();
-        ResultPreparationFailingClient client =
-                new ResultPreparationFailingClient(mock(WebsocketConnector.class), clientConfig);
-
-        try {
-            CompletionException failure = assertThrows(
-                    CompletionException.class,
-                    () -> client.prepareResultGroup(List.of(new VoidResult(42L))).join());
-
-            assertEquals("preparation failed", failure.getCause().getMessage());
-        } finally {
-            client.close();
-        }
-    }
-
-    @Test
     void malformedSdkRuntimeMessageFailsItsRetainedIngressCompletion() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -221,7 +200,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void runtimeResultDispatchWaitsForSpecializedGroupPreparation() throws Exception {
+    void runtimeResultDispatchWaitsForRequestOwnedGroupCompletion() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -231,7 +210,9 @@ class AbstractWebsocketClientTest {
         AtomicInteger handledResults = new AtomicInteger();
         TestClient client = new TestClient(mock(WebsocketConnector.class), clientConfig) {
             @Override
-            protected CompletableFuture<Void> prepareResults(List<RequestResult> results) {
+            protected CompletableFuture<Void> prepareResults(
+                    List<RequestResult> results,
+                    List<Object> requestContexts) {
                 preparationStarted.countDown();
                 return preparation;
             }
@@ -1999,17 +1980,6 @@ class AbstractWebsocketClientTest {
                                     WebsocketResultDiagnostics.ResultTiming clientResultTiming) {
             resultThread.set(Thread.currentThread().getName());
             resultHandled.countDown();
-        }
-    }
-
-    private static class ResultPreparationFailingClient extends TestClient {
-        ResultPreparationFailingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
-            super(container, clientConfig);
-        }
-
-        @Override
-        protected CompletableFuture<Void> prepareResults(List<RequestResult> results) {
-            throw new IllegalStateException("preparation failed");
         }
     }
 

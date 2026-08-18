@@ -17,10 +17,37 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /** Allows already-prepared, independent model commits to enter the websocket queue as one batch. */
 public interface ModelCommitBatchingClient {
+
+    /**
+     * Request-owned context for completing model commits in the transport result batch that contains them.
+     *
+     * @param value opaque context owned by the model execution pipeline
+     * @param processor processor shared by requests that may be completed together
+     */
+    record ModelCommitCompletion(
+            Object value,
+            ModelCommitResultProcessor processor) {
+
+        public ModelCommitCompletion {
+            Objects.requireNonNull(value, "value");
+            Objects.requireNonNull(processor, "processor");
+        }
+    }
+
+    /** Completes aligned model results and their request-owned contexts as one unit. */
+    @FunctionalInterface
+    interface ModelCommitResultProcessor {
+
+        CompletableFuture<Void> process(
+                List<CommitModelsResult> results,
+                List<Object> contexts);
+    }
 
     ModelCommitBatch beginModelCommitBatch(int capacity);
 
@@ -38,6 +65,24 @@ public interface ModelCommitBatchingClient {
     interface ModelCommitBatch {
 
         CompletableFuture<CommitModelsResult> add(int slot, CommitModels commit);
+
+        /**
+         * Adds a commit whose post-commit work may be combined with other results in the same transport response.
+         * Implementations without grouped result support retain correct per-result completion.
+         */
+        default CompletableFuture<CommitModelsResult> add(
+                int slot,
+                CommitModels commit,
+                ModelCommitCompletion completion) {
+            return add(slot, commit).thenCompose(result ->
+                    completion.processor().process(
+                                    List.of(result),
+                                    List.of(completion.value()))
+                            .thenApply(ignored -> result));
+        }
+
+        /** Marks a reserved slot as intentionally empty. */
+        void skip(int slot);
 
         void flush();
 

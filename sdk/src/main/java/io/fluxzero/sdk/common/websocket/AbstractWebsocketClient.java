@@ -387,6 +387,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected <R extends RequestResult> CompletableFuture<R> send(Request request) {
+        return send(request, null);
+    }
+
+    /** Sends a request with context retained locally until its result is decoded. */
+    protected <R extends RequestResult> CompletableFuture<R> send(
+            Request request, Object resultContext) {
         boolean captureMetrics = metricsEnabled();
         return new WebSocketRequest(
                 request,
@@ -400,19 +406,27 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 captureMetrics
                         ? Fluxzero.getOptionally()
                                 .orElse(null)
-                        : null)
+                        : null,
+                resultContext)
                 .send();
     }
 
     /** Captures a request without releasing it to the websocket queue yet. */
     protected <R extends RequestResult> PreparedRequest<R> prepareRequest(
             Request request) {
+        return prepareRequest(request, null);
+    }
+
+    /** Captures a request and result context without releasing it to the websocket queue yet. */
+    protected <R extends RequestResult> PreparedRequest<R> prepareRequest(
+            Request request, Object resultContext) {
         boolean captureMetrics = metricsEnabled();
         return new PreparedRequest<>(new WebSocketRequest(
                 request,
                 captureMetrics ? captureCorrelationData() : null,
                 captureMetrics ? getAdhocInterceptor(METRICS).orElse(null) : null,
-                captureMetrics ? Fluxzero.getOptionally().orElse(null) : null));
+                captureMetrics ? Fluxzero.getOptionally().orElse(null) : null,
+                resultContext));
     }
 
     /** Releases prepared requests per selected session in one queue operation. */
@@ -734,7 +748,8 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         String sessionId = getNegotiatedSessionId(session);
         List<RequestResult> results = restoreResultContext(decodedResults);
         WebSocketRequest[] receivedRequests = receiveResultContext(results);
-        CompletableFuture<Void> preparation = prepareResultGroup(results);
+        CompletableFuture<Void> preparation = prepareResultGroup(
+                results, receivedRequests);
         String batchId = value instanceof ResultBatch ? Fluxzero.generateId() : null;
         long callbackQueuedTimestamp = resultDiagnostics.timestamp();
         RuntimeIngressController.MessageDispatch submission;
@@ -992,11 +1007,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return "RESULT";
     }
 
-    CompletableFuture<Void> prepareResultGroup(
-            List<RequestResult> results) {
+    private CompletableFuture<Void> prepareResultGroup(
+            List<RequestResult> results,
+            WebSocketRequest[] requests) {
+        List<Object> contexts = new ArrayList<>(requests.length);
+        for (WebSocketRequest request : requests) {
+            contexts.add(request == null ? null : request.resultContext);
+        }
         try {
             return Objects.requireNonNull(
-                    prepareResults(results),
+                    prepareResults(results, contexts),
                     "Result preparation returned null");
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -1004,10 +1024,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     /**
-     * Allows a specialized client to prepare a decoded result group before individual request futures are released.
+     * Allows a specialized client to complete request-owned work for a decoded result group before individual request
+     * futures are released.
      */
     protected CompletableFuture<Void> prepareResults(
-            List<RequestResult> results) {
+            List<RequestResult> results,
+            List<Object> requestContexts) {
         return CompletableFuture.completedFuture(null);
     }
 
@@ -1575,6 +1597,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         private final Object correlationData;
         private final DispatchInterceptor adhocMetricsInterceptor;
         private final Fluxzero fluxzero;
+        private final Object resultContext;
         private final AtomicBoolean sent = new AtomicBoolean();
         private volatile String sessionId;
         private volatile long sendTimestamp;

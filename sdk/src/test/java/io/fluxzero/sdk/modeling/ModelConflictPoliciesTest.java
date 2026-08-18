@@ -32,32 +32,30 @@ class ModelConflictPoliciesTest {
     void applyOverridePrecedesModelAndApplicationPolicy() throws Exception {
         assertEquals(
                 ModelConflictPolicy.ACCEPT,
-                ModelConflictPolicies.resolve(
-                        evaluation(
+                evaluation(
                                 transition(
                                         "accept", FailModel.class,
-                                        method("accept"))),
-                        ModelConflictPolicy.RETRY));
+                                        method("accept")))
+                        .conflictPolicy(ModelConflictPolicy.RETRY));
     }
 
     @Test
     void strictestParticipantPolicyControlsTheAtomicCommit() throws Exception {
         assertEquals(
                 ModelConflictPolicy.FAIL,
-                ModelConflictPolicies.resolve(
-                        evaluation(
+                evaluation(
                                 transition(
                                         "retry", RetryModel.class,
                                         method("inherit")),
                                 transition(
                                         "fail", DefaultModel.class,
-                                        method("fail"))),
-                        ModelConflictPolicy.ACCEPT));
+                                        method("fail")))
+                        .conflictPolicy(ModelConflictPolicy.ACCEPT));
     }
 
     @Test
     void readOnlyDependencyUsesItsModelPolicy() throws Exception {
-        ModelCommitEngine.CommitEvaluation evaluation =
+        ModelExecutionPlan.CommitEvaluation evaluation =
                 evaluation(
                         Map.of(
                                 "written", DefaultModel.class,
@@ -68,89 +66,83 @@ class ModelConflictPoliciesTest {
 
         assertEquals(
                 ModelConflictPolicy.FAIL,
-                ModelConflictPolicies.resolve(
-                        evaluation,
-                        ModelConflictPolicy.ACCEPT));
+                evaluation.conflictPolicy(ModelConflictPolicy.ACCEPT));
     }
 
     @Test
     void defaultsInheritTheApplicationPolicy() throws Exception {
         assertEquals(
                 ModelConflictPolicy.RETRY,
-                ModelConflictPolicies.resolve(
-                        evaluation(
+                evaluation(
                                 transition(
                                         "default",
                                         DefaultModel.class,
-                                        method("inherit"))),
-                        ModelConflictPolicy.RETRY));
+                                        method("inherit")))
+                        .conflictPolicy(ModelConflictPolicy.RETRY));
     }
 
     @Test
     void newIdentityAcceptFailsInsteadOfRebasingIntoAnOverwrite()
             throws Exception {
-        ModelCommitEngine.Transition creation =
-                new ModelCommitEngine.Transition(
+        ModelExecutionPlan.Transition creation =
+                new ModelExecutionPlan.Transition(
                         "new", DefaultModel.class,
                         -1L, null, null,
                         new DefaultModel("new"),
-                        method("accept"));
+                        method("accept"), null, false);
 
         assertEquals(
                 ModelConflictPolicy.FAIL,
-                ModelConflictPolicies.resolve(
-                        evaluation(creation),
-                        ModelConflictPolicy.ACCEPT));
+                evaluation(creation).conflictPolicy(ModelConflictPolicy.ACCEPT));
     }
 
     @Test
     void newIdentityPreservesExplicitRetry()
             throws Exception {
-        ModelCommitEngine.Transition creation =
-                new ModelCommitEngine.Transition(
+        ModelExecutionPlan.Transition creation =
+                new ModelExecutionPlan.Transition(
                         "new", DefaultModel.class,
                         -1L, null, null,
                         new DefaultModel("new"),
-                        method("retry"));
+                        method("retry"), null, false);
 
         assertEquals(
                 ModelConflictPolicy.RETRY,
-                ModelConflictPolicies.resolve(
-                        evaluation(creation),
-                        ModelConflictPolicy.ACCEPT));
+                evaluation(creation).conflictPolicy(ModelConflictPolicy.ACCEPT));
     }
 
-    private static ModelCommitEngine.CommitEvaluation evaluation(
-            ModelCommitEngine.Transition... transitions) {
+    private static ModelExecutionPlan.CommitEvaluation evaluation(
+            ModelExecutionPlan.Transition... transitions) {
         return evaluation(
                 java.util.Arrays.stream(transitions)
                         .collect(
                                 java.util.stream.Collectors.toMap(
-                                        ModelCommitEngine.Transition::modelId,
-                                        ModelCommitEngine.Transition::modelType)),
+                                        ModelExecutionPlan.Transition::modelId,
+                                        ModelExecutionPlan.Transition::modelType)),
                 transitions);
     }
 
-    private static ModelCommitEngine.CommitEvaluation evaluation(
+    private static ModelExecutionPlan.CommitEvaluation evaluation(
             Map<String, Class<?>> readTypes,
-            ModelCommitEngine.Transition... transitions) {
-        return new ModelCommitEngine.CommitEvaluation(
+            ModelExecutionPlan.Transition... transitions) {
+        return new ModelExecutionPlan.CommitEvaluation(
                 1L, List.copyOf(readTypes.keySet()),
                 readTypes,
                 List.of(
-                        new ModelCommitEngine.AppliedSubstep(
+                        new ModelExecutionPlan.AppliedSubstep(
                                 null,
                                 List.of(transitions))),
                 Map.of());
     }
 
-    private static ModelCommitEngine.Transition transition(
+    private static ModelExecutionPlan.Transition transition(
             String id,
             Class<?> type,
             Executable handler) {
-        return new ModelCommitEngine.Transition(
+        return new ModelExecutionPlan.Transition(
                 id, type, 0L, null,
-                new Object(), handler);
+                null, new Object(), handler,
+                null, false);
     }
 
     private static Executable method(

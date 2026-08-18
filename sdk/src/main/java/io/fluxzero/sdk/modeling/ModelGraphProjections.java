@@ -17,10 +17,15 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.search.ModelGraphComposition;
+import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Converts cached {@link Model} metadata to its durable graph-projection protocol definition.
@@ -76,6 +81,47 @@ public final class ModelGraphProjections {
                                              new ModelGraphPathOverride(
                                                      override.path(),
                                                      override.projectionPath()))
-                                .toList()));
+                .toList()));
+    }
+
+    /** Returns every materialized projection root reachable from this model through parent relationships. */
+    static List<Root> roots(Class<?> modelType) {
+        ModelMetadata.validate(modelType);
+        return ReflectionUtils.getTypeMetadata(modelType)
+                .specializedMetadata(Roots.class, Roots::new)
+                .values();
+    }
+
+    private record Roots(List<Root> values) {
+        private Roots(Class<?> modelType) {
+            this(inspect(modelType, new LinkedHashSet<>()));
+        }
+
+        private static List<Root> inspect(
+                Class<?> modelType, Set<Class<?>> visited) {
+            if (!visited.add(modelType)) {
+                return List.of();
+            }
+            List<Root> result = new ArrayList<>();
+            ModelMetadata metadata = ModelMetadata.of(modelType);
+            metadata.model().flatMap(model -> configuration(modelType)
+                            .map(configuration -> new Root(
+                                    modelType, configuration, model.graphProjection())))
+                    .ifPresent(result::add);
+            metadata.parentReferences().stream()
+                    .map(ModelMetadata.ParentReference::parentModelType)
+                    .filter(java.util.Objects::nonNull)
+                    .forEach(parent -> result.addAll(inspect(parent, visited)));
+            return List.copyOf(result);
+        }
+    }
+
+    record Root(
+            Class<?> modelType,
+            ModelGraphProjectionConfiguration configuration,
+            GraphProjection projection) {
+        String collection() {
+            return configuration.getCollection();
+        }
     }
 }

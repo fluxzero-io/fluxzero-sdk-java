@@ -47,7 +47,6 @@ import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.DefaultHandlerRepository;
 import io.fluxzero.sdk.modeling.EntityParameterResolver;
-import io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry;
@@ -1062,7 +1061,6 @@ public class DefaultFluxzero implements Fluxzero {
                                                               : modelCommitHandlerRegistry.knownModelTypes()),
                                               new PayloadParameterResolver(),
                                               new JsonPayloadParameterResolver(),
-                                              GraphChangeHandlerDecorator.parameterResolver(),
                                               new ModelEntityParameterResolver(),
                                               new EntityParameterResolver()));
             final List<ParameterResolver<? super DeserializingMessage>> runtimeParameterResolvers =

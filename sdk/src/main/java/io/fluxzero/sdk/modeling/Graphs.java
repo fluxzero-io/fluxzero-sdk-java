@@ -943,7 +943,7 @@ public final class Graphs {
             if (!context.stagedChanges.isEmpty()
                 && Fluxzero.getOptionally().isPresent()
                 && ModelMetadata.of(type()).isModel()) {
-                Fluxzero.assertAndApply(new DirectGraphCommit(this));
+                Fluxzero.assertAndApply(this);
                 @SuppressWarnings("unchecked")
                 Graph<T> committed = (Graph<T>) Fluxzero.loadGraph(id().toString());
                 return committed;

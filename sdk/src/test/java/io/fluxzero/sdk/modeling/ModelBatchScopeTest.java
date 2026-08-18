@@ -33,42 +33,40 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class MessageBatchModelViewTest {
+class ModelBatchScopeTest {
 
     @Test
     void exposesPendingValuesAndAliasChangesOnlyInsideTheirMessageBatch() {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);
         Entity<AliasModel> durable = entity(before);
-        MessageBatchModelView.Stage[] stage = new MessageBatchModelView.Stage[1];
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("first"), message("second")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        stage[0] = MessageBatchModelView.stage(
-                                null, evaluation(current, before, after), null);
+                        stage(null, evaluation(current, before, after));
                         assertEquals(after,
-                                     MessageBatchModelView.overlayCurrent(
+                                     ModelBatchScope.overlayCurrent(
                                              null, "model-1", AliasModel.class, durable).get());
                         assertEquals(after,
-                                     MessageBatchModelView.overlayCurrent(
+                                     ModelBatchScope.overlayCurrent(
                                              null, "new", AliasModel.class, durable).get());
-                        assertFalse(MessageBatchModelView.overlayCurrent(
+                        assertFalse(ModelBatchScope.overlayCurrent(
                                 null, "old", AliasModel.class, durable).isPresent());
                     } else {
                         assertEquals(after,
-                                     MessageBatchModelView.overlayCurrent(
+                                     ModelBatchScope.overlayCurrent(
                                              null, "model-1", AliasModel.class, durable).get());
                         assertEquals(
                                 Map.of("model-1",
-                                       new MessageBatchModelView.StagedModel(
+                                       new ModelBatchScope.StagedModel(
                                                "model-1", AliasModel.class,
                                                after, true)),
-                                MessageBatchModelView.currentValues(null));
+                                ModelBatchScope.currentValues(null));
                     }
                 });
 
-        assertSame(durable, MessageBatchModelView.overlayCurrent(
+        assertSame(durable, ModelBatchScope.overlayCurrent(
                 null, "model-1", AliasModel.class, durable));
     }
 
@@ -80,22 +78,23 @@ class MessageBatchModelViewTest {
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("success")), current -> {
-                    MessageBatchModelView.Stage stage = MessageBatchModelView.stage(
-                            null, evaluation(current, before, after), null);
+                    ModelBatchScope.Operation stage = stage(
+                            null, evaluation(current, before, after));
                     assertEquals(after,
-                                 MessageBatchModelView.overlayCurrent(
+                                 ModelBatchScope.overlayCurrent(
                                          null, "model-1", AliasModel.class, durable).get());
                     stage.complete(null);
-                    assertSame(durable, MessageBatchModelView.overlayCurrent(
+                    assertSame(durable, ModelBatchScope.overlayCurrent(
                             null, "model-1", AliasModel.class, durable));
                 });
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("failure")), current -> {
-                    MessageBatchModelView.Stage stage = MessageBatchModelView.stage(
-                            null, evaluation(current, before, after), null);
-                    stage.complete(new IllegalStateException("boom"));
-                    assertSame(durable, MessageBatchModelView.overlayCurrent(
+                    ModelBatchScope.Operation stage = stage(
+                            null, evaluation(current, before, after));
+                    stage.completeExceptionally(
+                            new IllegalStateException("boom"));
+                    assertSame(durable, ModelBatchScope.overlayCurrent(
                             null, "model-1", AliasModel.class, durable));
                 });
     }
@@ -105,29 +104,29 @@ class MessageBatchModelViewTest {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);
         Entity<AliasModel> durable = entity(before);
-        Dependency producer = new Dependency();
-        Dependency consumer = new Dependency();
+        ModelBatchScope.Operation producer = new ModelBatchScope.Operation();
+        ModelBatchScope.Operation consumer = new ModelBatchScope.Operation();
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        MessageBatchModelView.stage(
+                        ModelBatchScope.stage(
                                 null, evaluation(current, before, after), producer);
-                        MessageBatchModelView.withMessageDependency(current, () -> {
-                            assertSame(durable, MessageBatchModelView.overlayCurrent(
+                        ModelBatchScope.withMessageDependency(current, () -> {
+                            assertSame(durable, ModelBatchScope.overlayCurrent(
                                     null, "model-1", AliasModel.class, durable));
                             return null;
                         });
                     } else {
-                        MessageBatchModelView.withDependency(consumer, () -> {
-                            assertEquals(after, MessageBatchModelView.overlayCurrent(
+                        ModelBatchScope.withDependency(consumer, () -> {
+                            assertEquals(after, ModelBatchScope.overlayCurrent(
                                     null, "model-1", AliasModel.class, durable).get());
                             return null;
                         });
                     }
                 });
 
-        assertEquals(List.of(producer), consumer.dependencies);
+        assertEquals(1, consumer.dependencyCount());
     }
 
     @Test
@@ -135,24 +134,24 @@ class MessageBatchModelViewTest {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);
         Entity<AliasModel> durable = entity(before);
-        Dependency producer = new Dependency();
+        ModelBatchScope.Operation producer = new ModelBatchScope.Operation();
         AtomicReference<CompletableFuture<Void>> barrier =
                 new AtomicReference<>();
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        MessageBatchModelView.stage(
+                        ModelBatchScope.stage(
                                 null, evaluation(current, before, after), producer);
                     } else {
-                        assertEquals(after, MessageBatchModelView.overlayCurrent(
+                        assertEquals(after, ModelBatchScope.overlayCurrent(
                                 null, "model-1", AliasModel.class, durable).get());
                         barrier.set(Invocation.resultPublicationBarrier(current));
                         assertFalse(barrier.get().isDone());
                     }
                 });
 
-        producer.completion.complete(null);
+        producer.complete(null);
         barrier.get().join();
         assertTrue(barrier.get().isDone());
     }
@@ -167,10 +166,9 @@ class MessageBatchModelViewTest {
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        MessageBatchModelView.stage(
-                                null, evaluation(current, before, after), null);
+                        stage(null, evaluation(current, before, after));
                     } else {
-                        assertSame(primary, MessageBatchModelView.overlayCurrent(
+                        assertSame(primary, ModelBatchScope.overlayCurrent(
                                 null, "shared", AliasModel.class, primary));
                     }
                 });
@@ -185,10 +183,9 @@ class MessageBatchModelViewTest {
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer", 1), message("consumer", 2)), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        MessageBatchModelView.stage(
-                                null, evaluation(current, before, after), null);
+                        stage(null, evaluation(current, before, after));
                     } else {
-                        assertSame(durable, MessageBatchModelView.overlayCurrent(
+                        assertSame(durable, ModelBatchScope.overlayCurrent(
                                 null, "model-1", AliasModel.class, durable));
                     }
                 });
@@ -203,18 +200,16 @@ class MessageBatchModelViewTest {
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        MessageBatchModelView.stage(
-                                "customer-a",
-                                evaluation(current, before, after), null);
+                        stage("customer-a", evaluation(current, before, after));
                     } else {
                         assertEquals(
                                 after,
-                                MessageBatchModelView.overlayCurrent(
+                                ModelBatchScope.overlayCurrent(
                                         "customer-a", "model-1",
                                         AliasModel.class, durable).get());
                         assertSame(
                                 durable,
-                                MessageBatchModelView.overlayCurrent(
+                                ModelBatchScope.overlayCurrent(
                                         "customer-b", "model-1",
                                         AliasModel.class, durable));
                     }
@@ -229,30 +224,21 @@ class MessageBatchModelViewTest {
 
         DeserializingMessage.forEachInBatch(
                 List.of(message("handler")), current -> {
-                    MessageBatchModelView.stage(
-                            null,
-                            evaluation(current, first.id(), null, first),
-                            null);
-                    MessageBatchModelView.stage(
-                            null,
-                            evaluation(current, updated.id(), first, updated),
-                            null);
-                    MessageBatchModelView.stage(
-                            null,
-                            evaluation(current, second.id(), null, second),
-                            null);
+                    stage(null, evaluation(current, first.id(), null, first));
+                    stage(null, evaluation(current, updated.id(), first, updated));
+                    stage(null, evaluation(current, second.id(), null, second));
 
                     assertEquals(
                             Map.of(
                                     first.id(),
-                                    new MessageBatchModelView.StagedModel(
+                                    new ModelBatchScope.StagedModel(
                                             first.id(), AliasModel.class,
                                             updated, false),
                                     second.id(),
-                                    new MessageBatchModelView.StagedModel(
+                                    new ModelBatchScope.StagedModel(
                                             second.id(), AliasModel.class,
                                             second, false)),
-                            MessageBatchModelView.currentValues(null));
+                            ModelBatchScope.currentValues(null));
                 });
     }
 
@@ -266,19 +252,19 @@ class MessageBatchModelViewTest {
         DeserializingMessage.forEachInBatch(
                 List.of(message("producer"), message("consumer")), current -> {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                        MessageBatchModelView.stage(
+                        stage(
                                 null,
-                                new ModelCommitEngine.CommitEvaluation(
+                                new ModelExecutionPlan.CommitEvaluation(
                                         0L,
                                         List.of(before.id()),
                                         Map.of(before.id(), ModelContract.class),
-                                        List.of(new ModelCommitEngine.AppliedSubstep(
+                                        List.of(new ModelExecutionPlan.AppliedSubstep(
                                                 current,
-                                                List.of(new ModelCommitEngine.Transition(
+                                                List.of(new ModelExecutionPlan.Transition(
                                                         before.id(), ModelContract.class,
-                                                        0L, before, after, null)))),
-                                        Map.of(before.id(), after)),
-                                null);
+                                                        0L, null, before, after, null,
+                                                        null, false)))),
+                                        Map.of(before.id(), after)));
                     } else {
                         Entity<Object> empty = ImmutableModelRoot.builder()
                                 .id("new")
@@ -287,12 +273,12 @@ class MessageBatchModelViewTest {
                                 .build();
                         assertEquals(
                                 after,
-                                MessageBatchModelView.overlayCurrent(
+                                ModelBatchScope.overlayCurrent(
                                         null, "new", Object.class,
                                         empty).get());
                         assertEquals(
                                 PolymorphicAliasModel.class,
-                                MessageBatchModelView.currentValue(
+                                ModelBatchScope.currentValue(
                                         null, before.id()).modelType());
                     }
                 });
@@ -307,46 +293,49 @@ class MessageBatchModelViewTest {
                 List.of(message("first"), message("second"), message("read")), current -> {
                     int index = DeserializingMessage.getMessageBatchIndex();
                     if (index == 0) {
-                        MessageBatchModelView.stage(
-                                null,
-                                evaluation(current, first.id(), null, first),
-                                null);
+                        stage(null, evaluation(current, first.id(), null, first));
                     } else if (index == 1) {
-                        MessageBatchModelView.stage(
-                                null,
-                                evaluation(current, second.id(), null, second),
-                                null);
+                        stage(null, evaluation(current, second.id(), null, second));
                     } else {
                         assertEquals(
                                 List.of(first.id(), second.id()),
                                 new ArrayList<>(
-                                        MessageBatchModelView.currentValues(null)
+                                        ModelBatchScope.currentValues(null)
                                                 .keySet()));
                     }
                 });
     }
 
-    private static ModelCommitEngine.CommitEvaluation evaluation(
+    private static ModelExecutionPlan.CommitEvaluation evaluation(
             DeserializingMessage message,
             AliasModel before,
             AliasModel after) {
         return evaluation(message, before.id(), before, after);
     }
 
-    private static ModelCommitEngine.CommitEvaluation evaluation(
+    private static ModelBatchScope.Operation stage(
+            String namespace,
+            ModelExecutionPlan.CommitEvaluation evaluation) {
+        ModelBatchScope.Operation result = new ModelBatchScope.Operation();
+        ModelBatchScope.stage(namespace, evaluation, result);
+        return result;
+    }
+
+    private static ModelExecutionPlan.CommitEvaluation evaluation(
             DeserializingMessage message,
             String modelId,
             AliasModel before,
             AliasModel after) {
-        return new ModelCommitEngine.CommitEvaluation(
+        return new ModelExecutionPlan.CommitEvaluation(
                 0L,
                 List.of(modelId),
                 Map.of(modelId, AliasModel.class),
-                List.of(new ModelCommitEngine.AppliedSubstep(
+                List.of(new ModelExecutionPlan.AppliedSubstep(
                         message,
-                        List.of(new ModelCommitEngine.Transition(
+                        List.of(new ModelExecutionPlan.Transition(
                                 modelId, AliasModel.class,
-                                0L, before, after, null)))),
+                                0L, null, before, after, null,
+                                null, false)))),
                 Collections.singletonMap(modelId, after));
     }
 
@@ -374,24 +363,6 @@ class MessageBatchModelViewTest {
                         .withSegment(segment),
                 ignored -> payload,
                 MessageType.COMMAND, null, serializer);
-    }
-
-    private static final class Dependency
-            implements MessageBatchModelView.Dependency {
-        private final List<MessageBatchModelView.Dependency> dependencies =
-                new java.util.ArrayList<>();
-        private final CompletableFuture<Void> completion =
-                new CompletableFuture<>();
-
-        @Override
-        public void dependsOn(MessageBatchModelView.Dependency producer) {
-            dependencies.add(producer);
-        }
-
-        @Override
-        public CompletableFuture<?> completion() {
-            return completion;
-        }
     }
 
     @Model

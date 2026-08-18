@@ -780,9 +780,9 @@ class ModelEntityParameterResolverTest {
                             current -> {
                                 if (DeserializingMessage
                                         .getMessageBatchIndex() == 0) {
-                                    MessageBatchModelView.stage(
+                                    ModelBatchScope.stage(
                                             null,
-                                            new ModelCommitEngine.CommitEvaluation(
+                                            new ModelExecutionPlan.CommitEvaluation(
                                                     -1L,
                                                     List.of(
                                                             departmentId
@@ -791,13 +791,13 @@ class ModelEntityParameterResolverTest {
                                                             departmentId
                                                                     .toString(),
                                                             Department.class),
-                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
-                                                            List.of(new ModelCommitEngine.Transition(
+                                                            List.of(new ModelExecutionPlan.Transition(
                                                                     departmentId.toString(),
                                                                     Department.class,
-                                                                    0L, before,
-                                                                    after, null)))),
+                                                                    0L, null, before,
+                                                                    after, null, null, false)))),
                                                     java.util.Map.of(
                                                             departmentId
                                                                     .toString(),

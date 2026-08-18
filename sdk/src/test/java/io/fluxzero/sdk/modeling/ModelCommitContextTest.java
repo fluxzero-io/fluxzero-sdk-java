@@ -144,8 +144,10 @@ class ModelCommitContextTest {
     }
 
     private static ModelTargetResolver.Resolution resolution(Object command) {
-        return ModelTargetResolver.resolve(
-                command, ModelMetadata.of(command.getClass()).handlerMethods());
+        return ModelTargetResolver.compile(
+                        command.getClass(),
+                        ModelMetadata.of(command.getClass()).handlerMethods())
+                .resolve(command);
     }
 
     @SuppressWarnings("unchecked")

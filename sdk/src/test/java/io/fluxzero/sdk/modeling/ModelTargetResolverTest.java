@@ -34,7 +34,7 @@ class ModelTargetResolverTest {
 
     @Test
     void resolvesModelReceiverByEntityIdNameAndMarksItReadWrite() {
-        ModelTargetResolver.TargetPlan plan = ModelTargetResolver.plan(
+        ModelTargetResolver.TargetPlan plan = ModelTargetResolver.compile(
                 RenameProduct.class, ModelMetadata.of(Product.class).handlerMethods());
 
         ModelTargetResolver.Resolution resolution =
@@ -48,7 +48,7 @@ class ModelTargetResolverTest {
 
     @Test
     void resolvesUniqueTypedIdWhenPropertyNameDiffers() {
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.plan(
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.compile(
                         RenameProductByTarget.class, ModelMetadata.of(Product.class).handlerMethods())
                 .resolve(new RenameProductByTarget(new ProductId("1")));
 
@@ -58,7 +58,7 @@ class ModelTargetResolverTest {
 
     @Test
     void appliesEntityIdAffixOutsideTypedIdPrefix() {
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.plan(
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.compile(
                         RenameAffixed.class, ModelMetadata.of(Affixed.class).handlerMethods())
                 .resolve(new RenameAffixed(new AffixedId("1")));
 
@@ -67,7 +67,7 @@ class ModelTargetResolverTest {
 
     @Test
     void resolvesGetterOnlyPayloadProperties() {
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.plan(
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.compile(
                         GetterOnlyRename.class, ModelMetadata.of(Product.class).handlerMethods())
                 .resolve(new GetterOnlyRename("getter"));
 
@@ -76,7 +76,7 @@ class ModelTargetResolverTest {
 
     @Test
     void canonicalEntityIdNameWinsOverOtherIdsOfSameType() {
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.plan(
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.compile(
                         MergeProduct.class, ModelMetadata.of(Product.class).handlerMethods())
                 .resolve(new MergeProduct(new ProductId("target"), new ProductId("other")));
 
@@ -86,7 +86,7 @@ class ModelTargetResolverTest {
 
     @Test
     void associationOnModelParameterOverridesAutomaticPropertyMatching() {
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.plan(
+        ModelTargetResolver.Resolution resolution = ModelTargetResolver.compile(
                         CheckOrder.class, ModelMetadata.of(CheckOrder.class).handlerMethods())
                 .resolve(new CheckOrder(new OrderId("ignored"), new OrderId("selected")));
 
@@ -99,7 +99,7 @@ class ModelTargetResolverTest {
     void resolvesAndDeduplicatesAllDirectCrossModelDependencies() {
         ReserveInventory command = new ReserveInventory(new OrderId("1"), new InventoryId("2"));
 
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 new Message(command), ModelMetadata.of(ReserveInventory.class).handlerMethods());
 
         assertEquals(List.of("order-1", "inventory-2"),
@@ -113,7 +113,7 @@ class ModelTargetResolverTest {
         ProductId first = new ProductId("first");
         ProductId second = new ProductId("second");
 
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 new CheckProducts(List.of(second, first, second)),
                 ModelMetadata.of(CheckProducts.class).handlerMethods());
 
@@ -129,7 +129,7 @@ class ModelTargetResolverTest {
         ProductId first = new ProductId("first");
         ProductId second = new ProductId("second");
 
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 new RenameProducts(List.of(second, first, second)),
                 ModelMetadata.of(RenameProducts.class).handlerMethods());
 
@@ -145,7 +145,7 @@ class ModelTargetResolverTest {
     void resolvesWriteOnlyCreationTarget() {
         CreateProduct command = new CreateProduct(new ProductId("new"));
 
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 command, ModelMetadata.of(CreateProduct.class).handlerMethods());
 
         assertEquals(List.of(new ModelTargetResolver.ResolvedModel(
@@ -155,7 +155,7 @@ class ModelTargetResolverTest {
 
     @Test
     void resolvesAssertionReceiverAsReadOnly() {
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 new CheckGuardedProduct(new GuardedProductId("1")),
                 ModelMetadata.of(GuardedProduct.class).handlerMethods());
 
@@ -164,7 +164,7 @@ class ModelTargetResolverTest {
 
     @Test
     void neverRequiresParentIdToTargetChildModel() {
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 new RenameChild(new ChildId("1")),
                 ModelMetadata.of(Child.class).handlerMethods());
 
@@ -175,7 +175,7 @@ class ModelTargetResolverTest {
     @Test
     void classifiesMissingDirectModelParameterAsAncestorDependency() {
         ModelTargetResolver.Resolution resolution =
-                ModelTargetResolver.resolve(
+                resolve(
                         new CheckChild(new ChildId("1")),
                         ModelMetadata.of(
                                 CheckChild.class).handlerMethods());
@@ -197,7 +197,7 @@ class ModelTargetResolverTest {
     @Test
     void missingAssociationPropertyQualifiesAncestorPath() {
         ModelTargetResolver.Resolution resolution =
-                ModelTargetResolver.resolve(
+                resolve(
                         new CheckQualifiedChild(new ChildId("1")),
                         ModelMetadata.of(
                                 CheckQualifiedChild.class)
@@ -213,7 +213,7 @@ class ModelTargetResolverTest {
     void defersWriteSelectionWhenReturnTypeHasMultipleQualifiedCandidates() {
         Transfer command = new Transfer(new AccountId("source"), new AccountId("destination"));
 
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 command, ModelMetadata.of(Transfer.class).handlerMethods());
 
         assertEquals(List.of("account-source", "account-destination"),
@@ -227,7 +227,7 @@ class ModelTargetResolverTest {
     void sameResolvedCandidateIsLoadedOnceAndBecomesWriteTarget() {
         AccountId same = new AccountId("same");
 
-        ModelTargetResolver.Resolution resolution = ModelTargetResolver.resolve(
+        ModelTargetResolver.Resolution resolution = resolve(
                 new Transfer(same, same), ModelMetadata.of(Transfer.class).handlerMethods());
 
         assertEquals(1, resolution.models().size());
@@ -240,7 +240,7 @@ class ModelTargetResolverTest {
     void rejectsAmbiguousTypedIdsWithoutQualifier() {
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> ModelTargetResolver.plan(
+                () -> ModelTargetResolver.compile(
                         AmbiguousRename.class, ModelMetadata.of(Product.class).handlerMethods()));
 
         assertTrue(exception.getMessage().contains("ambiguous"));
@@ -257,7 +257,7 @@ class ModelTargetResolverTest {
 
     @Test
     void rejectsNullIdsAndPayloadTypeMismatchDuringResolution() {
-        ModelTargetResolver.TargetPlan plan = ModelTargetResolver.plan(
+        ModelTargetResolver.TargetPlan plan = ModelTargetResolver.compile(
                 RenameProduct.class, ModelMetadata.of(Product.class).handlerMethods());
 
         assertTrue(assertThrows(
@@ -271,7 +271,7 @@ class ModelTargetResolverTest {
     @Test
     void rejectsOneGlobalIdBeingClaimedByIncompatibleModelTypes() {
         SameStringId command = new SameStringId("same", "same");
-        ModelTargetResolver.TargetPlan plan = ModelTargetResolver.plan(
+        ModelTargetResolver.TargetPlan plan = ModelTargetResolver.compile(
                 SameStringId.class, ModelMetadata.of(SameStringId.class).handlerMethods());
 
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> plan.resolve(command));
@@ -286,6 +286,15 @@ class ModelTargetResolverTest {
                 () -> ModelTargetResolver.plan(payloadType, ModelMetadata.of(handlerType).handlerMethods()));
         assertTrue(exception.getMessage().contains(expected),
                    () -> "Expected '%s' in '%s'".formatted(expected, exception.getMessage()));
+    }
+
+    private static ModelTargetResolver.Resolution resolve(
+            Object input,
+            List<ModelMetadata.HandlerMethod> handlers) {
+        Object payload = input instanceof Message message
+                ? message.getPayload() : input;
+        return ModelTargetResolver.compile(payload.getClass(), handlers)
+                .resolve(input);
     }
 
     @Model

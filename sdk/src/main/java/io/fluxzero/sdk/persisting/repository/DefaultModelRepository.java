@@ -61,9 +61,9 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
-import io.fluxzero.sdk.modeling.ModelEventReplayer;
+import io.fluxzero.sdk.modeling.ModelExecutionPlan;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
-import io.fluxzero.sdk.modeling.MessageBatchModelView;
+import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.ModelMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelTargetResolver;
@@ -116,14 +116,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final DocumentStore documentStore;
     private final Serializer serializer;
     private final EntityHelper entityHelper;
-    private final ModelEventReplayer eventReplayer;
+    private final ModelExecutionPlan.Compiler modelExecution;
     private final ModelEventBatchLoader eventLoader;
     private final Cache cacheSource;
     private final Cache modelCache;
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
     private final ModelCacheTracker modelCacheTracker;
-    private final Map<HandlerKey, ReplayPlan> replayPlans =
+    private final Map<HandlerKey, ModelExecutionPlan> replayPlans =
             new ConcurrentHashMap<>();
 
     /**
@@ -131,7 +131,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      */
     public DefaultModelRepository(Client client, DocumentStore documentStore) {
         this(client, documentStore, null, null, null, NoOpCache.INSTANCE,
-             (ModelEventReplayer) null);
+             (ModelExecutionPlan.Compiler) null);
     }
 
     public DefaultModelRepository(
@@ -141,7 +141,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityHelper entityHelper,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, serializer, NoOpCache.INSTANCE,
-             parameterResolvers == null ? null : new ModelEventReplayer(parameterResolvers));
+             parameterResolvers == null ? null : new ModelExecutionPlan.Compiler(parameterResolvers));
     }
 
     public DefaultModelRepository(
@@ -153,7 +153,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
-             parameterResolvers == null ? null : new ModelEventReplayer(parameterResolvers));
+             parameterResolvers == null ? null : new ModelExecutionPlan.Compiler(parameterResolvers));
     }
 
     private DefaultModelRepository(
@@ -163,13 +163,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityHelper entityHelper,
             Serializer snapshotSerializer,
             Cache cache,
-            ModelEventReplayer eventReplayer) {
+            ModelExecutionPlan.Compiler modelExecution) {
         this.client = Objects.requireNonNull(client, "client");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
         this.serializer = serializer;
         this.entityHelper = entityHelper;
         this.snapshotSerializer = snapshotSerializer;
-        this.eventReplayer = eventReplayer;
+        this.modelExecution = modelExecution;
         this.eventLoader = client.getEventStoreClient() == null
                 ? null : new ModelEventBatchLoader(client.getEventStoreClient());
         this.cacheSource = Objects.requireNonNull(cache, "cache");
@@ -197,7 +197,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         DocumentStore namespacedDocumentStore = documentStore.forNamespace(namespace);
         return new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
-                snapshotSerializer, cacheSource, eventReplayer);
+                snapshotSerializer, cacheSource, modelExecution);
+    }
+
+    /** Returns the model evaluator shared by live commits and stored-event replay. */
+    public ModelExecutionPlan.Compiler modelExecution() {
+        return modelExecution;
     }
 
     @Override
@@ -342,7 +347,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public <T> Entity<T> load(@NonNull String modelId, @NonNull Class<T> modelType) {
-        return MessageBatchModelView.overlayCurrent(
+        return ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), modelId, modelType,
                 loadDurable(modelId, modelType));
     }
@@ -467,7 +472,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 new ModelTargetResolver.Resolution(targets, List.of()),
                 boundary(handlerBoundary),
                 Map.of(), false);
-        context = MessageBatchModelView.overlayCurrent(
+        context = ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), context);
         pin(handlerBoundary, context.readStateIndex());
         return context.entries().stream()
@@ -541,8 +546,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (!boundary.includeMessageBatch()) {
             stagedValues = Map.of();
         } else {
-            Map<String, MessageBatchModelView.StagedModel> staged =
-                    MessageBatchModelView.currentValues(
+            Map<String, ModelBatchScope.StagedModel> staged =
+                    ModelBatchScope.currentValues(
                             messageBatchNamespace());
             if (staged.isEmpty()) {
                 stagedValues = Map.of();
@@ -774,12 +779,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 reconstructGraphResponse(
                         graph, rootId, rootType,
                         boundary, false);
-        Map<String, MessageBatchModelView.StagedModel> staged =
+        Map<String, ModelBatchScope.StagedModel> staged =
                 includeMessageBatch
-                        ? MessageBatchModelView.currentValues(
+                        ? ModelBatchScope.currentValues(
                                 messageBatchNamespace())
                         : Map.of();
-        MessageBatchModelView.StagedModel stagedRoot =
+        ModelBatchScope.StagedModel stagedRoot =
                 staged.get(rootId);
         if (stagedRoot != null
             && !stagedRoot.existedBefore()
@@ -1024,15 +1029,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             String rootId,
             Class<T> rootType,
             Graph.Options options,
-            Map<String, MessageBatchModelView.StagedModel> staged) {
+            Map<String, ModelBatchScope.StagedModel> staged) {
         if (staged.isEmpty()) {
             return durable;
         }
-        MessageBatchModelView.StagedModel rootCandidate =
+        ModelBatchScope.StagedModel rootCandidate =
                 staged.get(rootId);
         if (rootCandidate != null
             && rootCandidate.value() == null) {
-            Entity<?> deleted = MessageBatchModelView.overlayCurrent(
+            Entity<?> deleted = ModelBatchScope.overlayCurrent(
                     messageBatchNamespace(), rootId,
                     (Class) rootCandidate.modelType(),
                     durable.root().model());
@@ -1068,7 +1073,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         GraphSelection initial = selectGraph(
                 rootId, edges, options);
         for (String modelId : initial.modelIds()) {
-            MessageBatchModelView.StagedModel candidate =
+            ModelBatchScope.StagedModel candidate =
                     staged.get(modelId);
             if (candidate == null || models.containsKey(modelId)
                 || !candidate.existedBefore()) {
@@ -1093,7 +1098,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         LinkedHashMap<String, Entity<?>> selectedModels =
                 new LinkedHashMap<>();
         for (String modelId : selected.modelIds()) {
-            MessageBatchModelView.StagedModel candidate =
+            ModelBatchScope.StagedModel candidate =
                     staged.get(modelId);
             Entity<?> entity = models.get(modelId);
             if (candidate != null) {
@@ -1109,7 +1114,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             .value(null)
                             .build();
                 }
-                entity = MessageBatchModelView.overlayCurrent(
+                entity = ModelBatchScope.overlayCurrent(
                         messageBatchNamespace(), modelId,
                         (Class) candidate.modelType(), entity);
             }
@@ -1365,8 +1370,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (handlers.isEmpty()) {
                 return Optional.empty();
             }
-            return ModelTargetResolver.resolve(
-                            payload, handlers)
+            return ModelTargetResolver.compile(
+                            payload.getClass(), handlers)
+                    .resolve(payload)
                     .models().stream()
                     .filter(target -> target.access().writes())
                     .filter(target -> modelId.equals(
@@ -1689,7 +1695,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 ModelEventBatchLoader.Boundary.at(maxStateIndex),
                 stagedValues, includeMessageBatch);
         return includeMessageBatch
-                ? MessageBatchModelView.overlayCurrent(
+                ? ModelBatchScope.overlayCurrent(
                         messageBatchNamespace(), context)
                 : context;
     }
@@ -2250,8 +2256,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (stagedValues.containsKey(modelId)) {
                 continue;
             }
-            MessageBatchModelView.StagedModel pending =
-                    MessageBatchModelView.currentValue(
+            ModelBatchScope.StagedModel pending =
+                    ModelBatchScope.currentValue(
                             namespace, modelId);
             if (pending != null) {
                 stagedValues.put(modelId, pending.value());
@@ -2600,7 +2606,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private void requireEventReconstruction() {
-        if (serializer == null || entityHelper == null || eventReplayer == null || eventLoader == null) {
+        if (serializer == null || entityHelper == null || modelExecution == null || eventLoader == null) {
             throw new EventSourcingException(
                     "Event-sourced model reconstruction requires a configured serializer and model entity helper");
         }
@@ -3008,7 +3014,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             state.resolve(head.getModelId());
         }
 
-        private ReplayPlan directReplayPlan(
+        private ModelExecutionPlan directReplayPlan(
                 SerializedMessage event,
                 Class<?> modelType) {
             Class<?> payloadType =
@@ -3017,7 +3023,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (payloadType == null) {
                 return null;
             }
-            ReplayPlan plan =
+            ModelExecutionPlan plan =
                     replayPlans.computeIfAbsent(
                             new HandlerKey(
                                     payloadType,
@@ -3044,7 +3050,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         membership,
                         payloads.getRequired(
                                 membership.getStateIndex()));
-                ReplayPlan directPlan =
+                ModelExecutionPlan directPlan =
                         directReplayPlan(
                                 storedEvent.event(),
                                 state.target.modelType());
@@ -3059,7 +3065,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 membership,
                                 storedEvent)) {
                     Class<?> payloadType = event.getPayloadClass();
-                    ReplayPlan plan = replayPlans.computeIfAbsent(
+                    ModelExecutionPlan plan = replayPlans.computeIfAbsent(
                             new HandlerKey(
                                     payloadType,
                                     state.target.modelType()),
@@ -3067,7 +3073,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                     replayPlan(
                                             payloadType,
                                             state.target.modelType()));
-                    if (plan.handlers().isEmpty()
+                    if (plan.empty()
                         || plan.direct()) {
                         prepared.add(
                                 new PreparedReplay(
@@ -3076,7 +3082,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                     Object payload = event.getPayload();
                     ModelTargetResolver.Resolution resolution =
-                            plan.targets().resolve(payload);
+                            plan.replayTargets().resolve(payload);
                     if (resolution.hasAncestorDependencies()
                         || resolution.models().stream()
                                 .anyMatch(target ->
@@ -3117,14 +3123,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         membership,
                         payloads.getRequired(
                                 membership.getStateIndex()));
-                ReplayPlan directPlan =
+                ModelExecutionPlan directPlan =
                         directReplayPlan(
                                 storedEvent.event(),
                                 state.target.modelType());
                 if (directPlan == null) {
                     state.apply(storedEvent);
                 } else {
-                    state.applyDirect(
+                    state.applyCompiled(
                             storedEvent,
                             directPlan);
                 }
@@ -3322,7 +3328,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             private void apply(StoredEvent storedEvent) {
                 apply(
                         storedEvent,
-                        null);
+                        (List<PreparedReplay>) null);
             }
 
             private void apply(
@@ -3352,30 +3358,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 rememberCheckpoint(target, current);
             }
 
-            private void applyDirect(
+            private void applyCompiled(
                     StoredEvent storedEvent,
-                    ReplayPlan plan) {
-                ModelEventMembership membership =
-                        storedEvent.membership();
-                boolean followsCurrent =
-                        previous == null
-                                ? base == null
-                                  || membership.getReadStateIndex()
-                                     >= stateIndex(base)
-                                : membership.getReadStateIndex()
-                                  >= previous.getStateIndex()
-                                  || DefaultModelRepository.sameEarlierCommit(
-                                          previous,
-                                          membership);
-                Entity<?> begin =
-                        followsCurrent
-                                ? current
-                                : reconstructView(
-                                        target,
-                                        membership.getReadStateIndex(),
-                                        membership.getCommitId(),
-                                        membership.getSubstep(),
-                                        membership.getStateIndex());
+                    ModelExecutionPlan plan) {
                 DeserializingMessage event =
                         serializer.deserializeFirstMessageOrNull(
                                 storedEvent.event(),
@@ -3385,29 +3370,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     throw new EventSourcingException(
                             "Stored model event at state %d was unexpectedly dropped"
                                     .formatted(
-                                            membership
+                                            storedEvent.membership()
                                                     .getStateIndex()));
                 }
-                Object value =
-                        replayDirectValue(
-                                target,
-                                begin,
-                                membership.getStateIndex(),
-                                event,
-                                plan.handlers()
-                                        .getFirst());
-                current =
-                        withMembershipValue(
-                                begin,
-                                value,
-                                membership.getSequenceNumber(),
-                                membership.getStateIndex(),
-                                storedEvent.event(),
-                                begin);
-                previous = membership;
-                rememberCheckpoint(
-                        target,
-                        current);
+                apply(storedEvent, List.of(
+                        new PreparedReplay(event, plan, null)));
             }
 
         }
@@ -3475,9 +3442,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     result = updateValue(result, null);
                     continue;
                 }
-                ReplayPlan plan = preparedReplay.plan();
-                List<ModelMetadata.HandlerMethod> handlers = plan.handlers();
-                if (handlers.isEmpty()) {
+                ModelExecutionPlan plan = preparedReplay.plan();
+                if (plan.empty()) {
                     if (ModelMetadata.of(target.modelType()).model().orElseThrow()
                             .ignoreUnknownEvents()) {
                         continue;
@@ -3487,12 +3453,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                     .formatted(payloadType.getName(), target.modelType().getName()));
                 }
                 if (plan.direct()) {
-                    result = replayDirect(
-                            target,
-                            result,
-                            membership,
-                            event,
-                            handlers.getFirst());
+                    ModelCommitContext context = ModelCommitContext.createSingle(
+                            stateIndex(result), target.modelId(), target.modelType(),
+                            ModelTargetResolver.Access.READ_WRITE, List.of(), result);
+                    result = updateValue(
+                            result, replayValue(
+                                    target, membership.getStateIndex(),
+                                    event, context, plan));
                     continue;
                 }
                 ModelTargetResolver.Resolution resolution =
@@ -3593,33 +3560,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
                 ModelCommitContext context = ModelCommitContext.create(
                         membership.getReadStateIndex(), resolution, loaded);
-                DeserializingMessage replayEvent =
-                        new DeserializingMessage(
-                                event.toMessage(),
-                                EVENT,
-                                null,
-                                serializer);
-                context.attachTo(replayEvent);
-                try {
-                    ModelEventReplayer.ReplayResult replay =
-                            eventReplayer.replay(
-                                    replayEvent,
-                                    context,
-                                    handlers,
-                                    target.modelId());
-                    if (replay.applied()) {
-                        result = updateValue(result, replay.value());
-                    } else {
-                        throw new EventSourcingException(
-                                "Stored membership for %s at state %d produced no target transition"
-                                        .formatted(target.modelId(), membership.getStateIndex()));
-                    }
-                } catch (Throwable failure) {
-                    throw new EventSourcingException(
-                            "Failed to apply model event at state %d to %s"
-                                    .formatted(membership.getStateIndex(), target.modelId()),
-                            failure);
-                }
+                result = updateValue(
+                        result, replayValue(
+                                target, membership.getStateIndex(),
+                                event, context, plan));
             }
             return withMembership(result, storedEvent, begin);
         }
@@ -3642,7 +3586,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .map(event -> {
                         Class<?> payloadType =
                                 event.getPayloadClass();
-                        ReplayPlan plan =
+                        ModelExecutionPlan plan =
                                 replayPlans.computeIfAbsent(
                                         new HandlerKey(
                                                 payloadType,
@@ -3654,67 +3598,28 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         return new PreparedReplay(
                                 event,
                                 plan,
-                                plan.handlers().isEmpty()
+                                plan.empty()
                                 || plan.direct()
                                         ? null
-                                        : plan.targets()
+                                        : plan.replayTargets()
                                                 .resolve(
                                                         event.getPayload()));
                     })
                     .toList();
         }
 
-        private Entity<?> replayDirect(
+        private Object replayValue(
                 ModelTargetResolver.ResolvedModel target,
-                Entity<?> begin,
-                ModelEventMembership membership,
-                DeserializingMessage event,
-                ModelMetadata.HandlerMethod handler) {
-            return replayDirect(
-                    target,
-                    begin,
-                    membership.getStateIndex(),
-                    event,
-                    handler);
-        }
-
-        private Entity<?> replayDirect(
-                ModelTargetResolver.ResolvedModel target,
-                Entity<?> begin,
                 long stateIndex,
                 DeserializingMessage event,
-                ModelMetadata.HandlerMethod handler) {
-            return updateValue(
-                    begin,
-                    replayDirectValue(
-                            target,
-                            begin,
-                            stateIndex,
-                            event,
-                            handler));
-        }
-
-        private Object replayDirectValue(
-                ModelTargetResolver.ResolvedModel target,
-                Entity<?> begin,
-                long stateIndex,
-                DeserializingMessage event,
-                ModelMetadata.HandlerMethod handler) {
+                ModelCommitContext context,
+                ModelExecutionPlan plan) {
             try {
-                ModelEventReplayer.ReplayResult replay =
-                        eventReplayer.replayDirect(
-                                event,
-                                begin,
-                                handler,
-                                target.modelId());
-                if (replay.applied()) {
-                    return replay.value();
-                }
-                throw new EventSourcingException(
-                        "Stored membership for %s at state %d produced no target transition"
-                                .formatted(
-                                        target.modelId(),
-                                        stateIndex));
+                DeserializingMessage replayEvent = plan.direct()
+                        ? event : new DeserializingMessage(
+                                event.toMessage(), EVENT, null, serializer);
+                return modelExecution.replay(
+                        replayEvent, context, plan, target.modelId());
             } catch (Throwable failure) {
                 throw new EventSourcingException(
                         "Failed to apply model event at state %d to %s"
@@ -3757,7 +3662,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .toList();
         }
 
-        private ReplayPlan replayPlan(
+        private ModelExecutionPlan replayPlan(
                 Class<?> payloadType, Class<?> modelType) {
             LinkedHashSet<ModelMetadata.HandlerMethod> result = new LinkedHashSet<>();
             ModelMetadata.of(payloadType).applyMethods().stream()
@@ -3769,14 +3674,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .filter(handler -> ModelMetadata.acceptsPayload(handler, payloadType))
                     .forEach(result::add);
             List<ModelMetadata.HandlerMethod> handlers = List.copyOf(result);
-            return new ReplayPlan(
-                    handlers,
-                    ModelTargetResolver.plan(payloadType, handlers),
-                    handlers.size() == 1
-                    && eventReplayer.supportsDirectReplay(
-                            handlers.getFirst(),
-                            payloadType,
-                            modelType));
+            return modelExecution.compileReplay(
+                    payloadType, modelType, handlers);
         }
 
         @SuppressWarnings("unchecked")
@@ -3958,14 +3857,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private record PreparedReplay(
             DeserializingMessage event,
-            ReplayPlan plan,
+            ModelExecutionPlan plan,
             ModelTargetResolver.Resolution resolution) {
-    }
-
-    private record ReplayPlan(
-            List<ModelMetadata.HandlerMethod> handlers,
-            ModelTargetResolver.TargetPlan targets,
-            boolean direct) {
     }
 
     private record PayloadLookup(

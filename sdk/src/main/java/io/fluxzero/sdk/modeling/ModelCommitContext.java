@@ -31,19 +31,18 @@ import java.util.Objects;
  * Direct identities come from a {@link ModelTargetResolver.TargetPlan}. Read-only ancestor dependencies are resolved
  * through one bounded temporal graph request before the context is created. All entries share one
  * {@link #readStateIndex()}.
+ *
+ * @param readStateIndex one global state boundary shared by every entry
+ * @param entries loaded model entries in target-plan order
+ * @param deferredWrites write targets selected from loaded candidates after apply invocation
  */
-public final class ModelCommitContext {
-    private final long readStateIndex;
-    private final List<Entry> entries;
-    private final List<ModelTargetResolver.DeferredWriteTarget> deferredWrites;
-
-    private ModelCommitContext(
+public record ModelCommitContext(
             long readStateIndex,
             List<Entry> entries,
             List<ModelTargetResolver.DeferredWriteTarget> deferredWrites) {
-        this.readStateIndex = readStateIndex;
-        this.entries = List.copyOf(entries);
-        this.deferredWrites = List.copyOf(deferredWrites);
+    public ModelCommitContext {
+        entries = List.copyOf(entries);
+        deferredWrites = List.copyOf(deferredWrites);
     }
 
     /**
@@ -99,7 +98,8 @@ public final class ModelCommitContext {
         return new ModelCommitContext(readStateIndex, entries, resolution.deferredWrites());
     }
 
-    static ModelCommitContext createSingle(
+    /** Creates the allocation-minimal context used by a compiled direct single-model execution strategy. */
+    public static ModelCommitContext createSingle(
             long readStateIndex,
             String modelId,
             Class<?> modelType,
@@ -139,20 +139,6 @@ public final class ModelCommitContext {
      */
     public DeserializingMessage attachTo(DeserializingMessage message) {
         return Objects.requireNonNull(message, "message").putContext(ModelCommitContext.class, this);
-    }
-
-    /**
-     * Global state boundary at which every model in this context was read.
-     */
-    public long readStateIndex() {
-        return readStateIndex;
-    }
-
-    /**
-     * Direct loaded model entries in target-plan order.
-     */
-    public List<Entry> entries() {
-        return entries;
     }
 
     Entity<?> resolve(Class<?> modelType, String sourceProperty) {

@@ -20,6 +20,7 @@ import io.fluxzero.common.handling.HandlerConfiguration;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
@@ -27,10 +28,10 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.ArrayDeque;
@@ -38,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -46,29 +46,52 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 
 import static io.fluxzero.common.handling.HandlerInspector.inspect;
+import static io.fluxzero.common.ObjectUtils.asStream;
 
 /**
- * Evaluates a complete model commit without performing persistence.
+ * Immutable payload plan and its shared compiler for evaluating model commits without performing persistence.
  * <p>
  * Interceptor outputs form ordered substeps under one pinned read boundary. Every apply within one substep reads its
  * same immutable begin-state; only a successfully completed substep becomes visible to later substeps. A failure
  * produces no commit result. This class never publishes or stores an event, allowing its caller to commit the returned
  * commit atomically after evaluation.
  */
-final class ModelCommitEngine {
+public record ModelExecutionPlan(
+            HandlerPlan handlers,
+            ModelTargetResolver.TargetPlan targets,
+            DirectSingleTargetApply directApply,
+            ModelCommitPolicy commitPolicy,
+            boolean commit,
+            boolean automatic) {
+    public ModelExecutionPlan {
+        Objects.requireNonNull(handlers);
+        Objects.requireNonNull(targets);
+        Objects.requireNonNull(commitPolicy);
+    }
+
+    /** Whether this plan contains no model handlers. */
+    public boolean empty() {
+        return handlers.all().isEmpty();
+    }
+
+    /** Whether this plan can replay through the precompiled direct single-target strategy. */
+    public boolean direct() {
+        return directApply != null;
+    }
+
+    /** Target accessors used when reconstructing one persisted model stream. */
+    public ModelTargetResolver.TargetPlan replayTargets() {
+        return targets;
+    }
+
+    /** Compiles payload plans and evaluates their ordered substeps. */
+    public static final class Compiler {
     private static final int MAX_SUBSTEPS = 10_000;
 
     private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
-    private final Map<ModelMetadata.HandlerKind,
-            Map<Executable, HandlerMatcher<Object, DeserializingMessage>>> matchers;
-    private final Map<List<ModelMetadata.HandlerMethod>, HandlerPlan> handlerPlans =
-            new ConcurrentHashMap<>();
-
-    ModelCommitEngine(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
+    public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         List<ParameterResolver<? super DeserializingMessage>> resolvers =
                 new ArrayList<>(parameterResolvers.size() + 1);
         @SuppressWarnings("unchecked")
@@ -78,32 +101,61 @@ final class ModelCommitEngine {
         resolvers.add(modelResolver);
         resolvers.addAll(parameterResolvers);
         this.parameterResolvers = List.copyOf(resolvers);
-        this.matchers = new EnumMap<>(ModelMetadata.HandlerKind.class);
-        for (ModelMetadata.HandlerKind kind : ModelMetadata.HandlerKind.values()) {
-            matchers.put(kind, new ConcurrentHashMap<>());
-        }
     }
 
-    Evaluation evaluate(
+    List<Transition> evaluate(
             DeserializingMessage message,
             ModelCommitContext beginState,
             Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
-        return evaluate(message, beginState, selectedHandlers, true);
+        return evaluate(message, beginState, selectedHandlers, true, null);
     }
 
-    private Evaluation evaluate(
+    List<Transition> evaluate(
             DeserializingMessage message,
             ModelCommitContext beginState,
             Collection<ModelMetadata.HandlerMethod> selectedHandlers,
-            boolean applyHandlers) {
+            DirectSingleTargetApply directApply) {
+        return evaluate(message, beginState, selectedHandlers, true, directApply);
+    }
+
+    private List<Transition> evaluate(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            Collection<ModelMetadata.HandlerMethod> selectedHandlers,
+            boolean applyHandlers,
+            DirectSingleTargetApply directApply) {
+        return evaluate(
+                message, beginState, compileHandlers(selectedHandlers),
+                applyHandlers, directApply);
+    }
+
+    private List<Transition> evaluate(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            HandlerPlan handlers,
+            boolean applyHandlers,
+            DirectSingleTargetApply directApply) {
+        return evaluate(
+                message, beginState, handlers,
+                applyHandlers, true, directApply);
+    }
+
+    private List<Transition> evaluate(
+            DeserializingMessage message,
+            ModelCommitContext beginState,
+            HandlerPlan handlers,
+            boolean applyHandlers,
+            boolean assertions,
+            DirectSingleTargetApply directApply) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
-        Objects.requireNonNull(selectedHandlers, "selectedHandlers");
+        Objects.requireNonNull(handlers, "handlers");
         beginState.attachTo(message);
         try {
             return message.apply(
                     ignored -> evaluateInContext(
-                            message, beginState, selectedHandlers, applyHandlers));
+                            message, beginState, handlers,
+                            applyHandlers, assertions, directApply));
         } finally {
             beginState.attachTo(message);
         }
@@ -113,27 +165,32 @@ final class ModelCommitEngine {
             DeserializingMessage initialMessage, SubstepResolver resolver) {
         Objects.requireNonNull(initialMessage, "initialMessage");
         Deque<PendingSubstep> pending = new ArrayDeque<>();
-        pending.add(new PendingSubstep(initialMessage, true));
-        return evaluate(pending, resolver, initialMessage, true);
+        if (initialMessage.getPayload() instanceof Graph<?> graph) {
+            enqueueOutput(initialMessage, graph, pending, false);
+        } else {
+            pending.add(new PendingSubstep(initialMessage, true));
+        }
+        return evaluate(pending, resolver, initialMessage, true, true);
     }
 
     /**
      * Runs apply interceptors and immediate legality assertions without invoking applies or after-handler assertions.
      */
-    void assertLegal(
+    CommitEvaluation assertLegal(
             DeserializingMessage initialMessage,
             SubstepResolver resolver) {
         Objects.requireNonNull(initialMessage, "initialMessage");
         Deque<PendingSubstep> pending = new ArrayDeque<>();
         pending.add(new PendingSubstep(initialMessage, true));
-        evaluate(pending, resolver, initialMessage, false);
+        return evaluate(pending, resolver, initialMessage, false, true);
     }
 
     private CommitEvaluation evaluate(
             Deque<PendingSubstep> pending,
             SubstepResolver resolver,
             DeserializingMessage initialMessage,
-            boolean applyHandlers) {
+            boolean applyHandlers,
+            boolean assertions) {
         Objects.requireNonNull(resolver, "resolver");
         Map<String, Object> stagedValues = new LinkedHashMap<>();
         LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
@@ -166,7 +223,9 @@ final class ModelCommitEngine {
                                 : resolver.resolveGraph(
                                         graphChangeMessage.change.modelId(),
                                         graphChangeMessage.change.modelType(),
-                                        stateIndexPinned ? readStateIndex : null,
+                                        stateIndexPinned
+                                                ? Long.valueOf(readStateIndex)
+                                                : graphChangeMessage.change.expectedStateIndex(),
                                         stagedValues),
                         "Substep resolver returned null");
                 if (!stateIndexPinned) {
@@ -197,8 +256,8 @@ final class ModelCommitEngine {
                     mergeAppliedSubstep(appliedSubsteps, change);
                     continue;
                 }
-                List<ModelMetadata.HandlerMethod> interceptors =
-                        handlerPlan(resolved.handlers()).interceptors();
+                List<CompiledHandler> interceptors =
+                        resolved.handlers().interceptors();
                 if (current.interceptionAllowed() && !interceptors.isEmpty()) {
                     HandlerInvoker applicable = null;
                     for (int i = 0; i < interceptors.size(); i++) {
@@ -221,27 +280,24 @@ final class ModelCommitEngine {
                         HandlerInvoker selected = applicable;
                         Object intercepted = current.message().apply(
                                 ignored -> selected.invoke());
-                        int pendingBefore = pending.size();
                         enqueueOutputs(current.message(), intercepted, pending);
-                        int added = pending.size() - pendingBefore;
-                        if (added > 0) {
-                            resolver.prefetch(
-                                    pending.stream().limit(added)
-                                            .map(PendingSubstep::message)
-                                            .toList(),
-                                    readStateIndex,
-                                    stagedValues);
-                        }
+                        resolver.prefetch(
+                                pending.stream()
+                                        .map(PendingSubstep::message)
+                                        .filter(message -> !(message instanceof GraphChangeMessage))
+                                        .toList(),
+                                readStateIndex, stagedValues);
                         continue;
                     }
                 }
 
-                Evaluation evaluation = evaluate(
+                List<Transition> transitions = evaluate(
                         current.message(), context,
-                        resolved.handlers(), applyHandlers);
-                for (Transition transition : evaluation.transitions()) {
+                        resolved.handlers(), applyHandlers,
+                        assertions, resolved.directApply());
+                for (Transition transition : transitions) {
                     stagedValues.put(transition.modelId(), transition.after());
-                    if (transition.unresolvedCreation()) {
+                    if (!readModelTypes.containsKey(transition.modelId())) {
                         readModelIds.add(transition.modelId());
                         readModelTypes.putIfAbsent(
                                 transition.modelId(),
@@ -249,7 +305,7 @@ final class ModelCommitEngine {
                     }
                 }
                 appliedSubsteps.add(new AppliedSubstep(
-                        current.message(), evaluation.transitions()));
+                        current.message(), transitions));
             }
             return new CommitEvaluation(
                     readStateIndex, List.copyOf(readModelIds),
@@ -387,26 +443,29 @@ final class ModelCommitEngine {
                 pending.add(new PendingSubstep(message, false));
             }
         });
-        return evaluate(pending, resolver, null, true);
+        return evaluate(pending, resolver, null, true, false);
     }
 
-    private Evaluation evaluateInContext(
+    private List<Transition> evaluateInContext(
             DeserializingMessage message,
             ModelCommitContext beginState,
-            Collection<ModelMetadata.HandlerMethod> selectedHandlers,
-            boolean applyHandlers) {
-        HandlerPlan plan = handlerPlan(selectedHandlers);
-
-        for (int i = 0; i < plan.beforeAssertions().size(); i++) {
-            invokeIfApplicable(plan.beforeAssertions().get(i), message, beginState);
+            HandlerPlan plan,
+            boolean applyHandlers,
+            boolean assertions,
+            DirectSingleTargetApply directApply) {
+        if (assertions) {
+            for (int i = 0; i < plan.beforeAssertions().size(); i++) {
+                invokeIfApplicable(plan.beforeAssertions().get(i), message, beginState);
+            }
         }
 
         if (!applyHandlers) {
-            return new Evaluation(beginState, beginState, List.of());
+            return List.of();
         }
 
         Map<String, Transition> transitions = null;
-        for (ModelMetadata.HandlerMethod handler : plan.applies()) {
+        for (CompiledHandler compiledHandler : plan.applies()) {
+            ModelMetadata.HandlerMethod handler = compiledHandler.method();
             if (!handler.hasApplyResult()) {
                 continue;
             }
@@ -415,118 +474,57 @@ final class ModelCommitEngine {
                 throw new IllegalStateException(
                         "Apply %s targets more than one model type".formatted(handler.executable()));
             }
-            HandlerInvoker invoker = invoker(handler, message, beginState);
-            if (invoker == null) {
-                continue;
+            Object result;
+            if (directApply != null && plan.applies().size() == 1) {
+                Object receiver = directApply.receiver()
+                        ? invocationTarget(handler, message, beginState)
+                        : null;
+                if (receiver == MissingTarget.INSTANCE) {
+                    continue;
+                }
+                result = directApply.invoker().invoke(
+                        receiver, (Object) message.getPayload());
+            } else {
+                HandlerInvoker invoker = invoker(
+                        compiledHandler, message, beginState);
+                if (invoker == null) {
+                    continue;
+                }
+                result = invoker.invoke();
             }
-            Object result = invoker.invoke();
             if (!handler.collectionApplyResult()) {
-                transitions = addApplyResult(
-                        transitions, handler, result, 0,
-                        beginState);
+                    transitions = addApplyResult(
+                            transitions, compiledHandler, result, 0,
+                            beginState);
                 continue;
             }
             List<?> results = collectionApplyResults(
                     handler, result);
             for (int resultIndex = 0; resultIndex < results.size(); resultIndex++) {
                 transitions = addApplyResult(
-                        transitions, handler,
+                        transitions, compiledHandler,
                         results.get(resultIndex), resultIndex,
                         beginState);
             }
         }
         List<Transition> transitionList;
-        ModelCommitContext resultingState;
         if (transitions == null) {
             transitionList = List.of();
-            resultingState = beginState;
         } else {
             Map<String, Object> values = new LinkedHashMap<>(transitions.size());
             transitions.forEach((id, transition) -> values.put(id, transition.after()));
             transitionList = List.copyOf(transitions.values());
-            resultingState = beginState.withValues(values);
-        }
-        if (transitions != null) {
-            for (int i = 0; i < plan.afterAssertions().size(); i++) {
-                invokeIfApplicable(plan.afterAssertions().get(i), message, resultingState);
+            ModelCommitContext resultingState = beginState.withValues(values);
+            if (assertions) {
+                for (int i = 0; i < plan.afterAssertions().size(); i++) {
+                    invokeIfApplicable(plan.afterAssertions().get(i), message, resultingState);
+                }
             }
         }
-        return new Evaluation(
-                beginState, resultingState, transitionList);
+        return transitionList;
     }
 
-    SingleTargetEvaluation evaluateSingleTarget(
-            DeserializingMessage message,
-            ModelCommitContext beginState,
-            ModelMetadata.HandlerMethod handler,
-            String expectedTargetId) {
-        return evaluateSingleTarget(
-                message, beginState, handler, expectedTargetId, null);
-    }
-
-    SingleTargetEvaluation evaluateSingleTarget(
-            DeserializingMessage message,
-            ModelCommitContext beginState,
-            ModelMetadata.HandlerMethod handler,
-            String expectedTargetId,
-            DirectSingleTargetApply directApply) {
-        beginState.attachTo(message);
-        return message.apply(
-                ignored -> directApply == null
-                        ? evaluateSingleTargetInContext(
-                                message, beginState, handler, expectedTargetId)
-                        : evaluateDirectSingleTargetInContext(
-                                message, beginState, handler,
-                                expectedTargetId, directApply));
-    }
-
-    SingleTargetEvaluation evaluateDirectSingleTarget(
-            DeserializingMessage message,
-            Entity<?> entity,
-            ModelMetadata.HandlerMethod handler,
-            String expectedTargetId,
-            DirectSingleTargetApply directApply) {
-        Objects.requireNonNull(entity, "entity");
-        Objects.requireNonNull(directApply, "directApply");
-        Object current = entity.get();
-        if (directApply.receiver() && current == null) {
-            return new SingleTargetEvaluation(false, null);
-        }
-        return message.apply(ignored -> {
-            Object result = directApply.invoker().invoke(
-                    directApply.receiver() ? current : null,
-                    (Object) message.getPayload());
-            if (result == null) {
-                return new SingleTargetEvaluation(true, null);
-            }
-            Class<?> targetType = handler.targetModelTypes().getFirst();
-            if (!targetType.isInstance(result)) {
-                throw new IllegalStateException(
-                        "Apply %s returned %s instead of %s"
-                                .formatted(
-                                        handler.executable().toGenericString(),
-                                        result.getClass().getName(),
-                                        targetType.getName()));
-            }
-            ModelMetadata resultMetadata = ModelMetadata.of(result.getClass());
-            Object resultId = resultMetadata.entityId().orElseThrow().read(result);
-            if (resultId == null
-                || !expectedTargetId.equals(
-                        resultMetadata.parentScopedEntityId()
-                                ? resultMetadata.repositoryId(resultId, result)
-                                : resultMetadata.repositoryId(resultId))) {
-                throw new IllegalStateException(
-                        "Apply %s returned model '%s', which is not replay target '%s'"
-                                .formatted(
-                                        handler.executable().toGenericString(),
-                                        resultId,
-                                        expectedTargetId));
-            }
-            return new SingleTargetEvaluation(true, result);
-        });
-    }
-
-    static DirectSingleTargetApply directSingleTargetApply(
+    public static DirectSingleTargetApply directSingleTargetApply(
             ModelMetadata.HandlerMethod handler,
             Class<?> payloadType) {
         if (handler.kind() != ModelMetadata.HandlerKind.APPLY
@@ -534,106 +532,91 @@ final class ModelCommitEngine {
             || handler.collectionApplyResult()
             || handler.dynamicApplyResult()
             || !handler.modelParameters().isEmpty()
-            || !(handler.executable() instanceof Method method)
-            || method.getParameterCount() != 1) {
+            || handler.executable().getParameterCount() != 1) {
             return null;
         }
-        Parameter parameter = method.getParameters()[0];
+        Executable executable = handler.executable();
+        Parameter parameter = executable.getParameters()[0];
         if (parameter.getAnnotations().length != 0
             || !parameter.getType().isAssignableFrom(payloadType)) {
             return null;
         }
-        boolean receiver = !Modifier.isStatic(method.getModifiers());
+        boolean receiver = !(executable instanceof Constructor<?>)
+                           && !Modifier.isStatic(executable.getModifiers());
         if (receiver && handler.receiverModelType() == null) {
             return null;
         }
         MemberInvoker invoker = ReflectionUtils.getTypeMetadata(
-                        method.getDeclaringClass())
-                .invoker(method, true);
+                        executable.getDeclaringClass())
+                .invoker(executable, true);
         return new DirectSingleTargetApply(invoker, receiver);
     }
 
-    private SingleTargetEvaluation evaluateDirectSingleTargetInContext(
-            DeserializingMessage message,
-            ModelCommitContext beginState,
-            ModelMetadata.HandlerMethod handler,
-            String expectedTargetId,
-            DirectSingleTargetApply directApply) {
-        ModelCommitContext.Entry expected = beginState.entry(expectedTargetId);
-        if (expected == null
-            || directApply.receiver() && expected.entity().get() == null) {
-            return new SingleTargetEvaluation(
-                    false, expected == null ? null : expected.entity().get());
+    /** Replays one stored event through the same compiled apply evaluator used for live model commits. */
+    public Object replay(
+            DeserializingMessage event,
+            ModelCommitContext context,
+            ModelExecutionPlan plan,
+            String targetModelId) {
+        Objects.requireNonNull(targetModelId, "targetModelId");
+        List<Transition> transitions = evaluate(
+                event, context, plan.handlers, true, false,
+                plan.directApply());
+        Transition selected = null;
+        for (Transition transition : transitions) {
+            if (!targetModelId.equals(transition.modelId())) {
+                continue;
+            }
+            if (selected != null) {
+                throw new IllegalStateException(
+                        "Stored model event produced more than one transition for " + targetModelId);
+            }
+            selected = transition;
         }
-        Object result = directApply.invoker().invoke(
-                directApply.receiver() ? expected.entity().get() : null,
-                (Object) message.getPayload());
-        return validateSingleTargetResult(
-                beginState, handler, expectedTargetId, result);
-    }
-
-    private SingleTargetEvaluation evaluateSingleTargetInContext(
-            DeserializingMessage message,
-            ModelCommitContext beginState,
-            ModelMetadata.HandlerMethod handler,
-            String expectedTargetId) {
-        if (handler.kind() != ModelMetadata.HandlerKind.APPLY
-            || handler.targetModelTypes().size() != 1
-            || handler.collectionApplyResult()
-            || handler.dynamicApplyResult()) {
-            throw new IllegalArgumentException(
-                    "Single-target replay requires one apply target");
-        }
-        HandlerInvoker invoker = invoker(handler, message, beginState);
-        if (invoker == null) {
-            return new SingleTargetEvaluation(
-                    false,
-                    beginState.entry(expectedTargetId).entity().get());
-        }
-        Class<?> targetType = handler.targetModelTypes().getFirst();
-        Object result = invoker.invoke();
-        return validateSingleTargetResult(
-                beginState, handler, expectedTargetId, result);
-    }
-
-    private SingleTargetEvaluation validateSingleTargetResult(
-            ModelCommitContext beginState,
-            ModelMetadata.HandlerMethod handler,
-            String expectedTargetId,
-            Object result) {
-        Class<?> targetType = handler.targetModelTypes().getFirst();
-        String targetId =
-                resolveWriteTarget(
-                        handler, targetType, result, beginState);
-        ModelCommitContext.Entry target = beginState.entry(targetId);
-        if (!expectedTargetId.equals(targetId)
-            || target == null
-            || !beginState.mayWrite(
-                    targetId,
-                    targetType,
-                    handler.executable())) {
+        if (selected == null) {
             throw new IllegalStateException(
-                    "Apply %s returned model '%s', which is not replay target '%s'"
-                            .formatted(
-                                    handler.executable().toGenericString(),
-                                    targetId,
-                                    expectedTargetId));
+                    "Stored model event produced no transition for " + targetModelId);
         }
-        return new SingleTargetEvaluation(true, result);
+        return selected.after();
     }
 
-    @SuppressWarnings("unchecked")
-    private HandlerPlan handlerPlan(
+    /** Compiles target access and the optional direct strategy once for one replay payload/model pair. */
+    public ModelExecutionPlan compileReplay(
+            Class<?> payloadType,
+            Class<?> modelType,
+            List<ModelMetadata.HandlerMethod> handlers) {
+        DirectSingleTargetApply direct = handlers.size() == 1
+                && handlers.getFirst().targetModelTypes().size() == 1
+                && compatible(
+                        handlers.getFirst().targetModelTypes().getFirst(),
+                        modelType)
+                ? directSingleTargetApply(handlers.getFirst(), payloadType)
+                : null;
+        HandlerPlan compiledHandlers = compileHandlers(handlers);
+        ModelTargetResolver.TargetPlan targets =
+                ModelTargetResolver.compile(payloadType, handlers);
+        return new ModelExecutionPlan(
+                compiledHandlers, targets, direct,
+                ModelCommitPolicy.SYNC_AFTER_HANDLER,
+                !handlers.isEmpty(), false);
+    }
+
+    private static boolean compatible(Class<?> left, Class<?> right) {
+        return left.isAssignableFrom(right) || right.isAssignableFrom(left);
+    }
+
+    HandlerPlan compileHandlers(
             Collection<ModelMetadata.HandlerMethod> selectedHandlers) {
-        List<ModelMetadata.HandlerMethod> key =
+        @SuppressWarnings("unchecked")
+        List<ModelMetadata.HandlerMethod> handlers =
                 selectedHandlers instanceof List<?> list
                         ? (List<ModelMetadata.HandlerMethod>) list
                         : List.copyOf(selectedHandlers);
-        return handlerPlans.computeIfAbsent(key, HandlerPlan::new);
+        return new HandlerPlan(handlers, this);
     }
 
     private void invokeIfApplicable(
-            ModelMetadata.HandlerMethod handler,
+            CompiledHandler handler,
             DeserializingMessage message,
             ModelCommitContext context) {
         HandlerInvoker invoker = invoker(handler, message, context);
@@ -643,13 +626,14 @@ final class ModelCommitEngine {
     }
 
     private HandlerInvoker invoker(
-            ModelMetadata.HandlerMethod handler,
+            CompiledHandler compiledHandler,
             DeserializingMessage message,
             ModelCommitContext context) {
         context.attachTo(message);
+        ModelMetadata.HandlerMethod handler = compiledHandler.method();
         Object target = invocationTarget(handler, message, context);
         return target == MissingTarget.INSTANCE
-                ? null : matcher(handler).getInvokerOrNull(target, message);
+                ? null : compiledHandler.matcher().getInvokerOrNull(target, message);
     }
 
     private Object invocationTarget(
@@ -676,17 +660,15 @@ final class ModelCommitEngine {
                         .formatted(executable.toGenericString()));
     }
 
-    private HandlerMatcher<Object, DeserializingMessage> matcher(
+    private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
             ModelMetadata.HandlerMethod handler) {
-        return matchers.get(handler.kind()).computeIfAbsent(
-                handler.executable(),
-                ignored -> inspect(
+        return inspect(
                         handler.executable().getDeclaringClass(), parameterResolvers,
                         HandlerConfiguration.<DeserializingMessage>builder()
                                 .methodAnnotation(annotationType(handler.kind()))
                                 .handlerFilter((type, executable) ->
                                                        executable.equals(handler.executable()))
-                                .build()));
+                                .build());
     }
 
     private static Class<? extends java.lang.annotation.Annotation> annotationType(
@@ -743,12 +725,13 @@ final class ModelCommitEngine {
                         .formatted(handler.executable().toGenericString(), targetType.getName()));
     }
 
-    private static Map<String, Transition> addApplyResult(
+    private Map<String, Transition> addApplyResult(
             Map<String, Transition> transitions,
-            ModelMetadata.HandlerMethod handler,
+            CompiledHandler compiledHandler,
             Object value,
             int resultIndex,
             ModelCommitContext beginState) {
+        ModelMetadata.HandlerMethod handler = compiledHandler.method();
         Class<?> targetType = applyTargetType(
                 handler, value, resultIndex);
         String targetId = resolveWriteTarget(
@@ -793,7 +776,10 @@ final class ModelCommitEngine {
                 && target.entity() instanceof ModelRoot<?> modelRoot
                         ? modelRoot.lastEventIndex() : null,
                 current, value, handler.executable(),
-                null, false, creation);
+                null, false,
+                TransitionEffect.resolve(
+                        persistedTargetType, current, value, false,
+                        compiledHandler.effect()));
         Map<String, Transition> result = transitions;
         if (result == null) {
             result = new LinkedHashMap<>();
@@ -924,43 +910,14 @@ final class ModelCommitEngine {
             DeserializingMessage source,
             Object output,
             Deque<PendingSubstep> pending) {
-        if (output == null || output instanceof Optional<?> optional && optional.isEmpty()) {
-            return;
+        List<?> outputs = asStream(output).toList();
+        for (int i = outputs.size() - 1; i >= 0; i--) {
+            Object value = outputs.get(i);
+            enqueueOutput(
+                    source, value, pending,
+                    i == 0 && value != null
+                    && value.getClass().equals(source.getPayloadClass()));
         }
-        if (output instanceof Optional<?> optional) {
-            Object value = optional.orElseThrow();
-            enqueueOutput(source, value, pending,
-                          value.getClass().equals(source.getPayloadClass()));
-            return;
-        }
-        if (output instanceof List<?> outputs) {
-            for (int i = outputs.size() - 1; i >= 0; i--) {
-                enqueueOutput(source, outputs.get(i), pending,
-                              i == 0 && outputs.get(i) != null
-                              && outputs.get(i).getClass().equals(source.getPayloadClass()));
-            }
-            return;
-        }
-        if (output instanceof Collection<?> outputs) {
-            List<?> ordered = new ArrayList<>(outputs);
-            for (int i = ordered.size() - 1; i >= 0; i--) {
-                enqueueOutput(source, ordered.get(i), pending,
-                              i == 0 && ordered.get(i) != null
-                              && ordered.get(i).getClass().equals(source.getPayloadClass()));
-            }
-            return;
-        }
-        if (output instanceof Stream<?> outputs) {
-            List<?> ordered = outputs.toList();
-            for (int i = ordered.size() - 1; i >= 0; i--) {
-                enqueueOutput(source, ordered.get(i), pending,
-                              i == 0 && ordered.get(i) != null
-                              && ordered.get(i).getClass().equals(source.getPayloadClass()));
-            }
-            return;
-        }
-        enqueueOutput(source, output, pending,
-                      output.getClass().equals(source.getPayloadClass()));
     }
 
     private static void enqueueOutput(
@@ -1018,6 +975,8 @@ final class ModelCommitEngine {
                 Objects.requireNonNull(eventMessage, "eventMessage")));
     }
 
+    }
+
     @FunctionalInterface
     interface SubstepResolver {
         ResolvedSubstep resolve(
@@ -1038,15 +997,23 @@ final class ModelCommitEngine {
                 List<DeserializingMessage> messages,
                 long readStateIndex,
                 Map<String, Object> stagedValues) {
-            // Optional batch optimization.
         }
+
     }
 
     record ResolvedSubstep(
-            ModelCommitContext context, List<ModelMetadata.HandlerMethod> handlers) {
+            ModelCommitContext context,
+            HandlerPlan handlers,
+            DirectSingleTargetApply directApply) {
+        ResolvedSubstep(
+                ModelCommitContext context,
+                HandlerPlan handlers) {
+            this(context, handlers, null);
+        }
+
         ResolvedSubstep {
             Objects.requireNonNull(context, "context");
-            handlers = List.copyOf(handlers);
+            Objects.requireNonNull(handlers, "handlers");
         }
     }
 
@@ -1099,6 +1066,56 @@ final class ModelCommitEngine {
             }
             return List.copyOf(result);
         }
+
+        ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
+            ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
+            ModelConflictPolicy result = ModelConflictPolicy.ACCEPT;
+            Set<String> written = new java.util.HashSet<>();
+            for (Transition transition : transitions()) {
+                written.add(transition.modelId());
+                result = strictest(result, transitionPolicy(transition, application));
+            }
+            for (Map.Entry<String, Class<?>> entry : readModelTypes.entrySet()) {
+                if (!written.contains(entry.getKey())) {
+                    result = strictest(result, inherit(modelPolicy(entry.getValue()), application));
+                }
+            }
+            return result;
+        }
+
+        private static ModelConflictPolicy transitionPolicy(
+                Transition transition, ModelConflictPolicy application) {
+            ModelConflictPolicy result = inherit(
+                    transition.effect().conflictPolicy(), application);
+            return transition.before() == null
+                   && transition.beforeSequenceNumber() < 0L
+                   && result == ModelConflictPolicy.ACCEPT
+                    ? ModelConflictPolicy.FAIL : result;
+        }
+
+        private static ModelConflictPolicy modelPolicy(Class<?> type) {
+            Model model = type.getAnnotation(Model.class);
+            return model == null ? ModelConflictPolicy.DEFAULT : model.conflictPolicy();
+        }
+
+        private static ModelConflictPolicy inherit(
+                ModelConflictPolicy declared, ModelConflictPolicy application) {
+            return declared == null || declared == ModelConflictPolicy.DEFAULT
+                    ? application : declared;
+        }
+
+        private static ModelConflictPolicy strictest(
+                ModelConflictPolicy left, ModelConflictPolicy right) {
+            return rank(right) > rank(left) ? right : left;
+        }
+
+        private static int rank(ModelConflictPolicy policy) {
+            return switch (ModelConflictPolicy.resolve(policy)) {
+                case FAIL -> 3;
+                case RETRY -> 2;
+                case ACCEPT, DEFAULT -> 1;
+            };
+        }
     }
 
     record AppliedSubstep(
@@ -1139,19 +1156,7 @@ final class ModelCommitEngine {
                 replay, eventMessage));
     }
 
-    record Evaluation(
-            ModelCommitContext beginState,
-            ModelCommitContext resultingState,
-            List<Transition> transitions) {
-        Evaluation {
-            transitions = List.copyOf(transitions);
-        }
-    }
-
-    record SingleTargetEvaluation(boolean applied, Object value) {
-    }
-
-    record DirectSingleTargetApply(
+    public record DirectSingleTargetApply(
             MemberInvoker invoker,
             boolean receiver) {
     }
@@ -1166,36 +1171,7 @@ final class ModelCommitEngine {
             Executable handler,
             Graphs.StagedReplay stagedReplay,
             boolean cascadedDeletion,
-            boolean unresolvedCreation) {
-        Transition(
-                String modelId,
-                Class<?> modelType,
-                long beforeSequenceNumber,
-                Long beforeLastEventIndex,
-                Object before,
-                Object after,
-                Executable handler) {
-            this(
-                    modelId, modelType, beforeSequenceNumber,
-                    beforeLastEventIndex, before, after, handler,
-                    null, false, false);
-        }
-
-        Transition(
-                String modelId,
-                Class<?> modelType,
-                long beforeSequenceNumber,
-                Long beforeLastEventIndex,
-                Object before,
-                Object after,
-                Executable handler,
-                boolean cascadedDeletion) {
-            this(
-                    modelId, modelType, beforeSequenceNumber,
-                    beforeLastEventIndex, before, after, handler,
-                    null, cascadedDeletion, false);
-        }
-
+            TransitionEffect effect) {
         Transition(
                 String modelId,
                 Class<?> modelType,
@@ -1206,23 +1182,184 @@ final class ModelCommitEngine {
                 Executable handler,
                 Graphs.StagedReplay stagedReplay,
                 boolean cascadedDeletion) {
-            this(
-                    modelId, modelType, beforeSequenceNumber,
-                    beforeLastEventIndex, before, after, handler,
-                    stagedReplay, cascadedDeletion, false);
+            this(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex,
+                 before, after, handler, stagedReplay, cascadedDeletion, null);
         }
 
-        Transition(
-                String modelId,
+        Transition {
+            effect = effect == null
+                    ? TransitionEffect.resolve(
+                            modelType, handler, before, after, cascadedDeletion)
+                    : effect;
+        }
+
+        Transition withEffect(
+                boolean storeEvent,
+                boolean publishEvent,
+                boolean updateState) {
+            return new Transition(
+                    modelId, modelType, beforeSequenceNumber, beforeLastEventIndex,
+                    before, after, handler, stagedReplay, cascadedDeletion,
+                    effect.with(storeEvent, publishEvent, updateState));
+        }
+    }
+
+    record TransitionEffect(
+            ModelMetadata metadata,
+            ModelMetadata.RootConfiguration model,
+            String directCollection,
+            AggregateEventRouting eventRouting,
+            ModelConflictPolicy conflictPolicy,
+            boolean active,
+            boolean storeEvent,
+            boolean publishEvent,
+            boolean updateState) {
+        private static TransitionEffect resolve(
                 Class<?> modelType,
-                long beforeSequenceNumber,
+                Executable handler,
                 Object before,
                 Object after,
-                Executable handler) {
-            this(
-                    modelId, modelType, beforeSequenceNumber,
-                    null, before, after, handler,
-                    null, false, false);
+                boolean cascadedDeletion) {
+            return resolve(
+                    modelType, before, after, cascadedDeletion,
+                    EffectOverrides.of(handler));
+        }
+
+        private static TransitionEffect resolve(
+                Class<?> modelType,
+                Object before,
+                Object after,
+                boolean cascadedDeletion,
+                EffectOverrides overrides) {
+            Class<?> effectiveType = ModelMetadata.of(modelType).isModel()
+                    ? modelType : after != null ? after.getClass()
+                            : before != null ? before.getClass() : modelType;
+            EffectDefaults defaults = EffectDefaults.of(effectiveType);
+            EventPublication publication = overrides.publication() == EventPublication.DEFAULT
+                    ? defaults.publication() : overrides.publication();
+            EventPublicationStrategy strategy = overrides.strategy() == EventPublicationStrategy.DEFAULT
+                    ? defaults.strategy() : overrides.strategy();
+            AggregateEventRouting routing = overrides.routing() == AggregateEventRouting.DEFAULT
+                    ? defaults.routing() : overrides.routing();
+            ModelConflictPolicy conflict = overrides.conflict() == ModelConflictPolicy.DEFAULT
+                    ? defaults.conflict() : overrides.conflict();
+            if (cascadedDeletion) {
+                return checked(defaults, routing, conflict,
+                               true, defaults.model().eventSourced(), false, true);
+            }
+            boolean modified = publication == EventPublication.ALWAYS
+                               && strategy != EventPublicationStrategy.PUBLISH_ONLY
+                               || !Objects.equals(before, after);
+            if (publication == EventPublication.IF_MODIFIED && !modified) {
+                return checked(defaults, routing, conflict,
+                               false, false, false, false);
+            }
+            if (publication == EventPublication.NEVER) {
+                return checked(defaults, routing, conflict,
+                               modified, false, false, modified);
+            }
+            return switch (strategy) {
+                case STORE_AND_PUBLISH -> checked(
+                        defaults, routing, conflict,
+                        true, true, true, true);
+                case STORE_ONLY -> checked(
+                        defaults, routing, conflict,
+                        true, true, false, true);
+                case PUBLISH_ONLY -> checked(
+                        defaults, routing, conflict,
+                        true, false, true, modified);
+                case DEFAULT -> throw new IllegalStateException(
+                        "Unresolved model publication strategy");
+            };
+        }
+
+        private static TransitionEffect checked(
+                EffectDefaults defaults,
+                AggregateEventRouting routing,
+                ModelConflictPolicy conflict,
+                boolean active,
+                boolean storeEvent,
+                boolean publishEvent,
+                boolean updateState) {
+            return new TransitionEffect(
+                    defaults.metadata(), defaults.model(), defaults.collection(), routing, conflict,
+                    active, storeEvent, publishEvent, updateState);
+        }
+
+        void validate(Transition transition) {
+            if (active && model.eventSourced() && updateState && !storeEvent) {
+                throw new IllegalStateException(
+                        "Event-sourced model %s cannot change through %s without storing its reconstructing event. "
+                                .formatted(
+                                        transition.modelType().getName(),
+                                        transition.handler() == null ? "a direct graph change"
+                                                : transition.handler().toGenericString())
+                        + "Use STORE_ONLY or STORE_AND_PUBLISH, make the model document-loaded, or publish a no-op event.");
+            }
+        }
+
+        private TransitionEffect with(
+                boolean storeEvent,
+                boolean publishEvent,
+                boolean updateState) {
+            return new TransitionEffect(
+                    metadata, model, directCollection, eventRouting, conflictPolicy,
+                    active, storeEvent, publishEvent, updateState);
+        }
+    }
+
+    private record EffectDefaults(
+            ModelMetadata metadata,
+            ModelMetadata.RootConfiguration model,
+            String collection,
+            EventPublication publication,
+            EventPublicationStrategy strategy,
+            AggregateEventRouting routing,
+            ModelConflictPolicy conflict) {
+        private EffectDefaults(ModelMetadata metadata, Class<?> type) {
+            this(metadata, metadata.rootConfiguration().orElseThrow(() ->
+                         new IllegalStateException(type.getName() + " is not an independent model")), type);
+        }
+
+        private EffectDefaults(ModelMetadata metadata, ModelMetadata.RootConfiguration model, Class<?> type) {
+            this(metadata, model,
+                 model.searchable() ? Optional.of(model.collection()).filter(value -> !value.isEmpty())
+                         .map(ApplicationProperties::substituteProperties).orElse(type.getSimpleName())
+                         : metadata.participatesInGraphComposition()
+                                 ? io.fluxzero.common.api.modeling.ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION
+                                 : null,
+                 model.eventPublication() == EventPublication.DEFAULT
+                         ? EventPublication.IF_MODIFIED : model.eventPublication(),
+                 model.publicationStrategy() == EventPublicationStrategy.DEFAULT
+                         ? EventPublicationStrategy.STORE_AND_PUBLISH : model.publicationStrategy(),
+                 model.eventRouting() == AggregateEventRouting.DEFAULT
+                         ? AggregateEventRouting.MESSAGE_ROUTING_KEY : model.eventRouting(),
+                 model.conflictPolicy());
+        }
+
+        private static EffectDefaults of(Class<?> type) {
+            ModelMetadata metadata = ModelMetadata.of(type);
+            return ReflectionUtils.getTypeMetadata(type)
+                    .specializedMetadata(
+                            EffectDefaults.class,
+                            ignored -> new EffectDefaults(metadata, type));
+        }
+    }
+
+    private record EffectOverrides(
+            EventPublication publication,
+            EventPublicationStrategy strategy,
+            AggregateEventRouting routing,
+            ModelConflictPolicy conflict) {
+        private static final EffectOverrides NONE = new EffectOverrides(
+                EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
+                AggregateEventRouting.DEFAULT, ModelConflictPolicy.DEFAULT);
+
+        private static EffectOverrides of(Executable handler) {
+            Apply apply = handler == null ? null : handler.getAnnotation(Apply.class);
+            return apply == null ? NONE : new EffectOverrides(
+                    apply.eventPublication(), apply.publicationStrategy(),
+                    apply.eventRouting(), apply.conflictPolicy());
         }
     }
 
@@ -1239,44 +1376,54 @@ final class ModelCommitEngine {
             DeserializingMessage message, boolean interceptionAllowed) {
     }
 
-    private record HandlerPlan(
-            List<ModelMetadata.HandlerMethod> beforeAssertions,
-            List<ModelMetadata.HandlerMethod> afterAssertions,
-            List<ModelMetadata.HandlerMethod> applies,
-            List<ModelMetadata.HandlerMethod> interceptors) {
-        private HandlerPlan(List<ModelMetadata.HandlerMethod> handlers) {
-            this(assertions(handlers, false), assertions(handlers, true),
-                 handlers(handlers, ModelMetadata.HandlerKind.APPLY),
-                 handlers(handlers, ModelMetadata.HandlerKind.INTERCEPT_APPLY));
-        }
+    static record HandlerPlan(
+            List<CompiledHandler> all,
+            List<CompiledHandler> beforeAssertions,
+            List<CompiledHandler> afterAssertions,
+            List<CompiledHandler> applies,
+            List<CompiledHandler> interceptors) {
+        static final HandlerPlan EMPTY = new HandlerPlan(
+                List.of(), List.of(), List.of(), List.of(), List.of());
 
-        private static List<ModelMetadata.HandlerMethod> assertions(
-                List<ModelMetadata.HandlerMethod> handlers, boolean afterHandler) {
-            List<ModelMetadata.HandlerMethod> result = new ArrayList<>();
-            for (int i = 0; i < handlers.size(); i++) {
-                ModelMetadata.HandlerMethod handler = handlers.get(i);
-                if (handler.kind() == ModelMetadata.HandlerKind.ASSERT_LEGAL
-                    && assertAfterHandler(handler) == afterHandler) {
-                    result.add(handler);
-                }
-            }
-            result.sort(ModelCommitEngine::compareAssertions);
-            return List.copyOf(result);
-        }
-
-        private static List<ModelMetadata.HandlerMethod> handlers(
+        private HandlerPlan(
                 List<ModelMetadata.HandlerMethod> handlers,
-                ModelMetadata.HandlerKind kind) {
-            List<ModelMetadata.HandlerMethod> result = new ArrayList<>();
-            for (int i = 0; i < handlers.size(); i++) {
-                ModelMetadata.HandlerMethod handler = handlers.get(i);
-                if (handler.kind() == kind) {
-                    result.add(handler);
-                }
-            }
-            result.sort(ModelCommitEngine::compareHandlers);
+                Compiler compiler) {
+            this(handlers.stream().map(handler -> new CompiledHandler(
+                    handler, compiler.compileMatcher(handler),
+                    EffectOverrides.of(handler.executable()))).toList());
+        }
+
+        private HandlerPlan(List<CompiledHandler> handlers) {
+            this(List.copyOf(handlers),
+                 select(handlers, ModelMetadata.HandlerKind.ASSERT_LEGAL, false),
+                 select(handlers, ModelMetadata.HandlerKind.ASSERT_LEGAL, true),
+                 select(handlers, ModelMetadata.HandlerKind.APPLY, null),
+                 select(handlers, ModelMetadata.HandlerKind.INTERCEPT_APPLY, null));
+        }
+
+        List<ModelMetadata.HandlerMethod> methods() {
+            return all.stream().map(CompiledHandler::method).toList();
+        }
+
+        private static List<CompiledHandler> select(
+                List<CompiledHandler> handlers,
+                ModelMetadata.HandlerKind kind,
+                Boolean afterHandler) {
+            List<CompiledHandler> result = handlers.stream()
+                    .filter(handler -> handler.method().kind() == kind)
+                    .filter(handler -> afterHandler == null || Compiler.assertAfterHandler(
+                            handler.method()) == afterHandler).collect(java.util.stream.Collectors.toList());
+            result.sort((left, right) -> kind == ModelMetadata.HandlerKind.ASSERT_LEGAL
+                    ? Compiler.compareAssertions(left.method(), right.method())
+                    : Compiler.compareHandlers(left.method(), right.method()));
             return List.copyOf(result);
         }
+    }
+
+    private record CompiledHandler(
+            ModelMetadata.HandlerMethod method,
+            HandlerMatcher<Object, DeserializingMessage> matcher,
+            EffectOverrides effect) {
     }
 
     private enum MissingTarget {

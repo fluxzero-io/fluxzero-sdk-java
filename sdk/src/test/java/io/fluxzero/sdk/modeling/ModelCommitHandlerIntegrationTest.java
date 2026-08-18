@@ -1834,20 +1834,21 @@ class ModelCommitHandlerIntegrationTest {
                     DeserializingMessage.forEachInBatch(
                             List.of(moveMessage, readMessage), current -> {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                                    MessageBatchModelView.stage(
+                                    ModelBatchScope.stage(
                                             null,
-                                            new ModelCommitEngine.CommitEvaluation(
+                                            new ModelExecutionPlan.CommitEvaluation(
                                                     durable.stateIndex(),
                                                     List.of(firstChildId.toString()),
                                                     java.util.Map.of(
                                                             firstChildId.toString(),
                                                             FamilyChild.class),
-                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
-                                                            List.of(new ModelCommitEngine.Transition(
+                                                            List.of(new ModelExecutionPlan.Transition(
                                                                     firstChildId.toString(),
                                                                     FamilyChild.class,
-                                                                    0L, before, after, null)))),
+                                                                    0L, null, before, after, null,
+                                                                    null, false)))),
                                                     java.util.Map.of(
                                                             firstChildId.toString(), after)),
                                             null);
@@ -1935,9 +1936,9 @@ class ModelCommitHandlerIntegrationTest {
                                             fluxzero.serializer())),
                             current -> {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
-                                    MessageBatchModelView.stage(
+                                    ModelBatchScope.stage(
                                             null,
-                                            new ModelCommitEngine.CommitEvaluation(
+                                            new ModelExecutionPlan.CommitEvaluation(
                                                     -1L,
                                                     List.of(
                                                             rootId.toString(),
@@ -1945,17 +1946,19 @@ class ModelCommitHandlerIntegrationTest {
                                                     java.util.Map.of(
                                                             rootId.toString(), FamilyRoot.class,
                                                             childId.toString(), FamilyChild.class),
-                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
                                                             List.of(
-                                                                    new ModelCommitEngine.Transition(
+                                                                    new ModelExecutionPlan.Transition(
                                                                             rootId.toString(),
                                                                             FamilyRoot.class,
-                                                                            -1L, null, root, null),
-                                                                    new ModelCommitEngine.Transition(
+                                                                            -1L, null, null, root, null,
+                                                                            null, false),
+                                                                    new ModelExecutionPlan.Transition(
                                                                             childId.toString(),
                                                                             FamilyChild.class,
-                                                                            -1L, null, child, null)))),
+                                                                            -1L, null, null, child, null,
+                                                                            null, false)))),
                                                     java.util.Map.of(
                                                             rootId.toString(), root,
                                                             childId.toString(), child)),
@@ -2006,22 +2009,22 @@ class ModelCommitHandlerIntegrationTest {
                                 if (DeserializingMessage
                                             .getMessageBatchIndex()
                                     == 0) {
-                                    MessageBatchModelView.stage(
+                                    ModelBatchScope.stage(
                                             null,
-                                            new ModelCommitEngine.CommitEvaluation(
+                                            new ModelExecutionPlan.CommitEvaluation(
                                                     durable.stateIndex(),
                                                     List.of(
                                                             rootId.toString()),
                                                     java.util.Map.of(
                                                             rootId.toString(),
                                                             FamilyRoot.class),
-                                                    List.of(new ModelCommitEngine.AppliedSubstep(
+                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
-                                                            List.of(new ModelCommitEngine.Transition(
+                                                            List.of(new ModelExecutionPlan.Transition(
                                                                     rootId.toString(),
                                                                     FamilyRoot.class,
-                                                                    0L, root,
-                                                                    null, null)))),
+                                                                    0L, null, root,
+                                                                    null, null, null, false)))),
                                                     Collections.singletonMap(
                                                             rootId.toString(),
                                                             null)),
