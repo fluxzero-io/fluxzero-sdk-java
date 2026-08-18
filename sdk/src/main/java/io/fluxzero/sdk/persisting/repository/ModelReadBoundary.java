@@ -24,11 +24,21 @@ import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 
 import java.util.Objects;
 
-/** One current, state, commit or event boundary shared by model replay, graphs and ancestor lookup. */
+/**
+ * One current, state, commit or event boundary shared by model replay, graphs and ancestor lookup.
+ *
+ * @param stateIndex namespace-wide state boundary, or {@code null} for an unpinned or opaque boundary
+ * @param commitId commit that defines the boundary, or {@code null}
+ * @param substep zero-based substep within {@code commitId}, or {@code null}
+ * @param eventIndex event that defines the boundary, or {@code null}
+ * @param before whether the state immediately before the selected boundary is requested
+ * @param includeMessageBatch whether staged values from the active message batch are visible
+ */
 public record ModelReadBoundary(
         Long stateIndex, String commitId, Integer substep, Long eventIndex,
         boolean before, boolean includeMessageBatch) {
 
+    /** Unpinned current-state boundary including active message-batch values. */
     public static final ModelReadBoundary CURRENT =
             new ModelReadBoundary(null, null, null, null, false, true);
 
@@ -54,37 +64,45 @@ public record ModelReadBoundary(
         }
     }
 
+    /** Returns the shared current-state boundary. */
     public static ModelReadBoundary current() {
         return CURRENT;
     }
 
+    /** Returns a current boundary for {@code null}, otherwise an exact state boundary. */
     public static ModelReadBoundary at(Long stateIndex) {
         return stateIndex == null ? CURRENT : state(stateIndex, false);
     }
 
+    /** Creates an exact state boundary with optional active message-batch visibility. */
     public static ModelReadBoundary state(long stateIndex, boolean includeMessageBatch) {
         return new ModelReadBoundary(stateIndex, null, null, null, false, includeMessageBatch);
     }
 
+    /** Creates a boundary at a commit substep. */
     public static ModelReadBoundary commit(String commitId, int substep) {
         return new ModelReadBoundary(null, commitId, substep, null, false, false);
     }
 
+    /** Creates a boundary at an event index. */
     public static ModelReadBoundary event(long eventIndex) {
         return new ModelReadBoundary(null, null, null, eventIndex, false, false);
     }
 
+    /** Returns the boundary immediately before this selection. */
     public ModelReadBoundary asBefore() {
         return before ? this : new ModelReadBoundary(
                 stateIndex, commitId, substep, eventIndex, true, false);
     }
 
+    /** Pins an opaque commit or event selection to the state returned by storage. */
     public ModelReadBoundary resolved(long resolvedStateIndex) {
         return new ModelReadBoundary(
                 resolvedStateIndex, commitId, substep, eventIndex,
                 before, false);
     }
 
+    /** Returns this boundary without active message-batch visibility. */
     public ModelReadBoundary withoutMessageBatch() {
         return includeMessageBatch
                 ? new ModelReadBoundary(
@@ -92,6 +110,7 @@ public record ModelReadBoundary(
                 : this;
     }
 
+    /** Indicates whether this selection refers to a durable historical boundary. */
     public boolean historical() {
         return stateIndex != null || commitId != null || eventIndex != null;
     }
@@ -119,6 +138,7 @@ public record ModelReadBoundary(
         return state(stateIndex, !historical);
     }
 
+    /** Loads a graph using this boundary without converting it to a graph-specific boundary type. */
     public Graph<?> loadGraph(
             ModelRepository repository, String rootId, Class<?> rootType, boolean historical) {
         if (commitId != null) {
@@ -160,6 +180,7 @@ public record ModelReadBoundary(
         private final ModelReadBoundary source;
         private Long resolvedStateIndex;
 
+        /** Creates a pin for a commit- or event-based source boundary. */
         public Pinned(ModelReadBoundary source) {
             if (source.commitId == null && source.eventIndex == null) {
                 throw new IllegalArgumentException("Only commit or event boundaries require pinning");
@@ -167,10 +188,12 @@ public record ModelReadBoundary(
             this.source = source;
         }
 
+        /** Returns the source selection until pinned, and the exact resolved state afterwards. */
         public synchronized ModelReadBoundary request() {
             return resolvedStateIndex == null ? source : state(resolvedStateIndex, false);
         }
 
+        /** Records and validates the state resolved by a repository request. */
         public synchronized void pin(long value) {
             if (resolvedStateIndex != null && resolvedStateIndex != value) {
                 throw new EventSourcingException(
