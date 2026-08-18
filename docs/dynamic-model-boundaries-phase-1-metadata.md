@@ -6,13 +6,13 @@ worktrees are deliberately not production code.
 
 ## Decisions
 
-- `ModelMetadata` is immutable structural metadata owned by the central `ReflectionUtils.TypeMetadata` cache. No
+- `EntityMetadata` is immutable structural metadata owned by the central `ReflectionUtils.TypeMetadata` cache. No
   parallel class-keyed cache was added.
 - The generic specialized-metadata map is allocated lazily. Legacy types that never request feature metadata pay no
   map allocation for it.
 - Annotated constructors are inspected only when model metadata is built. Existing aggregate matcher discovery does not
-  construct or validate `ModelMetadata`.
-- Model startup/registration will call `ModelMetadata.validate`. Wiring that registration belongs to Slice 1.3/2.1;
+  construct or validate `EntityMetadata`.
+- Model startup/registration will call `EntityMetadata.validate`. Wiring that registration belongs to Slice 1.3/2.1;
   putting validation in the legacy aggregate matcher path was measured and rejected.
 - Every `@Model` has exactly one scalar `@EntityId` and cannot also be an `@Aggregate`.
 - `@ParentId` is child-owned and may occur on multiple properties:
@@ -33,7 +33,7 @@ worktrees are deliberately not production code.
   aggregate behavior.
 - `ModelRoot` owns persisted-root stream/version/time vocabulary; `AggregateRoot` remains a compatibility
   specialization with its declared methods intact.
-- `ModelMetadata.RootConfiguration` exposes common `@Model`/`@Aggregate` persistence settings without making model
+- `EntityMetadata.RootConfiguration` exposes common `@Model`/`@Aggregate` persistence settings without making model
   code consume an aggregate annotation. It remains lazily owned by the central type metadata cache.
 - `ModelRepository`, `Fluxzero.loadModel(...)`, and model-specific `TestFixture` event-sourcing methods establish the
   public boundary. The default `Fluxzero.modelRepository()` fails clearly until the model-commit transport is wired in
@@ -71,7 +71,7 @@ Thirty forked JVMs registered a typed parent, typed child, and handler container
 - full first use including model/reflection class initialization: median 148.55 ms, p95 159.50 ms;
 - registration of the same three shapes after warming the metadata framework with another model: median 9.23 ms,
   p95 10.19 ms;
-- one million centrally cached `ModelMetadata.of` lookups: median 15.8 ns per lookup.
+- one million centrally cached `EntityMetadata.of` lookups: median 15.8 ns per lookup.
 
 These are local diagnostics rather than production startup certification. They establish that model discovery belongs
 at bounded registration time and cached metadata lookup is negligible.

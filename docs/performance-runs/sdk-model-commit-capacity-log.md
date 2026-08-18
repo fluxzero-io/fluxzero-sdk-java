@@ -2882,3 +2882,60 @@ Evidence SHA-256: E845
 `a98cf3c818937c0962bac258c71709fa19d1b0a73e29a86008ae79f28268c8d0`. Profile recordings: control
 `5c91fa9d286079e28cecbaafd512483c0af7d5770dc6928b922473038458fae6`, candidate
 `49e9e82006ca0fd255999a629896d791d5ed147f2f4523ede6aa262cca709370`.
+
+## S60 CP13: shared Aggregate/Model mechanics
+
+SDK `3603102f5de` completes Macro 4 against exact CP12 control `71e43a18924`; Runtime remains `d7c54eb086d`. The
+checkpoint moves identity, reflection plans, root configuration, transition/snapshot decisions, immutable revision
+state and replay behind neutral primitives used by both Aggregate and Model. Aggregate and Model retain their distinct
+public APIs and persisted protocols, and Stateful handlers remain neither.
+
+The complete Model E2E pair used 4,096 models, 65,536 warm-up updates and 262,144 measured commands. It verified
+exactly 262,144 durable results, stored model events and global events plus every final state. The CP12 control reached
+108,165/s and CP13 reached 109,980/s (**+1.68%**). Result latency p50/p95/p99/max changed from
+32.909/60.969/83.592/96.338 ms to 32.393/56.888/86.252/110.046 ms: median and p95 improved, while the overlapping
+one-shot tail widened slightly.
+
+Because common handler inspection and result-facing metadata were touched, the no-model route was rerun. It verified
+1,048,576 results with zero stored model/global events. Control reached 455,965/s and CP13 reached 502,274/s
+(**+10.16%**); latency remained in the same active-host band.
+
+Aggregate qualification used the Runtime benchmark's Aggregate-only profile with blocking dispatch, asynchronous
+event consumption, 8 roots, 1,024 warm-up commands and 4,096 measured commands. Every completed run stored exactly
+4,096 aggregate events and replayed 1,746 events for both the selected root and leaf. Two order-balanced observations
+per source produced:
+
+| Source | Run A | Run B | Geometric mean | Allocation geometric mean |
+| --- | ---: | ---: | ---: | ---: |
+| CP12 control | 863.3/s | 900.7/s | 881.8/s | 1,071,681 B/command |
+| CP13 candidate | 937.9/s | 808.4/s | 870.1/s | 1,074,052 B/command |
+
+The candidate throughput geometric mean is **-1.33%** and allocation is approximately **+0.2%**. The run ranges and
+latency distributions overlap the same host drift, with no material batching, memory-ownership or replay regression.
+Both sources emitted the existing bounded cache-refresh diagnostic when an event index arrived for a truncated cached
+revision chain. The candidate initially exposed a null dereference at that boundary; the final implementation replaces
+it with the same explicit illegal-state guard used by the historical Aggregate root and covers the truncated-chain
+contract deterministically.
+
+An earlier `ASYNC` dispatch benchmark shape let `verifyPair` execute before Aggregate batch commit and failed with
+`NoSuchElementException` on both CP13 and the exact CP12 control. Those symmetric runs are rejected benchmark-shape
+evidence, not product regressions. A combined Aggregate+Model profile completed its Aggregate phase but then stalled in
+the Model phase on the exact CP12 control; it was stopped and the already canonical `SdkModelCommitBenchmark` supplied
+the Model route instead.
+
+The final nine-module SDK reactor, Test Server, Proxy, annotation processor and Java/Kotlin downstream projects passed.
+Site/Javadocs passed after making the already-public Lombok super-builder hierarchy source-visible. Separate
+intervening full runs hit a model-cascade fixture timeout and the known proxy websocket-close timeout; each exact test
+passed immediately in isolation, and the unchanged final full reactor was green.
+
+Evidence SHA-256: model control E857
+`982b7eec5fe1aa4e21be39f1514807a22d933bb16f3b88d3a5f579d5d3b328c7`, model candidate E858
+`943483ed4a650a85d717deb711f7abbba0669624106f75466883acb010d8aa49`, no-model control E859
+`5aaa85535dd4bf4455ff0dd93940cdbd525469aed87b35dd98f0aa5d6e04d472`, no-model candidate E860
+`fee4f77719a484485612fc94050c27230186fdeeecbf65cc2a9a9fb628645e4a`, Aggregate control A/B E861/E864
+`6b29e735956fb7302878967b925f81f3cb9c21403a7cb45429defb8bd0e59a67` /
+`2fa94eb589a1dc6b1a9de2b07df885b8bbba8dc5f6b77d7812451c11bdc52745`, Aggregate candidate A/B E862/E863
+`3bebe521b9df8b78d730f5c9e09486b4f28957d8208f5ca801bf7f99d23ad6bd` /
+`a5a32c63a735dc7fb28b6416da7f4deec9d8f9485a882d8e69ee3b4c93f93cbf`, rejected asynchronous candidate/control
+E865/E866 `d41700ab4884e56f178375450bbdb0149b79c61b5dae3315f8740f6cb93c4341` /
+`fef48d3d4ec61278a94299ee93bb1d8e35a449b0bfda4bb0bd6c0aac50c66e7c`.

@@ -2,7 +2,7 @@
 
 Status: active S60 release blocker
 
-Date: 2026-08-18
+Date: 2026-08-19
 
 ## Living scoreboard
 
@@ -21,7 +21,8 @@ Date: 2026-08-18
 | CP10 intermediate Graph/replay (`34f0038e98b` / `d7c54eb086d`) | **160,076** | **36,809** | **13,924** | retained intermediate; full model +2.41%, graph projection -2.62%, cold replay +56.57% |
 | CP11 final compiled SDK pipeline (`bc213d593e9` / `d7c54eb086d`) | **160,217** | **36,809** | **13,783** | accepted; matched full-model geometric mean +1.50%, final adjacent pair +2.69% |
 | CP12 final Graph/replay cursor (`71e43a18924` / `d7c54eb086d`) | **160,079** | **36,809** | **13,921** | accepted; cold replay +6.85%, graph command + catch-up +2.04%, profiled full model +0.60% |
-| Required final ceiling | **136,000** | **32,000** | **28,888 still to remove** | pending |
+| CP13 shared Aggregate/Model mechanics (`3603102f5de` / `d7c54eb086d`) | **160,194** | **36,809** | **13,806** | accepted; full model +1.68%, no-model +10.16%, Aggregate matched geometric mean -1.33% |
+| Required final ceiling | **136,000** | **32,000** | **29,003 still to remove** | pending |
 
 ## Objective
 
@@ -60,7 +61,7 @@ The macro campaign is tracked by completed ownership boundaries, not by the earl
 | Runtime commit/storage — **CP8 complete** | one `ModelCommitPlan` and one block executor | general rows, initial-packed, update-packed, paired head/locator and paired replay routes | 4,809 direct-parent / 5,229 S60 Runtime lines |
 | SDK execution — **CP11 complete** | one executable compiled payload plan, one pipeline and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 3,397 SDK lines at CP9; CP11 completes ownership without additional LOC credit |
 | Graph/repository — **CP12 complete** | one indexed graph state, one node resolver and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 1,668 SDK lines from CP9; CP12 completes ownership with 138 direct-parent lines |
-| Aggregate/Model mechanics | neutral transition, identity, apply and replay mechanics | duplicated aggregate/model reflection, transition, repository and fixture implementations | 6,000-7,000 SDK lines |
+| Aggregate/Model mechanics — **CP13 complete** | neutral metadata, persisted-root, transition, snapshot, revision and replay mechanics | duplicated aggregate/model reflection, root state, transition, replay and fixture apply implementations | ownership completed; 115-line direct-parent increase, no LOC credit |
 | Wire/integration residue | one envelope/codecpad plus thin integrations | remaining handwritten protocol variants, preview schema/codecs and branch-only adapters | 5,000-7,000 combined lines |
 
 Repository ceilings remain the final authority. A macro that falls short of its estimate must independently remove a
@@ -800,6 +801,46 @@ One intervening full run hit a load-sensitive existing document-cascade assertio
 in isolation and the next unchanged full reactor was green. The accepted implementation is `71e43a18924`; exact
 performance logs and rejected-candidate history are retained in the SDK model capacity log.
 
+#### Accepted checkpoint CP13 — shared Aggregate/Model mechanics
+
+CP13 completes the shared Aggregate/Model mechanics boundary. The neutral owners are `EntityMetadata`,
+`PersistedRoot` and `ImmutableRoot`; Aggregate and Model remain distinct annotations, programming facades and persisted
+protocols. `EntityMetadata` is the one `ReflectionUtils.TypeMetadata`-owned plan for identity, aliases, parents,
+handlers, root configuration, transition policy and snapshot policy. `PersistedRoot` owns common revision identity,
+and `ImmutableRoot` owns immutable revision state, replay, transition construction and bounded previous-revision
+traversal.
+
+The Aggregate and Model repositories retain their protocol-specific storage facades, but both now consume the neutral
+root configuration, transition settings, snapshot settings and revision operations. Their current and historical
+reconstruction share the same root replay primitive. `TestFixture` likewise has one protocol-boundary event apply loop
+instead of a second model-only apply lifecycle. Stateful handlers deliberately remain neither Aggregate nor Model;
+they use only the neutral identity metadata when they need it.
+
+The checkpoint increases the SDK tree by 115 lines because the source-visible neutral contracts and binary-compatible
+Lombok builder shims cost more than the deleted duplicate mechanics. It receives no reduction credit. The directional
+6,000-7,000 estimate is missed in full and the resulting 24,194-line SDK deficit remains visible for the final macro
+and absolute-ceiling audit.
+
+The matched qualification used CP12 `71e43a18924` as control, CP13 source `3603102f5de` as candidate and Runtime
+`d7c54eb086d` throughout. The ordinary model E2E route verified 262,144 results, model events and global events plus
+4,096 final states. The no-model route verified 1,048,576 results and zero model/global events. The Aggregate route
+used blocking command dispatch with asynchronous event consumption so verification remained behind the aggregate
+commit boundary; every run stored exactly 4,096 events and replayed 1,746 root and leaf events.
+
+| Route | CP12 control | CP13 candidate | Difference |
+| --- | ---: | ---: | ---: |
+| command -> Model apply -> atomic model/event commit -> durable result | 108,165/s | 109,980/s | **+1.68%** |
+| command -> explicit void handler -> durable result | 455,965/s | 502,274/s | **+10.16%** |
+| Aggregate command/event/replay, order-balanced geometric mean | 881.8/s | 870.1/s | **-1.33%** |
+
+Aggregate allocation geometric means are effectively neutral (about +0.2% for CP13), and latency ranges overlap.
+An initially attempted asynchronous-dispatch shape let its verifier run before the aggregate batch commit on both
+control and candidate. Those symmetric failures are retained as rejected benchmark-shape evidence and are not treated
+as product failures. The complete SDK reactor, Test Server, Proxy, annotation processor and Java/Kotlin downstream
+projects passed from final source; site/Javadocs also passed. One model-cascade assertion and one proxy websocket close
+timed out in separate intervening full runs, passed immediately in isolation, and the next unchanged complete reactor
+was green.
+
 ### 6. One packed Runtime model representation
 
 Promote the measured packed representation to the canonical representation for both initial models and later updates.
@@ -928,7 +969,7 @@ later work starts from new class/state designs rather than attempting to shave t
 | final binary envelope, metadata and wire protocol | 6,000–7,000 |
 | single commit plan, handler pipeline and batch scope | 7,000–8,000 planned; **3,397 delivered at CP9, ownership completed at CP11 without further LOC credit** |
 | one graph state and one repository/replay cursor | 7,000–8,000 planned; **1,668 delivered from CP9, ownership completed at CP12** |
-| shared Aggregate/Model and in-memory transition mechanics | 6,000–7,000 |
+| shared Aggregate/Model and in-memory transition mechanics | 6,000–7,000 planned; **ownership completed at CP13 with a 115-line increase and no LOC credit** |
 | preview migration, campaign diagnostics and thin integration cleanup | 3,500–4,500 |
 | **Required SDK total** | **32,771** |
 
@@ -956,9 +997,10 @@ preferred workstream.
 4. **Complete at CP12:** replace Graph and repository loading together with one indexed graph state, one shared node
    resolver, one replay cursor and no repository-specific traversal/apply variants. CP10 supplied most physical
    reduction; CP12 removes the remaining ownership split without claiming the unmet estimate.
-5. **Active next:** move Aggregate and Model behind neutral transition/identity/apply/replay mechanics and remove the superseded public-
-   implementation duplication while retaining Aggregate compatibility contracts.
-6. Collapse the remaining wire/preview/integration residue, then audit absolute LOC. Any missing budget is solved in the
+5. **Complete at CP13:** move Aggregate and Model behind neutral metadata, persisted-root, transition, snapshot,
+   revision and replay mechanics while retaining their distinct public and persisted contracts. The ownership target
+   is complete; its missed LOC estimate remains in the absolute deficit.
+6. **Active next:** collapse the remaining wire/preview/integration residue and shared update lifecycle, then audit absolute LOC. Any missing budget is solved in the
    largest surviving duplicate owner, never through formatting, generated hiding or weaker documentation.
 
 Each accepted macro replacement is a separate checkpoint commit. Functional tests may be run continuously while a

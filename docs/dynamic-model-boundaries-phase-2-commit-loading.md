@@ -44,7 +44,7 @@ qualifier, the canonical `@EntityId` property wins, then a single compatible dir
 
 The resolver is deliberately not added to the existing aggregate `DefaultEntityHelper`. The model commit engine will
 construct its own resolver chain and execute with the context-bearing message active. This preserves the Phase 1
-decision that legacy aggregate matcher discovery must not construct `ModelMetadata`.
+decision that legacy aggregate matcher discovery must not construct `EntityMetadata`.
 
 ## Hot-path diagnostic
 
