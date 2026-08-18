@@ -22,7 +22,8 @@ Date: 2026-08-19
 | CP11 final compiled SDK pipeline (`bc213d593e9` / `d7c54eb086d`) | **160,217** | **36,809** | **13,783** | accepted; matched full-model geometric mean +1.50%, final adjacent pair +2.69% |
 | CP12 final Graph/replay cursor (`71e43a18924` / `d7c54eb086d`) | **160,079** | **36,809** | **13,921** | accepted; cold replay +6.85%, graph command + catch-up +2.04%, profiled full model +0.60% |
 | CP13 shared Aggregate/Model mechanics (`3603102f5de` / `d7c54eb086d`) | **160,194** | **36,809** | **13,806** | accepted; full model +1.68%, no-model +10.16%, Aggregate matched geometric mean -1.33% |
-| Required final ceiling | **136,000** | **32,000** | **29,003 still to remove** | pending |
+| CP14 final wire/update/integration lifecycle (`3603102f5de` / `ddb6bbd8`) | **160,194** | **36,919** | **13,696** | accepted; large full model +4.28%, short matched geometric mean -1.92%, no-model reverse +1.77%, G2 +0.12% |
+| Required final ceiling | **136,000** | **32,000** | **29,113 still to remove** | pending |
 
 ## Objective
 
@@ -62,7 +63,7 @@ The macro campaign is tracked by completed ownership boundaries, not by the earl
 | SDK execution — **CP11 complete** | one executable compiled payload plan, one pipeline and one batch scope | registry/engine/committer lifecycle overlap, tickets/gates/waves/coordinators and alternate manual/automatic execution | 3,397 SDK lines at CP9; CP11 completes ownership without additional LOC credit |
 | Graph/repository — **CP12 complete** | one indexed graph state, one node resolver and one replay cursor | graph wrapper traversals, repository replay variants, graph/batch loaders and overlay-specific state machines | 1,668 SDK lines from CP9; CP12 completes ownership with 138 direct-parent lines |
 | Aggregate/Model mechanics — **CP13 complete** | neutral metadata, persisted-root, transition, snapshot, revision and replay mechanics | duplicated aggregate/model reflection, root state, transition, replay and fixture apply implementations | ownership completed; 115-line direct-parent increase, no LOC credit |
-| Wire/integration residue | one envelope/codecpad plus thin integrations | remaining handwritten protocol variants, preview schema/codecs and branch-only adapters | 5,000-7,000 combined lines |
+| Wire/update/integration — **CP14 complete** | one native envelope, final codecs and one update lifecycle | handwritten protocol variants, preview schema/codecs, private update workers and branch-only adapters | ownership completed across CP1-CP8 and CP14; CP14 adds 110 Runtime lines and receives no new LOC credit |
 
 Repository ceilings remain the final authority. A macro that falls short of its estimate must independently remove a
 complete pipeline, representation or lifecycle owner, or remove at least 3,000 lines; missing budget is never paid
@@ -841,6 +842,47 @@ projects passed from final source; site/Javadocs also passed. One model-cascade 
 timed out in separate intervening full runs, passed immediately in isolation, and the next unchanged complete reactor
 was green.
 
+#### Accepted checkpoint CP14 — final wire, update and integration lifecycle
+
+CP14 completes Macro 5. CP1-CP8 had already removed the unreleased binary generations, handwritten websocket codec
+variants, preview readers, parallel Runtime block formats and duplicate update feeds. The retained wire surface is
+JSON, CBOR and one negotiated `BINARY` transport over the native `SerializedMessage` envelope, with one shared
+primitive binary reader/writer, thin model/tracking dispatchers and one Runtime `ModelBlockCodec`. The canonical
+`model_update_feed` remains the only durable model update source; SDK cache tracking consumes that public cursor and
+does not own a second storage replay path.
+
+Runtime `ddb6bbd8` closes the remaining lifecycle split. `ModelUpdateLifecycle` now owns the live cursor generation,
+long-poll wake-up, waiter bound, coalesced scheduling, independent retry/backoff and controlled shutdown for the model
+block locator, direct-document materialization recovery and graph projection drain. Each consumer retains its own
+domain action and durable cursor, so locator batching, direct result completion and graph `ASYNC`/`AWAIT` remain
+distinct policies rather than new parallel engines. The private locator, materialization-recovery and graph worker
+loops and their separate running flags, delayed executors, retry state and shutdown joins are gone.
+
+The first scheduling candidate was rejected after a reverse run exposed overlapping locator actions and a duplicate
+`model_lookup` key. Strict per-action serialization fixed that race. A later candidate was also rejected because it
+started locator work before the final commit boundary and reduced B0 throughput; restoring the published-boundary
+gate, the original complete locator drain and three bounded platform lanes removed that regression. Deletion and
+materialization-only boundaries wake trackers without incorrectly replaying unrelated projections.
+
+The final large absolute pair used 65,536 models and 4,194,304 measured commands. The active host was below its
+historical absolute band for both sources, but the candidate completed at 319,613/s versus 306,503/s control
+(**+4.28%**) with exactly 4,194,304 results, model events and global events plus 65,536 final states. A short
+order-balanced bracket produced candidate/control geometric means of 127,692.7/s and 130,198.5/s (**-1.92%**). The
+final reverse no-model pair was 526,315/s versus 517,164/s (**+1.77%**), and G2 was 3,264/s versus 3,260/s
+(**+0.12%**) with exact relationships, documents, roots, children and awaited boundary.
+
+Relationships, aging/deletion, cold restart and long-stream reconstruction were qualified separately against exact
+CP13 Runtime control `d7c54eb086d`. R1 was +1.27%; Q1 completed 98,304 exact updates in 3.234 s versus 3.538 s;
+L1 reconstructed 4,096 exact states after Runtime and SDK restart and improved the first update phase by 10.1%; and
+the 73,984-event long-stream replay was 282,343 versus 282,866 events/s (-0.18%). The final Runtime reactor passed all
+four modules and 736 Runtime tests. The unchanged CP13 SDK source had already passed its complete nine-module reactor,
+Java/Kotlin downstream compatibility and site/Javadocs.
+
+CP14 adds 110 Runtime production lines because the explicit shared lifecycle and its concurrency contract are larger
+than the net private-worker deletion. It receives no new reduction credit. SDK remains at 160,194 lines and Runtime is
+36,919, leaving **29,113** lines above the hard combined ceilings. Macros 2-5 are structurally complete; S60 remains an
+active release blocker until that absolute deficit is removed without reintroducing the superseded owners.
+
 ### 6. One packed Runtime model representation
 
 Promote the measured packed representation to the canonical representation for both initial models and later updates.
@@ -945,7 +987,7 @@ start and the current/historical/long-stream/relationship/deletion/restart/full-
 delta is recorded exactly rather than rounded up. A temporary bridge that leaves both stores in place remains an
 experiment, not a checkpoint.
 
-### 7. One durable update-consumer mechanism
+### 7. One durable update-consumer mechanism — CP14 complete
 
 Cache tracking, direct materialization recovery, graph projection and derived locator work retain distinct domain
 actions but share one cursor/wakeup/retry lifecycle over the canonical block-derived update feed. No capability owns a private
@@ -970,7 +1012,7 @@ later work starts from new class/state designs rather than attempting to shave t
 | single commit plan, handler pipeline and batch scope | 7,000–8,000 planned; **3,397 delivered at CP9, ownership completed at CP11 without further LOC credit** |
 | one graph state and one repository/replay cursor | 7,000–8,000 planned; **1,668 delivered from CP9, ownership completed at CP12** |
 | shared Aggregate/Model and in-memory transition mechanics | 6,000–7,000 planned; **ownership completed at CP13 with a 115-line increase and no LOC credit** |
-| preview migration, campaign diagnostics and thin integration cleanup | 3,500–4,500 |
+| preview migration, campaign diagnostics and thin integration cleanup | 3,500–4,500 planned; **wire ownership completed across CP1-CP8 and update lifecycle at CP14 with a 110-line Runtime increase and no new LOC credit** |
 | **Required SDK total** | **32,771** |
 
 | Runtime workstream | Required structural removal |
@@ -1000,8 +1042,11 @@ preferred workstream.
 5. **Complete at CP13:** move Aggregate and Model behind neutral metadata, persisted-root, transition, snapshot,
    revision and replay mechanics while retaining their distinct public and persisted contracts. The ownership target
    is complete; its missed LOC estimate remains in the absolute deficit.
-6. **Active next:** collapse the remaining wire/preview/integration residue and shared update lifecycle, then audit absolute LOC. Any missing budget is solved in the
-   largest surviving duplicate owner, never through formatting, generated hiding or weaker documentation.
+6. **Complete at CP14:** retain JSON, CBOR and one negotiated binary envelope, remove preview/codecgeneration residue,
+   and put tracker wake-up, locator replay, direct-materialization recovery and graph projection behind one bounded
+   update lifecycle. CP14 receives no new LOC credit.
+7. **Active next:** audit the absolute ceilings and remove the largest surviving duplicate owners. The remaining
+   29,113 lines are never solved through formatting, generated hiding or weaker documentation.
 
 Each accepted macro replacement is a separate checkpoint commit. Functional tests may be run continuously while a
 replacement is being built, but full correctness and matched performance qualification happen at the replacement

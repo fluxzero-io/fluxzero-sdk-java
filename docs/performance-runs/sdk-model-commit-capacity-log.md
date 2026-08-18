@@ -2939,3 +2939,63 @@ Evidence SHA-256: model control E857
 `a5a32c63a735dc7fb28b6416da7f4deec9d8f9485a882d8e69ee3b4c93f93cbf`, rejected asynchronous candidate/control
 E865/E866 `d41700ab4884e56f178375450bbdb0149b79c61b5dae3315f8740f6cb93c4341` /
 `fef48d3d4ec61278a94299ee93bb1d8e35a449b0bfda4bb0bd6c0aac50c66e7c`.
+
+## S60 CP14: final model update lifecycle
+
+Runtime `ddb6bbd8` completes Macro 5 against exact CP13 control `d7c54eb086d`; SDK remains `3603102f5de`. The wire
+and storage sides were already singular after CP1-CP8. CP14 replaces the remaining private tracker monitor, locator
+worker, direct-materialization recovery worker and graph-projection worker with one bounded lifecycle that owns cursor
+wake-up, coalescing, retry/backoff and shutdown while retaining each consumer's durable cursor and domain action.
+
+Two losing candidates were rejected. The first allowed overlapping scheduled locator invocations and produced a
+recoverable duplicate `model_lookup` key during a reverse B0 run. The serial-action guard prevented recurrence in all
+subsequent runs and has deterministic concurrency coverage. A later version requested locator work when the final
+batch merely left the queue, before its commit boundary was published; it measured 101,907-113,017/s while adjacent
+controls reached 126,865-127,226/s. Restoring the publication boundary, keeping one complete locator drain per action,
+and using three bounded platform lanes removed that regression. Deletion/materialization-only boundaries now wake
+trackers without scheduling unrelated locator or graph work.
+
+The final short B0 bracket used 4,096 models, 65,536 warm-up updates and 262,144 measured commands:
+
+| Order | Source | Throughput | p50 / p95 / p99 / max |
+| ---: | --- | ---: | --- |
+| 1 | control | 128,234/s | 27.686 / 45.417 / 95.483 / 102.156 ms |
+| 2 | candidate | 129,809/s | 28.250 / 44.951 / 53.285 / 61.611 ms |
+| 3 | control | 132,193/s | 28.057 / 44.462 / 52.836 / 74.043 ms |
+| 4 | candidate | 125,611/s | 28.600 / 47.770 / 67.363 / 82.218 ms |
+
+Candidate/control geometric means are 127,692.7/s and 130,198.5/s (**-1.92%**). Every run verified exactly 262,144
+results, model events and global events plus 4,096 final states, with no locator or lifecycle warning. The large
+absolute pair used 65,536 models and 4,194,304 measured commands. Both sources were below the historical absolute band
+on the post-reactor active host, but candidate/control were 319,613/s and 306,503/s (**+4.28%**) with exact counts and
+65,536 final states; this identifies hoststate rather than route loss.
+
+The final no-model reverse pair verified 1,048,576 results and no model/global events. Candidate reached 526,315/s
+versus 517,164/s control (**+1.77%**), above the 358,973/s active-host floor. The G2 awaited-graph pair used 512 models
+and 4,096 updates: candidate/control were 3,264/s and 3,260/s (**+0.12%**) with 4,096 exact results/events, 512 active
+and historical relationships, 512 exact graph roots and children, exact search documents and zero completion lag.
+
+Separate Runtime-store characterizations remained exact:
+
+| Route | CP14 candidate | CP13 control | Decision |
+| --- | ---: | ---: | --- |
+| R1 relationships, 131,072 updates | 79,887/s | 78,884/s | +1.27%; 4,096 active and historical relationships |
+| Q1 aging/deletion, 98,304 updates | 3.234 s inclusive | 3.538 s inclusive | exact three rounds and final states |
+| L1 first updates after Runtime+SDK restart | 2,275/s | 2,066/s | +10.1%; 4,096 exact states |
+| long-stream batched replay, 73,984 events | 282,343 events/s | 282,866 events/s | -0.18%; exact reconstruction |
+
+The final Runtime reactor passed all four modules and 736 Runtime tests. The unchanged SDK checkpoint had already
+passed its complete nine-module reactor, Java/Kotlin downstream projects and site/Javadocs. CP14 adds 110 Runtime
+production lines and receives no LOC credit; acceptance is for replacement of the lifecycle owners, not local size.
+
+Evidence SHA-256: short B0 control/candidate/control/candidate
+`6d543b2db71bc423e47aaa3434df57c14a8eb19669c2d4f9f1d790da0502e6bc` /
+`52872048d3f2127aa7d8f948c27e7f6c4bbdf6263260b8b9ef946b29e7f8d0c9` /
+`5bf3521071d813f702c21f342be754de352dc324d5d9c80212b991bd1077e1e1` /
+`ce23299834f6b35b28d09c08d103253de67f1421aca544f1778d2fe51c8fbad0`; absolute candidate/control
+`b3442a3f0e98ec909a428f61af948a6cf80ee6b7134cec58d306a5d52453b2d3` /
+`d89799ff7c6120f930e3926e1a743ef0c0c985638e8ab64cbd4f2cb64d724558`; no-model candidate/control
+`74abc55890175849064a0d88239e14dcd41702b8e6b0c3e709aba696da6f441e` /
+`92ab10d053f0b9ae832f50762158876ecf41b7a6c89d2c9a047f9ffb4c678738`; G2 candidate/control
+`fa83b3399ef598f2071e9b5ba99ea9ae1be8915fe6311cb9aa032f44c3164609` /
+`7060b5b0a458be09f5359b2265a18b3fc245f2caaa3f88af7db8d520d0125d6b`.

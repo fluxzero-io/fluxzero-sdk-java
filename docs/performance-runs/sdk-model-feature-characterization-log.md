@@ -743,6 +743,46 @@ batches, conflicts/retries/idempotency, aliases, current and historical reconstr
 logical deletion and hard erasure, materialization recovery, graph cursors, update retention, locator failure/restart,
 long streams and both JDBC-backed and external event logs.
 
+## S60 CP14 update-lifecycle characterization
+
+Runtime `ddb6bbd8` was characterized against exact CP13 control `d7c54eb086d` after tracker wake-up, locator replay,
+direct materialization recovery and graph projection moved behind one lifecycle. The SDK source remained
+`3603102f5de`. Every scenario used the same Java 25, 8 GiB fixed heap, eight-processor view and isolated PostgreSQL
+container; source order was reversed where a first observation exposed host drift.
+
+| Scenario | Candidate | Control | Exact contract |
+| --- | ---: | ---: | --- |
+| B0 large absolute | 319,613/s | 306,503/s | 4,194,304 results/model events/global events; 65,536 states |
+| R1 relationships | 79,887/s | 78,884/s | 131,072 results/events; 4,096 active and historical relationships |
+| G2 graph AWAIT | 3,264/s | 3,260/s | 4,096 results/events; 512 roots, children, documents and relationship pairs |
+| Q1 aging/deletion | 3.234 s | 3.538 s | three rounds, 98,304 updates, delete/recreate churn and 4,096 states |
+| L1 cold restart updates | 2,275/s | 2,066/s | new Runtime and SDK; bounded 1,024-entry cache; 4,096 states |
+| long-stream batched replay | 282,343 events/s | 282,866 events/s | 256 models and 73,984 replayed events |
+
+Initial creation was covered independently by every seed phase. In the large B0 pair candidate/control seed throughput
+was 4,554/s and 3,900/s; the L1 pair was 2,545/s and 2,526/s. The no-model reverse pair remained independent of model
+state at 526,315/s candidate versus 517,164/s control. Graph AWAIT ended with exact durable high-watermark, while R1
+retained both current and historical edges. Q1 retained exact state through deletion/recreation and L1 reconstructed
+after both Runtime and SDK restart. Long-stream batched and single-model reconstruction were exact; the matched batched
+rate differed by -0.18%.
+
+The final full Runtime reactor passed 736 tests. Its model-store suite separately covers atomic commits, conflicts,
+retries, idempotency, aliases, current and historical reconstruction, moves and cycles, logical deletion, cascade and
+hard erasure, detached lineage, materialization recovery, update retention, graph recovery, shutdown and partial
+failures. No scenario emitted an unexpected lifecycle warning after strict action serialization was added.
+
+CP14 source logs: B0 absolute candidate/control SHA-256
+`b3442a3f0e98ec909a428f61af948a6cf80ee6b7134cec58d306a5d52453b2d3` /
+`d89799ff7c6120f930e3926e1a743ef0c0c985638e8ab64cbd4f2cb64d724558`; R1 candidate/control
+`67c69176ec359176ae7a5273db33b3cb18455de33bf5bade11b6116f1f6e3d93` /
+`ae760a5dcae9ba818189fcdc6fe0b9c11590d216286d52cec473b2401559db80`; Q1 candidate/control
+`a5fc274cab97dfe2a0bd3a79fb006a71f5c5b5eff40432fe786cc355692b5b28` /
+`b861b4a5df46877b0405f5904e3d651e6e0b2a222ad7c1e5dfe0e825e45fa6c4`; L1 candidate/control
+`9be9266b6255387b9bdcdd19de99f6ac2785a2a4639994d0c6d2be9d408fa793` /
+`990b1b2b34cfdc432e33f15423badac1791906e3fb727a5fb38416f398e5f415`; long-stream candidate/control
+`c9295b27a115a8487f0118711a7fb03b1779e9a97de464ce211638e0f1edde51` /
+`93793281b298796484748608cb614a82acbaee8da430070e5ec086a1e5da5fe0`.
+
 ## Evidence
 
 - CP8 B0 final SHA-256: `db82ed15479e5aeaaa92c45acb2940bd1587f4b01ebe1e612fd2811fc97fc724`;
