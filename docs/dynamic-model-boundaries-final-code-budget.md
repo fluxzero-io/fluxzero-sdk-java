@@ -2,9 +2,10 @@
 
 Status: historical checkpoint and performance evidence
 
-> This ledger preserves the decisions, measurements and rejected candidates through CP14. Its former Macro 2–5
-> completion labels were based on ownership consolidation and are no longer the S60 acceptance source. The canonical
-> remaining architecture, exact 29,113-line debt and replacement gates are defined in
+> This ledger preserves the decisions, measurements, historical target architecture and rejected candidates through
+> CP14. Its former Macro 2–5 completion labels and the plan sections below were based on ownership consolidation and
+> are no longer the S60 acceptance source. Do not implement from this ledger. The canonical domain-driven architecture,
+> exact 29,113-line debt and open outcome checkpoints are defined in
 > [`dynamic-model-boundaries-final-architecture.md`](dynamic-model-boundaries-final-architecture.md).
 
 Date: 2026-08-19
@@ -39,10 +40,10 @@ while returning hand-maintained production Java to at most:
 - Runtime repository: **32,000 physical `src/main/java` lines**.
 
 Formatting compression, moving Java into resources, generated equivalents, deleted Javadocs, weaker tests and hidden
-implementation do not count. The reduction must come from one owner per responsibility, one representation per state,
-one execution pipeline and reuse of existing Fluxzero foundations.
+implementation do not count. The reduction must come from the domain-driven ownership and deletion of duplicate
+lifecycles defined by the canonical architecture, not from preserving CP14's technical pipeline vocabulary.
 
-## Macro-replacement rule
+## Historical macro-replacement rule
 
 CP7 is the final small preparatory checkpoint. CP8 is the first accepted macro replacement: it removes the complete
 general/initial-packed/update-packed Runtime storage multiplication and 4,809 production Java lines from its direct
@@ -461,7 +462,10 @@ successive branch-internal binary and model-table previews are not permanent pro
 wire format and one final model storage format should survive. Detailed campaign-only JFR stages should become a small
 stable set of boundary metrics rather than permanent branches throughout every hot path.
 
-## Target architecture
+## Superseded CP8–CP14 target architecture
+
+This section records the architecture used to produce and qualify CP8–CP14. Names such as compiled execution plan,
+batch scope, transition engine and replay cursor are historical evidence, not the open implementation plan.
 
 ### 1. One final native message protocol
 
@@ -885,8 +889,9 @@ Java/Kotlin downstream compatibility and site/Javadocs.
 
 CP14 adds 110 Runtime production lines because the explicit shared lifecycle and its concurrency contract are larger
 than the net private-worker deletion. It receives no new reduction credit. SDK remains at 160,194 lines and Runtime is
-36,919, leaving **29,113** lines above the hard combined ceilings. Macros 2-5 are structurally complete; S60 remains an
-active release blocker until that absolute deficit is removed without reintroducing the superseded owners.
+36,919, leaving **29,113** lines above the hard combined ceilings. CP14 called Macros 2-5 structurally complete under
+its now-superseded owner model. The canonical architecture reopens those outcomes because the technical helper domain
+it retained is itself the release blocker.
 
 ### 6. One packed Runtime model representation
 
@@ -1006,7 +1011,7 @@ reflection plans, snapshots, revision traversal, handler invocation and cache me
 primitives used by both Aggregate and Model. Aggregate becomes a compatibility/configuration shape over those
 mechanics rather than justification for keeping a second SDK replay and apply engine.
 
-## Removal budget
+## Historical removal budget
 
 These are planning budgets, not credit for moving code. Macro 2's explicit shortfall remains in the repository total;
 later work starts from new class/state designs rather than attempting to shave that gap from execution rules.
@@ -1031,7 +1036,7 @@ later work starts from new class/state designs rather than attempting to shave t
 The ranges deliberately overlap. Acceptance is based on the repository totals, not on assigning a deleted line to a
 preferred workstream.
 
-## Execution order
+## Superseded CP8–CP14 execution order
 
 1. Freeze CP7's exact functional matrices, schemas and matched performance pins as immutable controls.
 2. **Complete at CP8:** replace the complete Runtime commit/storage subsystem according to the blueprint above, with
@@ -1050,8 +1055,8 @@ preferred workstream.
 6. **Complete at CP14:** retain JSON, CBOR and one negotiated binary envelope, remove preview/codecgeneration residue,
    and put tracker wake-up, locator replay, direct-materialization recovery and graph projection behind one bounded
    update lifecycle. CP14 receives no new LOC credit.
-7. **Active next:** audit the absolute ceilings and remove the largest surviving duplicate owners. The remaining
-   29,113 lines are never solved through formatting, generated hiding or weaker documentation.
+7. **Superseded next step:** audit the absolute ceilings and remove the largest surviving duplicate owners. The exact
+   remaining debt is retained, but the canonical architecture now supplies the domain-driven deletion order.
 
 Each accepted macro replacement is a separate checkpoint commit. Functional tests may be run continuously while a
 replacement is being built, but full correctness and matched performance qualification happen at the replacement
