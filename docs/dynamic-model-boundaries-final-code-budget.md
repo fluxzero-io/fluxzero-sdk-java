@@ -5,7 +5,7 @@ Status: historical checkpoint and performance evidence
 > This ledger preserves the decisions, measurements, historical target architecture and rejected candidates through
 > CP14. Its former Macro 2–5 completion labels and the plan sections below were based on ownership consolidation and
 > are no longer the S60 acceptance source. Do not implement from this ledger. The canonical domain-driven architecture,
-> exact 29,113-line debt and open outcome checkpoints are defined in
+> exact 29,113-line debt and single S60 acceptance boundary are defined in
 > [`dynamic-model-boundaries-final-architecture.md`](dynamic-model-boundaries-final-architecture.md).
 
 Date: 2026-08-19
