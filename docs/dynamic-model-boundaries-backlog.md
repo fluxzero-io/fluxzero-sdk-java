@@ -1,6 +1,12 @@
-# Dynamic model boundaries
+# Dynamic model boundaries — implementation history
 
-Tickable implementation backlog for the coordinated SDK and runtime refactor.
+Status: historical implementation ledger
+
+This file preserves the original implementation decisions and completed phase history. It is not the active S60
+backlog or the acceptance source for the remaining macro replacements. See
+[`dynamic-model-boundaries-final-architecture.md`](dynamic-model-boundaries-final-architecture.md) for the canonical
+end design and [`work-backlog/projects/fluxzero-sdk-runtime.md`](../../work-backlog/projects/fluxzero-sdk-runtime.md)
+for the compact active backlog.
 
 - SDK branch: `feature/dynamic-model-boundaries`
 - SDK base: `964fdcdac4b5beeffdf155558c9af6a6b944e1ab`

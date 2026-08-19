@@ -1,6 +1,11 @@
-# Dynamic model boundaries — final code-budget architecture
+# Dynamic model boundaries — CP1–CP14 code-budget ledger
 
-Status: active S60 release blocker
+Status: historical checkpoint and performance evidence
+
+> This ledger preserves the decisions, measurements and rejected candidates through CP14. Its former Macro 2–5
+> completion labels were based on ownership consolidation and are no longer the S60 acceptance source. The canonical
+> remaining architecture, exact 29,113-line debt and replacement gates are defined in
+> [`dynamic-model-boundaries-final-architecture.md`](dynamic-model-boundaries-final-architecture.md).
 
 Date: 2026-08-19
 
