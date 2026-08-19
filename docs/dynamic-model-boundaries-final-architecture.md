@@ -285,11 +285,24 @@ Development commits may be narrow, but no intermediate commit becomes a separate
 retained deletion bundle has no dual path or temporary bridge. Losing candidates are reverted and recorded. No later
 work builds on a regression merely because it removes many lines.
 
+## Verification strategy
+
+Correctness and performance are not qualified after each locally edited file. They are qualified at the boundary of
+every complete, coherent replacement that removes its superseded owners and leaves a usable slice of the final domain
+foundation. Each such replacement receives its own checkpoint commit after qualification. A checkpoint is an evidence
+and rollback boundary, not a predefined macro, separate architecture or intermediate code ceiling.
+
+A candidate that violates any correctness contract, loses functionality, weakens compatibility, meaningfully regresses
+throughput, latency or allocation, or worsens resource ownership is rejected regardless of its LOC reduction. Losing
+candidates are reverted and recorded in the canonical technical log with their source identity and causal result.
+Later work starts from the last fully qualified source and never builds on a regression because its code reduction or
+local design looks attractive.
+
 ## Qualification
 
 ### Non-negotiable correctness contracts
 
-Every retained change preserves:
+Every complete replacement checkpoint preserves all of the following. Failure of one contract rejects the candidate:
 
 - Aggregate compatibility and existing persisted/wire data;
 - JSON, CBOR and final-binary compatibility;
@@ -323,11 +336,11 @@ command
 Current references are the 425,606 commands/s quiet-host model pin, the 358,973 commands/s active-host floor, the
 978,950 commands/s current no-model run and the 1,011,511 commands/s historically stable no-model pin.
 
-Every performance-relevant retained replacement uses matched control/candidate runs in the same host state and verifies
-exact result, Model-event, global-event and final-state counts. It rejects meaningful throughput, latency or allocation
-regression and any worsening of batching, backpressure or memory ownership. An absolute run detects route failure.
-Common, wire, tracking or completion changes rerun no-model. Runtime storage changes separately characterize initial
-create, updates, long streams, relationships, deletion, Graphs and reconstruction.
+Every complete replacement checkpoint uses matched control/candidate runs in the same host state and verifies exact
+result, Model-event, global-event and final-state counts. No meaningful throughput, latency or allocation regression
+and no worsening of batching, backpressure or memory ownership is accepted. An absolute run detects dramatic route
+failure. Common, wire, tracking or completion changes rerun no-model. Runtime storage changes separately characterize
+initial create, updates, long streams, relationships, deletion, Graphs and reconstruction.
 
 ## Definition of done
 
@@ -338,6 +351,7 @@ S60 completes only when:
 - SDK production Java is at most 136,000 lines;
 - Runtime production Java is at most 32,000 lines;
 - superseded owners and pipelines are physically absent;
+- every responsibility has one final representation and one lifecycle;
 - no helper vocabulary recreates execution, replay, dependency or completion mini-domains;
 - all capabilities arise from the one foundation rather than parallel flows;
 - both complete Maven reactors pass;
