@@ -14,6 +14,11 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - `annotation-processor-tests`, `java-downstream-project`, and `kotlin-downstream-project`: compatibility checks that must keep working when annotations, reflection, handlers, serialization, public artifacts, or downstream project setup change.
 - `project-files`: AI-assistant files for projects that use the SDK, not for building this SDK itself.
 
+Keep durable product documentation, API guidance, and release-relevant decisions in this repository. Store feature
+plans, progress notes, experiment journals, measurements, checkpoint history, and other backlog work records in the
+owning todo dossier under `../work-backlog/docs/`; link to that dossier from commits or pull requests when useful rather
+than copying those records into this repository.
+
 ## Regression Safety
 
 Observable behavior and operational characteristics are compatibility contracts, even when Java API signatures do not
