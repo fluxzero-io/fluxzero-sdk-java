@@ -16,6 +16,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.handling.HandlerConfiguration;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.handling.HandlerMatcher;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.reflection.MemberInvoker;
@@ -58,38 +59,38 @@ public final class ModelDefinition {
     private static final int READ = 1;
     private static final int WRITE = 2;
 
-    private final HandlerPlan handlers;
+    private final Mutation mutation;
+    private final Mutation genericMutation;
     private final TargetPlan targets;
-    private final DirectSingleTargetApply directApply;
     private final ModelCommitPolicy commitPolicy;
     private final boolean commit;
     private final boolean automatic;
 
     private ModelDefinition(
-            HandlerPlan handlers,
+            Mutation mutation,
             TargetPlan targets,
-            DirectSingleTargetApply directApply,
             ModelCommitPolicy commitPolicy,
             boolean commit,
             boolean automatic) {
-        this.handlers = Objects.requireNonNull(handlers, "handlers");
+        this.mutation = Objects.requireNonNull(mutation, "mutation");
+        this.genericMutation = mutation.direct()
+                ? new Mutation(mutation.handlers, null) : mutation;
         this.targets = Objects.requireNonNull(targets, "targets");
-        this.directApply = directApply;
         this.commitPolicy = Objects.requireNonNull(commitPolicy, "commitPolicy");
         this.commit = commit;
         this.automatic = automatic;
-    }
-
-    HandlerPlan handlers() {
-        return handlers;
     }
 
     public TargetPlan targets() {
         return targets;
     }
 
-    DirectSingleTargetApply directApply() {
-        return directApply;
+    Mutation mutation() {
+        return mutation;
+    }
+
+    Mutation genericMutation() {
+        return genericMutation;
     }
 
     ModelCommitPolicy commitPolicy() {
@@ -105,36 +106,36 @@ public final class ModelDefinition {
     }
 
     public boolean empty() {
-        return handlers.all().isEmpty();
+        return mutation.empty();
     }
 
     public boolean direct() {
-        return directApply != null;
+        return mutation.direct();
     }
 
-    ModelExecutionPlan.CommitEvaluation execute(
+    ModelExecutionPlan.CommitEvaluation apply(
             List<DeserializingMessage> messages,
-            ModelExecutionPlan.SubstepResolver resolver,
-            ModelExecutionPlan.ExecutionMode mode) {
-        return ModelExecutionPlan.execute(messages, resolver, mode);
+            ModelExecutionPlan.SubstepResolver resolver) {
+        return ModelExecutionPlan.apply(messages, resolver);
     }
 
-    ModelExecutionPlan.CommitEvaluation evaluateDirectSingleTarget(
+    ModelExecutionPlan.CommitEvaluation assertLegal(
             DeserializingMessage message,
-            long readStateIndex,
-            String modelId,
-            Class<?> modelType,
-            Entity<?> entity) {
-        return ModelExecutionPlan.evaluateDirectSingleTarget(
-                message, readStateIndex, modelId, modelType,
-                entity, handlers, directApply);
+            ModelExecutionPlan.SubstepResolver resolver) {
+        return ModelExecutionPlan.assertLegal(message, resolver);
+    }
+
+    ModelExecutionPlan.CommitEvaluation reapply(
+            List<DeserializingMessage> messages,
+            ModelExecutionPlan.SubstepResolver resolver) {
+        return ModelExecutionPlan.reapply(messages, resolver);
     }
 
     public Object replay(
             DeserializingMessage event,
             ModelCommitContext context,
             String targetModelId) {
-        return ModelExecutionPlan.replay(event, context, this, targetModelId);
+        return mutation.replay(event, context, targetModelId);
     }
 
     /** Compiles immutable definition data with application-specific parameter resolvers. */
@@ -157,6 +158,17 @@ public final class ModelDefinition {
             List<EntityMetadata.HandlerMethod> handlers = selectedHandlers instanceof List<?> list
                     ? (List<EntityMetadata.HandlerMethod>) list : List.copyOf(selectedHandlers);
             return new HandlerPlan(handlers, this);
+        }
+
+        Mutation compileMutation(
+                Collection<EntityMetadata.HandlerMethod> selectedHandlers,
+                Class<?> payloadType) {
+            @SuppressWarnings("unchecked")
+            List<EntityMetadata.HandlerMethod> handlers = selectedHandlers instanceof List<?> list
+                    ? (List<EntityMetadata.HandlerMethod>) list : List.copyOf(selectedHandlers);
+            DirectSingleTargetApply direct = handlers.size() == 1
+                    ? directSingleTargetApply(handlers.getFirst(), payloadType) : null;
+            return new Mutation(compileHandlers(handlers), direct);
         }
 
         private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
@@ -187,7 +199,8 @@ public final class ModelDefinition {
                     && compatible(handlers.getFirst().targetModelTypes().getFirst(), modelType)
                     ? directSingleTargetApply(handlers.getFirst(), payloadType) : null;
             return new ModelDefinition(
-                    compileHandlers(handlers), compile(payloadType, handlers), direct,
+                    new Mutation(compileHandlers(handlers), direct),
+                    compile(payloadType, handlers),
                     ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty(), false);
         }
 
@@ -198,6 +211,394 @@ public final class ModelDefinition {
     }
 
     public record DirectSingleTargetApply(MemberInvoker invoker, boolean receiver) {
+    }
+
+    /** The single compiled mutation applicator shared by live handling, retries, rebase and reconstruction. */
+    static final class Mutation {
+        static final Mutation EMPTY = new Mutation(HandlerPlan.EMPTY, null);
+        private static final Object NO_INTERCEPTION = new Object();
+        private static final Object SUPPRESSED = new Object();
+
+        private final HandlerPlan handlers;
+        private final DirectSingleTargetApply directApply;
+
+        Mutation(
+                HandlerPlan handlers,
+                DirectSingleTargetApply directApply) {
+            this.handlers = Objects.requireNonNull(handlers, "handlers");
+            this.directApply = directApply;
+        }
+
+        boolean empty() {
+            return handlers.all().isEmpty();
+        }
+
+        boolean direct() {
+            return directApply != null;
+        }
+
+        List<EntityMetadata.HandlerMethod> methods() {
+            return handlers.methods();
+        }
+
+        Object intercept(
+                DeserializingMessage message,
+                ModelCommitContext context) {
+            HandlerInvoker applicable = null;
+            for (int i = 0; i < handlers.interceptors().size(); i++) {
+                HandlerInvoker candidate = invoker(
+                        handlers.interceptors().get(i), message, context);
+                if (candidate == null) {
+                    continue;
+                }
+                if (applicable != null) {
+                    throw new IllegalStateException(
+                            "Multiple @InterceptApply methods were selected for %s: %s and %s"
+                                    .formatted(
+                                            message.getPayloadClass().getName(),
+                                            applicable.getMethod().toGenericString(),
+                                            candidate.getMethod().toGenericString()));
+                }
+                applicable = candidate;
+            }
+            if (applicable == null) {
+                return NO_INTERCEPTION;
+            }
+            HandlerInvoker selected = applicable;
+            Object output = message.apply(ignored -> selected.invoke());
+            return output == null ? SUPPRESSED : output;
+        }
+
+        boolean intercepted(Object result) {
+            return result != NO_INTERCEPTION;
+        }
+
+        Object interceptionOutput(Object result) {
+            return result == SUPPRESSED ? null : result;
+        }
+
+        List<ModelExecutionPlan.Transition> apply(
+                DeserializingMessage message,
+                ModelCommitContext beginState,
+                boolean applyHandlers,
+                boolean assertions) {
+            Objects.requireNonNull(message, "message");
+            Objects.requireNonNull(beginState, "beginState");
+            beginState.attachTo(message);
+            try {
+                return message.apply(ignored -> applyInContext(
+                        message, beginState, applyHandlers, assertions));
+            } finally {
+                beginState.attachTo(message);
+            }
+        }
+
+        private List<ModelExecutionPlan.Transition> applyInContext(
+                DeserializingMessage message,
+                ModelCommitContext beginState,
+                boolean applyHandlers,
+                boolean assertions) {
+            if (assertions) {
+                for (int i = 0; i < handlers.beforeAssertions().size(); i++) {
+                    invokeIfApplicable(
+                            handlers.beforeAssertions().get(i), message, beginState);
+                }
+            }
+            if (!applyHandlers) {
+                return List.of();
+            }
+
+            Map<String, ModelExecutionPlan.Transition> transitions = null;
+            for (CompiledHandler compiledHandler : handlers.applies()) {
+                EntityMetadata.HandlerMethod handler = compiledHandler.method();
+                if (!handler.hasApplyResult()) {
+                    continue;
+                }
+                Object result;
+                if (directApply != null && handlers.applies().size() == 1) {
+                    Object receiver = directApply.receiver()
+                            ? invocationTarget(handler, message, beginState) : null;
+                    if (receiver == MissingTarget.INSTANCE) {
+                        continue;
+                    }
+                    result = directApply.invoker().invoke(
+                            receiver, (Object) message.getPayload());
+                } else {
+                    HandlerInvoker invoker = invoker(
+                            compiledHandler, message, beginState);
+                    if (invoker == null) {
+                        continue;
+                    }
+                    result = invoker.invoke();
+                }
+                List<?> results = applyResults(handler, result);
+                for (int resultIndex = 0; resultIndex < results.size(); resultIndex++) {
+                    transitions = addApplyResult(
+                            transitions, compiledHandler,
+                            results.get(resultIndex), resultIndex, beginState);
+                }
+            }
+            if (transitions == null) {
+                return List.of();
+            }
+            Map<String, Object> values = new LinkedHashMap<>(transitions.size());
+            transitions.forEach((id, transition) -> values.put(id, transition.after()));
+            List<ModelExecutionPlan.Transition> result = List.copyOf(transitions.values());
+            if (assertions) {
+                ModelCommitContext resultingState = beginState.withValues(values);
+                for (int i = 0; i < handlers.afterAssertions().size(); i++) {
+                    invokeIfApplicable(
+                            handlers.afterAssertions().get(i), message, resultingState);
+                }
+            }
+            return result;
+        }
+
+        ModelExecutionPlan.CommitEvaluation evaluateDirectSingleTarget(
+                DeserializingMessage message,
+                long readStateIndex,
+                String modelId,
+                Class<?> modelType,
+                Entity<?> entity) {
+            Objects.requireNonNull(message, "message");
+            Objects.requireNonNull(modelId, "modelId");
+            Objects.requireNonNull(modelType, "modelType");
+            Objects.requireNonNull(entity, "entity");
+            if (handlers.applies().size() != 1 || directApply == null) {
+                throw new IllegalArgumentException(
+                        "Direct single-target evaluation requires one compiled apply");
+            }
+            CompiledHandler compiledHandler = handlers.applies().getFirst();
+            EntityMetadata.HandlerMethod handler = compiledHandler.method();
+            Object before = entity.get();
+            if (directApply.receiver() && before == null) {
+                return null;
+            }
+            Object after = message.apply(ignored -> directApply.invoker().invoke(
+                    directApply.receiver() ? before : null,
+                    (Object) message.getPayload()));
+            if (after != null) {
+                String resultId = resultModelId(handler, modelType, after);
+                if (!modelId.equals(resultId)) {
+                    throw new IllegalStateException(
+                            "Apply %s returned model '%s', which is not replay target '%s'"
+                                    .formatted(
+                                            handler.executable().toGenericString(),
+                                            EntityMetadata.of(after.getClass()).entityId()
+                                                    .orElseThrow().read(after),
+                                            modelId));
+                }
+            }
+            ModelExecutionPlan.Transition transition = transition(
+                    compiledHandler, modelId, modelType, modelType,
+                    entity, after);
+            return new ModelExecutionPlan.CommitEvaluation(
+                    readStateIndex,
+                    List.of(modelId),
+                    Map.of(modelId, modelType),
+                    List.of(new ModelExecutionPlan.AppliedSubstep(
+                            message, List.of(transition))),
+                    Collections.singletonMap(modelId, after));
+        }
+
+        Object replay(
+                DeserializingMessage event,
+                ModelCommitContext context,
+                String targetModelId) {
+            Objects.requireNonNull(targetModelId, "targetModelId");
+            List<ModelExecutionPlan.Transition> transitions = apply(
+                    event, context, true, false);
+            ModelExecutionPlan.Transition selected = null;
+            for (ModelExecutionPlan.Transition transition : transitions) {
+                if (!targetModelId.equals(transition.modelId())) {
+                    continue;
+                }
+                if (selected != null) {
+                    throw new IllegalStateException(
+                            "Stored model event produced more than one transition for " + targetModelId);
+                }
+                selected = transition;
+            }
+            if (selected == null) {
+                throw new IllegalStateException(
+                        "Stored model event produced no transition for " + targetModelId);
+            }
+            return selected.after();
+        }
+
+        private static void invokeIfApplicable(
+                CompiledHandler handler,
+                DeserializingMessage message,
+                ModelCommitContext context) {
+            HandlerInvoker invoker = invoker(handler, message, context);
+            if (invoker != null) {
+                invoker.invoke();
+            }
+        }
+
+        private static HandlerInvoker invoker(
+                CompiledHandler compiledHandler,
+                DeserializingMessage message,
+                ModelCommitContext context) {
+            context.attachTo(message);
+            EntityMetadata.HandlerMethod handler = compiledHandler.method();
+            Object target = invocationTarget(handler, message, context);
+            return target == MissingTarget.INSTANCE
+                    ? null : compiledHandler.matcher().getInvokerOrNull(target, message);
+        }
+
+        private static Object invocationTarget(
+                EntityMetadata.HandlerMethod handler,
+                DeserializingMessage message,
+                ModelCommitContext context) {
+            Executable executable = handler.executable();
+            if (executable instanceof Constructor<?> || Modifier.isStatic(executable.getModifiers())) {
+                return null;
+            }
+            if (handler.receiverModelType() != null) {
+                Entity<?> receiver = context.resolve(handler.receiverModelType(), null);
+                if (receiver == null || receiver.get() == null) {
+                    return MissingTarget.INSTANCE;
+                }
+                return receiver.get();
+            }
+            Object payload = message.getPayload();
+            if (executable.getDeclaringClass().isInstance(payload)) {
+                return payload;
+            }
+            throw new IllegalStateException(
+                    "Non-static model handler %s must be declared on the payload or a model receiver"
+                            .formatted(executable.toGenericString()));
+        }
+
+        private static String resolveWriteTarget(
+                EntityMetadata.HandlerMethod handler,
+                Class<?> targetType,
+                Object result,
+                ModelCommitContext context) {
+            if (result != null) {
+                return resultModelId(handler, targetType, result);
+            }
+            Entity<?> receiver = handler.receiverModelType() == null
+                    ? null : context.resolve(handler.receiverModelType(), null);
+            if (receiver != null && targetType.isAssignableFrom(handler.receiverModelType())) {
+                return receiver.id().toString();
+            }
+            List<EntityMetadata.ModelParameter> candidates = handler.modelParameters().stream()
+                    .filter(parameter -> targetType.equals(parameter.modelType())).toList();
+            if (candidates.size() == 1) {
+                Entity<?> entity = context.resolve(
+                        targetType, candidates.getFirst().associationProperty());
+                return entity == null ? null : entity.id().toString();
+            }
+            Entity<?> direct = candidates.isEmpty() ? context.resolve(targetType, null) : null;
+            if (direct != null) {
+                return direct.id().toString();
+            }
+            throw new IllegalStateException(
+                    "Apply %s returned null but its %s delete target is ambiguous"
+                            .formatted(handler.executable().toGenericString(), targetType.getName()));
+        }
+
+        private static String resultModelId(
+                EntityMetadata.HandlerMethod handler,
+                Class<?> targetType,
+                Object result) {
+            if (!targetType.isInstance(result)) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s instead of %s"
+                                .formatted(
+                                        handler.executable().toGenericString(),
+                                        result.getClass().getName(),
+                                        targetType.getName()));
+            }
+            EntityMetadata metadata = EntityMetadata.of(result.getClass());
+            Object id = metadata.entityId().orElseThrow().read(result);
+            if (id == null) {
+                throw new IllegalStateException(
+                        "Apply %s returned a model with a null ID"
+                                .formatted(handler.executable().toGenericString()));
+            }
+            return metadata.parentScopedEntityId()
+                    ? metadata.repositoryId(id, result) : metadata.repositoryId(id);
+        }
+
+        private static Map<String, ModelExecutionPlan.Transition> addApplyResult(
+                Map<String, ModelExecutionPlan.Transition> transitions,
+                CompiledHandler compiledHandler,
+                Object value,
+                int resultIndex,
+                ModelCommitContext beginState) {
+            EntityMetadata.HandlerMethod handler = compiledHandler.method();
+            Class<?> targetType = applyTargetType(handler, value, resultIndex);
+            String targetId = resolveWriteTarget(handler, targetType, value, beginState);
+            ModelCommitContext.Entry target = beginState.entry(targetId);
+            boolean creation = target == null && value != null
+                               && (handler.collectionApplyResult() || handler.dynamicApplyResult());
+            if (!creation && (target == null || !beginState.mayWrite(
+                    targetId, targetType, handler.executable()))) {
+                throw new IllegalStateException(
+                        "Apply %s returned model '%s', which is not a resolved write target"
+                                .formatted(handler.executable().toGenericString(), targetId));
+            }
+            Class<?> resolvedTargetType = target == null
+                    ? value.getClass() : target.target().modelType();
+            ModelExecutionPlan.Transition transition = transition(
+                    compiledHandler, targetId, resolvedTargetType,
+                    null, target == null ? null : target.entity(), value);
+            Map<String, ModelExecutionPlan.Transition> result = transitions;
+            if (result == null) {
+                result = new LinkedHashMap<>();
+            }
+            ModelExecutionPlan.Transition previous = result.putIfAbsent(
+                    targetId, transition);
+            if (previous != null) {
+                throw new IllegalStateException(
+                        "Model '%s' is written by both %s and %s in one substep"
+                                .formatted(
+                                        targetId,
+                                        previous.handler().toGenericString(),
+                                        handler.executable().toGenericString()));
+            }
+            return result;
+        }
+
+        private static ModelExecutionPlan.Transition transition(
+                CompiledHandler compiledHandler,
+                String targetId,
+                Class<?> resolvedTargetType,
+                Class<?> persistedTargetType,
+                Entity<?> target,
+                Object value) {
+            EntityMetadata.HandlerMethod handler = compiledHandler.method();
+            if (value != null && !resolvedTargetType.isInstance(value)) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s instead of the resolved target type %s"
+                                .formatted(
+                                        handler.executable().toGenericString(),
+                                        value.getClass().getName(),
+                                        resolvedTargetType.getName()));
+            }
+            Object current = target == null ? null : target.get();
+            Class<?> effectiveTargetType = persistedTargetType != null
+                    ? persistedTargetType
+                    : current != null ? current.getClass()
+                            : value != null ? value.getClass() : resolvedTargetType;
+            return new ModelExecutionPlan.Transition(
+                    targetId, effectiveTargetType,
+                    target instanceof ModelRoot<?> modelRoot
+                            ? modelRoot.sequenceNumber() : -1L,
+                    target instanceof ModelRoot<?> modelRoot
+                            ? modelRoot.lastEventIndex() : null,
+                    current, value, handler.executable(), null, false,
+                    ModelExecutionPlan.TransitionEffect.resolve(
+                            effectiveTargetType, current, value, false,
+                            compiledHandler.effect()));
+        }
+
+        private enum MissingTarget {
+            INSTANCE
+        }
     }
 
     static DirectSingleTargetApply directSingleTargetApply(
@@ -475,13 +876,10 @@ public final class ModelDefinition {
                     .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
             applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
                     .forEach(knownModelTypes::addIfAbsent);
-            DirectSingleTargetApply direct =
-                    handlers.size() == 1 && applies.size() == 1
-                            ? directSingleTargetApply(applies.getFirst(), payloadType)
-                            : null;
             PlanTraits traits = inspectPlanTraits(payloadType, new LinkedHashSet<>());
             return new ModelDefinition(
-                    compiler.compileHandlers(handlers), compile(payloadType, handlers), direct,
+                    compiler.compileMutation(handlers, payloadType),
+                    compile(payloadType, handlers),
                     ModelCommitPolicy.merge(traits.policies()),
                     traits.commit(), traits.commit() && traits.automatic());
         }

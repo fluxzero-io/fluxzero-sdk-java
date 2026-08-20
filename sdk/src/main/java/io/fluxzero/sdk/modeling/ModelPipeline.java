@@ -211,8 +211,8 @@ final class ModelPipeline {
             int transportSlot) {
         try {
             return evaluateExplicit(
-                    message, ModelExecutionPlan.ExecutionMode.LIVE,
-                    transportBatch, transportSlot, true, true)
+                    message, transportBatch, transportSlot, true, true,
+                    this::evaluateLive)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -232,8 +232,8 @@ final class ModelPipeline {
             DeserializingMessage message =
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
             return evaluateExplicit(
-                    message, ModelExecutionPlan.ExecutionMode.ASSERT,
-                    null, -1, true, false)
+                    message, null, -1, true, false,
+                    this::evaluateAssertions)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -248,8 +248,8 @@ final class ModelPipeline {
             Objects.requireNonNull(event, "event");
             DeserializingMessage message = new DeserializingMessage(event, MessageType.EVENT, serializer);
             return evaluateExplicit(
-                    message, ModelExecutionPlan.ExecutionMode.REPLAY,
-                    null, -1, false, false).thenApply(ignored -> null);
+                    message, null, -1, false, false,
+                    this::evaluateStored).thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
@@ -257,27 +257,30 @@ final class ModelPipeline {
 
     private CompletableFuture<Object> evaluateExplicit(
             DeserializingMessage message,
-            ModelExecutionPlan.ExecutionMode mode,
             ModelCommitBatchingClient.ModelCommitBatch transport,
             int slot,
             boolean skipEmpty,
-            boolean warnMissingApply) {
+            boolean warnMissingApply,
+            Evaluation evaluation) {
         return execute(new ExecutionRequest(
-                message, mode, transport, slot, skipEmpty, warnMissingApply, false), null);
+                message, transport, slot, skipEmpty, warnMissingApply, false),
+                       null, evaluation);
     }
 
     private CompletableFuture<Object> execute(
             ExecutionRequest request,
-            ModelCommitPolicy policy) {
+            ModelCommitPolicy policy,
+            Evaluation evaluator) {
         return ModelBatchScope.execute(
                 this, request.message(), policy, batchLifecycle,
                 !localHandlingEnabled.getAsBoolean(),
                 (retry, batched) -> {
-                    ModelExecutionPlan.CommitEvaluation evaluation = evaluate(request, retry, batched);
+                    ModelExecutionPlan.CommitEvaluation result =
+                            evaluator.evaluate(request, retry, batched);
                     if (!retry) {
-                        warnEmptyExplicitApply(request, evaluation);
+                        warnEmptyExplicitApply(request, result);
                     }
-                    return evaluation;
+                    return result;
                 },
                 (evaluation, batch, slot) ->
                         request.skipEmpty() && evaluation.transitions().isEmpty()
@@ -288,22 +291,26 @@ final class ModelPipeline {
                                         batch == null ? request.transportSlot() : slot));
     }
 
-    private ModelExecutionPlan.CommitEvaluation evaluate(
+    private ModelExecutionPlan.CommitEvaluation evaluateLive(
             ExecutionRequest request, boolean retry, boolean batched) {
-        if (request.mode() != ModelExecutionPlan.ExecutionMode.LIVE) {
-            return definitionFor(request.message().getPayloadClass()).execute(
-                    List.of(request.message()),
-                    new CommitLoader(
-                            null,
-                            request.mode() == ModelExecutionPlan.ExecutionMode.REPLAY),
-                    request.mode());
-        }
         if (request.directLoadsInBatch()) {
             return !retry || batched
                     ? evaluate(request.message()) : evaluate(request.message(), null);
         }
         return DeserializingMessage.getMessageBatchIndex() < 0
                 ? evaluate(request.message()) : evaluate(request.message(), null);
+    }
+
+    private ModelExecutionPlan.CommitEvaluation evaluateAssertions(
+            ExecutionRequest request, boolean retry, boolean batched) {
+        return definitionFor(request.message().getPayloadClass()).assertLegal(
+                request.message(), new CommitLoader(null));
+    }
+
+    private ModelExecutionPlan.CommitEvaluation evaluateStored(
+            ExecutionRequest request, boolean retry, boolean batched) {
+        return definitionFor(request.message().getPayloadClass()).reapply(
+                List.of(request.message()), new CommitLoader(null, true));
     }
 
     private void warnEmptyExplicitApply(
@@ -322,12 +329,17 @@ final class ModelPipeline {
 
     private record ExecutionRequest(
             DeserializingMessage message,
-            ModelExecutionPlan.ExecutionMode mode,
             ModelCommitBatchingClient.ModelCommitBatch transport,
             int transportSlot,
             boolean skipEmpty,
             boolean warnMissingApply,
             boolean directLoadsInBatch) {
+    }
+
+    @FunctionalInterface
+    private interface Evaluation {
+        ModelExecutionPlan.CommitEvaluation evaluate(
+                ExecutionRequest request, boolean retry, boolean batched);
     }
 
     record Retry(
@@ -751,10 +763,9 @@ final class ModelPipeline {
                     ModelBatchScope.withMessageDependency(
                             message,
                             () -> expandCascadeDeletes(
-                                    definitionFor(message.getPayloadClass()).execute(
+                                    definitionFor(message.getPayloadClass()).apply(
                                             List.of(message),
-                                            new CommitLoader(retryStateIndex),
-                                            ModelExecutionPlan.ExecutionMode.LIVE))));
+                                            new CommitLoader(retryStateIndex)))));
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
@@ -905,12 +916,10 @@ final class ModelPipeline {
             PrefetchSlot prefetched) {
         if (prefetched != null
             && prefetched.entity != null
-            && prefetched.directApply != null
+            && prefetched.mutation.direct()
             && prefetched.access.writes()) {
-            ModelDefinition definition = definitionFor(
-                    initialMessage.getPayloadClass());
             ModelExecutionPlan.CommitEvaluation direct =
-                    definition.evaluateDirectSingleTarget(
+                    prefetched.mutation.evaluateDirectSingleTarget(
                             initialMessage,
                             prefetched.stateIndex,
                             prefetched.modelId,
@@ -921,10 +930,9 @@ final class ModelPipeline {
             }
         }
         return expandCascadeDeletes(
-                definitionFor(initialMessage.getPayloadClass()).execute(
+                definitionFor(initialMessage.getPayloadClass()).apply(
                         List.of(initialMessage),
-                        new CommitLoader(null, false, initialMessage, prefetched),
-                        ModelExecutionPlan.ExecutionMode.LIVE));
+                        new CommitLoader(null, false, initialMessage, prefetched)));
     }
 
     private ModelExecutionPlan.CommitEvaluation rebase(
@@ -933,13 +941,12 @@ final class ModelPipeline {
         return ModelBatchScope.withMessageDependency(
                 messages.getFirst(),
                 () -> expandCascadeDeletes(definitionFor(
-                        messages.getFirst().getPayloadClass()).execute(
+                        messages.getFirst().getPayloadClass()).reapply(
                         messages.stream()
                                 .filter(message -> !(message.getPayload()
                                         instanceof CascadedModelDeletion))
                                 .toList(),
-                        new CommitLoader(stateIndex, true),
-                        ModelExecutionPlan.ExecutionMode.REPLAY)));
+                        new CommitLoader(stateIndex, true))));
     }
 
     /**
@@ -1180,7 +1187,6 @@ final class ModelPipeline {
                                 .formatted(pinnedStateIndex, boundary));
             }
             ModelDefinition definition = definitionFor(substep.getPayloadClass());
-            ModelDefinition.HandlerPlan handlers = definition.handlers();
             if (substep == directMessage
                 && prefetched != null
                 && prefetched.entity != null
@@ -1194,10 +1200,9 @@ final class ModelPipeline {
                                 prefetched.modelType,
                                 prefetched.access,
                                 prefetched.sourceProperties,
-                                prefetched.entity),
-                        handlers,
+                        prefetched.entity),
                         prefetched.access.writes()
-                                ? prefetched.directApply : null);
+                                ? prefetched.mutation : definition.genericMutation());
             }
             ExplicitModelTarget explicitTarget = substep.getContext(
                     ExplicitModelTarget.class).orElse(null);
@@ -1239,7 +1244,8 @@ final class ModelPipeline {
                             "Missing commit-scoped model " + target.modelId())));
             return new ModelExecutionPlan.ResolvedSubstep(
                     ModelCommitContext.create(
-                            stateIndex, effectiveResolution, selected), handlers);
+                            stateIndex, effectiveResolution, selected),
+                    definition.genericMutation());
         }
 
         @Override
@@ -1291,7 +1297,7 @@ final class ModelPipeline {
                             ? pinnedStateIndex : requestedStateIndex,
                     stagedValues);
             return new ModelExecutionPlan.ResolvedSubstep(
-                    loaded, ModelDefinition.HandlerPlan.EMPTY);
+                    loaded, ModelDefinition.Mutation.EMPTY);
         }
 
         private ModelCommitContext load(
@@ -1398,9 +1404,8 @@ final class ModelPipeline {
             ModelCommitPolicy commitPolicy) {
         CompletableFuture<Object> completion = execute(
                 new ExecutionRequest(
-                        message, ModelExecutionPlan.ExecutionMode.LIVE,
-                        null, -1, false, false, true),
-                commitPolicy);
+                        message, null, -1, false, false, true),
+                commitPolicy, this::evaluateLive);
         if (commitPolicy.awaitAfterBatch()) {
             return awaitAfterHandlerCommitsBeforeResults
                     ? completion : null;
@@ -1422,7 +1427,7 @@ final class ModelPipeline {
         return new PrefetchSlot(
                 targets.resolveSingleModelId(message.getPayload()),
                 targets.singleModelType(), targets.singleAccess(), targets.singleSourceProperties(),
-                definition.directApply());
+                definition.mutation());
     }
 
     private static final class PrefetchSlot
@@ -1431,7 +1436,7 @@ final class ModelPipeline {
         private final Class<?> modelType;
         private final ModelDefinition.Access access;
         private final List<String> sourceProperties;
-        private final ModelDefinition.DirectSingleTargetApply directApply;
+        private final ModelDefinition.Mutation mutation;
         private Entity<?> entity;
         private long stateIndex;
 
@@ -1440,12 +1445,12 @@ final class ModelPipeline {
                 Class<?> modelType,
                 ModelDefinition.Access access,
                 List<String> sourceProperties,
-                ModelDefinition.DirectSingleTargetApply directApply) {
+                ModelDefinition.Mutation mutation) {
             this.modelId = modelId;
             this.modelType = modelType;
             this.access = access;
             this.sourceProperties = sourceProperties;
-            this.directApply = directApply;
+            this.mutation = mutation;
         }
 
         @Override

@@ -16,18 +16,14 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
-import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,12 +39,11 @@ import java.util.Set;
 import static io.fluxzero.common.ObjectUtils.asStream;
 
 /**
- * Stateless runtime evaluator for immutable {@link ModelDefinition model definitions}.
+ * Ordered commit orchestration for the mutation applicators owned by {@link ModelDefinition}.
  * <p>
- * Interceptor outputs form ordered substeps under one pinned read boundary. Every apply within one substep reads its
- * same immutable begin-state; only a successfully completed substep becomes visible to later substeps. A failure
- * produces no commit result. This class never publishes or stores an event, allowing its caller to commit the returned
- * commit atomically after evaluation.
+ * Interceptor outputs form ordered substeps under one pinned read boundary. Every mutation within one substep reads
+ * its same immutable begin-state; only a successfully completed substep becomes visible to later substeps. This class
+ * owns ordering and staged Graph changes, but delegates handler invocation and result validation to the definition.
  */
 public final class ModelExecutionPlan {
     private static final int MAX_SUBSTEPS = 10_000;
@@ -56,78 +51,73 @@ public final class ModelExecutionPlan {
     private ModelExecutionPlan() {
     }
 
-    static List<Transition> evaluate(
-            DeserializingMessage message,
-            ModelCommitContext beginState,
-            ModelDefinition.HandlerPlan handlers,
-            boolean applyHandlers,
-            ModelDefinition.DirectSingleTargetApply directApply) {
-        return evaluate(
-                message, beginState, handlers,
-                applyHandlers, true, directApply);
-    }
-
-    private static List<Transition> evaluate(
-            DeserializingMessage message,
-            ModelCommitContext beginState,
-            ModelDefinition.HandlerPlan handlers,
-            boolean applyHandlers,
-            boolean assertions,
-            ModelDefinition.DirectSingleTargetApply directApply) {
-        Objects.requireNonNull(message, "message");
-        Objects.requireNonNull(beginState, "beginState");
-        Objects.requireNonNull(handlers, "handlers");
-        beginState.attachTo(message);
-        try {
-            return message.apply(
-                    ignored -> evaluateInContext(
-                            message, beginState, handlers,
-                            applyHandlers, assertions, directApply));
-        } finally {
-            beginState.attachTo(message);
-        }
-    }
-
-    /** Executes live, validation-only and stored/retry forms through one ordered substep pipeline. */
-    static CommitEvaluation execute(
-            DeserializingMessage message,
-            SubstepResolver resolver,
-            ExecutionMode mode) {
-        return execute(List.of(message), resolver, mode);
-    }
-
-    static CommitEvaluation evaluate(
+    static CommitEvaluation apply(
             DeserializingMessage message,
             SubstepResolver resolver) {
-        return execute(message, resolver, ExecutionMode.LIVE);
+        return apply(List.of(message), resolver);
     }
 
-    /** Executes live, validation-only and stored/retry forms through one ordered substep pipeline. */
-    static CommitEvaluation execute(
+    static CommitEvaluation apply(
+            List<DeserializingMessage> messages,
+            SubstepResolver resolver) {
+        return execute(messages, resolver, true, true, true, false);
+    }
+
+    static CommitEvaluation assertLegal(
+            DeserializingMessage message,
+            SubstepResolver resolver) {
+        return execute(List.of(message), resolver, true, false, false, false);
+    }
+
+    static CommitEvaluation reapply(
+            DeserializingMessage message,
+            SubstepResolver resolver) {
+        return reapply(List.of(message), resolver);
+    }
+
+    static CommitEvaluation reapply(
+            List<DeserializingMessage> messages,
+            SubstepResolver resolver) {
+        return execute(messages, resolver, false, true, false, true);
+    }
+
+    /** Compatibility entry point; replay application itself is owned by the supplied definition. */
+    public static Object replay(
+            DeserializingMessage event,
+            ModelCommitContext context,
+            ModelDefinition definition,
+            String targetModelId) {
+        return definition.replay(event, context, targetModelId);
+    }
+
+    /** Executes every mutation form through one ordered substep pipeline. */
+    private static CommitEvaluation execute(
             List<DeserializingMessage> messages,
             SubstepResolver resolver,
-            ExecutionMode mode) {
+            boolean interception,
+            boolean applyHandlers,
+            boolean stageGraphPayloads,
+            boolean reapply) {
         Objects.requireNonNull(messages, "messages");
-        Objects.requireNonNull(mode, "mode");
         if (messages.isEmpty()) {
             throw new IllegalArgumentException("A model execution requires at least one message");
         }
         Deque<PendingSubstep> pending = new ArrayDeque<>(messages.size());
         for (DeserializingMessage message : messages) {
             Objects.requireNonNull(message, "message");
-            if (mode == ExecutionMode.LIVE && message.getPayload() instanceof Graph<?> graph) {
+            if (stageGraphPayloads && message.getPayload() instanceof Graph<?> graph) {
                 enqueueOutput(message, graph, pending, false);
-            } else if (mode == ExecutionMode.REPLAY && message instanceof GraphChangeMessage changeMessage) {
+            } else if (reapply && message instanceof GraphChangeMessage changeMessage) {
                 pending.add(new PendingSubstep(
                         new GraphChangeMessage(changeMessage.change.forRebase()), false));
             } else {
-                pending.add(new PendingSubstep(message, mode.interception()));
+                pending.add(new PendingSubstep(message, interception));
             }
         }
         return evaluate(
                 pending, resolver,
-                mode == ExecutionMode.REPLAY ? null : messages.getFirst(),
-                mode.applies(), mode.assertions());
+                reapply ? null : messages.getFirst(),
+                applyHandlers, !reapply);
     }
 
     private static CommitEvaluation evaluate(
@@ -201,31 +191,15 @@ public final class ModelExecutionPlan {
                     mergeAppliedSubstep(appliedSubsteps, change);
                     continue;
                 }
-                List<ModelDefinition.CompiledHandler> interceptors =
-                        resolved.handlers().interceptors();
-                if (current.interceptionAllowed() && !interceptors.isEmpty()) {
-                    HandlerInvoker applicable = null;
-                    for (int i = 0; i < interceptors.size(); i++) {
-                        HandlerInvoker candidate =
-                                invoker(interceptors.get(i), current.message(), context);
-                        if (candidate == null) {
-                            continue;
-                        }
-                        if (applicable != null) {
-                            throw new IllegalStateException(
-                                    "Multiple @InterceptApply methods were selected for %s: %s and %s"
-                                            .formatted(
-                                                    current.message().getPayloadClass().getName(),
-                                                    applicable.getMethod().toGenericString(),
-                                                    candidate.getMethod().toGenericString()));
-                        }
-                        applicable = candidate;
-                    }
-                    if (applicable != null) {
-                        HandlerInvoker selected = applicable;
-                        Object intercepted = current.message().apply(
-                                ignored -> selected.invoke());
-                        enqueueOutputs(current.message(), intercepted, pending);
+                if (current.interceptionAllowed()) {
+                    Object interception =
+                            resolved.mutation().intercept(
+                                    current.message(), context);
+                    if (resolved.mutation().intercepted(interception)) {
+                        enqueueOutputs(
+                                current.message(),
+                                resolved.mutation().interceptionOutput(interception),
+                                pending);
                         resolver.prefetch(
                                 pending.stream()
                                         .map(PendingSubstep::message)
@@ -236,10 +210,9 @@ public final class ModelExecutionPlan {
                     }
                 }
 
-                List<Transition> transitions = evaluate(
+                List<Transition> transitions = resolved.mutation().apply(
                         current.message(), context,
-                        resolved.handlers(), applyHandlers,
-                        assertions, resolved.directApply());
+                        applyHandlers, assertions);
                 for (Transition transition : transitions) {
                     stagedValues.put(transition.modelId(), transition.after());
                     if (!readModelTypes.containsKey(transition.modelId())) {
@@ -363,349 +336,6 @@ public final class ModelExecutionPlan {
                 addition.cascadedDeletion()));
     }
 
-    private static List<Transition> evaluateInContext(
-            DeserializingMessage message,
-            ModelCommitContext beginState,
-            ModelDefinition.HandlerPlan plan,
-            boolean applyHandlers,
-            boolean assertions,
-            ModelDefinition.DirectSingleTargetApply directApply) {
-        if (assertions) {
-            for (int i = 0; i < plan.beforeAssertions().size(); i++) {
-                invokeIfApplicable(plan.beforeAssertions().get(i), message, beginState);
-            }
-        }
-
-        if (!applyHandlers) {
-            return List.of();
-        }
-
-        Map<String, Transition> transitions = null;
-        for (ModelDefinition.CompiledHandler compiledHandler : plan.applies()) {
-            EntityMetadata.HandlerMethod handler = compiledHandler.method();
-            if (!handler.hasApplyResult()) {
-                continue;
-            }
-            Object result;
-            if (directApply != null && plan.applies().size() == 1) {
-                Object receiver = directApply.receiver()
-                        ? invocationTarget(handler, message, beginState)
-                        : null;
-                if (receiver == MissingTarget.INSTANCE) {
-                    continue;
-                }
-                result = directApply.invoker().invoke(
-                        receiver, (Object) message.getPayload());
-            } else {
-                HandlerInvoker invoker = invoker(
-                        compiledHandler, message, beginState);
-                if (invoker == null) {
-                    continue;
-                }
-                result = invoker.invoke();
-            }
-            List<?> results = ModelDefinition.applyResults(handler, result);
-            for (int resultIndex = 0; resultIndex < results.size(); resultIndex++) {
-                transitions = addApplyResult(
-                        transitions, compiledHandler,
-                        results.get(resultIndex), resultIndex,
-                        beginState);
-            }
-        }
-        List<Transition> transitionList;
-        if (transitions == null) {
-            transitionList = List.of();
-        } else {
-            Map<String, Object> values = new LinkedHashMap<>(transitions.size());
-            transitions.forEach((id, transition) -> values.put(id, transition.after()));
-            transitionList = List.copyOf(transitions.values());
-            ModelCommitContext resultingState = beginState.withValues(values);
-            if (assertions) {
-                for (int i = 0; i < plan.afterAssertions().size(); i++) {
-                    invokeIfApplicable(plan.afterAssertions().get(i), message, resultingState);
-                }
-            }
-        }
-        return transitionList;
-    }
-
-    static CommitEvaluation evaluateDirectSingleTarget(
-            DeserializingMessage message,
-            long readStateIndex,
-            String modelId,
-            Class<?> modelType,
-            Entity<?> entity,
-            ModelDefinition.HandlerPlan plan,
-            ModelDefinition.DirectSingleTargetApply directApply) {
-        Objects.requireNonNull(message, "message");
-        Objects.requireNonNull(modelId, "modelId");
-        Objects.requireNonNull(modelType, "modelType");
-        Objects.requireNonNull(entity, "entity");
-        Objects.requireNonNull(plan, "plan");
-        Objects.requireNonNull(directApply, "directApply");
-        if (plan.applies().size() != 1) {
-            throw new IllegalArgumentException(
-                    "Direct single-target evaluation requires one compiled apply");
-        }
-        EntityMetadata.HandlerMethod handler =
-                plan.applies().getFirst().method();
-        Object before = entity.get();
-        if (directApply.receiver() && before == null) {
-            return null;
-        }
-        Object after = message.apply(ignored ->
-                directApply.invoker().invoke(
-                        directApply.receiver() ? before : null,
-                        (Object) message.getPayload()));
-        validateDirectSingleTargetResult(
-                handler, modelId, modelType, after);
-        Transition transition = new Transition(
-                modelId,
-                modelType,
-                entity instanceof ModelRoot<?> root
-                        ? root.sequenceNumber() : -1L,
-                entity instanceof ModelRoot<?> root
-                        ? root.lastEventIndex() : null,
-                before,
-                after,
-                handler.executable(),
-                null,
-                false);
-        return new CommitEvaluation(
-                readStateIndex,
-                List.of(modelId),
-                Map.of(modelId, modelType),
-                List.of(new AppliedSubstep(
-                        message, List.of(transition))),
-                Collections.singletonMap(
-                        modelId, after));
-    }
-
-    private static void validateDirectSingleTargetResult(
-            EntityMetadata.HandlerMethod handler,
-            String expectedTargetId,
-            Class<?> targetType,
-            Object result) {
-        if (result == null) {
-            return;
-        }
-        if (!targetType.isInstance(result)) {
-            throw new IllegalStateException(
-                    "Apply %s returned %s instead of %s"
-                            .formatted(
-                                    handler.executable().toGenericString(),
-                                    result.getClass().getName(),
-                                    targetType.getName()));
-        }
-        EntityMetadata metadata = EntityMetadata.of(result.getClass());
-        Object resultId = metadata.entityId().orElseThrow().read(result);
-        if (resultId == null) {
-            throw new IllegalStateException(
-                    "Apply %s returned a model with a null ID"
-                            .formatted(
-                                    handler.executable().toGenericString()));
-        }
-        String repositoryId = metadata.parentScopedEntityId()
-                ? metadata.repositoryId(resultId, result)
-                : metadata.repositoryId(resultId);
-        if (!expectedTargetId.equals(repositoryId)) {
-            throw new IllegalStateException(
-                    "Apply %s returned model '%s', which is not replay target '%s'"
-                            .formatted(
-                                    handler.executable().toGenericString(),
-                                    resultId,
-                                    expectedTargetId));
-        }
-    }
-
-    /** Replays one stored event through the same compiled apply evaluator used for live model commits. */
-    public static Object replay(
-            DeserializingMessage event,
-            ModelCommitContext context,
-            ModelDefinition definition,
-            String targetModelId) {
-        Objects.requireNonNull(targetModelId, "targetModelId");
-        List<Transition> transitions = evaluate(
-                event, context, definition.handlers(), true, false,
-                definition.directApply());
-        Transition selected = null;
-        for (Transition transition : transitions) {
-            if (!targetModelId.equals(transition.modelId())) {
-                continue;
-            }
-            if (selected != null) {
-                throw new IllegalStateException(
-                        "Stored model event produced more than one transition for " + targetModelId);
-            }
-            selected = transition;
-        }
-        if (selected == null) {
-            throw new IllegalStateException(
-                    "Stored model event produced no transition for " + targetModelId);
-        }
-        return selected.after();
-    }
-
-    private static void invokeIfApplicable(
-            ModelDefinition.CompiledHandler handler,
-            DeserializingMessage message,
-            ModelCommitContext context) {
-        HandlerInvoker invoker = invoker(handler, message, context);
-        if (invoker != null) {
-            invoker.invoke();
-        }
-    }
-
-    private static HandlerInvoker invoker(
-            ModelDefinition.CompiledHandler compiledHandler,
-            DeserializingMessage message,
-            ModelCommitContext context) {
-        context.attachTo(message);
-        EntityMetadata.HandlerMethod handler = compiledHandler.method();
-        Object target = invocationTarget(handler, message, context);
-        return target == MissingTarget.INSTANCE
-                ? null : compiledHandler.matcher().getInvokerOrNull(target, message);
-    }
-
-    private static Object invocationTarget(
-            EntityMetadata.HandlerMethod handler,
-            DeserializingMessage message,
-            ModelCommitContext context) {
-        Executable executable = handler.executable();
-        if (executable instanceof Constructor<?> || Modifier.isStatic(executable.getModifiers())) {
-            return null;
-        }
-        if (handler.receiverModelType() != null) {
-            Entity<?> receiver = context.resolve(handler.receiverModelType(), null);
-            if (receiver == null || receiver.get() == null) {
-                return MissingTarget.INSTANCE;
-            }
-            return receiver.get();
-        }
-        Object payload = message.getPayload();
-        if (executable.getDeclaringClass().isInstance(payload)) {
-            return payload;
-        }
-        throw new IllegalStateException(
-                "Non-static model handler %s must be declared on the payload or a model receiver"
-                        .formatted(executable.toGenericString()));
-    }
-
-    private static String resolveWriteTarget(
-            EntityMetadata.HandlerMethod handler,
-            Class<?> targetType,
-            Object result,
-            ModelCommitContext context) {
-        if (result != null) {
-            if (!targetType.isInstance(result)) {
-                throw new IllegalStateException(
-                        "Apply %s returned %s instead of %s"
-                                .formatted(handler.executable().toGenericString(),
-                                           result.getClass().getName(), targetType.getName()));
-            }
-            EntityMetadata resultMetadata = EntityMetadata.of(result.getClass());
-            Object id = resultMetadata.entityId().orElseThrow().read(result);
-            if (id == null) {
-                throw new IllegalStateException(
-                        "Apply %s returned a model with a null ID"
-                                .formatted(handler.executable().toGenericString()));
-            }
-            return resultMetadata.parentScopedEntityId()
-                    ? resultMetadata.repositoryId(id, result)
-                    : resultMetadata.repositoryId(id);
-        }
-
-        Entity<?> receiver = handler.receiverModelType() == null
-                ? null : context.resolve(handler.receiverModelType(), null);
-        if (receiver != null && targetType.isAssignableFrom(handler.receiverModelType())) {
-            return receiver.id().toString();
-        }
-        List<EntityMetadata.ModelParameter> candidates = handler.modelParameters().stream()
-                .filter(parameter -> targetType.equals(parameter.modelType())).toList();
-        if (candidates.size() == 1) {
-            Entity<?> entity = context.resolve(
-                    targetType, candidates.getFirst().associationProperty());
-            return entity == null ? null : entity.id().toString();
-        }
-        Entity<?> direct = candidates.isEmpty() ? context.resolve(targetType, null) : null;
-        if (direct != null) {
-            return direct.id().toString();
-        }
-        throw new IllegalStateException(
-                "Apply %s returned null but its %s delete target is ambiguous"
-                        .formatted(handler.executable().toGenericString(), targetType.getName()));
-    }
-
-    private static Map<String, Transition> addApplyResult(
-            Map<String, Transition> transitions,
-            ModelDefinition.CompiledHandler compiledHandler,
-            Object value,
-            int resultIndex,
-            ModelCommitContext beginState) {
-        EntityMetadata.HandlerMethod handler = compiledHandler.method();
-        Class<?> targetType = ModelDefinition.applyTargetType(handler, value, resultIndex);
-        String targetId = resolveWriteTarget(
-                handler, targetType, value, beginState);
-        ModelCommitContext.Entry target =
-                beginState.entry(targetId);
-        boolean creation = target == null && value != null
-                           && (handler.collectionApplyResult() || handler.dynamicApplyResult());
-        if (!creation && (target == null || !beginState.mayWrite(
-                targetId, targetType,
-                handler.executable()))) {
-            throw new IllegalStateException(
-                    "Apply %s returned model '%s', which is not a resolved write target"
-                            .formatted(
-                                    handler.executable().toGenericString(),
-                                    targetId));
-        }
-        Class<?> resolvedTargetType = target == null
-                ? value.getClass() : target.target().modelType();
-        if (value != null
-            && !resolvedTargetType.isInstance(value)) {
-            throw new IllegalStateException(
-                    "Apply %s returned %s instead of the resolved target type %s"
-                            .formatted(
-                                    handler.executable().toGenericString(),
-                                    value.getClass().getName(),
-                                    resolvedTargetType.getName()));
-        }
-        Object current = target == null
-                ? null : target.entity().get();
-        Class<?> persistedTargetType = current != null
-                ? current.getClass()
-                : value != null ? value.getClass()
-                : resolvedTargetType;
-        Transition transition = new Transition(
-                targetId, persistedTargetType,
-                target != null
-                && target.entity() instanceof ModelRoot<?> modelRoot
-                        ? modelRoot.sequenceNumber() : -1L,
-                target != null
-                && target.entity() instanceof ModelRoot<?> modelRoot
-                        ? modelRoot.lastEventIndex() : null,
-                current, value, handler.executable(),
-                null, false,
-                TransitionEffect.resolve(
-                        persistedTargetType, current, value, false,
-                        compiledHandler.effect()));
-        Map<String, Transition> result = transitions;
-        if (result == null) {
-            result = new LinkedHashMap<>();
-        }
-        Transition previous = result.putIfAbsent(
-                targetId, transition);
-        if (previous != null) {
-            throw new IllegalStateException(
-                    "Model '%s' is written by both %s and %s in one substep"
-                            .formatted(
-                                    targetId,
-                                    previous.handler().toGenericString(),
-                                    handler.executable().toGenericString()));
-        }
-        return result;
-    }
-
     private static DeserializingMessage emittedMessage(
             DeserializingMessage source, Object output,
             boolean preserveSourceIdentity) {
@@ -822,17 +452,10 @@ public final class ModelExecutionPlan {
 
     record ResolvedSubstep(
             ModelCommitContext context,
-            ModelDefinition.HandlerPlan handlers,
-            ModelDefinition.DirectSingleTargetApply directApply) {
-        ResolvedSubstep(
-                ModelCommitContext context,
-                ModelDefinition.HandlerPlan handlers) {
-            this(context, handlers, null);
-        }
-
+            ModelDefinition.Mutation mutation) {
         ResolvedSubstep {
             Objects.requireNonNull(context, "context");
-            Objects.requireNonNull(handlers, "handlers");
+            Objects.requireNonNull(mutation, "mutation");
         }
     }
 
@@ -954,34 +577,6 @@ public final class ModelExecutionPlan {
         }
     }
 
-    enum ExecutionMode {
-        LIVE(true, true, true),
-        ASSERT(true, false, true),
-        REPLAY(false, true, false);
-
-        private final boolean interception;
-        private final boolean applies;
-        private final boolean assertions;
-
-        ExecutionMode(boolean interception, boolean applies, boolean assertions) {
-            this.interception = interception;
-            this.applies = applies;
-            this.assertions = assertions;
-        }
-
-        boolean interception() {
-            return interception;
-        }
-
-        boolean applies() {
-            return applies;
-        }
-
-        boolean assertions() {
-            return assertions;
-        }
-    }
-
     record StagedGraphChange(
             String modelId,
             Class<?> modelType,
@@ -1067,7 +662,7 @@ public final class ModelExecutionPlan {
             boolean storeEvent,
             boolean publishEvent,
             boolean updateState) {
-        private static TransitionEffect resolve(
+        static TransitionEffect resolve(
                 Class<?> modelType,
                 Executable handler,
                 Object before,
@@ -1078,7 +673,7 @@ public final class ModelExecutionPlan {
                     ModelDefinition.EffectOverrides.of(handler));
         }
 
-        private static TransitionEffect resolve(
+        static TransitionEffect resolve(
                 Class<?> modelType,
                 Object before,
                 Object after,
@@ -1169,7 +764,4 @@ public final class ModelExecutionPlan {
             DeserializingMessage message, boolean interceptionAllowed) {
     }
 
-    private enum MissingTarget {
-        INSTANCE
-    }
 }

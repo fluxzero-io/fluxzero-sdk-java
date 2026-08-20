@@ -219,7 +219,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             return Optional.empty();
         }
         ModelDefinition definition = definitions.get(targetType);
-        boolean selected = definition.automatic() && definition.handlers().methods().stream()
+        boolean selected = definition.automatic() && definition.mutation().methods().stream()
                 .anyMatch(handler -> handlerFilter.test(
                         handler.executable().getDeclaringClass(), handler.executable()));
         if (!selected) {
