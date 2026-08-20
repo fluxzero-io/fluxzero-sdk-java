@@ -81,15 +81,6 @@ public final class ModelExecutionPlan {
         return execute(messages, resolver, false, true, false, true);
     }
 
-    /** Compatibility entry point; replay application itself is owned by the supplied definition. */
-    public static Object replay(
-            DeserializingMessage event,
-            ModelCommitContext context,
-            ModelDefinition definition,
-            String targetModelId) {
-        return definition.replay(event, context, targetModelId);
-    }
-
     /** Executes every mutation form through one ordered substep pipeline. */
     private static CommitEvaluation execute(
             List<DeserializingMessage> messages,
