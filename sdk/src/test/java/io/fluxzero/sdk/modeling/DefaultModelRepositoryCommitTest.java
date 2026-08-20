@@ -35,6 +35,8 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
@@ -67,11 +69,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
-class ModelCommitProtocolTest {
+class DefaultModelRepositoryCommitTest {
 
+    private final DefaultModelRepository repository = mock(DefaultModelRepository.class);
     private final EventStoreClient eventStoreClient = mock(EventStoreClient.class);
     private final JacksonSerializer serializer = new JacksonSerializer();
-    private final ModelCommitProtocol protocol = new ModelCommitProtocol(
+    private final Commit protocol = repository.new Commit(
             eventStoreClient, serializer, serializer,
             DispatchInterceptor.noOp, "client-1");
 
@@ -135,7 +138,7 @@ class ModelCommitProtocolTest {
                                         null, false)))),
                 Map.of(publishedId.toString(), published));
 
-        ModelCommitProtocol.PreparedCommit prepared =
+        Commit.Outcome prepared =
                 protocol.prepare("shared-event-delete", evaluation);
 
         assertEquals(2, prepared.commit().getSubsteps().size());
@@ -154,7 +157,7 @@ class ModelCommitProtocolTest {
                         MessageType.EVENT).getPayload());
         assertNull(direct.target(storedId.toString()).getState());
         List<DeserializingMessage> rebaseMessages =
-                prepared.rebaseMessages();
+                prepared.attempt().rebaseMessages();
         assertEquals(2, rebaseMessages.size());
         assertSame(event, rebaseMessages.getFirst().getPayload());
         assertSame(event, rebaseMessages.getLast().getPayload());
@@ -176,7 +179,7 @@ class ModelCommitProtocolTest {
                 List.of(id.toString()), substep(event, transition),
                 Map.of(id.toString(), after));
 
-        ModelCommitProtocol.PreparedCommit prepared =
+        Commit.Outcome prepared =
                 protocol.prepare("standalone-graph", evaluation);
 
         ModelCommitValidator.validate(prepared.commit());
@@ -201,8 +204,8 @@ class ModelCommitProtocolTest {
         assertEquals(
                 after,
                 serializer.deserialize(direct.target(id.toString()).getState()));
-        assertEquals(1, prepared.rebaseMessages().size());
-        assertSame(event, prepared.rebaseMessages().getFirst().getPayload());
+        assertEquals(1, prepared.attempt().rebaseMessages().size());
+        assertSame(event, prepared.attempt().rebaseMessages().getFirst().getPayload());
     }
 
     @Test
@@ -241,7 +244,7 @@ class ModelCommitProtocolTest {
                 protocol, "standalone-rebase", original, ModelConflictPolicy.ACCEPT,
                 ModelPipeline.Retry.accepting((result, current, prepared) -> {
                     assertEquals(51L, result.getRebaseStateIndex());
-                    assertEquals(1, prepared.rebaseMessages().size());
+                    assertEquals(1, prepared.attempt().rebaseMessages().size());
                     return CompletableFuture.completedFuture(rebased);
                 }), null, -1).join();
 
@@ -789,16 +792,10 @@ class ModelCommitProtocolTest {
                 substep(new UpdateOrder(id), transition(
                         id, Order.class, null, after, UpdateOrder.class, "apply", Order.class)),
                 Map.of(id.toString(), after));
-        AtomicReference<List<ModelCommitProtocol.CommittedCommit>> processed = new AtomicReference<>();
-        CompletableFuture<Void> postCommit = new CompletableFuture<>();
-        ModelCommitProtocol batchProtocol = new ModelCommitProtocol(
+        Commit batchProtocol = repository.new Commit(
                 eventStoreClient, serializer, serializer,
-                DispatchInterceptor.noOp, "client-1", serializer,
-                commits -> {
-                    processed.set(commits);
-                    return postCommit;
-                });
-        ModelCommitProtocol.PreparedCommit prepared =
+                DispatchInterceptor.noOp, "client-1", serializer);
+        Commit.Outcome prepared =
                 batchProtocol.prepare("batch-completion", evaluation);
         CompletableFuture<CommitModelsResult> transport = new CompletableFuture<>();
         ModelCommitBatchingClient.ModelCommitBatch batch = new ModelCommitBatchingClient.ModelCommitBatch() {
@@ -836,13 +833,15 @@ class ModelCommitProtocolTest {
         CommitModelsResult result = result(prepared.commit());
         transport.complete(result);
 
-        assertFalse(completion.isDone());
-        assertEquals(1, processed.get().size());
-        assertSame(prepared, processed.get().getFirst().prepared());
-        assertSame(result, processed.get().getFirst().result());
-
-        postCommit.complete(null);
         assertSame(result, completion.join().orElseThrow());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Commit.Outcome>> outcomes =
+                ArgumentCaptor.forClass(List.class);
+        verify(repository).updateAfterCommit(outcomes.capture());
+        assertEquals(1, outcomes.getValue().size());
+        assertSame(prepared.commit(), outcomes.getValue().getFirst().commit());
+        assertSame(prepared.attempt(), outcomes.getValue().getFirst().attempt());
+        assertSame(result, outcomes.getValue().getFirst().result());
     }
 
     @Test
@@ -945,7 +944,7 @@ class ModelCommitProtocolTest {
                 protocol, "commit-rebase", original, ModelConflictPolicy.ACCEPT,
                 ModelPipeline.Retry.accepting((result, current, prepared) -> {
                     assertEquals(51L, result.getRebaseStateIndex());
-                    assertEquals(1, prepared.rebaseMessages().size());
+                    assertEquals(1, prepared.attempt().rebaseMessages().size());
                     return CompletableFuture.completedFuture(
                             rebased);
                 }), null, -1).join();
@@ -1165,7 +1164,7 @@ class ModelCommitProtocolTest {
         DocumentSerializer failingSerializer = mock(DocumentSerializer.class);
         when(failingSerializer.toDocument(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new MockSearchFailure());
-        ModelCommitProtocol failingProtocol = new ModelCommitProtocol(
+        Commit failingProtocol = repository.new Commit(
                 eventStoreClient, serializer, failingSerializer,
                 DispatchInterceptor.noOp, "client-1");
 

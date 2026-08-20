@@ -32,6 +32,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.Tracker;
@@ -56,7 +57,7 @@ import java.util.function.Supplier;
  *
  * <p>Every automatic, explicit, graph, collection and retry request enters this pipeline. Payload-specific behavior is
  * supplied by immutable {@link ModelDefinition model definitions}; batch-local ordering is delegated exclusively to
- * {@link ModelBatchScope}; and {@link ModelCommitProtocol} owns only the wire boundary.</p>
+ * {@link ModelBatchScope}; and the repository owns wire preparation and authoritative commit completion.</p>
  */
 @Slf4j
 final class ModelPipeline {
@@ -64,7 +65,7 @@ final class ModelPipeline {
             CompletableFuture.completedFuture(null);
 
     private final DefaultModelRepository repository;
-    private final ModelCommitProtocol protocol;
+    private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
@@ -110,12 +111,11 @@ final class ModelPipeline {
         this.awaitAfterHandlerCommitsBeforeResults =
                 io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty(
                         ModelCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, true);
-        this.protocol = new ModelCommitProtocol(
+        this.repositoryCommit = repository.new Commit(
                 eventStoreClient, serializer, documentSerializer,
-                eventDispatchInterceptor, source, snapshotSerializer,
-                this::afterCommitBatch);
+                eventDispatchInterceptor, source, snapshotSerializer);
         this.batchLifecycle = new ModelBatchScope.BatchLifecycle(
-                protocol::beginReadyBatch, protocol::beginBatch,
+                repositoryCommit::beginReadyBatch, repositoryCommit::beginBatch,
                 () -> awaitAfterHandlerCommitsBeforeResults);
     }
 
@@ -173,7 +173,7 @@ final class ModelPipeline {
             return COMPLETED_VOID;
         }
         ModelCommitBatchingClient.ModelCommitBatch transportBatch =
-                protocol.beginReadyBatch();
+                repositoryCommit.beginReadyBatch();
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         List<CompletableFuture<CompletableFuture<Void>>> starts =
                 new ArrayList<>(messages.size());
@@ -437,7 +437,7 @@ final class ModelPipeline {
         CompletableFuture<CommitAttempt> reevaluate(
                 CommitModelsResult result,
                 CommitAttempt current,
-                ModelCommitProtocol.PreparedCommit original);
+                Commit.Outcome original);
     }
 
     private CompletableFuture<Object> executeEvaluation(
@@ -479,56 +479,36 @@ final class ModelPipeline {
             Map<String, Set<String>> awaitedGraphProjections,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
-                    Runnable localCommitComplete =
-                            repository.beginLocalCommit(
-                                    writtenModelIds(evaluation));
+        Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
+                ? Retry.accepting((result, current, original) -> {
                     try {
-                        Retry retry = effectiveConflictPolicy
-                                == ModelConflictPolicy.ACCEPT
-                                ? Retry.accepting(
-                                        (result, current, original) -> {
-                                            try {
-                                                return CompletableFuture.completedFuture(
-                                                        rebase(
-                                                                original.rebaseMessages(),
-                                                                result.getRebaseStateIndex()));
-                                            } catch (Throwable failure) {
-                                                return CompletableFuture.failedFuture(failure);
-                                            }
-                                        })
-                                : Retry.conflicts(
-                                        conflictResolver,
-                                        maxConflictRetries,
-                                        (conflict, current, original) ->
-                                                reload(message, current, conflict));
-                        CompletableFuture<Optional<CommitModelsResult>> result =
-                                commit(
-                                        protocol, message.getMessageId(), evaluation,
-                                        effectiveConflictPolicy, retry,
-                                        transportBatch, transportSlot);
-                        CompletableFuture<Optional<CommitModelsResult>> committed =
-                                result.whenComplete(
-                                        (commitResult, failure) -> localCommitComplete.run());
-                        CompletableFuture<Optional<CommitModelsResult>> completed =
-                                awaitedGraphProjections.isEmpty()
-                                        ? committed
-                                        : committed.thenCompose(commitResult ->
-                                                awaitGraphProjections(
-                                                        commitResult,
-                                                        awaitedGraphProjections));
-                        return completed.handle((commitResult, failure) ->
-                                    finishEvaluation(
-                                        evaluation,
-                                        effectiveConflictPolicy,
-                                        failure));
+                        return CompletableFuture.completedFuture(
+                                rebase(original.attempt().rebaseMessages(), result.getRebaseStateIndex()));
                     } catch (Throwable failure) {
-                        localCommitComplete.run();
-                        throw failure;
+                        return CompletableFuture.failedFuture(failure);
                     }
+                })
+                : Retry.conflicts(
+                        conflictResolver, maxConflictRetries,
+                        (conflict, current, original) -> reload(message, current, conflict));
+        CompletableFuture<Optional<CommitModelsResult>> committed =
+                repositoryCommit.trackLocalCommit(
+                        evaluation,
+                        () -> commit(
+                                repositoryCommit, message.getMessageId(), evaluation,
+                                effectiveConflictPolicy, retry,
+                                transportBatch, transportSlot));
+        CompletableFuture<Optional<CommitModelsResult>> completed =
+                awaitedGraphProjections.isEmpty()
+                        ? committed
+                        : committed.thenCompose(commitResult ->
+                                awaitGraphProjections(commitResult, awaitedGraphProjections));
+        return completed.handle((commitResult, failure) ->
+                finishEvaluation(evaluation, effectiveConflictPolicy, failure));
     }
 
     static CompletableFuture<Optional<CommitModelsResult>> commit(
-            ModelCommitProtocol protocol,
+            Commit repositoryCommit,
             String commitId,
             CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy,
@@ -536,27 +516,27 @@ final class ModelPipeline {
             ModelCommitBatchingClient.ModelCommitBatch batch,
             int batchSlot) {
         Objects.requireNonNull(retry, "retry");
-        ModelCommitProtocol.PreparedCommit original = protocol.prepare(
+        Commit.Outcome original = repositoryCommit.prepare(
                 commitId, evaluation, conflictPolicy);
         return commit(
-                protocol, commitId, evaluation, conflictPolicy,
+                repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
                 ThreadLocalContext.capture(), 0, batch, batchSlot);
     }
 
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
-            ModelCommitProtocol protocol,
+            Commit repositoryCommit,
             String commitId,
             CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy,
-            ModelCommitProtocol.PreparedCommit original,
-            ModelCommitProtocol.PreparedCommit prepared,
+            Commit.Outcome original,
+            Commit.Outcome prepared,
             Retry retry,
             ThreadLocalContext.Snapshot context,
             int attempts,
             ModelCommitBatchingClient.ModelCommitBatch batch,
             int batchSlot) {
-        return protocol.commitPrepared(prepared, batch, batchSlot)
+        return repositoryCommit.commitPrepared(prepared, batch, batchSlot)
                 .thenCompose(optional -> {
                     if (optional.isEmpty()) {
                         return CompletableFuture.completedFuture(optional);
@@ -589,13 +569,13 @@ final class ModelPipeline {
                                                             commitId, next.readStateIndex(),
                                                             result.getRebaseStateIndex())));
                                 }
-                                ModelCommitProtocol.PreparedCommit nextPrepared =
+                                Commit.Outcome nextPrepared =
                                         retry.accepting()
-                                        && !original.hasCascadedDeletion()
-                                                ? protocol.prepareRebased(commitId, original, next)
-                                                : protocol.prepare(commitId, next, conflictPolicy);
+                                        && !original.attempt().hasCascadedDeletion()
+                                                ? repositoryCommit.prepareRebased(commitId, original, next)
+                                                : repositoryCommit.prepare(commitId, next, conflictPolicy);
                                 return commit(
-                                        protocol, commitId, next, conflictPolicy,
+                                        repositoryCommit, commitId, next, conflictPolicy,
                                         original, nextPrepared, retry,
                                         context, attempts + 1, null, -1);
                             });
@@ -653,20 +633,6 @@ final class ModelPipeline {
         }
         throw new java.util.concurrent.CompletionException(
                 failure);
-    }
-
-    private static List<String> writtenModelIds(
-            CommitAttempt evaluation) {
-        List<Change> transitions =
-                evaluation.transitions();
-        if (transitions.size() == 1) {
-            return List.of(
-                    transitions.getFirst().modelId());
-        }
-        return transitions.stream()
-                .map(Change::modelId)
-                .distinct()
-                .toList();
     }
 
     private CompletableFuture<Optional<CommitModelsResult>>
@@ -844,119 +810,6 @@ final class ModelPipeline {
                             current.getCurrentRelationStateIndex()));
         }
         return result;
-    }
-
-    private CompletableFuture<Void> afterCommitBatch(
-            List<ModelCommitProtocol.CommittedCommit> committed) {
-        List<DefaultModelRepository.CommittedModel> committedModels =
-                new ArrayList<>(committed.size());
-        for (ModelCommitProtocol.CommittedCommit item : committed) {
-            createCommittedModels(item, committedModels);
-        }
-        repository.updateAfterCommit(committedModels);
-        return CompletableFuture.completedFuture(null);
-    }
-
-    private void createCommittedModels(
-            ModelCommitProtocol.CommittedCommit committed,
-            List<DefaultModelRepository.CommittedModel> target) {
-        if (committed.prepared().attempt().stepCount()
-            != committed.result().getSubsteps().size()) {
-            throw new IllegalStateException(
-                    "Model commit returned a different number of substeps than requested");
-        }
-        if (committed.prepared().attempt().stepCount() == 1
-            && committed.prepared().attempt().stepChanges(0).size() == 1) {
-            Change transition =
-                    committed.prepared().attempt().stepChanges(0).getFirst();
-            if (!committed.result().hasSingleTargetResult()) {
-                throw new IllegalStateException(
-                        "Model commit returned a different number of targets than requested");
-            }
-            if (!transition.updateState()) {
-                return;
-            }
-            var commitStep = committed.prepared().commit()
-                    .getSubsteps().getFirst();
-            Instant timestamp = commitStep.getEvent() == null
-                    ? Instant.now()
-                    : Instant.ofEpochMilli(
-                            commitStep.getEvent().getTimestamp());
-            target.add(
-                    new DefaultModelRepository.CommittedModel(
-                            transition.modelId(),
-                            transition.modelType(),
-                            transition.defaults().model(),
-                            transition.defaults().metadata().entityId().orElseThrow(),
-                            committed.result().isSingleTargetHistoryComplete(),
-                            new DefaultModelRepository.CommittedRevision(
-                                    transition.after(),
-                                    committed.result().getSingleTargetSequenceNumber(),
-                                    committed.result().getSingleTargetStateIndex(),
-                                    committed.prepared().singleEventMessageId(),
-                                    committed.result().getSingleTargetEventIndex(),
-                                    timestamp)));
-            return;
-        }
-        LinkedHashMap<String, DefaultModelRepository.CommittedModel> finalStates =
-                new LinkedHashMap<>();
-        for (int substep = 0;
-             substep < committed.prepared().attempt().stepCount();
-             substep++) {
-            List<Change> transitions =
-                    committed.prepared().attempt().stepChanges(substep);
-            var substepResult = committed.result().getSubsteps().get(substep);
-            var commitStep = committed.prepared().commit().getSubsteps().get(substep);
-            if (commitStep.getTargets().size()
-                != substepResult.getTargets().size()) {
-                throw new IllegalStateException(
-                        "Model commit returned a different number of targets than requested");
-            }
-            if (transitions.isEmpty()) {
-                continue;
-            }
-            if (transitions.size() != substepResult.getTargets().size()) {
-                throw new IllegalStateException(
-                        "Model commit returned a different number of targets than requested");
-            }
-            Instant timestamp = commitStep.getEvent() == null
-                    ? Instant.now()
-                    : Instant.ofEpochMilli(commitStep.getEvent().getTimestamp());
-            for (int targetIndex = 0;
-                 targetIndex < transitions.size();
-                 targetIndex++) {
-                Change transition = transitions.get(targetIndex);
-                if (!transition.updateState()) {
-                    continue;
-                }
-                var targetResult = substepResult.getTargets().get(targetIndex);
-                DefaultModelRepository.CommittedModel previous =
-                        finalStates.get(transition.modelId());
-                List<DefaultModelRepository.CommittedRevision> revisions =
-                        previous == null
-                                ? new ArrayList<>()
-                                : new ArrayList<>(
-                                        previous.revisions());
-                revisions.add(
-                        new DefaultModelRepository.CommittedRevision(
-                                transition.after(),
-                                targetResult.getSequenceNumber(),
-                                substepResult.getStateIndex(),
-                                commitStep.getEvent() == null
-                                        ? null : commitStep.getEvent().getMessageId(),
-                                substepResult.getEventIndex(),
-                                timestamp));
-                finalStates.put(
-                        transition.modelId(),
-                        new DefaultModelRepository.CommittedModel(
-                                transition.modelId(), transition.modelType(),
-                                transition.defaults().model(),
-                                transition.defaults().metadata().entityId().orElseThrow(),
-                                targetResult.isHistoryComplete(),
-                                revisions));
-            }
-        }
-        target.addAll(finalStates.values());
     }
 
     private CommitAttempt evaluate(

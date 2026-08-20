@@ -18,6 +18,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 
 import java.lang.reflect.Executable;
@@ -33,7 +34,7 @@ record Change(
         Defaults defaults,
         AggregateEventRouting eventRouting, ModelConflictPolicy conflictPolicy,
         boolean active, boolean storeEvent, boolean publishEvent,
-        boolean updateState) {
+        boolean updateState) implements CommitAttempt.Transition {
 
     Change {
         Objects.requireNonNull(modelId, "modelId");
@@ -108,7 +109,7 @@ record Change(
                           combined, addition.cascadedDeletion);
     }
 
-    Change withEffects(
+    public Change withEffects(
             boolean storeEvent, boolean publishEvent,
             boolean updateState) {
         return new Change(
@@ -120,7 +121,22 @@ record Change(
                 storeEvent, publishEvent, updateState);
     }
 
-    void validate() {
+    /** Whether this change originated from a direct graph mutation rather than a model handler. */
+    public boolean graphChange() {
+        return !cascadedDeletion && (replay != null || handler == null && after == null);
+    }
+
+    /** Recreates the direct graph mutation as one apply-only rebase message. */
+    DeserializingMessage graphReplay(DeserializingMessage eventMessage) {
+        if (!graphChange()) {
+            throw new IllegalStateException("Only direct graph changes can be replayed this way");
+        }
+        return ModelExecutionPlan.graphChangeReplay(
+                eventMessage, modelId, modelType,
+                replay == null ? current -> current.update(ignored -> null) : replay);
+    }
+
+    public void validate() {
         if (active && defaults.model().eventSourced() && updateState && !storeEvent) {
             throw new IllegalStateException(
                     "Event-sourced model %s cannot change through %s without storing its reconstructing event. "
@@ -160,7 +176,7 @@ record Change(
             EntityMetadata metadata,
             EntityMetadata.RootConfiguration model,
             EntityMetadata.SnapshotSettings snapshots,
-            String collection) {
+            String collection) implements CommitAttempt.TransitionDefaults {
 
         private static Defaults of(Class<?> type) {
             return ReflectionUtils.getTypeMetadata(type).specializedMetadata(

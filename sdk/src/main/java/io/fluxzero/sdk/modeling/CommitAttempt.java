@@ -341,7 +341,7 @@ public final class CommitAttempt implements CommitDependency {
                 .cascadeRootIds = Set.copyOf(modelIds);
     }
 
-    List<String> readModelIds() {
+    public List<String> readModelIds() {
         return evaluation().readModelIds;
     }
 
@@ -349,16 +349,21 @@ public final class CommitAttempt implements CommitDependency {
         return evaluation().readModelTypes;
     }
 
-    int stepCount() {
+    public int stepCount() {
         return evaluation().stepMessages.size();
     }
 
-    DeserializingMessage stepMessage(int index) {
+    public DeserializingMessage stepMessage(int index) {
         return evaluation().stepMessages.get(index);
     }
 
     List<Change> stepChanges(int index) {
         return evaluation().stepChanges.get(index);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Transition> commitChanges(int index) {
+        return (List<Transition>) (List<?>) stepChanges(index);
     }
 
     List<DeserializingMessage> stepMessages() {
@@ -373,12 +378,104 @@ public final class CommitAttempt implements CommitDependency {
         return evaluation().changes;
     }
 
+    @SuppressWarnings("unchecked")
+    public List<Transition> commitTransitions() {
+        return (List<Transition>) (List<?>) transitions();
+    }
+
     Map<String, Object> finalValues() {
         return evaluation().finalValues;
     }
 
-    Set<String> cascadeRootIds() {
+    public Set<String> cascadeRootIds() {
         return evaluation().cascadeRootIds;
+    }
+
+    List<DeserializingMessage> rebaseMessages() {
+        if (transitions().stream().noneMatch(Change::graphChange)) {
+            return stepMessages();
+        }
+        List<DeserializingMessage> result = new ArrayList<>(stepCount() + 1);
+        for (int step = 0; step < stepCount(); step++) {
+            List<Change> group = stepChanges(step);
+            if (group.isEmpty()) {
+                continue;
+            }
+            if (group.stream().noneMatch(Change::graphChange)) {
+                result.add(stepMessage(step));
+                continue;
+            }
+            DeserializingMessage eventMessage = stepMessage(step);
+            if (group.stream().anyMatch(change -> !change.graphChange())) {
+                result.add(eventMessage);
+            }
+            group.stream().filter(Change::graphChange)
+                    .map(change -> change.graphReplay(eventMessage))
+                    .forEach(result::add);
+        }
+        return List.copyOf(result);
+    }
+
+    boolean hasCascadedDeletion() {
+        return transitions().stream().anyMatch(Change::cascadedDeletion);
+    }
+
+    @SuppressWarnings("unchecked")
+    public CommitAttempt prepared(
+            List<DeserializingMessage> messages,
+            List<? extends List<? extends Transition>> changes) {
+        CommitAttempt result = detached();
+        result.evaluated(
+                readStateIndex(), readModelIds(), readModelTypes(), messages,
+                (List<List<Change>>) (List<?>) changes);
+        result.cascadeRoots(cascadeRootIds());
+        return result;
+    }
+
+    /** Read-only repository view of one applied mutation without exposing the package-private Change carrier. */
+    public sealed interface Transition permits Change {
+        String modelId();
+
+        Class<?> modelType();
+
+        long beforeSequenceNumber();
+
+        Long beforeLastEventIndex();
+
+        Object before();
+
+        Object after();
+
+        boolean cascadedDeletion();
+
+        TransitionDefaults defaults();
+
+        AggregateEventRouting eventRouting();
+
+        boolean active();
+
+        boolean storeEvent();
+
+        boolean publishEvent();
+
+        boolean updateState();
+
+        Transition withEffects(boolean storeEvent, boolean publishEvent, boolean updateState);
+
+        void validate();
+
+        boolean graphChange();
+    }
+
+    /** Resolved class-scoped commit defaults cached centrally by ReflectionUtils.TypeMetadata. */
+    public sealed interface TransitionDefaults permits Change.Defaults {
+        EntityMetadata metadata();
+
+        EntityMetadata.RootConfiguration model();
+
+        EntityMetadata.SnapshotSettings snapshots();
+
+        String collection();
     }
 
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {

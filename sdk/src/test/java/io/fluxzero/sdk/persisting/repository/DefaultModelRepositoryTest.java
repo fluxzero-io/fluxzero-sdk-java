@@ -35,7 +35,6 @@ import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.MemoryPressureController;
-import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -46,6 +45,7 @@ import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Alias;
+import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
@@ -54,6 +54,7 @@ import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
+import io.fluxzero.sdk.modeling.ModelCommitTestBuilder;
 import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
@@ -62,6 +63,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.Searchable;
+import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -93,7 +95,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static io.fluxzero.common.MessageType.EVENT;
@@ -1084,9 +1085,9 @@ class DefaultModelRepositoryTest {
                         cache, List.of());
         AccountId id = new AccountId("fenced");
         repository.updateAfterCommit(List.of(
-                committed(id, 20, 1L, 20L)));
+                committed(repository, id, 20, 1L, 20L)));
         repository.updateAfterCommit(List.of(
-                committed(id, 10, 0L, 10L)));
+                committed(repository, id, 10, 0L, 10L)));
         AtomicReference<Entity<?>> cached =
                 new AtomicReference<>();
         cache.<Object>modifyEach((ignored, value) -> {
@@ -1103,68 +1104,6 @@ class DefaultModelRepositoryTest {
         assertEquals(20L,
                      ((ModelRoot<?>) cached.get())
                              .stateIndex());
-        cache.close();
-    }
-
-    @Test
-    void validatesValueIdsFromExistingCommittedModelConstructors() {
-        JacksonSerializer serializer =
-                new JacksonSerializer();
-        Cache cache = new DefaultCache();
-        DefaultModelRepository repository =
-                new DefaultModelRepository(
-                        client, documentStore, serializer,
-                        mock(EntityHelper.class), null,
-                        cache, List.of());
-        AccountId expected = new AccountId("expected");
-
-        EventSourcingException exception = assertThrows(
-                EventSourcingException.class,
-                () -> repository.updateAfterCommit(List.of(
-                        committed(
-                                expected,
-                                new Account(
-                                        new AccountId("other"), 1)))));
-
-        assertEquals(
-                "Stored model document 'account-expected' reports @EntityId 'account-other'",
-                exception.getMessage());
-        cache.close();
-    }
-
-    @Test
-    void doesNotRereadValueIdsValidatedByCommitPlanner() {
-        JacksonSerializer serializer =
-                new JacksonSerializer();
-        Cache cache = new DefaultCache();
-        DefaultModelRepository repository =
-                new DefaultModelRepository(
-                        client, documentStore, serializer,
-                        mock(EntityHelper.class), null,
-                        cache, List.of());
-        AccountId id = new AccountId("prevalidated");
-        EntityMetadata metadata =
-                EntityMetadata.validate(Account.class);
-        EntityMetadata.Property actualEntityId =
-                metadata.entityId().orElseThrow();
-        MemberInvoker unreadReader =
-                mock(MemberInvoker.class);
-        EntityMetadata.Property unreadEntityId =
-                new EntityMetadata.Property(
-                        actualEntityId.name(),
-                        actualEntityId.member(),
-                        actualEntityId.type(),
-                        actualEntityId.genericType(),
-                        unreadReader);
-
-        repository.updateAfterCommit(List.of(
-                new DefaultModelRepository.CommittedModel(
-                        id.toString(), Account.class,
-                        metadata.rootConfiguration().orElseThrow(),
-                        unreadEntityId, true,
-                        revision(new Account(id, 1)))));
-
-        verifyNoInteractions(unreadReader);
         cache.close();
     }
 
@@ -1227,7 +1166,7 @@ class DefaultModelRepositoryTest {
 
             repository.updateAfterCommit(
                     List.of(committed(
-                            id, 20, 1L,
+                            repository, id, 20, 1L,
                             oldStateIndex + 1L)));
             allowReconstructionCompletion
                     .countDown();
@@ -1241,36 +1180,36 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    private static DefaultModelRepository.CommittedModel
+    private static DefaultModelRepository.Commit.Outcome
             committed(
+                    DefaultModelRepository repository,
                     AccountId id,
                     int balance,
                     long sequenceNumber,
                     long stateIndex) {
-        return new DefaultModelRepository.CommittedModel(
-                id.toString(), Account.class, true,
-                List.of(
-                        new DefaultModelRepository.CommittedRevision(
-                                new Account(id, balance),
-                                sequenceNumber, stateIndex,
-                                "event-" + stateIndex,
-                                stateIndex,
-                                Instant.ofEpochMilli(
-                                        stateIndex))));
-    }
-
-    private static DefaultModelRepository.CommittedModel committed(
-            AccountId id, Account account) {
-        return new DefaultModelRepository.CommittedModel(
-                id.toString(), Account.class, true,
-                revision(account));
-    }
-
-    private static DefaultModelRepository.CommittedRevision revision(
-            Account account) {
-        return new DefaultModelRepository.CommittedRevision(
-                account, 1L, 1L, "event-1", 1L,
-                Instant.EPOCH);
+        try {
+            JacksonSerializer serializer = new JacksonSerializer();
+            Account value = new Account(id, balance);
+            DeserializingMessage message = new DeserializingMessage(
+                    new Message(new ChangeAccount(id, 0)), EVENT, serializer);
+            CommitAttempt attempt = ModelCommitTestBuilder.attempt(
+                    Math.max(0L, stateIndex - 1L), id.toString(), Account.class,
+                    sequenceNumber - 1L, null, value,
+                    ChangeAccount.class.getDeclaredMethod("apply", Account.class), message);
+            DefaultModelRepository.Commit committer = repository.new Commit(
+                    mock(EventStoreClient.class), serializer, serializer,
+                    DispatchInterceptor.noOp, "test");
+            DefaultModelRepository.Commit.Outcome prepared =
+                    committer.prepare("commit-" + stateIndex, attempt);
+            return prepared.accepted(
+                    CommitModelsResult.acceptedSingleTarget(
+                            prepared.commit().getRequestId(),
+                            prepared.commit().getCommitId(),
+                            stateIndex, sequenceNumber, id.toString(),
+                            stateIndex, true));
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError(e);
+        }
     }
 
     @Test

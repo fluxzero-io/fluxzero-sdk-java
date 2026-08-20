@@ -36,6 +36,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
@@ -768,7 +769,7 @@ class ModelCommitHandlerRegistryTest {
                 });
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
         });
-        CompletableFuture<List<DefaultModelRepository.CommittedModel>> updatedModels =
+        CompletableFuture<List<Commit.Outcome>> updatedModels =
                 new CompletableFuture<>();
         doAnswer(invocation -> {
             updatedModels.complete(invocation.getArgument(0));
@@ -797,7 +798,8 @@ class ModelCommitHandlerRegistryTest {
                     nullable(Long.class), anyMap());
             assertEquals(
                     committedEventId.join(),
-                    updatedModels.join().getFirst().revisions().getFirst().lastEventId());
+                    updatedModels.join().getFirst().commit().getSubsteps()
+                            .getFirst().getEvent().getMessageId());
         } finally {
             subject.close();
         }
@@ -1653,10 +1655,11 @@ class ModelCommitHandlerRegistryTest {
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
         });
         doAnswer(invocation -> {
-            List<DefaultModelRepository.CommittedModel> committed = invocation.getArgument(0);
-            committed.forEach(model -> durable.put(
-                    model.modelId(),
-                    model.revisions().getLast().value()));
+            List<Commit.Outcome> committed = invocation.getArgument(0);
+            committed.stream()
+                    .flatMap(outcome -> outcome.attempt().transitions().stream())
+                    .filter(Change::updateState)
+                    .forEach(change -> durable.put(change.modelId(), change.after()));
             return null;
         }).when(repository).updateAfterCommit(any());
     }
