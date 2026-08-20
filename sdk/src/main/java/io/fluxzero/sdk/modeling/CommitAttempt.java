@@ -511,13 +511,13 @@ public final class CommitAttempt implements CommitDependency {
         state.initialized.complete(null);
     }
 
-    <T> CompletableFuture<T> executeAfterRelease(
-            Function<Boolean, CompletableFuture<T>> action) {
+    void submitAfterRelease(
+            Function<Boolean, CompletableFuture<Object>> action) {
         Lifecycle state = lifecycle();
         if (!state.arrived.compareAndSet(false, true)) {
             throw new IllegalStateException("Model commit attempt was awaited twice");
         }
-        return state.release.thenCompose(ignored -> {
+        CompletableFuture<Object> submitted = state.release.thenCompose(ignored -> {
             boolean dependent = hasDependencies();
             if (dependent) {
                 detachTransport();
@@ -525,10 +525,7 @@ public final class CommitAttempt implements CommitDependency {
             return dependencyCompletion().thenCompose(unused ->
                     Objects.requireNonNull(action.apply(dependent), "Model commit attempt returned null"));
         }).whenComplete((ignored, failure) -> settleTransport());
-    }
-
-    void bind(CompletableFuture<?> result) {
-        result.whenComplete((value, failure) -> {
+        submitted.whenComplete((value, failure) -> {
             if (failure == null) {
                 complete(value);
             } else {

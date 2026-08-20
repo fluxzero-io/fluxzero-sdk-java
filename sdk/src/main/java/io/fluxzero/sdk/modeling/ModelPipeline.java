@@ -271,24 +271,79 @@ final class ModelPipeline {
             ExecutionRequest request,
             ModelCommitPolicy policy,
             Evaluation evaluator) {
-        return ModelBatchScope.execute(
-                this, request.message(), policy, batchLifecycle,
-                !localHandlingEnabled.getAsBoolean(),
-                (attempt, retry, batched) -> {
-                    CommitAttempt result =
-                            evaluator.evaluate(request, attempt, retry, batched);
-                    if (!retry) {
-                        warnEmptyExplicitApply(request, result);
+        CommitAttempt attempt = ModelBatchScope.register(
+                this, request.message(), policy, batchLifecycle);
+        ThreadLocalContext.Snapshot context = request.message().captureContext();
+        boolean asynchronousReevaluation = !localHandlingEnabled.getAsBoolean();
+        CommitAttempt initial;
+        try {
+            initial = context.supply(() -> ModelBatchScope.withDependency(
+                    attempt, () -> evaluator.evaluate(
+                            request, attempt, false, attempt.batched())));
+            if (initial != attempt) {
+                throw new IllegalStateException("Model evaluation replaced its commit attempt");
+            }
+            warnEmptyExplicitApply(request, initial);
+            ModelBatchScope.stage(
+                    ModelBatchScope.namespace(request.message()), initial, true);
+            attempt.initialize(initial.readModelIds());
+        } catch (Throwable failure) {
+            attempt.fail(failure);
+            return attempt.completion();
+        }
+        try {
+            if (attempt.hasDependencies()) {
+                if (attempt.batched() && !attempt.policy().commitAfterBatch()
+                    && attempt.transportBatch() != null) {
+                    attempt.flushTransport();
+                }
+                attempt.detachTransport();
+            }
+            attempt.submitAfterRelease(dependent -> {
+                CompletableFuture<CommitAttempt> ready = dependent
+                        ? reevaluate(
+                                attempt, context, request, evaluator,
+                                asynchronousReevaluation)
+                        : CompletableFuture.completedFuture(initial);
+                return ready.thenCompose(context.wrap(evaluation -> {
+                    if (request.skipEmpty() && evaluation.transitions().isEmpty()) {
+                        return CompletableFuture.completedFuture(null);
                     }
-                    return result;
-                },
-                (evaluation, batch, slot) ->
-                        request.skipEmpty() && evaluation.transitions().isEmpty()
-                                ? CompletableFuture.completedFuture(null)
-                                : executeEvaluation(
-                                        request.message(), evaluation,
-                                        batch == null ? request.transport() : batch,
-                                        batch == null ? request.transportSlot() : slot));
+                    ModelCommitBatchingClient.ModelCommitBatch batch =
+                            attempt.transportBatch();
+                    return executeEvaluation(
+                            request.message(), evaluation,
+                            batch == null ? request.transport() : batch,
+                            batch == null ? request.transportSlot() : attempt.transportSlot());
+                }));
+            });
+        } catch (Throwable failure) {
+            attempt.fail(failure);
+        }
+        return attempt.completion();
+    }
+
+    private CompletableFuture<CommitAttempt> reevaluate(
+            CommitAttempt attempt,
+            ThreadLocalContext.Snapshot context,
+            ExecutionRequest request,
+            Evaluation evaluator,
+            boolean asynchronous) {
+        int dependencyCount = attempt.dependencyCount();
+        Supplier<CommitAttempt> evaluation = () -> context.supply(() ->
+                ModelBatchScope.withDependency(attempt, () ->
+                        evaluator.evaluate(request, attempt, true, attempt.batched())));
+        CompletableFuture<CommitAttempt> result =
+                attempt.batched() && asynchronous
+                        ? attempt.dependencyCompletion().thenCompose(ignored ->
+                                CompletableFuture.supplyAsync(context.wrap(evaluation)))
+                        : attempt.dependencyCompletion().thenApply(ignored -> evaluation.get());
+        return result.thenCompose(value ->
+                attempt.dependencyCount() == dependencyCount
+                        ? CompletableFuture.completedFuture(value)
+                        : reevaluate(
+                                attempt, context, request, evaluator,
+                                asynchronous));
     }
 
     private CommitAttempt evaluateLive(

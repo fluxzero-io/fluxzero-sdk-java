@@ -55,7 +55,7 @@ public final class ModelBatchScope {
     private ModelBatchScope() {
     }
 
-    private static void stage(
+    static void stage(
             String namespace,
             CommitAttempt evaluation,
             boolean trackedCompletion) {
@@ -109,7 +109,7 @@ public final class ModelBatchScope {
         return evaluation.completion();
     }
 
-    private static <T> T withDependency(CommitAttempt dependency, Supplier<T> action) {
+    static <T> T withDependency(CommitAttempt dependency, Supplier<T> action) {
         CommitAttempt previous = currentDependency.get();
         try {
             if (dependency == null) {
@@ -135,46 +135,13 @@ public final class ModelBatchScope {
                         .map(CommitDependency::attempt).orElse(null), action);
     }
 
-    static CompletableFuture<Object> execute(
-            Object batchKey,
-            DeserializingMessage message,
-            ModelCommitPolicy policy,
-            BatchLifecycle lifecycle,
-            boolean asynchronousReevaluation,
-            Evaluator evaluator,
-            CommitStage commitStage) {
-        CommitAttempt entry = policy == null || DeserializingMessage.getCurrent() == null
-                      || !policy.commitAfterBatch() && !policy.awaitAfterBatch()
-                ? new CommitAttempt()
-                : register(batchKey, message, policy, lifecycle);
-        ThreadLocalContext.Snapshot context = message.captureContext();
-        CommitAttempt initial;
-        try {
-            initial = context.supply(() -> withDependency(
-                    entry, () -> evaluator.evaluate(entry, false, entry.batched())));
-            if (initial != entry) {
-                throw new IllegalStateException("Model evaluation replaced its commit attempt");
-            }
-            stage(namespace(message), initial, true);
-            entry.initialize(initial.readModelIds());
-        } catch (Throwable failure) {
-            entry.fail(failure);
-            return entry.completion();
-        }
-        try {
-            CompletableFuture<Object> submitted = submit(
-                    entry, initial, context, asynchronousReevaluation,
-                    evaluator, commitStage);
-            entry.bind(submitted);
-        } catch (Throwable failure) {
-            entry.fail(failure);
-        }
-        return entry.completion();
-    }
-
-    private static CommitAttempt register(
+    static CommitAttempt register(
             Object key, DeserializingMessage message,
             ModelCommitPolicy policy, BatchLifecycle lifecycle) {
+        if (policy == null || DeserializingMessage.getCurrent() == null
+            || !policy.commitAfterBatch() && !policy.awaitAfterBatch()) {
+            return new CommitAttempt();
+        }
         ModelBatchScope scope = DeserializingMessage.computeForMessageBatchIfAbsent(
                 RESOURCE_KEY, ignored -> new ModelBatchScope());
         if (scope == null) {
@@ -188,49 +155,7 @@ public final class ModelBatchScope {
         return batch.register(message, policy);
     }
 
-    private static CompletableFuture<Object> submit(
-            CommitAttempt entry,
-            CommitAttempt initial,
-            ThreadLocalContext.Snapshot context,
-            boolean asynchronousReevaluation,
-            Evaluator evaluator,
-            CommitStage commitStage) {
-        if (entry.hasDependencies()) {
-            if (entry.batched() && !entry.policy().commitAfterBatch()
-                && entry.transportBatch() != null) {
-                entry.flushTransport();
-            }
-            entry.detachTransport();
-        }
-        return entry.executeAfterRelease(dependent -> {
-            CompletableFuture<CommitAttempt> ready = dependent
-                    ? reevaluate(entry, context, asynchronousReevaluation, evaluator)
-                    : CompletableFuture.completedFuture(initial);
-            return ready.thenCompose(context.wrap(evaluation -> Objects.requireNonNull(
-                    commitStage.commit(evaluation, entry.transportBatch(), entry.transportSlot()),
-                    "Model pipeline commit stage returned null")));
-        });
-    }
-
-    private static CompletableFuture<CommitAttempt> reevaluate(
-            CommitAttempt entry,
-            ThreadLocalContext.Snapshot context,
-            boolean asynchronous,
-            Evaluator evaluator) {
-        int dependencyCount = entry.dependencyCount();
-        Supplier<CommitAttempt> evaluation = () ->
-                context.supply(() -> withDependency(
-                        entry, () -> evaluator.evaluate(entry, true, entry.batched())));
-        CompletableFuture<CommitAttempt> result = entry.batched() && asynchronous
-                ? entry.dependencyCompletion().thenCompose(ignored ->
-                        CompletableFuture.supplyAsync(context.wrap(evaluation)))
-                : entry.dependencyCompletion().thenApply(ignored -> evaluation.get());
-        return result.thenCompose(value -> entry.dependencyCount() == dependencyCount
-                ? CompletableFuture.completedFuture(value)
-                : reevaluate(entry, context, asynchronous, evaluator));
-    }
-
-    private static String namespace(DeserializingMessage message) {
+    static String namespace(DeserializingMessage message) {
         DeserializingMessage current = DeserializingMessage.getCurrent();
         return io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace(current == null ? message : current);
     }
@@ -549,19 +474,6 @@ public final class ModelBatchScope {
             Supplier<ModelCommitBatchingClient.ModelCommitBatch> readyBatch,
             Function<Integer, ModelCommitBatchingClient.ModelCommitBatch> batch,
             BooleanSupplier awaitBeforeResultPublication) {
-    }
-
-    @FunctionalInterface
-    interface Evaluator {
-        CommitAttempt evaluate(CommitAttempt attempt, boolean retry, boolean batched);
-    }
-
-    @FunctionalInterface
-    interface CommitStage {
-        CompletableFuture<Object> commit(
-                CommitAttempt evaluation,
-                ModelCommitBatchingClient.ModelCommitBatch batch,
-                int slot);
     }
 
     private static final class Batch {
