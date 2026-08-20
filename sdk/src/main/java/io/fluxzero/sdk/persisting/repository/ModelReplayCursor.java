@@ -44,10 +44,10 @@ import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.CommitAttempt;
-import io.fluxzero.sdk.modeling.ModelExecutionPlan;
+import io.fluxzero.sdk.modeling.ModelReducer;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
-import io.fluxzero.sdk.modeling.ModelDefinition;
+import io.fluxzero.sdk.modeling.MutationPlan;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore;
@@ -97,12 +97,12 @@ final class ModelReplayCursor {
     private final Settings settings;
     private final Serializer serializer;
     private final EntityHelper entityHelper;
-    private final ModelDefinition.Compiler modelDefinitionCompiler;
+    private final MutationPlan.Compiler modelDefinitionCompiler;
     private final Cache modelCache;
     private final ModelSnapshotStore snapshotStore;
     private final DocumentReader documentReader;
     private final ModelRepository repository;
-    private final Map<HandlerKey, ModelDefinition> replayPlans =
+    private final Map<HandlerKey, MutationPlan> replayPlans =
             new ConcurrentHashMap<>();
 
     ModelReplayCursor(EventStoreClient eventStoreClient) {
@@ -117,7 +117,7 @@ final class ModelReplayCursor {
             EventStoreClient eventStoreClient,
             Serializer serializer,
             EntityHelper entityHelper,
-            ModelDefinition.Compiler modelDefinitionCompiler,
+            MutationPlan.Compiler modelDefinitionCompiler,
             Cache modelCache,
             ModelSnapshotStore snapshotStore,
             DocumentReader documentReader,
@@ -131,7 +131,7 @@ final class ModelReplayCursor {
             Settings settings,
             Serializer serializer,
             EntityHelper entityHelper,
-            ModelDefinition.Compiler modelDefinitionCompiler,
+            MutationPlan.Compiler modelDefinitionCompiler,
             Cache modelCache,
             ModelSnapshotStore snapshotStore,
             DocumentReader documentReader,
@@ -618,7 +618,7 @@ final class ModelReplayCursor {
      * projection option and does not create a second load lifecycle.</p>
      */
     CommitAttempt context(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch,
@@ -646,9 +646,9 @@ final class ModelReplayCursor {
             boundary = ModelReadBoundary.at(ancestorStateIndex);
         }
 
-        List<ModelDefinition.ResolvedModel> eventTargets = new ArrayList<>();
-        List<ModelDefinition.ResolvedModel> documentTargets = new ArrayList<>();
-        for (ModelDefinition.ResolvedModel target : resolution.models()) {
+        List<MutationPlan.ResolvedModel> eventTargets = new ArrayList<>();
+        List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
+        for (MutationPlan.ResolvedModel target : resolution.models()) {
             EntityMetadata.RootConfiguration configuration = EntityMetadata.validate(target.modelType())
                     .rootConfiguration().orElseThrow();
             (configuration.eventSourced() || historicalBoundary ? eventTargets : documentTargets).add(target);
@@ -681,7 +681,7 @@ final class ModelReplayCursor {
                                   .rootConfiguration().orElseThrow().eventSourced());
         List<String> documentDependencies = documentTargets.stream()
                 .filter(target -> target.access().reads())
-                .map(ModelDefinition.ResolvedModel::modelId)
+                .map(MutationPlan.ResolvedModel::modelId)
                 .toList();
         if (writesEventSourcedModel && !documentDependencies.isEmpty()) {
             loadReplayableHeads(documentDependencies, ModelReadBoundary.at(stateIndex));
@@ -694,7 +694,7 @@ final class ModelReplayCursor {
                         .rootConfiguration().orElseThrow().cached())
                 ? cacheTracker.safeDocumentBoundary()
                 : null;
-        for (ModelDefinition.ResolvedModel target : documentTargets) {
+        for (MutationPlan.ResolvedModel target : documentTargets) {
             Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
             loaded.put(target.modelId(), entity);
             if (EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().cached()
@@ -704,10 +704,10 @@ final class ModelReplayCursor {
         }
 
         LinkedHashMap<String, Entity<?>> canonicalLoaded = new LinkedHashMap<>(loaded.size());
-        List<ModelDefinition.ResolvedModel> canonicalTargets =
+        List<MutationPlan.ResolvedModel> canonicalTargets =
                 new ArrayList<>(resolution.models().size());
         boolean aliasesResolved = false;
-        for (ModelDefinition.ResolvedModel target : resolution.models()) {
+        for (MutationPlan.ResolvedModel target : resolution.models()) {
             Entity<?> entity = loaded.get(target.modelId());
             String resolvedId = entity != null && entity.isPresent() && entity.id() != null
                     ? entity.id().toString() : target.modelId();
@@ -718,7 +718,7 @@ final class ModelReplayCursor {
                                     .formatted(target.modelId(), resolvedId));
                 }
                 aliasesResolved = true;
-                target = new ModelDefinition.ResolvedModel(
+                target = new MutationPlan.ResolvedModel(
                         resolvedId, target.modelType(), target.access(), target.sourceProperties());
             }
             if (canonicalLoaded.put(resolvedId, entity) != null) {
@@ -733,7 +733,7 @@ final class ModelReplayCursor {
         }
 
         if (!historicalBoundary && cacheTracker != null) {
-            for (ModelDefinition.ResolvedModel target : resolution.models()) {
+            for (MutationPlan.ResolvedModel target : resolution.models()) {
                 EntityMetadata.RootConfiguration configuration = EntityMetadata.validate(target.modelType())
                         .rootConfiguration().orElseThrow();
                 if (!configuration.cached()) {
@@ -790,11 +790,11 @@ final class ModelReplayCursor {
             return new EntityProjection(stateIndex, loaded);
         }
 
-        ModelDefinition.ResolvedModel target = new ModelDefinition.ResolvedModel(
-                modelId, modelType, ModelDefinition.Access.READ_ONLY,
+        MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
+                modelId, modelType, MutationPlan.Access.READ_ONLY,
                 List.of(metadata.entityId().orElseThrow().name()));
         CommitAttempt context = context(
-                new ModelDefinition.Resolution(List.of(target), List.of()),
+                new MutationPlan.Resolution(List.of(target), List.of()),
                 boundary, Map.of(), false, null, cacheTracker);
         return new EntityProjection(
                 context.readStateIndex(), context.entity(context.modelIds().getFirst()));
@@ -804,12 +804,12 @@ final class ModelReplayCursor {
     ModelCacheTracker.RefreshedBatch refresh(
             Map<String, Class<?>> targets,
             long safeStateIndex) {
-        List<ModelDefinition.ResolvedModel> eventTargets = new ArrayList<>();
-        List<ModelDefinition.ResolvedModel> documentTargets = new ArrayList<>();
+        List<MutationPlan.ResolvedModel> eventTargets = new ArrayList<>();
+        List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
         targets.forEach((modelId, modelType) -> {
             EntityMetadata metadata = EntityMetadata.validate(modelType);
-            ModelDefinition.ResolvedModel target = new ModelDefinition.ResolvedModel(
-                    modelId, modelType, ModelDefinition.Access.READ_ONLY,
+            MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
+                    modelId, modelType, MutationPlan.Access.READ_ONLY,
                     List.of(metadata.entityId().orElseThrow().name()));
             (metadata.rootConfiguration().orElseThrow().eventSourced()
                     ? eventTargets : documentTargets).add(target);
@@ -830,7 +830,7 @@ final class ModelReplayCursor {
 
     /** Returns a coherent current cache projection, or {@code null} when replay must establish the boundary. */
     private static CurrentProjection currentProjection(
-            List<ModelDefinition.ResolvedModel> targets,
+            List<MutationPlan.ResolvedModel> targets,
             ModelCacheTracker cacheTracker) {
         if (cacheTracker == null || targets.isEmpty()) {
             return null;
@@ -838,7 +838,7 @@ final class ModelReplayCursor {
         LinkedHashMap<String, Entity<?>> entities = new LinkedHashMap<>();
         long latestModelStateIndex = -1L;
         long sharedValidThrough = Long.MAX_VALUE;
-        for (ModelDefinition.ResolvedModel target : targets) {
+        for (MutationPlan.ResolvedModel target : targets) {
             ModelCacheTracker.CurrentModel current = cacheTracker.currentVersion(
                     target.modelId(), target.modelType());
             if (current == null
@@ -881,12 +881,12 @@ final class ModelReplayCursor {
                 ? eventStoreClient.getModelGraphBefore(new GetModelGraphBefore(request))
                 : eventStoreClient.getModelGraph(request);
         long stateIndex = response.getStateIndex();
-        List<ModelDefinition.ResolvedModel> targets = new ArrayList<>(response.getStreams().size());
+        List<MutationPlan.ResolvedModel> targets = new ArrayList<>(response.getStreams().size());
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         for (ModelEventStream stream : response.getStreams()) {
             Class<?> modelType = graphModelType(stream, rootId, rootType);
-            targets.add(new ModelDefinition.ResolvedModel(
-                    stream.getModelId(), modelType, ModelDefinition.Access.READ_ONLY,
+            targets.add(new MutationPlan.ResolvedModel(
+                    stream.getModelId(), modelType, MutationPlan.Access.READ_ONLY,
                     List.of(EntityMetadata.validate(modelType).entityId().orElseThrow().name())));
             heads.put(stream.getModelId(), stream.getHead());
         }
@@ -913,12 +913,12 @@ final class ModelReplayCursor {
     }
 
     private LinkedHashMap<String, Entity<?>> reconstructProjection(
-            List<ModelDefinition.ResolvedModel> targets,
+            List<MutationPlan.ResolvedModel> targets,
             Map<String, ModelHeadState> heads,
             long stateIndex,
             boolean cacheAtBoundary) {
-        List<ModelDefinition.ResolvedModel> eventTargets = new ArrayList<>();
-        List<ModelDefinition.ResolvedModel> documentTargets = new ArrayList<>();
+        List<MutationPlan.ResolvedModel> eventTargets = new ArrayList<>();
+        List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
         targets.forEach(target -> (EntityMetadata.validate(target.modelType())
                 .rootConfiguration().orElseThrow().eventSourced()
                 ? eventTargets : documentTargets).add(target));
@@ -933,7 +933,7 @@ final class ModelReplayCursor {
             }
             result.putAll(reconstructed.entities());
         }
-        for (ModelDefinition.ResolvedModel target : documentTargets) {
+        for (MutationPlan.ResolvedModel target : documentTargets) {
             Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
             ModelHeadState expected = heads.get(target.modelId());
             if (expected == null) {
@@ -948,9 +948,9 @@ final class ModelReplayCursor {
         }
         if (!documentTargets.isEmpty()) {
             Map<String, ModelHeadState> currentHeads = loadHeads(
-                    documentTargets.stream().map(ModelDefinition.ResolvedModel::modelId).toList(),
+                    documentTargets.stream().map(MutationPlan.ResolvedModel::modelId).toList(),
                     ModelReadBoundary.CURRENT).heads();
-            for (ModelDefinition.ResolvedModel target : documentTargets) {
+            for (MutationPlan.ResolvedModel target : documentTargets) {
                 if (!Objects.equals(heads.get(target.modelId()), currentHeads.get(target.modelId()))) {
                     throw new EventSourcingException(
                             "Document model '%s' moved while reconstructing graph boundary"
@@ -1019,7 +1019,7 @@ final class ModelReplayCursor {
     }
 
     AncestorResult resolveAncestors(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch,
@@ -1031,7 +1031,7 @@ final class ModelReplayCursor {
     }
 
     AncestorResult resolveAncestors(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch,
@@ -1122,9 +1122,9 @@ final class ModelReplayCursor {
                                          : incompatibleStoredTypes(modelId, left, right));
             }
         }
-        LinkedHashMap<String, ModelDefinition.ResolvedModel> selected = new LinkedHashMap<>();
+        LinkedHashMap<String, MutationPlan.ResolvedModel> selected = new LinkedHashMap<>();
         resolution.models().forEach(target -> selected.put(target.modelId(), target));
-        for (ModelDefinition.AncestorDependency dependency : resolution.ancestorDependencies()) {
+        for (MutationPlan.AncestorDependency dependency : resolution.ancestorDependencies()) {
             List<String> candidates = reachable.stream()
                     .map(Graphs.AncestorPlacement::id)
                     .filter(modelId -> {
@@ -1169,9 +1169,9 @@ final class ModelReplayCursor {
                 String sourceProperty = dependency.association() == null
                         ? EntityMetadata.validate(modelType).entityId().orElseThrow().name()
                         : dependency.association();
-                ModelDefinition.merge(
-                        selected, new ModelDefinition.ResolvedModel(
-                                modelId, modelType, ModelDefinition.Access.READ_ONLY,
+                MutationPlan.merge(
+                        selected, new MutationPlan.ResolvedModel(
+                                modelId, modelType, MutationPlan.Access.READ_ONLY,
                                 List.of(sourceProperty)));
             }
         }
@@ -1257,26 +1257,26 @@ final class ModelReplayCursor {
                 new ConcurrentHashMap<>();
         private final ConcurrentMap<PayloadKey, List<DeserializingMessage>>
                 deserializedEvents = new ConcurrentHashMap<>();
-        private final Map<ReplayAncestorKey, ModelDefinition.Resolution>
+        private final Map<ReplayAncestorKey, MutationPlan.Resolution>
                 replayAncestorResolutions =
                 new LinkedHashMap<>(128, 0.75f, true) {
                     @Override
                     protected boolean removeEldestEntry(
                             Map.Entry<ReplayAncestorKey,
-                                    ModelDefinition.Resolution> eldest) {
+                                    MutationPlan.Resolution> eldest) {
                         return size() > 1_024;
                     }
                 };
 
         ReconstructionBatch reconstruct(
-                List<ModelDefinition.ResolvedModel> targets,
+                List<MutationPlan.ResolvedModel> targets,
                 ModelReadBoundary boundary) {
             return reconstruct(
                     targets, boundary, !boundary.historical());
         }
 
         ReconstructionBatch reconstruct(
-                List<ModelDefinition.ResolvedModel> targets,
+                List<MutationPlan.ResolvedModel> targets,
             ModelReadBoundary boundary,
             boolean cacheAtBoundary) {
             if (targets.isEmpty()) {
@@ -1289,7 +1289,7 @@ final class ModelReplayCursor {
             LinkedHashMap<String, MutableReconstruction> states =
                     new LinkedHashMap<>();
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
-            for (ModelDefinition.ResolvedModel target : targets) {
+            for (MutationPlan.ResolvedModel target : targets) {
                 Entity<?> base = reconstructionBase(
                         target, boundary.stateIndex(),
                         boundary.commitId() == null
@@ -1308,11 +1308,11 @@ final class ModelReplayCursor {
             LinkedHashMap<String, Entity<?>> cacheCandidates =
                     new LinkedHashMap<>();
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-            for (ModelDefinition.ResolvedModel target : targets) {
+            for (MutationPlan.ResolvedModel target : targets) {
                 ModelHeadState head = loaded.heads().get(target.modelId());
                 MutableReconstruction state = states.get(target.modelId());
                 Entity<?> entity = head == null ? empty(target) : withHead(state.current, head);
-                ModelDefinition.ResolvedModel resolvedTarget = state.target;
+                MutationPlan.ResolvedModel resolvedTarget = state.target;
                 validateReconstruction(resolvedTarget, head, entity);
                 boolean cacheable = cacheAtBoundary && head != null && head.isHistoryComplete()
                                     && EntityMetadata.of(resolvedTarget.modelType())
@@ -1339,7 +1339,7 @@ final class ModelReplayCursor {
         }
 
         private Entity<?> reconstructionBase(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 Long maxStateIndex,
                 boolean allowCurrentCache) {
             EntityMetadata.RootConfiguration configuration = EntityMetadata.of(target.modelType())
@@ -1395,7 +1395,7 @@ final class ModelReplayCursor {
 
         @SuppressWarnings("unchecked")
         private Entity<?> fromSnapshot(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 ModelSnapshotStore.Snapshot snapshot) {
             if (snapshot.value() == null
                 || !target.modelType().isInstance(snapshot.value())) {
@@ -1475,7 +1475,7 @@ final class ModelReplayCursor {
             state.resolve(head.getModelId());
         }
 
-        private ModelDefinition directReplayPlan(
+        private MutationPlan directReplayPlan(
                 SerializedMessage event,
                 Class<?> modelType) {
             Class<?> payloadType =
@@ -1484,7 +1484,7 @@ final class ModelReplayCursor {
             if (payloadType == null) {
                 return null;
             }
-            ModelDefinition definition =
+            MutationPlan definition =
                     replayPlans.computeIfAbsent(
                             new HandlerKey(
                                     payloadType,
@@ -1516,7 +1516,7 @@ final class ModelReplayCursor {
                         StoredEvent storedEvent = new StoredEvent(
                                 membership,
                                 payloads.getRequired(membership.getStateIndex()));
-                        ModelDefinition directDefinition = directReplayPlan(
+                        MutationPlan directDefinition = directReplayPlan(
                                 storedEvent.event(), current.target.modelType());
                         if (directDefinition == null) {
                             current.apply(storedEvent);
@@ -1532,11 +1532,11 @@ final class ModelReplayCursor {
         }
 
         private Map<String, Entity<?>> reconstructAt(
-                List<ModelDefinition.ResolvedModel> targets,
+                List<MutationPlan.ResolvedModel> targets,
                 long stateIndex) {
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-            List<ModelDefinition.ResolvedModel> missing = new ArrayList<>();
-            for (ModelDefinition.ResolvedModel target : targets) {
+            List<MutationPlan.ResolvedModel> missing = new ArrayList<>();
+            for (MutationPlan.ResolvedModel target : targets) {
                 ViewKey viewKey = new ViewKey(
                         target.modelId(), target.modelType(), stateIndex,
                         null, Integer.MAX_VALUE, stateIndex);
@@ -1565,7 +1565,7 @@ final class ModelReplayCursor {
         }
 
         private Entity<?> reconstructView(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 long readStateIndex,
                 String commitId,
                 int substep,
@@ -1576,15 +1576,15 @@ final class ModelReplayCursor {
         }
 
         private Map<String, Entity<?>> reconstructViews(
-                List<ModelDefinition.ResolvedModel> targets,
+                List<MutationPlan.ResolvedModel> targets,
                 long readStateIndex,
                 String commitId,
                 int substep,
                 long commitStateIndex) {
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-            List<ModelDefinition.ResolvedModel> missing =
+            List<MutationPlan.ResolvedModel> missing =
                     new ArrayList<>();
-            for (ModelDefinition.ResolvedModel target : targets) {
+            for (MutationPlan.ResolvedModel target : targets) {
                 ViewKey key = new ViewKey(
                         target.modelId(), target.modelType(), readStateIndex,
                         commitId, substep, commitStateIndex);
@@ -1614,7 +1614,7 @@ final class ModelReplayCursor {
                                 page, missing, base, readStateIndex,
                                 commitId, substep));
             }
-            for (ModelDefinition.ResolvedModel target : missing) {
+            for (MutationPlan.ResolvedModel target : missing) {
                 Entity<?> entity = base.get(target.modelId());
                 reconstructed.put(new ViewKey(
                         target.modelId(), target.modelType(), readStateIndex,
@@ -1625,7 +1625,7 @@ final class ModelReplayCursor {
         }
 
         private Map<String, Entity<?>> ordered(
-                List<ModelDefinition.ResolvedModel> targets,
+                List<MutationPlan.ResolvedModel> targets,
                 Map<String, Entity<?>> values) {
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
             targets.forEach(target -> result.put(
@@ -1635,12 +1635,12 @@ final class ModelReplayCursor {
 
         private void applyCommitPrefix(
                 GetModelEventsResult page,
-                List<ModelDefinition.ResolvedModel> targets,
+                List<MutationPlan.ResolvedModel> targets,
                 Map<String, Entity<?>> current,
                 long readStateIndex,
                 String commitId,
                 int substep) {
-            Map<String, ModelDefinition.ResolvedModel> targetsById =
+            Map<String, MutationPlan.ResolvedModel> targetsById =
                     new HashMap<>();
             targets.forEach(target -> targetsById.put(
                     target.modelId(), target));
@@ -1650,7 +1650,7 @@ final class ModelReplayCursor {
                 payloads.put(payload.getStateIndex(), payload.getEvent());
             }
             for (ModelEventStream stream : page.getStreams()) {
-                ModelDefinition.ResolvedModel target =
+                MutationPlan.ResolvedModel target =
                         targetsById.get(stream.getModelId());
                 if (target == null) {
                     throw new EventSourcingException(
@@ -1683,13 +1683,13 @@ final class ModelReplayCursor {
         }
 
         private final class MutableReconstruction {
-            private ModelDefinition.ResolvedModel target;
+            private MutationPlan.ResolvedModel target;
             private final Entity<?> base;
             private Entity<?> current;
             private ModelEventMembership previous;
 
             private MutableReconstruction(
-                    ModelDefinition.ResolvedModel target, Entity<?> base) {
+                    MutationPlan.ResolvedModel target, Entity<?> base) {
                 this.target = target;
                 this.base = base;
                 this.current = base == null ? empty(target) : base;
@@ -1705,7 +1705,7 @@ final class ModelReplayCursor {
                             "Model alias '%s' resolved after reconstruction started"
                                     .formatted(target.modelId()));
                 }
-                target = new ModelDefinition.ResolvedModel(
+                target = new MutationPlan.ResolvedModel(
                         modelId,
                         target.modelType(),
                         target.access(),
@@ -1748,7 +1748,7 @@ final class ModelReplayCursor {
 
             private void applyCompiled(
                     StoredEvent storedEvent,
-                    ModelDefinition definition) {
+                    MutationPlan definition) {
                 DeserializingMessage event =
                         serializer.deserializeFirstMessageOrNull(
                                 storedEvent.event(),
@@ -1768,7 +1768,7 @@ final class ModelReplayCursor {
         }
 
         private void rememberCheckpoint(
-                ModelDefinition.ResolvedModel target, Entity<?> entity) {
+                MutationPlan.ResolvedModel target, Entity<?> entity) {
             EntityMetadata.RootConfiguration configuration = EntityMetadata.of(target.modelType())
                     .rootConfiguration().orElseThrow();
             int period = configuration.checkpointPeriod();
@@ -1788,7 +1788,7 @@ final class ModelReplayCursor {
         }
 
         private Entity<?> apply(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 Entity<?> begin,
                 StoredEvent storedEvent) {
             ModelEventMembership membership = storedEvent.membership();
@@ -1798,7 +1798,7 @@ final class ModelReplayCursor {
         }
 
         private Entity<?> apply(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 Entity<?> begin,
                 StoredEvent storedEvent,
                 List<PreparedReplay> prepared) {
@@ -1819,7 +1819,7 @@ final class ModelReplayCursor {
                     result = updateValue(result, null);
                     continue;
                 }
-                ModelDefinition definition = preparedReplay.definition();
+                MutationPlan definition = preparedReplay.definition();
                 if (definition.empty()) {
                     if (EntityMetadata.of(target.modelType()).rootConfiguration().orElseThrow()
                             .ignoreUnknownEvents()) {
@@ -1832,14 +1832,14 @@ final class ModelReplayCursor {
                 if (definition.direct()) {
                     CommitAttempt context = CommitAttempt.createSingle(
                             stateIndex(result), target.modelId(), target.modelType(),
-                            ModelDefinition.Access.READ_WRITE, List.of(), result);
+                            MutationPlan.Access.READ_WRITE, List.of(), result);
                     result = updateValue(
                             result, replayValue(
                                     target, membership.getStateIndex(),
                                     event, context, definition));
                     continue;
                 }
-                ModelDefinition.Resolution resolution =
+                MutationPlan.Resolution resolution =
                         preparedReplay.resolution();
                 if (resolution.hasAncestorDependencies()) {
                     long relationshipBoundary =
@@ -1857,7 +1857,7 @@ final class ModelReplayCursor {
                                     relationshipBoundary,
                                     membership.getCommitId(),
                                     membership.getSubstep());
-                    ModelDefinition.Resolution directResolution =
+                    MutationPlan.Resolution directResolution =
                             resolution;
                     boolean firstSubstep =
                             membership.getSubstep() == 0;
@@ -1907,7 +1907,7 @@ final class ModelReplayCursor {
                                         return ancestors.resolution();
                                     });
                 }
-                List<ModelDefinition.ResolvedModel> dependencies =
+                List<MutationPlan.ResolvedModel> dependencies =
                         resolution.models().stream()
                                 .filter(dependency -> !dependency.modelId()
                                         .equals(target.modelId()))
@@ -1928,7 +1928,7 @@ final class ModelReplayCursor {
                     loaded = Map.of(target.modelId(), result);
                 } else {
                     loaded = new LinkedHashMap<>();
-                    for (ModelDefinition.ResolvedModel dependency :
+                    for (MutationPlan.ResolvedModel dependency :
                             resolution.models()) {
                         Entity<?> entity =
                                 dependency.modelId().equals(target.modelId())
@@ -1949,14 +1949,14 @@ final class ModelReplayCursor {
         }
 
         private List<PreparedReplay> prepareReplay(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 ModelEventMembership membership,
                 StoredEvent storedEvent) {
             return deserialize(target.modelType(), membership, storedEvent).stream()
                     .map(event -> {
                         Class<?> payloadType =
                                 event.getPayloadClass();
-                        ModelDefinition definition =
+                        MutationPlan definition =
                                 replayPlans.computeIfAbsent(
                                         new HandlerKey(
                                                 payloadType,
@@ -1979,17 +1979,17 @@ final class ModelReplayCursor {
         }
 
         private Object replayValue(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 long stateIndex,
                 DeserializingMessage event,
                 CommitAttempt context,
-                ModelDefinition definition) {
+                MutationPlan definition) {
             try {
                 DeserializingMessage replayEvent = definition.direct()
                         ? event : new DeserializingMessage(
                                 event.toMessage(), EVENT, null, serializer);
-                return definition.replay(
-                        replayEvent, context, target.modelId());
+                return ModelReducer.replay(
+                        definition, replayEvent, context, target.modelId());
             } catch (Throwable failure) {
                 throw new EventSourcingException(
                         "Failed to apply model event at state %d to %s"
@@ -2015,7 +2015,7 @@ final class ModelReplayCursor {
                             .toList());
         }
 
-        private ModelDefinition replayPlan(
+        private MutationPlan replayPlan(
                 Class<?> payloadType, Class<?> modelType) {
             LinkedHashSet<EntityMetadata.HandlerMethod> result = new LinkedHashSet<>();
             EntityMetadata.of(payloadType).applyMethods().stream()
@@ -2032,7 +2032,7 @@ final class ModelReplayCursor {
         }
 
         @SuppressWarnings("unchecked")
-        private Entity<?> empty(ModelDefinition.ResolvedModel target) {
+        private Entity<?> empty(MutationPlan.ResolvedModel target) {
             EntityMetadata metadata = EntityMetadata.validate(target.modelType());
             return ImmutableModelRoot.<Object>builder()
                     .id(target.modelId())
@@ -2130,7 +2130,7 @@ final class ModelReplayCursor {
         }
 
         private void validateReconstruction(
-                ModelDefinition.ResolvedModel target,
+                MutationPlan.ResolvedModel target,
                 ModelHeadState head,
                 Entity<?> entity) {
             if (head == null) {
@@ -2214,8 +2214,8 @@ final class ModelReplayCursor {
 
     private record PreparedReplay(
             DeserializingMessage event,
-            ModelDefinition definition,
-            ModelDefinition.Resolution resolution) {
+            MutationPlan definition,
+            MutationPlan.Resolution resolution) {
     }
 
     private record PayloadLookup(
@@ -2261,7 +2261,7 @@ final class ModelReplayCursor {
     }
 
     private record ReplayAncestorKey(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             long relationshipBoundary,
             String commitId,
             int substep) {
@@ -2269,7 +2269,7 @@ final class ModelReplayCursor {
 
     record AncestorResult(
             long stateIndex,
-            ModelDefinition.Resolution resolution) {
+            MutationPlan.Resolution resolution) {
     }
 
     private record CurrentProjection(

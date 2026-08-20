@@ -52,7 +52,7 @@ record Change(
         return applied(
                 modelId, modelType, beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, replay, cascadedDeletion,
-                ModelDefinition.EffectOverrides.of(handler));
+                MutationPlan.EffectOverrides.of(handler));
     }
 
     static Change applied(
@@ -60,7 +60,7 @@ record Change(
             long beforeSequenceNumber, Long beforeLastEventIndex,
             Object before, Object after, Executable handler,
             Graphs.StagedReplay replay, boolean cascadedDeletion,
-            ModelDefinition.EffectOverrides overrides) {
+            MutationPlan.EffectOverrides overrides) {
         return resolved(
                 modelId, modelType, null,
                 beforeSequenceNumber, beforeLastEventIndex,
@@ -88,7 +88,7 @@ record Change(
                 target instanceof ModelRoot<?> root ? root.sequenceNumber() : -1L,
                 target instanceof ModelRoot<?> root ? root.lastEventIndex() : null,
                 target.get(), resolvedAfter, null, replay, false,
-                ModelDefinition.EffectOverrides.of(null));
+                MutationPlan.EffectOverrides.of(null));
     }
 
     Change then(Change addition) {
@@ -131,7 +131,7 @@ record Change(
         if (!graphChange()) {
             throw new IllegalStateException("Only direct graph changes can be replayed this way");
         }
-        return ModelExecutionPlan.graphChangeReplay(
+        return ModelReducer.graphChangeReplay(
                 eventMessage, modelId, modelType,
                 replay == null ? current -> current.update(ignored -> null) : replay);
     }
@@ -151,7 +151,7 @@ record Change(
             long beforeSequenceNumber, Long beforeLastEventIndex,
             Object before, Object after, Executable handler,
             Graphs.StagedReplay replay, boolean cascadedDeletion,
-            ModelDefinition.EffectOverrides overrides) {
+            MutationPlan.EffectOverrides overrides) {
         Class<?> effectiveType = EntityMetadata.of(declaredType).isModel()
                 ? declaredType : after != null ? after.getClass()
                         : before != null ? before.getClass() : declaredType;

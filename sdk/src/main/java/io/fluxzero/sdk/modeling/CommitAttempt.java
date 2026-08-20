@@ -43,9 +43,9 @@ import java.util.function.Function;
 public final class CommitAttempt implements CommitDependency {
     private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
     private long readStateIndex = -1L;
-    private Map<String, ModelDefinition.ResolvedModel> targets = Map.of();
+    private Map<String, MutationPlan.ResolvedModel> targets = Map.of();
     private Map<String, Entity<?>> entities = Map.of();
-    private List<ModelDefinition.DeferredWriteTarget> deferredWrites = List.of();
+    private List<MutationPlan.DeferredWriteTarget> deferredWrites = List.of();
 
     private Evaluation evaluation;
     private Lifecycle lifecycle;
@@ -106,12 +106,12 @@ public final class CommitAttempt implements CommitDependency {
     /** Creates a loaded begin-state for one resolved target set. */
     public static CommitAttempt create(
             long readStateIndex,
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             Map<String, ? extends Entity<?>> loadedModels) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(loadedModels, "loadedModels");
         if (resolution.models().size() == 1 && loadedModels.size() == 1) {
-            ModelDefinition.ResolvedModel target = resolution.models().getFirst();
+            MutationPlan.ResolvedModel target = resolution.models().getFirst();
             Entity<?> entity = loadedModels.get(target.modelId());
             if (entity == null) {
                 throw missing(target, readStateIndex);
@@ -124,12 +124,12 @@ public final class CommitAttempt implements CommitDependency {
             result.deferredWrites = List.copyOf(resolution.deferredWrites());
             return result;
         }
-        LinkedHashMap<String, ModelDefinition.ResolvedModel> targets =
+        LinkedHashMap<String, MutationPlan.ResolvedModel> targets =
                 new LinkedHashMap<>(resolution.models().size());
         LinkedHashMap<String, Entity<?>> entities =
                 new LinkedHashMap<>(resolution.models().size());
         Map<String, Entity<?>> remaining = new LinkedHashMap<>(loadedModels);
-        for (ModelDefinition.ResolvedModel target : resolution.models()) {
+        for (MutationPlan.ResolvedModel target : resolution.models()) {
             Entity<?> entity = remaining.remove(target.modelId());
             if (entity == null) {
                 throw missing(target, readStateIndex);
@@ -152,7 +152,7 @@ public final class CommitAttempt implements CommitDependency {
     }
 
     private static IllegalArgumentException missing(
-            ModelDefinition.ResolvedModel target, long readStateIndex) {
+            MutationPlan.ResolvedModel target, long readStateIndex) {
         return new IllegalArgumentException(
                 "Missing loaded model '%s' of type %s at state index %d"
                         .formatted(target.modelId(), target.modelType().getName(), readStateIndex));
@@ -163,10 +163,10 @@ public final class CommitAttempt implements CommitDependency {
             long readStateIndex,
             String modelId,
             Class<?> modelType,
-            ModelDefinition.Access access,
+            MutationPlan.Access access,
             List<String> sourceProperties,
             Entity<?> entity) {
-        ModelDefinition.ResolvedModel target = new ModelDefinition.ResolvedModel(
+        MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 modelId, modelType, access, sourceProperties);
         validateLoadedEntity(target, entity);
         CommitAttempt result = new CommitAttempt(false);
@@ -177,7 +177,7 @@ public final class CommitAttempt implements CommitDependency {
     }
 
     private static void validateLoadedEntity(
-            ModelDefinition.ResolvedModel target, Entity<?> entity) {
+            MutationPlan.ResolvedModel target, Entity<?> entity) {
         Object loadedId = entity.id();
         if (loadedId == null || !target.modelId().equals(loadedId.toString())) {
             throw new IllegalArgumentException(
@@ -201,11 +201,11 @@ public final class CommitAttempt implements CommitDependency {
         return List.copyOf(targets.keySet());
     }
 
-    public List<ModelDefinition.ResolvedModel> targets() {
+    public List<MutationPlan.ResolvedModel> targets() {
         return List.copyOf(targets.values());
     }
 
-    public ModelDefinition.ResolvedModel target(String modelId) {
+    public MutationPlan.ResolvedModel target(String modelId) {
         return targets.get(modelId);
     }
 
@@ -228,7 +228,7 @@ public final class CommitAttempt implements CommitDependency {
         Entity<?> candidate = null;
         Entity<?> secondCandidate = null;
         Entity<?> exact = null;
-        for (ModelDefinition.ResolvedModel target : targets.values()) {
+        for (MutationPlan.ResolvedModel target : targets.values()) {
             Class<?> targetType = target.modelType();
             if (!(modelType.isAssignableFrom(targetType) || targetType.isAssignableFrom(modelType))) {
                 continue;
@@ -254,13 +254,13 @@ public final class CommitAttempt implements CommitDependency {
         if (secondCandidate != null) {
             throw ambiguous(modelType, null, targets.values().stream()
                     .filter(target -> compatible(modelType, target.modelType()))
-                    .map(ModelDefinition.ResolvedModel::modelId).toList());
+                    .map(MutationPlan.ResolvedModel::modelId).toList());
         }
         return candidate;
     }
 
     boolean mayWrite(String modelId, Class<?> modelType, Executable handler) {
-        ModelDefinition.ResolvedModel target = targets.get(modelId);
+        MutationPlan.ResolvedModel target = targets.get(modelId);
         if (target == null) {
             return false;
         }
@@ -268,7 +268,7 @@ public final class CommitAttempt implements CommitDependency {
             return true;
         }
         String handlerSignature = handler == null ? null : handler.toGenericString();
-        for (ModelDefinition.DeferredWriteTarget deferred : deferredWrites) {
+        for (MutationPlan.DeferredWriteTarget deferred : deferredWrites) {
             if (deferred.handler().equals(handlerSignature)
                 && deferred.modelType().isAssignableFrom(modelType)
                 && deferred.candidateModelIds().contains(modelId)) {
@@ -286,7 +286,7 @@ public final class CommitAttempt implements CommitDependency {
         LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(entities);
         values.forEach((modelId, value) -> {
             Entity<?> current = updated.get(modelId);
-            ModelDefinition.ResolvedModel target = targets.get(modelId);
+            MutationPlan.ResolvedModel target = targets.get(modelId);
             if (current == null || target == null) {
                 return;
             }

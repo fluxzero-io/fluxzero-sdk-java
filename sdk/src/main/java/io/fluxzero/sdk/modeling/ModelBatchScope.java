@@ -253,7 +253,7 @@ public final class ModelBatchScope {
 
     static Map<String, Object> currentValues(
             String namespace,
-            ModelDefinition.Resolution resolution) {
+            MutationPlan.Resolution resolution) {
         ModelBatchScope scope = current();
         if (scope == null) {
             return Map.of();

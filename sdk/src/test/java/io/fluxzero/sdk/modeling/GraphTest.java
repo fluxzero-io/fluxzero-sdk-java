@@ -35,7 +35,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 
-import static io.fluxzero.sdk.modeling.ModelDefinition.Access.READ_ONLY;
+import static io.fluxzero.sdk.modeling.MutationPlan.Access.READ_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -395,13 +395,13 @@ class GraphTest {
         Child childValue = new Child(new ChildId("context"), rootValue.id(), "child");
         Entity<Root> root = entity(rootValue.id().toString(), Root.class, rootValue);
         Entity<Child> child = entity(childValue.id().toString(), Child.class, childValue);
-        ModelDefinition.ResolvedModel rootTarget = new ModelDefinition.ResolvedModel(
+        MutationPlan.ResolvedModel rootTarget = new MutationPlan.ResolvedModel(
                 rootValue.id().toString(), Root.class, READ_ONLY, List.of("id"));
-        ModelDefinition.ResolvedModel childTarget = new ModelDefinition.ResolvedModel(
+        MutationPlan.ResolvedModel childTarget = new MutationPlan.ResolvedModel(
                 childValue.id().toString(), Child.class, READ_ONLY, List.of("id"));
         CommitAttempt commitContext = CommitAttempt.create(
                 11L,
-                new ModelDefinition.Resolution(
+                new MutationPlan.Resolution(
                         List.of(rootTarget, childTarget), List.of(), List.of()),
                 Map.of(rootValue.id().toString(), root, childValue.id().toString(), child));
 
@@ -426,13 +426,13 @@ class GraphTest {
         Graph<Root> parent = mock(Graph.class);
         when(parent.isPresent()).thenReturn(true);
         when(parent.type()).thenReturn(Root.class);
-        ModelDefinition.ResolvedModel childTarget =
-                new ModelDefinition.ResolvedModel(
+        MutationPlan.ResolvedModel childTarget =
+                new MutationPlan.ResolvedModel(
                         childValue.id().toString(), Child.class,
                         READ_ONLY, List.of("id"));
         CommitAttempt commitContext = CommitAttempt.create(
                 11L,
-                new ModelDefinition.Resolution(
+                new MutationPlan.Resolution(
                         List.of(childTarget), List.of(), List.of()),
                 Map.of(childValue.id().toString(), child));
         when(repository.loadGraphAt(
@@ -459,13 +459,13 @@ class GraphTest {
         Entity<MultiChild> child = entity(childValue.id(), MultiChild.class, childValue);
         CommitAttempt context = CommitAttempt.create(
                 12L,
-                new ModelDefinition.Resolution(
+                new MutationPlan.Resolution(
                         List.of(
-                                new ModelDefinition.ResolvedModel(
+                                new MutationPlan.ResolvedModel(
                                         rootValue.id().toString(), Root.class, READ_ONLY, List.of("id")),
-                                new ModelDefinition.ResolvedModel(
+                                new MutationPlan.ResolvedModel(
                                         otherValue.id(), OtherRoot.class, READ_ONLY, List.of("id")),
-                                new ModelDefinition.ResolvedModel(
+                                new MutationPlan.ResolvedModel(
                                         childValue.id(), MultiChild.class, READ_ONLY, List.of("id"))),
                         List.of(), List.of()),
                 Map.of(rootValue.id().toString(), root, otherValue.id(), other, childValue.id(), child));
@@ -606,13 +606,13 @@ class GraphTest {
         Graph<Root> ancestor = mock(Graph.class);
         when(source.id()).thenReturn("grandchild");
         when(source.type()).thenReturn(Grandchild.class);
-        ModelDefinition.ResolvedModel target =
-                new ModelDefinition.ResolvedModel(
+        MutationPlan.ResolvedModel target =
+                new MutationPlan.ResolvedModel(
                         "grandchild", Grandchild.class,
                         READ_ONLY, List.of("id"));
         CommitAttempt context = CommitAttempt.create(
                 42L,
-                new ModelDefinition.Resolution(
+                new MutationPlan.Resolution(
                         List.of(target), List.of(), List.of()),
                 Map.of("grandchild", source));
         AncestorRepository repository = new AncestorRepository(ancestor);
@@ -633,13 +633,13 @@ class GraphTest {
         Graph<Root> ancestor = mock(Graph.class);
         when(source.id()).thenReturn("grandchild");
         when(source.type()).thenReturn(Grandchild.class);
-        ModelDefinition.ResolvedModel target =
-                new ModelDefinition.ResolvedModel(
+        MutationPlan.ResolvedModel target =
+                new MutationPlan.ResolvedModel(
                         "grandchild", Grandchild.class,
                         READ_ONLY, List.of("id"));
         CommitAttempt context = CommitAttempt.create(
                 42L,
-                new ModelDefinition.Resolution(
+                new MutationPlan.Resolution(
                         List.of(target), List.of(), List.of()),
                 Map.of("grandchild", source));
         AncestorRepository repository = new AncestorRepository(ancestor);

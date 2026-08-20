@@ -42,8 +42,8 @@ import static org.mockito.Mockito.mock;
 
 class ModelCommitEngineTest {
 
-    private final ModelDefinition.Compiler compiler =
-            new ModelDefinition.Compiler(List.of(new PayloadParameterResolver()));
+    private final MutationPlan.Compiler compiler =
+            new MutationPlan.Compiler(List.of(new PayloadParameterResolver()));
 
     @Test
     void evaluatesAllWritesAgainstSameBeginStateThenPublishesResultingState() {
@@ -472,10 +472,10 @@ class ModelCommitEngineTest {
         Map<String, Entity<?>> stored = Map.of(
                 orderId.toString(), order,
                 inventoryId.toString(), inventory);
-        ModelExecutionPlan.SubstepResolver resolver =
-                new ModelExecutionPlan.SubstepResolver() {
+        ModelReducer.SubstepResolver resolver =
+                new ModelReducer.SubstepResolver() {
                     @Override
-                    public ModelExecutionPlan.ResolvedSubstep resolve(
+                    public ModelReducer.ResolvedSubstep resolve(
                             DeserializingMessage substep,
                             Long requestedStateIndex,
                             Map<String, Object> stagedValues) {
@@ -487,25 +487,25 @@ class ModelCommitEngineTest {
                     }
 
                     @Override
-                    public ModelExecutionPlan.ResolvedSubstep resolveGraph(
+                    public ModelReducer.ResolvedSubstep resolveGraph(
                             String modelId,
                             Class<?> modelType,
                             Long requestedStateIndex,
                             Map<String, Object> stagedValues) {
-                        ModelDefinition.Resolution resolution =
-                                new ModelDefinition.Resolution(
-                                        List.of(new ModelDefinition.ResolvedModel(
+                        MutationPlan.Resolution resolution =
+                                new MutationPlan.Resolution(
+                                        List.of(new MutationPlan.ResolvedModel(
                                                 modelId, modelType,
-                                                ModelDefinition.Access.READ_WRITE,
+                                                MutationPlan.Access.READ_WRITE,
                                                 List.of())),
                                         List.of());
-                        return new ModelExecutionPlan.ResolvedSubstep(
+                        return new ModelReducer.ResolvedSubstep(
                                 CommitAttempt.create(
                                         requestedStateIndex == null
                                                 ? 77L : requestedStateIndex,
                                         resolution,
                                         Map.of(modelId, stored.get(modelId))),
-                                ModelDefinition.Mutation.EMPTY);
+                                ModelReducer.EMPTY);
                     }
                 };
 
@@ -526,7 +526,7 @@ class ModelCommitEngineTest {
         CommitAttempt rebased = reapply(
                 List.of(
                         result.stepMessage(0),
-                        ModelExecutionPlan.graphChangeReplay(
+                        ModelReducer.graphChangeReplay(
                                 deletionEvent,
                                 inventoryId.toString(), Inventory.class,
                                 result.stepChanges(result.stepCount() - 1).stream()
@@ -569,7 +569,7 @@ class ModelCommitEngineTest {
                 inventoryId, new Inventory(inventoryId, 9));
         DeserializingMessage event = result.stepMessage(0);
         CommitAttempt rebased = reapply(
-                List.of(event, ModelExecutionPlan.graphChangeReplay(
+                List.of(event, ModelReducer.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
                         graphTransition.replay())),
                 graphResolver(
@@ -612,7 +612,7 @@ class ModelCommitEngineTest {
                 inventoryId, new Inventory(inventoryId, 9));
         DeserializingMessage event = result.stepMessage(0);
         CommitAttempt rebased = reapply(
-                List.of(event, ModelExecutionPlan.graphChangeReplay(
+                List.of(event, ModelReducer.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
                         combined.replay())),
                 graphResolver(
@@ -676,8 +676,8 @@ class ModelCommitEngineTest {
         CommitAttempt result = evaluate(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
-                        new ModelExecutionPlan.ResolvedSubstep(
-                                begin, new ModelDefinition.Mutation(
+                        new ModelReducer.ResolvedSubstep(
+                                begin, new ModelReducer(
                                         compiler.compileHandlers(handlers), null)));
 
         assertEquals(
@@ -718,11 +718,11 @@ class ModelCommitEngineTest {
         Entity<Order> order = entity(id, new Order(id, "pending"));
         CommitAttempt begin = context(command, handlers, order);
 
-        ModelExecutionPlan.assertLegal(
+        ModelReducer.assertLegal(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
-                        new ModelExecutionPlan.ResolvedSubstep(
-                                begin, new ModelDefinition.Mutation(
+                        new ModelReducer.ResolvedSubstep(
+                                begin, new ModelReducer(
                                         compiler.compileHandlers(handlers), null)));
 
         assertEquals(
@@ -743,11 +743,11 @@ class ModelCommitEngineTest {
                 id, new ReceiverOrder(id, "initial"));
         CommitAttempt begin = context(command, handlers, order);
 
-        ModelExecutionPlan.assertLegal(
+        ModelReducer.assertLegal(
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
-                        new ModelExecutionPlan.ResolvedSubstep(
-                                begin, new ModelDefinition.Mutation(
+                        new ModelReducer.ResolvedSubstep(
+                                begin, new ModelReducer(
                                         compiler.compileHandlers(handlers), null)));
 
         assertEquals(
@@ -783,8 +783,8 @@ class ModelCommitEngineTest {
         CommitAttempt begin = context(
                 command, List.of(handler),
                 entity(id, new FastOrder(id, "initial")));
-        ModelDefinition.DirectSingleTargetApply direct =
-                ModelDefinition.directSingleTargetApply(
+        MutationPlan.DirectSingleTargetApply direct =
+                MutationPlan.directSingleTargetApply(
                         handler, RenameFastOrder.class);
 
         assertTrue(direct != null);
@@ -804,7 +804,7 @@ class ModelCommitEngineTest {
         EntityMetadata.HandlerMethod handler = EntityMetadata.of(Transfer.class)
                 .applyMethods().getFirst();
 
-        assertNull(ModelDefinition.directSingleTargetApply(
+        assertNull(MutationPlan.directSingleTargetApply(
                 handler, Transfer.class));
     }
 
@@ -812,7 +812,7 @@ class ModelCommitEngineTest {
             DeserializingMessage message,
             CommitAttempt context,
             Collection<EntityMetadata.HandlerMethod> handlers) {
-        return new ModelDefinition.Mutation(
+        return new ModelReducer(
                 compiler.compileHandlers(handlers), null)
                 .apply(message, context, true, true);
     }
@@ -821,54 +821,54 @@ class ModelCommitEngineTest {
             DeserializingMessage message,
             CommitAttempt context,
             Collection<EntityMetadata.HandlerMethod> handlers,
-            ModelDefinition.DirectSingleTargetApply directApply) {
-        return new ModelDefinition.Mutation(
+            MutationPlan.DirectSingleTargetApply directApply) {
+        return new ModelReducer(
                 compiler.compileHandlers(handlers), directApply)
                 .apply(message, context, true, true);
     }
 
     private CommitAttempt evaluate(
             DeserializingMessage message,
-            ModelExecutionPlan.SubstepResolver resolver) {
-        return ModelExecutionPlan.apply(message, resolver);
+            ModelReducer.SubstepResolver resolver) {
+        return ModelReducer.apply(message, resolver);
     }
 
     private CommitAttempt reapply(
             List<DeserializingMessage> messages,
-            ModelExecutionPlan.SubstepResolver resolver) {
-        return ModelExecutionPlan.reapply(messages, resolver);
+            ModelReducer.SubstepResolver resolver) {
+        return ModelReducer.reapply(messages, resolver);
     }
 
-    private ModelExecutionPlan.ResolvedSubstep resolveSubstep(
+    private ModelReducer.ResolvedSubstep resolveSubstep(
             DeserializingMessage message,
             long stateIndex,
             Map<String, Entity<?>> stored) {
         Object payload = message.getPayload();
         List<EntityMetadata.HandlerMethod> handlers =
                 EntityMetadata.of(payload.getClass()).handlerMethods();
-        ModelDefinition.Resolution resolution =
-                ModelDefinition.compile(payload.getClass(), handlers)
+        MutationPlan.Resolution resolution =
+                MutationPlan.compile(payload.getClass(), handlers)
                         .resolve(payload);
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
-        for (ModelDefinition.ResolvedModel target : resolution.models()) {
+        for (MutationPlan.ResolvedModel target : resolution.models()) {
             Entity<?> entity = stored.get(target.modelId());
             if (entity == null) {
                 throw new IllegalArgumentException("Missing fixture model " + target.modelId());
             }
             loaded.put(target.modelId(), entity);
         }
-        return new ModelExecutionPlan.ResolvedSubstep(
+        return new ModelReducer.ResolvedSubstep(
                 CommitAttempt.create(stateIndex, resolution, loaded),
-                new ModelDefinition.Mutation(
+                new ModelReducer(
                         compiler.compileHandlers(handlers), null));
     }
 
-    private ModelExecutionPlan.SubstepResolver graphResolver(
+    private ModelReducer.SubstepResolver graphResolver(
             long stateIndex,
             Map<String, Entity<?>> stored) {
-        return new ModelExecutionPlan.SubstepResolver() {
+        return new ModelReducer.SubstepResolver() {
             @Override
-            public ModelExecutionPlan.ResolvedSubstep resolve(
+            public ModelReducer.ResolvedSubstep resolve(
                     DeserializingMessage substep,
                     Long requestedStateIndex,
                     Map<String, Object> stagedValues) {
@@ -880,25 +880,25 @@ class ModelCommitEngineTest {
             }
 
             @Override
-            public ModelExecutionPlan.ResolvedSubstep resolveGraph(
+            public ModelReducer.ResolvedSubstep resolveGraph(
                     String modelId,
                     Class<?> modelType,
                     Long requestedStateIndex,
                     Map<String, Object> stagedValues) {
-                ModelDefinition.Resolution resolution =
-                        new ModelDefinition.Resolution(
-                                List.of(new ModelDefinition.ResolvedModel(
+                MutationPlan.Resolution resolution =
+                        new MutationPlan.Resolution(
+                                List.of(new MutationPlan.ResolvedModel(
                                         modelId, modelType,
-                                        ModelDefinition.Access.READ_WRITE,
+                                        MutationPlan.Access.READ_WRITE,
                                         List.of())),
                                 List.of());
-                return new ModelExecutionPlan.ResolvedSubstep(
+                return new ModelReducer.ResolvedSubstep(
                         CommitAttempt.create(
                                 requestedStateIndex == null
                                         ? stateIndex : requestedStateIndex,
                                 resolution,
                                 Map.of(modelId, stored.get(modelId))),
-                        ModelDefinition.Mutation.EMPTY);
+                        ModelReducer.EMPTY);
             }
         };
     }
@@ -907,8 +907,8 @@ class ModelCommitEngineTest {
             Object command,
             Collection<EntityMetadata.HandlerMethod> handlers,
             Entity<?>... entities) {
-        ModelDefinition.Resolution resolution =
-                ModelDefinition.compile(command.getClass(), handlers)
+        MutationPlan.Resolution resolution =
+                MutationPlan.compile(command.getClass(), handlers)
                         .resolve(command);
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
         for (Entity<?> entity : entities) {

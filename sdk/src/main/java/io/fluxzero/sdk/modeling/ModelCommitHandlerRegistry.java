@@ -49,13 +49,13 @@ import java.util.stream.Stream;
 /**
  * Registration and dispatch facade for independent-model handlers.
  *
- * <p>This type registers models and delegates application-bound definition lookup to {@link ModelDefinition}. It owns no
+ * <p>This type registers models and delegates application-bound definition lookup to {@link MutationPlan}. It owns no
  * evaluation, commit, retry, batching or completion state; every invocation delegates to the single
  * {@link ModelPipeline} lifecycle.</p>
  */
 public final class ModelCommitHandlerRegistry implements HandlerRegistry, HandlerFactory, AutoCloseable {
     private final DefaultModelRepository repository;
-    private final ModelDefinition.Catalog definitions;
+    private final MutationPlan.Catalog definitions;
     private final ModelPipeline pipeline;
     private final Handler<DeserializingMessage> decoratedHandler;
     private final HandlerDecorator handlerDecorator;
@@ -79,9 +79,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             GraphProjectionCompletion graphProjectionCompletion) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.handlerDecorator = Objects.requireNonNull(handlerDecorator, "handlerDecorator");
-        ModelDefinition.Compiler shared = repository.modelDefinitionCompiler();
-        this.definitions = new ModelDefinition.Catalog(
-                shared == null ? new ModelDefinition.Compiler(parameterResolvers) : shared,
+        MutationPlan.Compiler shared = repository.modelDefinitionCompiler();
+        this.definitions = new MutationPlan.Catalog(
+                shared == null ? new MutationPlan.Compiler(parameterResolvers) : shared,
                 automaticHandling);
         this.pipeline = new ModelPipeline(
                 repository, eventStoreClient, serializer, snapshotSerializer,
@@ -218,8 +218,8 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         if (EntityMetadata.of(targetType).isModel()) {
             return Optional.empty();
         }
-        ModelDefinition definition = definitions.get(targetType);
-        boolean selected = definition.automatic() && definition.mutation().methods().stream()
+        MutationPlan definition = definitions.get(targetType);
+        boolean selected = definition.automatic() && definition.reducer().methods().stream()
                 .anyMatch(handler -> handlerFilter.test(
                         handler.executable().getDeclaringClass(), handler.executable()));
         if (!selected) {

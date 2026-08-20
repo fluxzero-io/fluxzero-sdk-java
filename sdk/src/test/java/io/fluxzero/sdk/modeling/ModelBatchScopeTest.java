@@ -292,7 +292,7 @@ class ModelBatchScopeTest {
         DeserializingMessage message = message("producer");
         CommitAttempt beginState = CommitAttempt.createSingle(
                 0L, value.id(), AliasModel.class,
-                ModelDefinition.Access.READ_WRITE, List.of("id"), entity(value));
+                MutationPlan.Access.READ_WRITE, List.of("id"), entity(value));
         beginState.attachTo(message);
 
         DeserializingMessage.forEachInBatch(List.of(message), current -> {

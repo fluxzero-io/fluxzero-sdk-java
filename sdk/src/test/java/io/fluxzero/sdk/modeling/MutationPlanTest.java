@@ -23,38 +23,38 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static io.fluxzero.sdk.modeling.ModelDefinition.Access.READ_ONLY;
-import static io.fluxzero.sdk.modeling.ModelDefinition.Access.READ_WRITE;
-import static io.fluxzero.sdk.modeling.ModelDefinition.Access.WRITE_ONLY;
+import static io.fluxzero.sdk.modeling.MutationPlan.Access.READ_ONLY;
+import static io.fluxzero.sdk.modeling.MutationPlan.Access.READ_WRITE;
+import static io.fluxzero.sdk.modeling.MutationPlan.Access.WRITE_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class ModelDefinitionTest {
+class MutationPlanTest {
 
     @Test
     void parameterPlansUseTheCentralClassMetadataCache() {
         var executable = EntityMetadata.of(Transfer.class).handlerMethods().getFirst().executable();
 
-        assertSame(ModelDefinition.parameterPlan(executable), ModelDefinition.parameterPlan(executable));
+        assertSame(MutationPlan.parameterPlan(executable), MutationPlan.parameterPlan(executable));
     }
 
     @Test
     void discoversReferencesWithoutOpeningUnselectedJdkMembers() {
-        assertEquals(List.of(), ModelDefinition.referencedModelTypes(Integer.class));
-        assertEquals(List.of(), ModelDefinition.referencedModelTypes(String.class));
+        assertEquals(List.of(), MutationPlan.referencedModelTypes(Integer.class));
+        assertEquals(List.of(), MutationPlan.referencedModelTypes(String.class));
     }
 
     @Test
     void resolvesModelReceiverByEntityIdNameAndMarksItReadWrite() {
-        ModelDefinition.TargetPlan plan = ModelDefinition.compile(
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
                 RenameProduct.class, EntityMetadata.of(Product.class).handlerMethods());
 
-        ModelDefinition.Resolution resolution =
+        MutationPlan.Resolution resolution =
                 plan.resolve(new RenameProduct(new ProductId("1"), "new name"));
 
-        assertEquals(List.of(new ModelDefinition.ResolvedModel(
+        assertEquals(List.of(new MutationPlan.ResolvedModel(
                              "product-1", Product.class, READ_WRITE, List.of("productId"))),
                      resolution.models());
         assertTrue(resolution.deferredWrites().isEmpty());
@@ -62,7 +62,7 @@ class ModelDefinitionTest {
 
     @Test
     void resolvesUniqueTypedIdWhenPropertyNameDiffers() {
-        ModelDefinition.Resolution resolution = ModelDefinition.compile(
+        MutationPlan.Resolution resolution = MutationPlan.compile(
                         RenameProductByTarget.class, EntityMetadata.of(Product.class).handlerMethods())
                 .resolve(new RenameProductByTarget(new ProductId("1")));
 
@@ -72,7 +72,7 @@ class ModelDefinitionTest {
 
     @Test
     void appliesEntityIdAffixOutsideTypedIdPrefix() {
-        ModelDefinition.Resolution resolution = ModelDefinition.compile(
+        MutationPlan.Resolution resolution = MutationPlan.compile(
                         RenameAffixed.class, EntityMetadata.of(Affixed.class).handlerMethods())
                 .resolve(new RenameAffixed(new AffixedId("1")));
 
@@ -81,7 +81,7 @@ class ModelDefinitionTest {
 
     @Test
     void resolvesGetterOnlyPayloadProperties() {
-        ModelDefinition.Resolution resolution = ModelDefinition.compile(
+        MutationPlan.Resolution resolution = MutationPlan.compile(
                         GetterOnlyRename.class, EntityMetadata.of(Product.class).handlerMethods())
                 .resolve(new GetterOnlyRename("getter"));
 
@@ -90,7 +90,7 @@ class ModelDefinitionTest {
 
     @Test
     void canonicalEntityIdNameWinsOverOtherIdsOfSameType() {
-        ModelDefinition.Resolution resolution = ModelDefinition.compile(
+        MutationPlan.Resolution resolution = MutationPlan.compile(
                         MergeProduct.class, EntityMetadata.of(Product.class).handlerMethods())
                 .resolve(new MergeProduct(new ProductId("target"), new ProductId("other")));
 
@@ -100,11 +100,11 @@ class ModelDefinitionTest {
 
     @Test
     void associationOnModelParameterOverridesAutomaticPropertyMatching() {
-        ModelDefinition.Resolution resolution = ModelDefinition.compile(
+        MutationPlan.Resolution resolution = MutationPlan.compile(
                         CheckOrder.class, EntityMetadata.of(CheckOrder.class).handlerMethods())
                 .resolve(new CheckOrder(new OrderId("ignored"), new OrderId("selected")));
 
-        assertEquals(List.of(new ModelDefinition.ResolvedModel(
+        assertEquals(List.of(new MutationPlan.ResolvedModel(
                              "order-selected", Order.class, READ_ONLY, List.of("selectedOrder"))),
                      resolution.models());
     }
@@ -113,11 +113,11 @@ class ModelDefinitionTest {
     void resolvesAndDeduplicatesAllDirectCrossModelDependencies() {
         ReserveInventory command = new ReserveInventory(new OrderId("1"), new InventoryId("2"));
 
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 new Message(command), EntityMetadata.of(ReserveInventory.class).handlerMethods());
 
         assertEquals(List.of("order-1", "inventory-2"),
-                     resolution.models().stream().map(ModelDefinition.ResolvedModel::modelId).toList());
+                     resolution.models().stream().map(MutationPlan.ResolvedModel::modelId).toList());
         assertEquals(READ_WRITE, resolution.models().getFirst().access());
         assertEquals(READ_ONLY, resolution.models().getLast().access());
     }
@@ -127,12 +127,12 @@ class ModelDefinitionTest {
         ProductId first = new ProductId("first");
         ProductId second = new ProductId("second");
 
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 new CheckProducts(List.of(second, first, second)),
                 EntityMetadata.of(CheckProducts.class).handlerMethods());
 
         assertEquals(List.of("product-second", "product-first"),
-                     resolution.models().stream().map(ModelDefinition.ResolvedModel::modelId).toList());
+                     resolution.models().stream().map(MutationPlan.ResolvedModel::modelId).toList());
         assertTrue(resolution.models().stream().allMatch(model -> model.access() == READ_ONLY));
         assertTrue(resolution.models().stream()
                            .allMatch(model -> model.sourceProperties().equals(List.of("productIds"))));
@@ -143,13 +143,13 @@ class ModelDefinitionTest {
         ProductId first = new ProductId("first");
         ProductId second = new ProductId("second");
 
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 new RenameProducts(List.of(second, first, second)),
                 EntityMetadata.of(RenameProducts.class).handlerMethods());
 
         assertEquals(List.of("product-second", "product-first"),
                      resolution.models().stream()
-                             .map(ModelDefinition.ResolvedModel::modelId)
+                             .map(MutationPlan.ResolvedModel::modelId)
                              .toList());
         assertTrue(resolution.models().stream()
                            .allMatch(model -> model.access() == READ_WRITE));
@@ -159,17 +159,17 @@ class ModelDefinitionTest {
     void resolvesWriteOnlyCreationTarget() {
         CreateProduct command = new CreateProduct(new ProductId("new"));
 
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 command, EntityMetadata.of(CreateProduct.class).handlerMethods());
 
-        assertEquals(List.of(new ModelDefinition.ResolvedModel(
+        assertEquals(List.of(new MutationPlan.ResolvedModel(
                              "product-new", Product.class, WRITE_ONLY, List.of("productId"))),
                      resolution.models());
     }
 
     @Test
     void resolvesAssertionReceiverAsReadOnly() {
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 new CheckGuardedProduct(new GuardedProductId("1")),
                 EntityMetadata.of(GuardedProduct.class).handlerMethods());
 
@@ -178,17 +178,17 @@ class ModelDefinitionTest {
 
     @Test
     void neverRequiresParentIdToTargetChildModel() {
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 new RenameChild(new ChildId("1")),
                 EntityMetadata.of(Child.class).handlerMethods());
 
         assertEquals(List.of("child-1"),
-                     resolution.models().stream().map(ModelDefinition.ResolvedModel::modelId).toList());
+                     resolution.models().stream().map(MutationPlan.ResolvedModel::modelId).toList());
     }
 
     @Test
     void classifiesMissingDirectModelParameterAsAncestorDependency() {
-        ModelDefinition.Resolution resolution =
+        MutationPlan.Resolution resolution =
                 resolve(
                         new CheckChild(new ChildId("1")),
                         EntityMetadata.of(
@@ -197,10 +197,10 @@ class ModelDefinitionTest {
         assertEquals(
                 List.of("child-1"),
                 resolution.models().stream()
-                        .map(ModelDefinition.ResolvedModel::modelId)
+                        .map(MutationPlan.ResolvedModel::modelId)
                         .toList());
         assertEquals(
-                List.of(new ModelDefinition.AncestorDependency(
+                List.of(new MutationPlan.AncestorDependency(
                         Parent.class, null,
                         EntityMetadata.of(CheckChild.class)
                                 .handlerMethods().getFirst()
@@ -210,7 +210,7 @@ class ModelDefinitionTest {
 
     @Test
     void missingAssociationPropertyQualifiesAncestorPath() {
-        ModelDefinition.Resolution resolution =
+        MutationPlan.Resolution resolution =
                 resolve(
                         new CheckQualifiedChild(new ChildId("1")),
                         EntityMetadata.of(
@@ -227,11 +227,11 @@ class ModelDefinitionTest {
     void defersWriteSelectionWhenReturnTypeHasMultipleQualifiedCandidates() {
         Transfer command = new Transfer(new AccountId("source"), new AccountId("destination"));
 
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 command, EntityMetadata.of(Transfer.class).handlerMethods());
 
         assertEquals(List.of("account-source", "account-destination"),
-                     resolution.models().stream().map(ModelDefinition.ResolvedModel::modelId).toList());
+                     resolution.models().stream().map(MutationPlan.ResolvedModel::modelId).toList());
         assertTrue(resolution.models().stream().allMatch(model -> model.access() == READ_ONLY));
         assertEquals(List.of("account-source", "account-destination"),
                      resolution.deferredWrites().getFirst().candidateModelIds());
@@ -241,7 +241,7 @@ class ModelDefinitionTest {
     void sameResolvedCandidateIsLoadedOnceAndBecomesWriteTarget() {
         AccountId same = new AccountId("same");
 
-        ModelDefinition.Resolution resolution = resolve(
+        MutationPlan.Resolution resolution = resolve(
                 new Transfer(same, same), EntityMetadata.of(Transfer.class).handlerMethods());
 
         assertEquals(1, resolution.models().size());
@@ -254,7 +254,7 @@ class ModelDefinitionTest {
     void rejectsAmbiguousTypedIdsWithoutQualifier() {
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> ModelDefinition.compile(
+                () -> MutationPlan.compile(
                         AmbiguousRename.class, EntityMetadata.of(Product.class).handlerMethods()));
 
         assertTrue(exception.getMessage().contains("ambiguous"));
@@ -271,7 +271,7 @@ class ModelDefinitionTest {
 
     @Test
     void rejectsNullIdsAndPayloadTypeMismatchDuringResolution() {
-        ModelDefinition.TargetPlan plan = ModelDefinition.compile(
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
                 RenameProduct.class, EntityMetadata.of(Product.class).handlerMethods());
 
         assertTrue(assertThrows(
@@ -285,7 +285,7 @@ class ModelDefinitionTest {
     @Test
     void rejectsOneGlobalIdBeingClaimedByIncompatibleModelTypes() {
         SameStringId command = new SameStringId("same", "same");
-        ModelDefinition.TargetPlan plan = ModelDefinition.compile(
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
                 SameStringId.class, EntityMetadata.of(SameStringId.class).handlerMethods());
 
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> plan.resolve(command));
@@ -297,17 +297,17 @@ class ModelDefinitionTest {
     private static void assertMessage(Class<?> payloadType, Class<?> handlerType, String expected) {
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> ModelDefinition.plan(payloadType, EntityMetadata.of(handlerType).handlerMethods()));
+                () -> MutationPlan.plan(payloadType, EntityMetadata.of(handlerType).handlerMethods()));
         assertTrue(exception.getMessage().contains(expected),
                    () -> "Expected '%s' in '%s'".formatted(expected, exception.getMessage()));
     }
 
-    private static ModelDefinition.Resolution resolve(
+    private static MutationPlan.Resolution resolve(
             Object input,
             List<EntityMetadata.HandlerMethod> handlers) {
         Object payload = input instanceof Message message
                 ? message.getPayload() : input;
-        return ModelDefinition.compile(payload.getClass(), handlers)
+        return MutationPlan.compile(payload.getClass(), handlers)
                 .resolve(input);
     }
 

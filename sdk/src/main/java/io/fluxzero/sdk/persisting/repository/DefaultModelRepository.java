@@ -62,7 +62,7 @@ import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
-import io.fluxzero.sdk.modeling.ModelDefinition;
+import io.fluxzero.sdk.modeling.MutationPlan;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
@@ -107,7 +107,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final DocumentStore documentStore;
     private final Serializer serializer;
     private final EntityHelper entityHelper;
-    private final ModelDefinition.Compiler modelDefinitionCompiler;
+    private final MutationPlan.Compiler modelDefinitionCompiler;
     private final ModelReplayCursor replayCursor;
     private final Cache cacheSource;
     private final Cache modelCache;
@@ -119,7 +119,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      */
     public DefaultModelRepository(Client client, DocumentStore documentStore) {
         this(client, documentStore, null, null, null, NoOpCache.INSTANCE,
-             (ModelDefinition.Compiler) null);
+             (MutationPlan.Compiler) null);
     }
 
     public DefaultModelRepository(
@@ -129,7 +129,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityHelper entityHelper,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, serializer, NoOpCache.INSTANCE,
-             parameterResolvers == null ? null : new ModelDefinition.Compiler(parameterResolvers));
+             parameterResolvers == null ? null : new MutationPlan.Compiler(parameterResolvers));
     }
 
     public DefaultModelRepository(
@@ -141,7 +141,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
-             parameterResolvers == null ? null : new ModelDefinition.Compiler(parameterResolvers));
+             parameterResolvers == null ? null : new MutationPlan.Compiler(parameterResolvers));
     }
 
     private DefaultModelRepository(
@@ -151,7 +151,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityHelper entityHelper,
             Serializer snapshotSerializer,
             Cache cache,
-            ModelDefinition.Compiler modelDefinitionCompiler) {
+            MutationPlan.Compiler modelDefinitionCompiler) {
         this.client = Objects.requireNonNull(client, "client");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
         this.serializer = serializer;
@@ -192,7 +192,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     /** Returns the model-definition compiler shared by live commits and stored-event replay. */
-    public ModelDefinition.Compiler modelDefinitionCompiler() {
+    public MutationPlan.Compiler modelDefinitionCompiler() {
         return modelDefinitionCompiler;
     }
 
@@ -396,16 +396,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 })
                 .toList();
-        List<ModelDefinition.ResolvedModel> targets = ids.stream()
-                .map(modelId -> new ModelDefinition.ResolvedModel(
+        List<MutationPlan.ResolvedModel> targets = ids.stream()
+                .map(modelId -> new MutationPlan.ResolvedModel(
                         modelId,
                         modelType,
-                        ModelDefinition.Access.READ_ONLY,
+                        MutationPlan.Access.READ_ONLY,
                         List.of(idProperty)))
                 .toList();
         ModelReadBoundary.Pinned handlerBoundary = handlerBoundary();
         CommitAttempt context = loadContext(
-                new ModelDefinition.Resolution(targets, List.of()),
+                new MutationPlan.Resolution(targets, List.of()),
                 boundary(handlerBoundary),
                 Map.of(), false);
         context = ModelBatchScope.overlayCurrent(
@@ -461,16 +461,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean all) {
         requireEventReconstruction();
         EntityMetadata sourceMetadata = EntityMetadata.validate(modelType);
-        ModelDefinition.ResolvedModel source =
-                new ModelDefinition.ResolvedModel(
+        MutationPlan.ResolvedModel source =
+                new MutationPlan.ResolvedModel(
                         modelId, modelType,
-                        ModelDefinition.Access.READ_ONLY,
+                        MutationPlan.Access.READ_ONLY,
                         List.of(sourceMetadata.entityId()
                                         .orElseThrow().name()));
-        ModelDefinition.Resolution request =
-                new ModelDefinition.Resolution(
+        MutationPlan.Resolution request =
+                new MutationPlan.Resolution(
                         List.of(source), List.of(),
-                        List.of(new ModelDefinition.AncestorDependency(
+                        List.of(new MutationPlan.AncestorDependency(
                                 ancestorType, null,
                                 "Graph.ancestor(%s)".formatted(
                                         ancestorType.getName()))));
@@ -497,7 +497,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 stagedValues, boundary.includeMessageBatch(),
                 false, !all, all,
                 UNBOUNDED, UNBOUNDED);
-        List<ModelDefinition.ResolvedModel> targets =
+        List<MutationPlan.ResolvedModel> targets =
                 resolved.resolution().models().stream()
                         .filter(candidate ->
                                 !candidate.modelId().equals(modelId))
@@ -705,14 +705,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (handlers.isEmpty()) {
                 return Optional.empty();
             }
-            return ModelDefinition.compile(
+            return MutationPlan.compile(
                             payload.getClass(), handlers)
                     .resolve(payload)
                     .models().stream()
                     .filter(target -> target.access().writes())
                     .filter(target -> modelId.equals(
                             target.modelId()))
-                    .map(ModelDefinition.ResolvedModel::modelType)
+                    .map(MutationPlan.ResolvedModel::modelType)
                     .filter(type -> EntityMetadata.of(type)
                             .isModel())
                     .findFirst();
@@ -826,7 +826,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      */
     @Override
     public CommitAttempt loadContext(
-            ModelDefinition.Resolution resolution) {
+            MutationPlan.Resolution resolution) {
         ModelReadBoundary.Pinned handlerBoundary =
                 handlerBoundary();
         CommitAttempt context = loadContext(
@@ -842,7 +842,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * reconstructed from stored model events; current document-model targets retain their direct-document load path.
      */
     public CommitAttempt loadContext(
-            ModelDefinition.Resolution resolution, Long maxStateIndex) {
+            MutationPlan.Resolution resolution, Long maxStateIndex) {
         return loadContext(
                 resolution,
                 ModelReadBoundary.at(maxStateIndex),
@@ -853,7 +853,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * Loads an commit context and overlays relationships declared by model values staged in earlier substeps.
      */
     public CommitAttempt loadContext(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             Long maxStateIndex,
             Map<String, Object> stagedValues) {
         return loadContext(
@@ -867,7 +867,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * supplies exactly the required predecessors; explicit operations and ordinary handlers enable it.
      */
     public CommitAttempt loadContext(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             Long maxStateIndex,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
@@ -909,7 +909,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private CommitAttempt loadContext(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
@@ -921,7 +921,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private AncestorResolution resolveAncestors(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
@@ -932,7 +932,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private AncestorResolution resolveAncestors(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch,
@@ -1250,7 +1250,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private record AncestorResolution(
             long stateIndex,
-            ModelDefinition.Resolution resolution) {
+            MutationPlan.Resolution resolution) {
     }
 
     /** Receives a cache value and the boundaries that prove it current. */

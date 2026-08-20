@@ -56,7 +56,7 @@ import java.util.function.Supplier;
  * The single lifecycle owner for independent-model evaluation and commits.
  *
  * <p>Every automatic, explicit, graph, collection and retry request enters this pipeline. Payload-specific behavior is
- * supplied by immutable {@link ModelDefinition model definitions}; batch-local ordering is delegated exclusively to
+ * supplied by immutable {@link MutationPlan model definitions}; batch-local ordering is delegated exclusively to
  * {@link ModelBatchScope}; and the repository owns wire preparation and authoritative commit completion.</p>
  */
 @Slf4j
@@ -74,7 +74,7 @@ final class ModelPipeline {
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
     private final EventStoreClient eventStoreClient;
-    private final Function<Class<?>, ModelDefinition> definitions;
+    private final Function<Class<?>, MutationPlan> definitions;
     private final java.util.function.BooleanSupplier localHandlingEnabled;
     private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
@@ -91,7 +91,7 @@ final class ModelPipeline {
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             GraphProjectionCompletion graphProjectionCompletion,
-            Function<Class<?>, ModelDefinition> definitions,
+            Function<Class<?>, MutationPlan> definitions,
             java.util.function.BooleanSupplier localHandlingEnabled) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
@@ -140,7 +140,7 @@ final class ModelPipeline {
         return definitionFor(payloadType).commit();
     }
 
-    private ModelDefinition definitionFor(Class<?> payloadType) {
+    private MutationPlan definitionFor(Class<?> payloadType) {
         return definitions.apply(payloadType);
     }
 
@@ -362,14 +362,14 @@ final class ModelPipeline {
     private CommitAttempt evaluateAssertions(
             ExecutionRequest request, CommitAttempt attempt,
             boolean retry, boolean batched) {
-        return definitionFor(request.message().getPayloadClass()).assertLegal(
+        return ModelReducer.assertLegal(
                 attempt, request.message(), new CommitLoader(null));
     }
 
     private CommitAttempt evaluateStored(
             ExecutionRequest request, CommitAttempt attempt,
             boolean retry, boolean batched) {
-        return definitionFor(request.message().getPayloadClass()).reapply(
+        return ModelReducer.reapply(
                 attempt, List.of(request.message()), new CommitLoader(null, true));
     }
 
@@ -790,7 +790,7 @@ final class ModelPipeline {
                     ModelBatchScope.withMessageDependency(
                             message,
                             () -> expandCascadeDeletes(
-                                    definitionFor(message.getPayloadClass()).apply(
+                                    ModelReducer.apply(
                                             List.of(message),
                                             new CommitLoader(retryStateIndex)))));
         } catch (Throwable failure) {
@@ -830,24 +830,8 @@ final class ModelPipeline {
             CommitAttempt attempt,
             DeserializingMessage initialMessage,
             PrefetchSlot prefetched) {
-        if (prefetched != null
-            && prefetched.entity != null
-            && prefetched.mutation.direct()
-            && prefetched.access.writes()) {
-            CommitAttempt direct =
-                    prefetched.mutation.evaluateDirectSingleTarget(
-                            attempt,
-                            initialMessage,
-                            prefetched.stateIndex,
-                            prefetched.modelId,
-                            prefetched.modelType,
-                            prefetched.entity);
-            if (direct != null) {
-                return expandCascadeDeletes(direct);
-            }
-        }
         return expandCascadeDeletes(
-                definitionFor(initialMessage.getPayloadClass()).apply(
+                ModelReducer.apply(
                         attempt, List.of(initialMessage),
                         new CommitLoader(null, false, initialMessage, prefetched)));
     }
@@ -857,8 +841,7 @@ final class ModelPipeline {
             long stateIndex) {
         return ModelBatchScope.withMessageDependency(
                 messages.getFirst(),
-                () -> expandCascadeDeletes(definitionFor(
-                        messages.getFirst().getPayloadClass()).reapply(
+                () -> expandCascadeDeletes(ModelReducer.reapply(
                         messages.stream()
                                 .filter(message -> !(message.getPayload()
                                         instanceof CascadedModelDeletion))
@@ -1056,13 +1039,13 @@ final class ModelPipeline {
     record ExplicitModelTarget(String modelId, Class<?> modelType) {
     }
 
-    private final class CommitLoader implements ModelExecutionPlan.SubstepResolver {
+    private final class CommitLoader implements ModelReducer.SubstepResolver {
         private final Long pinnedStateIndex;
         private final boolean applyOnly;
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
-        private final Map<AncestorPlanKey, List<ModelDefinition.ResolvedModel>> ancestorPlans =
+        private final Map<AncestorPlanKey, List<MutationPlan.ResolvedModel>> ancestorPlans =
                 new LinkedHashMap<>();
 
         private CommitLoader(Long pinnedStateIndex) {
@@ -1085,7 +1068,7 @@ final class ModelPipeline {
         }
 
         @Override
-        public ModelExecutionPlan.ResolvedSubstep resolve(
+        public ModelReducer.ResolvedSubstep resolve(
                 DeserializingMessage substep,
                 Long requestedStateIndex,
                 Map<String, Object> stagedValues) {
@@ -1095,14 +1078,14 @@ final class ModelPipeline {
                         "Pinned model evaluation moved from state index %d to %d"
                                 .formatted(pinnedStateIndex, boundary));
             }
-            ModelDefinition definition = definitionFor(substep.getPayloadClass());
+            MutationPlan definition = definitionFor(substep.getPayloadClass());
             if (substep == directMessage
                 && prefetched != null
                 && prefetched.entity != null
                 && requestedStateIndex == null
                 && stagedValues.isEmpty()) {
                 commitEntities.put(prefetched.modelId, prefetched.entity);
-                return new ModelExecutionPlan.ResolvedSubstep(
+                return new ModelReducer.ResolvedSubstep(
                         CommitAttempt.createSingle(
                                 prefetched.stateIndex,
                                 prefetched.modelId,
@@ -1111,11 +1094,11 @@ final class ModelPipeline {
                                 prefetched.sourceProperties,
                         prefetched.entity),
                         prefetched.access.writes()
-                                ? prefetched.mutation : definition.genericMutation());
+                                ? prefetched.reducer : definition.genericReducer());
             }
             ExplicitModelTarget explicitTarget = substep.getContext(
                     ExplicitModelTarget.class).orElse(null);
-            ModelDefinition.Resolution resolution =
+            MutationPlan.Resolution resolution =
                     definition.targets().resolve(
                             substep.getPayload(),
                             explicitTarget == null ? null : explicitTarget.modelId(),
@@ -1123,9 +1106,9 @@ final class ModelPipeline {
                             applyOnly);
             AncestorPlanKey planKey = resolution.hasAncestorDependencies()
                     ? ancestorPlanKey(resolution, stagedValues) : null;
-            List<ModelDefinition.ResolvedModel> effectiveTargets = planKey == null
+            List<MutationPlan.ResolvedModel> effectiveTargets = planKey == null
                     ? resolution.models() : ancestorPlans.get(planKey);
-            List<ModelDefinition.ResolvedModel> missing = effectiveTargets == null ? List.of()
+            List<MutationPlan.ResolvedModel> missing = effectiveTargets == null ? List.of()
                     : effectiveTargets.stream()
                             .filter(target -> !commitEntities.containsKey(target.modelId()))
                             .toList();
@@ -1137,24 +1120,24 @@ final class ModelPipeline {
                 ancestorPlans.put(planKey, effectiveTargets);
             } else if (pinnedStateIndex == null && requestedStateIndex == null
                        || !missing.isEmpty()) {
-                ModelDefinition.Resolution loadResolution =
+                MutationPlan.Resolution loadResolution =
                         pinnedStateIndex == null && requestedStateIndex == null
                                 ? planKey == null ? resolution
                                         : resolution.withResolvedModels(effectiveTargets)
-                                : new ModelDefinition.Resolution(missing, List.of());
+                                : new MutationPlan.Resolution(missing, List.of());
                 stateIndex = load(loadResolution, boundary, stagedValues).readStateIndex();
             }
-            ModelDefinition.Resolution effectiveResolution = planKey == null
+            MutationPlan.Resolution effectiveResolution = planKey == null
                     ? resolution : resolution.withResolvedModels(effectiveTargets);
             LinkedHashMap<String, Entity<?>> selected = new LinkedHashMap<>();
             effectiveTargets.forEach(target -> selected.put(
                     target.modelId(), Objects.requireNonNull(
                             commitEntities.get(target.modelId()),
                             "Missing commit-scoped model " + target.modelId())));
-            return new ModelExecutionPlan.ResolvedSubstep(
+            return new ModelReducer.ResolvedSubstep(
                     CommitAttempt.create(
                             stateIndex, effectiveResolution, selected),
-                    definition.genericMutation());
+                    definition.genericReducer());
         }
 
         @Override
@@ -1162,13 +1145,13 @@ final class ModelPipeline {
                 List<DeserializingMessage> messages,
                 long readStateIndex,
                 Map<String, Object> stagedValues) {
-            LinkedHashMap<String, ModelDefinition.ResolvedModel> targets =
+            LinkedHashMap<String, MutationPlan.ResolvedModel> targets =
                     new LinkedHashMap<>();
             for (DeserializingMessage message : messages) {
                 if (message.getContext(ExplicitModelTarget.class).isPresent()) {
                     continue;
                 }
-                ModelDefinition.Resolution resolution = definitionFor(
+                MutationPlan.Resolution resolution = definitionFor(
                                 message.getPayloadClass())
                         .targets().resolve(message.getPayload(), null, applyOnly);
                 if (resolution.hasAncestorDependencies()) {
@@ -1176,28 +1159,28 @@ final class ModelPipeline {
                 }
                 resolution.models().stream()
                         .filter(target -> !commitEntities.containsKey(target.modelId()))
-                        .forEach(target -> ModelDefinition.merge(targets, target));
+                        .forEach(target -> MutationPlan.merge(targets, target));
             }
             if (!targets.isEmpty()) {
-                load(new ModelDefinition.Resolution(
+                load(new MutationPlan.Resolution(
                                 List.copyOf(targets.values()), List.of()),
                      readStateIndex, stagedValues);
             }
         }
 
         @Override
-        public ModelExecutionPlan.ResolvedSubstep resolveGraph(
+        public ModelReducer.ResolvedSubstep resolveGraph(
                 String modelId,
                 Class<?> modelType,
                 Long requestedStateIndex,
                 Map<String, Object> stagedValues) {
             Objects.requireNonNull(modelId, "modelId");
             Objects.requireNonNull(modelType, "modelType");
-            ModelDefinition.Resolution resolution =
-                    new ModelDefinition.Resolution(
-                            List.of(new ModelDefinition.ResolvedModel(
+            MutationPlan.Resolution resolution =
+                    new MutationPlan.Resolution(
+                            List.of(new MutationPlan.ResolvedModel(
                                     modelId, modelType,
-                                    ModelDefinition.Access.READ_WRITE,
+                                    MutationPlan.Access.READ_WRITE,
                                     List.of())),
                             List.of());
             CommitAttempt loaded = load(
@@ -1205,12 +1188,12 @@ final class ModelPipeline {
                     requestedStateIndex == null
                             ? pinnedStateIndex : requestedStateIndex,
                     stagedValues);
-            return new ModelExecutionPlan.ResolvedSubstep(
-                    loaded, ModelDefinition.Mutation.EMPTY);
+            return new ModelReducer.ResolvedSubstep(
+                    loaded, ModelReducer.EMPTY);
         }
 
         private CommitAttempt load(
-                ModelDefinition.Resolution resolution,
+                MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
             DeserializingMessage current =
@@ -1252,7 +1235,7 @@ final class ModelPipeline {
             return loaded;
         }
 
-        private static List<ModelDefinition.ResolvedModel> targets(
+        private static List<MutationPlan.ResolvedModel> targets(
                 CommitAttempt context) {
             return context.targets();
         }
@@ -1328,38 +1311,38 @@ final class ModelPipeline {
     }
 
     private PrefetchSlot prefetch(DeserializingMessage message) {
-        ModelDefinition definition = definitionFor(message.getPayloadClass());
-        ModelDefinition.TargetPlan targets = definition.targets();
+        MutationPlan definition = definitionFor(message.getPayloadClass());
+        MutationPlan.TargetPlan targets = definition.targets();
         if (!targets.isDirectSingleTarget()) {
             return null;
         }
         return new PrefetchSlot(
                 targets.resolveSingleModelId(message.getPayload()),
                 targets.singleModelType(), targets.singleAccess(), targets.singleSourceProperties(),
-                definition.mutation());
+                definition.reducer());
     }
 
     private static final class PrefetchSlot
             implements DefaultModelRepository.CurrentModelSink {
         private final String modelId;
         private final Class<?> modelType;
-        private final ModelDefinition.Access access;
+        private final MutationPlan.Access access;
         private final List<String> sourceProperties;
-        private final ModelDefinition.Mutation mutation;
+        private final ModelReducer reducer;
         private Entity<?> entity;
         private long stateIndex;
 
         private PrefetchSlot(
                 String modelId,
                 Class<?> modelType,
-                ModelDefinition.Access access,
+                MutationPlan.Access access,
                 List<String> sourceProperties,
-                ModelDefinition.Mutation mutation) {
+                ModelReducer reducer) {
             this.modelId = modelId;
             this.modelType = modelType;
             this.access = access;
             this.sourceProperties = sourceProperties;
-            this.mutation = mutation;
+            this.reducer = reducer;
         }
 
         @Override
@@ -1373,7 +1356,7 @@ final class ModelPipeline {
     }
 
     private static AncestorPlanKey ancestorPlanKey(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             Map<String, Object> stagedValues) {
         List<StagedRelationships> relationships = new ArrayList<>(stagedValues.size());
         stagedValues.forEach((modelId, value) -> {
@@ -1394,7 +1377,7 @@ final class ModelPipeline {
     }
 
     private record AncestorPlanKey(
-            ModelDefinition.Resolution resolution,
+            MutationPlan.Resolution resolution,
             List<StagedRelationships> stagedRelationships) {
     }
 

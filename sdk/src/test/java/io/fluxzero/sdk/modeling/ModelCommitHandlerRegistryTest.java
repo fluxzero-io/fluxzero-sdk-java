@@ -208,10 +208,10 @@ class ModelCommitHandlerRegistryTest {
                 .thenReturn(() -> {
                 });
         when(repository.loadContext(
-                any(ModelDefinition.Resolution.class),
+                any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(invocation -> {
-                    ModelDefinition.Resolution resolution =
+                    MutationPlan.Resolution resolution =
                             invocation.getArgument(0);
                     Long boundary = invocation.getArgument(1);
                     RetryBoundaryModel value = boundary == null
@@ -794,7 +794,7 @@ class ModelCommitHandlerRegistryTest {
                     .join();
 
             verify(repository, times(0)).loadContext(
-                    any(ModelDefinition.Resolution.class),
+                    any(MutationPlan.Resolution.class),
                     nullable(Long.class), anyMap());
             assertEquals(
                     committedEventId.join(),
@@ -1090,7 +1090,7 @@ class ModelCommitHandlerRegistryTest {
         BATCH_PARENT_OBSERVATIONS.clear();
         BATCH_INCREMENT_OBSERVATIONS.clear();
         UpdateBatchChild update = new UpdateBatchChild(childId, 1);
-        assertTrue(ModelDefinition.compile(
+        assertTrue(MutationPlan.compile(
                 UpdateBatchChild.class,
                 EntityMetadata.of(UpdateBatchChild.class).handlerMethods())
                            .resolve(update)
@@ -1551,10 +1551,10 @@ class ModelCommitHandlerRegistryTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void stubModelLoads(DefaultModelRepository repository) {
         org.mockito.stubbing.Answer<CommitAttempt> answer = invocation -> {
-            ModelDefinition.Resolution resolution = invocation.getArgument(0);
+            MutationPlan.Resolution resolution = invocation.getArgument(0);
             Map<String, Entity<?>> loaded = resolution.models().stream()
                     .collect(java.util.stream.Collectors.toMap(
-                            ModelDefinition.ResolvedModel::modelId,
+                            MutationPlan.ResolvedModel::modelId,
                             target -> ImmutableModelRoot.<Object>builder()
                                     .id(target.modelId())
                                     .type((Class<Object>) target.modelType())
@@ -1567,11 +1567,11 @@ class ModelCommitHandlerRegistryTest {
             return CommitAttempt.create(0L, resolution, loaded);
         };
         when(repository.loadContext(
-                any(ModelDefinition.Resolution.class),
+                any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap()))
                 .thenAnswer(answer);
         when(repository.loadContext(
-                any(ModelDefinition.Resolution.class),
+                any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
@@ -1583,15 +1583,15 @@ class ModelCommitHandlerRegistryTest {
             DefaultModelRepository repository,
             Map<String, Object> durable) {
         org.mockito.stubbing.Answer<CommitAttempt> answer = invocation -> {
-            ModelDefinition.Resolution resolution = invocation.getArgument(0);
+            MutationPlan.Resolution resolution = invocation.getArgument(0);
             Map<String, Object> staged = invocation.getArgument(2);
-            LinkedHashMap<String, ModelDefinition.ResolvedModel> targets =
+            LinkedHashMap<String, MutationPlan.ResolvedModel> targets =
                     new LinkedHashMap<>();
             resolution.models().forEach(target ->
-                    ModelDefinition.merge(targets, target));
-            for (ModelDefinition.AncestorDependency dependency :
+                    MutationPlan.merge(targets, target));
+            for (MutationPlan.AncestorDependency dependency :
                     resolution.ancestorDependencies()) {
-                for (ModelDefinition.ResolvedModel target :
+                for (MutationPlan.ResolvedModel target :
                         resolution.models()) {
                     Object child = staged.containsKey(target.modelId())
                             ? staged.get(target.modelId())
@@ -1609,12 +1609,12 @@ class ModelCommitHandlerRegistryTest {
                             continue;
                         }
                         if (parentId != null) {
-                            ModelDefinition.merge(
+                            MutationPlan.merge(
                                     targets,
-                                    new ModelDefinition.ResolvedModel(
+                                    new MutationPlan.ResolvedModel(
                                     parentId.toString(),
                                     dependency.modelType(),
-                                    ModelDefinition.Access.READ_ONLY,
+                                    MutationPlan.Access.READ_ONLY,
                                     dependency.association() == null
                                             ? List.of()
                                             : List.of(dependency.association())));
@@ -1623,7 +1623,7 @@ class ModelCommitHandlerRegistryTest {
                 }
             }
             LinkedHashMap<String, Entity<?>> loaded = new LinkedHashMap<>();
-            for (ModelDefinition.ResolvedModel target : targets.values()) {
+            for (MutationPlan.ResolvedModel target : targets.values()) {
                 Object value = staged.containsKey(target.modelId())
                         ? staged.get(target.modelId())
                         : durable.get(target.modelId());
@@ -1645,11 +1645,11 @@ class ModelCommitHandlerRegistryTest {
                     loaded);
         };
         when(repository.loadContext(
-                any(ModelDefinition.Resolution.class),
+                any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap()))
                 .thenAnswer(answer);
         when(repository.loadContext(
-                any(ModelDefinition.Resolution.class),
+                any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
