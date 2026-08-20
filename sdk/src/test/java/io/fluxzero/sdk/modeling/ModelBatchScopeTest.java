@@ -22,7 +22,6 @@ import io.fluxzero.sdk.tracking.handling.Invocation;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -57,12 +56,9 @@ class ModelBatchScopeTest {
                         assertEquals(after,
                                      ModelBatchScope.overlayCurrent(
                                              null, "model-1", AliasModel.class, durable).get());
-                        assertEquals(
-                                Map.of("model-1",
-                                       new ModelBatchScope.StagedModel(
-                                               "model-1", AliasModel.class,
-                                               after, true)),
-                                ModelBatchScope.currentValues(null));
+                        Entity<?> staged = ModelBatchScope.currentValues(null).get("model-1");
+                        assertEquals(after, staged.get());
+                        assertTrue(ModelBatchScope.existedBefore(staged));
                     }
                 });
 
@@ -220,17 +216,11 @@ class ModelBatchScopeTest {
                     stage(null, evaluation(current, updated.id(), first, updated));
                     stage(null, evaluation(current, second.id(), null, second));
 
-                    assertEquals(
-                            Map.of(
-                                    first.id(),
-                                    new ModelBatchScope.StagedModel(
-                                            first.id(), AliasModel.class,
-                                            updated, false),
-                                    second.id(),
-                                    new ModelBatchScope.StagedModel(
-                                            second.id(), AliasModel.class,
-                                            second, false)),
-                            ModelBatchScope.currentValues(null));
+                    Map<String, Entity<?>> staged = ModelBatchScope.currentValues(null);
+                    assertEquals(updated, staged.get(first.id()).get());
+                    assertEquals(second, staged.get(second.id()).get());
+                    assertFalse(ModelBatchScope.existedBefore(staged.get(first.id())));
+                    assertFalse(ModelBatchScope.existedBefore(staged.get(second.id())));
                 });
     }
 
@@ -246,17 +236,15 @@ class ModelBatchScopeTest {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
                         stage(
                                 null,
-                                new ModelExecutionPlan.CommitEvaluation(
+                                CommitAttempt.fromChanges(
                                         0L,
                                         List.of(before.id()),
                                         Map.of(before.id(), ModelContract.class),
-                                        List.of(new ModelExecutionPlan.AppliedSubstep(
-                                                current,
-                                                List.of(Change.applied(
+                                        List.of(current),
+                                        List.of(List.of(Change.applied(
                                                         before.id(), ModelContract.class,
                                                         0L, null, before, after, null,
-                                                        null, false)))),
-                                        Map.of(before.id(), after)));
+                                                        null, false)))));
                     } else {
                         Entity<Object> empty = ImmutableModelRoot.builder()
                                 .id("new")
@@ -271,7 +259,7 @@ class ModelBatchScopeTest {
                         assertEquals(
                                 PolymorphicAliasModel.class,
                                 ModelBatchScope.currentValue(
-                                        null, before.id()).modelType());
+                                        null, before.id()).type());
                     }
                 });
     }
@@ -298,7 +286,51 @@ class ModelBatchScopeTest {
                 });
     }
 
-    private static ModelExecutionPlan.CommitEvaluation evaluation(
+    @Test
+    void keepsTheHandlerBeginStateWhenRegisteringCompletionDependencies() {
+        AliasModel value = new AliasModel("model-1", "alias", 1);
+        DeserializingMessage message = message("producer");
+        CommitAttempt beginState = CommitAttempt.createSingle(
+                0L, value.id(), AliasModel.class,
+                ModelDefinition.Access.READ_WRITE, List.of("id"), entity(value));
+        beginState.attachTo(message);
+
+        DeserializingMessage.forEachInBatch(List.of(message), current -> {
+            stagePending(null, evaluation(current, value.id(), null, value));
+            assertSame(beginState, current.getContext(CommitAttempt.class).orElseThrow());
+            assertTrue(current.getContext(CommitDependency.class).isPresent());
+        });
+    }
+
+    @Test
+    void resolvesAnAliasToTheLastChangedModelWithinOneAttempt() {
+        AliasModel first = new AliasModel("model-1", "shared", 1);
+        AliasModel second = new AliasModel("model-2", "shared", 2);
+
+        DeserializingMessage.forEachInBatch(
+                List.of(message("producer"), message("consumer")), current -> {
+                    if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                        stage(null, CommitAttempt.fromChanges(
+                                0L, List.of(first.id(), second.id()),
+                                Map.of(first.id(), AliasModel.class,
+                                       second.id(), AliasModel.class),
+                                current, List.of(
+                                        Change.applied(
+                                                first.id(), AliasModel.class, -1L, null,
+                                                null, first, null, null, false),
+                                        Change.applied(
+                                                second.id(), AliasModel.class, -1L, null,
+                                                null, second, null, null, false))));
+                        return;
+                    }
+                    Entity<Object> empty = ImmutableModelRoot.builder()
+                            .id("shared").type(Object.class).idProperty("id").build();
+                    assertEquals(second, ModelBatchScope.overlayCurrent(
+                            null, "shared", Object.class, empty).get());
+                });
+    }
+
+    private static CommitAttempt evaluation(
             DeserializingMessage message,
             AliasModel before,
             AliasModel after) {
@@ -307,32 +339,30 @@ class ModelBatchScopeTest {
 
     private static void stage(
             String namespace,
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         ModelBatchScope.stage(namespace, evaluation);
     }
 
     private static CompletableFuture<Object> stagePending(
             String namespace,
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         return ModelBatchScope.stagePending(namespace, evaluation);
     }
 
-    private static ModelExecutionPlan.CommitEvaluation evaluation(
+    private static CommitAttempt evaluation(
             DeserializingMessage message,
             String modelId,
             AliasModel before,
             AliasModel after) {
-        return new ModelExecutionPlan.CommitEvaluation(
+        return CommitAttempt.fromChanges(
                 0L,
                 List.of(modelId),
                 Map.of(modelId, AliasModel.class),
-                List.of(new ModelExecutionPlan.AppliedSubstep(
-                        message,
-                        List.of(Change.applied(
+                List.of(message),
+                List.of(List.of(Change.applied(
                                 modelId, AliasModel.class,
                                 0L, null, before, after, null,
-                                null, false)))),
-                Collections.singletonMap(modelId, after));
+                                null, false))));
     }
 
     private static Entity<AliasModel> entity(AliasModel value) {

@@ -61,7 +61,7 @@ class ModelCommitContextTest {
         assertEquals(List.of("assert:5", "intercept:pending", "apply:5"), invocations);
         assertEquals(1, intercepted.size());
         assertEquals(new Order(command.orderId(), "reserved"), result);
-        assertEquals(91, message.getContext(ModelCommitContext.class).orElseThrow().readStateIndex());
+        assertEquals(91, message.getContext(CommitAttempt.class).orElseThrow().readStateIndex());
     }
 
     @Test
@@ -113,11 +113,11 @@ class ModelCommitContextTest {
 
         assertTrue(assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelCommitContext.create(1, resolution, Map.of(order.id().toString(), order)))
+                () -> CommitAttempt.create(1, resolution, Map.of(order.id().toString(), order)))
                            .getMessage().contains("Missing loaded model"));
         assertTrue(assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelCommitContext.create(
+                () -> CommitAttempt.create(
                         1, resolution, Map.of(
                                 order.id().toString(), order,
                                 inventory.id().toString(), inventory,
@@ -126,7 +126,7 @@ class ModelCommitContextTest {
                            .getMessage().contains("unrelated"));
         assertTrue(assertThrows(
                 IllegalArgumentException.class,
-                () -> ModelCommitContext.create(
+                () -> CommitAttempt.create(
                         1, resolution, Map.of(
                                 order.id().toString(), entity(command.orderId(), "wrong"),
                                 inventory.id().toString(), inventory)))
@@ -138,7 +138,7 @@ class ModelCommitContextTest {
         ModelDefinition.Resolution resolution = resolution(command);
         Map<String, Entity<?>> models = java.util.Arrays.stream(loadedModels)
                 .collect(java.util.stream.Collectors.toMap(entity -> entity.id().toString(), entity -> entity));
-        ModelCommitContext context = ModelCommitContext.create(stateIndex, resolution, models);
+        CommitAttempt context = CommitAttempt.create(stateIndex, resolution, models);
         return context.attachTo(new DeserializingMessage(
                 new Message(command), MessageType.EVENT, null));
     }

@@ -231,7 +231,7 @@ class ModelCommitHandlerRegistryTest {
                                                     ? 5L
                                                     : boundary)
                                     .build();
-                    return ModelCommitContext.create(
+                    return CommitAttempt.create(
                             boundary == null ? 5L : boundary,
                             resolution,
                             Map.of(
@@ -1548,7 +1548,7 @@ class ModelCommitHandlerRegistryTest {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void stubModelLoads(DefaultModelRepository repository) {
-        org.mockito.stubbing.Answer<ModelCommitContext> answer = invocation -> {
+        org.mockito.stubbing.Answer<CommitAttempt> answer = invocation -> {
             ModelDefinition.Resolution resolution = invocation.getArgument(0);
             Map<String, Entity<?>> loaded = resolution.models().stream()
                     .collect(java.util.stream.Collectors.toMap(
@@ -1562,7 +1562,7 @@ class ModelCommitHandlerRegistryTest {
                                     .sequenceNumber(-1L)
                                     .stateIndex(0L)
                                     .build()));
-            return ModelCommitContext.create(0L, resolution, loaded);
+            return CommitAttempt.create(0L, resolution, loaded);
         };
         when(repository.loadContext(
                 any(ModelDefinition.Resolution.class),
@@ -1580,7 +1580,7 @@ class ModelCommitHandlerRegistryTest {
     private static void stubBatchModelLoads(
             DefaultModelRepository repository,
             Map<String, Object> durable) {
-        org.mockito.stubbing.Answer<ModelCommitContext> answer = invocation -> {
+        org.mockito.stubbing.Answer<CommitAttempt> answer = invocation -> {
             ModelDefinition.Resolution resolution = invocation.getArgument(0);
             Map<String, Object> staged = invocation.getArgument(2);
             LinkedHashMap<String, ModelDefinition.ResolvedModel> targets =
@@ -1636,7 +1636,7 @@ class ModelCommitHandlerRegistryTest {
                                    .stateIndex(0L)
                                    .build());
             }
-            return ModelCommitContext.create(
+            return CommitAttempt.create(
                     0L,
                     resolution.withResolvedModels(
                             List.copyOf(targets.values())),
@@ -1688,9 +1688,9 @@ class ModelCommitHandlerRegistryTest {
         return result;
     }
 
-    private static ModelExecutionPlan.CommitEvaluation evaluation(
+    private static CommitAttempt evaluation(
             Change... transitions) {
-        return new ModelExecutionPlan.CommitEvaluation(
+        return CommitAttempt.fromChanges(
                 1L,
                 java.util.Arrays.stream(transitions)
                         .map(Change::modelId)
@@ -1702,11 +1702,7 @@ class ModelCommitHandlerRegistryTest {
                                         Change::modelType,
                                         (first, second) ->
                                                 first)),
-                List.of(
-                        new ModelExecutionPlan.AppliedSubstep(
-                                null,
-                                List.of(transitions))),
-                Map.of());
+                null, List.of(transitions));
     }
 
     private static Change transition(

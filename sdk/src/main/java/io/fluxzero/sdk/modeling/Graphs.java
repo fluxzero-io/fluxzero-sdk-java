@@ -81,10 +81,8 @@ public final class Graphs {
     }
 
     /** Creates a graph that reuses all values loaded for the same handler boundary. */
-    static <T> Graph<T> lazy(Entity<T> entity, ModelCommitContext context, ModelRepository repository) {
-        LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>();
-        context.entries().forEach(entry -> models.put(entry.target().modelId(), entry.entity()));
-        return GraphState.entity(entity, context.readStateIndex(), repository, models, false, true,
+    static <T> Graph<T> lazy(Entity<T> entity, CommitAttempt context, ModelRepository repository) {
+        return GraphState.entity(entity, context.readStateIndex(), repository, context.entities(), false, true,
                                  ModelReadBoundary.forGraph(context.readStateIndex(), true, false), Map.of()).root();
     }
 
@@ -100,23 +98,23 @@ public final class Graphs {
             String rootId, long stateIndex, Map<String, Entity<?>> durableModels, List<ModelGraphEdge> durableEdges,
             ModelRepository repository, boolean historical,
             String namespace, Class<T> rootType, Graph.Options options,
-            Map<String, ModelBatchScope.StagedModel> staged,
-            Function<ModelBatchScope.StagedModel, Graph<?>> supplementalLoader) {
+            Map<String, Entity<?>> staged,
+            Function<Entity<?>, Graph<?>> supplementalLoader) {
         if (staged.isEmpty()) {
             return compose(rootId, stateIndex, durableModels, durableEdges, repository, historical);
         }
-        ModelBatchScope.StagedModel stagedRoot = staged.get(rootId);
-        if (stagedRoot != null && stagedRoot.value() == null) {
+        Entity<?> stagedRoot = staged.get(rootId);
+        if (stagedRoot != null && stagedRoot.get() == null) {
             Entity<?> durableRoot = durableModels.get(rootId);
             if (durableRoot == null) {
                 durableRoot = ImmutableModelRoot.builder()
-                        .id(rootId).type((Class) stagedRoot.modelType())
-                        .idProperty(EntityMetadata.validate(stagedRoot.modelType())
+                        .id(rootId).type((Class) stagedRoot.type())
+                        .idProperty(EntityMetadata.validate(stagedRoot.type())
                                             .entityId().orElseThrow().name())
                         .value(null).build();
             }
             Entity<?> deleted = ModelBatchScope.overlayCurrent(
-                    namespace, rootId, (Class) stagedRoot.modelType(),
+                    namespace, rootId, (Class) stagedRoot.type(),
                     durableRoot);
             return GraphState.composed(
                     rootId, stateIndex, Map.of(rootId, deleted), List.of(),
@@ -125,13 +123,17 @@ public final class Graphs {
         LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(durableModels);
         LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>(durableEdges);
         edges.removeIf(edge -> staged.containsKey(edge.getChildId()));
-        staged.values().stream().filter(value -> value.value() != null).forEach(value ->
-                addParentEdges(value.modelId(), value.modelType(), value.value(), edges));
+        staged.forEach((modelId, value) -> {
+            if (value.get() != null) {
+                addParentEdges(modelId, value.type(), value.get(), edges);
+            }
+        });
 
         LinkedHashSet<String> selected = selectedIds(rootId, edges, options);
         for (String modelId : selected) {
-            ModelBatchScope.StagedModel candidate = staged.get(modelId);
-            if (candidate == null || models.containsKey(modelId) || !candidate.existedBefore()) {
+            Entity<?> candidate = staged.get(modelId);
+            if (candidate == null || models.containsKey(modelId)
+                || !ModelBatchScope.existedBefore(candidate)) {
                 continue;
             }
             GraphView<?> supplemental = adapt(supplementalLoader.apply(candidate));
@@ -144,18 +146,18 @@ public final class Graphs {
         LinkedHashSet<String> finalSelection = selectedIds(rootId, edges, options);
         LinkedHashMap<String, Entity<?>> selectedModels = new LinkedHashMap<>();
         for (String modelId : finalSelection) {
-            ModelBatchScope.StagedModel candidate = staged.get(modelId);
+            Entity<?> candidate = staged.get(modelId);
             Entity<?> entity = models.get(modelId);
             if (candidate != null) {
                 if (entity == null) {
                     entity = ImmutableModelRoot.builder()
-                            .id(modelId).type((Class) candidate.modelType())
-                            .idProperty(EntityMetadata.validate(candidate.modelType())
+                            .id(modelId).type((Class) candidate.type())
+                            .idProperty(EntityMetadata.validate(candidate.type())
                                                 .entityId().orElseThrow().name())
                             .value(null).build();
                 }
                 entity = ModelBatchScope.overlayCurrent(
-                        namespace, modelId, (Class) candidate.modelType(), entity);
+                        namespace, modelId, (Class) candidate.type(), entity);
             }
             if (entity == null) {
                 throw new IllegalArgumentException(
@@ -163,7 +165,7 @@ public final class Graphs {
             }
             selectedModels.put(modelId, entity);
         }
-        Class<?> effectiveRootType = stagedRoot == null ? rootType : stagedRoot.modelType();
+        Class<?> effectiveRootType = stagedRoot == null ? rootType : stagedRoot.type();
         if (!rootType.isAssignableFrom(effectiveRootType)) {
             throw new IllegalArgumentException(
                     "Message-batch graph root '%s' has staged type %s instead of %s"

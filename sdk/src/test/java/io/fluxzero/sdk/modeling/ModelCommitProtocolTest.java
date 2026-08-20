@@ -121,13 +121,13 @@ class ModelCommitProtocolTest {
         var evaluation = evaluation(
                 List.of(storedId.toString(), publishedId.toString()),
                 List.of(
-                        new ModelExecutionPlan.AppliedSubstep(
+                        new TestStep(
                                 message, List.of(
                                 transition(
                                         publishedId, PublishedOnly.class,
                                         published, published,
                                         MixedUpdate.class, "apply", PublishedOnly.class))),
-                        new ModelExecutionPlan.AppliedSubstep(
+                        new TestStep(
                                 message, List.of(
                                 Change.applied(
                                         storedId.toString(), StoredOnly.class, 0L,
@@ -218,7 +218,7 @@ class ModelCommitProtocolTest {
                         id.toString(), Order.class, 0L, null,
                         before, stale, null, current -> current, false)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelExecutionPlan.CommitEvaluation(
+        var rebased = evaluation(
                 51L, List.of(id.toString()), Map.of(id.toString(), Order.class),
                 List.of(substep(event, Change.applied(
                         id.toString(), Order.class, 0L, null,
@@ -576,7 +576,7 @@ class ModelCommitProtocolTest {
                         new UpdateOrder(orderId),
                         transition(orderId, Order.class, before, first, UpdateOrder.class, "apply", Order.class)),
                 Map.of(orderId.toString(), first));
-        var reloadedEvaluation = new ModelExecutionPlan.CommitEvaluation(
+        var reloadedEvaluation = evaluation(
                 42L, firstEvaluation.readModelIds(),
                 firstEvaluation.readModelTypes(),
                 List.of(substep(
@@ -913,7 +913,7 @@ class ModelCommitProtocolTest {
                         UpdateOrder.class, "apply",
                         Order.class)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelExecutionPlan.CommitEvaluation(
+        var rebased = evaluation(
                 51L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
@@ -992,7 +992,7 @@ class ModelCommitProtocolTest {
                         UpdateOrder.class, "apply",
                         Order.class)),
                 Map.of(id.toString(), stale));
-        var rebased = new ModelExecutionPlan.CommitEvaluation(
+        var rebased = evaluation(
                 51L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
@@ -1223,18 +1223,18 @@ class ModelCommitProtocolTest {
                            .getTargets().getFirst().getSnapshot());
     }
 
-    private static ModelExecutionPlan.CommitEvaluation evaluation(
+    private static CommitAttempt evaluation(
             List<String> readModelIds,
-            ModelExecutionPlan.AppliedSubstep substep,
+            TestStep substep,
             Map<String, Object> finalValues) {
         return evaluation(readModelIds, List.of(substep), finalValues);
     }
 
-    private static ModelExecutionPlan.CommitEvaluation evaluation(
+    private static CommitAttempt evaluation(
             List<String> readModelIds,
-            List<ModelExecutionPlan.AppliedSubstep> substeps,
+            List<TestStep> substeps,
             Map<String, Object> finalValues) {
-        return new ModelExecutionPlan.CommitEvaluation(
+        return evaluation(
                 41L, readModelIds,
                 finalValues.entrySet().stream()
                         .filter(entry ->
@@ -1246,16 +1246,33 @@ class ModelCommitProtocolTest {
                 substeps, finalValues);
     }
 
-    private static ModelExecutionPlan.AppliedSubstep substep(
+    private static CommitAttempt evaluation(
+            long readStateIndex,
+            List<String> readModelIds,
+            Map<String, Class<?>> readModelTypes,
+            List<TestStep> substeps,
+            Map<String, Object> finalValues) {
+        return CommitAttempt.fromChanges(
+                readStateIndex, readModelIds, readModelTypes,
+                substeps.stream().map(TestStep::message).toList(),
+                substeps.stream().map(TestStep::transitions).toList());
+    }
+
+    private static TestStep substep(
             Object event, Change... transitions) {
         return substep(Metadata.empty(), event, transitions);
     }
 
-    private static ModelExecutionPlan.AppliedSubstep substep(
+    private static TestStep substep(
             Metadata metadata, Object event, Change... transitions) {
-        return new ModelExecutionPlan.AppliedSubstep(
+        return new TestStep(
                 new DeserializingMessage(new Message(event, metadata), MessageType.EVENT, null),
                 List.of(transitions));
+    }
+
+    private record TestStep(
+            DeserializingMessage message,
+            List<Change> transitions) {
     }
 
     private static Change transition(

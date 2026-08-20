@@ -399,7 +399,7 @@ class GraphTest {
                 rootValue.id().toString(), Root.class, READ_ONLY, List.of("id"));
         ModelDefinition.ResolvedModel childTarget = new ModelDefinition.ResolvedModel(
                 childValue.id().toString(), Child.class, READ_ONLY, List.of("id"));
-        ModelCommitContext commitContext = ModelCommitContext.create(
+        CommitAttempt commitContext = CommitAttempt.create(
                 11L,
                 new ModelDefinition.Resolution(
                         List.of(rootTarget, childTarget), List.of(), List.of()),
@@ -430,7 +430,7 @@ class GraphTest {
                 new ModelDefinition.ResolvedModel(
                         childValue.id().toString(), Child.class,
                         READ_ONLY, List.of("id"));
-        ModelCommitContext commitContext = ModelCommitContext.create(
+        CommitAttempt commitContext = CommitAttempt.create(
                 11L,
                 new ModelDefinition.Resolution(
                         List.of(childTarget), List.of(), List.of()),
@@ -457,7 +457,7 @@ class GraphTest {
         Entity<Root> root = entity(rootValue.id().toString(), Root.class, rootValue);
         Entity<OtherRoot> other = entity(otherValue.id(), OtherRoot.class, otherValue);
         Entity<MultiChild> child = entity(childValue.id(), MultiChild.class, childValue);
-        ModelCommitContext context = ModelCommitContext.create(
+        CommitAttempt context = CommitAttempt.create(
                 12L,
                 new ModelDefinition.Resolution(
                         List.of(
@@ -610,7 +610,7 @@ class GraphTest {
                 new ModelDefinition.ResolvedModel(
                         "grandchild", Grandchild.class,
                         READ_ONLY, List.of("id"));
-        ModelCommitContext context = ModelCommitContext.create(
+        CommitAttempt context = CommitAttempt.create(
                 42L,
                 new ModelDefinition.Resolution(
                         List.of(target), List.of(), List.of()),
@@ -637,7 +637,7 @@ class GraphTest {
                 new ModelDefinition.ResolvedModel(
                         "grandchild", Grandchild.class,
                         READ_ONLY, List.of("id"));
-        ModelCommitContext context = ModelCommitContext.create(
+        CommitAttempt context = CommitAttempt.create(
                 42L,
                 new ModelDefinition.Resolution(
                         List.of(target), List.of(), List.of()),

@@ -782,7 +782,7 @@ class ModelEntityParameterResolverTest {
                                         .getMessageBatchIndex() == 0) {
                                     ModelBatchScope.stage(
                                             null,
-                                            new ModelExecutionPlan.CommitEvaluation(
+                                            CommitAttempt.fromChanges(
                                                     -1L,
                                                     List.of(
                                                             departmentId
@@ -791,17 +791,12 @@ class ModelEntityParameterResolverTest {
                                                             departmentId
                                                                     .toString(),
                                                             Department.class),
-                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
-                                                            current,
-                                                            List.of(Change.applied(
+                                                    current,
+                                                    List.of(Change.applied(
                                                                     departmentId.toString(),
                                                                     Department.class,
                                                                     0L, null, before,
-                                                                    after, null, null, false)))),
-                                                    java.util.Map.of(
-                                                            departmentId
-                                                                    .toString(),
-                                                            after)));
+                                                                    after, null, null, false))));
                                     return;
                                 }
                                 result.set(resolve(

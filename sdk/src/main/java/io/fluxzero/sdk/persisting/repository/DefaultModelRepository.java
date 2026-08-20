@@ -45,7 +45,7 @@ import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
-import io.fluxzero.sdk.modeling.ModelCommitContext;
+import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.ModelExecutionPlan;
 import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
@@ -385,15 +385,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         List.of(idProperty)))
                 .toList();
         ModelReadBoundary.Pinned handlerBoundary = handlerBoundary();
-        ModelCommitContext context = loadContext(
+        CommitAttempt context = loadContext(
                 new ModelDefinition.Resolution(targets, List.of()),
                 boundary(handlerBoundary),
                 Map.of(), false);
         context = ModelBatchScope.overlayCurrent(
                 messageBatchNamespace(), context);
         pin(handlerBoundary, context.readStateIndex());
-        return context.entries().stream()
-                .map(ModelCommitContext.Entry::entity)
+        return context.modelIds().stream()
+                .map(context::entity)
                 .map(DefaultModelRepository::<T>cast)
                 .toList();
     }
@@ -459,7 +459,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (!boundary.includeMessageBatch()) {
             stagedValues = Map.of();
         } else {
-            Map<String, ModelBatchScope.StagedModel> staged =
+            Map<String, Entity<?>> staged =
                     ModelBatchScope.currentValues(
                             messageBatchNamespace());
             if (staged.isEmpty()) {
@@ -468,7 +468,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 LinkedHashMap<String, Object> values =
                         new LinkedHashMap<>(staged.size());
                 staged.forEach((id, value) ->
-                        values.put(id, value.value()));
+                        values.put(id, value.get()));
                 stagedValues = values;
             }
         }
@@ -624,7 +624,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean historical) {
         requireEventReconstruction();
         EntityMetadata.validate(rootType);
-        Map<String, ModelBatchScope.StagedModel> staged =
+        Map<String, Entity<?>> staged =
                 includeMessageBatch
                         ? ModelBatchScope.currentValues(
                                 messageBatchNamespace())
@@ -806,11 +806,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * reconstructed from stored model events; current document-model targets retain their direct-document load path.
      */
     @Override
-    public ModelCommitContext loadContext(
+    public CommitAttempt loadContext(
             ModelDefinition.Resolution resolution) {
         ModelReadBoundary.Pinned handlerBoundary =
                 handlerBoundary();
-        ModelCommitContext context = loadContext(
+        CommitAttempt context = loadContext(
                 resolution, boundary(handlerBoundary), Map.of(), true);
         pin(handlerBoundary, context.readStateIndex());
         return context;
@@ -822,7 +822,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * A {@code null} boundary pins the current event-store state once. Historical document-model dependencies are
      * reconstructed from stored model events; current document-model targets retain their direct-document load path.
      */
-    public ModelCommitContext loadContext(
+    public CommitAttempt loadContext(
             ModelDefinition.Resolution resolution, Long maxStateIndex) {
         return loadContext(
                 resolution,
@@ -833,7 +833,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     /**
      * Loads an commit context and overlays relationships declared by model values staged in earlier substeps.
      */
-    public ModelCommitContext loadContext(
+    public CommitAttempt loadContext(
             ModelDefinition.Resolution resolution,
             Long maxStateIndex,
             Map<String, Object> stagedValues) {
@@ -847,12 +847,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * be overlaid. Automatic model handling disables this generic overlay because its preplanned batch view already
      * supplies exactly the required predecessors; explicit operations and ordinary handlers enable it.
      */
-    public ModelCommitContext loadContext(
+    public CommitAttempt loadContext(
             ModelDefinition.Resolution resolution,
             Long maxStateIndex,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
-        ModelCommitContext context = loadContext(
+        CommitAttempt context = loadContext(
                 resolution,
                 ModelReadBoundary.at(maxStateIndex),
                 stagedValues, includeMessageBatch);
@@ -889,7 +889,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                        modelId, modelType, sink);
     }
 
-    private ModelCommitContext loadContext(
+    private CommitAttempt loadContext(
             ModelDefinition.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,

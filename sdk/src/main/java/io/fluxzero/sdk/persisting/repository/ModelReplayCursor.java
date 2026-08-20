@@ -43,7 +43,7 @@ import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
-import io.fluxzero.sdk.modeling.ModelCommitContext;
+import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.ModelExecutionPlan;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
@@ -617,7 +617,7 @@ final class ModelReplayCursor {
      * still choose whether the resulting durable context is overlaid with pending message-batch values; that is a
      * projection option and does not create a second load lifecycle.</p>
      */
-    ModelCommitContext context(
+    CommitAttempt context(
             ModelDefinition.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
@@ -747,7 +747,7 @@ final class ModelReplayCursor {
                 }
             }
         }
-        return ModelCommitContext.create(stateIndex, resolution, loaded);
+        return CommitAttempt.create(stateIndex, resolution, loaded);
     }
 
     /** Resolves one typed entity as the direct projection strategy of this cursor. */
@@ -793,11 +793,11 @@ final class ModelReplayCursor {
         ModelDefinition.ResolvedModel target = new ModelDefinition.ResolvedModel(
                 modelId, modelType, ModelDefinition.Access.READ_ONLY,
                 List.of(metadata.entityId().orElseThrow().name()));
-        ModelCommitContext context = context(
+        CommitAttempt context = context(
                 new ModelDefinition.Resolution(List.of(target), List.of()),
                 boundary, Map.of(), false, null, cacheTracker);
         return new EntityProjection(
-                context.readStateIndex(), context.entries().getFirst().entity());
+                context.readStateIndex(), context.entity(context.modelIds().getFirst()));
     }
 
     /** Advances cache projections through this cursor's current replay boundary. */
@@ -863,7 +863,7 @@ final class ModelReplayCursor {
             Graph.Options options,
             ModelReadBoundary boundary,
             String namespace,
-            Map<String, ModelBatchScope.StagedModel> staged,
+            Map<String, Entity<?>> staged,
             boolean historical) {
         Objects.requireNonNull(rootId, "rootId");
         Objects.requireNonNull(rootType, "rootType");
@@ -892,11 +892,12 @@ final class ModelReplayCursor {
         }
         LinkedHashMap<String, Entity<?>> models = reconstructProjection(
                 targets, heads, stateIndex, !boundary.historical());
-        ModelBatchScope.StagedModel stagedRoot = staged.get(rootId);
-        if (stagedRoot != null && !stagedRoot.existedBefore() && !models.containsKey(rootId)) {
+        Entity<?> stagedRoot = staged.get(rootId);
+        if (stagedRoot instanceof io.fluxzero.sdk.modeling.PersistedRoot<?> persisted
+            && persisted.sequenceNumber() < 0L && !models.containsKey(rootId)) {
             models.put(rootId, ImmutableModelRoot.builder()
-                    .id(rootId).type((Class) stagedRoot.modelType())
-                    .idProperty(EntityMetadata.validate(stagedRoot.modelType())
+                    .id(rootId).type((Class) stagedRoot.type())
+                    .idProperty(EntityMetadata.validate(stagedRoot.type())
                                         .entityId().orElseThrow().name())
                     .value(null).build());
         }
@@ -907,7 +908,7 @@ final class ModelReplayCursor {
                 rootId, stateIndex, models, response.getEdges(), repository, historical,
                 namespace, rootType, options, staged,
                 candidate -> graph(
-                        candidate.modelId(), (Class) candidate.modelType(), Graph.Options.DEFAULT,
+                        candidate.id().toString(), (Class) candidate.type(), Graph.Options.DEFAULT,
                         ModelReadBoundary.at(stateIndex), namespace, Map.of(), true));
     }
 
@@ -1195,9 +1196,9 @@ final class ModelReplayCursor {
             if (stagedValues.containsKey(modelId)) {
                 continue;
             }
-            ModelBatchScope.StagedModel pending = ModelBatchScope.currentValue(namespace, modelId);
+            Entity<?> pending = ModelBatchScope.currentValue(namespace, modelId);
             if (pending != null) {
-                stagedValues.put(modelId, pending.value());
+                stagedValues.put(modelId, pending.get());
                 changed = true;
             }
         }
@@ -1829,7 +1830,7 @@ final class ModelReplayCursor {
                                     .formatted(payloadType.getName(), target.modelType().getName()));
                 }
                 if (definition.direct()) {
-                    ModelCommitContext context = ModelCommitContext.createSingle(
+                    CommitAttempt context = CommitAttempt.createSingle(
                             stateIndex(result), target.modelId(), target.modelType(),
                             ModelDefinition.Access.READ_WRITE, List.of(), result);
                     result = updateValue(
@@ -1937,7 +1938,7 @@ final class ModelReplayCursor {
                         loaded.put(dependency.modelId(), entity);
                     }
                 }
-                ModelCommitContext context = ModelCommitContext.create(
+                CommitAttempt context = CommitAttempt.create(
                         membership.getReadStateIndex(), resolution, loaded);
                 result = updateValue(
                         result, replayValue(
@@ -1981,7 +1982,7 @@ final class ModelReplayCursor {
                 ModelDefinition.ResolvedModel target,
                 long stateIndex,
                 DeserializingMessage event,
-                ModelCommitContext context,
+                CommitAttempt context,
                 ModelDefinition definition) {
             try {
                 DeserializingMessage replayEvent = definition.direct()

@@ -147,16 +147,16 @@ public class ModelEntityParameterResolver
             if (references.modelIds().isEmpty()) {
                 return true;
             }
-            Optional<ModelCommitContext> context = commitContext(input);
+            Optional<CommitAttempt> context = commitContext(input);
             return context.map(value -> references.modelIds().stream()
-                            .allMatch(id -> value.entry(id) != null))
+                            .allMatch(id -> value.entity(id) != null))
                     .orElseGet(() -> input instanceof DeserializingMessage message
                             && resolvedPlan(message, plan).isPresent());
         }
         if (nullDirectReference(input, modelParameter)) {
             return isNullable(parameter);
         }
-        Optional<ModelCommitContext> context = commitContext(input);
+        Optional<CommitAttempt> context = commitContext(input);
         if (context.isEmpty()) {
             return input instanceof DeserializingMessage message
                    && resolvedPlan(message, plan).isPresent();
@@ -481,7 +481,7 @@ public class ModelEntityParameterResolver
             if (entity == null) {
                 return null;
             }
-            ModelCommitContext context = commitContext(input)
+            CommitAttempt context = commitContext(input)
                     .orElseGet(() -> input instanceof DeserializingMessage message
                             ? context(message, plan) : null);
             DeserializingMessage message = input instanceof DeserializingMessage deserializingMessage
@@ -526,7 +526,7 @@ public class ModelEntityParameterResolver
         if (references.modelIds().isEmpty()) {
             return List.of();
         }
-        ModelCommitContext context = commitContext(input)
+        CommitAttempt context = commitContext(input)
                 .orElseGet(() -> input instanceof DeserializingMessage message
                         ? context(message, plan) : null);
         if (context == null) {
@@ -539,13 +539,13 @@ public class ModelEntityParameterResolver
                 ? Fluxzero.get().modelRepository() : currentRepository(message);
         List<Graph<?>> result = new java.util.ArrayList<>(references.modelIds().size());
         for (String modelId : references.modelIds()) {
-            ModelCommitContext.Entry entry = context.entry(modelId);
-            if (entry == null) {
+            Entity<?> entity = context.entity(modelId);
+            if (entity == null) {
                 throw new IllegalStateException(
                         "Model context does not contain '%s' required by graph collection parameter %s"
                                 .formatted(modelId, parameter));
             }
-            result.add(Graphs.lazy(entry.entity(), context, repository));
+            result.add(Graphs.lazy(entity, context, repository));
         }
         return List.copyOf(result);
     }
@@ -554,7 +554,7 @@ public class ModelEntityParameterResolver
             Object input,
             ModelDefinition.ParameterPlan plan,
             EntityMetadata.ModelParameter parameter) {
-        Optional<ModelCommitContext> commitContext =
+        Optional<CommitAttempt> commitContext =
                 commitContext(input);
         if (commitContext.isPresent()) {
             return commitContext.get().resolve(
@@ -602,21 +602,21 @@ public class ModelEntityParameterResolver
         return ModelDefinition.directReferences(message, parameter);
     }
 
-    private static Optional<ModelCommitContext>
+    private static Optional<CommitAttempt>
             commitContext(Object input) {
         if (input instanceof DeserializingMessage message) {
-            Optional<ModelCommitContext> direct =
-                    message.getContext(ModelCommitContext.class);
+            Optional<CommitAttempt> direct =
+                    message.getContext(CommitAttempt.class);
             if (direct.isPresent()) {
                 return direct;
             }
         }
         return DeserializingMessage.getOptionally()
                 .flatMap(message -> message.getContext(
-                        ModelCommitContext.class));
+                        CommitAttempt.class));
     }
 
-    private static ModelCommitContext context(
+    private static CommitAttempt context(
             DeserializingMessage message,
             ModelDefinition.ParameterPlan plan) {
         return resolvedPlan(message, plan).orElseThrow()
@@ -674,16 +674,16 @@ public class ModelEntityParameterResolver
 
     private static final class ResolvedHandlerPlan {
         private final ModelDefinition.Resolution resolution;
-        private volatile ModelCommitContext context;
+        private volatile CommitAttempt context;
 
         private ResolvedHandlerPlan(
                 ModelDefinition.Resolution resolution) {
             this.resolution = resolution;
         }
 
-        private ModelCommitContext context(
+        private CommitAttempt context(
                 DeserializingMessage message) {
-            ModelCommitContext result = context;
+            CommitAttempt result = context;
             if (result == null) {
                 synchronized (this) {
                     result = context;

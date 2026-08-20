@@ -26,7 +26,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ModelCommitContext;
+import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelDefinition;
 import jakarta.validation.constraints.NotNull;
@@ -135,7 +135,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * boundary. Other handlers use one current load context. Implementations should batch direct targets and ancestor
      * traversal rather than loading each parameter independently.
      */
-    default ModelCommitContext loadContext(
+    default CommitAttempt loadContext(
             @NonNull ModelDefinition.Resolution
                     resolution) {
         throw new UnsupportedOperationException(

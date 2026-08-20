@@ -16,21 +16,18 @@
 
 package io.fluxzero.sdk.modeling;
 
-import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static io.fluxzero.common.ObjectUtils.asStream;
 
@@ -47,38 +44,60 @@ public final class ModelExecutionPlan {
     private ModelExecutionPlan() {
     }
 
-    static CommitEvaluation apply(
+    static CommitAttempt apply(
             DeserializingMessage message,
             SubstepResolver resolver) {
-        return apply(List.of(message), resolver);
+        return apply(CommitAttempt.detached(), List.of(message), resolver);
     }
 
-    static CommitEvaluation apply(
+    static CommitAttempt apply(
             List<DeserializingMessage> messages,
             SubstepResolver resolver) {
-        return execute(messages, resolver, true, true, true, false);
+        return apply(CommitAttempt.detached(), messages, resolver);
     }
 
-    static CommitEvaluation assertLegal(
-            DeserializingMessage message,
-            SubstepResolver resolver) {
-        return execute(List.of(message), resolver, true, false, false, false);
-    }
-
-    static CommitEvaluation reapply(
-            DeserializingMessage message,
-            SubstepResolver resolver) {
-        return reapply(List.of(message), resolver);
-    }
-
-    static CommitEvaluation reapply(
+    static CommitAttempt apply(
+            CommitAttempt attempt,
             List<DeserializingMessage> messages,
             SubstepResolver resolver) {
-        return execute(messages, resolver, false, true, false, true);
+        return execute(attempt, messages, resolver, true, true, true, false);
+    }
+
+    static CommitAttempt assertLegal(
+            DeserializingMessage message,
+            SubstepResolver resolver) {
+        return assertLegal(CommitAttempt.detached(), message, resolver);
+    }
+
+    static CommitAttempt assertLegal(
+            CommitAttempt attempt,
+            DeserializingMessage message,
+            SubstepResolver resolver) {
+        return execute(attempt, List.of(message), resolver, true, false, false, false);
+    }
+
+    static CommitAttempt reapply(
+            DeserializingMessage message,
+            SubstepResolver resolver) {
+        return reapply(CommitAttempt.detached(), List.of(message), resolver);
+    }
+
+    static CommitAttempt reapply(
+            List<DeserializingMessage> messages,
+            SubstepResolver resolver) {
+        return reapply(CommitAttempt.detached(), messages, resolver);
+    }
+
+    static CommitAttempt reapply(
+            CommitAttempt attempt,
+            List<DeserializingMessage> messages,
+            SubstepResolver resolver) {
+        return execute(attempt, messages, resolver, false, true, false, true);
     }
 
     /** Executes every mutation form through one ordered substep pipeline. */
-    private static CommitEvaluation execute(
+    private static CommitAttempt execute(
+            CommitAttempt attempt,
             List<DeserializingMessage> messages,
             SubstepResolver resolver,
             boolean interception,
@@ -103,12 +122,13 @@ public final class ModelExecutionPlan {
             }
         }
         return evaluate(
-                pending, resolver,
+                attempt, pending, resolver,
                 reapply ? null : messages.getFirst(),
                 applyHandlers, !reapply);
     }
 
-    private static CommitEvaluation evaluate(
+    private static CommitAttempt evaluate(
+            CommitAttempt attempt,
             Deque<PendingSubstep> pending,
             SubstepResolver resolver,
             DeserializingMessage initialMessage,
@@ -119,12 +139,13 @@ public final class ModelExecutionPlan {
         LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
         Map<String, Class<?>> readModelTypes =
                 new LinkedHashMap<>();
-        List<AppliedSubstep> appliedSubsteps = new ArrayList<>();
+        List<DeserializingMessage> stepMessages = new ArrayList<>();
+        List<List<Change>> changesByStep = new ArrayList<>();
         long readStateIndex = -1L;
         boolean stateIndexPinned = false;
-        ModelCommitContext originalContext = initialMessage == null ? null
-                : initialMessage.getContext(ModelCommitContext.class).orElse(null);
-        ModelCommitContext commitBeginContext = null;
+        CommitAttempt originalContext = initialMessage == null ? null
+                : initialMessage.getContext(CommitAttempt.class).orElse(null);
+        CommitAttempt commitBeginContext = null;
         int processed = 0;
 
         try {
@@ -160,23 +181,23 @@ public final class ModelExecutionPlan {
                             "Substep loaded at state index %d while commit is pinned at %d"
                                     .formatted(resolved.context().readStateIndex(), readStateIndex));
                 }
-                ModelCommitContext context = resolved.context().withValues(stagedValues);
-                resolved.context().entries().forEach(entry -> {
-                    readModelIds.add(entry.target().modelId());
+                CommitAttempt context = resolved.context().withValues(stagedValues);
+                resolved.context().targets().forEach(target -> {
+                    readModelIds.add(target.modelId());
                     readModelTypes.putIfAbsent(
-                            entry.target().modelId(),
-                            entry.target().modelType());
+                            target.modelId(), target.modelType());
                 });
                 if (graphChangeMessage != null) {
-                    AppliedSubstep change = evaluateGraphChange(
+                    Change change = evaluateGraphChange(
                             graphChangeMessage,
                             context, readStateIndex,
                             stagedValues.containsKey(
                                     graphChangeMessage.change.modelId()));
                     stagedValues.put(
-                            change.transitions().getFirst().modelId(),
-                            change.transitions().getFirst().after());
-                    mergeAppliedSubstep(appliedSubsteps, change);
+                            change.modelId(), change.after());
+                    mergeGraphChange(
+                            stepMessages, changesByStep,
+                            graphChangeMessage, change);
                     continue;
                 }
                 if (current.interceptionAllowed()) {
@@ -210,15 +231,15 @@ public final class ModelExecutionPlan {
                                 transition.modelType());
                     }
                 }
-                appliedSubsteps.add(new AppliedSubstep(
-                        current.message(), transitions));
+                stepMessages.add(current.message());
+                changesByStep.add(transitions);
             }
-            return new CommitEvaluation(
-                    readStateIndex, List.copyOf(readModelIds),
-                    readModelTypes, appliedSubsteps,
-                    stagedValues);
+            attempt.evaluated(
+                    readStateIndex, readModelIds, readModelTypes,
+                    stepMessages, changesByStep);
+            return attempt;
         } finally {
-            ModelCommitContext restore =
+            CommitAttempt restore =
                     originalContext == null ? commitBeginContext : originalContext;
             if (restore != null && initialMessage != null) {
                 restore.attachTo(initialMessage);
@@ -226,67 +247,66 @@ public final class ModelExecutionPlan {
         }
     }
 
-    private static AppliedSubstep evaluateGraphChange(
+    private static Change evaluateGraphChange(
             GraphChangeMessage message,
-            ModelCommitContext context,
+            CommitAttempt context,
             long readStateIndex,
             boolean alreadyStaged) {
         Change change = message.change;
         String modelId = change.modelId();
         Class<?> modelType = change.modelType();
         long targetStateIndex = targetStateIndex(
-                context.entry(change.modelId()), readStateIndex);
+                context.entity(change.modelId()), readStateIndex);
         if (change.expectedStateIndex() != null
             && change.expectedStateIndex() != targetStateIndex) {
             throw new IllegalStateException(
                     "Staged graph '%s' was loaded at model state index %d while the commit resolved model state index %d"
                             .formatted(modelId, change.expectedStateIndex(), targetStateIndex));
         }
-        ModelCommitContext.Entry target = context.entry(modelId);
+        Entity<?> target = context.entity(modelId);
         if (target == null || !context.mayWrite(modelId, modelType, null)) {
             throw new IllegalStateException(
                     "Staged graph '%s' of type %s is not a resolved write target"
                             .formatted(modelId, modelType.getName()));
         }
         Object after = change.expectedStateIndex() == null || alreadyStaged
-                ? change.replay().apply(target.entity()).get()
+                ? change.replay().apply(target).get()
                 : change.after();
-        Change transition = change.resolveAgainst(target.entity(), after);
-        return new AppliedSubstep(message, List.of(transition));
+        return change.resolveAgainst(target, after);
     }
 
     private static long targetStateIndex(
-            ModelCommitContext.Entry target,
+            Entity<?> target,
             long fallback) {
-        return target != null && target.entity() instanceof ModelRoot<?> root
+        return target instanceof ModelRoot<?> root
                 ? root.stateIndex() : fallback;
     }
 
-    private static void mergeAppliedSubstep(
-            List<AppliedSubstep> appliedSubsteps,
-            AppliedSubstep addition) {
-        String eventMessageId = addition.message().getMessageId();
-        for (int i = appliedSubsteps.size() - 1; i >= 0; i--) {
-            AppliedSubstep existing = appliedSubsteps.get(i);
+    private static void mergeGraphChange(
+            List<DeserializingMessage> stepMessages,
+            List<List<Change>> changesByStep,
+            DeserializingMessage message,
+            Change addition) {
+        String eventMessageId = message.getMessageId();
+        for (int i = stepMessages.size() - 1; i >= 0; i--) {
+            DeserializingMessage existing = stepMessages.get(i);
             if (!Objects.equals(
-                    existing.message().getMessageId(), eventMessageId)
-                || (existing.message() instanceof GraphChangeMessage)
-                   != (addition.message() instanceof GraphChangeMessage)) {
+                    existing.getMessageId(), eventMessageId)
+                || (existing instanceof GraphChangeMessage)
+                   != (message instanceof GraphChangeMessage)) {
                 continue;
             }
             LinkedHashMap<String, Change> transitions =
                     new LinkedHashMap<>();
-            existing.transitions().forEach(
+            changesByStep.get(i).forEach(
                     transition -> transitions.merge(
                             transition.modelId(), transition, Change::then));
-            addition.transitions().forEach(
-                    transition -> transitions.merge(
-                            transition.modelId(), transition, Change::then));
-            appliedSubsteps.set(i, new AppliedSubstep(
-                    existing.message(), List.copyOf(transitions.values())));
+            transitions.merge(addition.modelId(), addition, Change::then);
+            changesByStep.set(i, List.copyOf(transitions.values()));
             return;
         }
-        appliedSubsteps.add(addition);
+        stepMessages.add(message);
+        changesByStep.add(List.of(addition));
     }
 
     private static DeserializingMessage emittedMessage(
@@ -397,129 +417,11 @@ public final class ModelExecutionPlan {
     }
 
     record ResolvedSubstep(
-            ModelCommitContext context,
+            CommitAttempt context,
             ModelDefinition.Mutation mutation) {
         ResolvedSubstep {
             Objects.requireNonNull(context, "context");
             Objects.requireNonNull(mutation, "mutation");
-        }
-    }
-
-    record CommitEvaluation(
-            long readStateIndex,
-            List<String> readModelIds,
-            Map<String, Class<?>> readModelTypes,
-            List<AppliedSubstep> substeps,
-            Map<String, Object> finalValues,
-            Set<String> cascadeRootIds) {
-        CommitEvaluation(
-                long readStateIndex,
-                List<String> readModelIds,
-                Map<String, Class<?>> readModelTypes,
-                List<AppliedSubstep> substeps,
-                Map<String, Object> finalValues) {
-            this(
-                    readStateIndex, readModelIds, readModelTypes,
-                    substeps, finalValues, Set.of());
-        }
-
-        CommitEvaluation {
-            readModelIds = List.copyOf(readModelIds);
-            readModelTypes = Map.copyOf(readModelTypes);
-            substeps = List.copyOf(substeps);
-            cascadeRootIds = Set.copyOf(cascadeRootIds);
-            if (finalValues.isEmpty()) {
-                finalValues = Map.of();
-            } else if (finalValues.size() == 1) {
-                Map.Entry<String, Object> entry =
-                        finalValues.entrySet().iterator().next();
-                finalValues = Collections.singletonMap(
-                        entry.getKey(), entry.getValue());
-            } else {
-                finalValues = Collections.unmodifiableMap(
-                        new LinkedHashMap<>(finalValues));
-            }
-        }
-
-        List<Change> transitions() {
-            if (substeps.isEmpty()) {
-                return List.of();
-            }
-            if (substeps.size() == 1) {
-                return substeps.getFirst().transitions();
-            }
-            List<Change> result = new ArrayList<>();
-            for (AppliedSubstep substep : substeps) {
-                result.addAll(substep.transitions());
-            }
-            return List.copyOf(result);
-        }
-
-        ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
-            ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
-            List<Change> transitions = transitions();
-            if (transitions.size() == 1
-                && readModelTypes.size() == 1
-                && readModelTypes.containsKey(
-                        transitions.getFirst().modelId())) {
-                return transitionPolicy(
-                        transitions.getFirst(), application);
-            }
-            ModelConflictPolicy result = ModelConflictPolicy.ACCEPT;
-            Set<String> written = new java.util.HashSet<>();
-            for (Change transition : transitions) {
-                written.add(transition.modelId());
-                result = strictest(result, transitionPolicy(transition, application));
-            }
-            for (Map.Entry<String, Class<?>> entry : readModelTypes.entrySet()) {
-                if (!written.contains(entry.getKey())) {
-                    result = strictest(result, inherit(modelPolicy(entry.getValue()), application));
-                }
-            }
-            return result;
-        }
-
-        private static ModelConflictPolicy transitionPolicy(
-                Change transition, ModelConflictPolicy application) {
-            ModelConflictPolicy result = inherit(
-                    transition.conflictPolicy(), application);
-            return transition.before() == null
-                   && transition.beforeSequenceNumber() < 0L
-                   && result == ModelConflictPolicy.ACCEPT
-                    ? ModelConflictPolicy.FAIL : result;
-        }
-
-        private static ModelConflictPolicy modelPolicy(Class<?> type) {
-            return EntityMetadata.of(type).rootConfiguration()
-                    .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
-                    .map(EntityMetadata.RootConfiguration::conflictPolicy)
-                    .orElse(ModelConflictPolicy.DEFAULT);
-        }
-
-        private static ModelConflictPolicy inherit(
-                ModelConflictPolicy declared, ModelConflictPolicy application) {
-            return declared == null || declared == ModelConflictPolicy.DEFAULT
-                    ? application : declared;
-        }
-
-        private static ModelConflictPolicy strictest(
-                ModelConflictPolicy left, ModelConflictPolicy right) {
-            return rank(right) > rank(left) ? right : left;
-        }
-
-        private static int rank(ModelConflictPolicy policy) {
-            return switch (ModelConflictPolicy.resolve(policy)) {
-                case FAIL -> 3;
-                case RETRY -> 2;
-                case ACCEPT, DEFAULT -> 1;
-            };
-        }
-    }
-
-    record AppliedSubstep(
-            DeserializingMessage message, List<Change> transitions) {
-        AppliedSubstep {
-            transitions = List.copyOf(transitions);
         }
     }
 

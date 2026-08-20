@@ -98,13 +98,13 @@ final class ModelCommitProtocol {
     }
 
     CompletableFuture<Optional<CommitModelsResult>> commit(
-            String commitId, ModelExecutionPlan.CommitEvaluation evaluation) {
+            String commitId, CommitAttempt evaluation) {
         return commit(commitId, evaluation, ModelConflictPolicy.ACCEPT);
     }
 
     CompletableFuture<Optional<CommitModelsResult>> commit(
             String commitId,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy) {
         return commitPrepared(
                 prepare(commitId, evaluation, conflictPolicy),
@@ -184,20 +184,20 @@ final class ModelCommitProtocol {
                 "Model post-commit callback returned null");
     }
 
-    PreparedCommit prepare(String commitId, ModelExecutionPlan.CommitEvaluation evaluation) {
+    PreparedCommit prepare(String commitId, CommitAttempt evaluation) {
         return prepare(commitId, evaluation, ModelConflictPolicy.ACCEPT);
     }
 
     PreparedCommit prepare(
             String commitId,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy) {
         return doPrepare(commitId, evaluation, conflictPolicy);
     }
 
     private PreparedCommit doPrepare(
             String commitId,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy) {
         Objects.requireNonNull(commitId, "commitId");
         if (commitId.isBlank()) {
@@ -206,45 +206,39 @@ final class ModelCommitProtocol {
         Objects.requireNonNull(evaluation, "evaluation");
         Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
-        if (evaluation.substeps().size() == 1
-            && evaluation.substeps().getFirst().transitions().size() == 1
-            && !isGraphChange(evaluation.substeps().getFirst()
-                                      .transitions().getFirst())) {
+        if (evaluation.stepCount() == 1
+            && evaluation.stepChanges(0).size() == 1
+            && !isGraphChange(evaluation.stepChanges(0).getFirst())) {
             return prepareSingle(
                     commitId, evaluation, conflictPolicy,
-                    evaluation.substeps().getFirst());
+                    evaluation.stepMessage(0), evaluation.stepChanges(0));
         }
 
-        List<ModelExecutionPlan.AppliedSubstep> evaluatedSubsteps =
-                new ArrayList<>(evaluation.substeps().size());
-        Map<String, List<Change>> graphPublications =
-                new LinkedHashMap<>();
+        List<DeserializingMessage> evaluatedMessages = new ArrayList<>(evaluation.stepCount());
+        List<List<Change>> evaluatedChanges = new ArrayList<>(evaluation.stepCount());
+        Map<String, List<Change>> graphPublications = new LinkedHashMap<>();
         Set<String> ordinaryEventIds = new java.util.HashSet<>();
-        for (ModelExecutionPlan.AppliedSubstep appliedSubstep : evaluation.substeps()) {
-            List<Change> transitions = appliedSubstep.transitions().stream()
+        for (int step = 0; step < evaluation.stepCount(); step++) {
+            DeserializingMessage message = evaluation.stepMessage(step);
+            List<Change> transitions = evaluation.stepChanges(step).stream()
                     .peek(Change::validate)
-                    .filter(transition -> transition.active())
+                    .filter(Change::active)
                     .toList();
-            evaluatedSubsteps.add(new ModelExecutionPlan.AppliedSubstep(
-                    appliedSubstep.message(), transitions));
+            evaluatedMessages.add(message);
+            evaluatedChanges.add(transitions);
             if (transitions.isEmpty()) {
                 continue;
             }
             boolean direct = directGraphGroup(transitions);
-            if (!direct && transitions.stream().anyMatch(
-                    ModelCommitProtocol::isGraphChange)) {
+            if (!direct && transitions.stream().anyMatch(ModelCommitProtocol::isGraphChange)) {
                 throw new IllegalStateException(
                         "Direct graph changes must occupy their own evaluated model substep");
             }
-            String messageId = appliedSubstep.message().getMessageId();
+            String messageId = message.getMessageId();
             if (direct) {
-                List<Change> published =
-                        appliedSubstep.message().getPayload()
-                                instanceof Graph<?>
-                                ? List.of()
-                                : transitions.stream()
-                                        .filter(transition -> transition.publishEvent())
-                                        .toList();
+                List<Change> published = message.getPayload() instanceof Graph<?>
+                        ? List.of()
+                        : transitions.stream().filter(Change::publishEvent).toList();
                 if (!published.isEmpty()) {
                     graphPublications.computeIfAbsent(
                             messageId, ignored -> new ArrayList<>()).addAll(published);
@@ -253,57 +247,53 @@ final class ModelCommitProtocol {
                 ordinaryEventIds.add(messageId);
             }
         }
+
         List<ModelCommitStep> protocolSteps = new ArrayList<>();
-        List<ModelExecutionPlan.AppliedSubstep> preparedSubsteps = new ArrayList<>();
-        Map<String, Long> nextSequences =
-                new LinkedHashMap<>();
+        List<DeserializingMessage> preparedMessages = new ArrayList<>();
+        List<List<Change>> preparedChanges = new ArrayList<>();
+        Map<String, Long> nextSequences = new LinkedHashMap<>();
         Set<String> cascadeRoots = evaluation.cascadeRootIds();
-        for (ModelExecutionPlan.AppliedSubstep appliedSubstep : evaluatedSubsteps) {
-            List<Change> transitions = appliedSubstep.transitions();
+        for (int step = 0; step < evaluatedMessages.size(); step++) {
+            DeserializingMessage message = evaluatedMessages.get(step);
+            List<Change> transitions = evaluatedChanges.get(step);
             if (transitions.isEmpty()) {
                 continue;
             }
             boolean direct = directGraphGroup(transitions);
             List<Change> committedTransitions = direct
                     ? transitions.stream().map(transition -> transition.withEffects(
-                            transition.storeEvent(), false,
-                            transition.updateState())).toList()
+                            transition.storeEvent(), false, transition.updateState())).toList()
                     : transitions;
             List<Change> graphPublished = graphPublications.getOrDefault(
-                    appliedSubstep.message().getMessageId(), List.of());
+                    message.getMessageId(), List.of());
             if (direct && !graphPublished.isEmpty()
-                && !ordinaryEventIds.contains(appliedSubstep.message().getMessageId())) {
+                && !ordinaryEventIds.contains(message.getMessageId())) {
                 SerializedMessage publication = serialize(
-                        appliedSubstep.message(), commitId, protocolSteps.size(), false);
+                        message, commitId, protocolSteps.size(), false);
                 publication.setSource(source);
                 applyEventRouting(publication, graphPublished);
                 publication = SerializedMessage.encode(publication);
                 Change anchor = graphPublished.getFirst();
                 ModelCommitTarget publicationTarget = target(
-                        anchor.withEffects(false, true, false),
-                        appliedSubstep.message(),
+                        anchor.withEffects(false, true, false), message,
                         anchor.beforeSequenceNumber(), false)
                         .toBuilder().expectedSequenceNumber(null).build();
                 protocolSteps.add(new ModelCommitStep(
                         publication, true, List.of(publicationTarget)));
-                preparedSubsteps.add(new ModelExecutionPlan.AppliedSubstep(
-                        appliedSubstep.message(), List.of()));
+                preparedMessages.add(message);
+                preparedChanges.add(List.of());
             }
             boolean publishEvent = !direct
-                                   && (transitions.stream().anyMatch(
-                                           transition -> transition.publishEvent())
+                                   && (transitions.stream().anyMatch(Change::publishEvent)
                                        || !graphPublished.isEmpty());
             boolean eventRequired = publishEvent
-                                    || committedTransitions.stream()
-                                            .anyMatch(transition -> transition.storeEvent());
+                                    || committedTransitions.stream().anyMatch(Change::storeEvent);
             SerializedMessage event = !eventRequired ? null
                     : direct ? serializeDirectModelUpdate(
-                            appliedSubstep.message(), committedTransitions,
-                            commitId, protocolSteps.size())
+                            message, committedTransitions, commitId, protocolSteps.size())
                     : serialize(
-                            appliedSubstep.message(), commitId, protocolSteps.size(),
-                            transitions.stream().anyMatch(
-                                    Change::cascadedDeletion));
+                            message, commitId, protocolSteps.size(),
+                            transitions.stream().anyMatch(Change::cascadedDeletion));
             if (event != null) {
                 event.setSource(source);
                 if (!direct) {
@@ -315,87 +305,80 @@ final class ModelCommitProtocol {
                 }
                 event = SerializedMessage.encode(event);
             }
-
             List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
             for (Change transition : committedTransitions) {
                 targets.add(target(
-                        transition, appliedSubstep.message(),
-                        nextSequences,
-                        cascadeRoots.contains(
-                                transition.modelId())));
+                        transition, message, nextSequences,
+                        cascadeRoots.contains(transition.modelId())));
             }
-            protocolSteps.add(new ModelCommitStep(
-                    event, publishEvent,
-                    List.copyOf(targets)));
-            preparedSubsteps.add(new ModelExecutionPlan.AppliedSubstep(
-                    appliedSubstep.message(), committedTransitions));
+            protocolSteps.add(new ModelCommitStep(event, publishEvent, List.copyOf(targets)));
+            preparedMessages.add(message);
+            preparedChanges.add(committedTransitions);
         }
+        CommitAttempt prepared = preparedAttempt(evaluation, preparedMessages, preparedChanges);
         if (protocolSteps.isEmpty()) {
-            return new PreparedCommit(null, List.of());
+            return new PreparedCommit(null, prepared);
         }
         CommitModels commit = new CommitModels(
                 commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                 List.copyOf(protocolSteps), conflictPolicy, STORED,
-                possibleDuplicate(evaluation, preparedSubsteps));
-        return new PreparedCommit(
-                commit, List.copyOf(preparedSubsteps));
+                possibleDuplicate(evaluation, preparedChanges));
+        return new PreparedCommit(commit, prepared);
     }
 
     private PreparedCommit prepareSingle(
             String commitId,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy,
-            ModelExecutionPlan.AppliedSubstep appliedSubstep) {
-        Change transition =
-                appliedSubstep.transitions().getFirst();
+            DeserializingMessage message,
+            List<Change> changes) {
+        Change transition = changes.getFirst();
         transition.validate();
+        CommitAttempt prepared = preparedAttempt(
+                evaluation, List.of(message), List.of(changes));
         if (!transition.active()) {
-            return new PreparedCommit(null, List.of());
+            return new PreparedCommit(null, preparedAttempt(evaluation, List.of(), List.of()));
         }
-        boolean eventRequired = transition.publishEvent()
-                                || transition.storeEvent();
+        boolean eventRequired = transition.publishEvent() || transition.storeEvent();
         SerializedMessage event = eventRequired
-                ? serialize(
-                        appliedSubstep.message(), commitId, 0,
-                        transition.cascadedDeletion()) : null;
+                ? serialize(message, commitId, 0, transition.cascadedDeletion()) : null;
         if (event != null) {
             event.setSource(source);
             if (transition.publishEvent()
-                && transition.eventRouting()
-                   == AggregateEventRouting.AGGREGATE_ID) {
-                event.setSegment(
-                        ConsistentHashing.computeSegment(
-                                transition.modelId()));
+                && transition.eventRouting() == AggregateEventRouting.AGGREGATE_ID) {
+                event.setSegment(ConsistentHashing.computeSegment(transition.modelId()));
             }
             event = SerializedMessage.encode(event);
         }
         long nextSequence = transition.beforeSequenceNumber()
                             + (transition.storeEvent() ? 1L : 0L);
         ModelCommitTarget target = target(
-                transition,
-                appliedSubstep.message(),
-                nextSequence,
-                evaluation.cascadeRootIds().contains(
-                        transition.modelId()));
+                transition, message, nextSequence,
+                evaluation.cascadeRootIds().contains(transition.modelId()));
         ModelCommitStep step = new ModelCommitStep(
-                event, transition.publishEvent(),
-                List.of(target));
+                event, transition.publishEvent(), List.of(target));
         CommitModels commit = new CommitModels(
-                commitId,
-                evaluation.readStateIndex(),
-                evaluation.readModelIds(),
-                List.of(step),
-                conflictPolicy,
-                STORED,
-                possibleDuplicate(transition));
-        return new PreparedCommit(
-                commit, List.of(appliedSubstep));
+                commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
+                List.of(step), conflictPolicy, STORED, possibleDuplicate(transition));
+        return new PreparedCommit(commit, prepared);
+    }
+
+    private static CommitAttempt preparedAttempt(
+            CommitAttempt evaluation,
+            List<DeserializingMessage> messages,
+            List<List<Change>> changes) {
+        CommitAttempt result = CommitAttempt.detached();
+        result.evaluated(
+                evaluation.readStateIndex(), evaluation.readModelIds(),
+                evaluation.readModelTypes(), messages, changes);
+        result.cascadeRoots(evaluation.cascadeRootIds());
+        return result;
     }
 
     PreparedCommit prepareRebased(
             String commitId,
             PreparedCommit original,
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         if (original.commit() == null) {
             throw new IllegalArgumentException(
                     "Cannot rebase an empty model commit");
@@ -410,19 +393,19 @@ final class ModelCommitProtocol {
                 candidate.getConflictPolicy(), original.commit().getGuarantee(),
                 original.commit().getPossibleDuplicate());
         return new PreparedCommit(
-                commit, rebased.substeps());
+                commit, rebased.attempt());
     }
 
     private static void requireSameShape(
             PreparedCommit original,
             PreparedCommit rebased) {
         if (rebased.commit() == null
-            || original.substeps().size()
-               != rebased.substeps().size()) {
+            || original.attempt().stepCount()
+               != rebased.attempt().stepCount()) {
             throw changedRebaseShape();
         }
         for (int substep = 0;
-             substep < original.substeps().size();
+             substep < original.attempt().stepCount();
              substep++) {
             ModelCommitStep before = original.commit().getSubsteps().get(substep);
             ModelCommitStep after = rebased.commit().getSubsteps().get(substep);
@@ -590,14 +573,14 @@ final class ModelCommitProtocol {
     }
 
     private static Boolean possibleDuplicate(
-            ModelExecutionPlan.CommitEvaluation evaluation,
-            List<ModelExecutionPlan.AppliedSubstep> substeps) {
+            CommitAttempt evaluation,
+            List<List<Change>> changesByStep) {
         Long sourceIndex = DeserializingMessage.getOptionally()
                 .map(DeserializingMessage::getIndex)
                 .orElse(null);
         if (sourceIndex == null
-            || substeps.stream()
-                    .flatMap(substep -> substep.transitions().stream())
+            || changesByStep.stream()
+                    .flatMap(List::stream)
                     .anyMatch(transition ->
                                       !transition.storeEvent()
                                       || !transition.publishEvent())) {
@@ -776,29 +759,27 @@ final class ModelCommitProtocol {
 
     record PreparedCommit(
             CommitModels commit,
-            List<ModelExecutionPlan.AppliedSubstep> substeps) {
+            CommitAttempt attempt) {
         List<DeserializingMessage> rebaseMessages() {
-            boolean hasGraphChange = substeps.stream()
-                    .flatMap(substep -> substep.transitions().stream())
+            boolean hasGraphChange = attempt.transitions().stream()
                     .anyMatch(ModelCommitProtocol::isGraphChange);
             if (!hasGraphChange) {
-                return substeps.stream()
-                        .map(ModelExecutionPlan.AppliedSubstep::message).toList();
+                return attempt.stepMessages();
             }
             List<DeserializingMessage> result = new ArrayList<>(
-                    substeps.size() + 1);
-            for (ModelExecutionPlan.AppliedSubstep substep : substeps) {
-                List<Change> group = substep.transitions();
+                    attempt.stepCount() + 1);
+            for (int step = 0; step < attempt.stepCount(); step++) {
+                List<Change> group = attempt.stepChanges(step);
                 if (group.isEmpty()) {
                     continue;
                 }
                 boolean graphChange = group.stream()
                         .anyMatch(ModelCommitProtocol::isGraphChange);
                 if (!graphChange) {
-                    result.add(substep.message());
+                    result.add(attempt.stepMessage(step));
                     continue;
                 }
-                DeserializingMessage eventMessage = substep.message();
+                DeserializingMessage eventMessage = attempt.stepMessage(step);
                 if (group.stream().anyMatch(transition -> !isGraphChange(transition))) {
                     result.add(eventMessage);
                 }
@@ -816,8 +797,7 @@ final class ModelCommitProtocol {
         }
 
         boolean hasCascadedDeletion() {
-            return substeps.stream()
-                    .flatMap(substep -> substep.transitions().stream())
+            return attempt.transitions().stream()
                     .anyMatch(Change::cascadedDeletion);
         }
 

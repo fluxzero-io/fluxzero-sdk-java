@@ -55,7 +55,7 @@ class ModelConflictPoliciesTest {
 
     @Test
     void readOnlyDependencyUsesItsModelPolicy() throws Exception {
-        ModelExecutionPlan.CommitEvaluation evaluation =
+        CommitAttempt evaluation =
                 evaluation(
                         Map.of(
                                 "written", DefaultModel.class,
@@ -111,7 +111,7 @@ class ModelConflictPoliciesTest {
                 evaluation(creation).conflictPolicy(ModelConflictPolicy.ACCEPT));
     }
 
-    private static ModelExecutionPlan.CommitEvaluation evaluation(
+    private static CommitAttempt evaluation(
             Change... transitions) {
         return evaluation(
                 java.util.Arrays.stream(transitions)
@@ -122,17 +122,13 @@ class ModelConflictPoliciesTest {
                 transitions);
     }
 
-    private static ModelExecutionPlan.CommitEvaluation evaluation(
+    private static CommitAttempt evaluation(
             Map<String, Class<?>> readTypes,
             Change... transitions) {
-        return new ModelExecutionPlan.CommitEvaluation(
+        return CommitAttempt.fromChanges(
                 1L, List.copyOf(readTypes.keySet()),
                 readTypes,
-                List.of(
-                        new ModelExecutionPlan.AppliedSubstep(
-                                null,
-                                List.of(transitions))),
-                Map.of());
+                null, List.of(transitions));
     }
 
     private static Change transition(

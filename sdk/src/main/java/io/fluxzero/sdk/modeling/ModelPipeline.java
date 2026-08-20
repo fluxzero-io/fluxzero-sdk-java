@@ -274,9 +274,9 @@ final class ModelPipeline {
         return ModelBatchScope.execute(
                 this, request.message(), policy, batchLifecycle,
                 !localHandlingEnabled.getAsBoolean(),
-                (retry, batched) -> {
-                    ModelExecutionPlan.CommitEvaluation result =
-                            evaluator.evaluate(request, retry, batched);
+                (attempt, retry, batched) -> {
+                    CommitAttempt result =
+                            evaluator.evaluate(request, attempt, retry, batched);
                     if (!retry) {
                         warnEmptyExplicitApply(request, result);
                     }
@@ -291,35 +291,40 @@ final class ModelPipeline {
                                         batch == null ? request.transportSlot() : slot));
     }
 
-    private ModelExecutionPlan.CommitEvaluation evaluateLive(
-            ExecutionRequest request, boolean retry, boolean batched) {
+    private CommitAttempt evaluateLive(
+            ExecutionRequest request, CommitAttempt attempt,
+            boolean retry, boolean batched) {
         if (request.directLoadsInBatch()) {
             return !retry || batched
-                    ? evaluate(request.message()) : evaluate(request.message(), null);
+                    ? evaluate(attempt, request.message())
+                    : evaluate(attempt, request.message(), null);
         }
         return DeserializingMessage.getMessageBatchIndex() < 0
-                ? evaluate(request.message()) : evaluate(request.message(), null);
+                ? evaluate(attempt, request.message())
+                : evaluate(attempt, request.message(), null);
     }
 
-    private ModelExecutionPlan.CommitEvaluation evaluateAssertions(
-            ExecutionRequest request, boolean retry, boolean batched) {
+    private CommitAttempt evaluateAssertions(
+            ExecutionRequest request, CommitAttempt attempt,
+            boolean retry, boolean batched) {
         return definitionFor(request.message().getPayloadClass()).assertLegal(
-                request.message(), new CommitLoader(null));
+                attempt, request.message(), new CommitLoader(null));
     }
 
-    private ModelExecutionPlan.CommitEvaluation evaluateStored(
-            ExecutionRequest request, boolean retry, boolean batched) {
+    private CommitAttempt evaluateStored(
+            ExecutionRequest request, CommitAttempt attempt,
+            boolean retry, boolean batched) {
         return definitionFor(request.message().getPayloadClass()).reapply(
-                List.of(request.message()), new CommitLoader(null, true));
+                attempt, List.of(request.message()), new CommitLoader(null, true));
     }
 
     private void warnEmptyExplicitApply(
             ExecutionRequest request,
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         if (request.warnMissingApply()
             && !hasModelApplies(request.message().getPayloadClass())
             && evaluation.transitions().isEmpty()
-            && !evaluation.substeps().isEmpty()) {
+            && evaluation.stepCount() > 0) {
             log.warn(
                     "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this application has no "
                     + "locally reachable model @Apply handler. No model changes were committed.",
@@ -338,8 +343,9 @@ final class ModelPipeline {
 
     @FunctionalInterface
     private interface Evaluation {
-        ModelExecutionPlan.CommitEvaluation evaluate(
-                ExecutionRequest request, boolean retry, boolean batched);
+        CommitAttempt evaluate(
+                ExecutionRequest request, CommitAttempt attempt,
+                boolean retry, boolean batched);
     }
 
     record Retry(
@@ -373,15 +379,15 @@ final class ModelPipeline {
 
     @FunctionalInterface
     interface RetryEvaluator {
-        CompletableFuture<ModelExecutionPlan.CommitEvaluation> reevaluate(
+        CompletableFuture<CommitAttempt> reevaluate(
                 CommitModelsResult result,
-                ModelExecutionPlan.CommitEvaluation current,
+                CommitAttempt current,
                 ModelCommitProtocol.PreparedCommit original);
     }
 
     private CompletableFuture<Object> executeEvaluation(
             DeserializingMessage message,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
         ModelConflictPolicy effectiveConflictPolicy =
@@ -413,7 +419,7 @@ final class ModelPipeline {
 
     private CompletableFuture<Object> executeEvaluation(
             DeserializingMessage message,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy effectiveConflictPolicy,
             Map<String, Set<String>> awaitedGraphProjections,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
@@ -469,7 +475,7 @@ final class ModelPipeline {
     static CompletableFuture<Optional<CommitModelsResult>> commit(
             ModelCommitProtocol protocol,
             String commitId,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy,
             Retry retry,
             ModelCommitBatchingClient.ModelCommitBatch batch,
@@ -486,7 +492,7 @@ final class ModelPipeline {
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
             ModelCommitProtocol protocol,
             String commitId,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy conflictPolicy,
             ModelCommitProtocol.PreparedCommit original,
             ModelCommitProtocol.PreparedCommit prepared,
@@ -574,7 +580,7 @@ final class ModelPipeline {
     }
 
     private Object finishEvaluation(
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             ModelConflictPolicy effectiveConflictPolicy,
             Throwable failure) {
         if (failure == null) {
@@ -595,7 +601,7 @@ final class ModelPipeline {
     }
 
     private static List<String> writtenModelIds(
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         List<Change> transitions =
                 evaluation.transitions();
         if (transitions.size() == 1) {
@@ -639,13 +645,13 @@ final class ModelPipeline {
     }
 
     Set<String> awaitedGraphProjections(
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         return awaitedGraphProjectionTargets(
                 evaluation).keySet();
     }
 
     Map<String, Set<String>> awaitedGraphProjectionTargets(
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         GraphProjectionCompletion consumer = null;
         LinkedHashMap<String, LinkedHashSet<String>> result = new LinkedHashMap<>();
         for (Change transition :
@@ -708,7 +714,7 @@ final class ModelPipeline {
     }
 
     private CompletableFuture<Void> ensureGraphProjections(
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+            CommitAttempt evaluation) {
         LinkedHashSet<ModelGraphProjections.Root> roots = null;
         for (Change transition :
                 evaluation.transitions()) {
@@ -748,9 +754,9 @@ final class ModelPipeline {
         });
     }
 
-    private CompletableFuture<ModelExecutionPlan.CommitEvaluation> reload(
+    private CompletableFuture<CommitAttempt> reload(
             DeserializingMessage message,
-            ModelExecutionPlan.CommitEvaluation staleEvaluation,
+            CommitAttempt staleEvaluation,
             CommitModelsResult conflict) {
         repository.invalidateModels(
                 staleEvaluation.readModelIds());
@@ -772,7 +778,7 @@ final class ModelPipeline {
     }
 
     private static long retryStateIndex(
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             CommitModelsResult conflict) {
         long result = evaluation.readStateIndex();
         for (var current : conflict.getConflicts()) {
@@ -799,16 +805,15 @@ final class ModelPipeline {
     private void createCommittedModels(
             ModelCommitProtocol.CommittedCommit committed,
             List<DefaultModelRepository.CommittedModel> target) {
-        if (committed.prepared().substeps().size()
+        if (committed.prepared().attempt().stepCount()
             != committed.result().getSubsteps().size()) {
             throw new IllegalStateException(
                     "Model commit returned a different number of substeps than requested");
         }
-        if (committed.prepared().substeps().size() == 1
-            && committed.prepared().substeps().getFirst().transitions().size() == 1) {
+        if (committed.prepared().attempt().stepCount() == 1
+            && committed.prepared().attempt().stepChanges(0).size() == 1) {
             Change transition =
-                    committed.prepared().substeps().getFirst()
-                            .transitions().getFirst();
+                    committed.prepared().attempt().stepChanges(0).getFirst();
             if (!committed.result().hasSingleTargetResult()) {
                 throw new IllegalStateException(
                         "Model commit returned a different number of targets than requested");
@@ -841,10 +846,10 @@ final class ModelPipeline {
         LinkedHashMap<String, DefaultModelRepository.CommittedModel> finalStates =
                 new LinkedHashMap<>();
         for (int substep = 0;
-             substep < committed.prepared().substeps().size();
+             substep < committed.prepared().attempt().stepCount();
              substep++) {
             List<Change> transitions =
-                    committed.prepared().substeps().get(substep).transitions();
+                    committed.prepared().attempt().stepChanges(substep);
             var substepResult = committed.result().getSubsteps().get(substep);
             var commitStep = committed.prepared().commit().getSubsteps().get(substep);
             if (commitStep.getTargets().size()
@@ -899,27 +904,31 @@ final class ModelPipeline {
         target.addAll(finalStates.values());
     }
 
-    private ModelExecutionPlan.CommitEvaluation evaluate(DeserializingMessage initialMessage) {
+    private CommitAttempt evaluate(
+            CommitAttempt attempt,
+            DeserializingMessage initialMessage) {
         PrefetchSlot cached = initialMessage.getContext(ExplicitModelTarget.class).isPresent()
                 ? null : prefetch(initialMessage);
         if (cached != null) {
             if (repository.supplyCurrentModel(
                     cached.modelId, cached.modelType, cached)) {
-                return evaluate(initialMessage, cached);
+                return evaluate(attempt, initialMessage, cached);
             }
         }
-        return evaluate(initialMessage, null);
+        return evaluate(attempt, initialMessage, null);
     }
 
-    private ModelExecutionPlan.CommitEvaluation evaluate(
+    private CommitAttempt evaluate(
+            CommitAttempt attempt,
             DeserializingMessage initialMessage,
             PrefetchSlot prefetched) {
         if (prefetched != null
             && prefetched.entity != null
             && prefetched.mutation.direct()
             && prefetched.access.writes()) {
-            ModelExecutionPlan.CommitEvaluation direct =
+            CommitAttempt direct =
                     prefetched.mutation.evaluateDirectSingleTarget(
+                            attempt,
                             initialMessage,
                             prefetched.stateIndex,
                             prefetched.modelId,
@@ -931,11 +940,11 @@ final class ModelPipeline {
         }
         return expandCascadeDeletes(
                 definitionFor(initialMessage.getPayloadClass()).apply(
-                        List.of(initialMessage),
+                        attempt, List.of(initialMessage),
                         new CommitLoader(null, false, initialMessage, prefetched)));
     }
 
-    private ModelExecutionPlan.CommitEvaluation rebase(
+    private CommitAttempt rebase(
             List<DeserializingMessage> messages,
             long stateIndex) {
         return ModelBatchScope.withMessageDependency(
@@ -954,13 +963,13 @@ final class ModelPipeline {
      * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
      * actual logical deletions.
      */
-    private ModelExecutionPlan.CommitEvaluation expandCascadeDeletes(
-            ModelExecutionPlan.CommitEvaluation evaluation) {
+    private CommitAttempt expandCascadeDeletes(
+            CommitAttempt evaluation) {
         LinkedHashSet<String> explicitlyDeleted = null;
         LinkedHashMap<String, Change> latestTransitions =
                 new LinkedHashMap<>();
-        for (ModelExecutionPlan.AppliedSubstep substep : evaluation.substeps()) {
-            for (Change transition : substep.transitions()) {
+        for (int step = 0; step < evaluation.stepCount(); step++) {
+            for (Change transition : evaluation.stepChanges(step)) {
                 latestTransitions.put(transition.modelId(), transition);
                 if (transition.before() != null
                     && transition.after() == null
@@ -1016,13 +1025,8 @@ final class ModelPipeline {
             }
         } while (changed);
         if (cascaded.isEmpty()) {
-            return new ModelExecutionPlan.CommitEvaluation(
-                    evaluation.readStateIndex(),
-                    evaluation.readModelIds(),
-                    evaluation.readModelTypes(),
-                    evaluation.substeps(),
-                    evaluation.finalValues(),
-                    explicitlyDeleted);
+            evaluation.cascadeRoots(explicitlyDeleted);
+            return evaluation;
         }
 
         List<Change> transitions = cascaded.stream()
@@ -1034,36 +1038,33 @@ final class ModelPipeline {
                         node.value(), null, null, null, true))
                 .toList();
         DeserializingMessage source =
-                evaluation.substeps().getFirst().message();
+                evaluation.stepMessage(0);
         DeserializingMessage cascadeMessage = source.withMessage(
                 new Message(
                         new CascadedModelDeletion(
                                 List.copyOf(explicitlyDeleted)),
                         source.getMetadata(), null,
                         source.getTimestamp()));
-        List<ModelExecutionPlan.AppliedSubstep> substeps =
-                new ArrayList<>(evaluation.substeps());
-        substeps.add(new ModelExecutionPlan.AppliedSubstep(
-                cascadeMessage, transitions));
+        List<DeserializingMessage> messages =
+                new ArrayList<>(evaluation.stepMessages());
+        messages.add(cascadeMessage);
+        List<List<Change>> changesByStep =
+                new ArrayList<>(evaluation.changesByStep());
+        changesByStep.add(transitions);
         LinkedHashSet<String> readModelIds =
                 new LinkedHashSet<>(evaluation.readModelIds());
         Map<String, Class<?>> readModelTypes =
                 new LinkedHashMap<>(evaluation.readModelTypes());
-        Map<String, Object> finalValues =
-                new LinkedHashMap<>(evaluation.finalValues());
         transitions.forEach(transition -> {
             readModelIds.add(transition.modelId());
             readModelTypes.putIfAbsent(
                     transition.modelId(), transition.modelType());
-            finalValues.put(transition.modelId(), null);
         });
-        return new ModelExecutionPlan.CommitEvaluation(
-                evaluation.readStateIndex(),
-                List.copyOf(readModelIds),
-                readModelTypes,
-                substeps,
-                finalValues,
-                explicitlyDeleted);
+        evaluation.evaluated(
+                evaluation.readStateIndex(), readModelIds,
+                readModelTypes, messages, changesByStep);
+        evaluation.cascadeRoots(explicitlyDeleted);
+        return evaluation;
     }
 
     private static void addCascadeNode(
@@ -1096,7 +1097,7 @@ final class ModelPipeline {
     }
 
     private static void overlayFinalValues(
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             Map<String, Change> latestTransitions,
             Map<String, CascadeNode> nodes) {
         evaluation.finalValues().forEach((modelId, value) -> {
@@ -1127,7 +1128,7 @@ final class ModelPipeline {
 
     private static Class<?> modelType(
             String modelId,
-            ModelExecutionPlan.CommitEvaluation evaluation,
+            CommitAttempt evaluation,
             Map<String, Change> transitions) {
         Change transition =
                 transitions.get(modelId);
@@ -1194,7 +1195,7 @@ final class ModelPipeline {
                 && stagedValues.isEmpty()) {
                 commitEntities.put(prefetched.modelId, prefetched.entity);
                 return new ModelExecutionPlan.ResolvedSubstep(
-                        ModelCommitContext.createSingle(
+                        CommitAttempt.createSingle(
                                 prefetched.stateIndex,
                                 prefetched.modelId,
                                 prefetched.modelType,
@@ -1222,7 +1223,7 @@ final class ModelPipeline {
                             .toList();
             long stateIndex = boundary == null ? -1L : boundary;
             if (effectiveTargets == null) {
-                ModelCommitContext loaded = load(resolution, boundary, stagedValues);
+                CommitAttempt loaded = load(resolution, boundary, stagedValues);
                 stateIndex = loaded.readStateIndex();
                 effectiveTargets = targets(loaded);
                 ancestorPlans.put(planKey, effectiveTargets);
@@ -1243,7 +1244,7 @@ final class ModelPipeline {
                             commitEntities.get(target.modelId()),
                             "Missing commit-scoped model " + target.modelId())));
             return new ModelExecutionPlan.ResolvedSubstep(
-                    ModelCommitContext.create(
+                    CommitAttempt.create(
                             stateIndex, effectiveResolution, selected),
                     definition.genericMutation());
         }
@@ -1291,7 +1292,7 @@ final class ModelPipeline {
                                     ModelDefinition.Access.READ_WRITE,
                                     List.of())),
                             List.of());
-            ModelCommitContext loaded = load(
+            CommitAttempt loaded = load(
                     resolution,
                     requestedStateIndex == null
                             ? pinnedStateIndex : requestedStateIndex,
@@ -1300,7 +1301,7 @@ final class ModelPipeline {
                     loaded, ModelDefinition.Mutation.EMPTY);
         }
 
-        private ModelCommitContext load(
+        private CommitAttempt load(
                 ModelDefinition.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
@@ -1324,7 +1325,7 @@ final class ModelPipeline {
                 combined.putAll(stagedValues);
                 effectiveStagedValues = combined;
             }
-            ModelCommitContext loaded = repository.loadContext(
+            CommitAttempt loaded = repository.loadContext(
                     resolution, boundary, effectiveStagedValues, false);
             Map<String, Object> loadedBatchValues =
                     ModelBatchScope.currentValues(
@@ -1337,15 +1338,15 @@ final class ModelPipeline {
                         "Model commit requested state index %d but loaded %d"
                                 .formatted(boundary, loaded.readStateIndex()));
             }
-            loaded.entries().forEach(entry -> commitEntities.put(
-                    entry.target().modelId(), entry.entity()));
+            for (String modelId : loaded.modelIds()) {
+                commitEntities.put(modelId, loaded.entity(modelId));
+            }
             return loaded;
         }
 
         private static List<ModelDefinition.ResolvedModel> targets(
-                ModelCommitContext context) {
-            return context.entries().stream()
-                    .map(ModelCommitContext.Entry::target).toList();
+                CommitAttempt context) {
+            return context.targets();
         }
     }
 

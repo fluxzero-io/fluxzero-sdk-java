@@ -113,27 +113,48 @@ public final class ModelDefinition {
         return mutation.direct();
     }
 
-    ModelExecutionPlan.CommitEvaluation apply(
+    CommitAttempt apply(
             List<DeserializingMessage> messages,
             ModelExecutionPlan.SubstepResolver resolver) {
         return ModelExecutionPlan.apply(messages, resolver);
     }
 
-    ModelExecutionPlan.CommitEvaluation assertLegal(
+    CommitAttempt apply(
+            CommitAttempt attempt,
+            List<DeserializingMessage> messages,
+            ModelExecutionPlan.SubstepResolver resolver) {
+        return ModelExecutionPlan.apply(attempt, messages, resolver);
+    }
+
+    CommitAttempt assertLegal(
             DeserializingMessage message,
             ModelExecutionPlan.SubstepResolver resolver) {
         return ModelExecutionPlan.assertLegal(message, resolver);
     }
 
-    ModelExecutionPlan.CommitEvaluation reapply(
+    CommitAttempt assertLegal(
+            CommitAttempt attempt,
+            DeserializingMessage message,
+            ModelExecutionPlan.SubstepResolver resolver) {
+        return ModelExecutionPlan.assertLegal(attempt, message, resolver);
+    }
+
+    CommitAttempt reapply(
             List<DeserializingMessage> messages,
             ModelExecutionPlan.SubstepResolver resolver) {
         return ModelExecutionPlan.reapply(messages, resolver);
     }
 
+    CommitAttempt reapply(
+            CommitAttempt attempt,
+            List<DeserializingMessage> messages,
+            ModelExecutionPlan.SubstepResolver resolver) {
+        return ModelExecutionPlan.reapply(attempt, messages, resolver);
+    }
+
     public Object replay(
             DeserializingMessage event,
-            ModelCommitContext context,
+            CommitAttempt context,
             String targetModelId) {
         return mutation.replay(event, context, targetModelId);
     }
@@ -243,7 +264,7 @@ public final class ModelDefinition {
 
         Object intercept(
                 DeserializingMessage message,
-                ModelCommitContext context) {
+                CommitAttempt context) {
             HandlerInvoker applicable = null;
             for (int i = 0; i < handlers.interceptors().size(); i++) {
                 HandlerInvoker candidate = invoker(
@@ -279,7 +300,7 @@ public final class ModelDefinition {
 
         List<Change> apply(
                 DeserializingMessage message,
-                ModelCommitContext beginState,
+                CommitAttempt beginState,
                 boolean applyHandlers,
                 boolean assertions) {
             Objects.requireNonNull(message, "message");
@@ -295,7 +316,7 @@ public final class ModelDefinition {
 
         private List<Change> applyInContext(
                 DeserializingMessage message,
-                ModelCommitContext beginState,
+                CommitAttempt beginState,
                 boolean applyHandlers,
                 boolean assertions) {
             if (assertions) {
@@ -345,7 +366,7 @@ public final class ModelDefinition {
             transitions.forEach((id, transition) -> values.put(id, transition.after()));
             List<Change> result = List.copyOf(transitions.values());
             if (assertions) {
-                ModelCommitContext resultingState = beginState.withValues(values);
+                CommitAttempt resultingState = beginState.withValues(values);
                 for (int i = 0; i < handlers.afterAssertions().size(); i++) {
                     invokeIfApplicable(
                             handlers.afterAssertions().get(i), message, resultingState);
@@ -354,7 +375,8 @@ public final class ModelDefinition {
             return result;
         }
 
-        ModelExecutionPlan.CommitEvaluation evaluateDirectSingleTarget(
+        CommitAttempt evaluateDirectSingleTarget(
+                CommitAttempt attempt,
                 DeserializingMessage message,
                 long readStateIndex,
                 String modelId,
@@ -392,18 +414,16 @@ public final class ModelDefinition {
             Change transition = transition(
                     compiledHandler, modelId, modelType, modelType,
                     entity, after);
-            return new ModelExecutionPlan.CommitEvaluation(
-                    readStateIndex,
-                    List.of(modelId),
+            attempt.evaluated(
+                    readStateIndex, List.of(modelId),
                     Map.of(modelId, modelType),
-                    List.of(new ModelExecutionPlan.AppliedSubstep(
-                            message, List.of(transition))),
-                    Collections.singletonMap(modelId, after));
+                    List.of(message), List.of(List.of(transition)));
+            return attempt;
         }
 
         Object replay(
                 DeserializingMessage event,
-                ModelCommitContext context,
+                CommitAttempt context,
                 String targetModelId) {
             Objects.requireNonNull(targetModelId, "targetModelId");
             List<Change> transitions = apply(
@@ -429,7 +449,7 @@ public final class ModelDefinition {
         private static void invokeIfApplicable(
                 CompiledHandler handler,
                 DeserializingMessage message,
-                ModelCommitContext context) {
+                CommitAttempt context) {
             HandlerInvoker invoker = invoker(handler, message, context);
             if (invoker != null) {
                 invoker.invoke();
@@ -439,7 +459,7 @@ public final class ModelDefinition {
         private static HandlerInvoker invoker(
                 CompiledHandler compiledHandler,
                 DeserializingMessage message,
-                ModelCommitContext context) {
+                CommitAttempt context) {
             context.attachTo(message);
             EntityMetadata.HandlerMethod handler = compiledHandler.method();
             Object target = invocationTarget(handler, message, context);
@@ -450,7 +470,7 @@ public final class ModelDefinition {
         private static Object invocationTarget(
                 EntityMetadata.HandlerMethod handler,
                 DeserializingMessage message,
-                ModelCommitContext context) {
+                CommitAttempt context) {
             Executable executable = handler.executable();
             if (executable instanceof Constructor<?> || Modifier.isStatic(executable.getModifiers())) {
                 return null;
@@ -475,7 +495,7 @@ public final class ModelDefinition {
                 EntityMetadata.HandlerMethod handler,
                 Class<?> targetType,
                 Object result,
-                ModelCommitContext context) {
+                CommitAttempt context) {
             if (result != null) {
                 return resultModelId(handler, targetType, result);
             }
@@ -528,11 +548,11 @@ public final class ModelDefinition {
                 CompiledHandler compiledHandler,
                 Object value,
                 int resultIndex,
-                ModelCommitContext beginState) {
+                CommitAttempt beginState) {
             EntityMetadata.HandlerMethod handler = compiledHandler.method();
             Class<?> targetType = applyTargetType(handler, value, resultIndex);
             String targetId = resolveWriteTarget(handler, targetType, value, beginState);
-            ModelCommitContext.Entry target = beginState.entry(targetId);
+            Entity<?> target = beginState.entity(targetId);
             boolean creation = target == null && value != null
                                && (handler.collectionApplyResult() || handler.dynamicApplyResult());
             if (!creation && (target == null || !beginState.mayWrite(
@@ -542,10 +562,10 @@ public final class ModelDefinition {
                                 .formatted(handler.executable().toGenericString(), targetId));
             }
             Class<?> resolvedTargetType = target == null
-                    ? value.getClass() : target.target().modelType();
+                    ? value.getClass() : beginState.target(targetId).modelType();
             Change transition = transition(
                     compiledHandler, targetId, resolvedTargetType,
-                    null, target == null ? null : target.entity(), value);
+                    null, target, value);
             Map<String, Change> result = transitions;
             if (result == null) {
                 result = new LinkedHashMap<>();

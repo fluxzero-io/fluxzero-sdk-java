@@ -1836,21 +1836,18 @@ class ModelCommitHandlerIntegrationTest {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
                                     ModelBatchScope.stage(
                                             null,
-                                            new ModelExecutionPlan.CommitEvaluation(
+                                            CommitAttempt.fromChanges(
                                                     durable.stateIndex(),
                                                     List.of(firstChildId.toString()),
                                                     java.util.Map.of(
                                                             firstChildId.toString(),
                                                             FamilyChild.class),
-                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
-                                                            current,
-                                                            List.of(Change.applied(
+                                                    current,
+                                                    List.of(Change.applied(
                                                                     firstChildId.toString(),
                                                                     FamilyChild.class,
                                                                     0L, null, before, after, null,
-                                                                    null, false)))),
-                                                    java.util.Map.of(
-                                                            firstChildId.toString(), after)));
+                                                                    null, false))));
                                     return;
                                 }
 
@@ -1937,7 +1934,7 @@ class ModelCommitHandlerIntegrationTest {
                                 if (DeserializingMessage.getMessageBatchIndex() == 0) {
                                     ModelBatchScope.stage(
                                             null,
-                                            new ModelExecutionPlan.CommitEvaluation(
+                                            CommitAttempt.fromChanges(
                                                     -1L,
                                                     List.of(
                                                             rootId.toString(),
@@ -1945,9 +1942,8 @@ class ModelCommitHandlerIntegrationTest {
                                                     java.util.Map.of(
                                                             rootId.toString(), FamilyRoot.class,
                                                             childId.toString(), FamilyChild.class),
-                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
-                                                            current,
-                                                            List.of(
+                                                    current,
+                                                    List.of(
                                                                     Change.applied(
                                                                             rootId.toString(),
                                                                             FamilyRoot.class,
@@ -1957,10 +1953,7 @@ class ModelCommitHandlerIntegrationTest {
                                                                             childId.toString(),
                                                                             FamilyChild.class,
                                                                             -1L, null, null, child, null,
-                                                                            null, false)))),
-                                                    java.util.Map.of(
-                                                            rootId.toString(), root,
-                                                            childId.toString(), child)));
+                                                                            null, false))));
                                     return;
                                 }
                                 Graph<FamilyRoot> graph =
@@ -2009,23 +2002,19 @@ class ModelCommitHandlerIntegrationTest {
                                     == 0) {
                                     ModelBatchScope.stage(
                                             null,
-                                            new ModelExecutionPlan.CommitEvaluation(
+                                            CommitAttempt.fromChanges(
                                                     durable.stateIndex(),
                                                     List.of(
                                                             rootId.toString()),
                                                     java.util.Map.of(
                                                             rootId.toString(),
                                                             FamilyRoot.class),
-                                                    List.of(new ModelExecutionPlan.AppliedSubstep(
-                                                            current,
-                                                            List.of(Change.applied(
+                                                    current,
+                                                    List.of(Change.applied(
                                                                     rootId.toString(),
                                                                     FamilyRoot.class,
                                                                     0L, null, root,
-                                                                    null, null, null, false)))),
-                                                    Collections.singletonMap(
-                                                            rootId.toString(),
-                                                            null)));
+                                                                    null, null, null, false))));
                                     return;
                                 }
                                 Graph<FamilyRoot> currentGraph =
