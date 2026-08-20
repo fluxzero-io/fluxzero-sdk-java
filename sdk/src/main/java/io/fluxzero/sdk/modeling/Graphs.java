@@ -90,18 +90,31 @@ public final class Graphs {
     public static <T> Graph<T> compose(
             String rootId, long stateIndex, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
             ModelRepository repository, boolean historical) {
-        return GraphState.composed(rootId, stateIndex, models, edges, repository, historical, Map.of()).root();
+        return compose(
+                rootId, stateIndex, models, edges, repository, historical,
+                ModelReadBoundary.state(stateIndex, false));
+    }
+
+    /** Creates a complete graph while retaining its exact repository boundary for lazy relationship loads. */
+    public static <T> Graph<T> compose(
+            String rootId, long stateIndex, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
+            ModelRepository repository, boolean historical, ModelReadBoundary boundary) {
+        return GraphState.composed(
+                rootId, stateIndex, models, edges, repository, historical,
+                boundary, Map.of()).root();
     }
 
     /** Builds one indexed state with visible message-batch values applied before graph selection. */
     public static <T> Graph<T> compose(
             String rootId, long stateIndex, Map<String, Entity<?>> durableModels, List<ModelGraphEdge> durableEdges,
-            ModelRepository repository, boolean historical,
+            ModelRepository repository, boolean historical, ModelReadBoundary boundary,
             String namespace, Class<T> rootType, Graph.Options options,
             Map<String, Entity<?>> staged,
             Function<Entity<?>, Graph<?>> supplementalLoader) {
         if (staged.isEmpty()) {
-            return compose(rootId, stateIndex, durableModels, durableEdges, repository, historical);
+            return compose(
+                    rootId, stateIndex, durableModels, durableEdges,
+                    repository, historical, boundary);
         }
         Entity<?> stagedRoot = staged.get(rootId);
         if (stagedRoot != null && stagedRoot.get() == null) {
@@ -118,7 +131,7 @@ public final class Graphs {
                     durableRoot);
             return GraphState.composed(
                     rootId, stateIndex, Map.of(rootId, deleted), List.of(),
-                    repository, historical, Map.of()).root();
+                    repository, historical, boundary, Map.of()).root();
         }
         LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(durableModels);
         LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>(durableEdges);
@@ -177,7 +190,7 @@ public final class Graphs {
                 .toList();
         return GraphState.composed(
                 rootId, stateIndex, selectedModels, selectedEdges,
-                repository, historical, Map.of()).root();
+                repository, historical, boundary, Map.of()).root();
     }
 
     private static LinkedHashSet<String> selectedIds(
@@ -466,14 +479,15 @@ final class GraphState {
 
     static GraphState composed(
             String rootId, long stateIndex, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
-            ModelRepository repository, boolean historical, Map<String, Change> changes) {
+            ModelRepository repository, boolean historical, ModelReadBoundary boundary,
+            Map<String, Change> changes) {
         LinkedHashMap<String, NodeData> data = entityData(models);
         LinkedHashMap<String, List<ModelGraphEdge>> byParent = new LinkedHashMap<>();
         edges.forEach(edge -> byParent.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>()).add(edge));
         List<Node> placements = new ArrayList<>();
         Node root = build(rootId, null, null, data, byParent, new LinkedHashSet<>(), placements);
         addDetached(data, placements);
-        return indexed(stateIndex, repository, true, historical, true, ModelReadBoundary.state(stateIndex, false), models, edges,
+        return indexed(stateIndex, repository, true, historical, true, boundary, models, edges,
                        changes, placements, Map.of(), root, null);
     }
 
@@ -652,7 +666,7 @@ final class GraphState {
         return expansions.computeIfAbsent(node.data().id(), ignored -> {
             NodeData data = node.data();
             data.entity();
-            Graph<?> loaded = boundary.loadGraph(repository, data.id(), data.type(), historical);
+            Graph<?> loaded = boundary.loadGraph(repository, data.id(), data.type());
             if (!(loaded instanceof GraphView<?> graph) || !graph.state().complete() || knownModels.isEmpty()) {
                 return loaded;
             }
@@ -661,7 +675,9 @@ final class GraphState {
             LinkedHashSet<ModelGraphEdge> mergedEdges = new LinkedHashSet<>(graph.state().edges);
             mergedEdges.removeIf(edge -> knownModels.containsKey(edge.getChildId()));
             knownModels.forEach((modelId, known) -> addParentEdges(modelId, known, mergedEdges));
-            return Graphs.compose(data.id(), stateIndex, models, List.copyOf(mergedEdges), repository, historical);
+            return Graphs.compose(
+                    data.id(), stateIndex, models, List.copyOf(mergedEdges),
+                    repository, historical, boundary);
         });
     }
 
@@ -716,7 +732,7 @@ final class GraphState {
                 continue;
             }
             Graph<?> parent = historical || exactBoundary
-                    ? boundary.loadGraph(repository, repositoryId, parentType, true)
+                    ? boundary.loadGraph(repository, repositoryId, parentType)
                     : Graphs.lazy(repository.load(parentId, parentType), stateIndex, repository);
             if (parent.isPresent()) {
                 result.putIfAbsent(repositoryId, context.decorate(parent));

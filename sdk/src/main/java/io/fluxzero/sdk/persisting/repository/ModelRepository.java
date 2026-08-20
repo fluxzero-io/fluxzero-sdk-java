@@ -117,15 +117,14 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     /**
      * Loads several models at one coherent state boundary, preserving input order.
      *
-     * <p>The default implementation preserves compatibility for custom repositories. Native repositories override this
-     * method to use one multi-stream read and one reconstruction session.</p>
+     * <p>Repositories without coherent multi-model reconstruction reject this capability instead of emulating it with
+     * independent reads at different boundaries.</p>
      */
     default <T> List<Entity<T>> loadAll(
             @NonNull List<?> modelIds,
             @NonNull Class<T> modelType) {
-        return modelIds.stream()
-                .map(modelId -> load(modelId, modelType))
-                .toList();
+        throw new UnsupportedOperationException(
+                "Coherent multi-model reconstruction is not supported by this repository");
     }
 
     /**
@@ -281,6 +280,19 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             @NonNull String rootId,
             @NonNull Class<T> rootType,
             @NonNull Graph.Options options) {
+        return loadGraph(
+                rootId, rootType,
+                ModelReadBoundary.current(), options);
+    }
+
+    /**
+     * Reconstructs one model graph at the supplied current, state, commit, event, or before boundary.
+     */
+    default <T> Graph<T> loadGraph(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            @NonNull ModelReadBoundary boundary,
+            @NonNull Graph.Options options) {
         throw new UnsupportedOperationException(
                 "Independent model graph reconstruction is not supported by this repository");
     }
@@ -294,44 +306,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             @NonNull Class<T> rootType,
             long stateIndex,
             @NonNull Graph.Options options) {
-        throw new UnsupportedOperationException(
-                "Historical independent model graph reconstruction is not supported by this repository");
-    }
-
-    /**
-     * Reconstructs a model graph at an exact durable commit substep.
-     * <p>
-     * The resolved state index is supplied as a compatibility fallback for repositories that only distinguish global
-     * state boundaries. Repositories that support multi-substep model commits should override this method so sibling
-     * substeps sharing one state index remain distinguishable.
-     */
-    default <T> Graph<T> loadGraphAtCommit(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            @NonNull String commitId,
-            int substep,
-            @NonNull Graph.Options options) {
-        return loadGraphAt(
+        return loadGraph(
                 rootId, rootType,
-                resolvedStateIndex, options);
-    }
-
-    /**
-     * Reconstructs a model graph at the state boundary represented by a published event index.
-     * <p>
-     * The resolved state index is supplied as a compatibility fallback for repositories that do not retain the exact
-     * event-to-model-state mapping.
-     */
-    default <T> Graph<T> loadGraphAtEvent(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            long eventIndex,
-            @NonNull Graph.Options options) {
-        return loadGraphAt(
-                rootId, rootType,
-                resolvedStateIndex, options);
+                ModelReadBoundary.state(stateIndex, false), options);
     }
 
     /**
@@ -342,36 +319,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
             @NonNull Class<T> rootType,
             long stateIndex,
             @NonNull Graph.Options options) {
-        throw new UnsupportedOperationException(
-                "Exclusive before-state model graph reconstruction is not supported by this repository");
+        return loadGraph(
+                rootId, rootType,
+                ModelReadBoundary.state(stateIndex, false).asBefore(), options);
     }
 
-    /**
-     * Reconstructs the model graph that was current immediately before an exact durable commit substep.
-     */
-    default <T> Graph<T> loadGraphBeforeCommit(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            @NonNull String commitId,
-            int substep,
-            @NonNull Graph.Options options) {
-        return loadGraphBefore(
-                rootId, rootType,
-                resolvedStateIndex, options);
-    }
-
-    /**
-     * Reconstructs the model graph that was current immediately before a published event's state boundary.
-     */
-    default <T> Graph<T> loadGraphBeforeEvent(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            long eventIndex,
-            @NonNull Graph.Options options) {
-        return loadGraphBefore(
-                rootId, rootType,
-                resolvedStateIndex, options);
-    }
 }

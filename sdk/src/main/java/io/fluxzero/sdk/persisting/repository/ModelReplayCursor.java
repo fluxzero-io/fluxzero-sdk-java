@@ -59,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -904,12 +905,14 @@ final class ModelReplayCursor {
         if (boundary.before()) {
             models.replaceAll((ignored, entity) -> beforeBoundary(entity, stateIndex));
         }
+        ModelReadBoundary resolvedBoundary = boundary.resolved(stateIndex);
         return Graphs.compose(
                 rootId, stateIndex, models, response.getEdges(), repository, historical,
+                resolvedBoundary,
                 namespace, rootType, options, staged,
                 candidate -> graph(
                         candidate.id().toString(), (Class) candidate.type(), Graph.Options.DEFAULT,
-                        ModelReadBoundary.at(stateIndex), namespace, Map.of(), true));
+                        resolvedBoundary, namespace, Map.of(), true));
     }
 
     private LinkedHashMap<String, Entity<?>> reconstructProjection(
@@ -1272,16 +1275,26 @@ final class ModelReplayCursor {
                 List<MutationPlan.ResolvedModel> targets,
                 ModelReadBoundary boundary) {
             return reconstruct(
-                    targets, boundary, !boundary.historical());
+                    targets, ReplayWindow.complete(boundary),
+                    !boundary.historical());
         }
 
         ReconstructionBatch reconstruct(
                 List<MutationPlan.ResolvedModel> targets,
-            ModelReadBoundary boundary,
-            boolean cacheAtBoundary) {
+                ModelReadBoundary boundary,
+                boolean cacheAtBoundary) {
+            return reconstruct(
+                    targets, ReplayWindow.complete(boundary),
+                    cacheAtBoundary);
+        }
+
+        private ReconstructionBatch reconstruct(
+                List<MutationPlan.ResolvedModel> targets,
+                ReplayWindow window,
+                boolean cacheAtBoundary) {
             if (targets.isEmpty()) {
                 long stateBoundary = ModelReplayCursor.this.load(
-                        Map.of(), boundary,
+                        Map.of(), window.boundary(),
                         ignored -> {
                         }).stateIndex();
                 return new ReconstructionBatch(stateBoundary, Map.of());
@@ -1291,9 +1304,8 @@ final class ModelReplayCursor {
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
             for (MutationPlan.ResolvedModel target : targets) {
                 Entity<?> base = reconstructionBase(
-                        target, boundary.stateIndex(),
-                        boundary.commitId() == null
-                        && boundary.eventIndex() == null);
+                        target, window.baseStateIndex(),
+                        window.allowCurrentCache());
                 states.put(
                         target.modelId(),
                         new MutableReconstruction(target, base));
@@ -1303,29 +1315,35 @@ final class ModelReplayCursor {
             }
             ModelReplayCursor.LoadResult loaded =
                     ModelReplayCursor.this.load(
-                            cursors, boundary,
-                            page -> applyPage(page, states));
+                            cursors, window.boundary(),
+                            page -> applyPage(page, states, window));
             LinkedHashMap<String, Entity<?>> cacheCandidates =
                     new LinkedHashMap<>();
             LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
             for (MutationPlan.ResolvedModel target : targets) {
                 ModelHeadState head = loaded.heads().get(target.modelId());
                 MutableReconstruction state = states.get(target.modelId());
-                Entity<?> entity = head == null ? empty(target) : withHead(state.current, head);
+                Entity<?> entity = window.prefix()
+                        ? state.current
+                        : head == null ? empty(target) : withHead(state.current, head);
                 MutationPlan.ResolvedModel resolvedTarget = state.target;
-                validateReconstruction(resolvedTarget, head, entity);
-                boolean cacheable = cacheAtBoundary && head != null && head.isHistoryComplete()
+                if (!window.prefix()) {
+                    validateReconstruction(resolvedTarget, head, entity);
+                }
+                boolean cacheable = !window.prefix()
+                                    && cacheAtBoundary && head != null && head.isHistoryComplete()
                                     && EntityMetadata.of(resolvedTarget.modelType())
                                             .rootConfiguration().orElseThrow().cached();
                 if (cacheable) {
                     cacheCandidates.put(resolvedTarget.modelId(), entity);
-                } else if (head == null) {
+                } else if (!window.prefix() && head == null) {
                     modelCache.remove(target.modelId());
                 }
                 result.put(target.modelId(), entity);
-                reconstructed.put(new ViewKey(
-                        target.modelId(), target.modelType(), loaded.stateIndex(),
-                        null, Integer.MAX_VALUE, loaded.stateIndex()), entity);
+                if (!window.prefix()) {
+                    reconstructed.put(ViewKey.state(
+                            target, loaded.stateIndex()), entity);
+                }
             }
             modelCache.mergeAll(
                     cacheCandidates,
@@ -1342,6 +1360,13 @@ final class ModelReplayCursor {
                 MutationPlan.ResolvedModel target,
                 Long maxStateIndex,
                 boolean allowCurrentCache) {
+            if (maxStateIndex != null) {
+                Entity<?> known = reconstructed.get(
+                        ViewKey.state(target, maxStateIndex));
+                if (known != null) {
+                    return known;
+                }
+            }
             EntityMetadata.RootConfiguration configuration = EntityMetadata.of(target.modelType())
                     .rootConfiguration().orElseThrow();
             if (allowCurrentCache
@@ -1426,7 +1451,8 @@ final class ModelReplayCursor {
 
         private void applyPage(
                 GetModelEventsResult page,
-                Map<String, MutableReconstruction> states) {
+                Map<String, MutableReconstruction> states,
+                ReplayWindow window) {
             page.getStreams().forEach(
                     stream -> resolveTarget(
                             stream.getModelId(), stream.getHead(), states));
@@ -1436,23 +1462,47 @@ final class ModelReplayCursor {
                     page.getStreams().size() >= 32
                     && page.getStreams().parallelStream()
                             .allMatch(stream -> stream.getMemberships().stream()
+                                    .filter(window::includes)
                                     .allMatch(membership -> directReplayPlan(
                                             payloads.getRequired(membership.getStateIndex()),
                                             states.get(stream.getModelId()).target.modelType()) != null));
-            if (independent) {
-                page.getStreams().parallelStream()
-                        .forEach(stream ->
-                                         applyStream(
-                                                 stream,
-                                                 states,
-                                                 payloads));
-            } else {
-                page.getStreams().forEach(stream ->
-                                                   applyStream(
-                                                           stream,
-                                                           states,
-                                                           payloads));
-            }
+            Stream<ModelEventStream> streams = independent
+                    ? page.getStreams().parallelStream()
+                    : page.getStreams().stream();
+            streams.forEach(stream -> {
+                MutableReconstruction state = states.get(stream.getModelId());
+                if (state == null) {
+                    throw new EventSourcingException(
+                            "Model event store returned unrelated stream "
+                            + stream.getModelId());
+                }
+                if (stream.getHead() != null
+                    && !stream.getHead().isHistoryComplete()) {
+                    throw incompleteHistory(stream.getModelId());
+                }
+                ImmutableRoot.replay(
+                        state, window.memberships(stream),
+                        (current, membership) -> {
+                            StoredEvent storedEvent = new StoredEvent(
+                                    membership,
+                                    payloads.getRequired(membership.getStateIndex()));
+                            MutationPlan directDefinition = directReplayPlan(
+                                    storedEvent.event(), current.target.modelType());
+                            if (directDefinition == null) {
+                                current.apply(storedEvent);
+                            } else {
+                                current.applyCompiled(storedEvent, directDefinition);
+                            }
+                            return current;
+                        },
+                        (current, membership, error) ->
+                                error instanceof EventSourcingException replayFailure
+                                        ? replayFailure : new EventSourcingException(
+                                        "Failed to apply model event at state %d to %s"
+                                                .formatted(
+                                                        membership.getStateIndex(),
+                                                        current.target.modelId()), error));
+            });
             if (deserializedEvents.size() > 1_024) {
                 deserializedEvents.clear();
             }
@@ -1496,86 +1546,18 @@ final class ModelReplayCursor {
             return definition.direct() ? definition : null;
         }
 
-        private void applyStream(
-                ModelEventStream stream,
-                Map<String, MutableReconstruction> states,
-                PayloadLookup payloads) {
-            MutableReconstruction state = states.get(stream.getModelId());
-            if (state == null) {
-                throw new EventSourcingException(
-                        "Model event store returned unrelated stream "
-                        + stream.getModelId());
-            }
-            if (stream.getHead() != null
-                && !stream.getHead().isHistoryComplete()) {
-                throw incompleteHistory(stream.getModelId());
-            }
-            ImmutableRoot.replay(
-                    state, stream.getMemberships().iterator(),
-                    (current, membership) -> {
-                        StoredEvent storedEvent = new StoredEvent(
-                                membership,
-                                payloads.getRequired(membership.getStateIndex()));
-                        MutationPlan directDefinition = directReplayPlan(
-                                storedEvent.event(), current.target.modelType());
-                        if (directDefinition == null) {
-                            current.apply(storedEvent);
-                        } else {
-                            current.applyCompiled(storedEvent, directDefinition);
-                        }
-                        return current;
-                    },
-                    (current, membership, error) -> error instanceof EventSourcingException replayFailure
-                            ? replayFailure : new EventSourcingException(
-                            "Failed to apply model event at state %d to %s"
-                                    .formatted(membership.getStateIndex(), current.target.modelId()), error));
-        }
-
-        private Map<String, Entity<?>> reconstructAt(
-                List<MutationPlan.ResolvedModel> targets,
-                long stateIndex) {
-            LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-            List<MutationPlan.ResolvedModel> missing = new ArrayList<>();
-            for (MutationPlan.ResolvedModel target : targets) {
-                ViewKey viewKey = new ViewKey(
-                        target.modelId(), target.modelType(), stateIndex,
-                        null, Integer.MAX_VALUE, stateIndex);
-                Entity<?> known = reconstructed.get(viewKey);
-                if (known == null) {
-                    missing.add(target);
-                } else {
-                    result.put(target.modelId(), known);
-                }
-            }
-            if (missing.isEmpty()) {
-                return result;
-            }
-            ReconstructionBatch loaded =
-                    reconstruct(
-                            missing,
-                            ModelReadBoundary.at(stateIndex),
-                            false);
-            if (loaded.stateIndex() != stateIndex) {
-                throw new EventSourcingException(
-                        "Historical model load moved from state index %d to %d"
-                                .formatted(stateIndex, loaded.stateIndex()));
-            }
-            result.putAll(loaded.entities());
-            return ordered(targets, result);
-        }
-
-        private Entity<?> reconstructView(
+        private Entity<?> viewAt(
                 MutationPlan.ResolvedModel target,
                 long readStateIndex,
                 String commitId,
                 int substep,
                 long commitStateIndex) {
-            return reconstructViews(
+            return viewsAt(
                     List.of(target), readStateIndex, commitId,
                     substep, commitStateIndex).get(target.modelId());
         }
 
-        private Map<String, Entity<?>> reconstructViews(
+        private Map<String, Entity<?>> viewsAt(
                 List<MutationPlan.ResolvedModel> targets,
                 long readStateIndex,
                 String commitId,
@@ -1598,24 +1580,21 @@ final class ModelReplayCursor {
             if (missing.isEmpty()) {
                 return result;
             }
-            Map<String, Entity<?>> base =
-                    reconstructAt(missing, readStateIndex);
-            if (substep > 0) {
-                LinkedHashMap<String, Long> cursors =
-                        new LinkedHashMap<>();
-                missing.forEach(target -> cursors.put(
-                        target.modelId(),
-                        base.get(target.modelId()).sequenceNumber()));
-                ModelReplayCursor.this.load(
-                        cursors,
-                        ModelReadBoundary.commit(
-                                commitId, substep - 1),
-                        page -> applyCommitPrefix(
-                                page, missing, base, readStateIndex,
-                                commitId, substep));
+            ReplayWindow window = substep == 0
+                    ? ReplayWindow.complete(
+                            ModelReadBoundary.at(readStateIndex))
+                    : ReplayWindow.commitPrefix(
+                            readStateIndex, commitId, substep);
+            ReconstructionBatch loaded = reconstruct(
+                    missing, window, false);
+            if (substep == 0
+                && loaded.stateIndex() != readStateIndex) {
+                throw new EventSourcingException(
+                        "Historical model load moved from state index %d to %d"
+                                .formatted(readStateIndex, loaded.stateIndex()));
             }
             for (MutationPlan.ResolvedModel target : missing) {
-                Entity<?> entity = base.get(target.modelId());
+                Entity<?> entity = loaded.entities().get(target.modelId());
                 reconstructed.put(new ViewKey(
                         target.modelId(), target.modelType(), readStateIndex,
                         commitId, substep, commitStateIndex), entity);
@@ -1631,49 +1610,6 @@ final class ModelReplayCursor {
             targets.forEach(target -> result.put(
                     target.modelId(), values.get(target.modelId())));
             return result;
-        }
-
-        private void applyCommitPrefix(
-                GetModelEventsResult page,
-                List<MutationPlan.ResolvedModel> targets,
-                Map<String, Entity<?>> current,
-                long readStateIndex,
-                String commitId,
-                int substep) {
-            Map<String, MutationPlan.ResolvedModel> targetsById =
-                    new HashMap<>();
-            targets.forEach(target -> targetsById.put(
-                    target.modelId(), target));
-            Map<Long, io.fluxzero.common.api.SerializedMessage> payloads =
-                    new HashMap<>();
-            for (ModelEventPayload payload : page.getPayloads()) {
-                payloads.put(payload.getStateIndex(), payload.getEvent());
-            }
-            for (ModelEventStream stream : page.getStreams()) {
-                MutationPlan.ResolvedModel target =
-                        targetsById.get(stream.getModelId());
-                if (target == null) {
-                    throw new EventSourcingException(
-                            "Model event store returned unrelated stream "
-                            + stream.getModelId());
-                }
-                for (ModelEventMembership membership : stream.getMemberships()) {
-                    if (membership.getStateIndex() > readStateIndex
-                        && membership.getCommitId().equals(commitId)
-                        && membership.getSubstep() < substep) {
-                        current.put(
-                                target.modelId(),
-                                apply(
-                                        target,
-                                        current.get(target.modelId()),
-                                        new StoredEvent(
-                                                membership,
-                                                Objects.requireNonNull(
-                                                        payloads.get(membership
-                                                                .getStateIndex())))));
-                    }
-                }
-            }
         }
 
         private EventSourcingException incompleteHistory(String modelId) {
@@ -1732,7 +1668,7 @@ final class ModelReplayCursor {
                                   membership);
                 Entity<?> begin = followsCurrent
                         ? current
-                        : reconstructView(
+                        : viewAt(
                                 target, membership.getReadStateIndex(),
                                 membership.getCommitId(), membership.getSubstep(),
                                 membership.getStateIndex());
@@ -1914,7 +1850,7 @@ final class ModelReplayCursor {
                                 .toList();
                 Map<String, Entity<?>> dependencyViews = dependencies.isEmpty()
                         ? Map.of()
-                        : reconstructViews(
+                        : viewsAt(
                                 dependencies,
                                 membership.getReadStateIndex(),
                                 membership.getCommitId(),
@@ -2201,6 +2137,63 @@ final class ModelReplayCursor {
             String commitId,
             int substep,
             long commitStateIndex) {
+
+        private static ViewKey state(
+                MutationPlan.ResolvedModel target,
+                long stateIndex) {
+            return new ViewKey(
+                    target.modelId(), target.modelType(), stateIndex,
+                    null, Integer.MAX_VALUE, stateIndex);
+        }
+    }
+
+    private record ReplayWindow(
+            ModelReadBoundary boundary,
+            Long baseStateIndex,
+            String prefixCommitId,
+            int prefixSubstep) {
+
+        private static ReplayWindow complete(
+                ModelReadBoundary boundary) {
+            return new ReplayWindow(
+                    boundary, boundary.stateIndex(), null, -1);
+        }
+
+        private static ReplayWindow commitPrefix(
+                long readStateIndex,
+                String commitId,
+                int exclusiveSubstep) {
+            return new ReplayWindow(
+                    ModelReadBoundary.commit(
+                            commitId, exclusiveSubstep - 1),
+                    readStateIndex, commitId, exclusiveSubstep);
+        }
+
+        private boolean prefix() {
+            return prefixCommitId != null;
+        }
+
+        private boolean allowCurrentCache() {
+            return !prefix()
+                   && boundary.commitId() == null
+                   && boundary.eventIndex() == null;
+        }
+
+        private boolean includes(
+                ModelEventMembership membership) {
+            return !prefix()
+                   || membership.getStateIndex() <= baseStateIndex
+                      || prefixCommitId.equals(membership.getCommitId())
+                         && membership.getSubstep() < prefixSubstep;
+        }
+
+        private Iterator<ModelEventMembership> memberships(
+                ModelEventStream stream) {
+            return prefix()
+                    ? stream.getMemberships().stream()
+                            .filter(this::includes).iterator()
+                    : stream.getMemberships().iterator();
+        }
     }
 
     private record ModelKey(String modelId, Class<?> modelType) {

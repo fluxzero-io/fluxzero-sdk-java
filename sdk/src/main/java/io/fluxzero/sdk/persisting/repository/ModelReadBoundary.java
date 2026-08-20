@@ -22,8 +22,6 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 
-import java.util.Objects;
-
 /**
  * One current, state, commit or event boundary shared by model replay, graphs and ancestor lookup.
  *
@@ -138,33 +136,11 @@ public record ModelReadBoundary(
         return state(stateIndex, !historical);
     }
 
-    /** Loads a graph using this boundary without converting it to a graph-specific boundary type. */
+    /** Loads a graph through the repository's single boundary-aware reconstruction capability. */
     public Graph<?> loadGraph(
-            ModelRepository repository, String rootId, Class<?> rootType, boolean historical) {
-        if (commitId != null) {
-            return before
-                    ? repository.loadGraphBeforeCommit(
-                            rootId, rootType, Objects.requireNonNullElse(stateIndex, -1L),
-                            commitId, substep, Graph.Options.DEFAULT)
-                    : repository.loadGraphAtCommit(
-                            rootId, rootType, Objects.requireNonNullElse(stateIndex, -1L),
-                            commitId, substep, Graph.Options.DEFAULT);
-        }
-        if (eventIndex != null) {
-            return before
-                    ? repository.loadGraphBeforeEvent(
-                            rootId, rootType, Objects.requireNonNullElse(stateIndex, -1L),
-                            eventIndex, Graph.Options.DEFAULT)
-                    : repository.loadGraphAtEvent(
-                            rootId, rootType, Objects.requireNonNullElse(stateIndex, -1L),
-                            eventIndex, Graph.Options.DEFAULT);
-        }
-        if (before) {
-            return repository.loadGraphBefore(rootId, rootType, stateIndex, Graph.Options.DEFAULT);
-        }
-        return historical || stateIndex != null
-                ? repository.loadGraphAt(rootId, rootType, stateIndex, Graph.Options.DEFAULT)
-                : repository.loadGraph(rootId, rootType, Graph.Options.DEFAULT);
+            ModelRepository repository, String rootId, Class<?> rootType) {
+        return repository.loadGraph(
+                rootId, rootType, this, Graph.Options.DEFAULT);
     }
 
     private static int parseSubstep(Object value) {

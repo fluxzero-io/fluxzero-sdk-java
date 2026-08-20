@@ -426,9 +426,20 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         EntityMetadata.validate(rootType);
         ModelReadBoundary.Pinned handlerBoundary =
                 handlerBoundary();
-        return readGraph(
+        return reconstructGraph(
                 rootId, rootType, options, boundary(handlerBoundary),
                 handlerBoundary, true, false);
+    }
+
+    @Override
+    public <T> Graph<T> loadGraph(
+            @NonNull String rootId,
+            @NonNull Class<T> rootType,
+            @NonNull ModelReadBoundary boundary,
+            @NonNull Graph.Options options) {
+        return reconstructGraph(
+                rootId, rootType, options, boundary, null,
+                boundary.includeMessageBatch(), boundary.historical());
     }
 
     @Override
@@ -506,30 +517,26 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                         candidate.modelType()))
                         .toList();
         Graph.Options rootOnly = new Graph.Options(0, 1);
+        ModelReadBoundary graphBoundary = graphBoundary(
+                boundary, resolved.stateIndex());
         return targets.stream().map(target -> {
             @SuppressWarnings("unchecked") Class<A> targetType =
                     (Class<A>) target.modelType();
-            if (boundary.commitId() != null) {
-                return loadGraphAtCommit(
-                        target.modelId(), targetType,
-                        resolved.stateIndex(), boundary.commitId(),
-                        boundary.substep(), rootOnly);
-            }
-            if (boundary.eventIndex() != null) {
-                return loadGraphAtEvent(
-                        target.modelId(), targetType,
-                        resolved.stateIndex(), boundary.eventIndex(),
-                        rootOnly);
-            }
-            if (boundary.includeMessageBatch()) {
-                return loadGraphAtIncludingMessageBatch(
-                        target.modelId(), targetType,
-                        resolved.stateIndex(), rootOnly);
-            }
-            return loadGraphAt(
+            return loadGraph(
                     target.modelId(), targetType,
-                    resolved.stateIndex(), rootOnly);
+                    graphBoundary, rootOnly);
         }).toList();
+    }
+
+    private static ModelReadBoundary graphBoundary(
+            ModelReadBoundary source,
+            long stateIndex) {
+        ModelReadBoundary result = source.commitId() != null
+                                   || source.eventIndex() != null
+                ? source.resolved(stateIndex)
+                : ModelReadBoundary.state(
+                        stateIndex, source.includeMessageBatch());
+        return source.before() ? result.asBefore() : result;
     }
 
     private static ModelReadBoundary ancestorBoundary(
@@ -546,79 +553,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 boundary.stateIndex());
     }
 
-    @Override
-    public <T> Graph<T> loadGraphAt(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long stateIndex,
-            @NonNull Graph.Options options) {
-        return readGraph(rootId, rootType, options,
-                         ModelReadBoundary.state(stateIndex, false), null, false, true);
-    }
-
-    @Override
-    public <T> Graph<T> loadGraphAtCommit(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            @NonNull String commitId,
-            int substep,
-            @NonNull Graph.Options options) {
-        return readGraph(rootId, rootType, options,
-                         ModelReadBoundary.commit(commitId, substep).resolved(resolvedStateIndex),
-                         null, false, true);
-    }
-
-    @Override
-    public <T> Graph<T> loadGraphAtEvent(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            long eventIndex,
-            @NonNull Graph.Options options) {
-        return readGraph(rootId, rootType, options,
-                         ModelReadBoundary.event(eventIndex).resolved(resolvedStateIndex),
-                         null, false, true);
-    }
-
-    @Override
-    public <T> Graph<T> loadGraphBefore(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long stateIndex,
-            @NonNull Graph.Options options) {
-        return readGraph(rootId, rootType, options,
-                         ModelReadBoundary.state(stateIndex, false).asBefore(),
-                         null, false, true);
-    }
-
-    @Override
-    public <T> Graph<T> loadGraphBeforeCommit(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            @NonNull String commitId,
-            int substep,
-            @NonNull Graph.Options options) {
-        return readGraph(rootId, rootType, options,
-                         ModelReadBoundary.commit(commitId, substep)
-                                 .resolved(resolvedStateIndex).asBefore(),
-                         null, false, true);
-    }
-
-    @Override
-    public <T> Graph<T> loadGraphBeforeEvent(
-            @NonNull String rootId,
-            @NonNull Class<T> rootType,
-            long resolvedStateIndex,
-            long eventIndex,
-            @NonNull Graph.Options options) {
-        return readGraph(rootId, rootType, options,
-                         ModelReadBoundary.event(eventIndex)
-                                 .resolved(resolvedStateIndex).asBefore(),
-                         null, false, true);
-    }
-
     /**
      * Reconstructs a graph at an exact durable boundary and overlays pending values from earlier messages in the
      * current message batch. This is used by atomic model planning that must retain read-your-writes semantics without
@@ -629,11 +563,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Class<T> rootType,
             long stateIndex,
             @NonNull Graph.Options options) {
-        return readGraph(rootId, rootType, options,
-                         ModelReadBoundary.state(stateIndex, true), null, true, true);
+        return loadGraph(
+                rootId, rootType,
+                ModelReadBoundary.state(stateIndex, true), options);
     }
 
-    private <T> Graph<T> readGraph(
+    private <T> Graph<T> reconstructGraph(
             String rootId,
             Class<T> rootType,
             Graph.Options options,

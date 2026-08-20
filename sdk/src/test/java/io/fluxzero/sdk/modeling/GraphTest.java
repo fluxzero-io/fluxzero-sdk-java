@@ -161,7 +161,8 @@ class GraphTest {
                         Root.class.getName(), "children", 0L, null)),
                 repository, false);
         when(repository.loadGraph(
-                rootValue.id().toString(), Root.class, Graph.Options.DEFAULT))
+                rootValue.id().toString(), Root.class,
+                ModelReadBoundary.current(), Graph.Options.DEFAULT))
                 .thenReturn(complete);
 
         Graph<Root> graph = Graphs.lazy(root, 7L, repository);
@@ -176,7 +177,8 @@ class GraphTest {
         assertEquals(Optional.of(rootValue), childGraph.ancestorModel(Root.class));
         assertSame(childGraph.root().get(), graph.get());
         verify(repository).loadGraph(
-                rootValue.id().toString(), Root.class, Graph.Options.DEFAULT);
+                rootValue.id().toString(), Root.class,
+                ModelReadBoundary.current(), Graph.Options.DEFAULT);
     }
 
     @Test
@@ -194,7 +196,9 @@ class GraphTest {
                         childValue.id().toString(), rootValue.id().toString(),
                         Root.class.getName(), "children", 0L, null)),
                 repository, false);
-        when(repository.loadGraph(rootValue.id().toString(), Root.class, Graph.Options.DEFAULT))
+        when(repository.loadGraph(
+                rootValue.id().toString(), Root.class,
+                ModelReadBoundary.current(), Graph.Options.DEFAULT))
                 .thenReturn(complete);
         Graph<Root> graph = Graphs.lazy(root, 7L, repository);
 
@@ -208,7 +212,9 @@ class GraphTest {
         assertEquals(rootValue, graph.find("lookup", Root.class).orElseThrow().get());
         assertEquals(childValue, graph.find("primary", Child.class).orElseThrow().get());
         assertEquals(childValue, graph.find(candidate -> candidate.type() == Child.class).orElseThrow().get());
-        verify(repository).loadGraph(rootValue.id().toString(), Root.class, Graph.Options.DEFAULT);
+        verify(repository).loadGraph(
+                rootValue.id().toString(), Root.class,
+                ModelReadBoundary.current(), Graph.Options.DEFAULT);
     }
 
     @Test
@@ -314,7 +320,8 @@ class GraphTest {
                         Root.class.getName(), "children", 0L, null)),
                 repository, false);
         when(repository.loadGraph(
-                before.id().toString(), Root.class, Graph.Options.DEFAULT))
+                before.id().toString(), Root.class,
+                ModelReadBoundary.current(), Graph.Options.DEFAULT))
                 .thenReturn(durable);
 
         Graph<Root> staged = Graphs.lazy(root, 7L, repository).apply(update);
@@ -435,17 +442,47 @@ class GraphTest {
                 new MutationPlan.Resolution(
                         List.of(childTarget), List.of(), List.of()),
                 Map.of(childValue.id().toString(), child));
-        when(repository.loadGraphAt(
+        when(repository.loadGraph(
                 rootValue.id().toString(), Root.class,
-                11L, Graph.Options.DEFAULT)).thenReturn(parent);
+                ModelReadBoundary.state(11L, true),
+                Graph.Options.DEFAULT)).thenReturn(parent);
 
         Graph<Child> graph = Graphs.lazy(child, commitContext, repository);
 
         assertSame(parent, graph.parent(Root.class).orElseThrow());
-        verify(repository).loadGraphAt(
+        verify(repository).loadGraph(
                 rootValue.id().toString(), Root.class,
-                11L, Graph.Options.DEFAULT);
+                ModelReadBoundary.state(11L, true),
+                Graph.Options.DEFAULT);
         verify(repository, never()).load(rootValue.id(), Root.class);
+    }
+
+    @Test
+    void completeGraphRetainsItsCommitSubstepForExternalParentNavigation() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root rootValue = new Root(new RootId("composed-boundary"), "root");
+        Child childValue = new Child(
+                new ChildId("composed-boundary"), rootValue.id(), "child");
+        Entity<Child> child = entity(
+                childValue.id().toString(), Child.class, childValue);
+        @SuppressWarnings("unchecked")
+        Graph<Root> parent = mock(Graph.class);
+        when(parent.isPresent()).thenReturn(true);
+        when(parent.type()).thenReturn(Root.class);
+        ModelReadBoundary boundary = ModelReadBoundary.commit(
+                "commit-boundary", 2).resolved(11L);
+        when(repository.loadGraph(
+                rootValue.id().toString(), Root.class,
+                boundary, Graph.Options.DEFAULT)).thenReturn(parent);
+        Graph<Child> graph = Graphs.compose(
+                childValue.id().toString(), 11L,
+                Map.of(childValue.id().toString(), child), List.of(),
+                repository, true, boundary);
+
+        assertSame(parent, graph.parent(Root.class).orElseThrow());
+        verify(repository).loadGraph(
+                rootValue.id().toString(), Root.class,
+                boundary, Graph.Options.DEFAULT);
     }
 
     @Test
