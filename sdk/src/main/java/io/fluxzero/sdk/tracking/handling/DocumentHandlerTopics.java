@@ -15,7 +15,7 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.sdk.common.ClientUtils;
-import io.fluxzero.sdk.modeling.ModelGraphProjections;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
@@ -39,7 +39,8 @@ public final class DocumentHandlerTopics {
                 .filter(handler -> !handler.disabled())
                 .flatMap(handler -> Optional.ofNullable(handler.value()).filter(value -> !value.isBlank())
                         .or(() -> Void.class.equals(handler.modelGraph()) ? Optional.empty() :
-                                Optional.of(ModelGraphProjections.configuration(handler.modelGraph())
+                                Optional.of(EntityMetadata.validate(handler.modelGraph())
+                                                    .graphProjectionConfiguration()
                                                     .orElseThrow(() -> new IllegalArgumentException(
                                                             "%s does not enable a materialized model graph projection"
                                                                     .formatted(handler.modelGraph().getName())))

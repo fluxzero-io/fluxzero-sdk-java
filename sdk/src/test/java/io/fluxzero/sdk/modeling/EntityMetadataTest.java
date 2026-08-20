@@ -16,7 +16,11 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -25,6 +29,7 @@ import io.fluxzero.sdk.web.ApiDoc;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Arrays.stream;
@@ -131,8 +136,8 @@ class EntityMetadataTest {
     @Test
     void validatesAndExposesMaterializedGraphProjection() {
         var configuration =
-                ModelGraphProjections.configuration(
-                                ProjectedModel.class)
+                EntityMetadata.validate(ProjectedModel.class)
+                        .graphProjectionConfiguration()
                         .orElseThrow();
 
         assertEquals(
@@ -156,13 +161,44 @@ class EntityMetadataTest {
                         UnsearchableProjectedModel.class));
         assertEquals(
                 "default-projected-models-graphs",
-                ModelGraphProjections.configuration(DefaultProjectedModel.class)
+                EntityMetadata.validate(DefaultProjectedModel.class)
+                        .graphProjectionConfiguration()
                         .orElseThrow().getCollection());
-        assertTrue(ModelGraphProjections.configuration(ParentModel.class).isEmpty());
-        assertTrue(ModelGraphProjections.configuration(ConfiguredUnmaterializedModel.class).isEmpty());
+        assertTrue(EntityMetadata.validate(ParentModel.class)
+                           .graphProjectionConfiguration().isEmpty());
+        assertTrue(EntityMetadata.validate(ConfiguredUnmaterializedModel.class)
+                           .graphProjectionConfiguration().isEmpty());
         assertThrows(
                 IllegalStateException.class,
-                () -> ModelGraphProjections.configuration(ConflictingProjectionCollection.class));
+                () -> EntityMetadata.validate(ConflictingProjectionCollection.class)
+                        .graphProjectionConfiguration());
+    }
+
+    @Test
+    void keepsApplicationResolvedGraphConfigurationOutOfTheClassCache() {
+        assertEquals(
+                List.of("first-models", "first-graphs"),
+                projectionCollections("first"));
+        assertEquals(
+                List.of("second-models", "second-graphs"),
+                projectionCollections("second"));
+    }
+
+    private static List<String> projectionCollections(String prefix) {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        "graphRootCollection", prefix + "-models",
+                        "graphProjectionCollection", prefix + "-graphs"))
+                        .andThen(existing))
+                .build(LocalClient.newInstance())) {
+            return fluxzero.apply(ignored -> {
+                EntityMetadata.graphProjectionRoots(ConfiguredProjectionCollections.class);
+                var configuration = EntityMetadata.validate(ConfiguredProjectionCollections.class)
+                        .graphProjectionConfiguration()
+                        .orElseThrow();
+                return List.of(configuration.getRootCollection(), configuration.getCollection());
+            });
+        }
     }
 
     @Test
@@ -499,6 +535,16 @@ class EntityMetadataTest {
             graphProjection = @GraphProjection(
                     collection = "same-collection"))
     private record ConflictingProjectionCollection(
+            @EntityId String id) {
+    }
+
+    @Model(
+            searchable = true,
+            searchProjection = @Searchable(collection = "${graphRootCollection}"),
+            materializeGraph = true,
+            graphProjection = @GraphProjection(
+                    collection = "${graphProjectionCollection}"))
+    private record ConfiguredProjectionCollections(
             @EntityId String id) {
     }
 

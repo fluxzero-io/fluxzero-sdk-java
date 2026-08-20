@@ -17,11 +17,8 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
-import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.sdk.common.Message;
@@ -48,7 +45,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -73,11 +69,8 @@ final class ModelPipeline {
     private final ModelBatchScope.BatchLifecycle batchLifecycle;
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
-    private final EventStoreClient eventStoreClient;
     private final Function<Class<?>, MutationPlan> definitions;
     private final java.util.function.BooleanSupplier localHandlingEnabled;
-    private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
-            graphProjectionRegistrations = new ConcurrentHashMap<>();
 
     ModelPipeline(
             DefaultModelRepository repository,
@@ -95,7 +88,7 @@ final class ModelPipeline {
             java.util.function.BooleanSupplier localHandlingEnabled) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
-        this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
+        Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
         this.conflictResolver = Objects.requireNonNull(conflictResolver, "conflictResolver");
         if (maxConflictRetries < 0) {
@@ -121,10 +114,6 @@ final class ModelPipeline {
 
     Handler<DeserializingMessage> handler(Class<?> trackingTarget) {
         return new CommitHandler(trackingTarget);
-    }
-
-    void registerGraphProjection(ModelGraphProjections.Root root) {
-        doRegisterGraphProjection(root);
     }
 
     private boolean canAutomaticallyHandle(DeserializingMessage message) {
@@ -447,16 +436,20 @@ final class ModelPipeline {
             int transportSlot) {
         ModelConflictPolicy effectiveConflictPolicy =
                 evaluation.conflictPolicy(conflictPolicy);
-        Map<String, Set<String>> awaitedGraphProjections =
-                awaitedGraphProjectionTargets(
-                        evaluation);
-        CompletableFuture<Void> registrations =
-                ensureGraphProjections(evaluation);
+        GraphProjectionCommit graphProjections =
+                graphProjections(evaluation);
+        CompletableFuture<Void> registrations = graphProjections.roots().isEmpty()
+                ? COMPLETED_VOID
+                : CompletableFuture.allOf(
+                        graphProjections.roots().stream()
+                                .map(root -> repository.registerGraphProjection(
+                                        root.modelType(), false))
+                                .toArray(CompletableFuture[]::new));
         if (registrations == COMPLETED_VOID) {
             return executeEvaluation(
                     message, evaluation,
                     effectiveConflictPolicy,
-                    awaitedGraphProjections,
+                    graphProjections.awaitedTargets(),
                     transportBatch,
                     transportSlot);
         }
@@ -467,7 +460,7 @@ final class ModelPipeline {
                         executeEvaluation(
                                 message, evaluation,
                                 effectiveConflictPolicy,
-                                awaitedGraphProjections,
+                                graphProjections.awaitedTargets(),
                                 transportBatch,
                                 transportSlot)));
     }
@@ -476,7 +469,7 @@ final class ModelPipeline {
             DeserializingMessage message,
             CommitAttempt evaluation,
             ModelConflictPolicy effectiveConflictPolicy,
-            Map<String, Set<String>> awaitedGraphProjections,
+            Map<Class<?>, Set<String>> awaitedGraphProjections,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
@@ -501,8 +494,21 @@ final class ModelPipeline {
         CompletableFuture<Optional<CommitModelsResult>> completed =
                 awaitedGraphProjections.isEmpty()
                         ? committed
-                        : committed.thenCompose(commitResult ->
-                                awaitGraphProjections(commitResult, awaitedGraphProjections));
+                        : committed.thenCompose(commitResult -> {
+                            if (commitResult.isEmpty()
+                                || commitResult.get().getSubsteps().isEmpty()) {
+                                return CompletableFuture.completedFuture(commitResult);
+                            }
+                            CommitModelsResult result = commitResult.get();
+                            long firstStateIndex = result.getSubsteps().getFirst()
+                                    .getStateIndex();
+                            long stateIndex = result.getSubsteps().getLast()
+                                    .getStateIndex();
+                            return repository.awaitGraphProjections(
+                                            awaitedGraphProjections,
+                                            firstStateIndex, stateIndex)
+                                    .thenApply(ignored -> commitResult);
+                        });
         return completed.handle((commitResult, failure) ->
                 finishEvaluation(evaluation, effectiveConflictPolicy, failure));
     }
@@ -635,53 +641,21 @@ final class ModelPipeline {
                 failure);
     }
 
-    private CompletableFuture<Optional<CommitModelsResult>>
-            awaitGraphProjections(
-                    Optional<CommitModelsResult> result,
-                    Map<String, Set<String>> collections) {
-        if (result.isEmpty()
-            || collections.isEmpty()
-            || result.get().getSubsteps().isEmpty()) {
-            return CompletableFuture.completedFuture(result);
-        }
-        long stateIndex =
-                result.get().getSubsteps().getLast()
-                        .getStateIndex();
-        long firstStateIndex =
-                result.get().getSubsteps().getFirst()
-                        .getStateIndex();
-        return CompletableFuture.allOf(
-                        collections.entrySet().stream()
-                                .map(entry ->
-                                             eventStoreClient
-                                                     .awaitModelGraphProjection(
-                                                             new AwaitModelGraphProjection(
-                                                                     entry.getKey(),
-                                                                     stateIndex,
-                                                                     firstStateIndex,
-                                                                     entry.getValue())))
-                                .toArray(
-                                        CompletableFuture[]::new))
-                .thenApply(ignored -> result);
-    }
-
-    Set<String> awaitedGraphProjections(
-            CommitAttempt evaluation) {
-        return awaitedGraphProjectionTargets(
-                evaluation).keySet();
-    }
-
-    Map<String, Set<String>> awaitedGraphProjectionTargets(
+    GraphProjectionCommit graphProjections(
             CommitAttempt evaluation) {
         GraphProjectionCompletion consumer = null;
-        LinkedHashMap<String, LinkedHashSet<String>> result = new LinkedHashMap<>();
+        LinkedHashSet<EntityMetadata.GraphProjectionRoot> definitions =
+                new LinkedHashSet<>();
+        LinkedHashMap<Class<?>, LinkedHashSet<String>> result = new LinkedHashMap<>();
         for (Change transition :
                 evaluation.transitions()) {
-            List<ModelGraphProjections.Root> roots =
-                    ModelGraphProjections.roots(transition.modelType());
+            List<EntityMetadata.GraphProjectionRoot> roots =
+                    EntityMetadata.graphProjectionRoots(
+                            transition.modelType());
             if (roots.isEmpty()) {
                 continue;
             }
+            definitions.addAll(roots);
             if (consumer == null) {
                 consumer = Tracker.current()
                         .map(Tracker::getConfiguration)
@@ -695,20 +669,18 @@ final class ModelPipeline {
                     apply == null
                             ? GraphProjectionCompletion.DEFAULT
                             : apply.graphProjectionCompletion();
-            for (ModelGraphProjections.Root root : roots) {
+            for (EntityMetadata.GraphProjectionRoot root : roots) {
                 if (resolveProjectionCompletion(
                         applyPolicy, consumer,
                         root.projection().completion()) == GraphProjectionCompletion.AWAIT) {
                     result.computeIfAbsent(
-                                    root.collection(), ignored -> new LinkedHashSet<>())
+                                    root.modelType(),
+                                    ignored -> new LinkedHashSet<>())
                             .add(transition.modelId());
                 }
             }
         }
-        if (result.isEmpty()) {
-            return Map.of();
-        }
-        return result.entrySet().stream()
+        Map<Class<?>, Set<String>> awaited = result.entrySet().stream()
                 .collect(
                         java.util.stream.Collectors
                                 .toUnmodifiableMap(
@@ -716,6 +688,10 @@ final class ModelPipeline {
                                         entry ->
                                                 Set.copyOf(
                                                         entry.getValue())));
+        return definitions.isEmpty()
+                ? GraphProjectionCommit.EMPTY
+                : new GraphProjectionCommit(
+                        Set.copyOf(definitions), awaited);
     }
 
     private GraphProjectionCompletion resolveProjectionCompletion(
@@ -734,45 +710,11 @@ final class ModelPipeline {
         return graphProjectionCompletion;
     }
 
-    private CompletableFuture<Void> ensureGraphProjections(
-            CommitAttempt evaluation) {
-        LinkedHashSet<ModelGraphProjections.Root> roots = null;
-        for (Change transition :
-                evaluation.transitions()) {
-            List<ModelGraphProjections.Root> candidates =
-                    ModelGraphProjections.roots(transition.modelType());
-            if (!candidates.isEmpty()) {
-                if (roots == null) {
-                    roots = new LinkedHashSet<>();
-                }
-                roots.addAll(candidates);
-            }
-        }
-        if (roots == null) {
-            return COMPLETED_VOID;
-        }
-        roots.forEach(this::doRegisterGraphProjection);
-        return CompletableFuture.allOf(
-                roots.stream()
-                        .map(ModelGraphProjections.Root::modelType)
-                        .distinct()
-                        .map(graphProjectionRegistrations::get)
-                        .filter(Objects::nonNull)
-                        .toArray(CompletableFuture[]::new));
-    }
-
-    private void doRegisterGraphProjection(
-            ModelGraphProjections.Root root) {
-        CompletableFuture<ModelGraphProjectionStatus> registration =
-                graphProjectionRegistrations.computeIfAbsent(
-                        root.modelType(),
-                        ignored -> eventStoreClient.registerModelGraphProjection(
-                                new RegisterModelGraphProjection(root.configuration(), false)));
-        registration.whenComplete((result, failure) -> {
-            if (failure != null) {
-                graphProjectionRegistrations.remove(root.modelType(), registration);
-            }
-        });
+    record GraphProjectionCommit(
+            Set<EntityMetadata.GraphProjectionRoot> roots,
+            Map<Class<?>, Set<String>> awaitedTargets) {
+        private static final GraphProjectionCommit EMPTY =
+                new GraphProjectionCommit(Set.of(), Map.of());
     }
 
     private CompletableFuture<CommitAttempt> reload(

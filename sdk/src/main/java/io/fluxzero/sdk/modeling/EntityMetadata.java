@@ -16,7 +16,10 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.common.reflection.GenericTypeResolver;
 import io.fluxzero.common.reflection.MemberInvoker;
@@ -25,6 +28,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.web.ApiDoc;
 
@@ -40,6 +44,7 @@ import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -430,6 +435,41 @@ public final class EntityMetadata {
     public boolean participatesInGraphComposition() {
         return parentReferences.stream()
                 .anyMatch(ParentReference::automaticallyComposed);
+    }
+
+    /** Returns this root's application-resolved materialized graph definition, if enabled. */
+    public Optional<ModelGraphProjectionConfiguration> graphProjectionConfiguration() {
+        if (model == null || !model.materializeGraph()) {
+            return Optional.empty();
+        }
+        GraphProjection projection = model.graphProjection();
+        String rootCollection = rootConfiguration.collection().isEmpty()
+                ? type.getSimpleName()
+                : ApplicationProperties.substituteProperties(
+                        rootConfiguration.collection());
+        String collection = projection.collection().isEmpty()
+                ? rootCollection + "-graphs"
+                : ApplicationProperties.substituteProperties(projection.collection());
+        if (rootCollection.equals(collection)) {
+            throw new IllegalStateException(
+                    "Graph projection collection on %s must differ from its direct-model collection '%s'"
+                            .formatted(type.getName(), rootCollection));
+        }
+        return Optional.of(new ModelGraphProjectionConfiguration(
+                type.getName(), rootCollection, collection,
+                ModelGraphComposition.builder().build(),
+                Arrays.stream(projection.pathOverrides())
+                        .map(override -> new ModelGraphPathOverride(
+                                override.path(), override.projectionPath()))
+                        .toList()));
+    }
+
+    /** Returns every materialized projection root reachable through this model's typed parent relationships. */
+    static List<GraphProjectionRoot> graphProjectionRoots(Class<?> modelType) {
+        validate(modelType);
+        return ReflectionUtils.getTypeMetadata(modelType)
+                .specializedMetadata(GraphProjectionRoots.class, GraphProjectionRoots::new)
+                .values();
     }
 
     public List<HandlerMethod> handlerMethods() {
@@ -1086,6 +1126,37 @@ public final class EntityMetadata {
 
         private ApplyResult {
             targetModelTypes = List.copyOf(targetModelTypes);
+        }
+    }
+
+    record GraphProjectionRoot(
+            Class<?> modelType,
+            GraphProjection projection) {
+    }
+
+    private record GraphProjectionRoots(
+            List<GraphProjectionRoot> values) {
+        private GraphProjectionRoots(Class<?> modelType) {
+            this(inspect(modelType, new LinkedHashSet<>()));
+        }
+
+        private static List<GraphProjectionRoot> inspect(
+                Class<?> modelType,
+                Set<Class<?>> visited) {
+            if (!visited.add(modelType)) {
+                return List.of();
+            }
+            EntityMetadata metadata = of(modelType);
+            List<GraphProjectionRoot> result = new ArrayList<>();
+            if (metadata.model != null && metadata.model.materializeGraph()) {
+                result.add(new GraphProjectionRoot(
+                        modelType, metadata.model.graphProjection()));
+            }
+            metadata.parentReferences.stream()
+                    .map(ParentReference::parentModelType)
+                    .filter(Objects::nonNull)
+                    .forEach(parent -> result.addAll(inspect(parent, visited)));
+            return List.copyOf(result);
         }
     }
 

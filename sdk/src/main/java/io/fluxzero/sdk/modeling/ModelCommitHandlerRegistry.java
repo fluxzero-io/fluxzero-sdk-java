@@ -180,7 +180,9 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             return Registration.noOp();
         }
         definitions.register(targetType);
-        ModelGraphProjections.roots(targetType).forEach(pipeline::registerGraphProjection);
+        EntityMetadata.graphProjectionRoots(targetType)
+                .forEach(root -> repository.registerGraphProjection(
+                        root.modelType(), false));
         return () -> definitions.unregister(targetType);
     }
 

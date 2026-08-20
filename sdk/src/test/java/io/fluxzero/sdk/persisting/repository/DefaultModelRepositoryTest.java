@@ -32,6 +32,7 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.MemoryPressureController;
@@ -52,6 +53,7 @@ import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelCommitTestBuilder;
@@ -69,9 +71,12 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
@@ -137,6 +142,68 @@ class DefaultModelRepositoryTest {
                                                 request.getModelId())
                                         && request.getCascade()
                                            == ModelDeletionCascade.DESCENDANTS));
+    }
+
+    @Test
+    void ownsIdempotentGraphProjectionRegistrationAndRetriesFailures() {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ModelGraphProjectionStatus status =
+                new ModelGraphProjectionStatus(
+                        0L, "repository-graphs",
+                        -1L, -1L, 0L, 0L, false);
+        when(client.getEventStoreClient()).thenReturn(eventStore);
+        when(eventStore.registerModelGraphProjection(any()))
+                .thenReturn(
+                        CompletableFuture.failedFuture(
+                                new IllegalStateException("temporarily unavailable")),
+                        CompletableFuture.completedFuture(status),
+                        CompletableFuture.completedFuture(status));
+
+        assertThrows(
+                CompletionException.class,
+                () -> repository.registerGraphProjection(
+                        ProjectedRoot.class, false).join());
+        assertEquals(status, repository.registerGraphProjection(
+                ProjectedRoot.class, false).join());
+        assertEquals(status, repository.registerGraphProjection(
+                ProjectedRoot.class, false).join());
+        assertEquals(status, repository.registerGraphProjection(
+                ProjectedRoot.class, true).join());
+
+        var requests = org.mockito.ArgumentCaptor.forClass(
+                io.fluxzero.common.api.modeling.RegisterModelGraphProjection.class);
+        verify(eventStore, times(3))
+                .registerModelGraphProjection(requests.capture());
+        assertEquals(
+                List.of(false, false, true),
+                requests.getAllValues().stream()
+                        .map(io.fluxzero.common.api.modeling.RegisterModelGraphProjection::isRebuild)
+                        .toList());
+    }
+
+    @Test
+    void delegatesGraphProjectionAwaitToItsDurableCapability() {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ModelGraphProjectionStatus status =
+                new ModelGraphProjectionStatus(
+                        0L, "repository-graphs",
+                        3L, 5L, 0L, 0L, false);
+        when(client.getEventStoreClient()).thenReturn(eventStore);
+        when(eventStore.awaitModelGraphProjection(any()))
+                .thenReturn(CompletableFuture.completedFuture(status));
+
+        Map<Class<?>, Set<String>> projections = new LinkedHashMap<>();
+        projections.put(ProjectedRoot.class, Set.of("root-1"));
+        projections.put(AlternateProjectedRoot.class, Set.of("root-2"));
+
+        repository.awaitGraphProjections(projections, 3L, 5L).join();
+        verify(eventStore).awaitModelGraphProjection(
+                org.mockito.ArgumentMatchers.argThat(request ->
+                        "repository-graphs".equals(request.getCollection())
+                        && request.getFirstStateIndex() == 3L
+                        && request.getStateIndex() == 5L
+                        && Set.copyOf(request.getModelIds())
+                                .equals(Set.of("root-1", "root-2"))));
     }
 
     @Test
@@ -2187,6 +2254,24 @@ class DefaultModelRepositoryTest {
     @Model
     private record GraphRoot(
             @EntityId GraphRootId graphRootId, String name) {
+    }
+
+    @Model(
+            searchable = true,
+            materializeGraph = true,
+            graphProjection = @GraphProjection(
+                    collection = "repository-graphs"))
+    private record ProjectedRoot(
+            @EntityId String id) {
+    }
+
+    @Model(
+            searchable = true,
+            materializeGraph = true,
+            graphProjection = @GraphProjection(
+                    collection = "repository-graphs"))
+    private record AlternateProjectedRoot(
+            @EntityId String id) {
     }
 
     private static class GraphRootId extends Id<GraphRoot> {

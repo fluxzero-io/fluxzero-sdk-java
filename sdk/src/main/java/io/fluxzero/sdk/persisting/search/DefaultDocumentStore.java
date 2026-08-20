@@ -45,7 +45,6 @@ import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Graph;
-import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
@@ -248,8 +247,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
         Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>
                 projection =
-                ModelGraphProjections.configuration(
-                        rootModelType);
+                EntityMetadata.validate(rootModelType)
+                        .graphProjectionConfiguration();
         boolean live =
                 forceAdHoc
                 || projection.isEmpty();

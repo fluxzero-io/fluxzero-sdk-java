@@ -21,8 +21,8 @@ import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.Graph;
-import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 
@@ -78,7 +78,8 @@ public final class MaterializedGraphParameterResolver
                                        rootType.getSimpleName()));
         }
         Map<String, String> pathOverrides =
-                ModelGraphProjections.configuration(rootType)
+                EntityMetadata.validate(rootType)
+                        .graphProjectionConfiguration()
                         .map(configuration ->
                                      configuration.getPathOverrides().stream()
                                              .collect(Collectors.toMap(

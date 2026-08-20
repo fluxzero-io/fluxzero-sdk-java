@@ -19,6 +19,7 @@ package io.fluxzero.sdk.persisting.repository;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
@@ -58,7 +59,6 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.CommitAttempt;
-import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
@@ -83,6 +83,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -114,6 +115,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
     private final ModelCacheTracker modelCacheTracker;
+    private final ConcurrentHashMap<Class<?>, ModelGraphProjectionConfiguration>
+            graphProjectionDefinitions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
+            graphProjectionRegistrations = new ConcurrentHashMap<>();
     /**
      * Compatibility constructor for document-only repository use.
      */
@@ -305,31 +310,67 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     @NonNull Class<?> modelType,
                     boolean rebuild) {
         ModelGraphProjectionConfiguration configuration =
-                ModelGraphProjections.configuration(
-                                modelType)
+                graphProjectionDefinition(modelType);
+        return graphProjectionRegistrations.compute(
+                modelType,
+                (ignored, current) -> rebuild
+                        || current == null
+                        || current.isCompletedExceptionally()
+                        ? requestGraphProjectionRegistration(
+                                configuration, rebuild)
+                        : current);
+    }
+
+    /** Returns the application-resolved durable definition owned by this repository. */
+    public ModelGraphProjectionConfiguration graphProjectionDefinition(
+            @NonNull Class<?> modelType) {
+        return graphProjectionDefinitions.computeIfAbsent(
+                modelType,
+                type -> EntityMetadata.validate(type)
+                        .graphProjectionConfiguration()
                         .orElseThrow(() ->
-                                             new IllegalArgumentException(
-                                                     modelType.getName()
-                                                     + " does not enable a graph projection"));
+                                new IllegalArgumentException(
+                                        type.getName()
+                                        + " does not enable a graph projection")));
+    }
+
+    /** Completes when every affected durable graph projection has processed the supplied commit range. */
+    public CompletableFuture<Void> awaitGraphProjections(
+            @NonNull Map<Class<?>, Set<String>> projections,
+            long firstStateIndex,
+            long stateIndex) {
+        Map<String, Set<String>> collections = new LinkedHashMap<>();
+        projections.forEach((modelType, modelIds) ->
+                collections.computeIfAbsent(
+                                graphProjectionDefinition(modelType).getCollection(),
+                                ignored -> new LinkedHashSet<>())
+                        .addAll(modelIds));
+        return CompletableFuture.allOf(
+                collections.entrySet().stream()
+                        .map(entry -> client.getEventStoreClient()
+                                .awaitModelGraphProjection(
+                                        new AwaitModelGraphProjection(
+                                                entry.getKey(), stateIndex,
+                                                firstStateIndex, entry.getValue())))
+                        .toArray(CompletableFuture[]::new));
+    }
+
+    private CompletableFuture<ModelGraphProjectionStatus>
+            requestGraphProjectionRegistration(
+                    ModelGraphProjectionConfiguration configuration,
+                    boolean rebuild) {
         return client.getEventStoreClient()
                 .registerModelGraphProjection(
                         new RegisterModelGraphProjection(
-                                configuration,
-                                rebuild));
+                                configuration, rebuild));
     }
 
     @Override
     public ModelGraphProjectionStatus
             graphProjectionStatus(
                     @NonNull Class<?> modelType) {
-        String collection =
-                ModelGraphProjections.configuration(
-                                modelType)
-                        .orElseThrow(() ->
-                                             new IllegalArgumentException(
-                                                     modelType.getName()
-                                                     + " does not enable a graph projection"))
-                        .getCollection();
+        String collection = graphProjectionDefinition(
+                modelType).getCollection();
         return client.getEventStoreClient()
                 .getModelGraphProjectionStatus(
                         new GetModelGraphProjectionStatus(
