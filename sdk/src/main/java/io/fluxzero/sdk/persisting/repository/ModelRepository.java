@@ -28,7 +28,7 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelCommitContext;
 import io.fluxzero.sdk.modeling.EntityMetadata;
-import io.fluxzero.sdk.modeling.ModelTargetResolver;
+import io.fluxzero.sdk.modeling.ModelDefinition;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 
@@ -136,7 +136,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * traversal rather than loading each parameter independently.
      */
     default ModelCommitContext loadContext(
-            @NonNull ModelTargetResolver.Resolution
+            @NonNull ModelDefinition.Resolution
                     resolution) {
         throw new UnsupportedOperationException(
                 "Coherent model handler parameter loading is not supported by this repository");

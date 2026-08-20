@@ -315,7 +315,7 @@ public final class ModelBatchScope {
 
     static Map<String, Object> currentValues(
             String namespace,
-            ModelTargetResolver.Resolution resolution) {
+            ModelDefinition.Resolution resolution) {
         ModelBatchScope scope = current();
         if (scope == null) {
             return Map.of();

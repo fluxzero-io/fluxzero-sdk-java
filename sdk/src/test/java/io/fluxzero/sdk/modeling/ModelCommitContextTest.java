@@ -106,7 +106,7 @@ class ModelCommitContextTest {
     void rejectsIncompleteUnrelatedAndIncompatibleLoads() {
         ReserveInventory command = new ReserveInventory(
                 new OrderId("1"), new InventoryId("2"), new ArrayList<>());
-        ModelTargetResolver.Resolution resolution = resolution(command);
+        ModelDefinition.Resolution resolution = resolution(command);
         Entity<Order> order = entity(command.orderId(), new Order(command.orderId(), "pending"));
         Entity<Inventory> inventory = entity(
                 command.inventoryId(), new Inventory(command.inventoryId(), 5));
@@ -135,7 +135,7 @@ class ModelCommitContextTest {
 
     private DeserializingMessage commitMessage(
             Object command, long stateIndex, Entity<?>... loadedModels) {
-        ModelTargetResolver.Resolution resolution = resolution(command);
+        ModelDefinition.Resolution resolution = resolution(command);
         Map<String, Entity<?>> models = java.util.Arrays.stream(loadedModels)
                 .collect(java.util.stream.Collectors.toMap(entity -> entity.id().toString(), entity -> entity));
         ModelCommitContext context = ModelCommitContext.create(stateIndex, resolution, models);
@@ -143,8 +143,8 @@ class ModelCommitContextTest {
                 new Message(command), MessageType.EVENT, null));
     }
 
-    private static ModelTargetResolver.Resolution resolution(Object command) {
-        return ModelTargetResolver.compile(
+    private static ModelDefinition.Resolution resolution(Object command) {
+        return ModelDefinition.compile(
                         command.getClass(),
                         EntityMetadata.of(command.getClass()).handlerMethods())
                 .resolve(command);

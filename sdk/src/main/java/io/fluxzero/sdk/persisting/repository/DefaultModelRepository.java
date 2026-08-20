@@ -51,7 +51,7 @@ import io.fluxzero.sdk.modeling.ModelGraphProjections;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
-import io.fluxzero.sdk.modeling.ModelTargetResolver;
+import io.fluxzero.sdk.modeling.ModelDefinition;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import lombok.NonNull;
@@ -88,7 +88,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final DocumentStore documentStore;
     private final Serializer serializer;
     private final EntityHelper entityHelper;
-    private final ModelExecutionPlan.Compiler modelExecution;
+    private final ModelDefinition.Compiler modelDefinitionCompiler;
     private final ModelReplayCursor replayCursor;
     private final Cache cacheSource;
     private final Cache modelCache;
@@ -100,7 +100,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      */
     public DefaultModelRepository(Client client, DocumentStore documentStore) {
         this(client, documentStore, null, null, null, NoOpCache.INSTANCE,
-             (ModelExecutionPlan.Compiler) null);
+             (ModelDefinition.Compiler) null);
     }
 
     public DefaultModelRepository(
@@ -110,7 +110,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityHelper entityHelper,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, serializer, NoOpCache.INSTANCE,
-             parameterResolvers == null ? null : new ModelExecutionPlan.Compiler(parameterResolvers));
+             parameterResolvers == null ? null : new ModelDefinition.Compiler(parameterResolvers));
     }
 
     public DefaultModelRepository(
@@ -122,7 +122,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
-             parameterResolvers == null ? null : new ModelExecutionPlan.Compiler(parameterResolvers));
+             parameterResolvers == null ? null : new ModelDefinition.Compiler(parameterResolvers));
     }
 
     private DefaultModelRepository(
@@ -132,13 +132,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityHelper entityHelper,
             Serializer snapshotSerializer,
             Cache cache,
-            ModelExecutionPlan.Compiler modelExecution) {
+            ModelDefinition.Compiler modelDefinitionCompiler) {
         this.client = Objects.requireNonNull(client, "client");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
         this.serializer = serializer;
         this.entityHelper = entityHelper;
         this.snapshotSerializer = snapshotSerializer;
-        this.modelExecution = modelExecution;
+        this.modelDefinitionCompiler = modelDefinitionCompiler;
         this.cacheSource = Objects.requireNonNull(cache, "cache");
         this.modelCache = cache == NoOpCache.INSTANCE
                 ? cache : new RepositoryCache(cache, "$Model", client.namespace());
@@ -147,7 +147,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         this.replayCursor = client.getEventStoreClient() == null
                 ? null : new ModelReplayCursor(
                         client.getEventStoreClient(), serializer, entityHelper,
-                        modelExecution, modelCache, snapshotStore,
+                        modelDefinitionCompiler, modelCache, snapshotStore,
                         this::loadDocumentProjection, this);
         this.modelCacheTracker =
                 replayCursor == null
@@ -169,12 +169,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         DocumentStore namespacedDocumentStore = documentStore.forNamespace(namespace);
         return new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
-                snapshotSerializer, cacheSource, modelExecution);
+                snapshotSerializer, cacheSource, modelDefinitionCompiler);
     }
 
-    /** Returns the model evaluator shared by live commits and stored-event replay. */
-    public ModelExecutionPlan.Compiler modelExecution() {
-        return modelExecution;
+    /** Returns the model-definition compiler shared by live commits and stored-event replay. */
+    public ModelDefinition.Compiler modelDefinitionCompiler() {
+        return modelDefinitionCompiler;
     }
 
     @Override
@@ -377,16 +377,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 })
                 .toList();
-        List<ModelTargetResolver.ResolvedModel> targets = ids.stream()
-                .map(modelId -> new ModelTargetResolver.ResolvedModel(
+        List<ModelDefinition.ResolvedModel> targets = ids.stream()
+                .map(modelId -> new ModelDefinition.ResolvedModel(
                         modelId,
                         modelType,
-                        ModelTargetResolver.Access.READ_ONLY,
+                        ModelDefinition.Access.READ_ONLY,
                         List.of(idProperty)))
                 .toList();
         ModelReadBoundary.Pinned handlerBoundary = handlerBoundary();
         ModelCommitContext context = loadContext(
-                new ModelTargetResolver.Resolution(targets, List.of()),
+                new ModelDefinition.Resolution(targets, List.of()),
                 boundary(handlerBoundary),
                 Map.of(), false);
         context = ModelBatchScope.overlayCurrent(
@@ -442,16 +442,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean all) {
         requireEventReconstruction();
         EntityMetadata sourceMetadata = EntityMetadata.validate(modelType);
-        ModelTargetResolver.ResolvedModel source =
-                new ModelTargetResolver.ResolvedModel(
+        ModelDefinition.ResolvedModel source =
+                new ModelDefinition.ResolvedModel(
                         modelId, modelType,
-                        ModelTargetResolver.Access.READ_ONLY,
+                        ModelDefinition.Access.READ_ONLY,
                         List.of(sourceMetadata.entityId()
                                         .orElseThrow().name()));
-        ModelTargetResolver.Resolution request =
-                new ModelTargetResolver.Resolution(
+        ModelDefinition.Resolution request =
+                new ModelDefinition.Resolution(
                         List.of(source), List.of(),
-                        List.of(new ModelTargetResolver.AncestorDependency(
+                        List.of(new ModelDefinition.AncestorDependency(
                                 ancestorType, null,
                                 "Graph.ancestor(%s)".formatted(
                                         ancestorType.getName()))));
@@ -478,7 +478,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 stagedValues, boundary.includeMessageBatch(),
                 false, !all, all,
                 UNBOUNDED, UNBOUNDED);
-        List<ModelTargetResolver.ResolvedModel> targets =
+        List<ModelDefinition.ResolvedModel> targets =
                 resolved.resolution().models().stream()
                         .filter(candidate ->
                                 !candidate.modelId().equals(modelId))
@@ -686,14 +686,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             if (handlers.isEmpty()) {
                 return Optional.empty();
             }
-            return ModelTargetResolver.compile(
+            return ModelDefinition.compile(
                             payload.getClass(), handlers)
                     .resolve(payload)
                     .models().stream()
                     .filter(target -> target.access().writes())
                     .filter(target -> modelId.equals(
                             target.modelId()))
-                    .map(ModelTargetResolver.ResolvedModel::modelType)
+                    .map(ModelDefinition.ResolvedModel::modelType)
                     .filter(type -> EntityMetadata.of(type)
                             .isModel())
                     .findFirst();
@@ -807,7 +807,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      */
     @Override
     public ModelCommitContext loadContext(
-            ModelTargetResolver.Resolution resolution) {
+            ModelDefinition.Resolution resolution) {
         ModelReadBoundary.Pinned handlerBoundary =
                 handlerBoundary();
         ModelCommitContext context = loadContext(
@@ -823,7 +823,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * reconstructed from stored model events; current document-model targets retain their direct-document load path.
      */
     public ModelCommitContext loadContext(
-            ModelTargetResolver.Resolution resolution, Long maxStateIndex) {
+            ModelDefinition.Resolution resolution, Long maxStateIndex) {
         return loadContext(
                 resolution,
                 ModelReadBoundary.at(maxStateIndex),
@@ -834,7 +834,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * Loads an commit context and overlays relationships declared by model values staged in earlier substeps.
      */
     public ModelCommitContext loadContext(
-            ModelTargetResolver.Resolution resolution,
+            ModelDefinition.Resolution resolution,
             Long maxStateIndex,
             Map<String, Object> stagedValues) {
         return loadContext(
@@ -848,7 +848,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      * supplies exactly the required predecessors; explicit operations and ordinary handlers enable it.
      */
     public ModelCommitContext loadContext(
-            ModelTargetResolver.Resolution resolution,
+            ModelDefinition.Resolution resolution,
             Long maxStateIndex,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
@@ -890,7 +890,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private ModelCommitContext loadContext(
-            ModelTargetResolver.Resolution resolution,
+            ModelDefinition.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
@@ -902,7 +902,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private AncestorResolution resolveAncestors(
-            ModelTargetResolver.Resolution resolution,
+            ModelDefinition.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
@@ -913,7 +913,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private AncestorResolution resolveAncestors(
-            ModelTargetResolver.Resolution resolution,
+            ModelDefinition.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch,
@@ -1084,7 +1084,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private void requireEventReconstruction() {
-        if (serializer == null || entityHelper == null || modelExecution == null || replayCursor == null) {
+        if (serializer == null || entityHelper == null || modelDefinitionCompiler == null || replayCursor == null) {
             throw new EventSourcingException(
                     "Event-sourced model reconstruction requires a configured serializer and model entity helper");
         }
@@ -1174,7 +1174,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private record AncestorResolution(
             long stateIndex,
-            ModelTargetResolver.Resolution resolution) {
+            ModelDefinition.Resolution resolution) {
     }
 
     /** Receives a cache value and the boundaries that prove it current. */

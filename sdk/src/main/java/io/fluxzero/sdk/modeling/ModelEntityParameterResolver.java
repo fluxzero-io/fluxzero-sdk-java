@@ -40,7 +40,6 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,7 +73,7 @@ public class ModelEntityParameterResolver
     @Override
     public boolean mayApply(
             Executable method, Class<?> targetClass) {
-        HandlerPlan plan = plan(method);
+        ModelDefinition.ParameterPlan plan = ModelDefinition.parameterPlan(method);
         return plan.hasModels()
                && (ReflectionUtils.getMethodAnnotation(
                         method, HandleMessage.class).isPresent()
@@ -88,8 +87,8 @@ public class ModelEntityParameterResolver
     public Function<Object, Object> resolve(
             Parameter parameter,
             Annotation methodAnnotation) {
-        HandlerPlan plan =
-                plan(parameter.getDeclaringExecutable());
+        ModelDefinition.ParameterPlan plan =
+                ModelDefinition.parameterPlan(parameter.getDeclaringExecutable());
         EntityMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
         return modelParameter == null ? null
@@ -101,8 +100,8 @@ public class ModelEntityParameterResolver
             Parameter parameter,
             Annotation methodAnnotation,
             Object input) {
-        HandlerPlan plan =
-                plan(parameter.getDeclaringExecutable());
+        ModelDefinition.ParameterPlan plan =
+                ModelDefinition.parameterPlan(parameter.getDeclaringExecutable());
         EntityMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
@@ -117,8 +116,8 @@ public class ModelEntityParameterResolver
                     Parameter parameter,
                     Annotation methodAnnotation,
                     Object input) {
-        HandlerPlan plan =
-                plan(parameter.getDeclaringExecutable());
+        ModelDefinition.ParameterPlan plan =
+                ModelDefinition.parameterPlan(parameter.getDeclaringExecutable());
         EntityMetadata.ModelParameter modelParameter =
                 plan.parameters().get(parameter);
         if (modelParameter == null) {
@@ -135,12 +134,12 @@ public class ModelEntityParameterResolver
             Parameter parameter,
             EntityMetadata.ModelParameter modelParameter,
             Object input,
-            HandlerPlan plan) {
+            ModelDefinition.ParameterPlan plan) {
         if (suppliesGraph(parameter)) {
             return true;
         }
         if (modelParameter.collectionWrapped()) {
-            ModelTargetResolver.DirectReferences references =
+            ModelDefinition.DirectReferences references =
                     directReferences(input, modelParameter);
             if (!references.present()) {
                 return false;
@@ -176,7 +175,7 @@ public class ModelEntityParameterResolver
             Parameter parameter,
             EntityMetadata.ModelParameter modelParameter,
             Object input,
-            HandlerPlan plan) {
+            ModelDefinition.ParameterPlan plan) {
         if (suppliesGraph(parameter)) {
             return graphArgument.get().graph();
         }
@@ -326,8 +325,8 @@ public class ModelEntityParameterResolver
                     "Graph-change handlers require a model repository that resolves ancestors");
         }
         Map<String, Class<?>> payloadTypes = new LinkedHashMap<>();
-        for (ModelTargetResolver.ResolvedModel referenced :
-                ModelTargetResolver.resolveReferencedModels(message.getPayload())) {
+        for (ModelDefinition.ResolvedModel referenced :
+                ModelDefinition.resolveReferencedModels(message.getPayload())) {
             payloadTypes.put(referenced.modelId(), referenced.modelType());
         }
         List<ModelChangeTarget> targets = change.getTargets().isEmpty()
@@ -474,7 +473,7 @@ public class ModelEntityParameterResolver
             EntityMetadata.ModelParameter modelParameter,
             Entity<?> entity,
             Object input,
-            HandlerPlan plan) {
+            ModelDefinition.ParameterPlan plan) {
         if (modelParameter.entityWrapped()) {
             return entity;
         }
@@ -516,8 +515,8 @@ public class ModelEntityParameterResolver
             Parameter parameter,
             EntityMetadata.ModelParameter modelParameter,
             Object input,
-            HandlerPlan plan) {
-        ModelTargetResolver.DirectReferences references = directReferences(input, modelParameter);
+            ModelDefinition.ParameterPlan plan) {
+        ModelDefinition.DirectReferences references = directReferences(input, modelParameter);
         if (!references.present()) {
             throw new IllegalStateException(
                     "Graph collection parameter %s in %s has no payload property '%s'"
@@ -553,7 +552,7 @@ public class ModelEntityParameterResolver
 
     private static Entity<?> resolveEntity(
             Object input,
-            HandlerPlan plan,
+            ModelDefinition.ParameterPlan plan,
             EntityMetadata.ModelParameter parameter) {
         Optional<ModelCommitContext> commitContext =
                 commitContext(input);
@@ -580,27 +579,27 @@ public class ModelEntityParameterResolver
         if (message == null) {
             return false;
         }
-        ModelTargetResolver.DirectReferences reference =
+        ModelDefinition.DirectReferences reference =
                 directReference(message, parameter);
         return reference.present() && reference.modelId() == null;
     }
 
-    private static ModelTargetResolver.DirectReferences directReferences(
+    private static ModelDefinition.DirectReferences directReferences(
             Object input,
             EntityMetadata.ModelParameter parameter) {
         DeserializingMessage message = input instanceof DeserializingMessage direct
                 ? direct : DeserializingMessage.getOptionally().orElse(null);
         if (message == null) {
-            return new ModelTargetResolver.DirectReferences(false, null, List.of());
+            return new ModelDefinition.DirectReferences(false, null, List.of());
         }
         return cache(message).collectionReferences.computeIfAbsent(
                 parameter, ignored -> computeDirectReferences(message, parameter));
     }
 
-    private static ModelTargetResolver.DirectReferences computeDirectReferences(
+    private static ModelDefinition.DirectReferences computeDirectReferences(
             DeserializingMessage message,
             EntityMetadata.ModelParameter parameter) {
-        return ModelTargetResolver.directReferences(message, parameter);
+        return ModelDefinition.directReferences(message, parameter);
     }
 
     private static Optional<ModelCommitContext>
@@ -619,7 +618,7 @@ public class ModelEntityParameterResolver
 
     private static ModelCommitContext context(
             DeserializingMessage message,
-            HandlerPlan plan) {
+            ModelDefinition.ParameterPlan plan) {
         return resolvedPlan(message, plan).orElseThrow()
                 .context(message);
     }
@@ -627,15 +626,14 @@ public class ModelEntityParameterResolver
     private static Optional<ResolvedHandlerPlan>
             resolvedPlan(
                     DeserializingMessage message,
-                    HandlerPlan plan) {
+                    ModelDefinition.ParameterPlan plan) {
         if (!supportsBoundary(message)) {
             return Optional.empty();
         }
         return cache(message).plans
                 .computeIfAbsent(
                         plan.executable(),
-                        ignored ->
-                                plan.resolve(message));
+                        ignored -> plan.resolve(message).map(ResolvedHandlerPlan::new));
     }
 
     private static boolean supportsBoundary(
@@ -668,67 +666,18 @@ public class ModelEntityParameterResolver
                         getConsumerNamespace(message));
     }
 
-    private static HandlerPlan plan(
-            Executable executable) {
-        return ReflectionUtils.getTypeMetadata(
-                        executable.getDeclaringClass())
-                .specializedMetadata(
-                        HandlerPlans.class,
-                        HandlerPlans::new)
-                .get(executable);
-    }
-
-    private record HandlerPlan(
-            Executable executable,
-            Map<Parameter, EntityMetadata.ModelParameter>
-                    parameters) {
-
-        private static HandlerPlan inspect(
-                Executable executable) {
-            LinkedHashMap<Parameter,
-                    EntityMetadata.ModelParameter> parameters =
-                    new LinkedHashMap<>();
-            for (Parameter parameter :
-                    executable.getParameters()) {
-                EntityMetadata
-                        .inspectModelParameter(parameter)
-                        .ifPresent(modelParameter ->
-                                           parameters.put(
-                                                   parameter,
-                                                   modelParameter));
-            }
-            return new HandlerPlan(
-                    executable,
-                    Collections.unmodifiableMap(
-                            new LinkedHashMap<>(
-                                    parameters)));
-        }
-
-        private boolean hasModels() {
-            return !parameters.isEmpty();
-        }
-
-        private Optional<ResolvedHandlerPlan> resolve(
-                DeserializingMessage message) {
-            return ModelTargetResolver.resolveDependencies(
-                            message, executable, parameters.values())
-                    .map(ResolvedHandlerPlan::new);
-        }
-
-    }
-
-    private static ModelTargetResolver.DirectReferences directReference(
+    private static ModelDefinition.DirectReferences directReference(
             DeserializingMessage message,
             EntityMetadata.ModelParameter parameter) {
-        return ModelTargetResolver.directReferences(message, parameter);
+        return ModelDefinition.directReferences(message, parameter);
     }
 
     private static final class ResolvedHandlerPlan {
-        private final ModelTargetResolver.Resolution resolution;
+        private final ModelDefinition.Resolution resolution;
         private volatile ModelCommitContext context;
 
         private ResolvedHandlerPlan(
-                ModelTargetResolver.Resolution resolution) {
+                ModelDefinition.Resolution resolution) {
             this.resolution = resolution;
         }
 
@@ -749,28 +698,12 @@ public class ModelEntityParameterResolver
         }
     }
 
-    private static final class HandlerPlans {
-        private final Map<Executable, HandlerPlan> plans =
-                new ConcurrentHashMap<>();
-
-        @SuppressWarnings("unused")
-        private HandlerPlans(Class<?> ignored) {
-        }
-
-        private HandlerPlan get(
-                Executable executable) {
-            return plans.computeIfAbsent(
-                    executable,
-                    HandlerPlan::inspect);
-        }
-    }
-
     private static final class ResolutionCache {
         private final Map<Executable,
                 Optional<ResolvedHandlerPlan>> plans =
                 new ConcurrentHashMap<>();
         private final Map<EntityMetadata.ModelParameter,
-                ModelTargetResolver.DirectReferences> collectionReferences =
+                ModelDefinition.DirectReferences> collectionReferences =
                 new ConcurrentHashMap<>();
     }
 }

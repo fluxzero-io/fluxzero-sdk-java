@@ -20,6 +20,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
@@ -119,6 +120,26 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void registrationInvalidatesOnlyThisApplicationsDefinitions() {
+        ModelCommitHandlerRegistry subject = subject(AutomaticModelHandling.ENABLED);
+        ModelCommitHandlerRegistry other = subject(AutomaticModelHandling.ENABLED);
+        subject.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+        other.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE);
+        DeserializingMessage message = message(new CrossApplicationCommand("one"));
+
+        assertFalse(subject.canHandle(message));
+        assertFalse(other.canHandle(message));
+        Registration registration = subject.registerHandler(
+                CrossApplicationModel.class, HandlerFilter.ALWAYS_HANDLE);
+        assertTrue(subject.canHandle(message));
+        assertFalse(other.canHandle(message));
+
+        registration.cancel();
+        assertFalse(subject.canHandle(message));
+        assertFalse(other.canHandle(message));
+    }
+
+    @Test
     void explicitAssertAndApplyWithoutLocalApplyAssertsThenWarns() {
         DefaultModelRepository repository =
                 mock(DefaultModelRepository.class);
@@ -186,10 +207,10 @@ class ModelCommitHandlerRegistryTest {
                 .thenReturn(() -> {
                 });
         when(repository.loadContext(
-                any(ModelTargetResolver.Resolution.class),
+                any(ModelDefinition.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(invocation -> {
-                    ModelTargetResolver.Resolution resolution =
+                    ModelDefinition.Resolution resolution =
                             invocation.getArgument(0);
                     Long boundary = invocation.getArgument(1);
                     RetryBoundaryModel value = boundary == null
@@ -772,7 +793,7 @@ class ModelCommitHandlerRegistryTest {
                     .join();
 
             verify(repository, times(0)).loadContext(
-                    any(ModelTargetResolver.Resolution.class),
+                    any(ModelDefinition.Resolution.class),
                     nullable(Long.class), anyMap());
             assertEquals(
                     committedEventId.join(),
@@ -1067,7 +1088,7 @@ class ModelCommitHandlerRegistryTest {
         BATCH_PARENT_OBSERVATIONS.clear();
         BATCH_INCREMENT_OBSERVATIONS.clear();
         UpdateBatchChild update = new UpdateBatchChild(childId, 1);
-        assertTrue(ModelTargetResolver.compile(
+        assertTrue(ModelDefinition.compile(
                 UpdateBatchChild.class,
                 EntityMetadata.of(UpdateBatchChild.class).handlerMethods())
                            .resolve(update)
@@ -1528,10 +1549,10 @@ class ModelCommitHandlerRegistryTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void stubModelLoads(DefaultModelRepository repository) {
         org.mockito.stubbing.Answer<ModelCommitContext> answer = invocation -> {
-            ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
+            ModelDefinition.Resolution resolution = invocation.getArgument(0);
             Map<String, Entity<?>> loaded = resolution.models().stream()
                     .collect(java.util.stream.Collectors.toMap(
-                            ModelTargetResolver.ResolvedModel::modelId,
+                            ModelDefinition.ResolvedModel::modelId,
                             target -> ImmutableModelRoot.<Object>builder()
                                     .id(target.modelId())
                                     .type((Class<Object>) target.modelType())
@@ -1544,11 +1565,11 @@ class ModelCommitHandlerRegistryTest {
             return ModelCommitContext.create(0L, resolution, loaded);
         };
         when(repository.loadContext(
-                any(ModelTargetResolver.Resolution.class),
+                any(ModelDefinition.Resolution.class),
                 nullable(Long.class), anyMap()))
                 .thenAnswer(answer);
         when(repository.loadContext(
-                any(ModelTargetResolver.Resolution.class),
+                any(ModelDefinition.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
@@ -1560,15 +1581,15 @@ class ModelCommitHandlerRegistryTest {
             DefaultModelRepository repository,
             Map<String, Object> durable) {
         org.mockito.stubbing.Answer<ModelCommitContext> answer = invocation -> {
-            ModelTargetResolver.Resolution resolution = invocation.getArgument(0);
+            ModelDefinition.Resolution resolution = invocation.getArgument(0);
             Map<String, Object> staged = invocation.getArgument(2);
-            LinkedHashMap<String, ModelTargetResolver.ResolvedModel> targets =
+            LinkedHashMap<String, ModelDefinition.ResolvedModel> targets =
                     new LinkedHashMap<>();
             resolution.models().forEach(target ->
-                    ModelTargetResolver.merge(targets, target));
-            for (ModelTargetResolver.AncestorDependency dependency :
+                    ModelDefinition.merge(targets, target));
+            for (ModelDefinition.AncestorDependency dependency :
                     resolution.ancestorDependencies()) {
-                for (ModelTargetResolver.ResolvedModel target :
+                for (ModelDefinition.ResolvedModel target :
                         resolution.models()) {
                     Object child = staged.containsKey(target.modelId())
                             ? staged.get(target.modelId())
@@ -1586,12 +1607,12 @@ class ModelCommitHandlerRegistryTest {
                             continue;
                         }
                         if (parentId != null) {
-                            ModelTargetResolver.merge(
+                            ModelDefinition.merge(
                                     targets,
-                                    new ModelTargetResolver.ResolvedModel(
+                                    new ModelDefinition.ResolvedModel(
                                     parentId.toString(),
                                     dependency.modelType(),
-                                    ModelTargetResolver.Access.READ_ONLY,
+                                    ModelDefinition.Access.READ_ONLY,
                                     dependency.association() == null
                                             ? List.of()
                                             : List.of(dependency.association())));
@@ -1600,7 +1621,7 @@ class ModelCommitHandlerRegistryTest {
                 }
             }
             LinkedHashMap<String, Entity<?>> loaded = new LinkedHashMap<>();
-            for (ModelTargetResolver.ResolvedModel target : targets.values()) {
+            for (ModelDefinition.ResolvedModel target : targets.values()) {
                 Object value = staged.containsKey(target.modelId())
                         ? staged.get(target.modelId())
                         : durable.get(target.modelId());
@@ -1622,11 +1643,11 @@ class ModelCommitHandlerRegistryTest {
                     loaded);
         };
         when(repository.loadContext(
-                any(ModelTargetResolver.Resolution.class),
+                any(ModelDefinition.Resolution.class),
                 nullable(Long.class), anyMap()))
                 .thenAnswer(answer);
         when(repository.loadContext(
-                any(ModelTargetResolver.Resolution.class),
+                any(ModelDefinition.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {

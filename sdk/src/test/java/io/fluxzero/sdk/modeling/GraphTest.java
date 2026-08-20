@@ -35,7 +35,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 
-import static io.fluxzero.sdk.modeling.ModelTargetResolver.Access.READ_ONLY;
+import static io.fluxzero.sdk.modeling.ModelDefinition.Access.READ_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -395,13 +395,13 @@ class GraphTest {
         Child childValue = new Child(new ChildId("context"), rootValue.id(), "child");
         Entity<Root> root = entity(rootValue.id().toString(), Root.class, rootValue);
         Entity<Child> child = entity(childValue.id().toString(), Child.class, childValue);
-        ModelTargetResolver.ResolvedModel rootTarget = new ModelTargetResolver.ResolvedModel(
+        ModelDefinition.ResolvedModel rootTarget = new ModelDefinition.ResolvedModel(
                 rootValue.id().toString(), Root.class, READ_ONLY, List.of("id"));
-        ModelTargetResolver.ResolvedModel childTarget = new ModelTargetResolver.ResolvedModel(
+        ModelDefinition.ResolvedModel childTarget = new ModelDefinition.ResolvedModel(
                 childValue.id().toString(), Child.class, READ_ONLY, List.of("id"));
         ModelCommitContext commitContext = ModelCommitContext.create(
                 11L,
-                new ModelTargetResolver.Resolution(
+                new ModelDefinition.Resolution(
                         List.of(rootTarget, childTarget), List.of(), List.of()),
                 Map.of(rootValue.id().toString(), root, childValue.id().toString(), child));
 
@@ -426,13 +426,13 @@ class GraphTest {
         Graph<Root> parent = mock(Graph.class);
         when(parent.isPresent()).thenReturn(true);
         when(parent.type()).thenReturn(Root.class);
-        ModelTargetResolver.ResolvedModel childTarget =
-                new ModelTargetResolver.ResolvedModel(
+        ModelDefinition.ResolvedModel childTarget =
+                new ModelDefinition.ResolvedModel(
                         childValue.id().toString(), Child.class,
                         READ_ONLY, List.of("id"));
         ModelCommitContext commitContext = ModelCommitContext.create(
                 11L,
-                new ModelTargetResolver.Resolution(
+                new ModelDefinition.Resolution(
                         List.of(childTarget), List.of(), List.of()),
                 Map.of(childValue.id().toString(), child));
         when(repository.loadGraphAt(
@@ -459,13 +459,13 @@ class GraphTest {
         Entity<MultiChild> child = entity(childValue.id(), MultiChild.class, childValue);
         ModelCommitContext context = ModelCommitContext.create(
                 12L,
-                new ModelTargetResolver.Resolution(
+                new ModelDefinition.Resolution(
                         List.of(
-                                new ModelTargetResolver.ResolvedModel(
+                                new ModelDefinition.ResolvedModel(
                                         rootValue.id().toString(), Root.class, READ_ONLY, List.of("id")),
-                                new ModelTargetResolver.ResolvedModel(
+                                new ModelDefinition.ResolvedModel(
                                         otherValue.id(), OtherRoot.class, READ_ONLY, List.of("id")),
-                                new ModelTargetResolver.ResolvedModel(
+                                new ModelDefinition.ResolvedModel(
                                         childValue.id(), MultiChild.class, READ_ONLY, List.of("id"))),
                         List.of(), List.of()),
                 Map.of(rootValue.id().toString(), root, otherValue.id(), other, childValue.id(), child));
@@ -606,13 +606,13 @@ class GraphTest {
         Graph<Root> ancestor = mock(Graph.class);
         when(source.id()).thenReturn("grandchild");
         when(source.type()).thenReturn(Grandchild.class);
-        ModelTargetResolver.ResolvedModel target =
-                new ModelTargetResolver.ResolvedModel(
+        ModelDefinition.ResolvedModel target =
+                new ModelDefinition.ResolvedModel(
                         "grandchild", Grandchild.class,
                         READ_ONLY, List.of("id"));
         ModelCommitContext context = ModelCommitContext.create(
                 42L,
-                new ModelTargetResolver.Resolution(
+                new ModelDefinition.Resolution(
                         List.of(target), List.of(), List.of()),
                 Map.of("grandchild", source));
         AncestorRepository repository = new AncestorRepository(ancestor);
@@ -633,13 +633,13 @@ class GraphTest {
         Graph<Root> ancestor = mock(Graph.class);
         when(source.id()).thenReturn("grandchild");
         when(source.type()).thenReturn(Grandchild.class);
-        ModelTargetResolver.ResolvedModel target =
-                new ModelTargetResolver.ResolvedModel(
+        ModelDefinition.ResolvedModel target =
+                new ModelDefinition.ResolvedModel(
                         "grandchild", Grandchild.class,
                         READ_ONLY, List.of("id"));
         ModelCommitContext context = ModelCommitContext.create(
                 42L,
-                new ModelTargetResolver.Resolution(
+                new ModelDefinition.Resolution(
                         List.of(target), List.of(), List.of()),
                 Map.of("grandchild", source));
         AncestorRepository repository = new AncestorRepository(ancestor);

@@ -14,15 +14,22 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.handling.HandlerConfiguration;
+import io.fluxzero.common.handling.HandlerMatcher;
+import io.fluxzero.common.handling.ParameterResolver;
+import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 
 import java.lang.reflect.AccessibleObject;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,20 +42,546 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
+import static io.fluxzero.common.handling.HandlerInspector.inspect;
 import static io.fluxzero.common.reflection.ReflectionUtils.getGenericPropertyType;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyType;
 
 /**
- * Compiles payload and metadata ID access into the immutable target slots shared by evaluation and parameter injection.
+ * Registered and compiled knowledge for one reachable model mutation payload.
  */
-public final class ModelTargetResolver {
+public final class ModelDefinition {
     private static final int READ = 1;
     private static final int WRITE = 2;
 
-    private ModelTargetResolver() {
+    private final HandlerPlan handlers;
+    private final TargetPlan targets;
+    private final DirectSingleTargetApply directApply;
+    private final ModelCommitPolicy commitPolicy;
+    private final boolean commit;
+    private final boolean automatic;
+
+    private ModelDefinition(
+            HandlerPlan handlers,
+            TargetPlan targets,
+            DirectSingleTargetApply directApply,
+            ModelCommitPolicy commitPolicy,
+            boolean commit,
+            boolean automatic) {
+        this.handlers = Objects.requireNonNull(handlers, "handlers");
+        this.targets = Objects.requireNonNull(targets, "targets");
+        this.directApply = directApply;
+        this.commitPolicy = Objects.requireNonNull(commitPolicy, "commitPolicy");
+        this.commit = commit;
+        this.automatic = automatic;
+    }
+
+    HandlerPlan handlers() {
+        return handlers;
+    }
+
+    public TargetPlan targets() {
+        return targets;
+    }
+
+    DirectSingleTargetApply directApply() {
+        return directApply;
+    }
+
+    ModelCommitPolicy commitPolicy() {
+        return commitPolicy;
+    }
+
+    boolean commit() {
+        return commit;
+    }
+
+    boolean automatic() {
+        return automatic;
+    }
+
+    public boolean empty() {
+        return handlers.all().isEmpty();
+    }
+
+    public boolean direct() {
+        return directApply != null;
+    }
+
+    ModelExecutionPlan.CommitEvaluation execute(
+            List<DeserializingMessage> messages,
+            ModelExecutionPlan.SubstepResolver resolver,
+            ModelExecutionPlan.ExecutionMode mode) {
+        return ModelExecutionPlan.execute(messages, resolver, mode);
+    }
+
+    ModelExecutionPlan.CommitEvaluation evaluateDirectSingleTarget(
+            DeserializingMessage message,
+            long readStateIndex,
+            String modelId,
+            Class<?> modelType,
+            Entity<?> entity) {
+        return ModelExecutionPlan.evaluateDirectSingleTarget(
+                message, readStateIndex, modelId, modelType,
+                entity, handlers, directApply);
+    }
+
+    public Object replay(
+            DeserializingMessage event,
+            ModelCommitContext context,
+            String targetModelId) {
+        return ModelExecutionPlan.replay(event, context, this, targetModelId);
+    }
+
+    /** Compiles immutable definition data with application-specific parameter resolvers. */
+    public static final class Compiler {
+        private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
+        public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
+            List<ParameterResolver<? super DeserializingMessage>> resolvers =
+                    new ArrayList<>(parameterResolvers.size() + 1);
+            @SuppressWarnings("unchecked")
+            ParameterResolver<? super DeserializingMessage> modelResolver =
+                    (ParameterResolver<? super DeserializingMessage>) (ParameterResolver<?>)
+                            new ModelEntityParameterResolver();
+            resolvers.add(modelResolver);
+            resolvers.addAll(parameterResolvers);
+            this.parameterResolvers = List.copyOf(resolvers);
+        }
+
+        HandlerPlan compileHandlers(Collection<EntityMetadata.HandlerMethod> selectedHandlers) {
+            @SuppressWarnings("unchecked")
+            List<EntityMetadata.HandlerMethod> handlers = selectedHandlers instanceof List<?> list
+                    ? (List<EntityMetadata.HandlerMethod>) list : List.copyOf(selectedHandlers);
+            return new HandlerPlan(handlers, this);
+        }
+
+        private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
+                EntityMetadata.HandlerMethod handler) {
+            return inspect(
+                    handler.executable().getDeclaringClass(), parameterResolvers,
+                    HandlerConfiguration.<DeserializingMessage>builder()
+                            .methodAnnotation(annotationType(handler.kind()))
+                            .handlerFilter((type, executable) -> executable.equals(handler.executable()))
+                            .build());
+        }
+
+        private static Class<? extends java.lang.annotation.Annotation> annotationType(
+                EntityMetadata.HandlerKind kind) {
+            return switch (kind) {
+                case APPLY -> Apply.class;
+                case ASSERT_LEGAL -> AssertLegal.class;
+                case INTERCEPT_APPLY -> InterceptApply.class;
+            };
+        }
+
+        public ModelDefinition compileReplay(
+                Class<?> payloadType,
+                Class<?> modelType,
+                List<EntityMetadata.HandlerMethod> handlers) {
+            DirectSingleTargetApply direct = handlers.size() == 1
+                    && handlers.getFirst().targetModelTypes().size() == 1
+                    && compatible(handlers.getFirst().targetModelTypes().getFirst(), modelType)
+                    ? directSingleTargetApply(handlers.getFirst(), payloadType) : null;
+            return new ModelDefinition(
+                    compileHandlers(handlers), compile(payloadType, handlers), direct,
+                    ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty(), false);
+        }
+
+        private static boolean compatible(Class<?> left, Class<?> right) {
+            return left.isAssignableFrom(right) || right.isAssignableFrom(left);
+        }
+
+    }
+
+    public record DirectSingleTargetApply(MemberInvoker invoker, boolean receiver) {
+    }
+
+    static DirectSingleTargetApply directSingleTargetApply(
+            EntityMetadata.HandlerMethod handler,
+            Class<?> payloadType) {
+        if (handler.kind() != EntityMetadata.HandlerKind.APPLY
+            || handler.targetModelTypes().size() != 1
+            || handler.collectionApplyResult()
+            || handler.dynamicApplyResult()
+            || !handler.modelParameters().isEmpty()
+            || handler.executable().getParameterCount() != 1) {
+            return null;
+        }
+        Executable executable = handler.executable();
+        java.lang.reflect.Parameter parameter = executable.getParameters()[0];
+        if (parameter.getAnnotations().length != 0
+            || !parameter.getType().isAssignableFrom(payloadType)) {
+            return null;
+        }
+        boolean receiver = !(executable instanceof Constructor<?>)
+                           && !Modifier.isStatic(executable.getModifiers());
+        if (receiver && handler.receiverModelType() == null) {
+            return null;
+        }
+        return new DirectSingleTargetApply(
+                ReflectionUtils.getTypeMetadata(executable.getDeclaringClass()).invoker(executable, true),
+                receiver);
+    }
+
+    static record HandlerPlan(
+            List<CompiledHandler> all,
+            List<CompiledHandler> beforeAssertions,
+            List<CompiledHandler> afterAssertions,
+            List<CompiledHandler> applies,
+            List<CompiledHandler> interceptors) {
+        static final HandlerPlan EMPTY = new HandlerPlan(
+                List.of(), List.of(), List.of(), List.of(), List.of());
+
+        private HandlerPlan(List<EntityMetadata.HandlerMethod> handlers, Compiler compiler) {
+            this(handlers.stream().map(handler -> {
+                validateApplyResult(handler);
+                return new CompiledHandler(
+                        handler, compiler.compileMatcher(handler),
+                        EffectOverrides.of(handler.executable()));
+            }).toList());
+        }
+
+        private HandlerPlan(List<CompiledHandler> handlers) {
+            this(List.copyOf(handlers),
+                 select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, false),
+                 select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, true),
+                 select(handlers, EntityMetadata.HandlerKind.APPLY, null),
+                 select(handlers, EntityMetadata.HandlerKind.INTERCEPT_APPLY, null));
+        }
+
+        List<EntityMetadata.HandlerMethod> methods() {
+            return all.stream().map(CompiledHandler::method).toList();
+        }
+
+        private static List<CompiledHandler> select(
+                List<CompiledHandler> handlers,
+                EntityMetadata.HandlerKind kind,
+                Boolean afterHandler) {
+            List<CompiledHandler> result = handlers.stream()
+                    .filter(handler -> handler.method().kind() == kind)
+                    .filter(handler -> afterHandler == null
+                            || assertAfterHandler(handler.method()) == afterHandler)
+                    .collect(java.util.stream.Collectors.toList());
+            result.sort((left, right) -> kind == EntityMetadata.HandlerKind.ASSERT_LEGAL
+                    ? compareAssertions(left.method(), right.method())
+                    : compareHandlers(left.method(), right.method()));
+            return List.copyOf(result);
+        }
+    }
+
+    record CompiledHandler(
+            EntityMetadata.HandlerMethod method,
+            HandlerMatcher<Object, DeserializingMessage> matcher,
+            EffectOverrides effect) {
+    }
+
+    record EffectOverrides(
+            EventPublication publication,
+            EventPublicationStrategy strategy,
+            AggregateEventRouting routing,
+            ModelConflictPolicy conflict) {
+        private static final EffectOverrides NONE = new EffectOverrides(
+                EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
+                AggregateEventRouting.DEFAULT, ModelConflictPolicy.DEFAULT);
+
+        static EffectOverrides of(Executable handler) {
+            Apply apply = handler == null ? null : handler.getAnnotation(Apply.class);
+            return apply == null ? NONE : new EffectOverrides(
+                    apply.eventPublication(), apply.publicationStrategy(),
+                    apply.eventRouting(), apply.conflictPolicy());
+        }
+    }
+
+    private static void validateApplyResult(EntityMetadata.HandlerMethod handler) {
+        if (handler.hasApplyResult() && !handler.dynamicApplyResult()
+            && handler.targetModelTypes().size() != 1) {
+            throw new IllegalStateException(
+                    "Apply %s targets more than one model type".formatted(handler.executable()));
+        }
+    }
+
+    static List<?> applyResults(EntityMetadata.HandlerMethod handler, Object result) {
+        if (!handler.collectionApplyResult()) {
+            return Collections.singletonList(result);
+        }
+        if (result == null) {
+            throw new IllegalStateException(
+                    "Apply %s returned null instead of a model collection"
+                            .formatted(handler.executable().toGenericString()));
+        }
+        if (!(result instanceof Collection<?> values)) {
+            throw new IllegalStateException(
+                    "Apply %s returned %s instead of a model collection"
+                            .formatted(handler.executable().toGenericString(), result.getClass().getName()));
+        }
+        List<Object> snapshot = new ArrayList<>(values.size());
+        int index = 0;
+        for (Object value : values) {
+            if (value == null) {
+                throw new IllegalStateException(
+                        "Apply %s returned a null model at collection index %d; use Graph.delete() for deletion"
+                                .formatted(handler.executable().toGenericString(), index));
+            }
+            snapshot.add(value);
+            index++;
+        }
+        return snapshot;
+    }
+
+    static Class<?> applyTargetType(
+            EntityMetadata.HandlerMethod handler,
+            Object result,
+            int resultIndex) {
+        if (!handler.dynamicApplyResult()) {
+            Class<?> targetType = handler.targetModelTypes().getFirst();
+            if (result != null && !targetType.isInstance(result)) {
+                throw new IllegalStateException(
+                        "Apply %s returned %s instead of %s%s".formatted(
+                                handler.executable().toGenericString(), result.getClass().getName(),
+                                targetType.getName(),
+                                handler.collectionApplyResult() ? " at collection index " + resultIndex : ""));
+            }
+            return targetType;
+        }
+        if (result == null) {
+            throw new IllegalStateException(
+                    "Apply %s returned null for a dynamically typed model result"
+                            .formatted(handler.executable().toGenericString()));
+        }
+        EntityMetadata metadata = EntityMetadata.validate(result.getClass());
+        if (!metadata.isModel()) {
+            throw new IllegalStateException(
+                    "Apply %s returned %s%s, which is not annotated with @Model".formatted(
+                            handler.executable().toGenericString(), result.getClass().getName(),
+                            handler.collectionApplyResult() ? " at collection index " + resultIndex : ""));
+        }
+        return result.getClass();
+    }
+
+    private static int compareHandlers(
+            EntityMetadata.HandlerMethod left, EntityMetadata.HandlerMethod right) {
+        return left.executable().toGenericString().compareTo(right.executable().toGenericString());
+    }
+
+    private static int compareAssertions(
+            EntityMetadata.HandlerMethod left, EntityMetadata.HandlerMethod right) {
+        int priority = Integer.compare(assertionPriority(right), assertionPriority(left));
+        return priority == 0 ? compareHandlers(left, right) : priority;
+    }
+
+    private static int assertionPriority(EntityMetadata.HandlerMethod handler) {
+        return ReflectionUtils.<AssertLegal>getMethodAnnotation(handler.executable(), AssertLegal.class)
+                .map(AssertLegal::priority).orElse(AssertLegal.DEFAULT_PRIORITY);
+    }
+
+    private static boolean assertAfterHandler(EntityMetadata.HandlerMethod handler) {
+        return ReflectionUtils.<AssertLegal>getMethodAnnotation(handler.executable(), AssertLegal.class)
+                .map(AssertLegal::afterHandler).orElse(false);
+    }
+
+    static ParameterPlan parameterPlan(Executable executable) {
+        return ReflectionUtils.getTypeMetadata(executable.getDeclaringClass())
+                .specializedMetadata(ParameterPlans.class, ParameterPlans::new)
+                .get(executable);
+    }
+
+    record ParameterPlan(
+            Executable executable,
+            Map<Parameter, EntityMetadata.ModelParameter> parameters) {
+        private static ParameterPlan inspect(Executable executable) {
+            LinkedHashMap<Parameter, EntityMetadata.ModelParameter> parameters = new LinkedHashMap<>();
+            for (Parameter parameter : executable.getParameters()) {
+                EntityMetadata.inspectModelParameter(parameter)
+                        .ifPresent(modelParameter -> parameters.put(parameter, modelParameter));
+            }
+            return new ParameterPlan(executable, Collections.unmodifiableMap(parameters));
+        }
+
+        boolean hasModels() {
+            return !parameters.isEmpty();
+        }
+
+        Optional<Resolution> resolve(DeserializingMessage message) {
+            return resolveDependencies(message, executable, parameters.values());
+        }
+    }
+
+    private static final class ParameterPlans {
+        private final Map<Executable, ParameterPlan> plans = new ConcurrentHashMap<>();
+
+        @SuppressWarnings("unused")
+        private ParameterPlans(Class<?> ignored) {
+        }
+
+        private ParameterPlan get(Executable executable) {
+            return plans.computeIfAbsent(executable, ParameterPlan::inspect);
+        }
+    }
+
+    /** Application-bound definitions invalidated together when model registration changes. */
+    static final class Catalog {
+        private final Compiler compiler;
+        private final AutomaticModelHandling automaticHandling;
+        private final CopyOnWriteArrayList<Class<?>> registeredModelTypes = new CopyOnWriteArrayList<>();
+        private final CopyOnWriteArrayList<Class<?>> knownModelTypes = new CopyOnWriteArrayList<>();
+        private final ConcurrentHashMap<Class<?>, ModelDefinition> definitions = new ConcurrentHashMap<>();
+        private volatile CachedDefinition recentDefinition;
+        private volatile boolean registeredModelTypesDiscovered;
+
+        Catalog(
+                Compiler compiler,
+                AutomaticModelHandling automaticHandling) {
+            this.compiler = Objects.requireNonNull(compiler, "compiler");
+            this.automaticHandling = Objects.requireNonNull(automaticHandling, "automaticHandling");
+        }
+
+        List<Class<?>> registeredModelTypes() {
+            return List.copyOf(registeredModelTypes);
+        }
+
+        List<Class<?>> knownModelTypes() {
+            discoverRegisteredModelTypes();
+            return List.copyOf(knownModelTypes);
+        }
+
+        void register(Class<?> modelType) {
+            registeredModelTypes.addIfAbsent(modelType);
+            knownModelTypes.addIfAbsent(modelType);
+            clear();
+        }
+
+        void unregister(Class<?> modelType) {
+            registeredModelTypes.remove(modelType);
+            clear();
+        }
+
+        ModelDefinition get(Class<?> payloadType) {
+            CachedDefinition recent = recentDefinition;
+            if (recent != null && recent.payloadType() == payloadType) {
+                return recent.definition();
+            }
+            ModelDefinition result = definitions.computeIfAbsent(payloadType, this::compileDefinition);
+            recentDefinition = new CachedDefinition(payloadType, result);
+            return result;
+        }
+
+        private ModelDefinition compileDefinition(Class<?> payloadType) {
+            List<EntityMetadata.HandlerMethod> handlers = inspectHandlers(payloadType);
+            List<EntityMetadata.HandlerMethod> applies = handlers.stream()
+                    .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
+            applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
+                    .forEach(knownModelTypes::addIfAbsent);
+            DirectSingleTargetApply direct =
+                    handlers.size() == 1 && applies.size() == 1
+                            ? directSingleTargetApply(applies.getFirst(), payloadType)
+                            : null;
+            PlanTraits traits = inspectPlanTraits(payloadType, new LinkedHashSet<>());
+            return new ModelDefinition(
+                    compiler.compileHandlers(handlers), compile(payloadType, handlers), direct,
+                    ModelCommitPolicy.merge(traits.policies()),
+                    traits.commit(), traits.commit() && traits.automatic());
+        }
+
+        private List<EntityMetadata.HandlerMethod> inspectHandlers(Class<?> payloadType) {
+            LinkedHashSet<EntityMetadata.HandlerMethod> result =
+                    new LinkedHashSet<>(EntityMetadata.of(payloadType).handlerMethods());
+            LinkedHashSet<Class<?>> receiverTypes =
+                    new LinkedHashSet<>(referencedModelTypes(payloadType));
+            receiverTypes.addAll(registeredModelTypes);
+            for (Class<?> receiverType : receiverTypes) {
+                EntityMetadata.of(receiverType).handlerMethods().stream()
+                        .filter(handler -> EntityMetadata.acceptsPayload(handler, payloadType))
+                        .forEach(result::add);
+            }
+            return List.copyOf(result);
+        }
+
+        private PlanTraits inspectPlanTraits(Class<?> payloadType, Set<Class<?>> visiting) {
+            if (!visiting.add(payloadType)) {
+                return PlanTraits.NEUTRAL;
+            }
+            try {
+                boolean commit = false;
+                boolean automatic = true;
+                LinkedHashSet<ModelCommitPolicy> policies = new LinkedHashSet<>();
+                for (EntityMetadata.HandlerMethod handler : inspectHandlers(payloadType)) {
+                    if (handler.kind() == EntityMetadata.HandlerKind.APPLY) {
+                        commit |= handler.hasApplyResult();
+                        if (handler.hasApplyResult()) {
+                            automatic &= automaticHandlingEnabled(handler);
+                        }
+                        if (handler.dynamicApplyResult()) {
+                            policies.add(ModelCommitPolicy.SYNC_AFTER_HANDLER);
+                        }
+                        handler.targetModelTypes().stream()
+                                .map(EntityMetadata::of).map(EntityMetadata::model).flatMap(Optional::stream)
+                                .map(Model::commitPolicy).map(ModelCommitPolicy::resolve)
+                                .forEach(policies::add);
+                    } else if (handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY) {
+                        commit |= handler.emittedPayloadTypes().isEmpty();
+                        for (Class<?> emitted : handler.emittedPayloadTypes()) {
+                            PlanTraits nested = inspectPlanTraits(emitted, visiting);
+                            commit |= nested.commit();
+                            automatic &= nested.automatic();
+                            policies.addAll(nested.policies());
+                        }
+                    }
+                }
+                return new PlanTraits(commit, automatic, policies);
+            } finally {
+                visiting.remove(payloadType);
+            }
+        }
+
+        private boolean automaticHandlingEnabled(EntityMetadata.HandlerMethod handler) {
+            Apply apply = handler.executable().getAnnotation(Apply.class);
+            AutomaticModelHandling policy =
+                    apply == null ? AutomaticModelHandling.DEFAULT : apply.automaticHandling();
+            if (policy == AutomaticModelHandling.DEFAULT) {
+                policy = handler.targetModelTypes().stream()
+                        .map(type -> type.getAnnotation(Model.class)).filter(Objects::nonNull)
+                        .map(Model::automaticHandling)
+                        .filter(value -> value != AutomaticModelHandling.DEFAULT)
+                        .findFirst().orElse(AutomaticModelHandling.DEFAULT);
+            }
+            return (policy == AutomaticModelHandling.DEFAULT ? automaticHandling : policy)
+                   != AutomaticModelHandling.DISABLED;
+        }
+
+        private void discoverRegisteredModelTypes() {
+            if (registeredModelTypesDiscovered) {
+                return;
+            }
+            synchronized (knownModelTypes) {
+                if (registeredModelTypesDiscovered) {
+                    return;
+                }
+                ReflectionUtils.getRegisteredTypes().stream()
+                        .filter(type -> ReflectionUtils.getTypeMetadata(type).typeAnnotation(Model.class) != null)
+                        .forEach(knownModelTypes::addIfAbsent);
+                registeredModelTypesDiscovered = true;
+            }
+        }
+
+        private void clear() {
+            definitions.clear();
+            recentDefinition = null;
+        }
+    }
+
+    private record CachedDefinition(Class<?> payloadType, ModelDefinition definition) {
+    }
+
+    private record PlanTraits(boolean commit, boolean automatic, Set<ModelCommitPolicy> policies) {
+        private static final PlanTraits NEUTRAL = new PlanTraits(false, true, Set.of());
+
+        private PlanTraits {
+            policies = Set.copyOf(policies);
+        }
     }
 
     /** Compiles and validates a target plan without an explicit target override. */
@@ -199,9 +732,9 @@ public final class ModelTargetResolver {
         Object value = property.read(directPayload);
         return parameter.collectionWrapped()
                 ? DirectReferences.collection(ids(
-                        value, parameter.modelType(), property.name, null, directPayload))
+                        value, parameter.modelType(), property.name(), null, directPayload))
                 : DirectReferences.scalar(value == null ? null : repositoryId(
-                        value, parameter.modelType(), property.name, null, directPayload));
+                        value, parameter.modelType(), property.name(), null, directPayload));
     }
 
     private static boolean metadataContains(
@@ -260,8 +793,8 @@ public final class ModelTargetResolver {
                     Object id = property.read(payload);
                     if (id != null) {
                         merge(result, new ResolvedModel(
-                                repositoryId(id, type, property.name, null, payload),
-                                type, Access.READ_ONLY, List.of(property.name)));
+                                repositoryId(id, type, property.name(), null, payload),
+                                type, Access.READ_ONLY, List.of(property.name())));
                     }
                 }));
         return List.copyOf(result.values());
@@ -296,10 +829,6 @@ public final class ModelTargetResolver {
             this.dynamic = dynamic;
         }
 
-        public Class<?> payloadType() {
-            return payloadType;
-        }
-
         boolean isDirectSingleTarget() {
             return slots.size() == 1 && !slots.getFirst().collection
                    && deferred.isEmpty() && ancestors.isEmpty();
@@ -324,15 +853,11 @@ public final class ModelTargetResolver {
         }
 
         List<String> singleSourceProperties() {
-            return List.of(slots.getFirst().property.name);
+            return List.of(slots.getFirst().property.name());
         }
 
         public Resolution resolve(Object input) {
             return resolve(input, null, false);
-        }
-
-        Resolution resolve(Object input, Class<?> explicitType) {
-            return resolve(input, explicitType, false);
         }
 
         Resolution resolve(Object input, Class<?> explicitType, boolean appliesOnly) {
@@ -357,13 +882,13 @@ public final class ModelTargetResolver {
                     throw nullId(slot);
                 }
                 List<String> ids = slot.collection
-                        ? ids(raw, slot.modelType, slot.property.name, slot.handler, payload)
+                        ? ids(raw, slot.modelType, slot.property.name(), slot.handler, payload)
                         : List.of(repositoryId(raw, slot, payload));
                 if (!deferred.isEmpty()) {
                     slotIds.put(slot, ids);
                 }
                 ids.forEach(id -> merge(result, new ResolvedModel(
-                        id, slot.modelType, Access.from(slot.access), List.of(slot.property.name))));
+                        id, slot.modelType, Access.from(slot.access), List.of(slot.property.name()))));
             }
             List<DeferredWriteTarget> unresolved = new ArrayList<>();
             for (Deferred target : deferred) {
@@ -384,7 +909,7 @@ public final class ModelTargetResolver {
                     .anyMatch(type -> compatible(type, explicitType)))) {
                 List<String> sources = slots.stream()
                         .filter(slot -> !slot.receiver && compatible(slot.modelType, explicitType))
-                        .map(slot -> slot.property.name).filter(Objects::nonNull).distinct().toList();
+                        .map(slot -> slot.property.name()).filter(Objects::nonNull).distinct().toList();
                 merge(result, new ResolvedModel(
                         explicitId, explicitType, Access.READ_WRITE, sources));
             }
@@ -711,7 +1236,7 @@ public final class ModelTargetResolver {
     private static IllegalArgumentException nullId(Slot slot) {
         return new IllegalArgumentException(
                 "Payload property '%s' resolved to null for %s model required by %s".formatted(
-                        slot.property.name, slot.modelType.getName(), slot.handler));
+                        slot.property.name(), slot.modelType.getName(), slot.handler));
     }
 
     private static String repositoryId(Object id, Slot slot, Object source) {
@@ -719,7 +1244,7 @@ public final class ModelTargetResolver {
             return slot.metadata.parentScopedEntityId()
                     ? slot.metadata.repositoryId(id, source) : slot.metadata.repositoryId(id);
         } catch (RuntimeException e) {
-            throw invalidId(slot.property.name, slot.modelType, slot.handler, e);
+            throw invalidId(slot.property.name(), slot.modelType, slot.handler, e);
         }
     }
 

@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * Immutable begin-state of the direct and resolved ancestor models loaded for one commit.
  * <p>
- * Direct identities come from a {@link ModelTargetResolver.TargetPlan}. Read-only ancestor dependencies are resolved
+ * Direct identities come from a {@link ModelDefinition.TargetPlan}. Read-only ancestor dependencies are resolved
  * through one bounded temporal graph request before the context is created. All entries share one
  * {@link #readStateIndex()}.
  *
@@ -39,7 +39,7 @@ import java.util.Objects;
 public record ModelCommitContext(
             long readStateIndex,
             List<Entry> entries,
-            List<ModelTargetResolver.DeferredWriteTarget> deferredWrites) {
+            List<ModelDefinition.DeferredWriteTarget> deferredWrites) {
     public ModelCommitContext {
         entries = List.copyOf(entries);
         deferredWrites = List.copyOf(deferredWrites);
@@ -55,13 +55,13 @@ public record ModelCommitContext(
      */
     public static ModelCommitContext create(
             long readStateIndex,
-            ModelTargetResolver.Resolution resolution,
+            ModelDefinition.Resolution resolution,
             Map<String, ? extends Entity<?>> loadedModels) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(loadedModels, "loadedModels");
         if (resolution.models().size() == 1
             && loadedModels.size() == 1) {
-            ModelTargetResolver.ResolvedModel target =
+            ModelDefinition.ResolvedModel target =
                     resolution.models().getFirst();
             Entity<?> entity = loadedModels.get(target.modelId());
             if (entity == null) {
@@ -80,7 +80,7 @@ public record ModelCommitContext(
         }
         Map<String, Entity<?>> remaining = new LinkedHashMap<>(loadedModels);
         List<Entry> entries = new ArrayList<>(resolution.models().size());
-        for (ModelTargetResolver.ResolvedModel target : resolution.models()) {
+        for (ModelDefinition.ResolvedModel target : resolution.models()) {
             Entity<?> entity = remaining.remove(target.modelId());
             if (entity == null) {
                 throw new IllegalArgumentException(
@@ -103,11 +103,11 @@ public record ModelCommitContext(
             long readStateIndex,
             String modelId,
             Class<?> modelType,
-            ModelTargetResolver.Access access,
+            ModelDefinition.Access access,
             List<String> sourceProperties,
             Entity<?> entity) {
-        ModelTargetResolver.ResolvedModel target =
-                new ModelTargetResolver.ResolvedModel(
+        ModelDefinition.ResolvedModel target =
+                new ModelDefinition.ResolvedModel(
                         modelId, modelType, access,
                         sourceProperties);
         validateLoadedEntity(target, entity);
@@ -117,7 +117,7 @@ public record ModelCommitContext(
                 List.of());
     }
 
-    private static void validateLoadedEntity(ModelTargetResolver.ResolvedModel target, Entity<?> entity) {
+    private static void validateLoadedEntity(ModelDefinition.ResolvedModel target, Entity<?> entity) {
         Object loadedId = entity.id();
         if (loadedId == null || !target.modelId().equals(loadedId.toString())) {
             throw new IllegalArgumentException(
@@ -205,7 +205,7 @@ public record ModelCommitContext(
         }
         String handlerSignature = handler.toGenericString();
         for (int i = 0; i < deferredWrites.size(); i++) {
-            ModelTargetResolver.DeferredWriteTarget deferred = deferredWrites.get(i);
+            ModelDefinition.DeferredWriteTarget deferred = deferredWrites.get(i);
             if (deferred.handler().equals(handlerSignature)
                 && deferred.modelType().isAssignableFrom(modelType)
                 && deferred.candidateModelIds().contains(modelId)) {
@@ -258,7 +258,7 @@ public record ModelCommitContext(
      * @param target resolved target descriptor
      * @param entity loaded model begin-state
      */
-    public record Entry(ModelTargetResolver.ResolvedModel target, Entity<?> entity) {
+    public record Entry(ModelDefinition.ResolvedModel target, Entity<?> entity) {
         public Entry {
             Objects.requireNonNull(target, "target");
             Objects.requireNonNull(entity, "entity");
