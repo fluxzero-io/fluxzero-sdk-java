@@ -217,13 +217,13 @@ final class ModelCommitProtocol {
 
         List<ModelExecutionPlan.AppliedSubstep> evaluatedSubsteps =
                 new ArrayList<>(evaluation.substeps().size());
-        Map<String, List<ModelExecutionPlan.Transition>> graphPublications =
+        Map<String, List<Change>> graphPublications =
                 new LinkedHashMap<>();
         Set<String> ordinaryEventIds = new java.util.HashSet<>();
         for (ModelExecutionPlan.AppliedSubstep appliedSubstep : evaluation.substeps()) {
-            List<ModelExecutionPlan.Transition> transitions = appliedSubstep.transitions().stream()
-                    .peek(transition -> transition.effect().validate(transition))
-                    .filter(transition -> transition.effect().active())
+            List<Change> transitions = appliedSubstep.transitions().stream()
+                    .peek(Change::validate)
+                    .filter(transition -> transition.active())
                     .toList();
             evaluatedSubsteps.add(new ModelExecutionPlan.AppliedSubstep(
                     appliedSubstep.message(), transitions));
@@ -238,12 +238,12 @@ final class ModelCommitProtocol {
             }
             String messageId = appliedSubstep.message().getMessageId();
             if (direct) {
-                List<ModelExecutionPlan.Transition> published =
+                List<Change> published =
                         appliedSubstep.message().getPayload()
                                 instanceof Graph<?>
                                 ? List.of()
                                 : transitions.stream()
-                                        .filter(transition -> transition.effect().publishEvent())
+                                        .filter(transition -> transition.publishEvent())
                                         .toList();
                 if (!published.isEmpty()) {
                     graphPublications.computeIfAbsent(
@@ -259,17 +259,17 @@ final class ModelCommitProtocol {
                 new LinkedHashMap<>();
         Set<String> cascadeRoots = evaluation.cascadeRootIds();
         for (ModelExecutionPlan.AppliedSubstep appliedSubstep : evaluatedSubsteps) {
-            List<ModelExecutionPlan.Transition> transitions = appliedSubstep.transitions();
+            List<Change> transitions = appliedSubstep.transitions();
             if (transitions.isEmpty()) {
                 continue;
             }
             boolean direct = directGraphGroup(transitions);
-            List<ModelExecutionPlan.Transition> committedTransitions = direct
-                    ? transitions.stream().map(transition -> transition.withEffect(
-                            transition.effect().storeEvent(), false,
-                            transition.effect().updateState())).toList()
+            List<Change> committedTransitions = direct
+                    ? transitions.stream().map(transition -> transition.withEffects(
+                            transition.storeEvent(), false,
+                            transition.updateState())).toList()
                     : transitions;
-            List<ModelExecutionPlan.Transition> graphPublished = graphPublications.getOrDefault(
+            List<Change> graphPublished = graphPublications.getOrDefault(
                     appliedSubstep.message().getMessageId(), List.of());
             if (direct && !graphPublished.isEmpty()
                 && !ordinaryEventIds.contains(appliedSubstep.message().getMessageId())) {
@@ -278,9 +278,9 @@ final class ModelCommitProtocol {
                 publication.setSource(source);
                 applyEventRouting(publication, graphPublished);
                 publication = SerializedMessage.encode(publication);
-                ModelExecutionPlan.Transition anchor = graphPublished.getFirst();
+                Change anchor = graphPublished.getFirst();
                 ModelCommitTarget publicationTarget = target(
-                        anchor.withEffect(false, true, false),
+                        anchor.withEffects(false, true, false),
                         appliedSubstep.message(),
                         anchor.beforeSequenceNumber(), false)
                         .toBuilder().expectedSequenceNumber(null).build();
@@ -291,11 +291,11 @@ final class ModelCommitProtocol {
             }
             boolean publishEvent = !direct
                                    && (transitions.stream().anyMatch(
-                                           transition -> transition.effect().publishEvent())
+                                           transition -> transition.publishEvent())
                                        || !graphPublished.isEmpty());
             boolean eventRequired = publishEvent
                                     || committedTransitions.stream()
-                                            .anyMatch(transition -> transition.effect().storeEvent());
+                                            .anyMatch(transition -> transition.storeEvent());
             SerializedMessage event = !eventRequired ? null
                     : direct ? serializeDirectModelUpdate(
                             appliedSubstep.message(), committedTransitions,
@@ -303,11 +303,11 @@ final class ModelCommitProtocol {
                     : serialize(
                             appliedSubstep.message(), commitId, protocolSteps.size(),
                             transitions.stream().anyMatch(
-                                    ModelExecutionPlan.Transition::cascadedDeletion));
+                                    Change::cascadedDeletion));
             if (event != null) {
                 event.setSource(source);
                 if (!direct) {
-                    List<ModelExecutionPlan.Transition> routingTransitions =
+                    List<Change> routingTransitions =
                             new ArrayList<>(transitions.size() + graphPublished.size());
                     routingTransitions.addAll(transitions);
                     routingTransitions.addAll(graphPublished);
@@ -317,7 +317,7 @@ final class ModelCommitProtocol {
             }
 
             List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
-            for (ModelExecutionPlan.Transition transition : committedTransitions) {
+            for (Change transition : committedTransitions) {
                 targets.add(target(
                         transition, appliedSubstep.message(),
                         nextSequences,
@@ -346,23 +346,22 @@ final class ModelCommitProtocol {
             ModelExecutionPlan.CommitEvaluation evaluation,
             ModelConflictPolicy conflictPolicy,
             ModelExecutionPlan.AppliedSubstep appliedSubstep) {
-        ModelExecutionPlan.Transition transition =
+        Change transition =
                 appliedSubstep.transitions().getFirst();
-        ModelExecutionPlan.TransitionEffect effect = transition.effect();
-        effect.validate(transition);
-        if (!effect.active()) {
+        transition.validate();
+        if (!transition.active()) {
             return new PreparedCommit(null, List.of());
         }
-        boolean eventRequired = effect.publishEvent()
-                                || effect.storeEvent();
+        boolean eventRequired = transition.publishEvent()
+                                || transition.storeEvent();
         SerializedMessage event = eventRequired
                 ? serialize(
                         appliedSubstep.message(), commitId, 0,
                         transition.cascadedDeletion()) : null;
         if (event != null) {
             event.setSource(source);
-            if (effect.publishEvent()
-                && effect.eventRouting()
+            if (transition.publishEvent()
+                && transition.eventRouting()
                    == AggregateEventRouting.AGGREGATE_ID) {
                 event.setSegment(
                         ConsistentHashing.computeSegment(
@@ -371,7 +370,7 @@ final class ModelCommitProtocol {
             event = SerializedMessage.encode(event);
         }
         long nextSequence = transition.beforeSequenceNumber()
-                            + (effect.storeEvent() ? 1L : 0L);
+                            + (transition.storeEvent() ? 1L : 0L);
         ModelCommitTarget target = target(
                 transition,
                 appliedSubstep.message(),
@@ -379,7 +378,7 @@ final class ModelCommitProtocol {
                 evaluation.cascadeRootIds().contains(
                         transition.modelId()));
         ModelCommitStep step = new ModelCommitStep(
-                event, effect.publishEvent(),
+                event, transition.publishEvent(),
                 List.of(target));
         CommitModels commit = new CommitModels(
                 commitId,
@@ -388,8 +387,7 @@ final class ModelCommitProtocol {
                 List.of(step),
                 conflictPolicy,
                 STORED,
-                possibleDuplicate(
-                        transition, effect));
+                possibleDuplicate(transition));
         return new PreparedCommit(
                 commit, List.of(appliedSubstep));
     }
@@ -451,7 +449,7 @@ final class ModelCommitProtocol {
     }
 
     private ModelCommitTarget target(
-            ModelExecutionPlan.Transition transition,
+            Change transition,
             DeserializingMessage message,
             Map<String, Long> nextSequences,
             boolean cascadeDelete) {
@@ -463,35 +461,34 @@ final class ModelCommitProtocol {
     }
 
     private ModelCommitTarget target(
-            ModelExecutionPlan.Transition transition,
+            Change transition,
             DeserializingMessage message,
             long nextSequence,
             boolean cascadeDelete) {
-        ModelExecutionPlan.TransitionEffect effect = transition.effect();
-        ModelDocumentMutation document = effect.updateState()
+        ModelDocumentMutation document = transition.updateState()
                 ? directDocument(
                         transition,
                         message.getTimestamp(), message.getMetadata())
                 : null;
-        RelationshipUpdate relationships = effect.updateState()
+        RelationshipUpdate relationships = transition.updateState()
                 ? relationshipUpdate(transition)
                 : RelationshipUpdate.UNCHANGED;
         ModelSnapshotMutation snapshot = snapshot(
                 transition, nextSequence,
                 message.getTimestamp());
-        List<String> aliases = effect.updateState()
-                ? effect.metadata().aliases(transition.after())
+        List<String> aliases = transition.updateState()
+                ? transition.defaults().metadata().aliases(transition.after())
                 : null;
         return new ModelCommitTarget(
                 transition.modelId(),
                 transition.modelType().getName(),
                 expectedSequenceNumber(transition),
-                effect.storeEvent(),
-                effect.updateState(),
-                effect.updateState()
+                transition.storeEvent(),
+                transition.updateState(),
+                transition.updateState()
                 && transition.after() == null,
                 cascadeDelete
-                && effect.updateState()
+                && transition.updateState()
                 && transition.after() == null,
                 document,
                 snapshot,
@@ -501,14 +498,14 @@ final class ModelCommitProtocol {
     }
 
     private static Long expectedSequenceNumber(
-            ModelExecutionPlan.Transition transition) {
+            Change transition) {
         /*
          * A directly loaded document contains the model value but no stream head. For an existing document, -1 would
          * falsely claim that this is a create and force every update through conflict rebase. The commit-wide pinned
          * read boundary already protects the target through readModelIds, so omit only this redundant target-level
          * assertion. Retain explicit -1 for creates: it is both exact and enables the Runtime's missing-head fast path.
          */
-        return !transition.effect().model().eventSourced()
+        return !transition.defaults().model().eventSourced()
                && transition.before() != null
                 ? null : transition.beforeSequenceNumber();
     }
@@ -551,11 +548,11 @@ final class ModelCommitProtocol {
 
     private SerializedMessage serializeDirectModelUpdate(
             DeserializingMessage sourceMessage,
-            List<ModelExecutionPlan.Transition> transitions,
+            List<Change> transitions,
             String commitId,
             int substep) {
         List<DirectModelUpdate.Target> targets = transitions.stream()
-                .filter(transition -> transition.effect().storeEvent())
+                .filter(transition -> transition.storeEvent())
                 .map(transition -> new DirectModelUpdate.Target(
                         transition.modelId(),
                         transition.after() == null
@@ -578,16 +575,16 @@ final class ModelCommitProtocol {
     }
 
     private static boolean directGraphGroup(
-            List<ModelExecutionPlan.Transition> transitions) {
+            List<Change> transitions) {
         return !transitions.isEmpty()
                && transitions.stream().allMatch(
                        ModelCommitProtocol::isGraphChange);
     }
 
     private static boolean isGraphChange(
-            ModelExecutionPlan.Transition transition) {
+            Change transition) {
         return !transition.cascadedDeletion()
-               && (transition.stagedReplay() != null
+               && (transition.replay() != null
                    || transition.handler() == null
                       && transition.after() == null);
     }
@@ -602,25 +599,23 @@ final class ModelCommitProtocol {
             || substeps.stream()
                     .flatMap(substep -> substep.transitions().stream())
                     .anyMatch(transition ->
-                                      !transition.effect().storeEvent()
-                                      || !transition.effect().publishEvent())) {
+                                      !transition.storeEvent()
+                                      || !transition.publishEvent())) {
             return null;
         }
         return evaluation.transitions().stream()
-                .map(ModelExecutionPlan.Transition::beforeLastEventIndex)
+                .map(Change::beforeLastEventIndex)
                 .filter(Objects::nonNull)
                 .anyMatch(index -> index >= sourceIndex);
     }
 
-    private static Boolean possibleDuplicate(
-            ModelExecutionPlan.Transition transition,
-            ModelExecutionPlan.TransitionEffect effect) {
+    private static Boolean possibleDuplicate(Change transition) {
         Long sourceIndex = DeserializingMessage.getOptionally()
                 .map(DeserializingMessage::getIndex)
                 .orElse(null);
         if (sourceIndex == null
-            || !effect.storeEvent()
-            || !effect.publishEvent()) {
+            || !transition.storeEvent()
+            || !transition.publishEvent()) {
             return null;
         }
         Long beforeLastEventIndex =
@@ -631,17 +626,17 @@ final class ModelCommitProtocol {
 
     private static void applyEventRouting(
             SerializedMessage event,
-            List<ModelExecutionPlan.Transition> transitions) {
-        List<ModelExecutionPlan.Transition> published = transitions.stream()
-                .filter(transition -> transition.effect().publishEvent()).toList();
+            List<Change> transitions) {
+        List<Change> published = transitions.stream()
+                .filter(transition -> transition.publishEvent()).toList();
         if (published.isEmpty()) {
             return;
         }
         boolean aggregateIdRouting = published.stream()
-                .anyMatch(transition -> transition.effect().eventRouting()
+                .anyMatch(transition -> transition.eventRouting()
                         == AggregateEventRouting.AGGREGATE_ID);
         boolean messageRouting = published.stream()
-                .anyMatch(transition -> transition.effect().eventRouting()
+                .anyMatch(transition -> transition.eventRouting()
                         == AggregateEventRouting.MESSAGE_ROUTING_KEY);
         if (aggregateIdRouting && (messageRouting || published.size() != 1)) {
             throw new IllegalStateException(
@@ -654,9 +649,9 @@ final class ModelCommitProtocol {
     }
 
     private static RelationshipUpdate relationshipUpdate(
-            ModelExecutionPlan.Transition transition) {
+            Change transition) {
         List<EntityMetadata.ParentReference> parents =
-                transition.effect().metadata().parentReferences();
+                transition.defaults().metadata().parentReferences();
         if (parents.isEmpty()) {
             return transition.after() == null
                     ? RelationshipUpdate.CLEARED
@@ -717,13 +712,13 @@ final class ModelCommitProtocol {
     }
 
     private static long nextSequence(
-            ModelExecutionPlan.Transition transition,
+            Change transition,
             Map<String, Long> nextSequences) {
         long previous = nextSequences.getOrDefault(
                 transition.modelId(),
                 transition.beforeSequenceNumber());
         long result = previous
-                      + (transition.effect().storeEvent()
+                      + (transition.storeEvent()
                                  ? 1L : 0L);
         nextSequences.put(
                 transition.modelId(), result);
@@ -731,14 +726,14 @@ final class ModelCommitProtocol {
     }
 
     private ModelSnapshotMutation snapshot(
-            ModelExecutionPlan.Transition transition,
+            Change transition,
             long nextSequence,
             Instant timestamp) {
-        EntityMetadata.RootConfiguration model = transition.effect().model();
-        EntityMetadata.SnapshotSettings snapshotSettings = transition.effect().snapshots();
+        EntityMetadata.RootConfiguration model = transition.defaults().model();
+        EntityMetadata.SnapshotSettings snapshotSettings = transition.defaults().snapshots();
         if (snapshotSerializer == null
             || !model.eventSourced()
-            || !transition.effect().storeEvent()
+            || !transition.storeEvent()
             || transition.after() == null
             || !snapshotSettings.due(nextSequence, 1)) {
             return null;
@@ -752,14 +747,14 @@ final class ModelCommitProtocol {
     }
 
     private ModelDocumentMutation directDocument(
-            ModelExecutionPlan.Transition transition,
+            Change transition,
             Instant eventTimestamp,
             Metadata metadata) {
-        EntityMetadata.RootConfiguration model = transition.effect().model();
-        if (transition.effect().directCollection() == null) {
+        EntityMetadata.RootConfiguration model = transition.defaults().model();
+        if (transition.defaults().collection() == null) {
             return null;
         }
-        String collection = transition.effect().directCollection();
+        String collection = transition.defaults().collection();
         Object value = transition.after();
         if (value == null) {
             return new ModelDocumentMutation(collection, null);
@@ -793,7 +788,7 @@ final class ModelCommitProtocol {
             List<DeserializingMessage> result = new ArrayList<>(
                     substeps.size() + 1);
             for (ModelExecutionPlan.AppliedSubstep substep : substeps) {
-                List<ModelExecutionPlan.Transition> group = substep.transitions();
+                List<Change> group = substep.transitions();
                 if (group.isEmpty()) {
                     continue;
                 }
@@ -812,9 +807,9 @@ final class ModelCommitProtocol {
                         .map(transition -> ModelExecutionPlan.graphChangeReplay(
                                 eventMessage,
                                 transition.modelId(), transition.modelType(),
-                                transition.stagedReplay() == null
+                                transition.replay() == null
                                         ? current -> current.update(ignored -> null)
-                                        : transition.stagedReplay()))
+                                        : transition.replay()))
                         .forEach(result::add);
             }
             return List.copyOf(result);
@@ -823,7 +818,7 @@ final class ModelCommitProtocol {
         boolean hasCascadedDeletion() {
             return substeps.stream()
                     .flatMap(substep -> substep.transitions().stream())
-                    .anyMatch(ModelExecutionPlan.Transition::cascadedDeletion);
+                    .anyMatch(Change::cascadedDeletion);
         }
 
         String singleEventMessageId() {

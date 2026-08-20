@@ -17,13 +17,10 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.configuration.ApplicationProperties;
 
-import java.lang.reflect.Executable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,7 +30,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import static io.fluxzero.common.ObjectUtils.asStream;
@@ -100,7 +96,8 @@ public final class ModelExecutionPlan {
                 enqueueOutput(message, graph, pending, false);
             } else if (reapply && message instanceof GraphChangeMessage changeMessage) {
                 pending.add(new PendingSubstep(
-                        new GraphChangeMessage(changeMessage.change.forRebase()), false));
+                        new GraphChangeMessage(
+                                changeMessage.change.forRebase(), changeMessage), false));
             } else {
                 pending.add(new PendingSubstep(message, interception));
             }
@@ -172,7 +169,7 @@ public final class ModelExecutionPlan {
                 });
                 if (graphChangeMessage != null) {
                     AppliedSubstep change = evaluateGraphChange(
-                            graphChangeMessage.change,
+                            graphChangeMessage,
                             context, readStateIndex,
                             stagedValues.containsKey(
                                     graphChangeMessage.change.modelId()));
@@ -201,10 +198,10 @@ public final class ModelExecutionPlan {
                     }
                 }
 
-                List<Transition> transitions = resolved.mutation().apply(
+                List<Change> transitions = resolved.mutation().apply(
                         current.message(), context,
                         applyHandlers, assertions);
-                for (Transition transition : transitions) {
+                for (Change transition : transitions) {
                     stagedValues.put(transition.modelId(), transition.after());
                     if (!readModelTypes.containsKey(transition.modelId())) {
                         readModelIds.add(transition.modelId());
@@ -230,10 +227,11 @@ public final class ModelExecutionPlan {
     }
 
     private static AppliedSubstep evaluateGraphChange(
-            StagedGraphChange change,
+            GraphChangeMessage message,
             ModelCommitContext context,
             long readStateIndex,
             boolean alreadyStaged) {
+        Change change = message.change;
         String modelId = change.modelId();
         Class<?> modelType = change.modelType();
         long targetStateIndex = targetStateIndex(
@@ -253,16 +251,8 @@ public final class ModelExecutionPlan {
         Object after = change.expectedStateIndex() == null || alreadyStaged
                 ? change.replay().apply(target.entity()).get()
                 : change.after();
-        Transition transition = new Transition(
-                modelId, modelType,
-                target.entity() instanceof ModelRoot<?> modelRoot
-                        ? modelRoot.sequenceNumber() : -1L,
-                target.entity() instanceof ModelRoot<?> modelRoot
-                        ? modelRoot.lastEventIndex() : null,
-                target.entity().get(), after, null,
-                change.replay(), false);
-        return new AppliedSubstep(
-                new GraphChangeMessage(change), List.of(transition));
+        Change transition = change.resolveAgainst(target.entity(), after);
+        return new AppliedSubstep(message, List.of(transition));
     }
 
     private static long targetStateIndex(
@@ -284,47 +274,19 @@ public final class ModelExecutionPlan {
                    != (addition.message() instanceof GraphChangeMessage)) {
                 continue;
             }
-            LinkedHashMap<String, Transition> transitions =
+            LinkedHashMap<String, Change> transitions =
                     new LinkedHashMap<>();
             existing.transitions().forEach(
-                    transition -> mergeGraphTransition(
-                            transitions, transition));
+                    transition -> transitions.merge(
+                            transition.modelId(), transition, Change::then));
             addition.transitions().forEach(
-                    transition -> mergeGraphTransition(
-                            transitions, transition));
+                    transition -> transitions.merge(
+                            transition.modelId(), transition, Change::then));
             appliedSubsteps.set(i, new AppliedSubstep(
                     existing.message(), List.copyOf(transitions.values())));
             return;
         }
         appliedSubsteps.add(addition);
-    }
-
-    private static void mergeGraphTransition(
-            Map<String, Transition> transitions,
-            Transition addition) {
-        Transition previous = transitions.get(addition.modelId());
-        if (previous == null) {
-            transitions.put(addition.modelId(), addition);
-            return;
-        }
-        if (!Objects.equals(previous.modelType(), addition.modelType())) {
-            throw new IllegalStateException(
-                    "Graph changes target repository id '%s' as both %s and %s"
-                            .formatted(
-                                    addition.modelId(),
-                                    previous.modelType().getName(),
-                                    addition.modelType().getName()));
-        }
-        Graphs.StagedReplay previousReplay = Objects.requireNonNull(
-                previous.stagedReplay(), "Merged graph transition has no replay");
-        Graphs.StagedReplay additionReplay = Objects.requireNonNull(
-                addition.stagedReplay(), "Merged graph transition has no replay");
-        transitions.put(addition.modelId(), new Transition(
-                previous.modelId(), previous.modelType(),
-                previous.beforeSequenceNumber(), previous.beforeLastEventIndex(),
-                previous.before(), addition.after(), addition.handler(),
-                current -> additionReplay.apply(previousReplay.apply(current)),
-                addition.cascadedDeletion()));
     }
 
     private static DeserializingMessage emittedMessage(
@@ -372,10 +334,10 @@ public final class ModelExecutionPlan {
                     "@InterceptApply emitted a null element; return null directly to suppress the update");
         }
         if (output instanceof Graph<?> graph) {
-            List<StagedGraphChange> changes = stagedChanges(graph, source);
+            List<Change> changes = stagedChanges(graph);
             for (int index = changes.size() - 1; index >= 0; index--) {
                 pending.addFirst(new PendingSubstep(
-                        new GraphChangeMessage(changes.get(index)), false));
+                        new GraphChangeMessage(changes.get(index), source), false));
             }
             return;
         }
@@ -386,17 +348,11 @@ public final class ModelExecutionPlan {
         pending.addFirst(new PendingSubstep(emitted, reintercept));
     }
 
-    private static List<StagedGraphChange> stagedChanges(
-            Graph<?> graph,
-            DeserializingMessage eventMessage) {
+    private static List<Change> stagedChanges(Graph<?> graph) {
         Objects.requireNonNull(graph, "graph");
-        List<Graphs.StagedModelChange> staged =
-                Graphs.stagedChanges(graph);
+        List<Change> staged = Graphs.stagedChanges(graph);
         if (!staged.isEmpty()) {
-            return staged.stream().map(change -> new StagedGraphChange(
-                    change.modelId(), change.modelType(),
-                    change.expectedStateIndex(), change.after(),
-                    change.replay(), eventMessage)).toList();
+            return staged;
         }
         if (graph.get() != null) {
             throw new IllegalStateException(
@@ -411,10 +367,9 @@ public final class ModelExecutionPlan {
                     "Staged graph deletion target %s is not an independent @Model"
                             .formatted(modelType.getName()));
         }
-        return List.of(new StagedGraphChange(
+        return List.of(Change.staged(
                 modelId, modelType, graph.stateIndex(), null,
-                current -> current.update(ignored -> null),
-                Objects.requireNonNull(eventMessage, "eventMessage")));
+                current -> current.update(ignored -> null)));
     }
 
     @FunctionalInterface
@@ -486,14 +441,14 @@ public final class ModelExecutionPlan {
             }
         }
 
-        List<Transition> transitions() {
+        List<Change> transitions() {
             if (substeps.isEmpty()) {
                 return List.of();
             }
             if (substeps.size() == 1) {
                 return substeps.getFirst().transitions();
             }
-            List<Transition> result = new ArrayList<>();
+            List<Change> result = new ArrayList<>();
             for (AppliedSubstep substep : substeps) {
                 result.addAll(substep.transitions());
             }
@@ -502,7 +457,7 @@ public final class ModelExecutionPlan {
 
         ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
             ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
-            List<Transition> transitions = transitions();
+            List<Change> transitions = transitions();
             if (transitions.size() == 1
                 && readModelTypes.size() == 1
                 && readModelTypes.containsKey(
@@ -512,7 +467,7 @@ public final class ModelExecutionPlan {
             }
             ModelConflictPolicy result = ModelConflictPolicy.ACCEPT;
             Set<String> written = new java.util.HashSet<>();
-            for (Transition transition : transitions) {
+            for (Change transition : transitions) {
                 written.add(transition.modelId());
                 result = strictest(result, transitionPolicy(transition, application));
             }
@@ -525,9 +480,9 @@ public final class ModelExecutionPlan {
         }
 
         private static ModelConflictPolicy transitionPolicy(
-                Transition transition, ModelConflictPolicy application) {
+                Change transition, ModelConflictPolicy application) {
             ModelConflictPolicy result = inherit(
-                    transition.effect().conflictPolicy(), application);
+                    transition.conflictPolicy(), application);
             return transition.before() == null
                    && transition.beforeSequenceNumber() < 0L
                    && result == ModelConflictPolicy.ACCEPT
@@ -562,30 +517,9 @@ public final class ModelExecutionPlan {
     }
 
     record AppliedSubstep(
-            DeserializingMessage message, List<Transition> transitions) {
+            DeserializingMessage message, List<Change> transitions) {
         AppliedSubstep {
             transitions = List.copyOf(transitions);
-        }
-    }
-
-    record StagedGraphChange(
-            String modelId,
-            Class<?> modelType,
-            Long expectedStateIndex,
-            Object after,
-            Graphs.StagedReplay replay,
-            DeserializingMessage eventMessage) {
-        StagedGraphChange {
-            Objects.requireNonNull(modelId, "modelId");
-            Objects.requireNonNull(modelType, "modelType");
-            Objects.requireNonNull(eventMessage, "eventMessage");
-            Objects.requireNonNull(replay, "replay");
-        }
-
-        StagedGraphChange forRebase() {
-            return new StagedGraphChange(
-                    modelId, modelType, null, null,
-                    replay, eventMessage);
         }
     }
 
@@ -594,159 +528,16 @@ public final class ModelExecutionPlan {
             String modelId,
             Class<?> modelType,
             Graphs.StagedReplay replay) {
-        return new GraphChangeMessage(new StagedGraphChange(
-                modelId, modelType, null, null,
-                replay, eventMessage));
-    }
-
-    record Transition(
-            String modelId,
-            Class<?> modelType,
-            long beforeSequenceNumber,
-            Long beforeLastEventIndex,
-            Object before,
-            Object after,
-            Executable handler,
-            Graphs.StagedReplay stagedReplay,
-            boolean cascadedDeletion,
-            TransitionEffect effect) {
-        Transition(
-                String modelId,
-                Class<?> modelType,
-                long beforeSequenceNumber,
-                Long beforeLastEventIndex,
-                Object before,
-                Object after,
-                Executable handler,
-                Graphs.StagedReplay stagedReplay,
-                boolean cascadedDeletion) {
-            this(modelId, modelType, beforeSequenceNumber, beforeLastEventIndex,
-                 before, after, handler, stagedReplay, cascadedDeletion, null);
-        }
-
-        Transition {
-            effect = effect == null
-                    ? TransitionEffect.resolve(
-                            modelType, handler, before, after, cascadedDeletion)
-                    : effect;
-        }
-
-        Transition withEffect(
-                boolean storeEvent,
-                boolean publishEvent,
-                boolean updateState) {
-            return new Transition(
-                    modelId, modelType, beforeSequenceNumber, beforeLastEventIndex,
-                    before, after, handler, stagedReplay, cascadedDeletion,
-                    effect.with(storeEvent, publishEvent, updateState));
-        }
-    }
-
-    record TransitionEffect(
-            EntityMetadata metadata,
-            EntityMetadata.RootConfiguration model,
-            EntityMetadata.SnapshotSettings snapshots,
-            String directCollection,
-            AggregateEventRouting eventRouting,
-            ModelConflictPolicy conflictPolicy,
-            boolean active,
-            boolean storeEvent,
-            boolean publishEvent,
-            boolean updateState) {
-        static TransitionEffect resolve(
-                Class<?> modelType,
-                Executable handler,
-                Object before,
-                Object after,
-                boolean cascadedDeletion) {
-            return resolve(
-                    modelType, before, after, cascadedDeletion,
-                    ModelDefinition.EffectOverrides.of(handler));
-        }
-
-        static TransitionEffect resolve(
-                Class<?> modelType,
-                Object before,
-                Object after,
-                boolean cascadedDeletion,
-                ModelDefinition.EffectOverrides overrides) {
-            Class<?> effectiveType = EntityMetadata.of(modelType).isModel()
-                    ? modelType : after != null ? after.getClass()
-                            : before != null ? before.getClass() : modelType;
-            EffectDefaults defaults = EffectDefaults.of(effectiveType);
-            EntityMetadata.TransitionSettings settings = defaults.model().transitionSettings(
-                    overrides.publication(), overrides.strategy(), overrides.routing(), overrides.conflict());
-            boolean modified = settings.forceModified() || !Objects.equals(before, after);
-            return checked(
-                    defaults, settings,
-                    settings.decide(modified, cascadedDeletion, true));
-        }
-
-        private static TransitionEffect checked(
-                EffectDefaults defaults,
-                EntityMetadata.TransitionSettings settings,
-                EntityMetadata.TransitionDecision decision) {
-            return new TransitionEffect(
-                    defaults.metadata(), defaults.model(), defaults.snapshots(), defaults.collection(),
-                    settings.routing(), settings.conflict(),
-                    decision.active(), decision.storeEvent(), decision.publishEvent(), decision.updateState());
-        }
-
-        void validate(Transition transition) {
-            if (active && model.eventSourced() && updateState && !storeEvent) {
-                throw new IllegalStateException(
-                        "Event-sourced model %s cannot change through %s without storing its reconstructing event. "
-                                .formatted(
-                                        transition.modelType().getName(),
-                                        transition.handler() == null ? "a direct graph change"
-                                                : transition.handler().toGenericString())
-                        + "Use STORE_ONLY or STORE_AND_PUBLISH, make the model document-loaded, or publish a no-op event.");
-            }
-        }
-
-        private TransitionEffect with(
-                boolean storeEvent,
-                boolean publishEvent,
-                boolean updateState) {
-            return new TransitionEffect(
-                    metadata, model, snapshots, directCollection, eventRouting, conflictPolicy,
-                    active, storeEvent, publishEvent, updateState);
-        }
-    }
-
-    private record EffectDefaults(
-            EntityMetadata metadata,
-            EntityMetadata.RootConfiguration model,
-            EntityMetadata.SnapshotSettings snapshots,
-            String collection) {
-        private EffectDefaults(EntityMetadata metadata, Class<?> type) {
-            this(metadata, metadata.rootConfiguration().orElseThrow(() ->
-                         new IllegalStateException(type.getName() + " is not an independent model")), type);
-        }
-
-        private EffectDefaults(EntityMetadata metadata, EntityMetadata.RootConfiguration model, Class<?> type) {
-            this(metadata, model, model.snapshotSettings(false),
-                 model.searchable() ? Optional.of(model.collection()).filter(value -> !value.isEmpty())
-                         .map(ApplicationProperties::substituteProperties).orElse(type.getSimpleName())
-                         : metadata.participatesInGraphComposition()
-                                 ? io.fluxzero.common.api.modeling.ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION
-                                 : null);
-        }
-
-        private static EffectDefaults of(Class<?> type) {
-            EntityMetadata metadata = EntityMetadata.of(type);
-            return ReflectionUtils.getTypeMetadata(type)
-                    .specializedMetadata(
-                            EffectDefaults.class,
-                            ignored -> new EffectDefaults(metadata, type));
-        }
+        return new GraphChangeMessage(Change.staged(
+                modelId, modelType, null, null, replay), eventMessage);
     }
 
     private static final class GraphChangeMessage extends DeserializingMessage {
-        private final StagedGraphChange change;
+        private final Change change;
 
-        private GraphChangeMessage(StagedGraphChange change) {
-            super(change.eventMessage());
+        private GraphChangeMessage(
+                Change change, DeserializingMessage eventMessage) {
+            super(eventMessage);
             this.change = change;
         }
     }

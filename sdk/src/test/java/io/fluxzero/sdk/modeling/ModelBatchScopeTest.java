@@ -252,7 +252,7 @@ class ModelBatchScopeTest {
                                         Map.of(before.id(), ModelContract.class),
                                         List.of(new ModelExecutionPlan.AppliedSubstep(
                                                 current,
-                                                List.of(new ModelExecutionPlan.Transition(
+                                                List.of(Change.applied(
                                                         before.id(), ModelContract.class,
                                                         0L, null, before, after, null,
                                                         null, false)))),
@@ -328,7 +328,7 @@ class ModelBatchScopeTest {
                 Map.of(modelId, AliasModel.class),
                 List.of(new ModelExecutionPlan.AppliedSubstep(
                         message,
-                        List.of(new ModelExecutionPlan.Transition(
+                        List.of(Change.applied(
                                 modelId, AliasModel.class,
                                 0L, null, before, after, null,
                                 null, false)))),

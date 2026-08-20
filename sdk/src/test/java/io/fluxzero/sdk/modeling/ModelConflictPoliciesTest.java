@@ -84,8 +84,8 @@ class ModelConflictPoliciesTest {
     @Test
     void newIdentityAcceptFailsInsteadOfRebasingIntoAnOverwrite()
             throws Exception {
-        ModelExecutionPlan.Transition creation =
-                new ModelExecutionPlan.Transition(
+        Change creation =
+                Change.applied(
                         "new", DefaultModel.class,
                         -1L, null, null,
                         new DefaultModel("new"),
@@ -99,8 +99,8 @@ class ModelConflictPoliciesTest {
     @Test
     void newIdentityPreservesExplicitRetry()
             throws Exception {
-        ModelExecutionPlan.Transition creation =
-                new ModelExecutionPlan.Transition(
+        Change creation =
+                Change.applied(
                         "new", DefaultModel.class,
                         -1L, null, null,
                         new DefaultModel("new"),
@@ -112,19 +112,19 @@ class ModelConflictPoliciesTest {
     }
 
     private static ModelExecutionPlan.CommitEvaluation evaluation(
-            ModelExecutionPlan.Transition... transitions) {
+            Change... transitions) {
         return evaluation(
                 java.util.Arrays.stream(transitions)
                         .collect(
                                 java.util.stream.Collectors.toMap(
-                                        ModelExecutionPlan.Transition::modelId,
-                                        ModelExecutionPlan.Transition::modelType)),
+                                        Change::modelId,
+                                        Change::modelType)),
                 transitions);
     }
 
     private static ModelExecutionPlan.CommitEvaluation evaluation(
             Map<String, Class<?>> readTypes,
-            ModelExecutionPlan.Transition... transitions) {
+            Change... transitions) {
         return new ModelExecutionPlan.CommitEvaluation(
                 1L, List.copyOf(readTypes.keySet()),
                 readTypes,
@@ -135,11 +135,11 @@ class ModelConflictPoliciesTest {
                 Map.of());
     }
 
-    private static ModelExecutionPlan.Transition transition(
+    private static Change transition(
             String id,
             Class<?> type,
             Executable handler) {
-        return new ModelExecutionPlan.Transition(
+        return Change.applied(
                 id, type, 0L, null,
                 null, new Object(), handler,
                 null, false);

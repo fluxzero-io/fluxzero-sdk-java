@@ -1844,7 +1844,7 @@ class ModelCommitHandlerIntegrationTest {
                                                             FamilyChild.class),
                                                     List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
-                                                            List.of(new ModelExecutionPlan.Transition(
+                                                            List.of(Change.applied(
                                                                     firstChildId.toString(),
                                                                     FamilyChild.class,
                                                                     0L, null, before, after, null,
@@ -1948,12 +1948,12 @@ class ModelCommitHandlerIntegrationTest {
                                                     List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
                                                             List.of(
-                                                                    new ModelExecutionPlan.Transition(
+                                                                    Change.applied(
                                                                             rootId.toString(),
                                                                             FamilyRoot.class,
                                                                             -1L, null, null, root, null,
                                                                             null, false),
-                                                                    new ModelExecutionPlan.Transition(
+                                                                    Change.applied(
                                                                             childId.toString(),
                                                                             FamilyChild.class,
                                                                             -1L, null, null, child, null,
@@ -2018,7 +2018,7 @@ class ModelCommitHandlerIntegrationTest {
                                                             FamilyRoot.class),
                                                     List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
-                                                            List.of(new ModelExecutionPlan.Transition(
+                                                            List.of(Change.applied(
                                                                     rootId.toString(),
                                                                     FamilyRoot.class,
                                                                     0L, null, root,

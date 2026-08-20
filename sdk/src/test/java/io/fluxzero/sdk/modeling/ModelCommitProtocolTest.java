@@ -84,7 +84,7 @@ class ModelCommitProtocolTest {
                 List.of(id.toString()),
                 substep(
                         event,
-                        new ModelExecutionPlan.Transition(
+                        Change.applied(
                                 id.toString(), StoredOnly.class, 0L,
                                 null, before, null, null,
                                 null, false)),
@@ -129,7 +129,7 @@ class ModelCommitProtocolTest {
                                         MixedUpdate.class, "apply", PublishedOnly.class))),
                         new ModelExecutionPlan.AppliedSubstep(
                                 message, List.of(
-                                new ModelExecutionPlan.Transition(
+                                Change.applied(
                                         storedId.toString(), StoredOnly.class, 0L,
                                         null, stored, null, null,
                                         null, false)))),
@@ -169,7 +169,7 @@ class ModelCommitProtocolTest {
         Order before = new Order(id, null, "before", Instant.EPOCH);
         Order after = new Order(id, null, "after", Instant.EPOCH.plusSeconds(1));
         UpdateOrder event = new UpdateOrder(id);
-        var transition = new ModelExecutionPlan.Transition(
+        var transition = Change.applied(
                 id.toString(), Order.class, 0L, null,
                 before, after, null, current -> current, false);
         var evaluation = evaluation(
@@ -214,13 +214,13 @@ class ModelCommitProtocolTest {
         UpdateOrder event = new UpdateOrder(id);
         var original = evaluation(
                 List.of(id.toString()),
-                substep(event, new ModelExecutionPlan.Transition(
+                substep(event, Change.applied(
                         id.toString(), Order.class, 0L, null,
                         before, stale, null, current -> current, false)),
                 Map.of(id.toString(), stale));
         var rebased = new ModelExecutionPlan.CommitEvaluation(
                 51L, List.of(id.toString()), Map.of(id.toString(), Order.class),
-                List.of(substep(event, new ModelExecutionPlan.Transition(
+                List.of(substep(event, Change.applied(
                         id.toString(), Order.class, 0L, null,
                         before, merged, null, current -> current, false))),
                 Map.of(id.toString(), merged));
@@ -520,7 +520,7 @@ class ModelCommitProtocolTest {
         var evaluation = evaluation(
                 List.of("contact-1", parentId.toString()),
                 substep(new CreatePolymorphicContact(),
-                        new ModelExecutionPlan.Transition(
+                        Change.applied(
                                 "contact-1", PolymorphicContact.class, -1L,
                                 null, null, after, null,
                                 null, false)),
@@ -1247,18 +1247,18 @@ class ModelCommitProtocolTest {
     }
 
     private static ModelExecutionPlan.AppliedSubstep substep(
-            Object event, ModelExecutionPlan.Transition... transitions) {
+            Object event, Change... transitions) {
         return substep(Metadata.empty(), event, transitions);
     }
 
     private static ModelExecutionPlan.AppliedSubstep substep(
-            Metadata metadata, Object event, ModelExecutionPlan.Transition... transitions) {
+            Metadata metadata, Object event, Change... transitions) {
         return new ModelExecutionPlan.AppliedSubstep(
                 new DeserializingMessage(new Message(event, metadata), MessageType.EVENT, null),
                 List.of(transitions));
     }
 
-    private static ModelExecutionPlan.Transition transition(
+    private static Change transition(
             Object id, Class<?> modelType, Object before, Object after,
             Class<?> handlerType, String methodName, Class<?> parameterType) throws Exception {
         return transition(
@@ -1266,13 +1266,13 @@ class ModelCommitProtocolTest {
                 handlerType, methodName, parameterType);
     }
 
-    private static ModelExecutionPlan.Transition transition(
+    private static Change transition(
             Object id, Class<?> modelType, long beforeSequenceNumber,
             Object before, Object after,
             Class<?> handlerType, String methodName,
             Class<?> parameterType) throws Exception {
         Method handler = handlerType.getDeclaredMethod(methodName, parameterType);
-        return new ModelExecutionPlan.Transition(
+        return Change.applied(
                 id.toString(), modelType, beforeSequenceNumber,
                 null, before, after, handler,
                 null, false);

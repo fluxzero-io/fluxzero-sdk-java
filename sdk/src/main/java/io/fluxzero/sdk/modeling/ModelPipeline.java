@@ -596,14 +596,14 @@ final class ModelPipeline {
 
     private static List<String> writtenModelIds(
             ModelExecutionPlan.CommitEvaluation evaluation) {
-        List<ModelExecutionPlan.Transition> transitions =
+        List<Change> transitions =
                 evaluation.transitions();
         if (transitions.size() == 1) {
             return List.of(
                     transitions.getFirst().modelId());
         }
         return transitions.stream()
-                .map(ModelExecutionPlan.Transition::modelId)
+                .map(Change::modelId)
                 .distinct()
                 .toList();
     }
@@ -648,7 +648,7 @@ final class ModelPipeline {
             ModelExecutionPlan.CommitEvaluation evaluation) {
         GraphProjectionCompletion consumer = null;
         LinkedHashMap<String, LinkedHashSet<String>> result = new LinkedHashMap<>();
-        for (ModelExecutionPlan.Transition transition :
+        for (Change transition :
                 evaluation.transitions()) {
             List<ModelGraphProjections.Root> roots =
                     ModelGraphProjections.roots(transition.modelType());
@@ -710,7 +710,7 @@ final class ModelPipeline {
     private CompletableFuture<Void> ensureGraphProjections(
             ModelExecutionPlan.CommitEvaluation evaluation) {
         LinkedHashSet<ModelGraphProjections.Root> roots = null;
-        for (ModelExecutionPlan.Transition transition :
+        for (Change transition :
                 evaluation.transitions()) {
             List<ModelGraphProjections.Root> candidates =
                     ModelGraphProjections.roots(transition.modelType());
@@ -806,14 +806,14 @@ final class ModelPipeline {
         }
         if (committed.prepared().substeps().size() == 1
             && committed.prepared().substeps().getFirst().transitions().size() == 1) {
-            ModelExecutionPlan.Transition transition =
+            Change transition =
                     committed.prepared().substeps().getFirst()
                             .transitions().getFirst();
             if (!committed.result().hasSingleTargetResult()) {
                 throw new IllegalStateException(
                         "Model commit returned a different number of targets than requested");
             }
-            if (!transition.effect().updateState()) {
+            if (!transition.updateState()) {
                 return;
             }
             var commitStep = committed.prepared().commit()
@@ -826,8 +826,8 @@ final class ModelPipeline {
                     new DefaultModelRepository.CommittedModel(
                             transition.modelId(),
                             transition.modelType(),
-                            transition.effect().model(),
-                            transition.effect().metadata().entityId().orElseThrow(),
+                            transition.defaults().model(),
+                            transition.defaults().metadata().entityId().orElseThrow(),
                             committed.result().isSingleTargetHistoryComplete(),
                             new DefaultModelRepository.CommittedRevision(
                                     transition.after(),
@@ -843,7 +843,7 @@ final class ModelPipeline {
         for (int substep = 0;
              substep < committed.prepared().substeps().size();
              substep++) {
-            List<ModelExecutionPlan.Transition> transitions =
+            List<Change> transitions =
                     committed.prepared().substeps().get(substep).transitions();
             var substepResult = committed.result().getSubsteps().get(substep);
             var commitStep = committed.prepared().commit().getSubsteps().get(substep);
@@ -865,8 +865,8 @@ final class ModelPipeline {
             for (int targetIndex = 0;
                  targetIndex < transitions.size();
                  targetIndex++) {
-                ModelExecutionPlan.Transition transition = transitions.get(targetIndex);
-                if (!transition.effect().updateState()) {
+                Change transition = transitions.get(targetIndex);
+                if (!transition.updateState()) {
                     continue;
                 }
                 var targetResult = substepResult.getTargets().get(targetIndex);
@@ -890,8 +890,8 @@ final class ModelPipeline {
                         transition.modelId(),
                         new DefaultModelRepository.CommittedModel(
                                 transition.modelId(), transition.modelType(),
-                                transition.effect().model(),
-                                transition.effect().metadata().entityId().orElseThrow(),
+                                transition.defaults().model(),
+                                transition.defaults().metadata().entityId().orElseThrow(),
                                 targetResult.isHistoryComplete(),
                                 revisions));
             }
@@ -957,10 +957,10 @@ final class ModelPipeline {
     private ModelExecutionPlan.CommitEvaluation expandCascadeDeletes(
             ModelExecutionPlan.CommitEvaluation evaluation) {
         LinkedHashSet<String> explicitlyDeleted = null;
-        LinkedHashMap<String, ModelExecutionPlan.Transition> latestTransitions =
+        LinkedHashMap<String, Change> latestTransitions =
                 new LinkedHashMap<>();
         for (ModelExecutionPlan.AppliedSubstep substep : evaluation.substeps()) {
-            for (ModelExecutionPlan.Transition transition : substep.transitions()) {
+            for (Change transition : substep.transitions()) {
                 latestTransitions.put(transition.modelId(), transition);
                 if (transition.before() != null
                     && transition.after() == null
@@ -1025,10 +1025,10 @@ final class ModelPipeline {
                     explicitlyDeleted);
         }
 
-        List<ModelExecutionPlan.Transition> transitions = cascaded.stream()
+        List<Change> transitions = cascaded.stream()
                 .map(nodes::get)
                 .filter(Objects::nonNull)
-                .map(node -> new ModelExecutionPlan.Transition(
+                .map(node -> Change.applied(
                         node.modelId(), node.modelType(),
                         node.sequenceNumber(), node.lastEventIndex(),
                         node.value(), null, null, null, true))
@@ -1097,13 +1097,13 @@ final class ModelPipeline {
 
     private static void overlayFinalValues(
             ModelExecutionPlan.CommitEvaluation evaluation,
-            Map<String, ModelExecutionPlan.Transition> latestTransitions,
+            Map<String, Change> latestTransitions,
             Map<String, CascadeNode> nodes) {
         evaluation.finalValues().forEach((modelId, value) -> {
             if (value == null) {
                 return;
             }
-            ModelExecutionPlan.Transition transition =
+            Change transition =
                     latestTransitions.get(modelId);
             CascadeNode known = nodes.get(modelId);
             Class<?> type = transition == null
@@ -1128,8 +1128,8 @@ final class ModelPipeline {
     private static Class<?> modelType(
             String modelId,
             ModelExecutionPlan.CommitEvaluation evaluation,
-            Map<String, ModelExecutionPlan.Transition> transitions) {
-        ModelExecutionPlan.Transition transition =
+            Map<String, Change> transitions) {
+        Change transition =
                 transitions.get(modelId);
         return transition == null
                 ? evaluation.readModelTypes().get(modelId)

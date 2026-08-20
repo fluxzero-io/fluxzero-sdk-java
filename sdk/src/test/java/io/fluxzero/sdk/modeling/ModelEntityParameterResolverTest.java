@@ -793,7 +793,7 @@ class ModelEntityParameterResolverTest {
                                                             Department.class),
                                                     List.of(new ModelExecutionPlan.AppliedSubstep(
                                                             current,
-                                                            List.of(new ModelExecutionPlan.Transition(
+                                                            List.of(Change.applied(
                                                                     departmentId.toString(),
                                                                     Department.class,
                                                                     0L, null, before,

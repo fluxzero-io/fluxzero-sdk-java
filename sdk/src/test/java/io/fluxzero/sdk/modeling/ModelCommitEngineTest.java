@@ -57,7 +57,7 @@ class ModelCommitEngineTest {
                 command.inventoryId(), new Inventory(command.inventoryId(), 5));
         ModelCommitContext begin = context(command, handlers, order, inventory);
 
-        List<ModelExecutionPlan.Transition> result = evaluate(message(command), begin, handlers);
+        List<Change> result = evaluate(message(command), begin, handlers);
 
         assertEquals(2, result.size());
         assertEquals(new Order(command.orderId(), "saw-stock-5"),
@@ -80,11 +80,11 @@ class ModelCommitEngineTest {
                 command.inventoryId(), new Inventory(command.inventoryId(), 5));
         ModelCommitContext begin = context(command, handlers, order, inventory);
 
-        List<ModelExecutionPlan.Transition> result = evaluate(message(command), begin, handlers);
+        List<Change> result = evaluate(message(command), begin, handlers);
 
         assertEquals(List.of("order-1"),
                      result.stream()
-                             .map(ModelExecutionPlan.Transition::modelId).toList());
+                             .map(Change::modelId).toList());
         assertSame(inventory, resultingState(begin, result).resolve(Inventory.class, null));
     }
 
@@ -97,7 +97,7 @@ class ModelCommitEngineTest {
                 command.orderId(), new Order(command.orderId(), "pending"));
         ModelCommitContext begin = context(command, handlers, order);
 
-        List<ModelExecutionPlan.Transition> result = evaluate(message(command), begin, handlers);
+        List<Change> result = evaluate(message(command), begin, handlers);
 
         assertEquals(1, result.size());
         assertNull(result.getFirst().after());
@@ -113,7 +113,7 @@ class ModelCommitEngineTest {
         Entity<Order> order = entity(command.orderId(), new Order(command.orderId(), "pending"));
         ModelCommitContext begin = context(command, handlers, order);
 
-        List<ModelExecutionPlan.Transition> result = evaluate(message(command), begin, handlers);
+        List<Change> result = evaluate(message(command), begin, handlers);
 
         assertEquals(1, result.size());
         assertNull(result.getFirst().after());
@@ -128,7 +128,7 @@ class ModelCommitEngineTest {
         Entity<Order> empty = entity(command.orderId(), null);
         ModelCommitContext begin = context(command, handlers, empty);
 
-        List<ModelExecutionPlan.Transition> result = evaluate(message(command), begin, handlers);
+        List<Change> result = evaluate(message(command), begin, handlers);
 
         assertEquals(new Order(command.orderId(), "created"),
                      resultingState(begin, result).resolve(Order.class, null).get());
@@ -143,13 +143,13 @@ class ModelCommitEngineTest {
                 EntityMetadata.of(CreateOrders.class).handlerMethods();
         ModelCommitContext begin = context(command, handlers);
 
-        List<ModelExecutionPlan.Transition> result =
+        List<Change> result =
                 evaluate(message(command), begin, handlers);
 
         assertEquals(
                 List.of("order-first", "order-second"),
                 result.stream()
-                        .map(ModelExecutionPlan.Transition::modelId)
+                        .map(Change::modelId)
                         .toList());
         assertTrue(result.stream()
                            .allMatch(transition -> transition.before() == null
@@ -163,18 +163,18 @@ class ModelCommitEngineTest {
         List<EntityMetadata.HandlerMethod> handlers =
                 EntityMetadata.of(CreateMixedModels.class).handlerMethods();
 
-        List<ModelExecutionPlan.Transition> result = evaluate(
+        List<Change> result = evaluate(
                 message(command), context(command, handlers), handlers);
 
         assertEquals(
                 List.of("order-one", "inventory-one"),
                 result.stream()
-                        .map(ModelExecutionPlan.Transition::modelId)
+                        .map(Change::modelId)
                         .toList());
         assertEquals(
                 List.of(Order.class, Inventory.class),
                 result.stream()
-                        .map(ModelExecutionPlan.Transition::modelType)
+                        .map(Change::modelType)
                         .toList());
     }
 
@@ -186,7 +186,7 @@ class ModelCommitEngineTest {
                 EntityMetadata.of(CreateDynamicModel.class)
                         .handlerMethods();
 
-        List<ModelExecutionPlan.Transition> result = evaluate(
+        List<Change> result = evaluate(
                 message(command), context(command, handlers), handlers);
 
         assertEquals(1, result.size());
@@ -228,7 +228,7 @@ class ModelCommitEngineTest {
         Entity<Order> empty = entity(command.orderId(), null);
         ModelCommitContext begin = context(command, handlers, empty);
 
-        List<ModelExecutionPlan.Transition> result = evaluate(message(command), begin, handlers);
+        List<Change> result = evaluate(message(command), begin, handlers);
 
         assertEquals(new Order(command.orderId(), "created"),
                      resultingState(begin, result).resolve(Order.class, null).get());
@@ -283,11 +283,11 @@ class ModelCommitEngineTest {
                 transfer.destinationId(), new Account(transfer.destinationId(), 20));
         ModelCommitContext begin = context(transfer, handlers, source, destination);
 
-        List<ModelExecutionPlan.Transition> result = evaluate(message(transfer), begin, handlers);
+        List<Change> result = evaluate(message(transfer), begin, handlers);
 
         assertEquals(List.of("account-destination"),
                      result.stream()
-                             .map(ModelExecutionPlan.Transition::modelId).toList());
+                             .map(Change::modelId).toList());
         assertEquals(30, ((Account) result.getFirst().after()).balance());
 
         Transfer delete = new Transfer(
@@ -375,7 +375,7 @@ class ModelCommitEngineTest {
         assertEquals(
                 List.of(inventoryId.toString(), orderId.toString()),
                 result.substeps().getFirst().transitions().stream()
-                        .map(ModelExecutionPlan.Transition::modelId)
+                        .map(Change::modelId)
                         .sorted().toList());
     }
 
@@ -533,7 +533,7 @@ class ModelCommitEngineTest {
                                 result.substeps().getLast().transitions().stream()
                                         .filter(transition -> transition.modelId()
                                                 .equals(inventoryId.toString()))
-                                        .findFirst().orElseThrow().stagedReplay())),
+                                        .findFirst().orElseThrow().replay())),
                 resolver);
 
         assertEquals(2, rebased.substeps().size());
@@ -560,12 +560,12 @@ class ModelCommitEngineTest {
 
         assertEquals(7, ((Inventory) result.finalValues()
                 .get(inventoryId.toString())).available());
-        ModelExecutionPlan.Transition graphTransition = result.substeps()
+        Change graphTransition = result.substeps()
                 .getLast().transitions().stream()
                 .filter(transition -> transition.modelId()
                         .equals(inventoryId.toString()))
                 .findFirst().orElseThrow();
-        assertNotNull(graphTransition.stagedReplay());
+        assertNotNull(graphTransition.replay());
 
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));
@@ -573,7 +573,7 @@ class ModelCommitEngineTest {
         ModelExecutionPlan.CommitEvaluation rebased = reapply(
                 List.of(event, ModelExecutionPlan.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
-                        graphTransition.stagedReplay())),
+                        graphTransition.replay())),
                 graphResolver(
                         88L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), concurrent)));
@@ -605,7 +605,7 @@ class ModelCommitEngineTest {
                 .get(inventoryId.toString())).available());
         assertEquals(2, result.substeps().size());
         assertEquals(1, result.substeps().getLast().transitions().size());
-        ModelExecutionPlan.Transition combined =
+        Change combined =
                 result.substeps().getLast().transitions().getFirst();
         assertEquals(new Inventory(inventoryId, 5), combined.before());
         assertEquals(new Inventory(inventoryId, 8), combined.after());
@@ -616,7 +616,7 @@ class ModelCommitEngineTest {
         ModelExecutionPlan.CommitEvaluation rebased = reapply(
                 List.of(event, ModelExecutionPlan.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
-                        combined.stagedReplay())),
+                        combined.replay())),
                 graphResolver(
                         88L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), concurrent)));
@@ -700,7 +700,7 @@ class ModelCommitEngineTest {
         ModelCommitContext begin = context(
                 command, handlers, entity(id, new Order(id, "pending")));
 
-        List<ModelExecutionPlan.Transition> result =
+        List<Change> result =
                 evaluate(message(command), begin, handlers);
 
         assertEquals(
@@ -790,7 +790,7 @@ class ModelCommitEngineTest {
                         handler, RenameFastOrder.class);
 
         assertTrue(direct != null);
-        List<ModelExecutionPlan.Transition> result =
+        List<Change> result =
                 evaluate(
                         message(command), begin,
                         List.of(handler), direct);
@@ -810,7 +810,7 @@ class ModelCommitEngineTest {
                 handler, Transfer.class));
     }
 
-    private List<ModelExecutionPlan.Transition> evaluate(
+    private List<Change> evaluate(
             DeserializingMessage message,
             ModelCommitContext context,
             Collection<EntityMetadata.HandlerMethod> handlers) {
@@ -819,7 +819,7 @@ class ModelCommitEngineTest {
                 .apply(message, context, true, true);
     }
 
-    private List<ModelExecutionPlan.Transition> evaluate(
+    private List<Change> evaluate(
             DeserializingMessage message,
             ModelCommitContext context,
             Collection<EntityMetadata.HandlerMethod> handlers,
@@ -921,7 +921,7 @@ class ModelCommitEngineTest {
 
     private static ModelCommitContext resultingState(
             ModelCommitContext begin,
-            List<ModelExecutionPlan.Transition> transitions) {
+            List<Change> transitions) {
         LinkedHashMap<String, Object> values = new LinkedHashMap<>();
         transitions.forEach(
                 transition -> values.put(transition.modelId(), transition.after()));

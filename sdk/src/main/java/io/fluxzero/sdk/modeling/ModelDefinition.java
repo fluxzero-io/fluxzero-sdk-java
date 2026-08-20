@@ -277,7 +277,7 @@ public final class ModelDefinition {
             return result == SUPPRESSED ? null : result;
         }
 
-        List<ModelExecutionPlan.Transition> apply(
+        List<Change> apply(
                 DeserializingMessage message,
                 ModelCommitContext beginState,
                 boolean applyHandlers,
@@ -293,7 +293,7 @@ public final class ModelDefinition {
             }
         }
 
-        private List<ModelExecutionPlan.Transition> applyInContext(
+        private List<Change> applyInContext(
                 DeserializingMessage message,
                 ModelCommitContext beginState,
                 boolean applyHandlers,
@@ -308,7 +308,7 @@ public final class ModelDefinition {
                 return List.of();
             }
 
-            Map<String, ModelExecutionPlan.Transition> transitions = null;
+            Map<String, Change> transitions = null;
             for (CompiledHandler compiledHandler : handlers.applies()) {
                 EntityMetadata.HandlerMethod handler = compiledHandler.method();
                 if (!handler.hasApplyResult()) {
@@ -343,7 +343,7 @@ public final class ModelDefinition {
             }
             Map<String, Object> values = new LinkedHashMap<>(transitions.size());
             transitions.forEach((id, transition) -> values.put(id, transition.after()));
-            List<ModelExecutionPlan.Transition> result = List.copyOf(transitions.values());
+            List<Change> result = List.copyOf(transitions.values());
             if (assertions) {
                 ModelCommitContext resultingState = beginState.withValues(values);
                 for (int i = 0; i < handlers.afterAssertions().size(); i++) {
@@ -389,7 +389,7 @@ public final class ModelDefinition {
                                             modelId));
                 }
             }
-            ModelExecutionPlan.Transition transition = transition(
+            Change transition = transition(
                     compiledHandler, modelId, modelType, modelType,
                     entity, after);
             return new ModelExecutionPlan.CommitEvaluation(
@@ -406,10 +406,10 @@ public final class ModelDefinition {
                 ModelCommitContext context,
                 String targetModelId) {
             Objects.requireNonNull(targetModelId, "targetModelId");
-            List<ModelExecutionPlan.Transition> transitions = apply(
+            List<Change> transitions = apply(
                     event, context, true, false);
-            ModelExecutionPlan.Transition selected = null;
-            for (ModelExecutionPlan.Transition transition : transitions) {
+            Change selected = null;
+            for (Change transition : transitions) {
                 if (!targetModelId.equals(transition.modelId())) {
                     continue;
                 }
@@ -523,8 +523,8 @@ public final class ModelDefinition {
                     ? metadata.repositoryId(id, result) : metadata.repositoryId(id);
         }
 
-        private static Map<String, ModelExecutionPlan.Transition> addApplyResult(
-                Map<String, ModelExecutionPlan.Transition> transitions,
+        private static Map<String, Change> addApplyResult(
+                Map<String, Change> transitions,
                 CompiledHandler compiledHandler,
                 Object value,
                 int resultIndex,
@@ -543,14 +543,14 @@ public final class ModelDefinition {
             }
             Class<?> resolvedTargetType = target == null
                     ? value.getClass() : target.target().modelType();
-            ModelExecutionPlan.Transition transition = transition(
+            Change transition = transition(
                     compiledHandler, targetId, resolvedTargetType,
                     null, target == null ? null : target.entity(), value);
-            Map<String, ModelExecutionPlan.Transition> result = transitions;
+            Map<String, Change> result = transitions;
             if (result == null) {
                 result = new LinkedHashMap<>();
             }
-            ModelExecutionPlan.Transition previous = result.putIfAbsent(
+            Change previous = result.putIfAbsent(
                     targetId, transition);
             if (previous != null) {
                 throw new IllegalStateException(
@@ -563,7 +563,7 @@ public final class ModelDefinition {
             return result;
         }
 
-        private static ModelExecutionPlan.Transition transition(
+        private static Change transition(
                 CompiledHandler compiledHandler,
                 String targetId,
                 Class<?> resolvedTargetType,
@@ -584,16 +584,14 @@ public final class ModelDefinition {
                     ? persistedTargetType
                     : current != null ? current.getClass()
                             : value != null ? value.getClass() : resolvedTargetType;
-            return new ModelExecutionPlan.Transition(
+            return Change.applied(
                     targetId, effectiveTargetType,
                     target instanceof ModelRoot<?> modelRoot
                             ? modelRoot.sequenceNumber() : -1L,
                     target instanceof ModelRoot<?> modelRoot
                             ? modelRoot.lastEventIndex() : null,
                     current, value, handler.executable(), null, false,
-                    ModelExecutionPlan.TransitionEffect.resolve(
-                            effectiveTargetType, current, value, false,
-                            compiledHandler.effect()));
+                    compiledHandler.effect());
         }
 
         private enum MissingTarget {

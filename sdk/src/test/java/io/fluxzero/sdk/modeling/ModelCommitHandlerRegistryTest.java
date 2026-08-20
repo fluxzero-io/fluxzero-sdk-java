@@ -1307,13 +1307,13 @@ class ModelCommitHandlerRegistryTest {
     @Test
     void graphProjectionCompletionUsesApplyThenRootThenApplicationPrecedence()
             throws Exception {
-        ModelExecutionPlan.Transition inherited =
+        Change inherited =
                 transition(
                         ProjectionChild.class,
                         ProjectionApplies.class
                                 .getDeclaredMethod(
                                         "inherit"));
-        ModelExecutionPlan.Transition asynchronous =
+        Change asynchronous =
                 transition(
                         ProjectionChild.class,
                         ProjectionApplies.class
@@ -1350,8 +1350,8 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void cascadedDeletionWithoutApplyHandlerUsesProjectionDefaults() {
-        ModelExecutionPlan.Transition cascadedDeletion =
-                new ModelExecutionPlan.Transition(
+        Change cascadedDeletion =
+                Change.applied(
                         "cascade-child",
                         ProjectionChild.class,
                         0L,
@@ -1378,14 +1378,14 @@ class ModelCommitHandlerRegistryTest {
                 subject(
                         AutomaticModelHandling.ENABLED,
                         GraphProjectionCompletion.ASYNC);
-        ModelExecutionPlan.Transition asynchronous =
+        Change asynchronous =
                 transition(
                         "shared-child",
                         ProjectionChild.class,
                         ProjectionApplies.class
                                 .getDeclaredMethod(
                                         "asynchronous"));
-        ModelExecutionPlan.Transition awaiting =
+        Change awaiting =
                 transition(
                         "shared-child",
                         ProjectionChild.class,
@@ -1689,17 +1689,17 @@ class ModelCommitHandlerRegistryTest {
     }
 
     private static ModelExecutionPlan.CommitEvaluation evaluation(
-            ModelExecutionPlan.Transition... transitions) {
+            Change... transitions) {
         return new ModelExecutionPlan.CommitEvaluation(
                 1L,
                 java.util.Arrays.stream(transitions)
-                        .map(ModelExecutionPlan.Transition::modelId)
+                        .map(Change::modelId)
                         .toList(),
                 java.util.Arrays.stream(transitions)
                         .collect(
                                 java.util.stream.Collectors.toMap(
-                                        ModelExecutionPlan.Transition::modelId,
-                                        ModelExecutionPlan.Transition::modelType,
+                                        Change::modelId,
+                                        Change::modelType,
                                         (first, second) ->
                                                 first)),
                 List.of(
@@ -1709,7 +1709,7 @@ class ModelCommitHandlerRegistryTest {
                 Map.of());
     }
 
-    private static ModelExecutionPlan.Transition transition(
+    private static Change transition(
             Class<?> modelType,
             java.lang.reflect.Executable handler) {
         return transition(
@@ -1719,11 +1719,11 @@ class ModelCommitHandlerRegistryTest {
                 modelType, handler);
     }
 
-    private static ModelExecutionPlan.Transition transition(
+    private static Change transition(
             String modelId,
             Class<?> modelType,
             java.lang.reflect.Executable handler) {
-        return new ModelExecutionPlan.Transition(
+        return Change.applied(
                 modelId, modelType, 0L, null,
                 null, new Object(), handler,
                 null, false);
