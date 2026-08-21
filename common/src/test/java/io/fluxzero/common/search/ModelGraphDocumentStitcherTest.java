@@ -274,6 +274,25 @@ class ModelGraphDocumentStitcherTest {
     }
 
     @Test
+    void rejectsCyclesDuringDocumentAndManifestComposition() {
+        SerializedDocument root =
+                document("root", "roots", "name", "root");
+        SerializedDocument child =
+                document("child", "children", "name", "child");
+
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelGraphDocumentStitcher.stitch(
+                        List.of(root),
+                        List.of(edge("child", "root", "children"),
+                                edge("root", "child", "parent")),
+                        Map.of("root", root, "child", child),
+                        ModelGraphComposition.builder().build()));
+
+        assertTrue(failure.getMessage().contains("cycle at root"));
+    }
+
+    @Test
     void rejectsDifferentCanonicalPathsProjectedToOnePath() {
         assertThrows(
                 IllegalArgumentException.class,

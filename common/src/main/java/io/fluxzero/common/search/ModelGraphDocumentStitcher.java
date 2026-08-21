@@ -107,15 +107,16 @@ public final class ModelGraphDocumentStitcher {
                     documents.get(root.getId());
             SerializedDocument rootDocument =
                     available == null ? root : available;
+            ManifestBuilder manifest =
+                    new ManifestBuilder(stateIndex);
             Document composed = compose(
                     root.getId(),
                     rootDocument,
-                    children, documents, bounds, 0,
+                    -1, null, 0,
+                    children, documents, bounds, manifest, 0,
                     new LinkedHashSet<>());
             composed = withManifest(
-                    composed,
-                    manifest(rootDocument, children,
-                             documents, stateIndex));
+                    composed, manifest.build());
             SerializedDocument serialized =
                     new SerializedDocument(composed);
             bounds.verifyOutputBytes(
@@ -123,92 +124,6 @@ public final class ModelGraphDocumentStitcher {
             result.add(serialized);
         }
         return List.copyOf(result);
-    }
-
-    private static ModelGraphDocumentManifest manifest(
-            SerializedDocument root,
-            Map<String, List<ModelGraphEdge>> children,
-            Map<String, SerializedDocument> documents,
-            long stateIndex) {
-        List<String> types = new ArrayList<>();
-        Map<String, Integer> typeIndexes = new LinkedHashMap<>();
-        List<String> paths = new ArrayList<>();
-        Map<String, Integer> pathIndexes = new LinkedHashMap<>();
-        List<ModelGraphDocumentManifest.Node> nodes = new ArrayList<>();
-        appendManifestNode(
-                root.getId(), root, -1, null, 0, children,
-                documents, types, typeIndexes,
-                paths, pathIndexes, nodes,
-                new LinkedHashSet<>());
-        return new ModelGraphDocumentManifest(
-                stateIndex, types, paths, nodes);
-    }
-
-    private static void appendManifestNode(
-            String modelId,
-            SerializedDocument root,
-            int parent,
-            String relationshipPath,
-            int ordinal,
-            Map<String, List<ModelGraphEdge>> children,
-            Map<String, SerializedDocument> documents,
-            List<String> types,
-            Map<String, Integer> typeIndexes,
-            List<String> paths,
-            Map<String, Integer> pathIndexes,
-            List<ModelGraphDocumentManifest.Node> nodes,
-            Set<String> ancestry) {
-        if (!ancestry.add(modelId)) {
-            throw new IllegalArgumentException(
-                    "Model graph composition encountered a cycle at "
-                    + modelId);
-        }
-        try {
-            SerializedDocument document = parent < 0
-                    ? root : documents.get(modelId);
-            if (document == null) {
-                return;
-            }
-            int nodeIndex = nodes.size();
-            String type = document.deserializeDocument().getType();
-            int typeIndex = typeIndexes.computeIfAbsent(type, key -> {
-                types.add(key);
-                return types.size() - 1;
-            });
-            int pathIndex = relationshipPath == null ? -1
-                    : pathIndexes.computeIfAbsent(relationshipPath, key -> {
-                        paths.add(key);
-                        return paths.size() - 1;
-                    });
-            nodes.add(new ModelGraphDocumentManifest.Node(
-                    modelId, typeIndex, parent,
-                    pathIndex, ordinal));
-            Map<String, List<ModelGraphEdge>> byPath =
-                    new LinkedHashMap<>();
-            children.getOrDefault(modelId, List.of()).stream()
-                    .filter(edge -> documents.containsKey(
-                            edge.getChildId()))
-                    .forEach(edge -> byPath.computeIfAbsent(
-                                    edge.getPath(), ignored ->
-                                            new ArrayList<>())
-                            .add(edge));
-            byPath.forEach((path, pathEdges) -> {
-                pathEdges.sort(Comparator.comparing(
-                        ModelGraphEdge::getChildId));
-                for (int childOrdinal = 0;
-                     childOrdinal < pathEdges.size(); childOrdinal++) {
-                    ModelGraphEdge edge = pathEdges.get(childOrdinal);
-                    appendManifestNode(
-                            edge.getChildId(), root, nodeIndex, path, childOrdinal,
-                            children, documents,
-                            types, typeIndexes,
-                            paths, pathIndexes,
-                            nodes, ancestry);
-                }
-            });
-        } finally {
-            ancestry.remove(modelId);
-        }
     }
 
     private static Document withManifest(
@@ -306,9 +221,13 @@ public final class ModelGraphDocumentStitcher {
     private static Document compose(
             String modelId,
             SerializedDocument serialized,
+            int parent,
+            String relationshipPath,
+            int ordinal,
             Map<String, List<ModelGraphEdge>> children,
             Map<String, SerializedDocument> documents,
             Bounds bounds,
+            ManifestBuilder manifest,
             int depth,
             LinkedHashSet<String> ancestry) {
         if (!ancestry.add(modelId)) {
@@ -321,6 +240,9 @@ public final class ModelGraphDocumentStitcher {
                     serialized.bytes());
             Document direct =
                     serialized.deserializeDocument();
+            int nodeIndex = manifest.add(
+                    modelId, direct.getType(), parent,
+                    relationshipPath, ordinal);
             Map<String, List<ModelGraphEdge>> byPath =
                     new LinkedHashMap<>();
             for (ModelGraphEdge edge :
@@ -373,7 +295,7 @@ public final class ModelGraphDocumentStitcher {
             byPath.forEach((path, pathEdges) -> {
                 pathEdges.sort(Comparator.comparing(
                         ModelGraphEdge::getChildId));
-                int ordinal = 0;
+                int childOrdinal = 0;
                 for (ModelGraphEdge edge :
                         pathEdges) {
                     bounds.addPlacement();
@@ -382,10 +304,11 @@ public final class ModelGraphDocumentStitcher {
                                     edge.getChildId());
                     Document childDocument = compose(
                             edge.getChildId(), child,
-                            children, documents, bounds,
+                            nodeIndex, path, childOrdinal,
+                            children, documents, bounds, manifest,
                             depth + 1, ancestry);
                     String prefix =
-                            path + "/" + ordinal++;
+                            path + "/" + childOrdinal++;
                     append(
                             childDocument, prefix,
                             entries, facets, sortables,
@@ -548,6 +471,48 @@ public final class ModelGraphDocumentStitcher {
                         .formatted(
                                 compositionPath,
                                 modelId, existingPath));
+    }
+
+    private static final class ManifestBuilder {
+        private final long stateIndex;
+        private final List<String> types = new ArrayList<>();
+        private final Map<String, Integer> typeIndexes =
+                new LinkedHashMap<>();
+        private final List<String> paths = new ArrayList<>();
+        private final Map<String, Integer> pathIndexes =
+                new LinkedHashMap<>();
+        private final List<ModelGraphDocumentManifest.Node> nodes =
+                new ArrayList<>();
+
+        private ManifestBuilder(long stateIndex) {
+            this.stateIndex = stateIndex;
+        }
+
+        private int add(
+                String modelId, String type, int parent,
+                String relationshipPath, int ordinal) {
+            int nodeIndex = nodes.size();
+            int typeIndex = index(type, types, typeIndexes);
+            int pathIndex = relationshipPath == null ? -1
+                    : index(relationshipPath, paths, pathIndexes);
+            nodes.add(new ModelGraphDocumentManifest.Node(
+                    modelId, typeIndex, parent, pathIndex, ordinal));
+            return nodeIndex;
+        }
+
+        private ModelGraphDocumentManifest build() {
+            return new ModelGraphDocumentManifest(
+                    stateIndex, types, paths, nodes);
+        }
+
+        private static int index(
+                String value, List<String> values,
+                Map<String, Integer> indexes) {
+            return indexes.computeIfAbsent(value, key -> {
+                values.add(key);
+                return values.size() - 1;
+            });
+        }
     }
 
     private static final class Bounds {
