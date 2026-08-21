@@ -21,9 +21,9 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
-import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
@@ -565,8 +565,7 @@ public class InMemorySearchStore implements SearchClient {
     public synchronized void
             materializeModelCommit(
                     CommitModels commit,
-                    List<ModelCommitStepResult>
-                            assignedSubsteps,
+                    List<ModelUpdate> assignedUpdates,
                     Set<String> excludedModelIds) {
         Map<String, SerializedDocument> indexed =
                 new LinkedHashMap<>();
@@ -576,8 +575,7 @@ public class InMemorySearchStore implements SearchClient {
             List<ModelCommitTarget> targets =
                     commit.getSubsteps().get(substep)
                             .getTargets();
-            ModelCommitStepResult assigned =
-                    assignedSubsteps.get(substep);
+            ModelUpdate assigned = assignedUpdates.get(substep);
             modelStateIndex = Math.max(
                     modelStateIndex, assigned.getStateIndex());
             for (int targetIndex = 0;

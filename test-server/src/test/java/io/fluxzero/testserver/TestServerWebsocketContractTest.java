@@ -454,7 +454,7 @@ class TestServerWebsocketContractTest {
             var rootChange = eventStore.getModelChange(
                     new GetModelChange(rootResult.getCommitId(), 0));
             assertEquals(rootResult.getCommitId(), rootChange.getCommitId());
-            assertEquals(rootResult.getSubsteps().getFirst().getStateIndex(), rootChange.getStateIndex());
+            assertEquals(rootResult.getUpdates().getFirst().getStateIndex(), rootChange.getStateIndex());
             assertEquals(rootId, rootChange.getTargets().getFirst().getModelId());
             assertEquals(rootType, rootChange.getTargets().getFirst().getModelType());
 
@@ -488,7 +488,7 @@ class TestServerWebsocketContractTest {
                                                   "create-child-"
                                                   + UUID.randomUUID(),
                                                   rootResult
-                                                          .getSubsteps()
+                                                          .getUpdates()
                                                           .getLast()
                                                           .getStateIndex(),
                                                   child)));
@@ -497,7 +497,7 @@ class TestServerWebsocketContractTest {
                                   new AwaitModelGraphProjection(
                                           projection,
                                           childResult
-                                                  .getSubsteps()
+                                                  .getUpdates()
                                                   .getLast()
                                                   .getStateIndex(),
                                           List.of(

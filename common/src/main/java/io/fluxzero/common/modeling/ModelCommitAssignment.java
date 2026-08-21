@@ -19,9 +19,10 @@ package io.fluxzero.common.modeling;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
-import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -228,16 +229,17 @@ public final class ModelCommitAssignment {
                         step.isPublishEvent() ? step.getEvent().getIndex() : null,
                         target.getModelId(), singleHead.sequenceNumber(), singleHead.historyComplete());
             }
-            List<ModelCommitStepResult> steps = new ArrayList<>(source.getSubsteps().size());
+            List<ModelUpdate> updates = new ArrayList<>(source.getSubsteps().size());
             for (int step = 0; step < source.getSubsteps().size(); step++) {
                 ModelCommitStep sourceStep = source.getSubsteps().get(step);
-                steps.add(new ModelCommitStepResult(
+                updates.add(new ModelUpdate(
+                        ModelUpdateKind.COMMIT, source.getCommitId(), step,
                         firstStateIndex + step,
                         sourceStep.isPublishEvent() ? sourceStep.getEvent().getIndex() : null,
                         assignedTargets.get(step)));
             }
             return CommitModelsResult.accepted(
-                    source.getRequestId(), source.getCommitId(), List.copyOf(steps));
+                    source.getRequestId(), source.getCommitId(), List.copyOf(updates));
         }
     }
 

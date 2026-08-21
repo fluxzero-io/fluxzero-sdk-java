@@ -48,7 +48,6 @@ import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
-import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelChangeTarget;
@@ -478,11 +477,13 @@ class WebSocketTransportCodecsTest {
         CommitModelsResult result = CommitModelsResult.accepted(
                 request.getRequestId(), request.getCommitId(),
                 List.of(
-                        new ModelCommitStepResult(
+                        new ModelUpdate(
+                                ModelUpdateKind.COMMIT, "commit-1", 0,
                                 101L, 501L,
                                 List.of(new ModelCommitTargetResult(
                                         "order-1", 7L, true))),
-                        new ModelCommitStepResult(
+                        new ModelUpdate(
+                                ModelUpdateKind.COMMIT, "commit-1", 1,
                                 102L, null,
                                 List.of(new ModelCommitTargetResult(
                                         "reservation-1", 2L, false)))));
@@ -540,14 +541,17 @@ class WebSocketTransportCodecsTest {
             assertEquals(result.getRequestId(), decodedResult.getRequestId());
             assertEquals("commit-1", decodedResult.getCommitId());
             assertEquals(123L, decodedResult.getRequestReceivedTimestamp());
-            assertEquals(101L, decodedResult.getSubsteps().getFirst().getStateIndex());
-            assertEquals(501L, decodedResult.getSubsteps().getFirst().getEventIndex());
-            assertNull(decodedResult.getSubsteps().get(1).getEventIndex());
+            assertEquals("commit-1", decodedResult.getUpdates().getFirst().getCommitId());
+            assertEquals(0, decodedResult.getUpdates().getFirst().getSubstep());
+            assertEquals(ModelUpdateKind.COMMIT, decodedResult.getUpdates().getFirst().getKind());
+            assertEquals(101L, decodedResult.getUpdates().getFirst().getStateIndex());
+            assertEquals(501L, decodedResult.getUpdates().getFirst().getEventIndex());
+            assertNull(decodedResult.getUpdates().get(1).getEventIndex());
             assertEquals(
                     7L,
-                    decodedResult.getSubsteps().getFirst().getTargets().getFirst()
+                    decodedResult.getUpdates().getFirst().getTargets().getFirst()
                             .getSequenceNumber());
-            assertTrue(decodedResult.getSubsteps().getFirst().getTargets().getFirst()
+            assertTrue(decodedResult.getUpdates().getFirst().getTargets().getFirst()
                                .isHistoryComplete());
             assertTrue(decodedResult.isAccepted());
             assertTrue(decodedResult.getConflicts().isEmpty());
@@ -639,7 +643,7 @@ class WebSocketTransportCodecsTest {
 
             assertFalse(decoded.isAccepted());
             assertTrue(decoded.isRetryAllowed());
-            assertTrue(decoded.getSubsteps().isEmpty());
+            assertTrue(decoded.getUpdates().isEmpty());
             assertEquals(result.getConflicts(), decoded.getConflicts());
             assertEquals(2, decoded.toMetric().getConflictCount());
         }

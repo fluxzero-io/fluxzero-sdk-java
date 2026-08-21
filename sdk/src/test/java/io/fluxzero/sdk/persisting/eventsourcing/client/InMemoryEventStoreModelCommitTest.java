@@ -334,7 +334,7 @@ class InMemoryEventStoreModelCommitTest {
                 commitPage.getUpdates()
                         .getFirst().getKind());
         assertEquals(
-                committed.getSubsteps()
+                committed.getUpdates()
                         .getFirst().getStateIndex(),
                 commitPage.getLastStateIndex());
         assertEquals(
@@ -411,14 +411,14 @@ class InMemoryEventStoreModelCommitTest {
 
         assertEquals(
                 List.of(timeIndex, timeIndex + 1L),
-                result.getSubsteps().stream()
+                result.getUpdates().stream()
                         .map(substep ->
                                      substep.getStateIndex())
                         .toList());
         assertEquals(
                 Instant.parse("2026-07-26T12:34:56.789Z"),
                 IndexUtils.timestampFromIndex(
-                        result.getSubsteps()
+                        result.getUpdates()
                                 .getFirst()
                                 .getStateIndex()));
     }
@@ -437,10 +437,10 @@ class InMemoryEventStoreModelCommitTest {
 
         CommitModelsResult result = store.commitModels(commit).join();
 
-        assertEquals(0L, result.getSubsteps().getFirst().getStateIndex());
-        assertNotNull(result.getSubsteps().getFirst().getEventIndex());
-        assertEquals(0L, result.getSubsteps().getFirst().getTargets().get(0).getSequenceNumber());
-        assertEquals(0L, result.getSubsteps().getFirst().getTargets().get(1).getSequenceNumber());
+        assertEquals(0L, result.getUpdates().getFirst().getStateIndex());
+        assertNotNull(result.getUpdates().getFirst().getEventIndex());
+        assertEquals(0L, result.getUpdates().getFirst().getTargets().get(0).getSequenceNumber());
+        assertEquals(0L, result.getUpdates().getFirst().getTargets().get(1).getSequenceNumber());
         assertEquals(1, store.getBatch(null, 10, true).size());
         assertSame(event, store.getEvents("order-1").findFirst().orElseThrow());
         assertSame(event, store.getEvents("inventory-1").findFirst().orElseThrow());
@@ -467,7 +467,7 @@ class InMemoryEventStoreModelCommitTest {
         CommitModelsResult firstResult = store.commitModels(first).join();
         CommitModelsResult retryResult = store.commitModels(retry).join();
 
-        assertEquals(firstResult.getSubsteps(), retryResult.getSubsteps());
+        assertEquals(firstResult.getUpdates(), retryResult.getUpdates());
         assertEquals(retry.getRequestId(), retryResult.getRequestId());
         assertTrue(retryResult.isDuplicate());
         assertEquals(1, store.getBatch(null, 10, true).size());
@@ -557,7 +557,7 @@ class InMemoryEventStoreModelCommitTest {
 
         CommitModelsResult result = store.commitModels(commit).join();
 
-        var target = result.getSubsteps().getFirst().getTargets().getFirst();
+        var target = result.getUpdates().getFirst().getTargets().getFirst();
         assertEquals(-1L, target.getSequenceNumber());
         assertFalse(target.isHistoryComplete());
         assertEquals(0, store.getEvents("document-1").count());
@@ -778,7 +778,7 @@ class InMemoryEventStoreModelCommitTest {
                 ModelConflictPolicy.ACCEPT, stale.getSubsteps().toArray(ModelCommitStep[]::new))).join();
 
         assertTrue(result.isAccepted());
-        assertEquals(1L, result.getSubsteps().getFirst().getStateIndex());
+        assertEquals(1L, result.getUpdates().getFirst().getStateIndex());
         assertEquals(2, store.getEvents("order-1").count());
     }
 

@@ -441,13 +441,13 @@ final class ModelPipeline {
                         ? committed
                         : committed.thenCompose(commitResult -> {
                             if (commitResult.isEmpty()
-                                || commitResult.get().getSubsteps().isEmpty()) {
+                                || commitResult.get().getUpdates().isEmpty()) {
                                 return CompletableFuture.completedFuture(commitResult);
                             }
                             CommitModelsResult result = commitResult.get();
-                            long firstStateIndex = result.getSubsteps().getFirst()
+                            long firstStateIndex = result.getUpdates().getFirst()
                                     .getStateIndex();
-                            long stateIndex = result.getSubsteps().getLast()
+                            long stateIndex = result.getUpdates().getLast()
                                     .getStateIndex();
                             return repository.awaitGraphProjections(
                                             awaitedGraphProjections,

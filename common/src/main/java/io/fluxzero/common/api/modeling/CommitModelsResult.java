@@ -48,9 +48,9 @@ public class CommitModelsResult extends AbstractRequestResult {
     String commitId;
 
     /**
-     * Assigned positions in request substep order.
+     * Durable updates in request substep order.
      */
-    List<ModelCommitStepResult> substeps;
+    List<ModelUpdate> updates;
 
     /**
      * Current positions for model identities involved in a rejected commit. Empty for an accepted commit.
@@ -84,19 +84,19 @@ public class CommitModelsResult extends AbstractRequestResult {
      * Creates a model commit result, normalizing omitted compatibility fields to empty collections.
      */
     @ConstructorProperties({
-            "requestId", "commitId", "substeps", "conflicts", "retryAllowed",
+            "requestId", "commitId", "updates", "conflicts", "retryAllowed",
             "duplicate", "rebaseStateIndex"})
     public CommitModelsResult(
             long requestId,
             String commitId,
-            List<ModelCommitStepResult> substeps,
+            List<ModelUpdate> updates,
             List<ModelCommitConflict> conflicts,
             boolean retryAllowed,
             boolean duplicate,
             Long rebaseStateIndex) {
         this.requestId = requestId;
         this.commitId = commitId;
-        this.substeps = substeps == null ? List.of() : List.copyOf(substeps);
+        this.updates = updates == null ? List.of() : List.copyOf(updates);
         this.conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
         this.retryAllowed = retryAllowed;
         this.duplicate = duplicate;
@@ -107,9 +107,9 @@ public class CommitModelsResult extends AbstractRequestResult {
      * Creates an accepted commit result.
      */
     public static CommitModelsResult accepted(
-            long requestId, String commitId, List<ModelCommitStepResult> substeps) {
+            long requestId, String commitId, List<ModelUpdate> updates) {
         return new CommitModelsResult(
-                requestId, commitId, substeps, List.of(), false,
+                requestId, commitId, updates, List.of(), false,
                 false, null);
     }
 
@@ -117,7 +117,7 @@ public class CommitModelsResult extends AbstractRequestResult {
      * Creates the common one-substep, one-target accepted result without eagerly allocating its
      * nested public list representation.
      *
-     * <p>The ordinary {@link #getSubsteps()} contract is unchanged. Its immutable value is
+     * <p>The ordinary {@link #getUpdates()} contract is unchanged. Its immutable value is
      * materialized only when a caller actually requests the nested representation; compact
      * transports can read the positions directly.</p>
      */
@@ -132,8 +132,8 @@ public class CommitModelsResult extends AbstractRequestResult {
         return new CommitModelsResult(
                 requestId,
                 commitId,
-                new CompactStepResults(
-                        stateIndex, eventIndex, modelId,
+                new CompactUpdates(
+                        commitId, stateIndex, eventIndex, modelId,
                         sequenceNumber, historyComplete),
                 List.of(), false, false, null, true);
     }
@@ -141,16 +141,16 @@ public class CommitModelsResult extends AbstractRequestResult {
     private CommitModelsResult(
             long requestId,
             String commitId,
-            List<ModelCommitStepResult> substeps,
+            List<ModelUpdate> updates,
             List<ModelCommitConflict> conflicts,
             boolean retryAllowed,
             boolean duplicate,
             Long rebaseStateIndex,
-            boolean trustedSubsteps) {
+            boolean trustedUpdates) {
         this.requestId = requestId;
         this.commitId = commitId;
-        this.substeps = substeps == null
-                ? List.of() : trustedSubsteps ? substeps : List.copyOf(substeps);
+        this.updates = updates == null
+                ? List.of() : trustedUpdates ? updates : List.copyOf(updates);
         this.conflicts = conflicts == null ? List.of() : List.copyOf(conflicts);
         this.retryAllowed = retryAllowed;
         this.duplicate = duplicate;
@@ -191,7 +191,7 @@ public class CommitModelsResult extends AbstractRequestResult {
      */
     public CommitModelsResult forRequest(long requestId) {
         return new CommitModelsResult(
-                requestId, commitId, substeps, conflicts, retryAllowed,
+                requestId, commitId, updates, conflicts, retryAllowed,
                 duplicate, rebaseStateIndex);
     }
 
@@ -200,7 +200,7 @@ public class CommitModelsResult extends AbstractRequestResult {
      */
     public CommitModelsResult asDuplicateForRequest(long requestId) {
         return new CommitModelsResult(
-                requestId, commitId, substeps, conflicts, retryAllowed,
+                requestId, commitId, updates, conflicts, retryAllowed,
                 true, rebaseStateIndex);
     }
 
@@ -222,11 +222,12 @@ public class CommitModelsResult extends AbstractRequestResult {
             throw new IllegalStateException(
                     "Compact model commit identity restoration requires one substep and one target");
         }
-        if (substeps instanceof CompactStepResults compact) {
-            compact.restoreModelId(modelId);
+        if (updates instanceof CompactUpdates compact) {
+            compact.restoreIdentities(commitId, modelId);
         } else {
-            substeps.getFirst().getTargets().getFirst()
-                    .restoreTransportIdentity(modelId);
+            ModelUpdate update = updates.getFirst();
+            update.restoreTransportIdentity(commitId);
+            update.getTargets().getFirst().restoreTransportIdentity(modelId);
         }
         this.commitId = commitId;
     }
@@ -234,29 +235,29 @@ public class CommitModelsResult extends AbstractRequestResult {
     /** Returns whether this result contains exactly one committed target position. */
     @Transient
     public boolean hasSingleTargetResult() {
-        return substeps instanceof CompactStepResults
-                || substeps.size() == 1
-                && substeps.getFirst().getTargets().size() == 1;
+        return updates instanceof CompactUpdates
+                || updates.size() == 1
+                && updates.getFirst().getTargets().size() == 1;
     }
 
     /** Returns the state index of a {@link #hasSingleTargetResult() single-target result}. */
     @Transient
     public long getSingleTargetStateIndex() {
-        return substeps instanceof CompactStepResults compact
+        return updates instanceof CompactUpdates compact
                 ? compact.stateIndex : singleStep().getStateIndex();
     }
 
     /** Returns the event index of a {@link #hasSingleTargetResult() single-target result}. */
     @Transient
     public Long getSingleTargetEventIndex() {
-        return substeps instanceof CompactStepResults compact
+        return updates instanceof CompactUpdates compact
                 ? compact.eventIndex : singleStep().getEventIndex();
     }
 
     /** Returns the sequence number of a {@link #hasSingleTargetResult() single-target result}. */
     @Transient
     public long getSingleTargetSequenceNumber() {
-        if (substeps instanceof CompactStepResults compact) {
+        if (updates instanceof CompactUpdates compact) {
             return compact.sequenceNumber;
         }
         return singleStep().getTargets().getFirst().getSequenceNumber();
@@ -265,17 +266,17 @@ public class CommitModelsResult extends AbstractRequestResult {
     /** Returns the history flag of a {@link #hasSingleTargetResult() single-target result}. */
     @Transient
     public boolean isSingleTargetHistoryComplete() {
-        if (substeps instanceof CompactStepResults compact) {
+        if (updates instanceof CompactUpdates compact) {
             return compact.historyComplete;
         }
         return singleStep().getTargets().getFirst().isHistoryComplete();
     }
 
-    private ModelCommitStepResult singleStep() {
+    private ModelUpdate singleStep() {
         if (!hasSingleTargetResult()) {
             throw new IllegalStateException("Model commit result does not contain exactly one target");
         }
-        return substeps.getFirst();
+        return updates.getFirst();
     }
 
     /**
@@ -297,11 +298,11 @@ public class CommitModelsResult extends AbstractRequestResult {
     @Override
     public Metric toMetric() {
         int targetCount = 0;
-        for (ModelCommitStepResult substep : substeps) {
-            targetCount += substep.getTargets().size();
+        for (ModelUpdate update : updates) {
+            targetCount += update.getTargets().size();
         }
         return new Metric(
-                substeps.size(), targetCount, conflicts.size(), retryAllowed,
+                updates.size(), targetCount, conflicts.size(), retryAllowed,
                 duplicate, isRebaseRequired(), timestamp);
     }
 
@@ -319,20 +320,23 @@ public class CommitModelsResult extends AbstractRequestResult {
         long timestamp;
     }
 
-    private static final class CompactStepResults extends AbstractList<ModelCommitStepResult> {
+    private static final class CompactUpdates extends AbstractList<ModelUpdate> {
         private final long stateIndex;
         private final Long eventIndex;
+        private volatile String commitId;
         private volatile String modelId;
         private final long sequenceNumber;
         private final boolean historyComplete;
-        private volatile ModelCommitStepResult materialized;
+        private volatile ModelUpdate materialized;
 
-        private CompactStepResults(
+        private CompactUpdates(
+                String commitId,
                 long stateIndex,
                 Long eventIndex,
                 String modelId,
                 long sequenceNumber,
                 boolean historyComplete) {
+            this.commitId = commitId;
             this.stateIndex = stateIndex;
             this.eventIndex = eventIndex;
             this.modelId = modelId;
@@ -341,13 +345,16 @@ public class CommitModelsResult extends AbstractRequestResult {
         }
 
         @Override
-        public ModelCommitStepResult get(int index) {
+        public ModelUpdate get(int index) {
             if (index != 0) {
                 throw new IndexOutOfBoundsException(index);
             }
-            ModelCommitStepResult result = materialized;
+            ModelUpdate result = materialized;
             if (result == null) {
-                result = new ModelCommitStepResult(
+                result = new ModelUpdate(
+                        ModelUpdateKind.COMMIT,
+                        commitId,
+                        0,
                         stateIndex,
                         eventIndex,
                         List.of(new ModelCommitTargetResult(
@@ -362,13 +369,20 @@ public class CommitModelsResult extends AbstractRequestResult {
             return 1;
         }
 
-        private void restoreModelId(String modelId) {
+        private void restoreIdentities(String commitId, String modelId) {
+            if (this.commitId != null && !this.commitId.equals(commitId)) {
+                throw new IllegalStateException(
+                        "Cannot replace model update identity %s with %s"
+                                .formatted(this.commitId, commitId));
+            }
             if (this.modelId != null && !this.modelId.equals(modelId)) {
                 throw new IllegalStateException(
                         "Cannot replace model target identity %s with %s"
                                 .formatted(this.modelId, modelId));
             }
+            this.commitId = commitId;
             if (materialized != null) {
+                materialized.restoreTransportIdentity(commitId);
                 materialized.getTargets().getFirst()
                         .restoreTransportIdentity(modelId);
             }

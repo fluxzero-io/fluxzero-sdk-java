@@ -21,11 +21,12 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
-import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelCommitValidator;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDocumentMutation;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
@@ -1295,16 +1296,19 @@ class DefaultModelRepositoryCommitTest {
     }
 
     private static CommitModelsResult result(CommitModels request) {
-        List<ModelCommitStepResult> substeps = request.getSubsteps().stream()
-                .map(substep -> new ModelCommitStepResult(
-                        42L, substep.isPublishEvent() ? 100L : null,
-                        substep.getTargets().stream().map(target ->
-                                new ModelCommitTargetResult(
-                                        target.getModelId(), target.isStoreEvent() ? 0L : -1L,
-                                        target.isStoreEvent())).toList()))
-                .toList();
+        List<ModelUpdate> updates = new java.util.ArrayList<>();
+        for (int i = 0; i < request.getSubsteps().size(); i++) {
+            var substep = request.getSubsteps().get(i);
+            updates.add(new ModelUpdate(
+                    ModelUpdateKind.COMMIT, request.getCommitId(), i,
+                    42L, substep.isPublishEvent() ? 100L : null,
+                    substep.getTargets().stream().map(target ->
+                            new ModelCommitTargetResult(
+                                    target.getModelId(), target.isStoreEvent() ? 0L : -1L,
+                                    target.isStoreEvent())).toList()));
+        }
         return CommitModelsResult.accepted(
-                request.getRequestId(), request.getCommitId(), substeps);
+                request.getRequestId(), request.getCommitId(), updates);
     }
 
     private static CommitModelsResult conflict(

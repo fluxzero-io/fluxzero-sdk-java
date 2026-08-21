@@ -25,6 +25,8 @@ import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.common.Message;
@@ -426,11 +428,13 @@ class ModelCommitHandlerRegistryTest {
                 .thenAnswer(invocation -> {
                     CommitModels commit = invocation.getArgument(0);
                     captured.complete(commit);
-                    List<io.fluxzero.common.api.modeling.ModelCommitStepResult> substeps =
+                    List<ModelUpdate> updates =
                             new java.util.ArrayList<>();
                     long stateIndex = 1L;
-                    for (var step : commit.getSubsteps()) {
-                        substeps.add(new io.fluxzero.common.api.modeling.ModelCommitStepResult(
+                    for (int i = 0; i < commit.getSubsteps().size(); i++) {
+                        var step = commit.getSubsteps().get(i);
+                        updates.add(new ModelUpdate(
+                                ModelUpdateKind.COMMIT, commit.getCommitId(), i,
                                 stateIndex++, step.getEvent() == null ? null : stateIndex,
                                 step.getTargets().stream()
                                         .map(target -> new io.fluxzero.common.api.modeling.ModelCommitTargetResult(
@@ -440,7 +444,7 @@ class ModelCommitHandlerRegistryTest {
                     return CompletableFuture.completedFuture(
                             CommitModelsResult.accepted(
                                     commit.getRequestId(),
-                                    commit.getCommitId(), substeps));
+                                    commit.getCommitId(), updates));
                 });
         ModelCommitHandlerRegistry subject =
                 subject(repository, eventStoreClient);

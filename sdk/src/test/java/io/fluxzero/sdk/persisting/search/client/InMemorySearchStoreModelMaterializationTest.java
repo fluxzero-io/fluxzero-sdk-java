@@ -18,7 +18,6 @@ package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
-import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -26,6 +25,8 @@ import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelUpdate;
+import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -239,7 +240,8 @@ class InMemorySearchStoreModelMaterializationTest {
         store.materializeModelCommit(
                 commit,
                 List.of(
-                        new ModelCommitStepResult(
+                        new ModelUpdate(
+                                ModelUpdateKind.COMMIT, commit.getCommitId(), 0,
                                 stateIndex, null,
                                 List.of(
                                         new ModelCommitTargetResult(

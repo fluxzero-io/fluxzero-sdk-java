@@ -34,9 +34,9 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
-import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
@@ -1037,7 +1037,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         for (CommittedRevision revision : revisions) {
             Change transition = revision.change();
             ModelCommitStep requestStep = revision.request();
-            ModelCommitStepResult resultStep = revision.result();
+            ModelUpdate resultStep = revision.result();
             ModelCommitTargetResult targetResult = revision.target();
             result = ImmutableModelRoot.committed(
                     modelId, (Class<Object>) finalTransition.modelType(),
@@ -1059,7 +1059,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private record CommittedRevision(
             Change change,
             ModelCommitStep request,
-            ModelCommitStepResult result,
+            ModelUpdate result,
             ModelCommitTargetResult target,
             long timestamp) {
     }
@@ -1861,8 +1861,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     throw new IllegalArgumentException(
                             "A repository commit outcome requires an accepted result");
                 }
-                if (attempt.steps().size() != accepted.getSubsteps().size()
-                    || commit.getSubsteps().size() != accepted.getSubsteps().size()) {
+                if (attempt.steps().size() != accepted.getUpdates().size()
+                    || commit.getSubsteps().size() != accepted.getUpdates().size()) {
                     throw new IllegalStateException(
                             "Model commit returned a different number of substeps than requested");
                 }
@@ -1870,7 +1870,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 for (int substep = 0; substep < attempt.steps().size(); substep++) {
                     CommitAttempt.Step journalStep = attempt.steps().get(substep);
                     ModelCommitStep requestStep = commit.getSubsteps().get(substep);
-                    ModelCommitStepResult resultStep = accepted.getSubsteps().get(substep);
+                    ModelUpdate resultStep = accepted.getUpdates().get(substep);
                     List<Change> changes = journalStep.changes();
                     if (requestStep.getTargets().size() != resultStep.getTargets().size()
                         || !changes.isEmpty()

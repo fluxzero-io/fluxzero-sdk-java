@@ -167,27 +167,30 @@ class ModelCommitWireCodecTest {
         assertTrue(decodedFirst.isSingleTargetHistoryComplete());
         assertEquals(first.getRequestId(), decodedFirst.getRequestId());
         assertNull(decodedFirst.getCommitId());
-        assertNull(decodedFirst.getSubsteps().getFirst().getTargets().getFirst().getModelId());
+        assertNull(decodedFirst.getUpdates().getFirst().getTargets().getFirst().getModelId());
         assertEquals(
-                first.getSubsteps().getFirst().getStateIndex(),
-                decodedFirst.getSubsteps().getFirst().getStateIndex());
+                first.getUpdates().getFirst().getStateIndex(),
+                decodedFirst.getUpdates().getFirst().getStateIndex());
         assertEquals(
-                first.getSubsteps().getFirst().getEventIndex(),
-                decodedFirst.getSubsteps().getFirst().getEventIndex());
+                first.getUpdates().getFirst().getEventIndex(),
+                decodedFirst.getUpdates().getFirst().getEventIndex());
         assertEquals(
-                first.getSubsteps().getFirst().getTargets().getFirst().getSequenceNumber(),
-                decodedFirst.getSubsteps().getFirst().getTargets().getFirst().getSequenceNumber());
+                first.getUpdates().getFirst().getTargets().getFirst().getSequenceNumber(),
+                decodedFirst.getUpdates().getFirst().getTargets().getFirst().getSequenceNumber());
         assertEquals(10L, decodedFirst.getRequestReceivedTimestamp());
         assertEquals(20L, decodedFirst.getResponseQueuedTimestamp());
         assertEquals(30L, decodedFirst.getResponseSendStartTimestamp());
         decodedFirst.restoreTransportIdentities(
                 first.getCommitId(),
-                first.getSubsteps().getFirst()
+                first.getUpdates().getFirst()
                         .getTargets().getFirst().getModelId());
         assertEquals(first.getCommitId(), decodedFirst.getCommitId());
         assertEquals(
-                first.getSubsteps().getFirst().getTargets().getFirst().getModelId(),
-                decodedFirst.getSubsteps().getFirst().getTargets().getFirst().getModelId());
+                first.getCommitId(),
+                decodedFirst.getUpdates().getFirst().getCommitId());
+        assertEquals(
+                first.getUpdates().getFirst().getTargets().getFirst().getModelId(),
+                decodedFirst.getUpdates().getFirst().getTargets().getFirst().getModelId());
         assertThrows(
                 IllegalStateException.class,
                 () -> decodedFirst.restoreTransportIdentities(
@@ -195,10 +198,10 @@ class ModelCommitWireCodecTest {
         CommitModelsResult decodedSecond = assertInstanceOf(
                 CommitModelsResult.class, decoded.getResults().get(1));
         assertNull(decodedSecond.getCommitId());
-        assertNull(decodedSecond.getSubsteps().getFirst().getTargets().getFirst().getModelId());
+        assertNull(decodedSecond.getUpdates().getFirst().getTargets().getFirst().getModelId());
         assertEquals(
-                second.getSubsteps().getFirst().getStateIndex(),
-                decodedSecond.getSubsteps().getFirst().getStateIndex());
+                second.getUpdates().getFirst().getStateIndex(),
+                decodedSecond.getUpdates().getFirst().getStateIndex());
     }
 
     @Test
@@ -343,7 +346,10 @@ class ModelCommitWireCodecTest {
                 requestId,
                 "commit-" + id,
                 List.of(
-                        new ModelCommitStepResult(
+                        new ModelUpdate(
+                                ModelUpdateKind.COMMIT,
+                                "commit-" + id,
+                                0,
                                 stateIndex,
                                 eventIndex,
                                 List.of(

@@ -74,8 +74,8 @@ class ModelCommitAssignmentTest {
         assertEquals(101L, heads.getLast().firstIncompleteStateIndex());
         assertEquals("documents", heads.getLast().documentCollection());
         assertFalse(heads.getLast().historyComplete());
-        assertEquals(42L, result.result().getSubsteps().getFirst().getEventIndex());
-        assertFalse(result.result().getSubsteps().getLast().getTargets().getFirst()
+        assertEquals(42L, result.result().getUpdates().getFirst().getEventIndex());
+        assertFalse(result.result().getUpdates().getLast().getTargets().getFirst()
                             .isHistoryComplete());
     }
 

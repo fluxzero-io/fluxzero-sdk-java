@@ -17,6 +17,7 @@
 package io.fluxzero.common.api.modeling;
 
 import lombok.Value;
+import lombok.experimental.NonFinal;
 
 import java.util.List;
 
@@ -37,6 +38,7 @@ public class ModelUpdate {
     /**
      * Durable model commit identity.
      */
+    @NonFinal
     String commitId;
 
     /**
@@ -58,4 +60,12 @@ public class ModelUpdate {
      * Resulting positions of every model targeted by the substep. Empty for {@link ModelUpdateKind#HARD_DELETE}.
      */
     List<ModelCommitTargetResult> targets;
+
+    void restoreTransportIdentity(String commitId) {
+        if (this.commitId != null && !this.commitId.equals(commitId)) {
+            throw new IllegalStateException(
+                    "Cannot replace model update identity %s with %s".formatted(this.commitId, commitId));
+        }
+        this.commitId = commitId;
+    }
 }

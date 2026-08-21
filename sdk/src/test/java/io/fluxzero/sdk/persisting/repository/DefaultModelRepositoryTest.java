@@ -1774,7 +1774,7 @@ class DefaultModelRepositoryTest {
                     .commitModels(commit).join();
         }
         assertTrue(result.isAccepted());
-        return result.getSubsteps().getLast()
+        return result.getUpdates().getLast()
                 .getStateIndex();
     }
 
@@ -1809,7 +1809,7 @@ class DefaultModelRepositoryTest {
                     .commitModels(commit).join();
         }
         assertTrue(result.isAccepted());
-        return result.getSubsteps().getLast()
+        return result.getUpdates().getLast()
                 .getStateIndex();
     }
 
