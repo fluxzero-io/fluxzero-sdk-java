@@ -574,17 +574,15 @@ final class ModelReplayCursor {
             boundary = ModelReadBoundary.at(ancestorStateIndex);
         }
 
-        List<MutationPlan.ResolvedModel> eventTargets = new ArrayList<>();
+        List<MutationPlan.ResolvedModel> replayTargets = new ArrayList<>();
         List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
         for (MutationPlan.ResolvedModel target : resolution.models()) {
-            EntityMetadata.RootConfiguration configuration = EntityMetadata.validate(target.modelType())
-                    .rootConfiguration().orElseThrow();
-            (configuration.eventSourced() || historicalBoundary ? eventTargets : documentTargets).add(target);
+            (requiresReplay(target, historicalBoundary) ? replayTargets : documentTargets).add(target);
         }
 
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
         long stateIndex;
-        if (eventTargets.isEmpty()) {
+        if (replayTargets.isEmpty()) {
             CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
                     ? currentProjection(documentTargets, cacheTracker)
                     : null;
@@ -601,10 +599,10 @@ final class ModelReplayCursor {
                     : ancestorStateIndex;
         } else {
             CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
-                    ? currentProjection(eventTargets, cacheTracker)
+                    ? currentProjection(replayTargets, cacheTracker)
                     : null;
             if (current == null) {
-                ReconstructionBatch batch = session().reconstruct(eventTargets, boundary);
+                ReconstructionBatch batch = session().reconstruct(replayTargets, boundary);
                 stateIndex = batch.stateIndex();
                 loaded.putAll(batch.entities());
             } else {
@@ -660,7 +658,7 @@ final class ModelReplayCursor {
                 modelCache.put(resolvedId, entity);
             }
         }
-        if (!requireBoundary && eventTargets.isEmpty()
+        if (!requireBoundary && replayTargets.isEmpty()
             && ancestorStateIndex == null && documentCacheBoundary != null) {
             stateIndex = documentCacheBoundary;
         }
@@ -716,19 +714,18 @@ final class ModelReplayCursor {
     ModelCacheTracker.RefreshedBatch refresh(
             Map<String, Class<?>> targets,
             long safeStateIndex) {
-        List<MutationPlan.ResolvedModel> eventTargets = new ArrayList<>();
+        List<MutationPlan.ResolvedModel> replayTargets = new ArrayList<>();
         List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
         targets.forEach((modelId, modelType) -> {
             EntityMetadata metadata = EntityMetadata.validate(modelType);
             MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                     modelId, modelType, MutationPlan.Access.READ_ONLY,
                     List.of(metadata.entityId().orElseThrow().name()));
-            (metadata.rootConfiguration().orElseThrow().eventSourced()
-                    ? eventTargets : documentTargets).add(target);
+            (metadata.rootConfiguration().orElseThrow().eventSourced() ? replayTargets : documentTargets).add(target);
         });
-        if (!eventTargets.isEmpty()) {
+        if (!replayTargets.isEmpty()) {
             long reconstructedStateIndex = session().reconstruct(
-                    eventTargets, ModelReadBoundary.CURRENT).stateIndex();
+                    replayTargets, ModelReadBoundary.CURRENT).stateIndex();
             if (reconstructedStateIndex < safeStateIndex) {
                 throw new EventSourcingException(
                         "Model reconstruction stopped at state index %d before safe cache boundary %d"
@@ -775,8 +772,7 @@ final class ModelReplayCursor {
             Graph.Options options,
             ModelReadBoundary boundary,
             String namespace,
-            Map<String, Entity<?>> staged,
-            boolean historical) {
+            Map<String, Entity<?>> staged) {
         Objects.requireNonNull(rootId, "rootId");
         Objects.requireNonNull(rootType, "rootType");
         Objects.requireNonNull(options, "options");
@@ -800,8 +796,8 @@ final class ModelReplayCursor {
                     List.of(EntityMetadata.validate(modelType).entityId().orElseThrow().name())));
             heads.put(stream.getModelId(), stream.getHead());
         }
-        LinkedHashMap<String, Entity<?>> models = reconstructProjection(
-                targets, heads, stateIndex, !boundary.historical());
+        boolean historicalBoundary = boundary.historical();
+        LinkedHashMap<String, Entity<?>> models = reconstructProjection(targets, heads, stateIndex, historicalBoundary);
         Entity<?> stagedRoot = staged.get(rootId);
         if (stagedRoot instanceof io.fluxzero.sdk.modeling.PersistedRoot<?> persisted
             && persisted.sequenceNumber() < 0L && !models.containsKey(rootId)) {
@@ -814,28 +810,27 @@ final class ModelReplayCursor {
         }
         ModelReadBoundary resolvedBoundary = boundary.resolved(stateIndex);
         return Graphs.compose(
-                rootId, stateIndex, models, response.getEdges(), repository, historical,
+                rootId, stateIndex, models, response.getEdges(), repository, historicalBoundary,
                 resolvedBoundary,
                 namespace, rootType, options, staged,
                 candidate -> graph(
                         candidate.id().toString(), (Class) candidate.type(), Graph.Options.DEFAULT,
-                        resolvedBoundary, namespace, Map.of(), true));
+                        resolvedBoundary, namespace, Map.of()));
     }
 
     private LinkedHashMap<String, Entity<?>> reconstructProjection(
             List<MutationPlan.ResolvedModel> targets,
             Map<String, ModelHeadState> heads,
             long stateIndex,
-            boolean cacheAtBoundary) {
-        List<MutationPlan.ResolvedModel> eventTargets = new ArrayList<>();
+            boolean historicalBoundary) {
+        List<MutationPlan.ResolvedModel> replayTargets = new ArrayList<>();
         List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
-        targets.forEach(target -> (EntityMetadata.validate(target.modelType())
-                .rootConfiguration().orElseThrow().eventSourced()
-                ? eventTargets : documentTargets).add(target));
+        targets.forEach(target -> (requiresReplay(target, historicalBoundary)
+                ? replayTargets : documentTargets).add(target));
         LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-        if (!eventTargets.isEmpty()) {
+        if (!replayTargets.isEmpty()) {
             ReconstructionBatch reconstructed = session().reconstruct(
-                    eventTargets, ModelReadBoundary.at(stateIndex), cacheAtBoundary);
+                    replayTargets, ModelReadBoundary.at(stateIndex), !historicalBoundary);
             if (reconstructed.stateIndex() != stateIndex) {
                 throw new EventSourcingException(
                         "Model graph moved from state index %d to %d during reconstruction"
@@ -869,6 +864,11 @@ final class ModelReplayCursor {
             }
         }
         return result;
+    }
+
+    private static boolean requiresReplay(MutationPlan.ResolvedModel target, boolean historicalBoundary) {
+        return historicalBoundary || EntityMetadata.validate(target.modelType()).rootConfiguration()
+                .orElseThrow().eventSourced();
     }
 
     private Class<?> graphModelType(

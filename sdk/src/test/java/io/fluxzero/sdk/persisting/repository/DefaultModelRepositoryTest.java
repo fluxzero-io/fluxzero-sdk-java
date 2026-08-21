@@ -616,6 +616,31 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void selectsHistoryForHistoricalDocumentGraphAndProjectionForCurrentGraph() {
+        DocumentInventoryId inventoryId =
+                new DocumentInventoryId("historical-graph");
+        try (Fluxzero fluxzero = configuredFluxzero()) {
+            fluxzero.commandGateway().send(
+                    new CreateDocumentInventory(
+                            inventoryId, 5)).join();
+            Graph<DocumentInventory> original =
+                    fluxzero.modelRepository().loadGraph(inventoryId);
+
+            fluxzero.commandGateway().send(
+                    new ChangeDocumentInventoryWithoutHistory(
+                            inventoryId, 95)).join();
+
+            assertEquals(
+                    new DocumentInventory(inventoryId, 5),
+                    fluxzero.modelRepository().loadGraphAt(
+                            inventoryId, original.stateIndex()).get());
+            assertEquals(
+                    new DocumentInventory(inventoryId, 100),
+                    fluxzero.modelRepository().loadGraph(inventoryId).get());
+        }
+    }
+
+    @Test
     void rejectsEventSourcedDependencyOnIncompleteDocumentModelHistory() {
         DocumentInventoryId inventoryId =
                 new DocumentInventoryId("gap");

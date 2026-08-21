@@ -454,7 +454,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 handlerBoundary();
         return reconstructGraph(
                 rootId, rootType, options, boundary(handlerBoundary),
-                handlerBoundary, true, false);
+                handlerBoundary, true);
     }
 
     @Override
@@ -465,7 +465,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Graph.Options options) {
         return reconstructGraph(
                 rootId, rootType, options, boundary, null,
-                boundary.includeMessageBatch(), boundary.historical());
+                boundary.includeMessageBatch());
     }
 
     @Override
@@ -574,8 +574,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Graph.Options options,
             ModelReadBoundary boundary,
             PinnedBoundary handlerBoundary,
-            boolean includeMessageBatch,
-            boolean historical) {
+            boolean includeMessageBatch) {
         EntityMetadata.validate(rootType);
         Map<String, Entity<?>> staged =
                 includeMessageBatch
@@ -584,7 +583,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         : Map.of();
         Graph<T> result = replayCursor.graph(
                 rootId, rootType, options, boundary,
-                messageBatchNamespace(), staged, historical);
+                messageBatchNamespace(), staged);
         pin(handlerBoundary, result.stateIndex());
         return result;
     }
