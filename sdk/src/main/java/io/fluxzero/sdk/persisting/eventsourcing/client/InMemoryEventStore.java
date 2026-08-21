@@ -31,14 +31,12 @@ import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
-import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelCommitValidator;
 import io.fluxzero.common.api.modeling.ModelChangeTarget;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
-import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
@@ -63,6 +61,7 @@ import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
+import io.fluxzero.common.modeling.ModelCommitConflicts;
 import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.tracking.IndexUtils;
@@ -260,9 +259,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         "Model readStateIndex %d is newer than visible stateIndex %d"
                                 .formatted(commit.getReadStateIndex(), modelStateIndex));
             }
-            ModelConflictPolicy conflictPolicy = ModelConflictPolicy.resolve(commit.getConflictPolicy());
-            CommitModelsResult conflict = conflict(
-                    commit, conflictPolicy);
+            CommitModelsResult conflict = ModelCommitConflicts.result(
+                    commit,
+                    ModelCommitConflicts.detect(
+                            commit, modelHeads,
+                            ModelStreamHead::sequenceNumber,
+                            ModelStreamHead::stateIndex,
+                            modelRelationStateIndices),
+                    modelStateIndex);
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
             }
@@ -1239,58 +1243,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 failure);
             }
         });
-    }
-
-    private CommitModelsResult conflict(
-            CommitModels commit, ModelConflictPolicy conflictPolicy) {
-        LinkedHashMap<String, ModelCommitConflict> conflicts = new LinkedHashMap<>();
-        for (String modelId : commit.getReadModelIds()) {
-            ModelStreamHead head = modelHeads.get(modelId);
-            long currentStateIndex = head == null ? -1L : head.stateIndex();
-            if (currentStateIndex > commit.getReadStateIndex()) {
-                conflicts.put(modelId, new ModelCommitConflict(
-                        modelId, currentStateIndex,
-                        modelRelationStateIndices.getOrDefault(modelId, -1L)));
-            }
-        }
-        for (ModelCommitStep substep : commit.getSubsteps()) {
-            for (ModelCommitTarget target : substep.getTargets()) {
-                Long expectedSequence =
-                        target.getExpectedSequenceNumber();
-                if (expectedSequence == null) {
-                    continue;
-                }
-                ModelStreamHead head =
-                        modelHeads.get(target.getModelId());
-                long currentSequence = head == null
-                        ? -1L : head.sequenceNumber();
-                if (expectedSequence != currentSequence) {
-                    long currentStateIndex = head == null
-                            ? -1L : head.stateIndex();
-                    conflicts.putIfAbsent(
-                            target.getModelId(),
-                            new ModelCommitConflict(
-                                    target.getModelId(),
-                                    currentStateIndex,
-                                    modelRelationStateIndices.getOrDefault(
-                                            target.getModelId(), -1L)));
-                }
-            }
-        }
-        if (conflicts.isEmpty()) {
-            return null;
-        }
-        if (conflictPolicy
-            == ModelConflictPolicy.ACCEPT) {
-            return CommitModelsResult.rebase(
-                    commit.getRequestId(),
-                    commit.getCommitId(),
-                    List.copyOf(conflicts.values()),
-                    modelStateIndex);
-        }
-        return CommitModelsResult.conflict(
-                commit.getRequestId(), commit.getCommitId(), List.copyOf(conflicts.values()),
-                conflictPolicy == ModelConflictPolicy.RETRY);
     }
 
     private void validateCommitState(CommitModels commit) {
