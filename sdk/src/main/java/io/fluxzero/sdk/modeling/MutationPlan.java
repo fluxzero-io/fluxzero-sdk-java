@@ -412,8 +412,11 @@ public final class MutationPlan {
             return !parameters.isEmpty();
         }
 
-        Optional<Resolution> resolve(DeserializingMessage message) {
-            return resolveDependencies(message, executable, parameters.values());
+        Optional<Resolution> resolve(
+                DeserializingMessage message,
+                Function<EntityMetadata.ModelParameter, DirectReferences> references) {
+            return resolveDependencies(
+                    message, executable, parameters.values(), references);
         }
     }
 
@@ -752,29 +755,30 @@ public final class MutationPlan {
     static Optional<Resolution> resolveDependencies(
             DeserializingMessage message,
             Executable executable,
-            Collection<EntityMetadata.ModelParameter> parameters) {
+            Collection<EntityMetadata.ModelParameter> parameters,
+            Function<EntityMetadata.ModelParameter, DirectReferences> references) {
         Map<String, ResolvedModel> targets = new LinkedHashMap<>();
         Set<AncestorDependency> ancestors = new LinkedHashSet<>();
         boolean emptyCollection = false;
         for (EntityMetadata.ModelParameter parameter : parameters) {
-            DirectReferences references = directReferences(message, parameter);
+            DirectReferences direct = references.apply(parameter);
             if (parameter.collectionWrapped()) {
-                if (references.present()) {
-                    emptyCollection |= references.modelIds().isEmpty();
-                    references.modelIds().forEach(id -> merge(targets, new ResolvedModel(
+                if (direct.present()) {
+                    emptyCollection |= direct.modelIds().isEmpty();
+                    direct.modelIds().forEach(id -> merge(targets, new ResolvedModel(
                             id, parameter.modelType(), Access.READ_ONLY,
                             List.of(parameter.associationProperty()))));
                 }
             } else {
-                if (!references.present()) {
+                if (!direct.present()) {
                     ancestors.add(new AncestorDependency(
                             parameter.modelType(), parameter.associationProperty(), executable.toGenericString()));
-                } else if (references.modelId() != null) {
+                } else if (direct.modelId() != null) {
                     String source = parameter.associationProperty() == null
                             ? EntityMetadata.of(parameter.modelType()).entityIdName()
                             : parameter.associationProperty();
                     merge(targets, new ResolvedModel(
-                            references.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
+                            direct.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
                 }
             }
         }

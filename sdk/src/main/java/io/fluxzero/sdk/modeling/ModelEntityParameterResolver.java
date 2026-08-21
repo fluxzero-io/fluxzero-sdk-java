@@ -580,7 +580,7 @@ public class ModelEntityParameterResolver
             return false;
         }
         MutationPlan.DirectReferences reference =
-                directReference(message, parameter);
+                directReferences(message, parameter);
         return reference.present() && reference.modelId() == null;
     }
 
@@ -592,14 +592,8 @@ public class ModelEntityParameterResolver
         if (message == null) {
             return new MutationPlan.DirectReferences(false, null, List.of());
         }
-        return cache(message).collectionReferences.computeIfAbsent(
-                parameter, ignored -> computeDirectReferences(message, parameter));
-    }
-
-    private static MutationPlan.DirectReferences computeDirectReferences(
-            DeserializingMessage message,
-            EntityMetadata.ModelParameter parameter) {
-        return MutationPlan.directReferences(message, parameter);
+        return cache(message).references.computeIfAbsent(
+                parameter, ignored -> MutationPlan.directReferences(message, parameter));
     }
 
     private static Optional<CommitAttempt>
@@ -633,7 +627,10 @@ public class ModelEntityParameterResolver
         return cache(message).plans
                 .computeIfAbsent(
                         plan.executable(),
-                        ignored -> plan.resolve(message).map(ResolvedHandlerPlan::new));
+                        ignored -> plan.resolve(
+                                message,
+                                parameter -> directReferences(message, parameter))
+                                .map(ResolvedHandlerPlan::new));
     }
 
     private static boolean supportsBoundary(
@@ -664,12 +661,6 @@ public class ModelEntityParameterResolver
         return Fluxzero.get().modelRepository()
                 .forNamespace(
                         getConsumerNamespace(message));
-    }
-
-    private static MutationPlan.DirectReferences directReference(
-            DeserializingMessage message,
-            EntityMetadata.ModelParameter parameter) {
-        return MutationPlan.directReferences(message, parameter);
     }
 
     private static final class ResolvedHandlerPlan {
@@ -703,7 +694,7 @@ public class ModelEntityParameterResolver
                 Optional<ResolvedHandlerPlan>> plans =
                 new ConcurrentHashMap<>();
         private final Map<EntityMetadata.ModelParameter,
-                MutationPlan.DirectReferences> collectionReferences =
+                MutationPlan.DirectReferences> references =
                 new ConcurrentHashMap<>();
     }
 }
