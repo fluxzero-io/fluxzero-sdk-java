@@ -719,7 +719,7 @@ class ModelCommitEngineTest {
         CommitAttempt begin = context(command, handlers, order);
 
         ModelReducer.assertLegal(
-                CommitAttempt.detached(),
+                new CommitAttempt(),
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
                         new ModelReducer.ResolvedSubstep(
@@ -745,7 +745,7 @@ class ModelCommitEngineTest {
         CommitAttempt begin = context(command, handlers, order);
 
         ModelReducer.assertLegal(
-                CommitAttempt.detached(),
+                new CommitAttempt(),
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
                         new ModelReducer.ResolvedSubstep(
@@ -832,13 +832,13 @@ class ModelCommitEngineTest {
     private CommitAttempt evaluate(
             DeserializingMessage message,
             ModelReducer.SubstepResolver resolver) {
-        return ModelReducer.apply(CommitAttempt.detached(), List.of(message), resolver);
+        return ModelReducer.apply(new CommitAttempt(), List.of(message), resolver);
     }
 
     private CommitAttempt reapply(
             List<DeserializingMessage> messages,
             ModelReducer.SubstepResolver resolver) {
-        return ModelReducer.reapply(CommitAttempt.detached(), messages, resolver);
+        return ModelReducer.reapply(new CommitAttempt(), messages, resolver);
     }
 
     private ModelReducer.ResolvedSubstep resolveSubstep(

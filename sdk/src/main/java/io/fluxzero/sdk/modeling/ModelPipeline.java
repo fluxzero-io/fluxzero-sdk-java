@@ -243,52 +243,57 @@ final class ModelPipeline {
     private CompletableFuture<Object> execute(
             ExecutionRequest request,
             ModelCommitPolicy policy) {
-        CommitAttempt attempt = ModelBatchScope.register(
+        ModelBatchScope.CommitCoordination entry = ModelBatchScope.register(
                 this, request.message(), policy, batchLifecycle);
+        CommitAttempt attempt = entry.attempt();
         ThreadLocalContext.Snapshot context = request.message().captureContext();
         boolean asynchronousReevaluation = !localHandlingEnabled.getAsBoolean();
         CommitAttempt initial;
         try {
             initial = context.supply(() -> ModelBatchScope.withDependency(
-                    attempt, () -> evaluate(request, attempt, false)));
+                    entry, () -> evaluate(request, attempt, false, entry.batched())));
             if (initial != attempt) {
                 throw new IllegalStateException("Model evaluation replaced its commit attempt");
             }
             warnEmptyExplicitApply(request, initial);
-            ModelBatchScope.stage(
-                    ModelBatchScope.namespace(request.message()), initial, true);
-            attempt.flow().initialize(initial.readModelIds());
+            ModelBatchScope.stage(ModelBatchScope.namespace(request.message()), entry);
+            entry.initialize(initial.readModelIds());
         } catch (Throwable failure) {
-            attempt.fail(failure);
+            entry.fail(failure);
             return attempt.completion();
         }
         try {
-            attempt.submit(dependent -> {
+            entry.submit(dependent -> {
                 CompletableFuture<CommitAttempt> ready = dependent
-                        ? attempt.flow().afterDependencies(
+                        ? entry.afterDependencies(
                                 () -> context.supply(() -> ModelBatchScope.withDependency(
-                                        attempt, () -> evaluate(request, attempt, true))),
-                                attempt.flow().batched && asynchronousReevaluation)
+                                        entry, () -> evaluate(
+                                                request, attempt, true, entry.batched()))),
+                                entry.batched() && asynchronousReevaluation)
                         : CompletableFuture.completedFuture(initial);
                 return ready.thenCompose(context.wrap(evaluation -> {
                     if (request.mode().skipEmpty && evaluation.transitions().isEmpty()) {
                         return CompletableFuture.completedFuture(null);
                     }
                     ModelCommitBatchingClient.ModelCommitBatch batch =
-                            attempt.flow().transport;
+                            entry.transport;
                     return executeEvaluation(
                             request.message(), evaluation,
                             batch == null ? request.transport() : batch,
-                            batch == null ? request.transportSlot() : attempt.flow().slot);
+                            batch == null ? request.transportSlot() : entry.slot);
                 }));
             });
         } catch (Throwable failure) {
-            attempt.fail(failure);
+            entry.fail(failure);
         }
         return attempt.completion();
     }
 
-    private CommitAttempt evaluate(ExecutionRequest request, CommitAttempt attempt, boolean retry) {
+    private CommitAttempt evaluate(
+            ExecutionRequest request,
+            CommitAttempt attempt,
+            boolean retry,
+            boolean batched) {
         return switch (request.mode()) {
             case ASSERT -> ModelReducer.assertLegal(
                     attempt, request.message(), new CommitLoader(null));
@@ -296,7 +301,7 @@ final class ModelPipeline {
                     attempt, List.of(request.message()), new CommitLoader(null, true));
             case LIVE, AUTOMATIC -> {
                 boolean direct = request.mode() == Mode.AUTOMATIC
-                        ? !retry || attempt.flow().batched
+                        ? !retry || batched
                         : DeserializingMessage.getMessageBatchIndex() < 0;
                 yield direct ? evaluate(attempt, request.message())
                         : evaluate(attempt, request.message(), null);
@@ -678,7 +683,7 @@ final class ModelPipeline {
                             message,
                             () -> expandCascadeDeletes(
                                     ModelReducer.apply(
-                                            CommitAttempt.detached(),
+                                            new CommitAttempt(),
                                             List.of(message),
                                             new CommitLoader(retryStateIndex)))));
         } catch (Throwable failure) {
@@ -730,7 +735,7 @@ final class ModelPipeline {
         return ModelBatchScope.withMessageDependency(
                 messages.getFirst(),
                 () -> expandCascadeDeletes(ModelReducer.reapply(
-                        CommitAttempt.detached(),
+                        new CommitAttempt(),
                         messages.stream()
                                 .filter(message -> !(message.getPayload()
                                         instanceof CascadedModelDeletion))
@@ -1092,7 +1097,7 @@ final class ModelPipeline {
                     resolution, boundary, effectiveStagedValues, false);
             Map<String, Object> loadedBatchValues =
                     ModelBatchScope.currentValues(
-                            namespace, loaded);
+                            namespace, loaded.modelIds());
             if (!loadedBatchValues.isEmpty()) {
                 loaded = loaded.withValues(loadedBatchValues);
             }

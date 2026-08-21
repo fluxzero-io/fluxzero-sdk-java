@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Internal state of one model commit attempt, from its loaded begin-state through ordered changes and completion.
@@ -48,22 +48,10 @@ public final class CommitAttempt {
     private List<Step> steps = List.of();
     private List<Change> changes = List.of();
     private Set<String> cascadeRootIds = Set.of();
-    private volatile ModelBatchScope.Flow flow;
     private volatile CompletableFuture<Object> completion;
     private boolean submitted;
 
     CommitAttempt() {
-        flow = ModelBatchScope.Flow.direct();
-    }
-
-    static CommitAttempt detached() {
-        return new CommitAttempt(false);
-    }
-
-    private CommitAttempt(boolean flow) {
-        if (flow) {
-            this.flow = ModelBatchScope.Flow.direct();
-        }
     }
 
     static CommitAttempt fromSteps(
@@ -71,7 +59,7 @@ public final class CommitAttempt {
             Collection<String> readModelIds,
             Map<String, Class<?>> readModelTypes,
             List<Step> steps) {
-        CommitAttempt result = new CommitAttempt(false);
+        CommitAttempt result = new CommitAttempt();
         result.evaluated(
                 readStateIndex, readModelIds, readModelTypes,
                 steps);
@@ -103,7 +91,7 @@ public final class CommitAttempt {
                 throw missing(target, readStateIndex);
             }
             validateLoadedEntity(target, entity);
-            CommitAttempt result = new CommitAttempt(false);
+            CommitAttempt result = new CommitAttempt();
             result.readStateIndex = readStateIndex;
             result.targets = resolution.models();
             result.deferredWrites = resolution.deferredWrites();
@@ -127,7 +115,7 @@ public final class CommitAttempt {
                     "Commit load returned unrelated model IDs %s; only resolved commit targets may enter the context"
                             .formatted(remaining.keySet()));
         }
-        CommitAttempt result = new CommitAttempt(false);
+        CommitAttempt result = new CommitAttempt();
         result.readStateIndex = readStateIndex;
         result.targets = resolution.models();
         result.deferredWrites = resolution.deferredWrites();
@@ -154,7 +142,7 @@ public final class CommitAttempt {
         MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
                 modelId, modelType, access, sourceProperties);
         validateLoadedEntity(target, entity);
-        CommitAttempt result = new CommitAttempt(false);
+        CommitAttempt result = new CommitAttempt();
         result.readStateIndex = readStateIndex;
         result.targets = List.of(target);
         result.entities = Map.of(modelId, entity);
@@ -294,7 +282,7 @@ public final class CommitAttempt {
                             .idProperty(EntityMetadata.of(target.modelType()).entityIdName()).build();
             updated.put(modelId, entity);
         });
-        CommitAttempt result = new CommitAttempt(false);
+        CommitAttempt result = new CommitAttempt();
         result.readStateIndex = readStateIndex;
         result.targets = targets;
         result.deferredWrites = deferredWrites;
@@ -397,23 +385,6 @@ public final class CommitAttempt {
         return result;
     }
 
-    ModelBatchScope.Flow flow() {
-        ModelBatchScope.Flow result = flow;
-        if (result == null) {
-            synchronized (this) {
-                result = flow;
-                if (result == null) {
-                    flow = result = ModelBatchScope.Flow.direct();
-                }
-            }
-        }
-        return result;
-    }
-
-    void flow(ModelBatchScope.Flow flow) {
-        this.flow = Objects.requireNonNull(flow, "flow");
-    }
-
     CompletableFuture<Object> completion() {
         CompletableFuture<Object> result = completion;
         if (result == null) {
@@ -427,14 +398,14 @@ public final class CommitAttempt {
         return result;
     }
 
-    void submit(Function<Boolean, CompletableFuture<Object>> action) {
+    void submit(Supplier<CompletableFuture<Object>> execution) {
         synchronized (this) {
             if (submitted) {
                 throw new IllegalStateException("Model commit attempt was awaited twice");
             }
             submitted = true;
         }
-        flow().execute(action).whenComplete((value, failure) -> {
+        Objects.requireNonNull(execution.get(), "execution").whenComplete((value, failure) -> {
             if (failure == null) {
                 completion().complete(value);
             } else {
@@ -445,7 +416,6 @@ public final class CommitAttempt {
 
     void fail(Throwable failure) {
         completion().completeExceptionally(failure);
-        flow().fail(failure);
     }
 
     private static IllegalStateException ambiguous(

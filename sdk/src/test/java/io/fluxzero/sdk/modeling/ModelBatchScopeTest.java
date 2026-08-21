@@ -345,7 +345,8 @@ class ModelBatchScopeTest {
     private static CompletableFuture<Object> stagePending(
             String namespace,
             CommitAttempt evaluation) {
-        return ModelBatchScope.stagePending(namespace, evaluation);
+        ModelBatchScope.stage(namespace, ModelBatchScope.CommitCoordination.direct(evaluation));
+        return evaluation.completion();
     }
 
     private static CommitAttempt evaluation(
