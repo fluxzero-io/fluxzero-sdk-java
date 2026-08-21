@@ -46,6 +46,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -54,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getGenericPropertyType;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
@@ -77,6 +79,7 @@ public final class EntityMetadata {
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
+    private volatile Boolean selfReferentialMember;
 
     /**
      * Returns the centrally cached entity metadata for a Java type.
@@ -471,6 +474,17 @@ public final class EntityMetadata {
         return handlerMethods;
     }
 
+    boolean hasSelfReferentialMember() {
+        Boolean result = selfReferentialMember;
+        if (result == null) {
+            result = ReflectionUtils.getTypeMetadata(type).annotatedProperties(Member.class).stream()
+                    .anyMatch(location -> type.equals(ReflectionUtils.getCollectionElementType(location)
+                            .orElse(ReflectionUtils.getPropertyType(location))));
+            selfReferentialMember = result;
+        }
+        return result;
+    }
+
     /**
      * Inspects one arbitrary handler parameter for a model value or {@code Entity<Model>} dependency.
      * <p>
@@ -506,6 +520,12 @@ public final class EntityMetadata {
                 associationProperty,
                 association != null
                 && association.excludeMetadata()));
+    }
+
+    static ExecutableParameters modelParameters(Executable executable) {
+        return ReflectionUtils.getTypeMetadata(executable.getDeclaringClass())
+                .specializedMetadata(ExecutableParameterCache.class, ExecutableParameterCache::new)
+                .get(executable);
     }
 
     public List<HandlerMethod> applyMethods() {
@@ -710,7 +730,7 @@ public final class EntityMetadata {
 
     private void addHandlers(List<HandlerMethod> result, List<Executable> methods, HandlerKind kind) {
         for (Executable executable : methods) {
-            List<ModelParameter> parameters = inspectModelParameters(executable);
+            List<ModelParameter> parameters = List.copyOf(modelParameters(executable).values());
             ApplyResult applyResult = kind == HandlerKind.APPLY
                     ? inspectApplyResult(executable) : ApplyResult.NONE;
             List<Class<?>> emittedPayloadTypes =
@@ -825,12 +845,36 @@ public final class EntityMetadata {
         }
     }
 
-    private static List<ModelParameter> inspectModelParameters(Executable executable) {
-        List<ModelParameter> result = new ArrayList<>();
-        for (Parameter parameter : executable.getParameters()) {
-            inspectModelParameter(parameter).ifPresent(result::add);
+    record ExecutableParameters(
+            Executable executable,
+            Map<Parameter, ModelParameter> parameters) {
+        private static ExecutableParameters inspect(Executable executable) {
+            LinkedHashMap<Parameter, ModelParameter> parameters = new LinkedHashMap<>();
+            for (Parameter parameter : executable.getParameters()) {
+                inspectModelParameter(parameter).ifPresent(value -> parameters.put(parameter, value));
+            }
+            return new ExecutableParameters(executable, Collections.unmodifiableMap(parameters));
         }
-        return List.copyOf(result);
+
+        Collection<ModelParameter> values() {
+            return parameters.values();
+        }
+
+        boolean hasModels() {
+            return !parameters.isEmpty();
+        }
+    }
+
+    private static final class ExecutableParameterCache {
+        private final Map<Executable, ExecutableParameters> values = new ConcurrentHashMap<>();
+
+        @SuppressWarnings("unused")
+        private ExecutableParameterCache(Class<?> ignored) {
+        }
+
+        private ExecutableParameters get(Executable executable) {
+            return values.computeIfAbsent(executable, ExecutableParameters::inspect);
+        }
     }
 
     private static void validateParameterAmbiguity(Executable executable, List<ModelParameter> parameters) {

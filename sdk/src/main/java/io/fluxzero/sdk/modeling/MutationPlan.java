@@ -29,7 +29,6 @@ import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Parameter;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -380,54 +379,19 @@ public final class MutationPlan {
                 .map(AssertLegal::afterHandler).orElse(false);
     }
 
-    static ParameterPlan parameterPlan(Executable executable) {
-        return ReflectionUtils.getTypeMetadata(executable.getDeclaringClass())
-                .specializedMetadata(ParameterPlans.class, ParameterPlans::new)
-                .get(executable);
-    }
-
-    record ParameterPlan(
-            Executable executable,
-            Map<Parameter, EntityMetadata.ModelParameter> parameters) {
-        private static ParameterPlan inspect(Executable executable) {
-            LinkedHashMap<Parameter, EntityMetadata.ModelParameter> parameters = new LinkedHashMap<>();
-            for (Parameter parameter : executable.getParameters()) {
-                EntityMetadata.inspectModelParameter(parameter)
-                        .ifPresent(modelParameter -> parameters.put(parameter, modelParameter));
-            }
-            return new ParameterPlan(executable, Collections.unmodifiableMap(parameters));
-        }
-
-        boolean hasModels() {
-            return !parameters.isEmpty();
-        }
-
-        BoundParameters bind(DeserializingMessage message) {
-            LinkedHashMap<EntityMetadata.ModelParameter, DirectReferences> references =
-                    new LinkedHashMap<>();
-            parameters.values().forEach(parameter -> references.put(
-                    parameter, directReferences(message, parameter)));
-            return new BoundParameters(
-                    resolveDependencies(message, executable, parameters.values(), references::get),
-                    Collections.unmodifiableMap(references));
-        }
+    static BoundParameters bind(
+            DeserializingMessage message,
+            EntityMetadata.ExecutableParameters plan) {
+        LinkedHashMap<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
+        plan.values().forEach(parameter -> references.put(parameter, directReferences(message, parameter)));
+        return new BoundParameters(
+                resolveDependencies(message, plan.executable(), plan.values(), references::get),
+                Collections.unmodifiableMap(references));
     }
 
     record BoundParameters(
             Optional<Resolution> resolution,
             Map<EntityMetadata.ModelParameter, DirectReferences> references) {
-    }
-
-    private static final class ParameterPlans {
-        private final Map<Executable, ParameterPlan> plans = new ConcurrentHashMap<>();
-
-        @SuppressWarnings("unused")
-        private ParameterPlans(Class<?> ignored) {
-        }
-
-        private ParameterPlan get(Executable executable) {
-            return plans.computeIfAbsent(executable, ParameterPlan::inspect);
-        }
     }
 
     /** Application-bound definitions invalidated together when model registration changes. */

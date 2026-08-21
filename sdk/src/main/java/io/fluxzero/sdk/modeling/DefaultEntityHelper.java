@@ -232,7 +232,7 @@ public class DefaultEntityHelper implements EntityHelper {
     }
 
     private static boolean hasSelfReferentialMember(Class<?> entityType) {
-        return entityType != null && Entity.selfReferentialMemberCache.get(entityType);
+        return entityType != null && EntityMetadata.of(entityType).hasSelfReferentialMember();
     }
 
     /**

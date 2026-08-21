@@ -87,7 +87,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
-        MutationPlan.ParameterPlan plan = MutationPlan.parameterPlan(method);
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(method);
         if (plan.hasModels()) {
             return ReflectionUtils.getMethodAnnotation(method, HandleMessage.class).isPresent()
                    || EntityMetadata.of(method.getDeclaringClass()).handlerMethods().stream()
@@ -115,7 +115,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
      */
     @Override
     public Function<Object, Object> resolve(Parameter parameter, Annotation methodAnnotation) {
-        MutationPlan.ParameterPlan plan = MutationPlan.parameterPlan(parameter.getDeclaringExecutable());
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(parameter.getDeclaringExecutable());
         EntityMetadata.ModelParameter model = plan.parameters().get(parameter);
         if (model != null) {
             return input -> modelArgument(parameter, model, input, plan);
@@ -134,7 +134,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
      */
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object input) {
-        MutationPlan.ParameterPlan plan = MutationPlan.parameterPlan(parameter.getDeclaringExecutable());
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(parameter.getDeclaringExecutable());
         EntityMetadata.ModelParameter model = plan.parameters().get(parameter);
         if (model != null) {
             return canResolveModel(parameter, model, input, plan);
@@ -147,7 +147,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     @Override
     public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object input) {
-        MutationPlan.ParameterPlan plan = MutationPlan.parameterPlan(parameter.getDeclaringExecutable());
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(parameter.getDeclaringExecutable());
         EntityMetadata.ModelParameter model = plan.parameters().get(parameter);
         if (model != null) {
             return canResolveModel(parameter, model, input, plan)
@@ -169,7 +169,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     private static boolean canResolveModel(
             Parameter parameter, EntityMetadata.ModelParameter model, Object input,
-            MutationPlan.ParameterPlan plan) {
+            EntityMetadata.ExecutableParameters plan) {
         if (GraphChangeHandlerDecorator.suppliesGraph(parameter)) {
             return true;
         }
@@ -200,7 +200,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     private static Object modelArgument(
             Parameter parameter, EntityMetadata.ModelParameter model, Object input,
-            MutationPlan.ParameterPlan plan) {
+            EntityMetadata.ExecutableParameters plan) {
         if (GraphChangeHandlerDecorator.suppliesGraph(parameter)) {
             return GraphChangeHandlerDecorator.suppliedGraph(parameter);
         }
@@ -241,7 +241,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     private static List<Graph<?>> modelCollection(
             Parameter parameter, EntityMetadata.ModelParameter model, Object input,
-            MutationPlan.ParameterPlan plan, MutationPlan.DirectReferences references) {
+            EntityMetadata.ExecutableParameters plan, MutationPlan.DirectReferences references) {
         if (!references.present()) {
             throw new IllegalStateException(
                     "Graph collection parameter %s in %s has no payload property '%s'".formatted(
@@ -272,7 +272,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     private static MutationPlan.DirectReferences modelReferences(
-            Object input, EntityMetadata.ModelParameter parameter, MutationPlan.ParameterPlan plan) {
+            Object input, EntityMetadata.ModelParameter parameter, EntityMetadata.ExecutableParameters plan) {
         Optional<CommitAttempt> context = modelContext(input);
         if (context.isPresent()) {
             MutationPlan.DirectReferences references = context.get().references(parameter);
@@ -298,12 +298,12 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     private static CommitAttempt modelContext(
-            DeserializingMessage message, MutationPlan.ParameterPlan plan) {
+            DeserializingMessage message, EntityMetadata.ExecutableParameters plan) {
         return resolvedModelBinding(message, plan).orElseThrow().context(message);
     }
 
     private static Optional<ModelBinding> resolvedModelBinding(
-            DeserializingMessage message, MutationPlan.ParameterPlan plan) {
+            DeserializingMessage message, EntityMetadata.ExecutableParameters plan) {
         if (!supportsModelBoundary(message)) {
             return Optional.empty();
         }
@@ -312,9 +312,9 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     private static ModelBinding modelBinding(
-            DeserializingMessage message, MutationPlan.ParameterPlan plan) {
+            DeserializingMessage message, EntityMetadata.ExecutableParameters plan) {
         return modelResolutionCache(message).bindings.computeIfAbsent(
-                plan.executable(), ignored -> new ModelBinding(plan.bind(message)));
+                plan.executable(), ignored -> new ModelBinding(MutationPlan.bind(message, plan)));
     }
 
     private static boolean supportsModelBoundary(DeserializingMessage message) {

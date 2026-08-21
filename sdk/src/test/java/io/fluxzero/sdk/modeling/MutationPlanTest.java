@@ -38,7 +38,7 @@ class MutationPlanTest {
     void parameterPlansUseTheCentralClassMetadataCache() {
         var executable = EntityMetadata.of(Transfer.class).handlerMethods().getFirst().executable();
 
-        assertSame(MutationPlan.parameterPlan(executable), MutationPlan.parameterPlan(executable));
+        assertSame(EntityMetadata.modelParameters(executable), EntityMetadata.modelParameters(executable));
     }
 
     @Test

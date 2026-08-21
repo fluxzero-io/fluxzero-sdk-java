@@ -276,7 +276,7 @@ public class ImmutableEntity<T> implements Entity<T> {
     @SuppressWarnings("unchecked")
     private Entity<T> applyAsSelfMemberAddition(T updatedValue) {
         if (updatedValue == null || get() == null || type() == null
-            || !Entity.selfReferentialMemberCache.get(type())) {
+            || !EntityMetadata.of(type()).hasSelfReferentialMember()) {
             return null;
         }
         Object updatedId = getAnnotatedPropertyValue(updatedValue, EntityId.class).orElse(null);

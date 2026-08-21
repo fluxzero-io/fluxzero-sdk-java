@@ -66,19 +66,6 @@ public interface Entity<T> {
 
     ThreadLocal<Boolean> loading = ThreadLocal.withInitial(() -> false);
     ThreadLocal<Boolean> applying = ThreadLocal.withInitial(() -> false);
-    ClassValue<Boolean> selfReferentialMemberCache = new ClassValue<>() {
-        @Override
-        protected Boolean computeValue(Class<?> entityType) {
-            for (var location : ReflectionUtils.getAnnotatedProperties(entityType, Member.class)) {
-                Class<?> childType = ReflectionUtils.getCollectionElementType(location)
-                        .orElse(ReflectionUtils.getPropertyType(location));
-                if (Objects.equals(entityType, childType)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    };
 
     /**
      * A constant key used for identifying the aggregate ID in metadata of events. The value associated with this key
@@ -949,7 +936,7 @@ public interface Entity<T> {
     }
 
     private boolean hasSelfReferentialMember(Class<?> entityType) {
-        return entityType != null && selfReferentialMemberCache.get(entityType);
+        return entityType != null && EntityMetadata.of(entityType).hasSelfReferentialMember();
     }
 
     private boolean matchesRoute(Entity<?> entity, Object routeValue) {
