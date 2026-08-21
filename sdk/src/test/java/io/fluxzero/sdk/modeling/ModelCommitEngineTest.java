@@ -521,19 +521,7 @@ class ModelCommitEngineTest {
         assertSame(command, result.steps().getFirst().message().getPayload());
         assertNull(finalValues(result).get(inventoryId.toString()));
 
-        DeserializingMessage deletionEvent =
-                result.steps().getFirst().message();
-        CommitAttempt rebased = reapply(
-                List.of(
-                        result.steps().getFirst().message(),
-                        ModelReducer.graphChangeReplay(
-                                deletionEvent,
-                                inventoryId.toString(), Inventory.class,
-                                result.steps().getLast().changes().stream()
-                                        .filter(transition -> transition.modelId()
-                                                .equals(inventoryId.toString()))
-                                        .findFirst().orElseThrow().replay())),
-                resolver);
+        CommitAttempt rebased = reapplySteps(result.steps(), resolver);
 
         assertEquals(2, rebased.steps().size());
         assertEquals(1, rebased.steps().getFirst().changes().size());
@@ -567,11 +555,8 @@ class ModelCommitEngineTest {
 
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));
-        DeserializingMessage event = result.steps().getFirst().message();
-        CommitAttempt rebased = reapply(
-                List.of(event, ModelReducer.graphChangeReplay(
-                        event, inventoryId.toString(), Inventory.class,
-                        graphTransition.replay())),
+        CommitAttempt rebased = reapplySteps(
+                result.steps(),
                 graphResolver(
                         88L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), concurrent)));
@@ -610,11 +595,8 @@ class ModelCommitEngineTest {
 
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));
-        DeserializingMessage event = result.steps().getFirst().message();
-        CommitAttempt rebased = reapply(
-                List.of(event, ModelReducer.graphChangeReplay(
-                        event, inventoryId.toString(), Inventory.class,
-                        combined.replay())),
+        CommitAttempt rebased = reapplySteps(
+                result.steps(),
                 graphResolver(
                         88L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), concurrent)));
@@ -835,10 +817,10 @@ class ModelCommitEngineTest {
         return ModelReducer.apply(new CommitAttempt(), List.of(message), resolver);
     }
 
-    private CommitAttempt reapply(
-            List<DeserializingMessage> messages,
+    private CommitAttempt reapplySteps(
+            List<CommitAttempt.Step> steps,
             ModelReducer.SubstepResolver resolver) {
-        return ModelReducer.reapply(new CommitAttempt(), messages, resolver);
+        return ModelReducer.reapplySteps(new CommitAttempt(), steps, resolver);
     }
 
     private ModelReducer.ResolvedSubstep resolveSubstep(

@@ -1750,32 +1750,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 return steps;
             }
 
-            public List<DeserializingMessage> rebaseMessages() {
-                if (steps.stream().flatMap(step -> step.changes().stream())
-                        .noneMatch(Change::graphChange)) {
-                    return steps.stream().map(CommitAttempt.Step::message).toList();
-                }
-                List<DeserializingMessage> result = new ArrayList<>(steps.size() + 1);
-                for (CommitAttempt.Step step : steps) {
-                    List<Change> changes = step.changes();
-                    if (changes.isEmpty()) {
-                        continue;
-                    }
-                    if (changes.stream().noneMatch(Change::graphChange)) {
-                        result.add(step.message());
-                        continue;
-                    }
-                    DeserializingMessage message = step.message();
-                    if (changes.stream().anyMatch(change -> !change.graphChange())) {
-                        result.add(message);
-                    }
-                    changes.stream().filter(Change::graphChange)
-                            .map(change -> change.graphReplay(message))
-                            .forEach(result::add);
-                }
-                return List.copyOf(result);
-            }
-
             public boolean hasCascadedDeletion() {
                 return steps.stream().flatMap(step -> step.changes().stream())
                         .anyMatch(Change::cascadedDeletion);

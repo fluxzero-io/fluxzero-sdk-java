@@ -386,7 +386,7 @@ final class ModelPipeline {
                 ? Retry.accepting((result, current, original) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(original.rebaseMessages(), result.getRebaseStateIndex()));
+                                rebase(original.steps(), result.getRebaseStateIndex()));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
@@ -597,14 +597,14 @@ final class ModelPipeline {
     }
 
     private CommitAttempt rebase(
-            List<DeserializingMessage> messages,
+            List<CommitAttempt.Step> steps,
             long stateIndex) {
         return ModelBatchScope.withMessageDependency(
-                messages.getFirst(),
-                () -> expandCascadeDeletes(ModelReducer.reapply(
+                steps.getFirst().message(),
+                () -> expandCascadeDeletes(ModelReducer.reapplySteps(
                         new CommitAttempt(),
-                        messages.stream()
-                                .filter(message -> !(message.getPayload()
+                        steps.stream()
+                                .filter(step -> !(step.message().getPayload()
                                         instanceof CascadedModelDeletion))
                                 .toList(),
                         new CommitLoader(stateIndex, true))));

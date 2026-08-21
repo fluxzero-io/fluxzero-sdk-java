@@ -429,6 +429,29 @@ public final class ModelReducer {
         return execute(attempt, messages, resolver, Mode.REAPPLY);
     }
 
+    static CommitAttempt reapplySteps(
+            CommitAttempt attempt,
+            List<CommitAttempt.Step> steps,
+            SubstepResolver resolver) {
+        Objects.requireNonNull(steps, "steps");
+        Deque<PendingSubstep> pending = new ArrayDeque<>(steps.size());
+        for (CommitAttempt.Step step : steps) {
+            Objects.requireNonNull(step, "step");
+            List<Change> changes = step.changes();
+            if (changes.stream().anyMatch(change -> !change.graphChange())) {
+                pending.add(new PendingSubstep(step.message(), null, false));
+            }
+            changes.stream().filter(Change::graphChange).forEach(change ->
+                    pending.add(new PendingSubstep(
+                            step.message(), change.forRebase(), false)));
+        }
+        if (pending.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "A model rebase requires at least one effective step");
+        }
+        return evaluate(attempt, pending, resolver, null, Mode.REAPPLY);
+    }
+
     /** Executes every mutation form through one ordered substep pipeline. */
     private static CommitAttempt execute(
             CommitAttempt attempt,
@@ -444,17 +467,13 @@ public final class ModelReducer {
             Objects.requireNonNull(message, "message");
             if (mode.stageGraphPayloads && message.getPayload() instanceof Graph<?> graph) {
                 enqueueOutput(message, graph, pending, false);
-            } else if (mode.rebaseGraphs && message instanceof GraphChangeMessage changeMessage) {
-                pending.add(new PendingSubstep(
-                        new GraphChangeMessage(
-                                changeMessage.change.forRebase(), changeMessage), false));
             } else {
-                pending.add(new PendingSubstep(message, mode.interception));
+                pending.add(new PendingSubstep(message, null, mode.interception));
             }
         }
         return evaluate(
                 attempt, pending, resolver,
-                mode.rebaseGraphs ? null : messages.getFirst(), mode);
+                mode == Mode.REAPPLY ? null : messages.getFirst(), mode);
     }
 
     private static CommitAttempt evaluate(
@@ -474,7 +493,7 @@ public final class ModelReducer {
                 && mode == Mode.APPLY) {
                 PendingSubstep current = pending.getFirst();
                 if (current.interceptionAllowed()
-                    && !(current.message() instanceof GraphChangeMessage)) {
+                    && current.stagedChange() == null) {
                     prepared = Objects.requireNonNull(
                             resolver.resolve(current.message(), null, Map.of()),
                             "Substep resolver returned null");
@@ -513,22 +532,20 @@ public final class ModelReducer {
                             "Model commit exceeded %d interceptor substeps".formatted(MAX_SUBSTEPS));
                 }
                 PendingSubstep current = pending.removeFirst();
-                GraphChangeMessage graphChangeMessage =
-                        current.message() instanceof GraphChangeMessage changeMessage
-                                ? changeMessage : null;
+                Change graphChange = current.stagedChange();
                 ResolvedSubstep resolved = prepared == null
                         ? Objects.requireNonNull(
-                        graphChangeMessage == null
+                        graphChange == null
                                 ? resolver.resolve(
                                         current.message(),
                                         stateIndexPinned ? readStateIndex : null,
                                         stagedValues)
                                 : resolver.resolveGraph(
-                                        graphChangeMessage.change.modelId(),
-                                        graphChangeMessage.change.modelType(),
+                                        graphChange.modelId(),
+                                        graphChange.modelType(),
                                         stateIndexPinned
                                                 ? Long.valueOf(readStateIndex)
-                                                : graphChangeMessage.change.expectedStateIndex(),
+                                                : graphChange.expectedStateIndex(),
                                         stagedValues),
                         "Substep resolver returned null")
                         : prepared;
@@ -548,15 +565,15 @@ public final class ModelReducer {
                     readModelTypes.putIfAbsent(
                             target.modelId(), target.modelType());
                 });
-                if (graphChangeMessage != null) {
+                if (graphChange != null) {
                     Change change = evaluateGraphChange(
-                            graphChangeMessage,
+                            graphChange,
                             context, readStateIndex,
                             stagedValues.containsKey(
-                                    graphChangeMessage.change.modelId()));
+                                    graphChange.modelId()));
                     stagedValues.put(
                             change.modelId(), change.after());
-                    mergeGraphChange(steps, graphChangeMessage, change);
+                    mergeGraphChange(steps, current.message(), change);
                     continue;
                 }
                 if (current.interceptionAllowed()) {
@@ -570,8 +587,8 @@ public final class ModelReducer {
                                 pending);
                         resolver.prefetch(
                                 pending.stream()
+                                        .filter(substep -> substep.stagedChange() == null)
                                         .map(PendingSubstep::message)
-                                        .filter(message -> !(message instanceof GraphChangeMessage))
                                         .toList(),
                                 readStateIndex, stagedValues);
                         continue;
@@ -606,11 +623,10 @@ public final class ModelReducer {
     }
 
     private static Change evaluateGraphChange(
-            GraphChangeMessage message,
+            Change change,
             CommitAttempt context,
             long readStateIndex,
             boolean alreadyStaged) {
-        Change change = message.change;
         String modelId = change.modelId();
         Class<?> modelType = change.modelType();
         long targetStateIndex = targetStateIndex(
@@ -650,8 +666,9 @@ public final class ModelReducer {
             DeserializingMessage existing = step.message();
             if (!Objects.equals(
                     existing.getMessageId(), eventMessageId)
-                || (existing instanceof GraphChangeMessage)
-                   != (message instanceof GraphChangeMessage)) {
+                || step.changes().isEmpty()
+                || step.changes().stream().anyMatch(
+                        change -> !change.graphChange())) {
                 continue;
             }
             LinkedHashMap<String, Change> transitions =
@@ -715,7 +732,7 @@ public final class ModelReducer {
             List<Change> changes = stagedChanges(graph);
             for (int index = changes.size() - 1; index >= 0; index--) {
                 pending.addFirst(new PendingSubstep(
-                        new GraphChangeMessage(changes.get(index), source), false));
+                        source, changes.get(index), false));
             }
             return;
         }
@@ -723,7 +740,7 @@ public final class ModelReducer {
                 source, output, preserveSourceIdentity);
         boolean reintercept =
                 !emitted.getPayloadClass().equals(source.getPayloadClass());
-        pending.addFirst(new PendingSubstep(emitted, reintercept));
+        pending.addFirst(new PendingSubstep(emitted, null, reintercept));
     }
 
     private static List<Change> stagedChanges(Graph<?> graph) {
@@ -791,50 +808,31 @@ public final class ModelReducer {
         return plan.reducer().replay(event, context, targetModelId);
     }
 
-    static DeserializingMessage graphChangeReplay(
-            DeserializingMessage eventMessage,
-            String modelId,
-            Class<?> modelType,
-            Graphs.StagedReplay replay) {
-        return new GraphChangeMessage(Change.staged(
-                modelId, modelType, null, null, replay), eventMessage);
-    }
-
-    private static final class GraphChangeMessage extends DeserializingMessage {
-        private final Change change;
-
-        private GraphChangeMessage(
-                Change change, DeserializingMessage eventMessage) {
-            super(eventMessage);
-            this.change = change;
-        }
-    }
-
     private record PendingSubstep(
-            DeserializingMessage message, boolean interceptionAllowed) {
+            DeserializingMessage message,
+            Change stagedChange,
+            boolean interceptionAllowed) {
     }
 
     private enum Mode {
-        APPLY(true, true, true, false),
-        ASSERT(true, false, false, false),
-        REAPPLY(false, true, false, true);
+        APPLY(true, true, true, true),
+        ASSERT(true, false, false, true),
+        REAPPLY(false, true, false, false);
 
         private final boolean interception;
         private final boolean applyHandlers;
         private final boolean stageGraphPayloads;
-        private final boolean rebaseGraphs;
         private final boolean assertions;
 
         Mode(
                 boolean interception,
                 boolean applyHandlers,
                 boolean stageGraphPayloads,
-                boolean rebaseGraphs) {
+                boolean assertions) {
             this.interception = interception;
             this.applyHandlers = applyHandlers;
             this.stageGraphPayloads = stageGraphPayloads;
-            this.rebaseGraphs = rebaseGraphs;
-            this.assertions = !rebaseGraphs;
+            this.assertions = assertions;
         }
     }
 

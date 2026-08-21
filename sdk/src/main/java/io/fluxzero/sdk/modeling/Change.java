@@ -17,8 +17,6 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-
 import java.lang.reflect.Executable;
 import java.util.Objects;
 
@@ -81,7 +79,11 @@ public record Change(
     }
 
     Change forRebase() {
-        return staged(modelId, modelType, null, null, replay);
+        return staged(
+                modelId, modelType, null, null,
+                replay == null
+                        ? current -> current.update(ignored -> null)
+                        : replay);
     }
 
     Change resolveAgainst(Entity<?> target, Object resolvedAfter) {
@@ -127,16 +129,6 @@ public record Change(
     /** Whether this change originated from a direct graph mutation rather than a model handler. */
     public boolean graphChange() {
         return !cascadedDeletion && (replay != null || handler == null && after == null);
-    }
-
-    /** Recreates the direct graph mutation as one apply-only rebase message. */
-    public DeserializingMessage graphReplay(DeserializingMessage eventMessage) {
-        if (!graphChange()) {
-            throw new IllegalStateException("Only direct graph changes can be replayed this way");
-        }
-        return ModelReducer.graphChangeReplay(
-                eventMessage, modelId, modelType,
-                replay == null ? current -> current.update(ignored -> null) : replay);
     }
 
     public void validate() {
