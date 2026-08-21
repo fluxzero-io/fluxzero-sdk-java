@@ -104,17 +104,21 @@ public final class ModelCommitWireCodec {
             return false;
         }
         for (JsonType request : batch.getRequests()) {
-            if (!(request instanceof CommitModels commit)
-                    || commit.getSubsteps().size() != 1) {
+            if (!(request instanceof CommitModels commit)) {
+                return false;
+            }
+            ModelCommitTarget target = commit.singleTarget();
+            if (target == null) {
                 return false;
             }
             ModelCommitStep step = commit.getSubsteps().getFirst();
-            if (step.getEvent() == null || !step.isPublishEvent() || step.getTargets().size() != 1) {
+            if (step.getEvent() == null || !step.isPublishEvent()) {
                 return false;
             }
-            ModelCommitTarget target = step.getTargets().getFirst();
             if (target.getDocument() != null
                     || target.getSnapshot() != null
+                    || target.getModelType() == null
+                    || target.getModelType().isBlank()
                     || target.isCascadeDelete()
                     || target.isUpdateRelationships()
                     || !target.getRelationships().isEmpty()

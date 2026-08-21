@@ -427,15 +427,12 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                 || result.getCommitId() != null
                 || !(request instanceof CommitModels commit)
                 || !result.hasSingleTargetResult()
-                || commit.getSubsteps().size() != 1
-                || commit.getSubsteps().getFirst().getTargets().size() != 1) {
+                || commit.singleTarget() == null) {
             return;
         }
         result.restoreTransportIdentities(
                 commit.getCommitId(),
-                commit.getSubsteps().getFirst()
-                        .getTargets().getFirst()
-                        .getModelId());
+                commit.singleTarget().getModelId());
     }
 
     @Override

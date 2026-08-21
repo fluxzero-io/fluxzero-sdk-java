@@ -866,6 +866,7 @@ class ModelEntityParameterResolverTest {
                                                     .targets(List.of(
                                                             ModelCommitTarget.builder()
                                                                     .modelId(accountId.toString())
+                                                                    .modelType(Account.class.getName())
                                                                     .storeEvent(true)
                                                                     .updateState(true)
                                                                     .relationships(List.of())
@@ -920,6 +921,7 @@ class ModelEntityParameterResolverTest {
                                                     .targets(List.of(
                                                             ModelCommitTarget.builder()
                                                                     .modelId(accountId.toString())
+                                                                    .modelType(Account.class.getName())
                                                                     .storeEvent(true)
                                                                     .updateState(true)
                                                                     .relationships(List.of())

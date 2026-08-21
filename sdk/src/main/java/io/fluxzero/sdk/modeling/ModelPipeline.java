@@ -428,7 +428,7 @@ final class ModelPipeline {
                 ? Retry.accepting((result, current, original) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(original.attempt().rebaseMessages(), result.getRebaseStateIndex()));
+                                rebase(original.rebaseMessages(), result.getRebaseStateIndex()));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
@@ -529,7 +529,7 @@ final class ModelPipeline {
                                 }
                                 Commit.Outcome nextPrepared =
                                         retry.accepting()
-                                        && !original.attempt().hasCascadedDeletion()
+                                        && !original.hasCascadedDeletion()
                                                 ? repositoryCommit.prepareRebased(commitId, original, next)
                                                 : repositoryCommit.prepare(commitId, next, conflictPolicy);
                                 return commit(

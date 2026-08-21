@@ -282,30 +282,6 @@ final class ModelReplayCursor {
         return new LoadResult(pinned.stateIndex(), heads);
     }
 
-    FirstEvent firstEvent(String modelId, ModelReadBoundary boundary) {
-        Objects.requireNonNull(boundary, "boundary");
-        List<String> ids = validateIds(List.of(modelId));
-        GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
-                List.of(new ModelEventStreamRequest(modelId, -1L, 1)),
-                boundary,
-                settings.maxPayloadBytes()));
-        long stateIndex = validateBoundary(response, boundary.stateIndex());
-        LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
-        cursors.put(modelId, -1L);
-        LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
-        validatePage(response, ids, cursors, heads, 1, settings.maxPayloadBytes(), false);
-        ModelEventStream stream = response.getStreams().getFirst();
-        if (stream.getMemberships().isEmpty()) {
-            return new FirstEvent(stateIndex, modelId, null);
-        }
-        long firstStateIndex = stream.getMemberships().getFirst().getStateIndex();
-        SerializedMessage event = response.getPayloads().stream()
-                .filter(payload -> payload.getStateIndex() == firstStateIndex)
-                .map(ModelEventPayload::getEvent).findFirst().orElse(null);
-        String resolvedId = stream.getHead() == null ? modelId : stream.getHead().getModelId();
-        return new FirstEvent(stateIndex, resolvedId, event);
-    }
-
     private LoadResult loadChunk(
             LinkedHashMap<String, Long> initialCursors,
             ModelReadBoundary boundary,
@@ -972,22 +948,30 @@ final class ModelReplayCursor {
             throw new EventSourcingException(
                     "Graph child '%s' has no stored model type".formatted(stream.getModelId()));
         }
-        Class<?> result;
-        try {
-            result = io.fluxzero.common.reflection.ReflectionUtils.classForName(
-                    serializer.upcastType(storedType));
-        } catch (Throwable failure) {
-            throw new EventSourcingException(
-                    "Could not resolve stored model type '%s' for %s"
-                            .formatted(storedType, stream.getModelId()), failure);
-        }
+        Class<?> result = modelType(storedType, stream.getModelId());
         if (stream.getModelId().equals(rootId) && !rootType.isAssignableFrom(result)) {
             throw new EventSourcingException(
                     "Graph root '%s' has stored type %s instead of %s"
                             .formatted(rootId, result.getName(), rootType.getName()));
         }
-        EntityMetadata.validate(result);
         return result;
+    }
+
+    Class<?> modelType(String storedType, String modelId) {
+        if (storedType == null || storedType.isBlank()) {
+            throw new EventSourcingException(
+                    "Model '%s' has no stored type metadata".formatted(modelId));
+        }
+        try {
+            Class<?> result = io.fluxzero.common.reflection.ReflectionUtils.classForName(
+                    serializer.upcastType(storedType));
+            EntityMetadata.validate(result);
+            return result;
+        } catch (Throwable failure) {
+            throw new EventSourcingException(
+                    "Could not resolve stored model type '%s' for %s"
+                            .formatted(storedType, modelId), failure);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -1211,16 +1195,7 @@ final class ModelReplayCursor {
                 .filter(Objects::nonNull).forEach(storedTypes::add);
         Class<?> result = null;
         for (String storedType : storedTypes) {
-            Class<?> candidate;
-            try {
-                candidate = io.fluxzero.common.reflection.ReflectionUtils.classForName(
-                        serializer.upcastType(storedType));
-            } catch (Throwable failure) {
-                throw new EventSourcingException(
-                        "Could not resolve stored model type '%s' for ancestor %s"
-                                .formatted(storedType, modelId), failure);
-            }
-            EntityMetadata.validate(candidate);
+            Class<?> candidate = modelType(storedType, modelId);
             result = result == null ? candidate
                     : EntityMetadata.compatibleTypes(result, candidate)
                             ? result.isAssignableFrom(candidate) ? candidate : result
@@ -2207,9 +2182,6 @@ final class ModelReplayCursor {
         LoadResult {
             heads = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(heads));
         }
-    }
-
-    record FirstEvent(long stateIndex, String modelId, SerializedMessage event) {
     }
 
     record EntityProjection(long stateIndex, Entity<?> entity) {

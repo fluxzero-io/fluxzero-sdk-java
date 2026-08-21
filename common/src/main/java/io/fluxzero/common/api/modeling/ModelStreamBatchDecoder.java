@@ -28,7 +28,7 @@ import java.util.List;
 /** Decoder for the final persisted independent-model stream batch format. */
 public final class ModelStreamBatchDecoder {
 
-    private static final int VERSION = 6;
+    private static final int VERSION = 7;
 
     private ModelStreamBatchDecoder() {
     }
@@ -72,7 +72,7 @@ public final class ModelStreamBatchDecoder {
         long eventIndex = unpacker.unpackLong();
         long readStateIndex = unpacker.unpackLong();
         boolean sharedModelType = unpacker.unpackBoolean();
-        String commonModelType = sharedModelType ? unpackNullableString(unpacker) : null;
+        String commonModelType = sharedModelType ? unpacker.unpackString() : null;
         List<Entry> result = new ArrayList<>(count);
         for (int remaining = count; remaining > 0; remaining--) {
             String modelId = unpacker.unpackString();
@@ -87,7 +87,7 @@ public final class ModelStreamBatchDecoder {
                 throw new IllegalStateException("Model stream batch contains negative payload bytes");
             }
             result.add(new Entry(
-                    modelId, sharedModelType ? commonModelType : unpackNullableString(unpacker),
+                    modelId, sharedModelType ? commonModelType : unpacker.unpackString(),
                     stateIndex, readStateIndex, commitId, 0, eventIndex, sequenceNumber,
                     historyComplete, payloadBytes, unpackNullableString(unpacker)));
         }

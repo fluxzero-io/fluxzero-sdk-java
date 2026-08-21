@@ -40,9 +40,9 @@ import java.util.function.Function;
 public final class ModelCommitAssignment {
     /** Describes target scope and optional work before positions are assigned. */
     public static Description describe(CommitModels source) {
-        if (source.getSubsteps().size() == 1
-            && source.getSubsteps().getFirst().getTargets().size() == 1) {
-            ModelCommitTarget target = source.getSubsteps().getFirst().getTargets().getFirst();
+        ModelCommitTarget singleTarget = source.singleTarget();
+        if (singleTarget != null) {
+            ModelCommitTarget target = singleTarget;
             List<String> ids = List.of(target.getModelId());
             RelationshipChange relationship = relationshipChange(target);
             return new Description(
@@ -389,8 +389,7 @@ public final class ModelCommitAssignment {
                 throw new IllegalStateException("Model state index space is exhausted");
             }
             long first = nextStateIndex;
-            boolean single = stepCount == 1
-                             && source.getSubsteps().getFirst().getTargets().size() == 1;
+            boolean single = source.singleTarget() != null;
             H singleHead = null;
             List<List<ModelCommitTargetResult>> assignedTargets =
                     single ? null : new ArrayList<>(stepCount);
@@ -471,7 +470,12 @@ public final class ModelCommitAssignment {
                     "Model %s already has type %s instead of %s"
                             .formatted(modelId, previous, requested));
         }
-        return requested == null ? previous : requested;
+        String result = requested == null ? previous : requested;
+        if (result == null || result.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Model %s has no type".formatted(modelId));
+        }
+        return result;
     }
 
     private ModelCommitAssignment() {}

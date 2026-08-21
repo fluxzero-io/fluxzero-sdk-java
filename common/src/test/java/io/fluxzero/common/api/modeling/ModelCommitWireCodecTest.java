@@ -254,6 +254,19 @@ class ModelCommitWireCodecTest {
         assertNull(ModelCommitWireCodec.tryEncode(
                 new RequestBatch<>(List.of(withAliases))));
 
+        CommitModels withoutType = commit("without-type", false);
+        ModelCommitStep untypedStep = withoutType.getSubsteps().getFirst();
+        assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(
+                new CommitModels(
+                        withoutType.getCommitId(), withoutType.getReadStateIndex(),
+                        withoutType.getReadModelIds(),
+                        List.of(untypedStep.toBuilder()
+                                .targets(List.of(untypedStep.getTargets().getFirst()
+                                        .toBuilder().modelType(null).build()))
+                                .build()),
+                        withoutType.getConflictPolicy(), withoutType.getGuarantee(),
+                        withoutType.isPossibleDuplicate())))));
+
         CommitModels cascade = commit("cascade", false);
         ModelCommitStep cascadeStep = cascade.getSubsteps().getFirst();
         assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(

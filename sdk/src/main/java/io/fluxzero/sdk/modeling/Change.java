@@ -129,7 +129,7 @@ public record Change(
     }
 
     /** Recreates the direct graph mutation as one apply-only rebase message. */
-    DeserializingMessage graphReplay(DeserializingMessage eventMessage) {
+    public DeserializingMessage graphReplay(DeserializingMessage eventMessage) {
         if (!graphChange()) {
             throw new IllegalStateException("Only direct graph changes can be replayed this way");
         }

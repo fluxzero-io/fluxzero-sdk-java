@@ -552,6 +552,7 @@ class InMemoryEventStoreModelCommitTest {
                 ModelCommitStep.builder()
                         .targets(List.of(ModelCommitTarget.builder()
                                                  .modelId("document-1")
+                                                 .modelType("example.Document")
                                                  .updateState(true)
                                                  .relationships(List.of())
                                                  .build()))
@@ -1455,6 +1456,7 @@ class InMemoryEventStoreModelCommitTest {
     private static ModelCommitTarget storedTarget(String modelId) {
         return ModelCommitTarget.builder()
                 .modelId(modelId)
+                .modelType("example.Model")
                 .storeEvent(true)
                 .updateState(true)
                 .relationships(List.of())

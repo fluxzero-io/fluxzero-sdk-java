@@ -50,7 +50,6 @@ import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
-import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
@@ -89,14 +88,12 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
-import static io.fluxzero.common.reflection.ReflectionUtils.classForName;
 
 /**
  * Default repository for independently stored models.
@@ -384,7 +381,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         PinnedBoundary handlerBoundary =
                 handlerBoundary();
         if (Object.class.equals(modelType)) {
-            Class<?> resolvedType = resolveUntypedType(
+            Class<?> resolvedType = resolveStoredType(
                     modelId, handlerBoundary);
             if (resolvedType == null) {
                 return cast(emptyUntyped(modelId));
@@ -600,73 +597,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return result;
     }
 
-    private Class<?> resolveUntypedType(
-            String modelId,
-            PinnedBoundary handlerBoundary) {
-        Class<?> payloadType = resolvePayloadFactoryType(
-                modelId, handlerBoundary);
-        return payloadType == null
-                ? resolveStoredType(modelId, handlerBoundary)
-                : payloadType;
-    }
-
-    private Class<?> resolvePayloadFactoryType(
-            String modelId,
-            PinnedBoundary handlerBoundary) {
-        if (client.getEventStoreClient() == null
-            || serializer == null) {
-            return null;
-        }
-        ModelReadBoundary boundary =
-                boundary(handlerBoundary);
-        ModelReplayCursor.FirstEvent first = replayCursor.firstEvent(modelId, boundary);
-        pin(handlerBoundary, first.stateIndex());
-        if (first.event() == null) {
-            return null;
-        }
-        LinkedHashSet<Class<?>> candidates =
-                new LinkedHashSet<>();
-        try {
-            serializer.deserializeMessages(
-                            Stream.of(first.event()),
-                            EVENT, UnknownTypeStrategy.FAIL)
-                    .map(DeserializingMessage::getPayload)
-                    .forEach(payload -> payloadFactoryTarget(
-                                    first.modelId(), payload)
-                            .ifPresent(candidates::add));
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-        return candidates.size() == 1
-                ? candidates.getFirst() : null;
-    }
-
-    private Optional<Class<?>> payloadFactoryTarget(
-            String modelId, Object payload) {
-        try {
-            List<EntityMetadata.HandlerMethod> handlers =
-                    EntityMetadata.of(payload.getClass())
-                            .applyMethods();
-            if (handlers.isEmpty()) {
-                return Optional.empty();
-            }
-            return MutationPlan.compile(
-                            payload.getClass(), handlers)
-                    .resolve(payload)
-                    .models().stream()
-                    .filter(target -> target.access().writes())
-                    .filter(target -> modelId.equals(
-                            target.modelId()))
-                    .map(MutationPlan.ResolvedModel::modelType)
-                    .filter(type -> EntityMetadata.of(type)
-                            .isModel())
-                    .findFirst();
-        } catch (IllegalArgumentException
-                 | IllegalStateException ignored) {
-            return Optional.empty();
-        }
-    }
-
     private Class<?> resolveStoredType(
             String modelId,
             PinnedBoundary handlerBoundary) {
@@ -682,12 +612,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (head == null) {
             return null;
         }
-        if (head.getModelType() == null) {
-            throw new EventSourcingException(
-                    "Model '%s' has no stored type metadata".formatted(modelId));
-        }
-        return classForName(serializer.upcastType(
-                head.getModelType()));
+        return replayCursor.modelType(head.getModelType(), modelId);
     }
 
     private Entity<Object> emptyUntyped(String modelId) {
@@ -1364,15 +1289,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 preparedSteps.add(new CommitAttempt.Step(message, committedTransitions));
             }
             boolean possibleDuplicate = possibleDuplicate(evaluation, preparedSteps);
-            CommitAttempt prepared = evaluation.prepared(preparedSteps);
             if (protocolSteps.isEmpty()) {
-                return new Outcome(null, prepared);
+                return new Outcome(null, preparedSteps);
             }
             CommitModels commit = new CommitModels(
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
                     possibleDuplicate);
-            return new Outcome(commit, prepared);
+            return new Outcome(commit, preparedSteps);
         }
 
         public Outcome prepareRebased(
@@ -1393,19 +1317,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     candidate.getConflictPolicy(), original.commit().getGuarantee(),
                     original.commit().isPossibleDuplicate());
             return new Outcome(
-                    commit, rebased.attempt());
+                    commit, rebased.steps());
         }
 
         private static void requireSameShape(
                 Outcome original,
                 Outcome rebased) {
             if (rebased.commit() == null
-                || original.attempt().steps().size()
-                   != rebased.attempt().steps().size()) {
+                || original.steps().size()
+                   != rebased.steps().size()) {
                 throw changedRebaseShape();
             }
             for (int substep = 0;
-                 substep < original.attempt().steps().size();
+                 substep < original.steps().size();
                  substep++) {
                 ModelCommitStep before = original.commit().getSubsteps().get(substep);
                 ModelCommitStep after = rebased.commit().getSubsteps().get(substep);
@@ -1712,23 +1636,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         /** The one repository-owned carrier from prepared request through authoritative accepted result. */
         public static final class Outcome {
             private final CommitModels commit;
-            private final CommitAttempt attempt;
+            private final List<CommitAttempt.Step> steps;
             private final CommitModelsResult result;
             private final List<CommittedRevision> revisions;
 
             private Outcome(
                     CommitModels commit,
-                    CommitAttempt attempt) {
-                this(commit, attempt, null, List.of());
+                    List<CommitAttempt.Step> steps) {
+                this(commit, List.copyOf(steps), null, List.of());
             }
 
             private Outcome(
                     CommitModels commit,
-                    CommitAttempt attempt,
+                    List<CommitAttempt.Step> steps,
                     CommitModelsResult result,
                     List<CommittedRevision> revisions) {
                 this.commit = commit;
-                this.attempt = Objects.requireNonNull(attempt);
+                this.steps = Objects.requireNonNull(steps);
                 this.result = result;
                 this.revisions = revisions;
             }
@@ -1737,8 +1661,39 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 return commit;
             }
 
-            public CommitAttempt attempt() {
-                return attempt;
+            public List<CommitAttempt.Step> steps() {
+                return steps;
+            }
+
+            public List<DeserializingMessage> rebaseMessages() {
+                if (steps.stream().flatMap(step -> step.changes().stream())
+                        .noneMatch(Change::graphChange)) {
+                    return steps.stream().map(CommitAttempt.Step::message).toList();
+                }
+                List<DeserializingMessage> result = new ArrayList<>(steps.size() + 1);
+                for (CommitAttempt.Step step : steps) {
+                    List<Change> changes = step.changes();
+                    if (changes.isEmpty()) {
+                        continue;
+                    }
+                    if (changes.stream().noneMatch(Change::graphChange)) {
+                        result.add(step.message());
+                        continue;
+                    }
+                    DeserializingMessage message = step.message();
+                    if (changes.stream().anyMatch(change -> !change.graphChange())) {
+                        result.add(message);
+                    }
+                    changes.stream().filter(Change::graphChange)
+                            .map(change -> change.graphReplay(message))
+                            .forEach(result::add);
+                }
+                return List.copyOf(result);
+            }
+
+            public boolean hasCascadedDeletion() {
+                return steps.stream().flatMap(step -> step.changes().stream())
+                        .anyMatch(Change::cascadedDeletion);
             }
 
             public CommitModelsResult result() {
@@ -1750,14 +1705,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     throw new IllegalArgumentException(
                             "A repository commit outcome requires an accepted result");
                 }
-                if (attempt.steps().size() != accepted.getUpdates().size()
+                if (steps.size() != accepted.getUpdates().size()
                     || commit.getSubsteps().size() != accepted.getUpdates().size()) {
                     throw new IllegalStateException(
                             "Model commit returned a different number of substeps than requested");
                 }
                 List<CommittedRevision> revisions = new ArrayList<>();
-                for (int substep = 0; substep < attempt.steps().size(); substep++) {
-                    CommitAttempt.Step journalStep = attempt.steps().get(substep);
+                for (int substep = 0; substep < steps.size(); substep++) {
+                    CommitAttempt.Step journalStep = steps.get(substep);
                     ModelCommitStep requestStep = commit.getSubsteps().get(substep);
                     ModelUpdate resultStep = accepted.getUpdates().get(substep);
                     List<Change> changes = journalStep.changes();
@@ -1780,7 +1735,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
                 return new Outcome(
-                        commit, attempt, accepted, List.copyOf(revisions));
+                        commit, steps, accepted, List.copyOf(revisions));
             }
 
             List<CommittedRevision> revisions() {

@@ -241,7 +241,7 @@ class WebSocketEventStoreClientTest {
 
     private static byte[] membershipBlock(String modelId) throws IOException {
         try (MessageBufferPacker packer = MessagePack.newDefaultBufferPacker()) {
-            packer.packInt(6);
+            packer.packInt(7);
             packer.packArrayHeader(1);
             packer.packLong(0L);
             packer.packLong(0L);

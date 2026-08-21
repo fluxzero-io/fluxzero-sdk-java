@@ -332,40 +332,6 @@ public final class CommitAttempt {
         return cascadeRootIds;
     }
 
-    List<DeserializingMessage> rebaseMessages() {
-        if (transitions().stream().noneMatch(Change::graphChange)) {
-            return steps().stream().map(Step::message).toList();
-        }
-        List<DeserializingMessage> result = new ArrayList<>(steps().size() + 1);
-        for (Step step : steps()) {
-            List<Change> group = step.changes();
-            if (group.isEmpty()) {
-                continue;
-            }
-            if (group.stream().noneMatch(Change::graphChange)) {
-                result.add(step.message());
-                continue;
-            }
-            DeserializingMessage eventMessage = step.message();
-            if (group.stream().anyMatch(change -> !change.graphChange())) {
-                result.add(eventMessage);
-            }
-            group.stream().filter(Change::graphChange)
-                    .map(change -> change.graphReplay(eventMessage))
-                    .forEach(result::add);
-        }
-        return List.copyOf(result);
-    }
-
-    boolean hasCascadedDeletion() {
-        return transitions().stream().anyMatch(Change::cascadedDeletion);
-    }
-
-    public CommitAttempt prepared(List<Step> steps) {
-        evaluated(readStateIndex, readModelIds, readModelTypes, steps);
-        return this;
-    }
-
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
         ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
         if (changes.size() == 1 && readModelTypes.size() == 1

@@ -468,17 +468,13 @@ public final class ModelCommitValidator {
     }
 
     private static boolean validateSimpleCommit(CommitModels commit) {
-        if (commit.getSubsteps().size() != 1 || commit.getReadModelIds() == null
+        ModelCommitTarget target = commit.singleTarget();
+        if (target == null || commit.getReadModelIds() == null
             || commit.getReadModelIds().size() != 1) {
             return false;
         }
         ModelCommitStep substep = commit.getSubsteps().getFirst();
-        if (substep == null || !substep.isPublishEvent() || substep.getEvent() == null
-            || substep.getTargets() == null || substep.getTargets().size() != 1) {
-            return false;
-        }
-        ModelCommitTarget target = substep.getTargets().getFirst();
-        if (target == null) {
+        if (!substep.isPublishEvent() || substep.getEvent() == null) {
             return false;
         }
         if (!target.isStoreEvent() || !target.isUpdateState()

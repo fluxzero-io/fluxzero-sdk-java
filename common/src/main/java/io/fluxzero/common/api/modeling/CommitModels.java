@@ -143,6 +143,17 @@ public class CommitModels extends Command implements RetryAwareRequest {
         return result;
     }
 
+    /** Returns the sole target when this commit has one substep with one target, otherwise {@code null}. */
+    @Transient
+    public ModelCommitTarget singleTarget() {
+        if (substeps == null || substeps.size() != 1) {
+            return null;
+        }
+        List<ModelCommitTarget> targets = substeps.getFirst() == null
+                ? null : substeps.getFirst().getTargets();
+        return targets != null && targets.size() == 1 ? targets.getFirst() : null;
+    }
+
     /**
      * Returns a payload-free representation for operational metrics.
      */

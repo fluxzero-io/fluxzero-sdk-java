@@ -148,6 +148,27 @@ class ModelCommitAssignmentTest {
                              commit(step(target("second", true, false, false))), IGNORE));
     }
 
+    @Test
+    void requiresTypeOnlyWhenAssigningTheFirstHead() {
+        ModelCommitTarget withoutType = target("model", true, false, false).toBuilder()
+                .modelType(null).build();
+
+        IllegalArgumentException missing = assertThrows(
+                IllegalArgumentException.class,
+                () -> assign(ModelCommitAssignment.session(id -> null, HEAD_FACTORY, 100L),
+                             commit(step(withoutType)), IGNORE));
+        assertEquals("Model model has no type", missing.getMessage());
+
+        var previous = new TestHead(
+                "model", "type", 7, 4L, 80L, null, false, null);
+        List<TestHead> heads = new ArrayList<>();
+        assign(ModelCommitAssignment.session(id -> previous, HEAD_FACTORY, 100L),
+               commit(step(withoutType)),
+               (step, target, substep, head) -> heads.add(head));
+
+        assertEquals("type", heads.getFirst().modelType());
+    }
+
     private static CommitModels commit(ModelCommitStep... steps) {
         return new CommitModels(
                 "commit", -1L,

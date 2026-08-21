@@ -456,12 +456,12 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void existingUntypedModelWithoutStoredTypeStillFails() {
+    void firstModelStateRequiresAStoredType() {
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            CommitModelsResult result =
-                    fluxzero.client()
-                            .getEventStoreClient()
-                            .commitModels(
+            CompletionException failure = assertThrows(
+                    CompletionException.class,
+                    () -> fluxzero.client()
+                            .getEventStoreClient().commitModels(
                                     new CommitModels(
                                             "untyped-head",
                                             -1L,
@@ -478,25 +478,18 @@ class DefaultModelRepositoryTest {
                                                                             .updateState(true)
                                                                             .relationships(List.of())
                                                                             .build()))
-                                                            .build()),
+                                                    .build()),
                                             ModelConflictPolicy.ACCEPT,
-                                            Guarantee.STORED, true))
-                            .join();
-            assertTrue(result.isAccepted());
-
-            EventSourcingException failure = assertThrows(
-                    EventSourcingException.class,
-                    () -> fluxzero.modelRepository()
-                            .load("untyped-head", Object.class));
+                                            Guarantee.STORED, true)).join());
 
             assertEquals(
-                    "Model 'untyped-head' has no stored type metadata",
-                    failure.getMessage());
+                    "Model untyped-head has no type",
+                    failure.getCause().getMessage());
         }
     }
 
     @Test
-    void untypedLoadInfersModelTypeFromPayloadApplyFactory() {
+    void untypedLoadDoesNotOverrideTheDurableModelTypeFromPayloadHandlers() {
         AccountId id =
                 new AccountId("payload-type");
         try (Fluxzero fluxzero = configuredFluxzero()) {
@@ -530,13 +523,13 @@ class DefaultModelRepositoryTest {
                             .join();
             assertTrue(result.isAccepted());
 
-            Entity<Object> loaded =
-                    fluxzero.modelRepository()
-                            .load(id.toString(),
-                                  Object.class);
+            EventSourcingException failure = assertThrows(
+                    EventSourcingException.class,
+                    () -> fluxzero.modelRepository()
+                            .load(id.toString(), Object.class));
 
-            assertEquals(Account.class, loaded.type());
-            assertEquals(new Account(id, 9), loaded.get());
+            assertTrue(failure.getMessage().contains(
+                    "Could not resolve stored model type 'missing.example.Account'"));
         }
     }
 
@@ -546,9 +539,9 @@ class DefaultModelRepositoryTest {
         try (Fluxzero fluxzero = configuredFluxzero()) {
             long created = commit(
                     fluxzero, "create", -1L,
-                    new CreateAccount(id, 5), id.toString());
+                    new CreateAccount(id, 5), Account.class, id.toString());
             commit(fluxzero, "change", created,
-                   new ChangeAccount(id, 2), id.toString());
+                   new ChangeAccount(id, 2), Account.class, id.toString());
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -563,11 +556,11 @@ class DefaultModelRepositoryTest {
         try (Fluxzero fluxzero = configuredFluxzero()) {
             long created = commit(
                     fluxzero, "create-stale", -1L,
-                    new CreateAccount(id, 0), id.toString());
+                    new CreateAccount(id, 0), Account.class, id.toString());
             commit(fluxzero, "first-writer", created,
-                   new ChangeAccount(id, 1), id.toString());
+                   new ChangeAccount(id, 1), Account.class, id.toString());
             commit(fluxzero, "stale-writer", created,
-                   new ChangeAccount(id, 10), id.toString());
+                   new ChangeAccount(id, 10), Account.class, id.toString());
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -584,13 +577,13 @@ class DefaultModelRepositoryTest {
             long stock = commit(
                     fluxzero, "stock-5", -1L,
                     new CreateInventory(inventoryId, 5),
-                    inventoryId.toString());
+                    Inventory.class, inventoryId.toString());
             long order = commit(
                     fluxzero, "create-order", stock,
                     new CreateOrder(orderId, inventoryId),
-                    orderId.toString());
+                    Order.class, orderId.toString());
             commit(fluxzero, "stock-100", order,
-                   new ChangeInventory(inventoryId, 95), inventoryId.toString());
+                   new ChangeInventory(inventoryId, 95), Inventory.class, inventoryId.toString());
 
             var result = fluxzero.modelRepository().load(orderId);
 
@@ -729,16 +722,16 @@ class DefaultModelRepositoryTest {
             long stock = commit(
                     fluxzero, "prefix-stock", -1L,
                     new CreateInventory(inventoryId, 5),
-                    inventoryId.toString());
+                    Inventory.class, inventoryId.toString());
             commitModels(
                     fluxzero, "prefix-commit", stock,
                     List.of(inventoryId.toString(), orderId.toString()),
                     new CommitEvent(
                             new ChangeInventory(inventoryId, 1),
-                            inventoryId.toString()),
+                            inventoryId.toString(), Inventory.class),
                     new CommitEvent(
                             new CreateOrder(orderId, inventoryId),
-                            orderId.toString()));
+                            orderId.toString(), Order.class));
 
             var result = fluxzero.modelRepository().load(orderId);
 
@@ -1060,7 +1053,7 @@ class DefaultModelRepositoryTest {
             fluxzero.commandGateway().send(new CreateAccount(id, 5)).join();
             commit(fluxzero, "external-change",
                    currentStateIndex(fluxzero),
-                   new ChangeAccount(id, 2), id.toString());
+                   new ChangeAccount(id, 2), Account.class, id.toString());
 
             awaitModelValue(
                     fluxzero, id,
@@ -1314,20 +1307,20 @@ class DefaultModelRepositoryTest {
             long accountCreated = commit(
                     fluxzero, "unknown-account-create", -1L,
                     new CreateAccount(accountId, 1),
-                    accountId.toString());
+                    Account.class, accountId.toString());
             long accountUnknown = commit(
                     fluxzero, "unknown-account-event",
                     accountCreated,
                     new UnknownAccountEvent(accountId),
-                    accountId.toString());
+                    Account.class, accountId.toString());
             long lenientCreated = commit(
                     fluxzero, "unknown-lenient-create",
                     accountUnknown,
                     new CreateLenientAccount(lenientId, 2),
-                    lenientId.toString());
+                    LenientAccount.class, lenientId.toString());
             commit(fluxzero, "unknown-lenient-event",
                    lenientCreated,
-                   new UnknownLenientEvent(lenientId), lenientId.toString());
+                   new UnknownLenientEvent(lenientId), LenientAccount.class, lenientId.toString());
 
             assertThrows(
                     EventSourcingException.class,
@@ -1354,14 +1347,14 @@ class DefaultModelRepositoryTest {
             long account = commit(
                     fluxzero, "batch-account", -1L,
                     new CreateAccount(accountId, 3),
-                    accountId.toString());
+                    Account.class, accountId.toString());
             long inventory = commit(
                     fluxzero, "batch-inventory", account,
                     new CreateInventory(inventoryId, 5),
-                    inventoryId.toString());
+                    Inventory.class, inventoryId.toString());
             commit(fluxzero, "batch-shipment", inventory,
                    new CreateShipment(shipmentId, inventoryId, accountId),
-                   shipmentId.toString());
+                   Shipment.class, shipmentId.toString());
             clearInvocations(eventStoreClient);
 
             assertEquals(
@@ -1749,6 +1742,7 @@ class DefaultModelRepositoryTest {
             String commitId,
             long readStateIndex,
             Object event,
+            Class<?> modelType,
             String... targetIds) {
         ModelCommitStep substep = ModelCommitStep.builder()
                 .event(new Message(event).serialize(fluxzero.serializer()))
@@ -1756,6 +1750,7 @@ class DefaultModelRepositoryTest {
                 .targets(java.util.Arrays.stream(targetIds)
                                  .map(modelId -> ModelCommitTarget.builder()
                                          .modelId(modelId)
+                                         .modelType(modelType.getName())
                                          .storeEvent(true)
                                          .updateState(true)
                                          .relationships(List.of())
@@ -1791,6 +1786,7 @@ class DefaultModelRepositoryTest {
                         .publishEvent(false)
                         .targets(List.of(ModelCommitTarget.builder()
                                                  .modelId(event.targetId())
+                                                 .modelType(event.modelType().getName())
                                                  .storeEvent(true)
                                                  .updateState(true)
                                                  .relationships(List.of())
@@ -1824,7 +1820,7 @@ class DefaultModelRepositoryTest {
                 .getStateIndex();
     }
 
-    private record CommitEvent(Object payload, String targetId) {
+    private record CommitEvent(Object payload, String targetId, Class<?> modelType) {
     }
 
     @Model(eventSourced = false, searchable = true,
