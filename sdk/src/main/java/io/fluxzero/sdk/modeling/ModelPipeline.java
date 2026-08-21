@@ -35,7 +35,6 @@ import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -927,34 +926,8 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            DeserializingMessage current =
-                    DeserializingMessage.getCurrent();
-            String namespace = current == null
-                    ? null
-                    : io.fluxzero.sdk.common.ClientUtils
-                            .getConsumerNamespace(current);
-            Map<String, Object> batchValues =
-                    ModelBatchScope.currentValues(
-                            namespace, resolution);
-            Map<String, Object> effectiveStagedValues;
-            if (batchValues.isEmpty()) {
-                effectiveStagedValues = stagedValues;
-            } else if (stagedValues.isEmpty()) {
-                effectiveStagedValues = batchValues;
-            } else {
-                LinkedHashMap<String, Object> combined =
-                        new LinkedHashMap<>(batchValues);
-                combined.putAll(stagedValues);
-                effectiveStagedValues = combined;
-            }
             CommitAttempt loaded = repository.loadContext(
-                    resolution, boundary, effectiveStagedValues, false);
-            Map<String, Object> loadedBatchValues =
-                    ModelBatchScope.currentValues(
-                            namespace, loaded.modelIds());
-            if (!loadedBatchValues.isEmpty()) {
-                loaded = loaded.withValues(loadedBatchValues);
-            }
+                    resolution, boundary, stagedValues, true);
             if (boundary != null && loaded.readStateIndex() != boundary) {
                 throw new IllegalStateException(
                         "Model commit requested state index %d but loaded %d"

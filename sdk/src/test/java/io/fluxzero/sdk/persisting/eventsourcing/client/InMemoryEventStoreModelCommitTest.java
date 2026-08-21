@@ -26,7 +26,6 @@ import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
@@ -1001,10 +1000,9 @@ class InMemoryEventStoreModelCommitTest {
                         .getEdges().isEmpty());
         assertEquals(
                 1,
-                store.getModelGraphBefore(new GetModelGraphBefore(
-                                new GetModelGraph(
-                                        "parent-1", ModelReadBoundary.state(2L, false),
-                                        1, 10, 0, 0L, false)))
+                store.getModelGraph(new GetModelGraph(
+                                "parent-1", ModelReadBoundary.state(2L, false).asBefore(),
+                                1, 10, 0, 0L, false))
                         .getEdges().size());
         assertEquals(
                 "parent-1",

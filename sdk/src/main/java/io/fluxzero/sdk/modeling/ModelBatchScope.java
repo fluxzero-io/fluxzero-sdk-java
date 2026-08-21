@@ -69,9 +69,8 @@ public final class ModelBatchScope {
             return;
         }
         if (producer != null) {
-            Dependency dependency = new Dependency(producer);
             evaluation.steps().forEach(step ->
-                    step.message().putContext(Dependency.class, dependency));
+                    step.message().putContext(CommitCoordination.class, producer));
         }
         Map<String, Change> first = new HashMap<>();
         Map<String, Change> last = new LinkedHashMap<>();
@@ -127,8 +126,7 @@ public final class ModelBatchScope {
             DeserializingMessage message,
             Supplier<T> action) {
         return withDependency(
-                message.getContext(Dependency.class)
-                        .map(Dependency::entry).orElse(null), action);
+                message.getContext(CommitCoordination.class).orElse(null), action);
     }
 
     static CommitCoordination register(
@@ -232,7 +230,8 @@ public final class ModelBatchScope {
         return value == null ? null : stagedEntity(value);
     }
 
-    static Map<String, Object> currentValues(
+    /** Returns the pending values needed to reconstruct one resolved context, including ancestor dependencies. */
+    public static Map<String, Object> currentValues(
             String namespace,
             MutationPlan.Resolution resolution) {
         ModelBatchScope scope = current();
@@ -707,9 +706,6 @@ public final class ModelBatchScope {
     }
 
     private enum Status { PENDING, SUCCESS, FAILURE }
-
-    private record Dependency(CommitCoordination entry) {
-    }
 
     private record PendingValue(
             CommitCoordination producer,

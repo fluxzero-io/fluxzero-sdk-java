@@ -27,7 +27,6 @@ import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
@@ -42,14 +41,12 @@ import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
-import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
-import io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
@@ -1346,36 +1343,24 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
         ModelCommitValidator.validate(request);
         long boundary = modelBoundary(request.getBoundary());
-        if (boundary < -1L || boundary > modelStateIndex) {
+        boolean before = request.getBoundary().before();
+        long minimumBoundary = before ? 0L : -1L;
+        if (boundary < minimumBoundary || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
-                    "Model maxStateIndex %d is outside visible range -1..%d"
+                    (before
+                            ? "Model before-state boundary %d is outside visible range 0..%d"
+                            : "Model maxStateIndex %d is outside visible range -1..%d")
                             .formatted(boundary, modelStateIndex));
         }
-        return getModelGraph(request.getRequestId(), request, boundary, false);
-    }
-
-    @Override
-    public synchronized GetModelGraphResult getModelGraphBefore(
-            GetModelGraphBefore before) {
-        GetModelGraph request = before.getRequest();
-        ModelCommitValidator.validate(request);
-        long boundary = modelBoundary(request.getBoundary());
-        if (boundary < 0L || boundary > modelStateIndex) {
-            throw new IllegalArgumentException(
-                    "Model before-state boundary %d is outside visible range 0..%d"
-                            .formatted(
-                                    boundary, modelStateIndex));
-        }
-        return getModelGraph(before.getRequestId(), request, boundary, true);
+        return getModelGraph(request, boundary, before);
     }
 
     private GetModelGraphResult getModelGraph(
-            long requestId,
             GetModelGraph request,
             long boundary,
             boolean before) {
         return ModelRelationshipQueries.graph(
-                requestId, request, boundary,
+                request.getRequestId(), request, boundary,
                 frontier -> relationshipsByParents(
                         frontier, boundary, before),
                 this::getModelEvents);

@@ -41,7 +41,6 @@ import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelChange;
 import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -812,29 +811,25 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void modelGraphBeforeRequestRoundTripsWithoutChangingRegularGraphRequest() throws Exception {
-        GetModelGraphBefore request =
-                new GetModelGraphBefore(
-                        new GetModelGraph(
-                                "order-1", ModelReadBoundary.commit("commit-991", 3),
-                                12, 1_000, 128,
-                                8_388_608L, true));
+    void modelGraphBeforeBoundaryRoundTripsOnRegularGraphRequest() throws Exception {
+        GetModelGraph request = new GetModelGraph(
+                "order-1", ModelReadBoundary.commit("commit-991", 3).asBefore(),
+                12, 1_000, 128,
+                8_388_608L, true);
 
         for (WebSocketTransportCodec codec :
                 List.of(jsonCodec, cborCodec)) {
-            GetModelGraphBefore decoded =
-                    assertInstanceOf(
-                            GetModelGraphBefore.class,
-                            roundTrip(codec, request));
+            GetModelGraph decoded = assertInstanceOf(
+                    GetModelGraph.class, roundTrip(codec, request));
             assertEquals(
                     request.getRequestId(),
                     decoded.getRequestId());
             assertEquals(
                     "order-1",
-                    decoded.getRequest().getRootId());
+                    decoded.getRootId());
             assertEquals(
-                    ModelReadBoundary.commit("commit-991", 3),
-                    decoded.getRequest().getBoundary());
+                    ModelReadBoundary.commit("commit-991", 3).asBefore(),
+                    decoded.getBoundary());
         }
     }
 

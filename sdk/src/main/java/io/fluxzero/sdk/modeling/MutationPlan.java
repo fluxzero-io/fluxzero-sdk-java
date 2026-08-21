@@ -506,8 +506,12 @@ public final class MutationPlan {
                             policies.add(ModelCommitPolicy.SYNC_AFTER_HANDLER);
                         }
                         handler.targetModelTypes().stream()
-                                .map(EntityMetadata::of).map(EntityMetadata::model).flatMap(Optional::stream)
-                                .map(Model::commitPolicy).map(ModelCommitPolicy::resolve)
+                                .map(EntityMetadata::of)
+                                .map(EntityMetadata::rootConfiguration).flatMap(Optional::stream)
+                                .filter(configuration -> configuration.kind()
+                                                         == EntityMetadata.RootKind.MODEL)
+                                .map(EntityMetadata.RootConfiguration::commitPolicy)
+                                .map(ModelCommitPolicy.class::cast).map(ModelCommitPolicy::resolve)
                                 .forEach(policies::add);
                     } else if (handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY) {
                         commit |= handler.emittedPayloadTypes().isEmpty();
@@ -531,8 +535,11 @@ public final class MutationPlan {
                     apply == null ? AutomaticModelHandling.DEFAULT : apply.automaticHandling();
             if (policy == AutomaticModelHandling.DEFAULT) {
                 policy = handler.targetModelTypes().stream()
-                        .map(type -> type.getAnnotation(Model.class)).filter(Objects::nonNull)
-                        .map(Model::automaticHandling)
+                        .map(EntityMetadata::of)
+                        .map(EntityMetadata::rootConfiguration).flatMap(Optional::stream)
+                        .filter(configuration -> configuration.kind()
+                                                 == EntityMetadata.RootKind.MODEL)
+                        .map(EntityMetadata.RootConfiguration::automaticHandling)
                         .filter(value -> value != AutomaticModelHandling.DEFAULT)
                         .findFirst().orElse(AutomaticModelHandling.DEFAULT);
             }

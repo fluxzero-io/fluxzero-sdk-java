@@ -23,7 +23,6 @@ import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
@@ -43,7 +42,6 @@ import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
-import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.ModelReducer;
 import io.fluxzero.sdk.modeling.EntityMetadata;
@@ -169,7 +167,7 @@ final class ModelReplayCursor {
     long load(
             List<String> modelIds,
             Long maxStateIndex,
-            Consumer<GetModelEventsResult> pageConsumer) {
+            Consumer<ValidatedPage> pageConsumer) {
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
         validateIds(modelIds).forEach(modelId -> cursors.put(modelId, -1L));
         return load(cursors, maxStateIndex, pageConsumer).stateIndex();
@@ -184,7 +182,7 @@ final class ModelReplayCursor {
     LoadResult load(
             Map<String, Long> lastSequenceNumbers,
             Long maxStateIndex,
-            Consumer<GetModelEventsResult> pageConsumer) {
+            Consumer<ValidatedPage> pageConsumer) {
         return load(lastSequenceNumbers, ModelReadBoundary.at(maxStateIndex), pageConsumer);
     }
 
@@ -196,7 +194,16 @@ final class ModelReplayCursor {
     LoadResult load(
             Map<String, Long> lastSequenceNumbers,
             ModelReadBoundary boundary,
-            Consumer<GetModelEventsResult> pageConsumer) {
+            Consumer<ValidatedPage> pageConsumer) {
+        return load(lastSequenceNumbers, boundary, pageConsumer, false, true);
+    }
+
+    private LoadResult load(
+            Map<String, Long> lastSequenceNumbers,
+            ModelReadBoundary boundary,
+            Consumer<ValidatedPage> pageConsumer,
+            boolean headsOnly,
+            boolean requireCompleteHistory) {
         Objects.requireNonNull(lastSequenceNumbers, "lastSequenceNumbers");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(pageConsumer, "pageConsumer");
@@ -208,14 +215,18 @@ final class ModelReplayCursor {
                             List.of(), boundary,
                             settings.maxPayloadBytes()));
             validateBoundary(response, boundary.stateIndex());
-            pageConsumer.accept(response);
+            pageConsumer.accept(validatePage(
+                    response, List.of(), validatedCursors,
+                    new LinkedHashMap<>(), 0,
+                    settings.maxPayloadBytes(), requireCompleteHistory));
             return new LoadResult(response.getStateIndex(), Map.of());
         }
 
         ModelReadBoundary pinned = boundary;
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
-        int maxStreamsPerChunk = Math.min(
-                settings.maxStreamsPerRequest(), settings.maxMembershipsPerRequest());
+        int maxStreamsPerChunk = headsOnly
+                ? settings.maxStreamsPerRequest()
+                : Math.min(settings.maxStreamsPerRequest(), settings.maxMembershipsPerRequest());
         for (int offset = 0; offset < ids.size(); offset += maxStreamsPerChunk) {
             int until = Math.min(ids.size(), offset + maxStreamsPerChunk);
             List<String> chunkIds = ids.subList(offset, until);
@@ -223,7 +234,7 @@ final class ModelReplayCursor {
             chunkIds.forEach(modelId -> chunkCursors.put(modelId, validatedCursors.get(modelId)));
             LoadResult chunk = loadChunk(
                     chunkCursors, pinned,
-                    pageConsumer);
+                    pageConsumer, headsOnly, requireCompleteHistory);
             pinned = ModelReadBoundary.state(chunk.stateIndex(), false);
             heads.putAll(chunk.heads());
         }
@@ -256,36 +267,19 @@ final class ModelReplayCursor {
             boolean requireCompleteHistory) {
         Objects.requireNonNull(boundary, "boundary");
         List<String> ids = validateIds(modelIds);
-        if (ids.isEmpty()) {
-            return load(Map.of(), boundary, ignored -> {
-            });
-        }
-        ModelReadBoundary pinned = boundary;
-        LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
-        for (int offset = 0;
-             offset < ids.size();
-             offset += settings.maxStreamsPerRequest()) {
-            List<String> chunk = ids.subList(
-                    offset, Math.min(ids.size(), offset + settings.maxStreamsPerRequest()));
-            GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
-                    chunk.stream().map(id -> new ModelEventStreamRequest(id, -1L, 0)).toList(),
-                    pinned,
-                    settings.maxPayloadBytes()));
-            long stateIndex = validateBoundary(response, pinned.stateIndex());
-            LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
-            chunk.forEach(id -> cursors.put(id, -1L));
-            validatePage(
-                    response, chunk, cursors, heads, 0,
-                    settings.maxPayloadBytes(), requireCompleteHistory);
-            pinned = ModelReadBoundary.state(stateIndex, false);
-        }
-        return new LoadResult(pinned.stateIndex(), heads);
+        LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
+        ids.forEach(id -> cursors.put(id, -1L));
+        return load(
+                cursors, boundary, ignored -> {
+                }, true, requireCompleteHistory);
     }
 
     private LoadResult loadChunk(
             LinkedHashMap<String, Long> initialCursors,
             ModelReadBoundary boundary,
-            Consumer<GetModelEventsResult> pageConsumer) {
+            Consumer<ValidatedPage> pageConsumer,
+            boolean headsOnly,
+            boolean requireCompleteHistory) {
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(initialCursors);
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         ModelReadBoundary pinned = boundary;
@@ -305,7 +299,7 @@ final class ModelReplayCursor {
                         Objects.requireNonNull(pinned.stateIndex()), heads);
             }
 
-            int perStreamLimit = Math.min(
+            int perStreamLimit = headsOnly ? 0 : Math.min(
                     settings.maxMembershipsPerStream(),
                     Math.max(1, settings.maxMembershipsPerRequest() / active.size()));
             List<ModelEventStreamRequest> requests = active.stream()
@@ -321,12 +315,15 @@ final class ModelReplayCursor {
                     response, pinned.stateIndex());
             pinned = ModelReadBoundary.state(responseStateIndex, false);
 
-            int advanced = validatePage(
+            ValidatedPage page = validatePage(
                     response, active, cursors, heads,
                     perStreamLimit,
-                    settings.maxPayloadBytes(), true);
-            pageConsumer.accept(response);
-            if (advanced == 0 && hasIncompleteStream(cursors, heads)) {
+                    settings.maxPayloadBytes(), requireCompleteHistory);
+            pageConsumer.accept(page);
+            if (headsOnly) {
+                return new LoadResult(responseStateIndex, heads);
+            }
+            if (page.advanced() == 0 && hasIncompleteStream(cursors, heads)) {
                 throw invalid(
                         "Model event page made no progress at state index "
                         + pinned.stateIndex());
@@ -382,7 +379,7 @@ final class ModelReplayCursor {
         return stateIndex;
     }
 
-    private static int validatePage(
+    private static ValidatedPage validatePage(
             GetModelEventsResult response,
             List<String> requestedIds,
             Map<String, Long> cursors,
@@ -390,43 +387,9 @@ final class ModelReplayCursor {
             int perStreamLimit,
             long maxPayloadBytes,
             boolean requireCompleteHistory) {
-        List<ModelEventPayload> payloadList =
-                Objects.requireNonNull(response.getPayloads(), "Model event payloads");
-        long[] payloadStateIndices = new long[payloadList.size()];
-        boolean sortedPayloads = true;
-        long payloadBytes = 0L;
-        for (int index = 0; index < payloadList.size(); index++) {
-            ModelEventPayload payload = payloadList.get(index);
-            if (payload == null || payload.getEvent() == null) {
-                throw invalid("Model event response contains a null payload");
-            }
-            if (payload.getStateIndex() < 0L || payload.getStateIndex() > response.getStateIndex()) {
-                throw invalid("Model event payload has invalid state index " + payload.getStateIndex());
-            }
-            payloadStateIndices[index] = payload.getStateIndex();
-            if (index > 0
-                && payloadStateIndices[index - 1] >= payloadStateIndices[index]) {
-                sortedPayloads = false;
-            }
-            payloadBytes = addSaturated(payloadBytes, payload.getEvent().getBytes());
-        }
-        Map<Long, Integer> payloadOrdinals = null;
-        if (!sortedPayloads) {
-            payloadOrdinals = new HashMap<>(payloadList.size() * 4 / 3 + 1);
-            for (int index = 0; index < payloadStateIndices.length; index++) {
-                if (payloadOrdinals.putIfAbsent(
-                        payloadStateIndices[index], index) != null) {
-                    throw invalid(
-                            "Duplicate model event payload at state index "
-                            + payloadStateIndices[index]);
-                }
-            }
-        }
-        if (payloadList.size() > 1 && maxPayloadBytes > 0L && payloadBytes > maxPayloadBytes) {
-            throw invalid(
-                    "Model event response contains %d serialized event bytes, exceeding limit %d"
-                            .formatted(payloadBytes, maxPayloadBytes));
-        }
+        PayloadLookup payloads = PayloadLookup.validate(
+                Objects.requireNonNull(response.getPayloads(), "Model event payloads"),
+                response.getStateIndex(), maxPayloadBytes);
 
         List<ModelEventStream> streams =
                 Objects.requireNonNull(response.getStreams(), "Model event streams");
@@ -435,8 +398,7 @@ final class ModelReplayCursor {
                     "Model event response contains %d streams for %d requests"
                             .formatted(streams.size(), requestedIds.size()));
         }
-        boolean[] referencedPayloads =
-                new boolean[payloadStateIndices.length];
+        boolean[] referencedPayloads = new boolean[payloads.size()];
         int advanced = 0;
         for (int i = 0; i < streams.size(); i++) {
             String requestedId = requestedIds.get(i);
@@ -496,12 +458,7 @@ final class ModelReplayCursor {
                             "Model stream '%s' has membership state %d beyond head state %d"
                                     .formatted(requestedId, membership.getStateIndex(), head.getStateIndex()));
                 }
-                int payloadOrdinal = sortedPayloads
-                        ? Arrays.binarySearch(
-                                payloadStateIndices,
-                                membership.getStateIndex())
-                        : payloadOrdinals.getOrDefault(
-                                membership.getStateIndex(), -1);
+                int payloadOrdinal = payloads.ordinal(membership.getStateIndex());
                 if (payloadOrdinal < 0) {
                     throw invalid(
                             "Model stream '%s' references missing payload at state index %d"
@@ -533,10 +490,10 @@ final class ModelReplayCursor {
             if (!referencedPayloads[index]) {
                 throw invalid(
                         "Model event response contains unreferenced payload "
-                        + payloadStateIndices[index]);
+                        + payloads.stateIndex(index));
             }
         }
-        return advanced;
+        return new ValidatedPage(response, payloads, advanced);
     }
 
     private static void validateHead(
@@ -588,15 +545,13 @@ final class ModelReplayCursor {
      * Resolves direct, collection and dependency targets at one replay boundary.
      *
      * <p>Event streams, documents, cache proofs, aliases and ancestor projections all converge here. The caller may
-     * still choose whether the resulting durable context is overlaid with pending message-batch values; that is a
-     * projection option and does not create a second load lifecycle.</p>
+     * supply batch-local ancestor values, but this reconstruction owner never discovers or stores batch state.</p>
      */
     CommitAttempt context(
             MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
-            boolean includeMessageBatch,
-            String namespace,
+            Function<String, Entity<?>> pendingAncestor,
             ModelCacheTracker cacheTracker,
             boolean requireBoundary) {
         Objects.requireNonNull(resolution, "resolution");
@@ -614,8 +569,7 @@ final class ModelReplayCursor {
         Long ancestorStateIndex = null;
         if (resolution.hasAncestorDependencies()) {
             AncestorResult ancestors = resolveAncestors(
-                    resolution, boundary, stagedValues, includeMessageBatch,
-                    includeMessageBatch ? namespace : null);
+                    resolution, boundary, stagedValues, pendingAncestor);
             resolution = ancestors.resolution();
             ancestorStateIndex = ancestors.stateIndex();
             boundary = ModelReadBoundary.at(ancestorStateIndex);
@@ -835,9 +789,7 @@ final class ModelReplayCursor {
         }
         GetModelGraph request = new GetModelGraph(
                 rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false);
-        GetModelGraphResult response = boundary.before()
-                ? eventStoreClient.getModelGraphBefore(new GetModelGraphBefore(request))
-                : eventStoreClient.getModelGraph(request);
+        GetModelGraphResult response = eventStoreClient.getModelGraph(request);
         GetModelEventsResult graphEvents = response.getEvents();
         long stateIndex = graphEvents.getStateIndex();
         List<MutationPlan.ResolvedModel> targets = new ArrayList<>(graphEvents.getStreams().size());
@@ -993,10 +945,9 @@ final class ModelReplayCursor {
             MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
-            boolean includeMessageBatch,
-            String namespace) {
+            Function<String, Entity<?>> pendingAncestor) {
         return resolveAncestors(
-                resolution, boundary, stagedValues, includeMessageBatch, namespace,
+                resolution, boundary, stagedValues, pendingAncestor,
                 true, false, false,
                 COMMIT_ANCESTOR_MAX_DEPTH, COMMIT_ANCESTOR_MAX_MODELS);
     }
@@ -1005,8 +956,7 @@ final class ModelReplayCursor {
             MutationPlan.Resolution resolution,
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
-            boolean includeMessageBatch,
-            String namespace,
+            Function<String, Entity<?>> pendingAncestor,
             boolean requireAncestors,
             boolean closestAncestorsOnly,
             boolean allowMultipleAncestors,
@@ -1050,8 +1000,8 @@ final class ModelReplayCursor {
             }
             graph = eventStoreClient.getModelAncestors(new GetModelAncestors(
                     List.copyOf(requestRoots), boundary, maxDepth, maxModels, 0, 0L));
-            if (!includeMessageBatch || !addPendingAncestorValues(
-                    requestRoots, graph, effectiveStagedValues, namespace)) {
+            if (pendingAncestor == null || !addPendingAncestorValues(
+                    requestRoots, graph, effectiveStagedValues, pendingAncestor)) {
                 break;
             }
         }
@@ -1146,7 +1096,7 @@ final class ModelReplayCursor {
             Collection<String> requestRoots,
             GetModelGraphResult graph,
             Map<String, Object> stagedValues,
-            String namespace) {
+            Function<String, Entity<?>> pendingAncestor) {
         LinkedHashSet<String> candidateIds = new LinkedHashSet<>(requestRoots);
         graph.getEvents().getStreams().forEach(
                 stream -> candidateIds.add(stream.getModelId()));
@@ -1159,7 +1109,7 @@ final class ModelReplayCursor {
             if (stagedValues.containsKey(modelId)) {
                 continue;
             }
-            Entity<?> pending = ModelBatchScope.currentValue(namespace, modelId);
+            Entity<?> pending = pendingAncestor.apply(modelId);
             if (pending != null) {
                 stagedValues.put(modelId, pending.get());
                 changed = true;
@@ -1394,25 +1344,25 @@ final class ModelReplayCursor {
         }
 
         private void applyPage(
-                GetModelEventsResult page,
+                ValidatedPage page,
                 Map<String, MutableReconstruction> states,
                 ReplayWindow window) {
-            page.getStreams().forEach(
+            GetModelEventsResult response = page.response();
+            response.getStreams().forEach(
                     stream -> resolveTarget(
                             stream.getModelId(), stream.getHead(), states));
-            PayloadLookup payloads =
-                    PayloadLookup.from(page.getPayloads());
+            PayloadLookup payloads = page.payloads();
             boolean independent =
-                    page.getStreams().size() >= 32
-                    && page.getStreams().parallelStream()
+                    response.getStreams().size() >= 32
+                    && response.getStreams().parallelStream()
                             .allMatch(stream -> stream.getMemberships().stream()
                                     .filter(window::includes)
                                     .allMatch(membership -> directReplayPlan(
                                             payloads.getRequired(membership.getStateIndex()),
                                             states.get(stream.getModelId()).target.modelType()) != null));
             Stream<ModelEventStream> streams = independent
-                    ? page.getStreams().parallelStream()
-                    : page.getStreams().stream();
+                    ? response.getStreams().parallelStream()
+                    : response.getStreams().stream();
             streams.forEach(stream -> {
                 MutableReconstruction state = states.get(stream.getModelId());
                 if (state == null) {
@@ -1746,7 +1696,7 @@ final class ModelReplayCursor {
                                                                 : ModelReadBoundary.commit(
                                                                         membership.getCommitId(),
                                                                         membership.getSubstep() - 1),
-                                                        Map.of(), false, null,
+                                                        Map.of(), null,
                                                         true, false, false,
                                                         COMMIT_ANCESTOR_MAX_DEPTH,
                                                         COMMIT_ANCESTOR_MAX_MODELS);
@@ -2084,45 +2034,82 @@ final class ModelReplayCursor {
             MutationPlan.Resolution resolution) {
     }
 
+    record ValidatedPage(
+            GetModelEventsResult response,
+            PayloadLookup payloads,
+            int advanced) {
+    }
+
     private record PayloadLookup(
             long[] stateIndices,
             SerializedMessage[] events,
-            Map<Long, SerializedMessage> unordered) {
+            Map<Long, Integer> unorderedOrdinals) {
 
-        private static PayloadLookup from(
-                List<ModelEventPayload> payloads) {
+        private static PayloadLookup validate(
+                List<ModelEventPayload> payloads,
+                long responseStateIndex,
+                long maxPayloadBytes) {
             long[] stateIndices = new long[payloads.size()];
-            SerializedMessage[] events =
-                    new SerializedMessage[payloads.size()];
+            SerializedMessage[] events = new SerializedMessage[payloads.size()];
             boolean sorted = true;
+            long payloadBytes = 0L;
             for (int index = 0; index < payloads.size(); index++) {
                 ModelEventPayload payload = payloads.get(index);
+                if (payload == null || payload.getEvent() == null) {
+                    throw invalid("Model event response contains a null payload");
+                }
+                if (payload.getStateIndex() < 0L
+                    || payload.getStateIndex() > responseStateIndex) {
+                    throw invalid(
+                            "Model event payload has invalid state index "
+                            + payload.getStateIndex());
+                }
                 stateIndices[index] = payload.getStateIndex();
                 events[index] = payload.getEvent();
                 sorted &= index == 0
                           || stateIndices[index - 1] < stateIndices[index];
+                payloadBytes = addSaturated(
+                        payloadBytes, payload.getEvent().getBytes());
             }
-            if (sorted) {
-                return new PayloadLookup(stateIndices, events, null);
+            Map<Long, Integer> unordered = null;
+            if (!sorted) {
+                unordered = new HashMap<>(payloads.size() * 4 / 3 + 1);
+                for (int index = 0; index < stateIndices.length; index++) {
+                    if (unordered.putIfAbsent(stateIndices[index], index) != null) {
+                        throw invalid(
+                                "Duplicate model event payload at state index "
+                                + stateIndices[index]);
+                    }
+                }
             }
-            Map<Long, SerializedMessage> unordered =
-                    new HashMap<>(payloads.size() * 4 / 3 + 1);
-            for (int index = 0; index < stateIndices.length; index++) {
-                unordered.put(stateIndices[index], events[index]);
+            if (payloads.size() > 1 && maxPayloadBytes > 0L
+                && payloadBytes > maxPayloadBytes) {
+                throw invalid(
+                        "Model event response contains %d serialized event bytes, exceeding limit %d"
+                                .formatted(payloadBytes, maxPayloadBytes));
             }
             return new PayloadLookup(stateIndices, events, unordered);
         }
 
+        private int size() {
+            return stateIndices.length;
+        }
+
+        private long stateIndex(int ordinal) {
+            return stateIndices[ordinal];
+        }
+
+        private int ordinal(long stateIndex) {
+            return unorderedOrdinals == null
+                    ? Arrays.binarySearch(stateIndices, stateIndex)
+                    : unorderedOrdinals.getOrDefault(stateIndex, -1);
+        }
+
         private SerializedMessage getRequired(long stateIndex) {
-            SerializedMessage event;
-            if (unordered == null) {
-                int index = Arrays.binarySearch(stateIndices, stateIndex);
-                event = index < 0 ? null : events[index];
-            } else {
-                event = unordered.get(stateIndex);
-            }
+            int ordinal = ordinal(stateIndex);
             return Objects.requireNonNull(
-                    event, "Missing validated model payload");
+                    ordinal < 0 ? null : events[ordinal],
+                    "Missing validated model payload");
         }
     }
 

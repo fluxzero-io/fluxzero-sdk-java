@@ -59,7 +59,6 @@ import io.fluxzero.sdk.modeling.Change;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
-import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.ImmutableRoot;
@@ -397,7 +396,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 List.of(metadata.entityId().orElseThrow().name()));
         CommitAttempt context = replayCursor.context(
                 new MutationPlan.Resolution(List.of(target), List.of()),
-                boundary(handlerBoundary), Map.of(), false, null,
+                boundary(handlerBoundary), Map.of(), null,
                 modelCacheTracker, handlerBoundary != null);
         pin(handlerBoundary, context.readStateIndex());
         return cast(context.entity(context.targets().getFirst().modelId()));
@@ -435,9 +434,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         CommitAttempt context = loadContext(
                 new MutationPlan.Resolution(targets, List.of()),
                 boundary(handlerBoundary),
-                Map.of(), false);
-        context = ModelBatchScope.overlayCurrent(
-                messageBatchNamespace(), context);
+                Map.of(), true);
         pin(handlerBoundary, context.readStateIndex());
         return context.modelIds().stream()
                 .map(context::entity)
@@ -700,14 +697,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Long maxStateIndex,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
-        CommitAttempt context = loadContext(
+        return loadContext(
                 resolution,
                 ModelReadBoundary.at(maxStateIndex),
                 stagedValues, includeMessageBatch);
-        return includeMessageBatch
-                ? ModelBatchScope.overlayCurrent(
-                        messageBatchNamespace(), context)
-                : context;
     }
 
     private String messageBatchNamespace() {
@@ -742,21 +735,30 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
-        return replayCursor.context(
-                resolution, boundary, stagedValues, includeMessageBatch,
-                includeMessageBatch ? messageBatchNamespace() : null,
+        String namespace = includeMessageBatch ? messageBatchNamespace() : null;
+        Map<String, Object> effectiveStagedValues = stagedValues;
+        if (includeMessageBatch) {
+            Map<String, Object> batchValues = ModelBatchScope.currentValues(
+                    namespace, resolution);
+            if (!batchValues.isEmpty()) {
+                if (stagedValues.isEmpty()) {
+                    effectiveStagedValues = batchValues;
+                } else {
+                    LinkedHashMap<String, Object> combined = new LinkedHashMap<>(batchValues);
+                    combined.putAll(stagedValues);
+                    effectiveStagedValues = combined;
+                }
+            }
+        }
+        CommitAttempt context = replayCursor.context(
+                resolution, boundary, effectiveStagedValues,
+                includeMessageBatch
+                        ? modelId -> ModelBatchScope.currentValue(namespace, modelId)
+                        : null,
                 modelCacheTracker, true);
-    }
-
-    private AncestorResolution resolveAncestors(
-            MutationPlan.Resolution resolution,
-            ModelReadBoundary boundary,
-            Map<String, Object> stagedValues,
-            boolean includeMessageBatch) {
-        ModelReplayCursor.AncestorResult result = replayCursor.resolveAncestors(
-                resolution, boundary, stagedValues, includeMessageBatch,
-                includeMessageBatch ? messageBatchNamespace() : null);
-        return new AncestorResolution(result.stateIndex(), result.resolution());
+        return includeMessageBatch
+                ? ModelBatchScope.overlayCurrent(namespace, context)
+                : context;
     }
 
     private AncestorResolution resolveAncestors(
@@ -769,9 +771,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean allowMultipleAncestors,
             int maxDepth,
             int maxModels) {
+        String namespace = includeMessageBatch ? messageBatchNamespace() : null;
         ModelReplayCursor.AncestorResult result = replayCursor.resolveAncestors(
-                resolution, boundary, stagedValues, includeMessageBatch,
-                includeMessageBatch ? messageBatchNamespace() : null,
+                resolution, boundary, stagedValues,
+                includeMessageBatch
+                        ? modelId -> ModelBatchScope.currentValue(namespace, modelId)
+                        : null,
                 requireAncestors, closestAncestorsOnly, allowMultipleAncestors,
                 maxDepth, maxModels);
         return new AncestorResolution(result.stateIndex(), result.resolution());

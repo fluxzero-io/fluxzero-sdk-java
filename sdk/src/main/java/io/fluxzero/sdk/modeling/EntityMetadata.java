@@ -139,17 +139,23 @@ public final class EntityMetadata {
         return left.isAssignableFrom(right) || right.isAssignableFrom(left);
     }
 
+    /**
+     * Returns the root annotation settings without requiring the type to form a complete entity model.
+     * Structural annotation discovery is served by the central {@link ReflectionUtils.TypeMetadata} cache.
+     */
+    static Optional<RootConfiguration> rootConfiguration(Class<?> type) {
+        ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(type);
+        return Optional.ofNullable(rootConfiguration(
+                type, metadata.typeAnnotation(Model.class),
+                metadata.typeAnnotation(Aggregate.class)));
+    }
+
     private EntityMetadata(Class<?> type) {
         this.type = type;
         ReflectionUtils.TypeMetadata typeMetadata = ReflectionUtils.getTypeMetadata(type);
         this.model = typeMetadata.typeAnnotation(Model.class);
         this.aggregate = typeMetadata.typeAnnotation(Aggregate.class);
-        if (model != null && aggregate != null) {
-            throw invalid("%s cannot be annotated with both @Model and @Aggregate".formatted(type.getName()));
-        }
-        this.rootConfiguration = model == null
-                ? aggregate == null ? null : RootConfiguration.aggregate(aggregate)
-                : RootConfiguration.model(model);
+        this.rootConfiguration = rootConfiguration(type, model, aggregate);
         if (model != null) {
             validateGraphProjection(model);
         }
@@ -201,16 +207,18 @@ public final class EntityMetadata {
         this.handlerMethods = inspectHandlerMethods(typeMetadata);
     }
 
+    private static RootConfiguration rootConfiguration(
+            Class<?> type, Model model, Aggregate aggregate) {
+        if (model != null && aggregate != null) {
+            throw invalid("%s cannot be annotated with both @Model and @Aggregate".formatted(type.getName()));
+        }
+        return model == null
+                ? aggregate == null ? null : RootConfiguration.aggregate(aggregate)
+                : RootConfiguration.model(model);
+    }
+
     public Class<?> type() {
         return type;
-    }
-
-    public Optional<Model> model() {
-        return Optional.ofNullable(model);
-    }
-
-    public Optional<Aggregate> aggregate() {
-        return Optional.ofNullable(aggregate);
     }
 
     public boolean isModel() {

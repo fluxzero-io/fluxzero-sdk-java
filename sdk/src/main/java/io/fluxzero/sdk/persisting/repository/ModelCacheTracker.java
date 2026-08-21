@@ -448,7 +448,7 @@ final class ModelCacheTracker implements AutoCloseable {
             };
         }
         List<LocalCommit> commits =
-                new java.util.ArrayList<>(targets.size());
+                new ArrayList<>(targets.size());
         targets.forEach(modelId ->
                 commits.add(beginLocalCommit(modelId)));
         AtomicBoolean completed =

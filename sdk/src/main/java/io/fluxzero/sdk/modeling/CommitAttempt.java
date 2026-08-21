@@ -37,10 +37,11 @@ import java.util.function.Supplier;
  * Instances used only as a handler read context leave the evaluation and completion portions empty.
  */
 public final class CommitAttempt {
+    private static final MutationPlan.Resolution EMPTY_RESOLUTION =
+            new MutationPlan.Resolution(List.of(), List.of());
+
     private long readStateIndex = -1L;
-    private List<MutationPlan.ResolvedModel> targets = List.of();
-    private List<MutationPlan.DeferredWriteTarget> deferredWrites = List.of();
-    private Map<EntityMetadata.ModelParameter, MutationPlan.DirectReferences> references = Map.of();
+    private MutationPlan.Resolution resolution = EMPTY_RESOLUTION;
     private Map<String, Entity<?>> entities = Map.of();
 
     private List<String> readModelIds = List.of();
@@ -93,9 +94,7 @@ public final class CommitAttempt {
             validateLoadedEntity(target, entity);
             CommitAttempt result = new CommitAttempt();
             result.readStateIndex = readStateIndex;
-            result.targets = resolution.models();
-            result.deferredWrites = resolution.deferredWrites();
-            result.references = resolution.references();
+            result.resolution = resolution;
             result.entities = Map.of(target.modelId(), entity);
             return result;
         }
@@ -117,9 +116,7 @@ public final class CommitAttempt {
         }
         CommitAttempt result = new CommitAttempt();
         result.readStateIndex = readStateIndex;
-        result.targets = resolution.models();
-        result.deferredWrites = resolution.deferredWrites();
-        result.references = resolution.references();
+        result.resolution = resolution;
         result.entities = immutable(entities);
         return result;
     }
@@ -144,7 +141,7 @@ public final class CommitAttempt {
         validateLoadedEntity(target, entity);
         CommitAttempt result = new CommitAttempt();
         result.readStateIndex = readStateIndex;
-        result.targets = List.of(target);
+        result.resolution = new MutationPlan.Resolution(List.of(target), List.of());
         result.entities = Map.of(modelId, entity);
         return result;
     }
@@ -171,17 +168,17 @@ public final class CommitAttempt {
     }
 
     public List<String> modelIds() {
-        ArrayList<String> result = new ArrayList<>(targets.size());
-        targets.forEach(target -> result.add(target.modelId()));
+        ArrayList<String> result = new ArrayList<>(resolution.models().size());
+        resolution.models().forEach(target -> result.add(target.modelId()));
         return List.copyOf(result);
     }
 
     public List<MutationPlan.ResolvedModel> targets() {
-        return targets;
+        return resolution.models();
     }
 
     public MutationPlan.ResolvedModel target(String modelId) {
-        for (MutationPlan.ResolvedModel target : targets) {
+        for (MutationPlan.ResolvedModel target : resolution.models()) {
             if (target.modelId().equals(modelId)) {
                 return target;
             }
@@ -208,7 +205,7 @@ public final class CommitAttempt {
         Entity<?> candidate = null;
         Entity<?> secondCandidate = null;
         Entity<?> exact = null;
-        for (MutationPlan.ResolvedModel target : targets) {
+        for (MutationPlan.ResolvedModel target : resolution.models()) {
             Class<?> targetType = target.modelType();
             if (!EntityMetadata.compatibleTypes(modelType, targetType)) {
                 continue;
@@ -232,7 +229,7 @@ public final class CommitAttempt {
             return exact;
         }
         if (secondCandidate != null) {
-            throw ambiguous(modelType, null, targets.stream()
+            throw ambiguous(modelType, null, resolution.models().stream()
                     .filter(target -> EntityMetadata.compatibleTypes(
                             modelType, target.modelType()))
                     .map(MutationPlan.ResolvedModel::modelId).toList());
@@ -241,7 +238,7 @@ public final class CommitAttempt {
     }
 
     MutationPlan.DirectReferences references(EntityMetadata.ModelParameter parameter) {
-        return references.get(parameter);
+        return resolution.references().get(parameter);
     }
 
     boolean mayWrite(String modelId, Class<?> modelType, Executable handler) {
@@ -253,7 +250,7 @@ public final class CommitAttempt {
             return true;
         }
         String handlerSignature = handler == null ? null : handler.toGenericString();
-        for (MutationPlan.DeferredWriteTarget deferred : deferredWrites) {
+        for (MutationPlan.DeferredWriteTarget deferred : resolution.deferredWrites()) {
             if (deferred.handler().equals(handlerSignature)
                 && deferred.modelType().isAssignableFrom(modelType)
                 && deferred.candidateModelIds().contains(modelId)) {
@@ -285,9 +282,7 @@ public final class CommitAttempt {
         });
         CommitAttempt result = new CommitAttempt();
         result.readStateIndex = readStateIndex;
-        result.targets = targets;
-        result.deferredWrites = deferredWrites;
-        result.references = references;
+        result.resolution = resolution;
         result.entities = immutable(updated);
         return result;
     }

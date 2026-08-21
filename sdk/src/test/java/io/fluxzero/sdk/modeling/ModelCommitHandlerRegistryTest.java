@@ -1561,6 +1561,15 @@ class ModelCommitHandlerRegistryTest {
         org.mockito.stubbing.Answer<CommitAttempt> answer = invocation -> {
             MutationPlan.Resolution resolution = invocation.getArgument(0);
             Map<String, Object> staged = invocation.getArgument(2);
+            if (invocation.<Boolean>getArgument(3)) {
+                Map<String, Object> batch = ModelBatchScope.currentValues(
+                        null, resolution);
+                if (!batch.isEmpty()) {
+                    LinkedHashMap<String, Object> combined = new LinkedHashMap<>(batch);
+                    combined.putAll(staged);
+                    staged = combined;
+                }
+            }
             LinkedHashMap<String, MutationPlan.ResolvedModel> targets =
                     new LinkedHashMap<>();
             resolution.models().forEach(target ->

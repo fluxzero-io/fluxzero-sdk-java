@@ -57,7 +57,9 @@ class ModelReplayCursorTest {
                 client, new ModelReplayCursor.Settings(2, 8, 4, 1_024L));
         List<GetModelEventsResult> pages = new ArrayList<>();
 
-        long stateIndex = loader.load(List.of("a", "b", "c"), null, pages::add);
+        long stateIndex = loader.load(
+                List.of("a", "b", "c"), null,
+                page -> pages.add(page.response()));
 
         assertEquals(42L, stateIndex);
         assertEquals(2, requests.size());

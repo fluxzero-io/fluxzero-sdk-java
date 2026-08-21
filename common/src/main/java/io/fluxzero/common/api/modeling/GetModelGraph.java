@@ -76,7 +76,10 @@ public class GetModelGraph extends Request {
             long maxBytes,
             boolean composableOnly) {
         this.rootId = rootId;
-        this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
+        ModelReadBoundary selectedBoundary = Objects.requireNonNull(boundary, "boundary");
+        ModelReadBoundary requestBoundary = selectedBoundary.forRequest();
+        this.boundary = selectedBoundary.before()
+                ? requestBoundary.asBefore() : requestBoundary;
         this.maxDepth = maxDepth;
         this.maxModels = maxModels;
         this.maxEventsPerModel = maxEventsPerModel;

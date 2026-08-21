@@ -35,7 +35,6 @@ import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
-import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelEventPageDecoder;
@@ -449,12 +448,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
     @Override
     public GetModelGraphResult getModelGraph(GetModelGraph request) {
         return expandGraphResult(request, sendAndWait(request));
-    }
-
-    @Override
-    public GetModelGraphResult getModelGraphBefore(
-            GetModelGraphBefore request) {
-        return expandGraphResult(request.getRequest(), sendAndWait(request));
     }
 
     @Override
