@@ -191,7 +191,7 @@ class GraphJsonSerializerTest {
                 Map.of(rootValue.id(), entity(rootValue.id(), Root.class, rootValue),
                        childValue.id(), entity(childValue.id(), Child.class, childValue)),
                 List.of(new ModelGraphEdge(
-                        childValue.id(), rootValue.id(), Root.class.getName(), null, 0L, null)),
+                        childValue.id(), rootValue.id(), Root.class.getName(), null, 0L, null, false)),
                 mock(ModelRepository.class), false);
 
         JsonNode document = serializer.getObjectMapper().valueToTree(graph);
@@ -216,13 +216,13 @@ class GraphJsonSerializerTest {
                 List.of(
                         new ModelGraphEdge(
                                 childValue.id(), rootValue.id(), Root.class.getName(),
-                                "children", 0L, null),
+                                "children", 0L, null, false),
                         new ModelGraphEdge(
                                 leafValue.id(), childValue.id(), Child.class.getName(),
-                                "details/leaves", 0L, null),
+                                "details/leaves", 0L, null, false),
                         new ModelGraphEdge(
                                 siblingValue.id(), rootValue.id(), Root.class.getName(),
-                                "children", 0L, null)),
+                                "children", 0L, null, false)),
                 mock(ModelRepository.class), false);
     }
 
@@ -237,9 +237,9 @@ class GraphJsonSerializerTest {
                        hidden.id(), entity(hidden.id(), ViewChild.class, hidden)),
                 List.of(
                         new ModelGraphEdge(visible.id(), rootValue.id(), ViewRoot.class.getName(),
-                                           "children", 0L, null),
+                                           "children", 0L, null, false),
                         new ModelGraphEdge(hidden.id(), rootValue.id(), ViewRoot.class.getName(),
-                                           "children", 0L, null)),
+                                           "children", 0L, null, false)),
                 mock(ModelRepository.class), false);
     }
 

@@ -105,7 +105,6 @@ public final class ModelCommitWireCodec {
         }
         for (JsonType request : batch.getRequests()) {
             if (!(request instanceof CommitModels commit)
-                    || Boolean.TRUE.equals(commit.getPossibleDuplicate())
                     || commit.getSubsteps().size() != 1) {
                 return false;
             }
@@ -168,7 +167,7 @@ public final class ModelCommitWireCodec {
         }
         output.writeByte(commit.getConflictPolicy() == null ? -1 : commit.getConflictPolicy().ordinal());
         output.writeByte(commit.getGuarantee().ordinal());
-        output.writeBoolean(Boolean.FALSE.equals(commit.getPossibleDuplicate()));
+        output.writeBoolean(commit.isPossibleDuplicate());
 
         ModelCommitStep step = commit.getSubsteps().getFirst();
         output.writeEnvelope(message);
@@ -201,7 +200,7 @@ public final class ModelCommitWireCodec {
                             : enumValue(CONFLICT_POLICIES, conflictOrdinal, "conflict policy");
             Guarantee guarantee =
                     enumValue(GUARANTEES, input.readUnsignedByte(), "guarantee");
-            Boolean possibleDuplicate = input.readBoolean() ? false : null;
+            boolean possibleDuplicate = input.readBoolean();
             SerializedMessage event = input.readEnvelope();
             String modelId = input.readString();
             ModelCommitTarget target =

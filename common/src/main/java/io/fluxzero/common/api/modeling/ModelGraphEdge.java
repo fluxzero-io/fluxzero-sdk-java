@@ -16,6 +16,7 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Value;
 
 /**
@@ -29,4 +30,15 @@ public class ModelGraphEdge {
     String path;
     long validFrom;
     Long validUntil;
+
+    /** Whether this edge makes the parent responsible for deleting the child. */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean deleteOnParentDeletion;
+
+    /** Returns this edge with a projection-relative path. */
+    public ModelGraphEdge withPath(String path) {
+        return new ModelGraphEdge(
+                childId, parentId, parentType, path, validFrom, validUntil,
+                deleteOnParentDeletion);
+    }
 }

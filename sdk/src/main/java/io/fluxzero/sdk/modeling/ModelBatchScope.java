@@ -184,10 +184,9 @@ public final class ModelBatchScope {
                     .idProperty(EntityMetadata.of(actualType).entityIdName())
                     .value(lookup.removed() ? null : stagedValue).build();
         }
-        return (Entity<T>) ImmutableModelRoot.builder()
-                .id(id).type((Class) actualType)
-                .idProperty(EntityMetadata.of(actualType).entityIdName())
-                .value(lookup.removed() ? null : stagedValue).build();
+        return (Entity<T>) ImmutableModelRoot.initial(
+                id, (Class) actualType, EntityMetadata.of(actualType).entityIdName(),
+                lookup.removed() ? null : stagedValue);
     }
 
     /** Overlays pending exact values without changing the durable context's pinned state boundary. */
@@ -249,8 +248,8 @@ public final class ModelBatchScope {
                         ? visible(candidates, key.modelId(), position, true) : null;
                 if (candidate != null && status(candidate) != Status.FAILURE
                     && resolution.ancestorDependencies().stream().anyMatch(dependency ->
-                            compatible(dependency.modelType(),
-                                       candidate.type()))) {
+                            EntityMetadata.compatibleTypes(
+                                    dependency.modelType(), candidate.type()))) {
                     dependOn(candidate);
                     result.put(key.modelId(), candidate.value());
                 }
@@ -267,12 +266,9 @@ public final class ModelBatchScope {
             Object stagedValue = value.value();
             result.put(modelId, stagedValue);
             if (stagedValue != null) {
-                EntityMetadata.validate(stagedValue.getClass()).parentReferences().forEach(parent -> {
-                    Object parentId = parent.read(stagedValue);
-                    if (parentId != null) {
-                        pending.add(parent.repositoryId(parentId));
-                    }
-                });
+                EntityMetadata.validate(stagedValue.getClass())
+                        .parentRelationships(modelId, stagedValue)
+                        .forEach(relationship -> pending.add(relationship.parentId()));
             }
         }
         return immutable(result);
@@ -423,21 +419,14 @@ public final class ModelBatchScope {
     private static Entity<?> stagedEntity(
             PendingValue value) {
         Class<?> type = value.type();
-        return ImmutableModelRoot.<Object>builder()
-                .id(value.modelId()).type((Class<Object>) type)
-                .idProperty(EntityMetadata.validate(type).entityId().orElseThrow().name())
-                .value(value.value())
-                .sequenceNumber(value.existedBefore()
-                                        ? Math.max(0L, value.sequenceNumber()) : -1L)
-                .build();
+        return ImmutableModelRoot.staged(
+                value.modelId(), (Class<Object>) type,
+                EntityMetadata.validate(type).entityId().orElseThrow().name(), value.value(),
+                value.existedBefore() ? Math.max(0L, value.sequenceNumber()) : -1L);
     }
 
     static boolean existedBefore(Entity<?> entity) {
         return entity instanceof PersistedRoot<?> root && root.sequenceNumber() >= 0L;
-    }
-
-    private static boolean compatible(Class<?> left, Class<?> right) {
-        return left.isAssignableFrom(right) || right.isAssignableFrom(left);
     }
 
     private static Map<String, Object> immutable(LinkedHashMap<String, Object> values) {

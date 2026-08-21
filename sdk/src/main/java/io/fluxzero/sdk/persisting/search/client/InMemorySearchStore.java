@@ -748,13 +748,7 @@ public class InMemorySearchStore implements SearchClient {
                                         path,
                                         edge.getPath())
                                         ? edge
-                                        : new ModelGraphEdge(
-                                                edge.getChildId(),
-                                                edge.getParentId(),
-                                                edge.getParentType(),
-                                                path,
-                                                edge.getValidFrom(),
-                                                edge.getValidUntil());
+                                        : edge.withPath(path);
                             })
                             .toList();
             LinkedHashSet<String> graphIds =

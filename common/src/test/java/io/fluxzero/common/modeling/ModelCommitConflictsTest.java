@@ -112,7 +112,7 @@ class ModelCommitConflictsTest {
                                         .publishEvent(false)
                                         .targets(List.of(targets))
                                         .build()),
-                policy, Guarantee.STORED, null);
+                policy, Guarantee.STORED, true);
     }
 
     private static ModelCommitTarget target(

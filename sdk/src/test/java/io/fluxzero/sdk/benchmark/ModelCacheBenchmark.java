@@ -325,7 +325,7 @@ public class ModelCacheBenchmark {
                                 List.of(id.toString()),
                                 substeps,
                                 ModelConflictPolicy.ACCEPT,
-                                Guarantee.STORED, null))
+                                Guarantee.STORED, true))
                 .join();
     }
 
@@ -344,7 +344,7 @@ public class ModelCacheBenchmark {
                                         fluxzero, id,
                                         new Increment(id))),
                                 ModelConflictPolicy.ACCEPT,
-                                Guarantee.STORED, null))
+                                Guarantee.STORED, true))
                 .join();
     }
 

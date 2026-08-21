@@ -19,6 +19,8 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.common.reflection.GenericTypeResolver;
@@ -130,6 +132,11 @@ public final class EntityMetadata {
             }
         }
         return !unmatchedDomainParameter;
+    }
+
+    /** Returns whether two declared model types can describe the same runtime value. */
+    public static boolean compatibleTypes(Class<?> left, Class<?> right) {
+        return left.isAssignableFrom(right) || right.isAssignableFrom(left);
     }
 
     private EntityMetadata(Class<?> type) {
@@ -278,6 +285,16 @@ public final class EntityMetadata {
         return entityId.read(Objects.requireNonNull(value, "Entity value must not be null"));
     }
 
+    /** Returns whether a non-null model value carries the supplied exact repository identity. */
+    public boolean identifies(String repositoryId, Object value) {
+        if (value == null) {
+            return true;
+        }
+        Object functionalId = functionalIdOf(value);
+        return functionalId != null
+               && Objects.equals(repositoryId, repositoryId(functionalId, value));
+    }
+
     /**
      * Resolves a parent-scoped primary identity from a functional child ID and explicit parent.
      */
@@ -422,6 +439,52 @@ public final class EntityMetadata {
 
     public List<ParentReference> parentReferences() {
         return parentReferences;
+    }
+
+    /**
+     * Resolves and deduplicates the outgoing parent relationships of one model value.
+     *
+     * <p>This is the only runtime extraction of {@link ParentId} values. Graph views, batch overlays, cascade
+     * selection and repository commits consume this immutable result instead of independently reading structural
+     * metadata.</p>
+     */
+    public List<ParentRelationship> parentRelationships(
+            String modelId, Object value) {
+        if (value == null || parentReferences.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashMap<RelationshipKey, ParentRelationship> result =
+                new LinkedHashMap<>();
+        for (ParentReference reference : parentReferences) {
+            Object parentId = reference.read(value);
+            if (parentId == null) {
+                continue;
+            }
+            String repositoryId = Objects.requireNonNull(
+                    reference.repositoryId(parentId),
+                    () -> "@ParentId " + reference.property().name() + " returned a null ID string");
+            if (Objects.equals(modelId, repositoryId)) {
+                throw new IllegalStateException(
+                        "Model '%s' cannot be its own parent".formatted(modelId));
+            }
+            Class<?> parentType = reference.parentModelType(parentId);
+            ParentRelationship relationship = new ParentRelationship(
+                    repositoryId, parentType,
+                    reference.path().isEmpty() ? null : reference.path(),
+                    reference.deleteOnParentDeletion());
+            RelationshipKey key = new RelationshipKey(
+                    repositoryId, parentType, relationship.path());
+            result.merge(
+                    key, relationship,
+                    (existing, duplicate) -> existing.deleteOnParentDeletion()
+                            ? existing
+                            : duplicate.deleteOnParentDeletion()
+                                    ? new ParentRelationship(
+                                            existing.parentId(), existing.parentType(),
+                                            existing.path(), true)
+                                    : existing);
+        }
+        return List.copyOf(result.values());
     }
 
     /**
@@ -1116,6 +1179,36 @@ public final class EntityMetadata {
         public boolean automaticallyComposed() {
             return !path.isEmpty();
         }
+    }
+
+    /** One resolved outgoing relationship, shared by Graph, batch, replay and commit consumers. */
+    public record ParentRelationship(
+            String parentId,
+            Class<?> parentType,
+            String path,
+            boolean deleteOnParentDeletion) {
+
+        /** Converts this structural relationship to its commit-wire value. */
+        public ModelRelationship asCommitRelationship() {
+            return ModelRelationship.builder()
+                    .parentId(parentId)
+                    .parentType(parentType == null ? null : parentType.getName())
+                    .path(path)
+                    .deleteOnParentDeletion(deleteOnParentDeletion)
+                    .build();
+        }
+
+        /** Converts this structural relationship to one transient Graph edge. */
+        public ModelGraphEdge asGraphEdge(String childId) {
+            return new ModelGraphEdge(
+                    childId, parentId,
+                    parentType == null ? null : parentType.getName(),
+                    path, -1L, null, deleteOnParentDeletion);
+        }
+    }
+
+    private record RelationshipKey(
+            String parentId, Class<?> parentType, String path) {
     }
 
     /**

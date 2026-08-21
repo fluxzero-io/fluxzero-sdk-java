@@ -72,14 +72,11 @@ public class CommitModels extends Command implements RetryAwareRequest {
     Guarantee guarantee;
 
     /**
-     * Whether this commit id may already have been stored.
-     * <p>
-     * {@code false} is a proof supplied by the SDK for the first transport attempt of a freshly
-     * handled source message. {@code true} requests a durable duplicate lookup. {@code null} keeps
-     * the conservative legacy behavior and also performs that lookup.
+     * Whether this commit id may already have been stored. {@code false} is a proof supplied by the SDK for the first
+     * transport attempt of a freshly handled source message; {@code true} requests a durable duplicate lookup.
      */
     @NonFinal
-    volatile Boolean possibleDuplicate;
+    volatile boolean possibleDuplicate;
 
     @ConstructorProperties({
             "commitId", "readStateIndex", "readModelIds", "substeps",
@@ -91,7 +88,7 @@ public class CommitModels extends Command implements RetryAwareRequest {
             List<ModelCommitStep> substeps,
             ModelConflictPolicy conflictPolicy,
             Guarantee guarantee,
-            Boolean possibleDuplicate) {
+            boolean possibleDuplicate) {
         this.commitId = commitId;
         this.readStateIndex = readStateIndex;
         this.readModelIds = readModelIds;
@@ -109,7 +106,7 @@ public class CommitModels extends Command implements RetryAwareRequest {
             List<ModelCommitStep> substeps,
             ModelConflictPolicy conflictPolicy,
             Guarantee guarantee,
-            Boolean possibleDuplicate) {
+            boolean possibleDuplicate) {
         super(requestId);
         this.commitId = commitId;
         this.readStateIndex = readStateIndex;

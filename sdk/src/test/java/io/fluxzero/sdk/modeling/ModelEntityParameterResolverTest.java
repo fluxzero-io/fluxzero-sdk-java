@@ -872,7 +872,7 @@ class ModelEntityParameterResolverTest {
                                                                     .build()))
                                                     .build()),
                                             ModelConflictPolicy.ACCEPT,
-                                            Guarantee.STORED, null))
+                                            Guarantee.STORED, true))
                             .join();
                 })
                 .whenApplying(fluxzero -> {
@@ -926,7 +926,7 @@ class ModelEntityParameterResolverTest {
                                                                     .build()))
                                                     .build()),
                                             ModelConflictPolicy.ACCEPT,
-                                            Guarantee.STORED, null))
+                                            Guarantee.STORED, true))
                             .join();
                 })
                 .whenApplying(fluxzero -> {

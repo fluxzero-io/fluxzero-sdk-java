@@ -16,12 +16,11 @@
 
 package io.fluxzero.common.api.modeling;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
+import io.fluxzero.common.modeling.ModelRelationshipTraversal;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -72,43 +71,39 @@ public final class ModelRelationshipCycleValidator {
         if (changedChildren.isEmpty()) {
             return;
         }
-        LinkedHashSet<String> reachable = new LinkedHashSet<>(changedChildren);
-        if (reachable.size() > MAX_MODELS) {
-            throw new ValidationException(
-                    "Model relationship cycle validation exceeds maxModels " + MAX_MODELS);
-        }
-        List<String> frontier = List.copyOf(changedChildren);
         Map<String, Set<String>> graph = new LinkedHashMap<>();
-        for (int depth = 0; !frontier.isEmpty(); depth++) {
-            LinkedHashSet<String> toLoad = new LinkedHashSet<>();
-            for (String childId : frontier) {
-                if (!overrides.containsKey(childId) && !storedParents.containsKey(childId)) {
-                    toLoad.add(childId);
-                }
-            }
-            loadStoredParents(toLoad, storedParents, parentLoader);
-            LinkedHashSet<String> next = new LinkedHashSet<>();
-            for (String childId : frontier) {
-                Set<String> parents =
-                        overrides.getOrDefault(childId, storedParents.getOrDefault(childId, Set.of()));
-                graph.put(childId, parents);
-                if (depth >= MAX_DEPTH && !parents.isEmpty()) {
-                    throw new ValidationException(
-                            "Model relationship cycle validation exceeds maxDepth " + MAX_DEPTH);
-                }
-                for (String parentId : parents) {
-                    if (reachable.add(parentId)) {
-                        if (reachable.size() > MAX_MODELS) {
-                            throw new ValidationException(
-                                    "Model relationship cycle validation exceeds maxModels " + MAX_MODELS);
-                        }
-                        next.add(parentId);
-                    }
-                }
-            }
-            frontier = List.copyOf(next);
+        try {
+            ModelRelationshipTraversal.traverse(
+                    changedChildren,
+                    new ModelRelationshipTraversal.Policy(
+                            MAX_DEPTH, MAX_MODELS, true, false,
+                            "Model relationship cycle validation exceeds maxModels " + MAX_MODELS,
+                            "Model relationship cycle validation exceeds maxDepth " + MAX_DEPTH),
+                    frontier -> {
+                        LinkedHashSet<String> toLoad = new LinkedHashSet<>();
+                        frontier.stream()
+                                .filter(child -> !overrides.containsKey(child)
+                                                 && !storedParents.containsKey(child))
+                                .forEach(toLoad::add);
+                        loadStoredParents(toLoad, storedParents, parentLoader);
+                        return frontier.stream().flatMap(child -> {
+                            Set<String> parents = overrides.getOrDefault(
+                                    child, storedParents.getOrDefault(child, Set.of()));
+                            graph.put(child, parents);
+                            return parents.stream().map(parent -> new Edge(child, parent));
+                        }).toList();
+                    },
+                    Edge::parentId,
+                    null);
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException(e.getMessage());
         }
-        detectCycle(changedChildren, graph);
+        List<String> cycle = ModelRelationshipTraversal.cycle(
+                changedChildren, child -> graph.getOrDefault(child, Set.of()));
+        if (!cycle.isEmpty()) {
+            throw new ValidationException(
+                    "Model relationship cycle detected: " + String.join(" -> ", cycle));
+        }
     }
 
     private static void loadStoredParents(
@@ -120,54 +115,6 @@ public final class ModelRelationshipCycleValidator {
         }
         Map<String, Set<String>> loaded = parentLoader.load(Set.copyOf(childIds));
         childIds.forEach(childId -> storedParents.put(childId, immutableIds(loaded.get(childId))));
-    }
-
-    private static void detectCycle(Set<String> roots, Map<String, Set<String>> graph) {
-        Map<String, Visit> visits = new HashMap<>();
-        ArrayList<String> path = new ArrayList<>();
-        Map<String, Integer> pathIndices = new HashMap<>();
-        ArrayDeque<Frame> stack = new ArrayDeque<>();
-        for (String root : roots) {
-            if (visits.containsKey(root)) {
-                continue;
-            }
-            push(root, graph, visits, path, pathIndices, stack);
-            while (!stack.isEmpty()) {
-                Frame frame = stack.peek();
-                if (!frame.parents.hasNext()) {
-                    stack.pop();
-                    String completed = path.removeLast();
-                    pathIndices.remove(completed);
-                    visits.put(completed, Visit.VISITED);
-                    continue;
-                }
-                String parentId = frame.parents.next();
-                Visit visit = visits.get(parentId);
-                if (visit == Visit.VISITING) {
-                    int cycleStart = pathIndices.get(parentId);
-                    ArrayList<String> cycle = new ArrayList<>(path.subList(cycleStart, path.size()));
-                    cycle.add(parentId);
-                    throw new ValidationException(
-                            "Model relationship cycle detected: " + String.join(" -> ", cycle));
-                }
-                if (visit == null) {
-                    push(parentId, graph, visits, path, pathIndices, stack);
-                }
-            }
-        }
-    }
-
-    private static void push(
-            String modelId,
-            Map<String, Set<String>> graph,
-            Map<String, Visit> visits,
-            List<String> path,
-            Map<String, Integer> pathIndices,
-            ArrayDeque<Frame> stack) {
-        visits.put(modelId, Visit.VISITING);
-        pathIndices.put(modelId, path.size());
-        path.add(modelId);
-        stack.push(new Frame(graph.getOrDefault(modelId, Set.of()).iterator()));
     }
 
     private static Set<String> immutableIds(Collection<String> values) {
@@ -217,11 +164,6 @@ public final class ModelRelationshipCycleValidator {
         }
     }
 
-    private enum Visit {
-        VISITING,
-        VISITED
-    }
-
-    private record Frame(Iterator<String> parents) {
+    private record Edge(String childId, String parentId) {
     }
 }

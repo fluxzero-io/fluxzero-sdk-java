@@ -16,6 +16,7 @@
 
 package io.fluxzero.common.api.modeling;
 
+import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
@@ -30,6 +31,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelRelationshipCycleValidatorTest {
+
+    @Test
+    void traversalCountsRootsTowardsModelLimit() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelRelationshipTraversal.<String>traverse(
+                        List.of("a", "b"),
+                        new ModelRelationshipTraversal.Policy(
+                                -1, 1, false, false, "too many", null),
+                        ignored -> List.of(), value -> value, null));
+    }
 
     @Test
     void rejectsCycleCreatedInsideOneAtomicStep() {

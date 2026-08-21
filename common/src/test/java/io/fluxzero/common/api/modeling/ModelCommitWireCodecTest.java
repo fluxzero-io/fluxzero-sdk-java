@@ -73,7 +73,7 @@ class ModelCommitWireCodecTest {
         assertEquals(first.getCommitId(), decodedFirst.getCommitId());
         assertEquals(first.getReadStateIndex(), decodedFirst.getReadStateIndex());
         assertEquals(first.getReadModelIds(), decodedFirst.getReadModelIds());
-        assertFalse(decodedFirst.getPossibleDuplicate());
+        assertFalse(decodedFirst.isPossibleDuplicate());
         assertEquals(
                 first.getSubsteps().getFirst().getTargets().getFirst(),
                 decodedFirst.getSubsteps().getFirst().getTargets().getFirst());
@@ -91,7 +91,7 @@ class ModelCommitWireCodecTest {
         assertEquals(expected.getRequestId(), actual.getRequestId());
         assertEquals(expected.getTimestamp(), actual.getTimestamp());
         assertEquals(expected.getMessageId(), actual.getMessageId());
-        assertNull(decodedSecond.getPossibleDuplicate());
+        assertTrue(decodedSecond.isPossibleDuplicate());
     }
 
     @Test
@@ -205,10 +205,17 @@ class ModelCommitWireCodecTest {
     }
 
     @Test
-    void fallsBackForRicherOrDuplicateCommitShapes() throws Exception {
+    void supportsDuplicateHintAndFallsBackForRicherCommitShapes() throws Exception {
         CommitModels duplicate = commit("duplicate", false);
         duplicate.markPossibleDuplicate();
-        assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(duplicate))));
+        byte[] duplicateBytes = ModelCommitWireCodec.tryEncode(
+                new RequestBatch<>(List.of(duplicate)));
+        RequestBatch<?> decodedDuplicate = assertInstanceOf(
+                RequestBatch.class, ModelCommitWireCodec.tryDecode(duplicateBytes));
+        assertTrue(assertInstanceOf(
+                CommitModels.class,
+                decodedDuplicate.getRequests().getFirst())
+                           .isPossibleDuplicate());
 
         CommitModels withRelationships = commit("relationships", false);
         ModelCommitTarget target =
@@ -243,7 +250,7 @@ class ModelCommitWireCodecTest {
                                 .build()))
                         .build()),
                 base.getConflictPolicy(), base.getGuarantee(),
-                base.getPossibleDuplicate());
+                base.isPossibleDuplicate());
         assertNull(ModelCommitWireCodec.tryEncode(
                 new RequestBatch<>(List.of(withAliases))));
 
@@ -261,7 +268,7 @@ class ModelCommitWireCodecTest {
                                         .build()))
                                 .build()),
                         cascade.getConflictPolicy(), cascade.getGuarantee(),
-                        cascade.getPossibleDuplicate())))));
+                        cascade.isPossibleDuplicate())))));
     }
 
     @Test
@@ -275,7 +282,7 @@ class ModelCommitWireCodecTest {
                         java.util.Arrays.copyOf(encoded, encoded.length - 1)));
     }
 
-    private static CommitModels commit(String id, boolean nullDuplicateHint) {
+    private static CommitModels commit(String id, boolean possibleDuplicate) {
         return commit(
                 id,
                 "application/octet-stream",
@@ -283,7 +290,7 @@ class ModelCommitWireCodecTest {
                 "source",
                 "target",
                 List.of("model-" + id),
-                nullDuplicateHint);
+                possibleDuplicate);
     }
 
     private static CommitModels commit(
@@ -303,7 +310,7 @@ class ModelCommitWireCodecTest {
             String source,
             String messageTarget,
             List<String> readModelIds,
-            boolean nullDuplicateHint) {
+            boolean possibleDuplicate) {
         SerializedMessage event =
                 new SerializedMessage(
                         new Data<>(new byte[] {1, 2, 3}, "type-" + id, 2, format),
@@ -337,7 +344,7 @@ class ModelCommitWireCodecTest {
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
                 Guarantee.STORED,
-                nullDuplicateHint ? null : false);
+                possibleDuplicate);
     }
 
     private static CommitModelsResult result(
@@ -380,6 +387,6 @@ class ModelCommitWireCodecTest {
                 commit.getReadModelIds(),
                 List.of(step.toBuilder().event(matchingEvent).build()),
                 commit.getConflictPolicy(), commit.getGuarantee(),
-                commit.getPossibleDuplicate());
+                commit.isPossibleDuplicate());
     }
 }

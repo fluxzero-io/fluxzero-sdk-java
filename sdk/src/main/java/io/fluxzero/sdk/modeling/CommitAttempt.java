@@ -210,7 +210,7 @@ public final class CommitAttempt {
         Entity<?> exact = null;
         for (MutationPlan.ResolvedModel target : targets) {
             Class<?> targetType = target.modelType();
-            if (!(modelType.isAssignableFrom(targetType) || targetType.isAssignableFrom(modelType))) {
+            if (!EntityMetadata.compatibleTypes(modelType, targetType)) {
                 continue;
             }
             boolean propertyMatch = target.sourceProperties().contains(
@@ -233,7 +233,8 @@ public final class CommitAttempt {
         }
         if (secondCandidate != null) {
             throw ambiguous(modelType, null, targets.stream()
-                    .filter(target -> compatible(modelType, target.modelType()))
+                    .filter(target -> EntityMetadata.compatibleTypes(
+                            modelType, target.modelType()))
                     .map(MutationPlan.ResolvedModel::modelId).toList());
         }
         return candidate;
@@ -458,10 +459,6 @@ public final class CommitAttempt {
             case RETRY -> 2;
             case ACCEPT, DEFAULT -> 1;
         };
-    }
-
-    private static boolean compatible(Class<?> left, Class<?> right) {
-        return left.isAssignableFrom(right) || right.isAssignableFrom(left);
     }
 
     private static <K, V> Map<K, V> immutable(LinkedHashMap<K, V> values) {

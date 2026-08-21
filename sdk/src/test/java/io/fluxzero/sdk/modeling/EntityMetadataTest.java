@@ -477,6 +477,29 @@ class EntityMetadataTest {
                            .parentReferences().getFirst().parentModelType());
     }
 
+    @Test
+    void resolvesDuplicateParentDeclarationsOnceAndRetainsOwnership() {
+        ParentModelId parentId = new ParentModelId("one");
+
+        List<EntityMetadata.ParentRelationship> relationships =
+                EntityMetadata.validate(DuplicateParentModel.class).parentRelationships(
+                        "child", new DuplicateParentModel("child", parentId, parentId));
+
+        assertEquals(1, relationships.size());
+        assertEquals("parent-one", relationships.getFirst().parentId());
+        assertTrue(relationships.getFirst().deleteOnParentDeletion());
+    }
+
+    @Test
+    void rejectsRuntimeSelfParentRelationship() {
+        EntityMetadata metadata = EntityMetadata.validate(UntypedParentModel.class);
+
+        assertThrows(
+                IllegalStateException.class,
+                () -> metadata.parentRelationships(
+                        "same", new UntypedParentModel("same", "same")));
+    }
+
     private static void assertMessage(Class<?> type, String... fragments) {
         IllegalStateException exception = assertThrows(IllegalStateException.class, () -> EntityMetadata.validate(type));
         for (String fragment : fragments) {
@@ -589,6 +612,14 @@ class EntityMetadataTest {
             @EntityId ChildModelId childId,
             @ParentId(path = "items", apiDoc = @ApiDoc(description = "Child items")) ParentModelId parentId,
             @ParentId(value = ParentModel.class, path = "externalItems") String externalParentId) {
+    }
+
+    @Model
+    private record DuplicateParentModel(
+            @EntityId String id,
+            @ParentId(value = ParentModel.class, path = "items", deleteOnParentDeletion = false)
+            ParentModelId reference,
+            @ParentId(value = ParentModel.class, path = "items") ParentModelId ownedReference) {
     }
 
     private static class ChildModelId extends Id<ChildModel> {

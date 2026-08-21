@@ -298,13 +298,7 @@ public final class ModelGraphDocumentStitcher {
                     return Objects.equals(
                             path, edge.getPath())
                             ? edge
-                            : new ModelGraphEdge(
-                                    edge.getChildId(),
-                                    edge.getParentId(),
-                                    edge.getParentType(),
-                                    path,
-                                    edge.getValidFrom(),
-                                    edge.getValidUntil());
+                            : edge.withPath(path);
                 })
                 .toList();
     }

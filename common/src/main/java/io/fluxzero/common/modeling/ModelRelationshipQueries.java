@@ -33,11 +33,14 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -295,6 +298,38 @@ public final class ModelRelationshipQueries {
                 null).without(modelIds);
     }
 
+    /** Returns descendants whose complete path from a supplied root owns the child lifecycle. */
+    public static List<String> ownedDescendants(
+            Collection<String> roots, Collection<ModelGraphEdge> edges) {
+        Map<String, List<ModelGraphEdge>> children = new LinkedHashMap<>();
+        edges.stream().filter(ModelGraphEdge::isDeleteOnParentDeletion)
+                .forEach(edge -> children.computeIfAbsent(
+                        edge.getParentId(), ignored -> new ArrayList<>()).add(edge));
+        return descendants(
+                roots,
+                frontier -> frontier.stream()
+                        .flatMap(parent -> children.getOrDefault(parent, List.of()).stream())
+                        .map(ModelGraphEdge::getChildId)
+                        .toList());
+    }
+
+    /** Traverses an already selected child index without recreating frontier and visit semantics. */
+    public static List<String> descendants(
+            Collection<String> roots,
+            ModelRelationshipTraversal.RelationshipLoader<String> children) {
+        Set<String> rootIds = new LinkedHashSet<>(roots);
+        return ModelRelationshipTraversal.traverse(
+                        rootIds,
+                        new ModelRelationshipTraversal.Policy(
+                                ModelGraphComposition.UNBOUNDED,
+                                ModelGraphComposition.UNBOUNDED,
+                                false, false, null, null),
+                        children,
+                        Function.identity(),
+                        null)
+                .modelIds().stream().filter(modelId -> !rootIds.contains(modelId)).toList();
+    }
+
     /** Storage-independent view of one temporal child-to-parent relationship interval. */
     public interface Relationship {
         String childId();
@@ -309,9 +344,12 @@ public final class ModelRelationshipQueries {
 
         Long validUntil();
 
+        boolean deleteOnParentDeletion();
+
         default ModelGraphEdge edge() {
             return new ModelGraphEdge(
-                    childId(), parentId(), parentType(), path(), validFrom(), validUntil());
+                    childId(), parentId(), parentType(), path(), validFrom(), validUntil(),
+                    deleteOnParentDeletion());
         }
     }
 

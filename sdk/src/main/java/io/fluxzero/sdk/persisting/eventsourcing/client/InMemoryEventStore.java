@@ -267,9 +267,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
             }
-            validateCommitRelationships(commit);
             ModelCommitAssignment.Description description =
                     ModelCommitAssignment.describe(commit);
+            validateCommitRelationships(description);
             description.aliases().validate(modelAliases);
             List<ModelStreamHead> assignedHeads = new ArrayList<>(
                     commit.getReadModelIds().size());
@@ -282,7 +282,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                                     modelType, sequenceNumber, stateIndex,
                                                     incomplete == null, deleted, collection),
                                     nextModelStateIndex())
-                            .assign(commit, description, (step, target, substep, head) ->
+                            .assign(description, (step, target, substep, head) ->
                                     assignedHeads.add(head));
 
             List<SerializedMessage> publishedEvents = commit.getSubsteps().stream()
@@ -320,8 +320,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     modelHeads.put(target.getModelId(), head);
                     modelHeadHistory.computeIfAbsent(
                             target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(head);
-                    updateModelRelationships(
-                            commit, target, stateIndex, commitRelationshipView);
                     if (target.isStoreEvent()) {
                         appliedEvents.computeIfAbsent(
                                 target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(substep.getEvent());
@@ -334,11 +332,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                         substep.getEvent()));
                     }
                 }
+                ModelCommitAssignment.RelationshipStep relationshipStep =
+                        description.relationshipStep(substepNumber);
+                for (ModelCommitAssignment.RelationshipChange change : relationshipStep.changes()) {
+                    updateModelRelationships(
+                            commit.getReadStateIndex(), change, stateIndex, commitRelationshipView);
+                }
                 cascadeDeletedModelRelationships(
-                        substep.getTargets().stream()
-                                .filter(ModelCommitTarget::isDelete)
-                                .map(ModelCommitTarget::getModelId)
-                                .collect(Collectors.toUnmodifiableSet()),
+                        relationshipStep.finalDeletedParentIds(),
                         stateIndex);
             }
             description.aliases().applyTo(modelAliases);
@@ -1154,96 +1155,18 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         });
     }
 
-    private void validateCommitRelationships(CommitModels commit) {
-        List<ModelRelationshipCycleValidator.Step> steps = null;
-        Map<String, Set<String>> relationshipOverrides = null;
-        for (ModelCommitStep substep : commit.getSubsteps()) {
-            LinkedHashMap<String, Boolean> changed = null;
-            for (ModelCommitTarget target : substep.getTargets()) {
-                if (target.isDelete()
-                    || target.isUpdateRelationships()) {
-                    if (relationshipOverrides
-                        == null) {
-                        relationshipOverrides =
-                                new HashMap<>();
-                        steps = new ArrayList<>();
-                    }
-                    if (changed == null) {
-                        changed =
-                                new LinkedHashMap<>();
-                    }
-                    relationshipOverrides.put(
-                            target.getModelId(),
-                            target.getRelationships().stream()
-                                    .map(ModelRelationship::getParentId)
-                                    .collect(
-                                            Collectors.toUnmodifiableSet()));
-                    changed.put(
-                            target.getModelId(),
-                            Boolean.TRUE);
-                }
-            }
-            Set<String> deletedParents =
-                    changed == null
-                            ? Set.of()
-                            : substep.getTargets().stream()
-                            .filter(ModelCommitTarget::isDelete)
-                            .map(ModelCommitTarget::getModelId)
-                            .collect(
-                                    Collectors.toUnmodifiableSet());
-            if (!deletedParents.isEmpty()) {
-                LinkedHashSet<String> children =
-                        new LinkedHashSet<>(
-                                currentModelRelationships.keySet());
-                children.addAll(
-                        relationshipOverrides.keySet());
-                for (String child : children) {
-                    Set<String> parents =
-                            relationshipOverrides.computeIfAbsent(
-                                    child,
-                                    this::currentParentIds);
-                    Set<String> retained = parents.stream()
-                            .filter(parent ->
-                                            !deletedParents.contains(
-                                                    parent))
-                            .collect(
-                                    Collectors.toUnmodifiableSet());
-                    if (!parents.equals(retained)) {
-                        relationshipOverrides.put(
-                                child, retained);
-                        changed.putIfAbsent(
-                                child, Boolean.FALSE);
-                    }
-                }
-            }
-            if (changed != null) {
-                List<ModelRelationshipCycleValidator.Change>
-                        changes =
-                        new ArrayList<>(
-                                changed.size());
-                for (Map.Entry<String, Boolean> entry :
-                        changed.entrySet()) {
-                    changes.add(
-                            new ModelRelationshipCycleValidator.Change(
-                                    entry.getKey(),
-                                    relationshipOverrides.get(
-                                            entry.getKey()),
-                                    entry.getValue()));
-                }
-                steps.add(
-                        new ModelRelationshipCycleValidator.Step(
-                                changes));
-            }
-        }
-        if (steps != null) {
-            ModelRelationshipCycleValidator.validate(
-                    steps,
-                    children -> children.stream()
-                            .collect(
-                                    Collectors.toUnmodifiableMap(
-                                            child -> child,
-                                            this::currentParentIds)));
-        }
+    private void validateCommitRelationships(
+            ModelCommitAssignment.Description description) {
+        ModelCommitAssignment.validateRelationships(
+                List.of(description),
+                children -> children.stream().collect(Collectors.toUnmodifiableMap(
+                        child -> child, this::currentParentIds)),
+                parents -> currentModelRelationships.entrySet().stream()
+                        .filter(entry -> entry.getValue().keySet().stream()
+                                .map(ModelRelationship::getParentId)
+                                .anyMatch(parents::contains))
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toUnmodifiableSet()));
     }
 
     private Set<String> currentParentIds(String childId) {
@@ -1258,35 +1181,31 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private void updateModelRelationships(
-            CommitModels commit,
-            ModelCommitTarget target,
+            long readStateIndex,
+            ModelCommitAssignment.RelationshipChange change,
             long stateIndex,
             Map<String, Set<ModelRelationship>> commitRelationshipView) {
-        if (!target.isDelete()
-            && !target.isUpdateRelationships()) {
-            return;
-        }
-        Set<ModelRelationship> desired = Set.copyOf(target.getRelationships());
+        Set<ModelRelationship> desired = change.desired();
         Set<ModelRelationship> expected = commitRelationshipView.computeIfAbsent(
-                target.getModelId(),
+                change.childId(),
                 childId -> modelRelationshipHistory.stream()
                         .filter(relationship ->
                                         relationship.childId.equals(childId)
-                                        && relationship.isValidAt(commit.getReadStateIndex()))
+                                        && relationship.isValidAt(readStateIndex))
                         .map(relationship -> relationship.relationship)
                         .collect(Collectors.toUnmodifiableSet()));
-        commitRelationshipView.put(target.getModelId(), desired);
+        commitRelationshipView.put(change.childId(), desired);
         if (expected.equals(desired)) {
             return;
         }
 
         LinkedHashMap<ModelRelationship, MutableModelRelationship> actual =
                 currentModelRelationships.computeIfAbsent(
-                        target.getModelId(), ignored -> new LinkedHashMap<>());
+                        change.childId(), ignored -> new LinkedHashMap<>());
         List<ModelRelationship> removed = actual.keySet().stream()
                 .filter(relationship -> !desired.contains(relationship))
                 .toList();
-        modelRelationStateIndices.put(target.getModelId(), stateIndex);
+        modelRelationStateIndices.put(change.childId(), stateIndex);
         for (ModelRelationship relationship : removed) {
             actual.remove(relationship).validUntil = stateIndex;
             modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
@@ -1294,14 +1213,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         for (ModelRelationship relationship : desired) {
             if (!actual.containsKey(relationship)) {
                 MutableModelRelationship opened = new MutableModelRelationship(
-                        target.getModelId(), relationship, stateIndex);
+                        change.childId(), relationship, stateIndex);
                 actual.put(relationship, opened);
                 modelRelationshipHistory.add(opened);
                 modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
             }
         }
         if (actual.isEmpty()) {
-            currentModelRelationships.remove(target.getModelId());
+            currentModelRelationships.remove(change.childId());
         }
     }
 
@@ -1814,6 +1733,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         @Override
         public Long validUntil() {
             return validUntil;
+        }
+
+        @Override
+        public boolean deleteOnParentDeletion() {
+            return relationship.isDeleteOnParentDeletion();
         }
     }
 }

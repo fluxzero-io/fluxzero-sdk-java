@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,7 +50,9 @@ class ModelCommitAssignmentTest {
 
         assertEquals(List.of("first", "second"), result.targetIds());
         assertEquals(List.of("first", "second"), result.unstoredTargetIds());
-        assertEquals(Map.of("second", 1), result.finalDeletionSubsteps());
+        assertEquals(Set.of("second"), result.finalDeletedModelIds());
+        assertEquals(Set.of("second"),
+                     result.relationshipSteps().get(1).finalDeletedParentIds());
         assertEquals(List.of("second"), result.cascadeRootIds());
         assertTrue(result.affectsRelationships());
     }
@@ -180,7 +183,7 @@ class ModelCommitAssignmentTest {
     ModelCommitAssignment.Commit<H> assign(
             ModelCommitAssignment.Session<H> session, CommitModels source,
             ModelCommitAssignment.HeadConsumer<H> consumer) {
-        return session.assign(source, ModelCommitAssignment.describe(source), consumer);
+        return session.assign(ModelCommitAssignment.describe(source), consumer);
     }
 
     private record TestHead(

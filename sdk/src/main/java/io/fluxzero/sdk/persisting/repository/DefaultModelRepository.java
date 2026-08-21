@@ -66,7 +66,6 @@ import io.fluxzero.sdk.modeling.ImmutableRoot;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.modeling.EntityMetadata;
-import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.MutationPlan;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
@@ -130,16 +129,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     public DefaultModelRepository(Client client, DocumentStore documentStore) {
         this(client, documentStore, null, null, null, NoOpCache.INSTANCE,
              (MutationPlan.Compiler) null);
-    }
-
-    public DefaultModelRepository(
-            Client client,
-            DocumentStore documentStore,
-            Serializer serializer,
-            EntityHelper entityHelper,
-            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
-        this(client, documentStore, serializer, entityHelper, serializer, NoOpCache.INSTANCE,
-             parameterResolvers == null ? null : new MutationPlan.Compiler(parameterResolvers));
     }
 
     public DefaultModelRepository(
@@ -702,12 +691,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private Entity<Object> emptyUntyped(String modelId) {
-        return ImmutableModelRoot.<Object>builder()
-                .id(modelId)
-                .type(Object.class)
-                .entityHelper(entityHelper)
-                .serializer(serializer)
-                .build();
+        return ImmutableModelRoot.initial(
+                modelId, Object.class, null, null, entityHelper, serializer);
     }
 
     private PinnedBoundary handlerBoundary() {
@@ -924,13 +909,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         long stateIndex = committed.result().getStateIndex();
         if (!committed.target().isHistoryComplete()) {
             return current != null
-                   && stateIndex(current) > stateIndex
+                   && ModelReplayCursor.stateIndex(current) > stateIndex
                     ? current : null;
         }
         if (!transition.configuration().cached()) {
             return null;
         }
-        if (current != null && stateIndex(current) >= stateIndex) {
+        if (current != null && ModelReplayCursor.stateIndex(current) >= stateIndex) {
             return current;
         }
         return committedEntity(
@@ -1011,12 +996,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             ModelCommitStep requestStep = revision.request();
             ModelUpdate resultStep = revision.result();
             ModelCommitTargetResult targetResult = revision.target();
-            result = ImmutableModelRoot.committed(
-                    modelId, (Class<Object>) finalTransition.modelType(),
-                    entityId.name(), transition.after(), entityHelper, serializer,
+            result = ImmutableModelRoot.revision(
+                    modelId, (Class<Object>) finalTransition.modelType(), entityId.name(), transition.after(),
+                    entityHelper, serializer,
                     requestStep.getEvent() == null ? null : requestStep.getEvent().getMessageId(),
-                    resultStep.getEventIndex(),
-                    Instant.ofEpochMilli(revision.timestamp()),
+                    resultStep.getEventIndex(), Instant.ofEpochMilli(revision.timestamp()),
                     targetResult.getSequenceNumber(), resultStep.getStateIndex(),
                     castPrevious(ImmutableRoot.retainPrevious(result, model)));
         }
@@ -1078,15 +1062,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 .orElse(modelType.getSimpleName());
         Object value = documentStore.fetchDocument(modelId, collection, modelType).orElse(null);
         String idProperty = metadata.entityId().orElseThrow().name();
-        validateValueId(modelId, metadata, value);
-        return ImmutableModelRoot.<Object>builder()
-                .id(modelId)
-                .type((Class<Object>) modelType)
-                .idProperty(idProperty)
-                .value(value)
-                .entityHelper(entityHelper)
-                .serializer(serializer)
-                .build();
+        ModelReplayCursor.validateValueId(modelId, metadata, value);
+        return ImmutableModelRoot.initial(
+                modelId, (Class<Object>) modelType, idProperty, value,
+                entityHelper, serializer);
     }
 
     /**
@@ -1100,30 +1079,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return replayCursor.refresh(targets, safeStateIndex);
     }
 
-    private static void validateValueId(
-            String modelId, EntityMetadata metadata, Object value) {
-        if (value == null) {
-            return;
-        }
-        Object storedId = metadata.entityId().orElseThrow().read(value);
-        String repositoryId = storedId == null ? null
-                : metadata.parentScopedEntityId()
-                ? metadata.repositoryId(storedId, value)
-                : metadata.repositoryId(storedId);
-        if (!Objects.equals(modelId, repositoryId)) {
-            throw new EventSourcingException(
-                    "Stored model document '%s' reports @EntityId '%s'"
-                            .formatted(modelId, storedId));
-        }
-    }
-
     @SuppressWarnings("unchecked")
     private static <T> Entity<T> cast(Entity<?> entity) {
         return (Entity<T>) entity;
-    }
-
-    private static long stateIndex(Entity<?> entity) {
-        return entity instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
     }
 
     private record AncestorResolution(
@@ -1405,7 +1363,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 protocolSteps.add(new ModelCommitStep(event, publishEvent, List.copyOf(targets)));
                 preparedSteps.add(new CommitAttempt.Step(message, committedTransitions));
             }
-            Boolean possibleDuplicate = possibleDuplicate(evaluation, preparedSteps);
+            boolean possibleDuplicate = possibleDuplicate(evaluation, preparedSteps);
             CommitAttempt prepared = evaluation.prepared(preparedSteps);
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, prepared);
@@ -1433,7 +1391,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     candidate.getCommitId(), candidate.getReadStateIndex(),
                     candidate.getReadModelIds(), candidate.getSubsteps(),
                     candidate.getConflictPolicy(), original.commit().getGuarantee(),
-                    original.commit().getPossibleDuplicate());
+                    original.commit().isPossibleDuplicate());
             return new Outcome(
                     commit, rebased.attempt());
         }
@@ -1606,7 +1564,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                            Change::graphChange);
         }
 
-        private static Boolean possibleDuplicate(
+        private static boolean possibleDuplicate(
                 CommitAttempt evaluation,
                 List<CommitAttempt.Step> steps) {
             Long sourceIndex = DeserializingMessage.getOptionally()
@@ -1618,7 +1576,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         .anyMatch(transition ->
                                           !transition.storeEvent()
                                           || !transition.publishEvent())) {
-                return null;
+                return true;
             }
             return evaluation.transitions().stream()
                     .map(Change::beforeLastEventIndex)
@@ -1652,65 +1610,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private static RelationshipUpdate relationshipUpdate(
                 Change transition) {
-            List<EntityMetadata.ParentReference> parents =
-                    transition.metadata().parentReferences();
-            if (parents.isEmpty()) {
+            EntityMetadata metadata = transition.metadata();
+            if (metadata.parentReferences().isEmpty()) {
                 return transition.after() == null
                         ? RelationshipUpdate.CLEARED
                         : RelationshipUpdate.UNCHANGED;
             }
-            List<ModelRelationship> before =
-                    relationships(
-                            transition.modelId(), transition.before(),
-                            parents);
-            List<ModelRelationship> after =
-                    relationships(
-                            transition.modelId(), transition.after(),
-                            parents);
+            List<ModelRelationship> before = metadata.parentRelationships(
+                            transition.modelId(), transition.before()).stream()
+                    .map(EntityMetadata.ParentRelationship::asCommitRelationship)
+                    .toList();
+            List<ModelRelationship> after = metadata.parentRelationships(
+                            transition.modelId(), transition.after()).stream()
+                    .map(EntityMetadata.ParentRelationship::asCommitRelationship)
+                    .toList();
             boolean update = transition.after() == null
                              || !before.equals(after);
             return new RelationshipUpdate(
                     update, update ? after : List.of());
-        }
-
-        private static List<ModelRelationship> relationships(
-                String modelId,
-                Object model,
-                List<EntityMetadata.ParentReference> parentReferences) {
-            if (model == null) {
-                return List.of();
-            }
-            LinkedHashMap<RelationshipKey, ModelRelationship> result = new LinkedHashMap<>();
-            for (EntityMetadata.ParentReference parent : parentReferences) {
-                Object parentId = parent.read(model);
-                if (parentId == null) {
-                    continue;
-                }
-                String parentRepositoryId = parent.repositoryId(parentId);
-                Class<?> parentModelType = parent.parentModelType(parentId);
-                ModelRelationship relationship = ModelRelationship.builder()
-                        .parentId(parentRepositoryId)
-                        .parentType(parentModelType == null
-                                            ? null : parentModelType.getName())
-                        .path(parent.path().isEmpty() ? null : parent.path())
-                        .deleteOnParentDeletion(parent.deleteOnParentDeletion())
-                        .build();
-                if (modelId.equals(relationship.getParentId())) {
-                    throw new IllegalStateException(
-                            "Model '%s' cannot be its own parent".formatted(modelId));
-                }
-                RelationshipKey key = new RelationshipKey(
-                        relationship.getParentId(), relationship.getParentType(), relationship.getPath());
-                result.merge(
-                        key, relationship,
-                        (existing, duplicate) -> existing.isDeleteOnParentDeletion()
-                                || !duplicate.isDeleteOnParentDeletion()
-                                ? existing
-                                : existing.toBuilder()
-                                        .deleteOnParentDeletion(true)
-                                        .build());
-            }
-            return List.copyOf(result.values());
         }
 
         private static long nextSequence(
@@ -1870,9 +1787,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 return revisions;
             }
 
-        }
-
-        private record RelationshipKey(String parentId, String parentType, String path) {
         }
 
         private record RelationshipUpdate(

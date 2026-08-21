@@ -28,6 +28,8 @@ import lombok.extern.jackson.Jacksonized;
 
 import java.time.Instant;
 
+import static io.fluxzero.sdk.Fluxzero.currentTime;
+
 /**
  * Immutable entity wrapper for one independently stored model revision.
  * <p>
@@ -50,37 +52,6 @@ public class ImmutableModelRoot<T> extends ImmutableRoot<T>
     @Builder.Default
     @EqualsAndHashCode.Include
     long stateIndex = -1L;
-
-    /** Keeps the original builder descriptors while delegating their state to {@link ImmutableRoot}. */
-    public abstract static class ImmutableModelRootBuilder<
-            T, C extends ImmutableModelRoot<T>,
-            B extends ImmutableModelRootBuilder<T, C, B>>
-            extends ImmutableRoot.ImmutableRootBuilder<T, C, B> {
-        @Override
-        public B lastEventId(String value) {
-            return super.lastEventId(value);
-        }
-
-        @Override
-        public B lastEventIndex(Long value) {
-            return super.lastEventIndex(value);
-        }
-
-        @Override
-        public B timestamp(Instant value) {
-            return super.timestamp(value);
-        }
-
-        @Override
-        public B sequenceNumber(long value) {
-            return super.sequenceNumber(value);
-        }
-
-        @Override
-        public B previous(Entity<T> value) {
-            return super.previous(value);
-        }
-    }
 
     private ImmutableModelRoot(
             Object id,
@@ -110,27 +81,41 @@ public class ImmutableModelRoot<T> extends ImmutableRoot<T>
         this.stateIndex = source.stateIndex;
     }
 
-    /**
-     * Creates a model root from an authoritative committed revision without consulting the ambient clock.
-     */
-    public static <T> ImmutableModelRoot<T> committed(
-            Object id,
-            Class<T> type,
-            String idProperty,
-            T value,
+    /** Creates a new uncommitted model root with the current timestamp. */
+    public static <T> ImmutableModelRoot<T> initial(
+            Object id, Class<T> type, String idProperty, T value,
+            EntityHelper entityHelper,
+            io.fluxzero.sdk.common.serialization.Serializer serializer) {
+        return revision(
+                id, type, idProperty, value, entityHelper, serializer,
+                null, null, currentTime(), -1L, -1L, null);
+    }
+
+    /** Creates a lightweight new or staged model root without runtime collaborators. */
+    public static <T> ImmutableModelRoot<T> initial(
+            Object id, Class<T> type, String idProperty, T value) {
+        return initial(id, type, idProperty, value, null, null);
+    }
+
+    /** Creates a lightweight staged model root with its known sequence number. */
+    public static <T> ImmutableModelRoot<T> staged(
+            Object id, Class<T> type, String idProperty, T value, long sequenceNumber) {
+        return revision(
+                id, type, idProperty, value, null, null,
+                null, null, currentTime(), sequenceNumber, -1L, null);
+    }
+
+    /** Creates a model root from one authoritative stored revision. */
+    public static <T> ImmutableModelRoot<T> revision(
+            Object id, Class<T> type, String idProperty, T value,
             EntityHelper entityHelper,
             io.fluxzero.sdk.common.serialization.Serializer serializer,
-            String lastEventId,
-            Long lastEventIndex,
-            Instant timestamp,
-            long sequenceNumber,
-            long stateIndex,
-            Entity<T> previous) {
+            String lastEventId, Long lastEventIndex, Instant timestamp,
+            long sequenceNumber, long stateIndex, Entity<T> previous) {
         return new ImmutableModelRoot<>(
-                id, type, idProperty, value,
-                entityHelper, serializer,
-                lastEventId, lastEventIndex,
-                timestamp, sequenceNumber, stateIndex, previous);
+                id, type, idProperty, value, entityHelper, serializer,
+                lastEventId, lastEventIndex, timestamp,
+                sequenceNumber, stateIndex, previous);
     }
 
     @Override

@@ -1216,6 +1216,40 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void subtreeAttachedToADeletedParentInTheSameCommitIsCascadedCompletely() {
+        FamilyRootId deletedRootId = new FamilyRootId("attach-delete");
+        FamilyRootId oldRootId = new FamilyRootId("attach-delete-old");
+        FamilyChildId childId = new FamilyChildId("attach-delete");
+        FamilyChildId retainedChildId = new FamilyChildId("attach-delete-retained");
+        FamilyGrandchildId grandchildId = new FamilyGrandchildId("attach-delete");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateFamilyRoot(deletedRootId, "deleted"),
+                        new CreateFamilyRoot(oldRootId, "old"),
+                        new CreateFamilyChild(childId, oldRootId, "moved"),
+                        new CreateFamilyChild(retainedChildId, oldRootId, "retained"),
+                        new CreateFamilyGrandchild(
+                                grandchildId, childId, retainedChildId))
+                .whenCommand(new DeleteRootAndMoveChild(
+                        deletedRootId, childId, deletedRootId))
+                .expectThat(fluxzero -> {
+                    var repository = (io.fluxzero.sdk.persisting.repository.DefaultModelRepository)
+                            fluxzero.modelRepository();
+                    repository.invalidateModels(List.of(
+                            deletedRootId.toString(), oldRootId.toString(),
+                            childId.toString(), retainedChildId.toString(),
+                            grandchildId.toString()));
+                    assertTrue(repository.load(deletedRootId).isEmpty());
+                    assertTrue(repository.load(childId).isEmpty());
+                    assertTrue(repository.load(grandchildId).isEmpty());
+                    assertEquals(
+                            new FamilyChild(retainedChildId, oldRootId, "retained"),
+                            repository.load(retainedChildId).get());
+                });
+    }
+
+    @Test
     void deletingAndRecreatingAParentInOneCommitDoesNotCascade() {
         FamilyRootId rootId = new FamilyRootId("replace");
         FamilyChildId childId = new FamilyChildId("replace");

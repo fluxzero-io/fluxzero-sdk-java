@@ -19,11 +19,15 @@ package io.fluxzero.common.modeling;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -73,6 +77,10 @@ public final class ModelRelationshipTraversal {
             Function<Collection<String>, Collection<String>> extraTargetLoader,
             BiConsumer<Integer, Collection<String>> levelConsumer) {
         LinkedHashSet<String> modelIds = new LinkedHashSet<>(roots);
+        if (policy.maxModels != ModelGraphComposition.UNBOUNDED
+            && modelIds.size() > policy.maxModels) {
+            throw new IllegalArgumentException(policy.maxModelsMessage);
+        }
         Set<Visit> visits = policy.revisitAtDifferentDepths ? new HashSet<>() : null;
         List<ModelGraphEdge> edges = edgeMapper == null ? List.of() : new ArrayList<>();
         List<String> frontier = List.copyOf(modelIds);
@@ -135,6 +143,58 @@ public final class ModelRelationshipTraversal {
         next.add(target);
     }
 
+    /** Returns the first reachable cycle, including its repeated closing node, or an empty list. */
+    public static List<String> cycle(
+            Collection<String> roots,
+            Function<String, ? extends Iterable<String>> targets) {
+        Map<String, VisitState> visits = new HashMap<>();
+        List<String> path = new ArrayList<>();
+        Map<String, Integer> pathIndices = new HashMap<>();
+        ArrayDeque<Frame> stack = new ArrayDeque<>();
+        for (String root : roots) {
+            if (visits.containsKey(root)) {
+                continue;
+            }
+            push(root, targets, visits, path, pathIndices, stack);
+            while (!stack.isEmpty()) {
+                Frame frame = stack.peek();
+                if (!frame.targets.hasNext()) {
+                    stack.pop();
+                    String completed = path.removeLast();
+                    pathIndices.remove(completed);
+                    visits.put(completed, VisitState.VISITED);
+                    continue;
+                }
+                String target = frame.targets.next();
+                VisitState state = visits.get(target);
+                if (state == VisitState.VISITING) {
+                    List<String> result = new ArrayList<>(
+                            path.subList(pathIndices.get(target), path.size()));
+                    result.add(target);
+                    return List.copyOf(result);
+                }
+                if (state == null) {
+                    push(target, targets, visits, path, pathIndices, stack);
+                }
+            }
+        }
+        return List.of();
+    }
+
+    private static void push(
+            String modelId,
+            Function<String, ? extends Iterable<String>> targets,
+            Map<String, VisitState> visits,
+            List<String> path,
+            Map<String, Integer> pathIndices,
+            ArrayDeque<Frame> stack) {
+        visits.put(modelId, VisitState.VISITING);
+        pathIndices.put(modelId, path.size());
+        path.add(modelId);
+        Iterable<String> next = targets.apply(modelId);
+        stack.push(new Frame((next == null ? List.<String>of() : next).iterator()));
+    }
+
     /** Ordered traversal result, including edges only when an edge mapper was supplied. */
     public record Result(List<String> modelIds, List<ModelGraphEdge> edges) {
         /** Returns all discovered model IDs except the supplied roots. */
@@ -162,6 +222,14 @@ public final class ModelRelationshipTraversal {
     }
 
     private record Visit(String modelId, int depth) {
+    }
+
+    private record Frame(Iterator<String> targets) {
+    }
+
+    private enum VisitState {
+        VISITING,
+        VISITED
     }
 
     private ModelRelationshipTraversal() {

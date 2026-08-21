@@ -893,11 +893,9 @@ final class ModelReplayCursor {
         Entity<?> stagedRoot = staged.get(rootId);
         if (stagedRoot instanceof io.fluxzero.sdk.modeling.PersistedRoot<?> persisted
             && persisted.sequenceNumber() < 0L && !models.containsKey(rootId)) {
-            models.put(rootId, ImmutableModelRoot.builder()
-                    .id(rootId).type((Class) stagedRoot.type())
-                    .idProperty(EntityMetadata.validate(stagedRoot.type())
-                                        .entityId().orElseThrow().name())
-                    .value(null).build());
+            models.put(rootId, ImmutableModelRoot.initial(
+                    rootId, (Class) stagedRoot.type(),
+                    EntityMetadata.validate(stagedRoot.type()).entityId().orElseThrow().name(), null));
         }
         if (boundary.before()) {
             models.replaceAll((ignored, entity) -> beforeBoundary(entity, stateIndex));
@@ -999,11 +997,15 @@ final class ModelReplayCursor {
                     "Document model '%s' has document presence=%s but its head reports deletion=%s"
                             .formatted(head.getModelId(), entity.isPresent(), head.isDeleted()));
         }
-        return ImmutableModelRoot.<Object>builder()
-                .id(entity.id()).type((Class<Object>) entity.type()).idProperty(entity.idProperty())
-                .value(entity.get()).entityHelper(entityHelper).serializer(serializer)
-                .sequenceNumber(head.getSequenceNumber()).stateIndex(head.getStateIndex())
-                .timestamp(entity.timestamp()).build();
+        return withHead(entity, head, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Entity<?> withHead(Entity<?> entity, ModelHeadState head, Entity<?> previous) {
+        return ImmutableModelRoot.revision(
+                entity.id(), (Class<Object>) entity.type(), entity.idProperty(), entity.get(),
+                entityHelper, serializer, null, null, entity.timestamp(),
+                head.getSequenceNumber(), head.getStateIndex(), castPrevious(previous));
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -1012,10 +1014,10 @@ final class ModelReplayCursor {
             return entity;
         }
         Entity<?> previous = root.previous();
-        return previous != null ? previous : ImmutableModelRoot.builder()
-                .id(entity.id()).type((Class) entity.type())
-                .idProperty(EntityMetadata.validate(entity.type()).entityId().orElseThrow().name())
-                .entityHelper(entityHelper).serializer(serializer).value(null).build();
+        return previous != null ? previous : ImmutableModelRoot.initial(
+                entity.id(), (Class) entity.type(),
+                EntityMetadata.validate(entity.type()).entityId().orElseThrow().name(), null,
+                entityHelper, serializer);
     }
 
     AncestorResult resolveAncestors(
@@ -1067,20 +1069,10 @@ final class ModelReplayCursor {
                 }
                 EntityMetadata metadata = EntityMetadata.validate(value.getClass());
                 stagedTypes.put(entry.getKey(), value.getClass());
-                for (EntityMetadata.ParentReference parent : metadata.parentReferences()) {
-                    Object parentId = parent.read(value);
-                    if (parentId == null) {
-                        continue;
-                    }
-                    String parentIdString = Objects.requireNonNull(
-                            parent.repositoryId(parentId),
-                            () -> "@ParentId " + parent.property().name() + " returned a null ID string");
-                    requestRoots.add(parentIdString);
-                    Class<?> parentType = parent.parentModelType(parentId);
-                    stagedEdges.add(new ModelGraphEdge(
-                            entry.getKey(), parentIdString,
-                            parentType == null ? null : parentType.getName(),
-                            parent.path().isEmpty() ? null : parent.path(), -1L, null));
+                for (EntityMetadata.ParentRelationship relationship :
+                        metadata.parentRelationships(entry.getKey(), value)) {
+                    requestRoots.add(relationship.parentId());
+                    stagedEdges.add(relationship.asGraphEdge(entry.getKey()));
                 }
             }
             if (maxModels >= 0 && requestRoots.size() > maxModels) {
@@ -1117,7 +1109,7 @@ final class ModelReplayCursor {
                     modelId, heads.get(modelId), placement.incoming());
             if (storedType != null) {
                 knownTypes.merge(modelId, storedType,
-                                 (left, right) -> compatible(left, right)
+                                 (left, right) -> EntityMetadata.compatibleTypes(left, right)
                                          ? left.isAssignableFrom(right) ? right : left
                                          : incompatibleStoredTypes(modelId, left, right));
             }
@@ -1129,7 +1121,8 @@ final class ModelReplayCursor {
                     .map(Graphs.AncestorPlacement::id)
                     .filter(modelId -> {
                         Class<?> actualType = knownTypes.get(modelId);
-                        return actualType == null || compatible(dependency.modelType(), actualType);
+                        return actualType == null
+                               || EntityMetadata.compatibleTypes(dependency.modelType(), actualType);
                     })
                     .filter(modelId -> dependency.association() == null
                                        || reachableById.get(modelId).incoming().stream().anyMatch(
@@ -1229,7 +1222,7 @@ final class ModelReplayCursor {
             }
             EntityMetadata.validate(candidate);
             result = result == null ? candidate
-                    : compatible(result, candidate)
+                    : EntityMetadata.compatibleTypes(result, candidate)
                             ? result.isAssignableFrom(candidate) ? candidate : result
                             : incompatibleStoredTypes(modelId, result, candidate);
         }
@@ -1433,18 +1426,11 @@ final class ModelReplayCursor {
             validateValueId(
                     target.modelId(), EntityMetadata.of(target.modelType()),
                     snapshot.value());
-            return ImmutableModelRoot.<Object>builder()
-                    .id(target.modelId())
-                    .type((Class<Object>) target.modelType())
-                    .idProperty(EntityMetadata.of(target.modelType())
-                                        .entityId().orElseThrow().name())
-                    .value(snapshot.value())
-                    .entityHelper(entityHelper)
-                    .serializer(serializer)
-                    .sequenceNumber(snapshot.sequenceNumber())
-                    .stateIndex(snapshot.stateIndex())
-                    .timestamp(snapshot.timestamp())
-                    .build();
+            return ImmutableModelRoot.revision(
+                    target.modelId(), (Class<Object>) target.modelType(),
+                    EntityMetadata.of(target.modelType()).entityId().orElseThrow().name(), snapshot.value(),
+                    entityHelper, serializer, null, null, snapshot.timestamp(),
+                    snapshot.sequenceNumber(), snapshot.stateIndex(), null);
         }
 
         private void applyPage(
@@ -1938,13 +1924,9 @@ final class ModelReplayCursor {
         @SuppressWarnings("unchecked")
         private Entity<?> empty(MutationPlan.ResolvedModel target) {
             EntityMetadata metadata = EntityMetadata.validate(target.modelType());
-            return ImmutableModelRoot.<Object>builder()
-                    .id(target.modelId())
-                    .type((Class<Object>) target.modelType())
-                    .idProperty(metadata.entityId().orElseThrow().name())
-                    .entityHelper(entityHelper)
-                    .serializer(serializer)
-                    .build();
+            return ImmutableModelRoot.initial(
+                    target.modelId(), (Class<Object>) target.modelType(),
+                    metadata.entityId().orElseThrow().name(), null, entityHelper, serializer);
         }
 
         @SuppressWarnings({"rawtypes", "unchecked"})
@@ -1992,24 +1974,13 @@ final class ModelReplayCursor {
                 Entity<?> previous) {
             EntityMetadata.RootConfiguration configuration = EntityMetadata.of(entity.type())
                     .rootConfiguration().orElseThrow();
-            return ImmutableModelRoot.<Object>builder()
-                    .id(entity.id())
-                    .type((Class<Object>) entity.type())
-                    .idProperty(entity.idProperty())
-                    .value(value)
-                    .entityHelper(entityHelper)
-                    .serializer(serializer)
-                    .sequenceNumber(sequenceNumber)
-                    .stateIndex(stateIndex)
-                    .lastEventId(event.getMessageId())
-                    .lastEventIndex(event.getIndex())
-                    .timestamp(Instant.ofEpochMilli(event.getTimestamp()))
-                    .previous(castPrevious(ImmutableRoot.retainPrevious(
-                            previous, configuration)))
-                    .build();
+            return ImmutableModelRoot.revision(
+                    entity.id(), (Class<Object>) entity.type(), entity.idProperty(), value,
+                    entityHelper, serializer, event.getMessageId(), event.getIndex(),
+                    Instant.ofEpochMilli(event.getTimestamp()), sequenceNumber, stateIndex,
+                    castPrevious(ImmutableRoot.retainPrevious(previous, configuration)));
         }
 
-        @SuppressWarnings("unchecked")
         private Entity<?> withHead(Entity<?> entity, ModelHeadState head) {
             if (head == null) {
                 return entity;
@@ -2019,18 +1990,7 @@ final class ModelReplayCursor {
                 && model.stateIndex() == head.getStateIndex()) {
                 return entity;
             }
-            return ImmutableModelRoot.<Object>builder()
-                    .id(entity.id())
-                    .type((Class<Object>) entity.type())
-                    .idProperty(entity.idProperty())
-                    .value(entity.get())
-                    .entityHelper(entityHelper)
-                    .serializer(serializer)
-                    .sequenceNumber(head.getSequenceNumber())
-                    .stateIndex(head.getStateIndex())
-                    .timestamp(entity.timestamp())
-                    .previous(castPrevious(entity.previous()))
-                    .build();
+            return ModelReplayCursor.this.withHead(entity, head, entity.previous());
         }
 
         private void validateReconstruction(
@@ -2053,11 +2013,7 @@ final class ModelReplayCursor {
         }
     }
 
-    private static boolean compatible(Class<?> left, Class<?> right) {
-        return left.isAssignableFrom(right) || right.isAssignableFrom(left);
-    }
-
-    private static long stateIndex(Entity<?> entity) {
+    static long stateIndex(Entity<?> entity) {
         return entity instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
     }
 
@@ -2067,20 +2023,12 @@ final class ModelReplayCursor {
                && previous.getSubstep() < current.getSubstep();
     }
 
-    private static void validateValueId(
+    static void validateValueId(
             String modelId, EntityMetadata metadata, Object value) {
-        if (value == null) {
-            return;
-        }
-        Object storedId = metadata.entityId().orElseThrow().read(value);
-        String repositoryId = storedId == null ? null
-                : metadata.parentScopedEntityId()
-                ? metadata.repositoryId(storedId, value)
-                : metadata.repositoryId(storedId);
-        if (!Objects.equals(modelId, repositoryId)) {
+        if (!metadata.identifies(modelId, value)) {
             throw new EventSourcingException(
                     "Stored model document '%s' reports @EntityId '%s'"
-                            .formatted(modelId, storedId));
+                            .formatted(modelId, metadata.functionalIdOf(value)));
         }
     }
 

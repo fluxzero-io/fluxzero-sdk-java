@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -134,11 +135,9 @@ public final class Graphs {
         if (stagedRoot != null && stagedRoot.get() == null) {
             Entity<?> durableRoot = durableModels.get(rootId);
             if (durableRoot == null) {
-                durableRoot = ImmutableModelRoot.builder()
-                        .id(rootId).type((Class) stagedRoot.type())
-                        .idProperty(EntityMetadata.validate(stagedRoot.type())
-                                            .entityId().orElseThrow().name())
-                        .value(null).build();
+                durableRoot = ImmutableModelRoot.initial(
+                        rootId, (Class) stagedRoot.type(),
+                        EntityMetadata.validate(stagedRoot.type()).entityId().orElseThrow().name(), null);
             }
             Entity<?> deleted = ModelBatchScope.overlayCurrent(
                     namespace, rootId, (Class) stagedRoot.type(),
@@ -177,11 +176,9 @@ public final class Graphs {
             Entity<?> entity = models.get(modelId);
             if (candidate != null) {
                 if (entity == null) {
-                    entity = ImmutableModelRoot.builder()
-                            .id(modelId).type((Class) candidate.type())
-                            .idProperty(EntityMetadata.validate(candidate.type())
-                                                .entityId().orElseThrow().name())
-                            .value(null).build();
+                    entity = ImmutableModelRoot.initial(
+                            modelId, (Class) candidate.type(),
+                            EntityMetadata.validate(candidate.type()).entityId().orElseThrow().name(), null);
                 }
                 entity = ModelBatchScope.overlayCurrent(
                         namespace, modelId, (Class) candidate.type(), entity);
@@ -212,38 +209,23 @@ public final class Graphs {
         LinkedHashMap<String, List<ModelGraphEdge>> children = new LinkedHashMap<>();
         edges.forEach(edge -> children.computeIfAbsent(
                 edge.getParentId(), ignored -> new ArrayList<>()).add(edge));
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        result.add(rootId);
-        List<String> frontier = List.of(rootId);
-        for (int depth = 0; !frontier.isEmpty()
-                            && (options.maxDepth() < 0 || depth < options.maxDepth()); depth++) {
-            List<String> next = new ArrayList<>();
-            frontier.forEach(parent -> children.getOrDefault(parent, List.of()).forEach(edge -> {
-                if (result.add(edge.getChildId())) {
-                    if (options.maxModels() >= 0 && result.size() > options.maxModels()) {
-                        throw new IllegalArgumentException(
-                                "Model graph exceeds maxModels " + options.maxModels());
-                    }
-                    next.add(edge.getChildId());
-                }
-            }));
-            frontier = next;
-        }
-        return result;
+        return new LinkedHashSet<>(ModelRelationshipTraversal.traverse(
+                List.of(rootId),
+                new ModelRelationshipTraversal.Policy(
+                        options.maxDepth(), options.maxModels(), false, false,
+                        "Model graph exceeds maxModels " + options.maxModels(), null),
+                frontier -> frontier.stream()
+                        .flatMap(parent -> children.getOrDefault(parent, List.of()).stream())
+                        .toList(),
+                ModelGraphEdge::getChildId,
+                null).modelIds());
     }
 
-    private static void addParentEdges(
+    static void addParentEdges(
             String modelId, Class<?> modelType, Object value, Collection<ModelGraphEdge> edges) {
-        for (EntityMetadata.ParentReference parent : EntityMetadata.validate(modelType).parentReferences()) {
-            Object parentId = parent.read(value);
-            if (parentId != null) {
-                Class<?> parentType = parent.parentModelType(parentId);
-                edges.add(new ModelGraphEdge(
-                        modelId, parent.repositoryId(parentId),
-                        parentType == null ? null : parentType.getName(),
-                        parent.path().isEmpty() ? null : parent.path(), -1L, null));
-            }
-        }
+        EntityMetadata.validate(modelType).parentRelationships(modelId, value).stream()
+                .map(relationship -> relationship.asGraphEdge(modelId))
+                .forEach(edges::add);
     }
 
     /** One reachable parent identity in deterministic traversal order. */
@@ -604,63 +586,43 @@ final class GraphState {
         LinkedHashMap<String, List<ModelGraphEdge>> parents = new LinkedHashMap<>();
         edges.forEach(edge -> parents.computeIfAbsent(
                 edge.getChildId(), ignored -> new ArrayList<>()).add(edge));
-        LinkedHashSet<String> visited = new LinkedHashSet<>(roots);
-        LinkedHashMap<String, Integer> ancestors = new LinkedHashMap<>();
+        Set<String> rootIds = new LinkedHashSet<>(roots);
+        LinkedHashMap<String, Integer> depths = new LinkedHashMap<>();
         LinkedHashMap<String, List<ModelGraphEdge>> incoming = new LinkedHashMap<>();
-        List<String> frontier = List.copyOf(roots);
-        for (int depth = 0; !frontier.isEmpty(); depth++) {
-            if (maxDepth >= 0 && depth >= maxDepth) {
-                if (frontier.stream().anyMatch(id -> !parents.getOrDefault(id, List.of()).isEmpty())) {
-                    throw new IllegalStateException(
-                            "Model ancestor graph exceeds maximum depth " + maxDepth);
-                }
-                break;
-            }
-            List<String> next = new ArrayList<>();
-            for (String child : frontier) {
-                for (ModelGraphEdge edge : parents.getOrDefault(child, List.of())) {
-                    String parent = edge.getParentId();
-                    incoming.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(edge);
-                    ancestors.putIfAbsent(parent, depth + 1);
-                    if (visited.add(parent)) {
-                        if (maxModels >= 0 && visited.size() > maxModels) {
-                            throw new IllegalStateException(
-                                    "Model ancestor graph exceeds maxModels " + maxModels);
-                        }
-                        next.add(parent);
-                    }
-                }
-            }
-            frontier = next;
+        ModelRelationshipTraversal.Result traversal;
+        try {
+            traversal = ModelRelationshipTraversal.traverse(
+                    rootIds,
+                    new ModelRelationshipTraversal.Policy(
+                            maxDepth, maxModels, true, false,
+                            "Model ancestor graph exceeds maxModels " + maxModels,
+                            "Model ancestor graph exceeds maximum depth " + maxDepth),
+                    frontier -> frontier.stream()
+                            .flatMap(child -> parents.getOrDefault(child, List.of()).stream())
+                            .toList(),
+                    ModelGraphEdge::getParentId,
+                    Function.identity(),
+                    ignored -> List.of(),
+                    (depth, models) -> models.forEach(model -> depths.put(model, depth)));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(e.getMessage(), e);
         }
-        assertAcyclic(roots, parents, new LinkedHashSet<>(), new LinkedHashSet<>());
-        return ancestors.entrySet().stream()
-                .map(entry -> new Graphs.AncestorPlacement(
-                        entry.getKey(), entry.getValue(),
-                        List.copyOf(incoming.getOrDefault(entry.getKey(), List.of()))))
+        List<String> cycle = ModelRelationshipTraversal.cycle(
+                rootIds,
+                child -> parents.getOrDefault(child, List.of()).stream()
+                        .map(ModelGraphEdge::getParentId).toList());
+        if (!cycle.isEmpty()) {
+            throw new EventSourcingException(
+                    "Model ancestor graph contains a cycle through " + cycle.getFirst());
+        }
+        traversal.edges().forEach(edge -> incoming.computeIfAbsent(
+                edge.getParentId(), ignored -> new ArrayList<>()).add(edge));
+        return traversal.modelIds().stream()
+                .filter(modelId -> !rootIds.contains(modelId))
+                .map(modelId -> new Graphs.AncestorPlacement(
+                        modelId, depths.get(modelId),
+                        List.copyOf(incoming.getOrDefault(modelId, List.of()))))
                 .toList();
-    }
-
-    private static void assertAcyclic(
-            Collection<String> roots,
-            Map<String, List<ModelGraphEdge>> parents,
-            Set<String> visiting,
-            Set<String> complete) {
-        for (String modelId : roots) {
-            if (complete.contains(modelId)) {
-                continue;
-            }
-            if (!visiting.add(modelId)) {
-                throw new EventSourcingException(
-                        "Model ancestor graph contains a cycle through " + modelId);
-            }
-            assertAcyclic(
-                    parents.getOrDefault(modelId, List.of()).stream()
-                            .map(ModelGraphEdge::getParentId).toList(),
-                    parents, visiting, complete);
-            visiting.remove(modelId);
-            complete.add(modelId);
-        }
     }
 
     @SuppressWarnings("unchecked")
@@ -698,18 +660,7 @@ final class GraphState {
 
     private static void addParentEdges(String modelId, Entity<?> entity, Collection<ModelGraphEdge> edges) {
         Object value = entity.get();
-        if (value == null) {
-            return;
-        }
-        for (EntityMetadata.ParentReference parent : EntityMetadata.of(entity.type()).parentReferences()) {
-            Object parentId = parent.read(value);
-            if (parentId != null) {
-                Class<?> parentType = parent.parentModelType(parentId);
-                edges.add(new ModelGraphEdge(
-                        modelId, parent.repositoryId(parentId), parentType == null ? null : parentType.getName(),
-                        parent.path().isEmpty() ? null : parent.path(), -1L, null));
-            }
-        }
+        Graphs.addParentEdges(modelId, entity.type(), value, edges);
     }
 
     List<Graph<?>> directParents(Node node, ViewContext context) {
@@ -718,13 +669,13 @@ final class GraphState {
             return List.of();
         }
         LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
-        for (EntityMetadata.ParentReference reference : EntityMetadata.of(node.data().type()).parentReferences()) {
-            Object parentId = reference.read(value);
-            Class<?> parentType = parentId == null ? null : reference.parentModelType(parentId);
+        for (EntityMetadata.ParentRelationship relationship :
+                EntityMetadata.of(node.data().type()).parentRelationships(node.data().id(), value)) {
+            Class<?> parentType = relationship.parentType();
             if (parentType == null) {
                 continue;
             }
-            String repositoryId = reference.repositoryId(parentId);
+            String repositoryId = relationship.parentId();
             Node internal = byId.getOrDefault(repositoryId, List.of()).stream()
                     .filter(candidate -> !candidate.detached() && parentType.isAssignableFrom(candidate.data().type()))
                     .findFirst().orElse(detachedById.get(repositoryId));
@@ -749,7 +700,7 @@ final class GraphState {
             Graph<?> parent = historical || exactBoundary
                     ? repository.loadGraph(
                             repositoryId, parentType, boundary, Graph.Options.DEFAULT)
-                    : Graphs.lazy(repository.load(parentId, parentType), stateIndex, repository);
+                    : Graphs.lazy(repository.load(repositoryId, parentType), stateIndex, repository);
             if (parent.isPresent()) {
                 result.putIfAbsent(repositoryId, context.decorate(parent));
             }

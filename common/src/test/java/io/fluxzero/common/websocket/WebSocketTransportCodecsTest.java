@@ -474,7 +474,7 @@ class WebSocketTransportCodecsTest {
                         ModelCommitStep.builder()
                                 .targets(List.of(nonStoredDelete))
                                 .build()),
-                ModelConflictPolicy.RETRY, Guarantee.STORED, null);
+                ModelConflictPolicy.RETRY, Guarantee.STORED, true);
         CommitModelsResult result = CommitModelsResult.accepted(
                 request.getRequestId(), request.getCommitId(),
                 List.of(
@@ -653,7 +653,7 @@ class WebSocketTransportCodecsTest {
     @Test
     void modelCommitProtocolIgnoresFutureFields() throws Exception {
         CommitModels request = new CommitModels(
-                "commit-1", -1L, List.of(), List.of(), ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
+                "commit-1", -1L, List.of(), List.of(), ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
         var json = (com.fasterxml.jackson.databind.node.ObjectNode)
                 objectMapper.readTree(objectMapper.writeValueAsBytes(request));
         json.remove("conflictPolicy");
@@ -697,7 +697,7 @@ class WebSocketTransportCodecsTest {
                                                          .relationships(List.of())
                                                          .build()))
                                 .build()),
-                ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
 
         assertTrue(containsBinaryValue(
                 cborCodec.encode(request), serializedMessage().getData().getValue()));
@@ -766,7 +766,7 @@ class WebSocketTransportCodecsTest {
                 request.getRequestId(),
                 List.of(new ModelGraphEdge(
                         "line-1", "order-1", "example.Order",
-                        "lines", 80L, null)),
+                        "lines", 80L, null, true)),
                 new GetModelEventsResult(
                         request.getRequestId(), 91L,
                         List.of(new ModelEventPayload(80L, serializedMessage())),

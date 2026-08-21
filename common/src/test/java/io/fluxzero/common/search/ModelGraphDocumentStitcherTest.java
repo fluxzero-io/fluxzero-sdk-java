@@ -554,6 +554,6 @@ class ModelGraphDocumentStitcherTest {
             String path) {
         return new ModelGraphEdge(
                 child, parent, "type",
-                path, 1L, null);
+                path, 1L, null, false);
     }
 }

@@ -111,7 +111,7 @@ class InMemorySearchStoreModelMaterializationTest {
                                         new ModelGraphEdge(
                                                 childId, rootId,
                                                 "Root", "children",
-                                                1L, null)),
+                                                1L, null, false)),
                         modelIds -> collections.entrySet()
                                 .stream()
                                 .filter(entry ->
@@ -236,7 +236,7 @@ class InMemorySearchStoreModelMaterializationTest {
                                                 List.of(target))
                                         .build()),
                         ModelConflictPolicy.ACCEPT,
-                        STORED, null);
+                        STORED, true);
         store.materializeModelCommit(
                 commit,
                 List.of(

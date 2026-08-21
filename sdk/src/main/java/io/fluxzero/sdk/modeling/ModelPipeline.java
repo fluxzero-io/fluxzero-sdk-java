@@ -19,8 +19,10 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
+import io.fluxzero.common.modeling.ModelRelationshipQueries;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -766,8 +768,7 @@ final class ModelPipeline {
             return evaluation;
         }
         LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
-        LinkedHashSet<String> deleted = new LinkedHashSet<>(explicitlyDeleted);
-        LinkedHashSet<String> cascaded = new LinkedHashSet<>();
+        LinkedHashSet<ModelGraphEdge> edges = new LinkedHashSet<>();
 
         for (String rootId : explicitlyDeleted) {
             Class<?> rootType = modelType(
@@ -779,31 +780,23 @@ final class ModelPipeline {
                     rootId, rootType,
                     evaluation.readStateIndex(),
                     Graph.Options.DEFAULT);
-            addCascadeNode(nodes, graph);
-            graph.descendants(Object.class).forEach(
-                    descendant -> addCascadeNode(nodes, descendant));
+            addCascadeGraph(nodes, edges, graph);
         }
 
-        overlayFinalValues(latestTransitions, nodes);
-        boolean changed;
-        do {
-            changed = false;
-            for (CascadeNode node : nodes.values()) {
-                if (deleted.contains(node.modelId())
-                    || node.value() == null) {
-                    continue;
-                }
-                EntityMetadata metadata =
-                        EntityMetadata.validate(node.modelType());
-                boolean ownedByDeletedParent =
-                        ownedByDeletedParent(
-                                metadata, node.value(), deleted);
-                if (ownedByDeletedParent && deleted.add(node.modelId())) {
-                    cascaded.add(node.modelId());
-                    changed = true;
-                }
+        for (Change transition : latestTransitions.values()) {
+            if (transition.before() != null && transition.after() != null
+                && !nodes.containsKey(transition.modelId())) {
+                addCascadeGraph(
+                        nodes, edges,
+                        repository.loadGraphAtIncludingMessageBatch(
+                                transition.modelId(), transition.modelType(),
+                                evaluation.readStateIndex(), Graph.Options.DEFAULT));
             }
-        } while (changed);
+        }
+        overlayFinalValues(latestTransitions, nodes, edges);
+        LinkedHashSet<String> cascaded = new LinkedHashSet<>(
+                ModelRelationshipQueries.ownedDescendants(explicitlyDeleted, edges));
+        cascaded.removeAll(explicitlyDeleted);
         if (cascaded.isEmpty()) {
             evaluation.cascadeRoots(explicitlyDeleted);
             return evaluation;
@@ -844,43 +837,39 @@ final class ModelPipeline {
         return evaluation;
     }
 
-    private static void addCascadeNode(
+    private static void addCascadeGraph(
             Map<String, CascadeNode> nodes,
+            Set<ModelGraphEdge> edges,
             Graph<?> graph) {
-        nodes.putIfAbsent(
-                graph.id().toString(),
-                new CascadeNode(
-                        graph.id().toString(), graph.type(), graph.get(),
-                        graph.sequenceNumber(), graph.lastEventIndex()));
-    }
-
-    private static boolean ownedByDeletedParent(
-            EntityMetadata metadata,
-            Object value,
-            Set<String> deleted) {
-        for (EntityMetadata.ParentReference parent :
-                metadata.parentReferences()) {
-            if (!parent.deleteOnParentDeletion()) {
-                continue;
-            }
-            Object parentId = parent.read(value);
-            if (parentId != null
-                && deleted.contains(
-                        parent.repositoryId(parentId))) {
-                return true;
+        List<Graph<?>> members = new ArrayList<>();
+        members.add(graph);
+        members.addAll(graph.descendants(Object.class));
+        for (Graph<?> member : members) {
+            String modelId = member.id().toString();
+            nodes.putIfAbsent(
+                    modelId,
+                    new CascadeNode(
+                            modelId, member.type(), member.get(),
+                            member.sequenceNumber(), member.lastEventIndex()));
+            if (member.get() != null) {
+                Graphs.addParentEdges(
+                        modelId, member.type(), member.get(), edges);
             }
         }
-        return false;
     }
 
     private static void overlayFinalValues(
             Map<String, Change> latestTransitions,
-            Map<String, CascadeNode> nodes) {
+            Map<String, CascadeNode> nodes,
+            Set<ModelGraphEdge> edges) {
+        edges.removeIf(edge -> latestTransitions.containsKey(edge.getChildId()));
         latestTransitions.forEach((modelId, transition) -> {
             Object value = transition.after();
             if (value == null) {
                 return;
             }
+            Graphs.addParentEdges(
+                    modelId, transition.modelType(), value, edges);
             CascadeNode known = nodes.get(modelId);
             Class<?> type = transition.modelType();
             if (type == null) {
@@ -1221,18 +1210,10 @@ final class ModelPipeline {
             Map<String, Object> stagedValues) {
         List<StagedRelationships> relationships = new ArrayList<>(stagedValues.size());
         stagedValues.forEach((modelId, value) -> {
-            List<ParentRelationship> parents = new ArrayList<>();
-            if (value != null) {
-                EntityMetadata.validate(value.getClass()).parentReferences().forEach(parent -> {
-                    Object parentId = parent.read(value);
-                    if (parentId != null) {
-                        parents.add(new ParentRelationship(
-                                Objects.requireNonNull(parent.repositoryId(parentId), "Parent ID string"),
-                                parent.parentModelType(parentId), parent.path()));
-                    }
-                });
-            }
-            relationships.add(new StagedRelationships(modelId, List.copyOf(parents)));
+            List<EntityMetadata.ParentRelationship> parents = value == null ? List.of()
+                    : EntityMetadata.validate(value.getClass())
+                            .parentRelationships(modelId, value);
+            relationships.add(new StagedRelationships(modelId, parents));
         });
         return new AncestorPlanKey(resolution, List.copyOf(relationships));
     }
@@ -1242,9 +1223,8 @@ final class ModelPipeline {
             List<StagedRelationships> stagedRelationships) {
     }
 
-    private record StagedRelationships(String modelId, List<ParentRelationship> parents) {
-    }
-
-    private record ParentRelationship(String parentId, Class<?> parentType, String path) {
+    private record StagedRelationships(
+            String modelId,
+            List<EntityMetadata.ParentRelationship> parents) {
     }
 }

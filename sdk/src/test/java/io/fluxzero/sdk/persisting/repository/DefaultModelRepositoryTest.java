@@ -388,7 +388,7 @@ class DefaultModelRepositoryTest {
                                                     id.toString()),
                                             List.of(substep),
                                             ModelConflictPolicy.ACCEPT,
-                                            Guarantee.STORED, null))
+                                            Guarantee.STORED, true))
                             .join();
             assertTrue(result.isAccepted());
             fluxzero.documentStore().index(
@@ -480,7 +480,7 @@ class DefaultModelRepositoryTest {
                                                                             .build()))
                                                             .build()),
                                             ModelConflictPolicy.ACCEPT,
-                                            Guarantee.STORED, null))
+                                            Guarantee.STORED, true))
                             .join();
             assertTrue(result.isAccepted());
 
@@ -526,7 +526,7 @@ class DefaultModelRepositoryTest {
                                             List.of(id.toString()),
                                             List.of(substep),
                                             ModelConflictPolicy.ACCEPT,
-                                            Guarantee.STORED, null))
+                                            Guarantee.STORED, true))
                             .join();
             assertTrue(result.isAccepted());
 
@@ -1764,13 +1764,13 @@ class DefaultModelRepositoryTest {
                 .build();
         CommitModels commit = new CommitModels(
                 commitId, readStateIndex, List.of(targetIds),
-                List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
+                List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
         CommitModelsResult result = fluxzero.client().getEventStoreClient()
                 .commitModels(commit).join();
         if (result.isRebaseRequired()) {
             commit = new CommitModels(
                     commitId, result.getRebaseStateIndex(), List.of(targetIds),
-                    List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
+                    List.of(substep), ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
             result = fluxzero.client().getEventStoreClient()
                     .commitModels(commit).join();
         }
@@ -1799,13 +1799,13 @@ class DefaultModelRepositoryTest {
                 .toList();
         CommitModels commit = new CommitModels(
                 commitId, readStateIndex, readModelIds, substeps,
-                ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
         CommitModelsResult result = fluxzero.client().getEventStoreClient()
                 .commitModels(commit).join();
         if (result.isRebaseRequired()) {
             commit = new CommitModels(
                     commitId, result.getRebaseStateIndex(), readModelIds, substeps,
-                    ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
+                    ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
             result = fluxzero.client().getEventStoreClient()
                     .commitModels(commit).join();
         }

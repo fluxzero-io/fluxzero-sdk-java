@@ -21,6 +21,8 @@ import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 
@@ -31,6 +33,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /** Owns storage-neutral Model commit description, head assignment and accepted-result construction. */
@@ -39,13 +42,15 @@ public final class ModelCommitAssignment {
     public static Description describe(CommitModels source) {
         if (source.getSubsteps().size() == 1
             && source.getSubsteps().getFirst().getTargets().size() == 1) {
-            var target = source.getSubsteps().getFirst().getTargets().getFirst();
+            ModelCommitTarget target = source.getSubsteps().getFirst().getTargets().getFirst();
             List<String> ids = List.of(target.getModelId());
+            RelationshipChange relationship = relationshipChange(target);
             return new Description(
-                    ids, target.isStoreEvent() ? List.of() : ids,
+                    source, ids, target.isStoreEvent() ? List.of() : ids,
                     target.getDocument() != null || target.getSnapshot() != null,
-                    target.isDelete() || target.isUpdateRelationships(),
-                    target.isDelete() ? Map.of(target.getModelId(), 0) : Map.of(),
+                    relationship == null ? List.of() : List.of(new RelationshipStep(
+                            List.of(relationship), target.isDelete() ? Set.copyOf(ids) : Set.of())),
+                    target.isDelete() ? Set.copyOf(ids) : Set.of(),
                     target.isDelete() && target.isCascadeDelete() ? ids : List.of(),
                     Aliases.from(target));
         }
@@ -53,16 +58,19 @@ public final class ModelCommitAssignment {
         var unstored = new LinkedHashSet<String>();
         var deletions = new LinkedHashMap<String, Integer>();
         var cascadeRoots = new LinkedHashSet<String>();
+        var relationshipChanges = new ArrayList<List<RelationshipChange>>(
+                source.getSubsteps().size());
         LinkedHashMap<String, List<String>> aliases = null;
-        boolean materialization = false, relationships = false;
+        boolean materialization = false;
+        boolean relationships = false;
         for (int step = 0; step < source.getSubsteps().size(); step++) {
+            List<RelationshipChange> stepRelationships = null;
             for (var target : source.getSubsteps().get(step).getTargets()) {
                 targets.add(target.getModelId());
                 if (!target.isStoreEvent()) {
                     unstored.add(target.getModelId());
                 }
                 materialization |= target.getDocument() != null || target.getSnapshot() != null;
-                relationships |= target.isDelete() || target.isUpdateRelationships();
                 deletions.remove(target.getModelId());
                 cascadeRoots.remove(target.getModelId());
                 if (target.isDelete()) {
@@ -77,11 +85,81 @@ public final class ModelCommitAssignment {
                     }
                     Aliases.put(aliases, target);
                 }
+                if (target.isDelete() || target.isUpdateRelationships()) {
+                    relationships = true;
+                    if (stepRelationships == null) {
+                        stepRelationships = new ArrayList<>();
+                    }
+                    stepRelationships.add(relationshipChange(target));
+                }
             }
+            relationshipChanges.add(stepRelationships == null
+                                            ? List.of()
+                                            : List.copyOf(stepRelationships));
+        }
+        List<RelationshipStep> relationshipSteps = List.of();
+        if (relationships) {
+            var finalDeletions = new ArrayList<Set<String>>(source.getSubsteps().size());
+            for (int step = 0; step < source.getSubsteps().size(); step++) {
+                finalDeletions.add(new LinkedHashSet<>());
+            }
+            deletions.forEach((modelId, step) -> finalDeletions.get(step).add(modelId));
+            var planned = new ArrayList<RelationshipStep>(relationshipChanges.size());
+            for (int step = 0; step < relationshipChanges.size(); step++) {
+                planned.add(new RelationshipStep(
+                        relationshipChanges.get(step), Set.copyOf(finalDeletions.get(step))));
+            }
+            relationshipSteps = List.copyOf(planned);
         }
         return new Description(
-                List.copyOf(targets), List.copyOf(unstored), materialization, relationships,
-                Map.copyOf(deletions), List.copyOf(cascadeRoots), Aliases.from(aliases));
+                source, List.copyOf(targets), List.copyOf(unstored), materialization,
+                relationshipSteps, Set.copyOf(deletions.keySet()),
+                List.copyOf(cascadeRoots), Aliases.from(aliases));
+    }
+
+    /** Validates the ordered relationship effects described for one atomic assignment batch. */
+    public static void validateRelationships(
+            List<Description> commits,
+            ModelRelationshipCycleValidator.ParentLoader parentLoader,
+            ChildLoader childLoader) {
+        Map<String, Set<String>> overrides = new HashMap<>();
+        List<ModelRelationshipCycleValidator.Step> steps = new ArrayList<>();
+        for (Description description : commits) {
+            for (RelationshipStep relationshipStep : description.relationshipSteps()) {
+                LinkedHashMap<String, Boolean> changed = new LinkedHashMap<>();
+                for (RelationshipChange change : relationshipStep.changes()) {
+                    overrides.put(change.childId(), change.parentIds());
+                    changed.put(change.childId(), true);
+                }
+                Set<String> deletedParents = relationshipStep.finalDeletedParentIds();
+                if (!deletedParents.isEmpty()) {
+                    LinkedHashSet<String> children = new LinkedHashSet<>(overrides.keySet());
+                    children.addAll(childLoader.load(deletedParents));
+                    Set<String> missing = children.stream()
+                            .filter(child -> !overrides.containsKey(child))
+                            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                    overrides.putAll(parentLoader.load(missing));
+                    for (String child : children) {
+                        Set<String> parents = overrides.getOrDefault(child, Set.of());
+                        Set<String> retained = parents.stream()
+                                .filter(parent -> !deletedParents.contains(parent))
+                                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                        if (!parents.equals(retained)) {
+                            overrides.put(child, retained);
+                            changed.putIfAbsent(child, false);
+                        }
+                    }
+                }
+                if (!changed.isEmpty()) {
+                    steps.add(new ModelRelationshipCycleValidator.Step(
+                            changed.entrySet().stream().map(entry ->
+                                    new ModelRelationshipCycleValidator.Change(
+                                            entry.getKey(), overrides.get(entry.getKey()), entry.getValue()))
+                                    .toList()));
+                }
+            }
+        }
+        ModelRelationshipCycleValidator.validate(steps, parentLoader);
     }
 
     /** Starts an ordered assignment session in which later commits observe earlier assigned heads. */
@@ -109,9 +187,47 @@ public final class ModelCommitAssignment {
 
     /** Storage-neutral work known before assignment. */
     public record Description(
+            CommitModels source,
             List<String> targetIds, List<String> unstoredTargetIds, boolean mayMaterialize,
-            boolean affectsRelationships, Map<String, Integer> finalDeletionSubsteps,
-            List<String> cascadeRootIds, Aliases aliases) {}
+            List<RelationshipStep> relationshipSteps, Set<String> finalDeletedModelIds,
+            List<String> cascadeRootIds, Aliases aliases) {
+        public boolean affectsRelationships() {
+            return !relationshipSteps.isEmpty();
+        }
+        public RelationshipStep relationshipStep(int substep) {
+            return relationshipSteps.isEmpty() ? RelationshipStep.EMPTY : relationshipSteps.get(substep);
+        }
+    }
+
+    /** Relationship changes and final parent deletions applied at one state index. */
+    public record RelationshipStep(
+            List<RelationshipChange> changes, Set<String> finalDeletedParentIds) {
+        private static final RelationshipStep EMPTY = new RelationshipStep(List.of(), Set.of());
+    }
+
+    /** The desired parent set for one child after a relationship-changing target. */
+    public record RelationshipChange(
+            String childId, Set<ModelRelationship> desired, boolean deleted) {
+        public Set<String> parentIds() {
+            return desired.stream().map(ModelRelationship::getParentId)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        }
+    }
+
+    private static RelationshipChange relationshipChange(ModelCommitTarget target) {
+        return target.isDelete() || target.isUpdateRelationships()
+                ? new RelationshipChange(
+                        target.getModelId(),
+                        target.isDelete() ? Set.of() : Set.copyOf(target.getRelationships()),
+                        target.isDelete())
+                : null;
+    }
+
+    /** Batch-loads current children for deleted parent IDs. */
+    @FunctionalInterface
+    public interface ChildLoader {
+        Set<String> load(Set<String> parentIds);
+    }
 
     /** Final alias replacements and their requested owners in commit order. */
     public static final class Aliases {
@@ -259,7 +375,8 @@ public final class ModelCommitAssignment {
             this.nextStateIndex = firstStateIndex;
         }
         public Commit<H> assign(
-                CommitModels source, Description description, HeadConsumer<H> consumer) {
+                Description description, HeadConsumer<H> consumer) {
+            CommitModels source = description.source();
             if (!description.aliases().isEmpty()) {
                 if (aliasReplacements == null) {
                     aliasReplacements = new LinkedHashMap<>();

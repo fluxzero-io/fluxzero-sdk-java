@@ -95,7 +95,7 @@ public class ModelReconstructionBenchmark {
                 new CommitModels(
                         "benchmark-action", -1L, List.of(id.toString()),
                         substeps, ModelConflictPolicy.ACCEPT,
-                        Guarantee.STORED, null)).join();
+                        Guarantee.STORED, true)).join();
     }
 
     @Model(cached = false, snapshotPeriod = 0)

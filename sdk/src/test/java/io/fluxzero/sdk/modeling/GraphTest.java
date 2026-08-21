@@ -158,7 +158,7 @@ class GraphTest {
                 Map.of(rootValue.id().toString(), root, childValue.id().toString(), child),
                 List.of(new ModelGraphEdge(
                         childValue.id().toString(), rootValue.id().toString(),
-                        Root.class.getName(), "children", 0L, null)),
+                        Root.class.getName(), "children", 0L, null, false)),
                 repository, false);
         when(repository.loadGraph(
                 rootValue.id().toString(), Root.class,
@@ -194,7 +194,7 @@ class GraphTest {
                 Map.of(rootValue.id().toString(), root, childValue.id().toString(), child),
                 List.of(new ModelGraphEdge(
                         childValue.id().toString(), rootValue.id().toString(),
-                        Root.class.getName(), "children", 0L, null)),
+                        Root.class.getName(), "children", 0L, null, false)),
                 repository, false);
         when(repository.loadGraph(
                 rootValue.id().toString(), Root.class,
@@ -276,16 +276,16 @@ class GraphTest {
                 List.of(
                         new ModelGraphEdge(
                                 olderParent.id().toString(), rootValue.id().toString(),
-                                Root.class.getName(), "children", 0L, null),
+                                Root.class.getName(), "children", 0L, null, false),
                         new ModelGraphEdge(
                                 newerParent.id().toString(), rootValue.id().toString(),
-                                Root.class.getName(), "children", 0L, null),
+                                Root.class.getName(), "children", 0L, null, false),
                         new ModelGraphEdge(
                                 olderId, olderParent.id().toString(),
-                                Child.class.getName(), "scopedLeaves", 0L, null),
+                                Child.class.getName(), "scopedLeaves", 0L, null, false),
                         new ModelGraphEdge(
                                 newerId, newerParent.id().toString(),
-                                Child.class.getName(), "scopedLeaves", 0L, null)),
+                                Child.class.getName(), "scopedLeaves", 0L, null, false)),
                 repository, false);
 
         Graph<ScopedLeaf> selected = graph.find(
@@ -317,7 +317,7 @@ class GraphTest {
                 Map.of(before.id().toString(), root, childValue.id().toString(), child),
                 List.of(new ModelGraphEdge(
                         childValue.id().toString(), before.id().toString(),
-                        Root.class.getName(), "children", 0L, null)),
+                        Root.class.getName(), "children", 0L, null, false)),
                 repository, false);
         when(repository.loadGraph(
                 before.id().toString(), Root.class,
@@ -349,10 +349,10 @@ class GraphTest {
                 List.of(
                         new ModelGraphEdge(
                                 childValue.id().toString(), rootValue.id().toString(),
-                                Root.class.getName(), "children", 0L, null),
+                                Root.class.getName(), "children", 0L, null, false),
                         new ModelGraphEdge(
                                 grandchildValue.id(), childValue.id().toString(),
-                                Child.class.getName(), "details/grandchildren", 0L, null)),
+                                Child.class.getName(), "details/grandchildren", 0L, null, false)),
                 repository, false);
 
         assertEquals(
@@ -383,10 +383,10 @@ class GraphTest {
                 List.of(
                         new ModelGraphEdge(
                                 childValue.id().toString(), rootValue.id().toString(),
-                                Root.class.getName(), null, 0L, null),
+                                Root.class.getName(), null, 0L, null, false),
                         new ModelGraphEdge(
                                 grandchildValue.id(), childValue.id().toString(),
-                                Child.class.getName(), null, 0L, null)),
+                                Child.class.getName(), null, 0L, null, false)),
                 repository, false);
 
         assertEquals(List.of(childValue), graph.childModels(Child.class));
@@ -529,7 +529,7 @@ class GraphTest {
                        childValue.id(), entity(childValue.id(), MultiChild.class, childValue)),
                 List.of(new ModelGraphEdge(
                         childValue.id(), rootValue.id().toString(),
-                        Root.class.getName(), "rootChildren", 0L, null)),
+                        Root.class.getName(), "rootChildren", 0L, null, false)),
                 repository, false);
 
         Graph<MultiChild> child = graph.children(MultiChild.class).getFirst();
@@ -742,7 +742,7 @@ class GraphTest {
                        childValue.id().toString(), child),
                 List.of(new ModelGraphEdge(
                         childValue.id().toString(), rootValue.id().toString(),
-                        Root.class.getName(), "children", 0L, null)),
+                        Root.class.getName(), "children", 0L, null, false)),
                 repository, false);
 
         Graph<Child> stagedDeletion = graph.children(

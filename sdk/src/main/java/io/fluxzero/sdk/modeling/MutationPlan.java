@@ -166,7 +166,8 @@ public final class MutationPlan {
             EntityMetadata.of(key.payloadType()).applyMethods().stream()
                     .filter(handler -> handler.dynamicApplyResult()
                                        || handler.targetModelTypes().stream()
-                                               .anyMatch(target -> compatible(target, key.modelType())))
+                                               .anyMatch(target -> EntityMetadata.compatibleTypes(
+                                                       target, key.modelType())))
                     .forEach(selected::add);
             EntityMetadata.of(key.modelType()).applyMethods().stream()
                     .filter(handler -> EntityMetadata.acceptsPayload(handler, key.payloadType()))
@@ -174,16 +175,13 @@ public final class MutationPlan {
             List<EntityMetadata.HandlerMethod> handlers = List.copyOf(selected);
             DirectSingleTargetApply direct = handlers.size() == 1
                     && handlers.getFirst().targetModelTypes().size() == 1
-                    && compatible(handlers.getFirst().targetModelTypes().getFirst(), key.modelType())
+                    && EntityMetadata.compatibleTypes(
+                            handlers.getFirst().targetModelTypes().getFirst(), key.modelType())
                     ? directSingleTargetApply(handlers.getFirst(), key.payloadType()) : null;
             return new MutationPlan(
                     new ModelReducer(compileHandlers(handlers), direct),
                     compile(key.payloadType(), handlers),
                     ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty(), false);
-        }
-
-        private static boolean compatible(Class<?> left, Class<?> right) {
-            return left.isAssignableFrom(right) || right.isAssignableFrom(left);
         }
 
         private record ReplayKey(Class<?> payloadType, Class<?> modelType) {
@@ -812,7 +810,7 @@ public final class MutationPlan {
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
             for (Slot slot : slots) {
-                if (appliesOnly && !slot.apply || compatible(slot.modelType, explicitType)) {
+                if (appliesOnly && !slot.apply || compatibleExplicit(slot.modelType, explicitType)) {
                     continue;
                 }
                 List<String> ids = resolveIds(input, payload, slot);
@@ -829,7 +827,8 @@ public final class MutationPlan {
             }
             List<DeferredWriteTarget> unresolved = new ArrayList<>();
             for (Deferred target : deferred) {
-                if (appliesOnly && !target.apply || compatible(target.modelType, explicitType)) {
+                if (appliesOnly && !target.apply
+                    || compatibleExplicit(target.modelType, explicitType)) {
                     continue;
                 }
                 Set<String> candidates = new LinkedHashSet<>();
@@ -843,9 +842,10 @@ public final class MutationPlan {
                 }
             }
             if (explicitId != null && (dynamic || explicitTypes.stream()
-                    .anyMatch(type -> compatible(type, explicitType)))) {
+                    .anyMatch(type -> compatibleExplicit(type, explicitType)))) {
                 List<String> sources = slots.stream()
-                        .filter(slot -> !slot.receiver && compatible(slot.modelType, explicitType))
+                        .filter(slot -> !slot.receiver
+                                && compatibleExplicit(slot.modelType, explicitType))
                         .map(slot -> slot.property.name()).filter(Objects::nonNull).distinct().toList();
                 merge(result, new ResolvedModel(
                         explicitId, explicitType, Access.READ_WRITE, sources));
@@ -855,7 +855,8 @@ public final class MutationPlan {
                     ancestors.stream()
                             .filter(dependency -> !appliesOnly || dependency.apply)
                             .map(PlannedAncestor::dependency)
-                            .filter(dependency -> !compatible(dependency.modelType(), explicitType)).toList(),
+                            .filter(dependency -> !compatibleExplicit(
+                                    dependency.modelType(), explicitType)).toList(),
                     references);
         }
 
@@ -888,7 +889,7 @@ public final class MutationPlan {
 
         private TargetPlan validate(Class<?> explicitType, boolean appliesOnly) {
             slots.stream().filter(slot -> !appliesOnly || slot.apply)
-                    .filter(slot -> !compatible(slot.modelType, explicitType))
+                    .filter(slot -> !compatibleExplicit(slot.modelType, explicitType))
                     .map(slot -> slot.property).filter(Property::missing).findFirst().ifPresent(property -> {
                         throw new IllegalStateException(property.error);
                     });
@@ -928,7 +929,7 @@ public final class MutationPlan {
         }
 
         private ResolvedModel merge(ResolvedModel other) {
-            if (!compatible(modelType, other.modelType)) {
+            if (!EntityMetadata.compatibleTypes(modelType, other.modelType)) {
                 throw new IllegalStateException(
                         "Model ID '%s' is requested as incompatible types %s and %s".formatted(
                                 modelId, modelType.getName(), other.modelType.getName()));
@@ -1188,9 +1189,9 @@ public final class MutationPlan {
         return input instanceof HasMessage message ? message.getPayload() : input;
     }
 
-    private static boolean compatible(Class<?> candidate, Class<?> explicit) {
+    private static boolean compatibleExplicit(Class<?> candidate, Class<?> explicit) {
         return explicit != null
-               && (candidate.isAssignableFrom(explicit) || explicit.isAssignableFrom(candidate));
+               && EntityMetadata.compatibleTypes(candidate, explicit);
     }
 
     private static IllegalArgumentException nullId(Slot slot) {

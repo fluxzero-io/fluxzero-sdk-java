@@ -44,11 +44,10 @@ class ImmutableModelRootTest {
         when(fluxzero.clock()).thenReturn(clock);
 
         List<ImmutableModelRoot<String>> copies = fluxzero.apply(ignored -> {
-            ImmutableModelRoot<String> result = ImmutableModelRoot.committed(
-                        "model-1", String.class, "id", "value",
-                        mock(EntityHelper.class), mock(Serializer.class),
-                        "event-1", 42L, timestamp,
-                        3L, 7L, null);
+            ImmutableModelRoot<String> result = ImmutableModelRoot.revision(
+                    "model-1", String.class, "id", "value",
+                    mock(EntityHelper.class), mock(Serializer.class),
+                    "event-1", 42L, timestamp, 3L, 7L, null);
             return List.of(
                     result,
                     (ImmutableModelRoot<String>) result.withEventIndex(
