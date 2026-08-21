@@ -1327,34 +1327,26 @@ class ModelCommitHandlerRegistryTest {
                                         "asynchronous"));
 
         assertEquals(
-                java.util.Set.of(ProjectionRoot.class),
-                subject(
-                        AutomaticModelHandling.ENABLED,
-                        GraphProjectionCompletion.ASYNC)
-                        .pipeline().graphProjections(
-                                evaluation(inherited))
-                        .awaitedTargets().keySet());
-        assertTrue(
-                subject(
-                        AutomaticModelHandling.ENABLED,
-                        GraphProjectionCompletion.AWAIT)
-                        .pipeline().graphProjections(
-                                evaluation(asynchronous))
-                        .awaitedTargets()
-                        .isEmpty());
+                GraphProjectionCompletion.AWAIT,
+                graphProjectionCompletion(
+                        inherited,
+                        GraphProjectionCompletion.DEFAULT,
+                        GraphProjectionCompletion.AWAIT,
+                        GraphProjectionCompletion.ASYNC));
         assertEquals(
-                java.util.Set.of(DefaultProjectionRoot.class),
-                subject(
-                        AutomaticModelHandling.ENABLED,
-                        GraphProjectionCompletion.AWAIT)
-                        .pipeline().graphProjections(
-                                evaluation(
-                                        transition(
-                                                DefaultProjectionRoot.class,
-                                                ProjectionApplies.class
-                                                        .getDeclaredMethod(
-                                                                "inherit"))))
-                        .awaitedTargets().keySet());
+                GraphProjectionCompletion.ASYNC,
+                graphProjectionCompletion(
+                        asynchronous,
+                        GraphProjectionCompletion.DEFAULT,
+                        GraphProjectionCompletion.AWAIT,
+                        GraphProjectionCompletion.AWAIT));
+        assertEquals(
+                GraphProjectionCompletion.AWAIT,
+                graphProjectionCompletion(
+                        inherited,
+                        GraphProjectionCompletion.DEFAULT,
+                        GraphProjectionCompletion.DEFAULT,
+                        GraphProjectionCompletion.AWAIT));
     }
 
     @Test
@@ -1372,22 +1364,17 @@ class ModelCommitHandlerRegistryTest {
                         true);
 
         assertEquals(
-                java.util.Set.of(ProjectionRoot.class),
-                subject(
-                        AutomaticModelHandling.ENABLED,
-                        GraphProjectionCompletion.ASYNC)
-                        .pipeline().graphProjections(
-                                evaluation(cascadedDeletion))
-                        .awaitedTargets().keySet());
+                GraphProjectionCompletion.AWAIT,
+                graphProjectionCompletion(
+                        cascadedDeletion,
+                        GraphProjectionCompletion.DEFAULT,
+                        GraphProjectionCompletion.AWAIT,
+                        GraphProjectionCompletion.ASYNC));
     }
 
     @Test
-    void awaitDominatesAsyncForTheSameAffectedRoot()
+    void compilesGraphCompletionIntoEachChange()
             throws Exception {
-        ModelCommitHandlerRegistry subject =
-                subject(
-                        AutomaticModelHandling.ENABLED,
-                        GraphProjectionCompletion.ASYNC);
         Change asynchronous =
                 transition(
                         "shared-child",
@@ -1403,60 +1390,44 @@ class ModelCommitHandlerRegistryTest {
                                 .getDeclaredMethod(
                                         "awaiting"));
 
-        assertEquals(
-                Map.of(
-                        ProjectionRoot.class,
-                        java.util.Set.of(
-                                "shared-child")),
-                subject.pipeline().graphProjections(
-                                evaluation(
-                                        asynchronous,
-                                        awaiting))
-                        .awaitedTargets());
+        assertEquals(GraphProjectionCompletion.ASYNC,
+                     asynchronous.graphProjectionCompletion());
+        assertEquals(GraphProjectionCompletion.AWAIT,
+                     awaiting.graphProjectionCompletion());
     }
 
     @Test
     void activeConsumerPrecedesRootAndApplicationCompletion()
             throws Exception {
-        Tracker.current.set(
-                new Tracker(
-                        "tracker",
-                        MessageType.COMMAND,
-                        null,
-                        ConsumerConfiguration.builder()
-                                .name("consumer")
-                                .graphProjectionCompletion(
-                                        GraphProjectionCompletion.AWAIT)
-                                .build(),
-                        null));
-        try {
-            ModelCommitHandlerRegistry subject =
-                    subject(
-                            AutomaticModelHandling.ENABLED,
-                            GraphProjectionCompletion.ASYNC);
-            assertEquals(
-                    java.util.Set.of(AsyncProjectionRoot.class),
-                    subject.pipeline().graphProjections(
-                            evaluation(
-                                    transition(
-                                            AsyncProjectionRoot.class,
-                                            ProjectionApplies.class
-                                                    .getDeclaredMethod(
-                                                            "inherit"))))
-                            .awaitedTargets().keySet());
-            assertTrue(
-                    subject.pipeline().graphProjections(
-                            evaluation(
-                                    transition(
-                                            AsyncProjectionRoot.class,
-                                            ProjectionApplies.class
-                                                    .getDeclaredMethod(
-                                                            "asynchronous"))))
-                            .awaitedTargets()
-                            .isEmpty());
-        } finally {
-            Tracker.current.remove();
-        }
+        Change inherited = transition(
+                AsyncProjectionRoot.class,
+                ProjectionApplies.class.getDeclaredMethod("inherit"));
+        Change asynchronous = transition(
+                AsyncProjectionRoot.class,
+                ProjectionApplies.class.getDeclaredMethod("asynchronous"));
+        assertEquals(
+                GraphProjectionCompletion.AWAIT,
+                graphProjectionCompletion(
+                        inherited,
+                        GraphProjectionCompletion.AWAIT,
+                        GraphProjectionCompletion.ASYNC,
+                        GraphProjectionCompletion.ASYNC));
+        assertEquals(
+                GraphProjectionCompletion.ASYNC,
+                graphProjectionCompletion(
+                        asynchronous,
+                        GraphProjectionCompletion.AWAIT,
+                        GraphProjectionCompletion.ASYNC,
+                        GraphProjectionCompletion.ASYNC));
+    }
+
+    private static GraphProjectionCompletion graphProjectionCompletion(
+            Change change,
+            GraphProjectionCompletion consumer,
+            GraphProjectionCompletion projection,
+            GraphProjectionCompletion application) {
+        return change.graphProjectionCompletion()
+                .orElse(consumer).orElse(projection).orElse(application);
     }
 
     @Test
@@ -1492,8 +1463,7 @@ class ModelCommitHandlerRegistryTest {
                 HandlerFilter.ALWAYS_HANDLE);
 
         verify(repository, times(2))
-                .registerGraphProjection(
-                        RetryRoot.class, false);
+                .registerGraphProjection(RetryRoot.class, false);
         verify(eventStoreClient, never())
                 .registerModelGraphProjection(any());
     }

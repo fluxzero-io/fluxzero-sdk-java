@@ -29,12 +29,10 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
-import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import io.fluxzero.sdk.tracking.Tracker;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -67,7 +65,6 @@ final class ModelPipeline {
     private final ModelConflictPolicy conflictPolicy;
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
-    private final GraphProjectionCompletion graphProjectionCompletion;
     private final ModelBatchScope.BatchLifecycle batchLifecycle;
     private final boolean awaitAfterHandlerCommitsBeforeResults;
     private final Serializer serializer;
@@ -97,10 +94,6 @@ final class ModelPipeline {
             throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
         }
         this.maxConflictRetries = maxConflictRetries;
-        this.graphProjectionCompletion =
-                graphProjectionCompletion == GraphProjectionCompletion.DEFAULT
-                        ? GraphProjectionCompletion.ASYNC
-                        : Objects.requireNonNull(graphProjectionCompletion, "graphProjectionCompletion");
         this.definitions = Objects.requireNonNull(definitions, "definitions");
         this.localHandlingEnabled = Objects.requireNonNull(localHandlingEnabled, "localHandlingEnabled");
         this.awaitAfterHandlerCommitsBeforeResults =
@@ -108,7 +101,8 @@ final class ModelPipeline {
                         ModelCommitPolicy.AWAIT_AFTER_HANDLER_COMMITS_BEFORE_RESULTS_PROPERTY, true);
         this.repositoryCommit = repository.new Commit(
                 eventStoreClient, serializer, documentSerializer,
-                eventDispatchInterceptor, source, snapshotSerializer);
+                eventDispatchInterceptor, source, snapshotSerializer,
+                graphProjectionCompletion);
         this.batchLifecycle = new ModelBatchScope.BatchLifecycle(
                 repositoryCommit::beginReadyBatch, repositoryCommit::beginBatch,
                 () -> awaitAfterHandlerCommitsBeforeResults);
@@ -388,42 +382,6 @@ final class ModelPipeline {
             int transportSlot) {
         ModelConflictPolicy effectiveConflictPolicy =
                 evaluation.conflictPolicy(conflictPolicy);
-        GraphProjectionCommit graphProjections =
-                graphProjections(evaluation);
-        CompletableFuture<Void> registrations = graphProjections.roots().isEmpty()
-                ? COMPLETED_VOID
-                : CompletableFuture.allOf(
-                        graphProjections.roots().stream()
-                                .map(root -> repository.registerGraphProjection(
-                                        root.modelType(), false))
-                                .toArray(CompletableFuture[]::new));
-        if (registrations == COMPLETED_VOID) {
-            return executeEvaluation(
-                    message, evaluation,
-                    effectiveConflictPolicy,
-                    graphProjections.awaitedTargets(),
-                    transportBatch,
-                    transportSlot);
-        }
-        ThreadLocalContext.Snapshot context =
-                message.captureContext();
-        return registrations.thenCompose(
-                context.wrap(ignored ->
-                        executeEvaluation(
-                                message, evaluation,
-                                effectiveConflictPolicy,
-                                graphProjections.awaitedTargets(),
-                                transportBatch,
-                                transportSlot)));
-    }
-
-    private CompletableFuture<Object> executeEvaluation(
-            DeserializingMessage message,
-            CommitAttempt evaluation,
-            ModelConflictPolicy effectiveConflictPolicy,
-            Map<Class<?>, Set<String>> awaitedGraphProjections,
-            ModelCommitBatchingClient.ModelCommitBatch transportBatch,
-            int transportSlot) {
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                 ? Retry.accepting((result, current, original) -> {
                     try {
@@ -439,29 +397,12 @@ final class ModelPipeline {
         CompletableFuture<Optional<CommitModelsResult>> committed =
                 repositoryCommit.trackLocalCommit(
                         evaluation,
+                        message,
                         () -> commit(
                                 repositoryCommit, message.getMessageId(), evaluation,
                                 effectiveConflictPolicy, retry,
                                 transportBatch, transportSlot));
-        CompletableFuture<Optional<CommitModelsResult>> completed =
-                awaitedGraphProjections.isEmpty()
-                        ? committed
-                        : committed.thenCompose(commitResult -> {
-                            if (commitResult.isEmpty()
-                                || commitResult.get().getUpdates().isEmpty()) {
-                                return CompletableFuture.completedFuture(commitResult);
-                            }
-                            CommitModelsResult result = commitResult.get();
-                            long firstStateIndex = result.getUpdates().getFirst()
-                                    .getStateIndex();
-                            long stateIndex = result.getUpdates().getLast()
-                                    .getStateIndex();
-                            return repository.awaitGraphProjections(
-                                            awaitedGraphProjections,
-                                            firstStateIndex, stateIndex)
-                                    .thenApply(ignored -> commitResult);
-                        });
-        return completed.handle((commitResult, failure) ->
+        return committed.handle((commitResult, failure) ->
                 finishEvaluation(evaluation, effectiveConflictPolicy, failure));
     }
 
@@ -591,82 +532,6 @@ final class ModelPipeline {
         }
         throw new java.util.concurrent.CompletionException(
                 failure);
-    }
-
-    GraphProjectionCommit graphProjections(
-            CommitAttempt evaluation) {
-        GraphProjectionCompletion consumer = null;
-        LinkedHashSet<EntityMetadata.GraphProjectionRoot> definitions =
-                new LinkedHashSet<>();
-        LinkedHashMap<Class<?>, LinkedHashSet<String>> result = new LinkedHashMap<>();
-        for (Change transition :
-                evaluation.transitions()) {
-            List<EntityMetadata.GraphProjectionRoot> roots =
-                    EntityMetadata.graphProjectionRoots(
-                            transition.modelType());
-            if (roots.isEmpty()) {
-                continue;
-            }
-            definitions.addAll(roots);
-            if (consumer == null) {
-                consumer = Tracker.current()
-                        .map(Tracker::getConfiguration)
-                        .map(configuration -> configuration.getGraphProjectionCompletion())
-                        .orElse(GraphProjectionCompletion.DEFAULT);
-            }
-            Apply apply = transition.handler() == null
-                    ? null
-                    : transition.handler().getAnnotation(Apply.class);
-            GraphProjectionCompletion applyPolicy =
-                    apply == null
-                            ? GraphProjectionCompletion.DEFAULT
-                            : apply.graphProjectionCompletion();
-            for (EntityMetadata.GraphProjectionRoot root : roots) {
-                if (resolveProjectionCompletion(
-                        applyPolicy, consumer,
-                        root.projection().completion()) == GraphProjectionCompletion.AWAIT) {
-                    result.computeIfAbsent(
-                                    root.modelType(),
-                                    ignored -> new LinkedHashSet<>())
-                            .add(transition.modelId());
-                }
-            }
-        }
-        Map<Class<?>, Set<String>> awaited = result.entrySet().stream()
-                .collect(
-                        java.util.stream.Collectors
-                                .toUnmodifiableMap(
-                                        Map.Entry::getKey,
-                                        entry ->
-                                                Set.copyOf(
-                                                        entry.getValue())));
-        return definitions.isEmpty()
-                ? GraphProjectionCommit.EMPTY
-                : new GraphProjectionCommit(
-                        Set.copyOf(definitions), awaited);
-    }
-
-    private GraphProjectionCompletion resolveProjectionCompletion(
-            GraphProjectionCompletion apply,
-            GraphProjectionCompletion consumer,
-            GraphProjectionCompletion root) {
-        if (apply != GraphProjectionCompletion.DEFAULT) {
-            return apply;
-        }
-        if (consumer != GraphProjectionCompletion.DEFAULT) {
-            return consumer;
-        }
-        if (root != GraphProjectionCompletion.DEFAULT) {
-            return root;
-        }
-        return graphProjectionCompletion;
-    }
-
-    record GraphProjectionCommit(
-            Set<EntityMetadata.GraphProjectionRoot> roots,
-            Map<Class<?>, Set<String>> awaitedTargets) {
-        private static final GraphProjectionCommit EMPTY =
-                new GraphProjectionCommit(Set.of(), Map.of());
     }
 
     private CompletableFuture<CommitAttempt> reload(

@@ -77,7 +77,8 @@ class DefaultModelRepositoryCommitTest {
     private final JacksonSerializer serializer = new JacksonSerializer();
     private final Commit protocol = repository.new Commit(
             eventStoreClient, serializer, serializer,
-            DispatchInterceptor.noOp, "client-1");
+            DispatchInterceptor.noOp, "client-1", serializer,
+            GraphProjectionCompletion.ASYNC);
 
     @Test
     void preparesHandlerlessGraphDeletionUsingModelPublicationPolicy() {
@@ -795,7 +796,8 @@ class DefaultModelRepositoryCommitTest {
                 Map.of(id.toString(), after));
         Commit batchProtocol = repository.new Commit(
                 eventStoreClient, serializer, serializer,
-                DispatchInterceptor.noOp, "client-1", serializer);
+                DispatchInterceptor.noOp, "client-1", serializer,
+                GraphProjectionCompletion.ASYNC);
         Commit.Outcome prepared =
                 batchProtocol.prepare("batch-completion", evaluation);
         CompletableFuture<CommitModelsResult> transport = new CompletableFuture<>();
@@ -1167,7 +1169,8 @@ class DefaultModelRepositoryCommitTest {
                 .thenThrow(new MockSearchFailure());
         Commit failingProtocol = repository.new Commit(
                 eventStoreClient, serializer, failingSerializer,
-                DispatchInterceptor.noOp, "client-1");
+                DispatchInterceptor.noOp, "client-1", serializer,
+                GraphProjectionCompletion.ASYNC);
 
         assertThrows(MockSearchFailure.class, () -> failingProtocol.commit("commit-1", evaluation));
 

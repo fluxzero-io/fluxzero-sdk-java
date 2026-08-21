@@ -58,6 +58,7 @@ import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.Change;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
@@ -72,6 +73,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.Tracker;
 import lombok.NonNull;
 
 import java.time.Instant;
@@ -104,6 +106,8 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         implements ModelRepository, ModelAncestorResolver {
     private static final int COMMITTED_CACHE_UPDATE_BATCH_SIZE = 128;
+    private static final CompletableFuture<Void> COMPLETED_VOID =
+            CompletableFuture.completedFuture(null);
 
     private final Client client;
     private final DocumentStore documentStore;
@@ -1038,6 +1042,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private final DocumentSerializer documentSerializer;
         private final DispatchInterceptor dispatchInterceptor;
         private final String source;
+        private final GraphProjectionCompletion graphProjectionCompletion;
         private final ConcurrentHashMap<Class<?>, Optional<String>> documentCollections =
                 new ConcurrentHashMap<>();
         private final ModelCommitBatchingClient.ModelCommitResultProcessor resultProcessor =
@@ -1048,24 +1053,21 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 Serializer serializer,
                 DocumentSerializer documentSerializer,
                 DispatchInterceptor dispatchInterceptor,
-                String source) {
-            this(eventStoreClient, serializer, documentSerializer,
-                 dispatchInterceptor, source, serializer);
-        }
-
-        public Commit(
-                EventStoreClient eventStoreClient,
-                Serializer serializer,
-                DocumentSerializer documentSerializer,
-                DispatchInterceptor dispatchInterceptor,
                 String source,
-                Serializer snapshotSerializer) {
+                Serializer snapshotSerializer,
+                GraphProjectionCompletion graphProjectionCompletion) {
             this.eventStoreClient = Objects.requireNonNull(eventStoreClient);
             this.serializer = Objects.requireNonNull(serializer);
             this.snapshotSerializer = snapshotSerializer;
             this.documentSerializer = Objects.requireNonNull(documentSerializer);
             this.dispatchInterceptor = Objects.requireNonNull(dispatchInterceptor);
             this.source = source;
+            this.graphProjectionCompletion =
+                    graphProjectionCompletion == GraphProjectionCompletion.DEFAULT
+                            ? GraphProjectionCompletion.ASYNC
+                            : Objects.requireNonNull(
+                                    graphProjectionCompletion,
+                                    "graphProjectionCompletion");
         }
 
         public CompletableFuture<Optional<CommitModelsResult>> commit(
@@ -1147,9 +1149,32 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         /** Keeps tracker fencing around the complete commit and retry lifecycle. */
-        public <T> CompletableFuture<T> trackLocalCommit(
+        public CompletableFuture<Optional<CommitModelsResult>> trackLocalCommit(
                 CommitAttempt attempt,
-                Supplier<CompletableFuture<T>> operation) {
+                DeserializingMessage message,
+                Supplier<CompletableFuture<Optional<CommitModelsResult>>> operation) {
+            GraphProjectionCommit projections = graphProjections(attempt);
+            CompletableFuture<Void> registrations = projections.roots().isEmpty()
+                    ? COMPLETED_VOID
+                    : CompletableFuture.allOf(
+                            projections.roots().stream()
+                                    .map(root -> DefaultModelRepository.this
+                                            .registerGraphProjection(root.modelType(), false))
+                                    .toArray(CompletableFuture[]::new));
+            CompletableFuture<Optional<CommitModelsResult>> committed =
+                    registrations == COMPLETED_VOID
+                            ? trackLocalChanges(attempt, operation)
+                            : registrations.thenCompose(message.captureContext().wrap(
+                                    ignored -> trackLocalChanges(attempt, operation)));
+            return projections.awaitedTargets().isEmpty()
+                    ? committed
+                    : committed.thenCompose(result ->
+                            awaitGraphProjections(projections.awaitedTargets(), result));
+        }
+
+        private CompletableFuture<Optional<CommitModelsResult>> trackLocalChanges(
+                CommitAttempt attempt,
+                Supplier<CompletableFuture<Optional<CommitModelsResult>>> operation) {
             List<String> modelIds = attempt.transitions().size() == 1
                     ? List.of(attempt.transitions().getFirst().modelId())
                     : attempt.transitions().stream()
@@ -1163,6 +1188,66 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 complete.run();
                 throw failure;
             }
+        }
+
+        private CompletableFuture<Optional<CommitModelsResult>> awaitGraphProjections(
+                Map<Class<?>, Set<String>> projections,
+                Optional<CommitModelsResult> commitResult) {
+            if (commitResult.isEmpty() || commitResult.get().getUpdates().isEmpty()) {
+                return CompletableFuture.completedFuture(commitResult);
+            }
+            CommitModelsResult result = commitResult.get();
+            return DefaultModelRepository.this.awaitGraphProjections(
+                            projections,
+                            result.getUpdates().getFirst().getStateIndex(),
+                            result.getUpdates().getLast().getStateIndex())
+                    .thenApply(ignored -> commitResult);
+        }
+
+        private GraphProjectionCommit graphProjections(CommitAttempt attempt) {
+            GraphProjectionCompletion consumer = null;
+            LinkedHashSet<EntityMetadata.GraphProjectionRoot> definitions =
+                    new LinkedHashSet<>();
+            LinkedHashMap<Class<?>, LinkedHashSet<String>> awaited = new LinkedHashMap<>();
+            for (Change change : attempt.transitions()) {
+                List<EntityMetadata.GraphProjectionRoot> roots =
+                        EntityMetadata.graphProjectionRoots(change.modelType());
+                if (roots.isEmpty()) {
+                    continue;
+                }
+                definitions.addAll(roots);
+                if (consumer == null) {
+                    consumer = Tracker.current()
+                            .map(Tracker::getConfiguration)
+                            .map(configuration -> configuration.getGraphProjectionCompletion())
+                            .orElse(GraphProjectionCompletion.DEFAULT);
+                }
+                for (EntityMetadata.GraphProjectionRoot root : roots) {
+                    if (change.graphProjectionCompletion()
+                            .orElse(consumer)
+                            .orElse(root.projection().completion())
+                            .orElse(graphProjectionCompletion) == GraphProjectionCompletion.AWAIT) {
+                        awaited.computeIfAbsent(
+                                        root.modelType(), ignored -> new LinkedHashSet<>())
+                                .add(change.modelId());
+                    }
+                }
+            }
+            return definitions.isEmpty()
+                    ? GraphProjectionCommit.EMPTY
+                    : new GraphProjectionCommit(
+                            Set.copyOf(definitions),
+                            awaited.entrySet().stream().collect(
+                                    java.util.stream.Collectors.toUnmodifiableMap(
+                                            Map.Entry::getKey,
+                                            entry -> Set.copyOf(entry.getValue()))));
+        }
+
+        private record GraphProjectionCommit(
+                Set<EntityMetadata.GraphProjectionRoot> roots,
+                Map<Class<?>, Set<String>> awaitedTargets) {
+            private static final GraphProjectionCommit EMPTY =
+                    new GraphProjectionCommit(Set.of(), Map.of());
         }
 
         private CompletableFuture<Void> processCommits(

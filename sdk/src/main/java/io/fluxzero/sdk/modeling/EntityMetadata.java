@@ -526,7 +526,7 @@ public final class EntityMetadata {
     }
 
     /** Returns every materialized projection root reachable through this model's typed parent relationships. */
-    static List<GraphProjectionRoot> graphProjectionRoots(Class<?> modelType) {
+    public static List<GraphProjectionRoot> graphProjectionRoots(Class<?> modelType) {
         validate(modelType);
         return ReflectionUtils.getTypeMetadata(modelType)
                 .specializedMetadata(GraphProjectionRoots.class, GraphProjectionRoots::new)
@@ -1257,7 +1257,8 @@ public final class EntityMetadata {
         }
     }
 
-    record GraphProjectionRoot(
+    /** A centrally cached structural graph-projection root consumed by repository commits. */
+    public record GraphProjectionRoot(
             Class<?> modelType,
             GraphProjection projection) {
     }

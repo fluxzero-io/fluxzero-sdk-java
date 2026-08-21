@@ -35,6 +35,7 @@ public record Change(
         Graphs.StagedReplay replay, boolean cascadedDeletion,
         EntityMetadata metadata,
         AggregateEventRouting eventRouting, ModelConflictPolicy conflictPolicy,
+        GraphProjectionCompletion graphProjectionCompletion,
         boolean active, boolean storeEvent, boolean publishEvent,
         boolean updateState) {
 
@@ -75,7 +76,7 @@ public record Change(
         return new Change(
                 modelId, modelType, expectedStateIndex, -1L, null,
                 null, after, null, replay, false,
-                null, null, null,
+                null, null, null, GraphProjectionCompletion.DEFAULT,
                 false, false, false, false);
     }
 
@@ -119,7 +120,7 @@ public record Change(
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, replay, cascadedDeletion,
                 metadata,
-                eventRouting, conflictPolicy, active,
+                eventRouting, conflictPolicy, graphProjectionCompletion, active,
                 storeEvent, publishEvent, updateState);
     }
 
@@ -172,6 +173,7 @@ public record Change(
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, replay, cascadedDeletion,
                 metadata, settings.routing(), settings.conflict(),
+                overrides.graphProjectionCompletion(),
                 decision.active(), decision.storeEvent(),
                 decision.publishEvent(), decision.updateState());
     }

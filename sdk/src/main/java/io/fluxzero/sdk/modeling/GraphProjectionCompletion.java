@@ -33,5 +33,10 @@ public enum GraphProjectionCompletion {
     /**
      * Delay the handler result until all affected graph roots crossed the committed model state boundary.
      */
-    AWAIT
+    AWAIT;
+
+    /** Returns this explicit policy, or the supplied broader-scope policy when this value is {@link #DEFAULT}. */
+    public GraphProjectionCompletion orElse(GraphProjectionCompletion broaderScope) {
+        return this == DEFAULT ? broaderScope : this;
+    }
 }

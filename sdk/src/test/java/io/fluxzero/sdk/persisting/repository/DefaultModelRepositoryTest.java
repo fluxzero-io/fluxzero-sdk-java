@@ -55,6 +55,7 @@ import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProjection;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelCommitTestBuilder;
@@ -1259,7 +1260,8 @@ class DefaultModelRepositoryTest {
                     ChangeAccount.class.getDeclaredMethod("apply", Account.class), message);
             DefaultModelRepository.Commit committer = repository.new Commit(
                     mock(EventStoreClient.class), serializer, serializer,
-                    DispatchInterceptor.noOp, "test");
+                    DispatchInterceptor.noOp, "test", serializer,
+                    GraphProjectionCompletion.ASYNC);
             DefaultModelRepository.Commit.Outcome prepared =
                     committer.prepare("commit-" + stateIndex, attempt);
             return prepared.accepted(
