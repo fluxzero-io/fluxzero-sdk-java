@@ -74,7 +74,7 @@ class ModelCommitValidatorTest {
                                 .publishEvent(true)
                                 .targets(List.of(eventOnly))
                                 .build()),
-                ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
 
         assertDoesNotThrow(() -> ModelCommitValidator.validate(published));
         assertThrows(IllegalArgumentException.class,
@@ -241,7 +241,7 @@ class ModelCommitValidatorTest {
                                 .targets(List.of(target))
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
-                Guarantee.STORED);
+                Guarantee.STORED, null);
     }
 
     private static ModelCommitTarget target(String modelId) {
@@ -271,6 +271,6 @@ class ModelCommitValidatorTest {
                                 .targets(List.of(target))
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
-                Guarantee.STORED);
+                Guarantee.STORED, null);
     }
 }

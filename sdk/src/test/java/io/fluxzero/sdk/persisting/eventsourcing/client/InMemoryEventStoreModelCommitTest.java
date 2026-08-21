@@ -700,7 +700,7 @@ class InMemoryEventStoreModelCommitTest {
                                 .event(event("event-2"))
                                 .targets(List.of(storedTarget("order-1")))
                                 .build()),
-                ModelConflictPolicy.ACCEPT, Guarantee.STORED)).join();
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, null)).join();
 
         var historical = store.getModelEvents(new GetModelEvents(
                 List.of(new ModelEventStreamRequest("order-1", -1L, 0)),
@@ -1307,7 +1307,7 @@ class InMemoryEventStoreModelCommitTest {
                                 .publishEvent(true)
                                 .targets(List.of(storedTarget("missing-read-model")))
                                 .build()),
-                ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
 
         assertThrows(CompletionException.class, () -> store.commitModels(commit).join());
         assertEquals(0, store.getBatch(null, 10, true).size());
@@ -1449,7 +1449,7 @@ class InMemoryEventStoreModelCommitTest {
                 .toList();
         return new CommitModels(
                 commitId, readStateIndex, readModelIds, List.of(substeps),
-                conflictPolicy, Guarantee.STORED);
+                conflictPolicy, Guarantee.STORED, null);
     }
 
     private static ModelCommitTarget storedTarget(String modelId) {

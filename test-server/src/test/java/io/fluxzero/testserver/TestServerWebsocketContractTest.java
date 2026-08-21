@@ -700,7 +700,7 @@ class TestServerWebsocketContractTest {
                                         List.of(target))
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
-                STORED);
+                STORED, null);
     }
 
     private static SerializedDocument structuredDocument(

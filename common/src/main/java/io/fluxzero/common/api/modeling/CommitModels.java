@@ -81,18 +81,6 @@ public class CommitModels extends Command implements RetryAwareRequest {
     @NonFinal
     volatile Boolean possibleDuplicate;
 
-    public CommitModels(
-            String commitId,
-            long readStateIndex,
-            List<String> readModelIds,
-            List<ModelCommitStep> substeps,
-            ModelConflictPolicy conflictPolicy,
-            Guarantee guarantee) {
-        this(
-                commitId, readStateIndex, readModelIds, substeps,
-                conflictPolicy, guarantee, null);
-    }
-
     @ConstructorProperties({
             "commitId", "readStateIndex", "readModelIds", "substeps",
             "conflictPolicy", "guarantee", "possibleDuplicate"})
@@ -230,12 +218,5 @@ public class CommitModels extends Command implements RetryAwareRequest {
         long snapshotBytes;
         ModelConflictPolicy conflictPolicy;
 
-        /**
-         * Legacy name for {@link #eventBytes}.
-         */
-        @Deprecated
-        public long getBytes() {
-            return eventBytes;
-        }
     }
 }

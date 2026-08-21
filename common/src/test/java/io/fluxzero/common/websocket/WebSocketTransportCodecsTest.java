@@ -474,7 +474,7 @@ class WebSocketTransportCodecsTest {
                         ModelCommitStep.builder()
                                 .targets(List.of(nonStoredDelete))
                                 .build()),
-                ModelConflictPolicy.RETRY, Guarantee.STORED);
+                ModelConflictPolicy.RETRY, Guarantee.STORED, null);
         CommitModelsResult result = CommitModelsResult.accepted(
                 request.getRequestId(), request.getCommitId(),
                 List.of(
@@ -653,7 +653,7 @@ class WebSocketTransportCodecsTest {
     @Test
     void modelCommitProtocolIgnoresFutureFields() throws Exception {
         CommitModels request = new CommitModels(
-                "commit-1", -1L, List.of(), List.of(), ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+                "commit-1", -1L, List.of(), List.of(), ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
         var json = (com.fasterxml.jackson.databind.node.ObjectNode)
                 objectMapper.readTree(objectMapper.writeValueAsBytes(request));
         json.remove("conflictPolicy");
@@ -697,7 +697,7 @@ class WebSocketTransportCodecsTest {
                                                          .relationships(List.of())
                                                          .build()))
                                 .build()),
-                ModelConflictPolicy.ACCEPT, Guarantee.STORED);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, null);
 
         assertTrue(containsBinaryValue(
                 cborCodec.encode(request), serializedMessage().getData().getValue()));

@@ -229,7 +229,7 @@ class WebSocketEventStoreClientTest {
     private static CommitModels commit(String id) {
         return new CommitModels(
                 id, -1L, List.of(), List.of(),
-                ModelConflictPolicy.ACCEPT, STORED);
+                ModelConflictPolicy.ACCEPT, STORED, null);
     }
 
     private static ModelEventStream stream(String requestedId, String modelId) {
