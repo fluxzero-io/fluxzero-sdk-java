@@ -25,8 +25,13 @@ import java.lang.reflect.Executable;
 import java.util.Objects;
 import java.util.Optional;
 
-/** One immutable model mutation outcome, from a staged Graph operation through commit preparation. */
-record Change(
+/**
+ * One immutable model mutation outcome, from a staged Graph operation through commit preparation.
+ *
+ * <p>This type is public only so the repository package can consume the canonical internal value directly; it is not
+ * a supported application extension point.</p>
+ */
+public record Change(
         String modelId, Class<?> modelType, Long expectedStateIndex,
         long beforeSequenceNumber, Long beforeLastEventIndex,
         Object before, Object after, Executable handler,
@@ -34,9 +39,9 @@ record Change(
         Defaults defaults,
         AggregateEventRouting eventRouting, ModelConflictPolicy conflictPolicy,
         boolean active, boolean storeEvent, boolean publishEvent,
-        boolean updateState) implements CommitAttempt.Transition {
+        boolean updateState) {
 
-    Change {
+    public Change {
         Objects.requireNonNull(modelId, "modelId");
         Objects.requireNonNull(modelType, "modelType");
         if (defaults == null) {
@@ -172,11 +177,11 @@ record Change(
                 decision.publishEvent(), decision.updateState());
     }
 
-    record Defaults(
+    public record Defaults(
             EntityMetadata metadata,
             EntityMetadata.RootConfiguration model,
             EntityMetadata.SnapshotSettings snapshots,
-            String collection) implements CommitAttempt.TransitionDefaults {
+            String collection) {
 
         private static Defaults of(Class<?> type) {
             return ReflectionUtils.getTypeMetadata(type).specializedMetadata(

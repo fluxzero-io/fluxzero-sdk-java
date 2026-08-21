@@ -52,6 +52,7 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
+import io.fluxzero.sdk.modeling.Change;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
@@ -938,7 +939,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         "Model commit returned a different number of substeps than requested");
             }
             for (int substep = 0; substep < outcome.attempt().stepCount(); substep++) {
-                List<CommitAttempt.Transition> changes = outcome.attempt().commitChanges(substep);
+                List<Change> changes = outcome.attempt().stepChanges(substep);
                 var request = outcome.commit().getSubsteps().get(substep);
                 var result = outcome.result().getSubsteps().get(substep);
                 if (request.getTargets().size() != result.getTargets().size()
@@ -947,7 +948,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             "Model commit returned a different number of targets than requested");
                 }
                 for (int target = 0; target < changes.size(); target++) {
-                    CommitAttempt.Transition change = changes.get(target);
+                    Change change = changes.get(target);
                     if (change.updateState()) {
                         byModel.computeIfAbsent(change.modelId(), ignored -> new ArrayList<>())
                                 .add(commitPosition(
@@ -995,7 +996,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             List<Commit.Outcome> outcomes) {
         long position = positions.getLast();
         Commit.Outcome committed = outcomes.get(commitOutcome(position));
-        CommitAttempt.Transition transition = change(committed, position);
+        Change transition = change(committed, position);
         int substep = committed.substep(position);
         int target = committed.target(position);
         var resultStep = committed.result().getSubsteps().get(substep);
@@ -1021,7 +1022,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         String modelId = committed.getKey();
         long position = committed.getValue().getLast();
         Commit.Outcome outcome = outcomes.get(commitOutcome(position));
-        CommitAttempt.Transition transition = change(outcome, position);
+        Change transition = change(outcome, position);
         int substep = outcome.substep(position);
         int target = outcome.target(position);
         var resultStep = outcome.result().getSubsteps().get(substep);
@@ -1083,7 +1084,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @SuppressWarnings("unchecked")
     private Entity<?> committedEntity(
             String modelId,
-            CommitAttempt.Transition finalTransition,
+            Change finalTransition,
             List<Long> positions,
             List<Commit.Outcome> outcomes,
             Entity<?> previous) {
@@ -1095,7 +1096,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Commit.Outcome outcome = outcomes.get(commitOutcome(position));
             int substep = outcome.substep(position);
             int target = outcome.target(position);
-            CommitAttempt.Transition transition = outcome.attempt().commitChanges(substep).get(target);
+            Change transition = outcome.attempt().stepChanges(substep).get(target);
             var requestStep = outcome.commit().getSubsteps().get(substep);
             var resultStep = outcome.result().getSubsteps().get(substep);
             var targetResult = resultStep.getTargets().get(target);
@@ -1118,8 +1119,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return result;
     }
 
-    private static CommitAttempt.Transition change(Commit.Outcome outcome, long position) {
-        return outcome.attempt().commitChanges(outcome.substep(position)).get(outcome.target(position));
+    private static Change change(Commit.Outcome outcome, long position) {
+        return outcome.attempt().stepChanges(outcome.substep(position)).get(outcome.target(position));
     }
 
     private static long commitPosition(int outcome, int targetOrdinal) {
@@ -1363,10 +1364,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         public <T> CompletableFuture<T> trackLocalCommit(
                 CommitAttempt attempt,
                 Supplier<CompletableFuture<T>> operation) {
-            List<String> modelIds = attempt.commitTransitions().size() == 1
-                    ? List.of(attempt.commitTransitions().getFirst().modelId())
-                    : attempt.commitTransitions().stream()
-                            .map(CommitAttempt.Transition::modelId).distinct().toList();
+            List<String> modelIds = attempt.transitions().size() == 1
+                    ? List.of(attempt.transitions().getFirst().modelId())
+                    : attempt.transitions().stream()
+                            .map(Change::modelId).distinct().toList();
             Runnable complete = DefaultModelRepository.this.beginLocalCommit(modelIds);
             try {
                 return Objects.requireNonNull(
@@ -1407,22 +1408,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
             if (evaluation.stepCount() == 1
-                && evaluation.commitChanges(0).size() == 1
-                && !evaluation.commitChanges(0).getFirst().graphChange()) {
+                && evaluation.stepChanges(0).size() == 1
+                && !evaluation.stepChanges(0).getFirst().graphChange()) {
                 return prepareSingle(
                         commitId, evaluation, conflictPolicy,
-                        evaluation.stepMessage(0), evaluation.commitChanges(0));
+                        evaluation.stepMessage(0), evaluation.stepChanges(0));
             }
 
             List<DeserializingMessage> evaluatedMessages = new ArrayList<>(evaluation.stepCount());
-            List<List<CommitAttempt.Transition>> evaluatedChanges = new ArrayList<>(evaluation.stepCount());
-            Map<String, List<CommitAttempt.Transition>> graphPublications = new LinkedHashMap<>();
+            List<List<Change>> evaluatedChanges = new ArrayList<>(evaluation.stepCount());
+            Map<String, List<Change>> graphPublications = new LinkedHashMap<>();
             Set<String> ordinaryEventIds = new java.util.HashSet<>();
             for (int step = 0; step < evaluation.stepCount(); step++) {
                 DeserializingMessage message = evaluation.stepMessage(step);
-                List<CommitAttempt.Transition> transitions = evaluation.commitChanges(step).stream()
-                        .peek(CommitAttempt.Transition::validate)
-                        .filter(CommitAttempt.Transition::active)
+                List<Change> transitions = evaluation.stepChanges(step).stream()
+                        .peek(Change::validate)
+                        .filter(Change::active)
                         .toList();
                 evaluatedMessages.add(message);
                 evaluatedChanges.add(transitions);
@@ -1430,15 +1431,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     continue;
                 }
                 boolean direct = directGraphGroup(transitions);
-                if (!direct && transitions.stream().anyMatch(CommitAttempt.Transition::graphChange)) {
+                if (!direct && transitions.stream().anyMatch(Change::graphChange)) {
                     throw new IllegalStateException(
                             "Direct graph changes must occupy their own evaluated model substep");
                 }
                 String messageId = message.getMessageId();
                 if (direct) {
-                    List<CommitAttempt.Transition> published = message.getPayload() instanceof Graph<?>
+                    List<Change> published = message.getPayload() instanceof Graph<?>
                             ? List.of()
-                            : transitions.stream().filter(CommitAttempt.Transition::publishEvent).toList();
+                            : transitions.stream().filter(Change::publishEvent).toList();
                     if (!published.isEmpty()) {
                         graphPublications.computeIfAbsent(
                                 messageId, ignored -> new ArrayList<>()).addAll(published);
@@ -1450,21 +1451,21 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
             List<ModelCommitStep> protocolSteps = new ArrayList<>();
             List<DeserializingMessage> preparedMessages = new ArrayList<>();
-            List<List<CommitAttempt.Transition>> preparedChanges = new ArrayList<>();
+            List<List<Change>> preparedChanges = new ArrayList<>();
             Map<String, Long> nextSequences = new LinkedHashMap<>();
             Set<String> cascadeRoots = evaluation.cascadeRootIds();
             for (int step = 0; step < evaluatedMessages.size(); step++) {
                 DeserializingMessage message = evaluatedMessages.get(step);
-                List<CommitAttempt.Transition> transitions = evaluatedChanges.get(step);
+                List<Change> transitions = evaluatedChanges.get(step);
                 if (transitions.isEmpty()) {
                     continue;
                 }
                 boolean direct = directGraphGroup(transitions);
-                List<CommitAttempt.Transition> committedTransitions = direct
+                List<Change> committedTransitions = direct
                         ? transitions.stream().map(transition -> transition.withEffects(
                                 transition.storeEvent(), false, transition.updateState())).toList()
                         : transitions;
-                List<CommitAttempt.Transition> graphPublished = graphPublications.getOrDefault(
+                List<Change> graphPublished = graphPublications.getOrDefault(
                         message.getMessageId(), List.of());
                 if (direct && !graphPublished.isEmpty()
                     && !ordinaryEventIds.contains(message.getMessageId())) {
@@ -1473,7 +1474,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     publication.setSource(source);
                     applyEventRouting(publication, graphPublished);
                     publication = SerializedMessage.encode(publication);
-                    CommitAttempt.Transition anchor = graphPublished.getFirst();
+                    Change anchor = graphPublished.getFirst();
                     ModelCommitTarget publicationTarget = target(
                             anchor.withEffects(false, true, false), message,
                             anchor.beforeSequenceNumber(), false)
@@ -1484,20 +1485,20 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     preparedChanges.add(List.of());
                 }
                 boolean publishEvent = !direct
-                                       && (transitions.stream().anyMatch(CommitAttempt.Transition::publishEvent)
+                                       && (transitions.stream().anyMatch(Change::publishEvent)
                                            || !graphPublished.isEmpty());
                 boolean eventRequired = publishEvent
-                                        || committedTransitions.stream().anyMatch(CommitAttempt.Transition::storeEvent);
+                                        || committedTransitions.stream().anyMatch(Change::storeEvent);
                 SerializedMessage event = !eventRequired ? null
                         : direct ? serializeDirectModelUpdate(
                                 message, committedTransitions, commitId, protocolSteps.size())
                         : serialize(
                                 message, commitId, protocolSteps.size(),
-                                transitions.stream().anyMatch(CommitAttempt.Transition::cascadedDeletion));
+                                transitions.stream().anyMatch(Change::cascadedDeletion));
                 if (event != null) {
                     event.setSource(source);
                     if (!direct) {
-                        List<CommitAttempt.Transition> routingTransitions =
+                        List<Change> routingTransitions =
                                 new ArrayList<>(transitions.size() + graphPublished.size());
                         routingTransitions.addAll(transitions);
                         routingTransitions.addAll(graphPublished);
@@ -1506,7 +1507,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     event = SerializedMessage.encode(event);
                 }
                 List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
-                for (CommitAttempt.Transition transition : committedTransitions) {
+                for (Change transition : committedTransitions) {
                     targets.add(target(
                             transition, message, nextSequences,
                             cascadeRoots.contains(transition.modelId())));
@@ -1531,8 +1532,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 CommitAttempt evaluation,
                 ModelConflictPolicy conflictPolicy,
                 DeserializingMessage message,
-                List<CommitAttempt.Transition> changes) {
-            CommitAttempt.Transition transition = changes.getFirst();
+                List<Change> changes) {
+            Change transition = changes.getFirst();
             transition.validate();
             CommitAttempt prepared = preparedAttempt(
                     evaluation, List.of(message), List.of(changes));
@@ -1566,7 +1567,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private static CommitAttempt preparedAttempt(
                 CommitAttempt evaluation,
                 List<DeserializingMessage> messages,
-                List<List<CommitAttempt.Transition>> changes) {
+                List<List<Change>> changes) {
             return evaluation.prepared(messages, changes);
         }
 
@@ -1627,7 +1628,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private ModelCommitTarget target(
-                CommitAttempt.Transition transition,
+                Change transition,
                 DeserializingMessage message,
                 Map<String, Long> nextSequences,
                 boolean cascadeDelete) {
@@ -1639,7 +1640,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private ModelCommitTarget target(
-                CommitAttempt.Transition transition,
+                Change transition,
                 DeserializingMessage message,
                 long nextSequence,
                 boolean cascadeDelete) {
@@ -1676,7 +1677,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private static Long expectedSequenceNumber(
-                CommitAttempt.Transition transition) {
+                Change transition) {
             /*
              * A directly loaded document contains the model value but no stream head. For an existing document, -1 would
              * falsely claim that this is a create and force every update through conflict rebase. The commit-wide pinned
@@ -1726,7 +1727,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private SerializedMessage serializeDirectModelUpdate(
                 DeserializingMessage sourceMessage,
-                List<CommitAttempt.Transition> transitions,
+                List<Change> transitions,
                 String commitId,
                 int substep) {
             List<DirectModelUpdate.Target> targets = transitions.stream()
@@ -1753,15 +1754,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private static boolean directGraphGroup(
-                List<CommitAttempt.Transition> transitions) {
+                List<Change> transitions) {
             return !transitions.isEmpty()
                    && transitions.stream().allMatch(
-                           CommitAttempt.Transition::graphChange);
+                           Change::graphChange);
         }
 
         private static Boolean possibleDuplicate(
                 CommitAttempt evaluation,
-                List<List<CommitAttempt.Transition>> changesByStep) {
+                List<List<Change>> changesByStep) {
             Long sourceIndex = DeserializingMessage.getOptionally()
                     .map(DeserializingMessage::getIndex)
                     .orElse(null);
@@ -1773,13 +1774,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                           || !transition.publishEvent())) {
                 return null;
             }
-            return evaluation.commitTransitions().stream()
-                    .map(CommitAttempt.Transition::beforeLastEventIndex)
+            return evaluation.transitions().stream()
+                    .map(Change::beforeLastEventIndex)
                     .filter(Objects::nonNull)
                     .anyMatch(index -> index >= sourceIndex);
         }
 
-        private static Boolean possibleDuplicate(CommitAttempt.Transition transition) {
+        private static Boolean possibleDuplicate(Change transition) {
             Long sourceIndex = DeserializingMessage.getOptionally()
                     .map(DeserializingMessage::getIndex)
                     .orElse(null);
@@ -1796,8 +1797,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private static void applyEventRouting(
                 SerializedMessage event,
-                List<CommitAttempt.Transition> transitions) {
-            List<CommitAttempt.Transition> published = transitions.stream()
+                List<Change> transitions) {
+            List<Change> published = transitions.stream()
                     .filter(transition -> transition.publishEvent()).toList();
             if (published.isEmpty()) {
                 return;
@@ -1819,7 +1820,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private static RelationshipUpdate relationshipUpdate(
-                CommitAttempt.Transition transition) {
+                Change transition) {
             List<EntityMetadata.ParentReference> parents =
                     transition.defaults().metadata().parentReferences();
             if (parents.isEmpty()) {
@@ -1882,7 +1883,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private static long nextSequence(
-                CommitAttempt.Transition transition,
+                Change transition,
                 Map<String, Long> nextSequences) {
             long previous = nextSequences.getOrDefault(
                     transition.modelId(),
@@ -1896,7 +1897,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private ModelSnapshotMutation snapshot(
-                CommitAttempt.Transition transition,
+                Change transition,
                 long nextSequence,
                 Instant timestamp) {
             EntityMetadata.RootConfiguration model = transition.defaults().model();
@@ -1917,7 +1918,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
 
         private ModelDocumentMutation directDocument(
-                CommitAttempt.Transition transition,
+                Change transition,
                 Instant eventTimestamp,
                 Metadata metadata) {
             EntityMetadata.RootConfiguration model = transition.defaults().model();

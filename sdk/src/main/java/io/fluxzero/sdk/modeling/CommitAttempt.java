@@ -357,13 +357,8 @@ public final class CommitAttempt implements CommitDependency {
         return evaluation().stepMessages.get(index);
     }
 
-    List<Change> stepChanges(int index) {
+    public List<Change> stepChanges(int index) {
         return evaluation().stepChanges.get(index);
-    }
-
-    @SuppressWarnings("unchecked")
-    public List<Transition> commitChanges(int index) {
-        return (List<Transition>) (List<?>) stepChanges(index);
     }
 
     List<DeserializingMessage> stepMessages() {
@@ -374,13 +369,8 @@ public final class CommitAttempt implements CommitDependency {
         return evaluation().stepChanges;
     }
 
-    List<Change> transitions() {
+    public List<Change> transitions() {
         return evaluation().changes;
-    }
-
-    @SuppressWarnings("unchecked")
-    public List<Transition> commitTransitions() {
-        return (List<Transition>) (List<?>) transitions();
     }
 
     Map<String, Object> finalValues() {
@@ -420,62 +410,15 @@ public final class CommitAttempt implements CommitDependency {
         return transitions().stream().anyMatch(Change::cascadedDeletion);
     }
 
-    @SuppressWarnings("unchecked")
     public CommitAttempt prepared(
             List<DeserializingMessage> messages,
-            List<? extends List<? extends Transition>> changes) {
+            List<List<Change>> changes) {
         CommitAttempt result = detached();
         result.evaluated(
                 readStateIndex(), readModelIds(), readModelTypes(), messages,
-                (List<List<Change>>) (List<?>) changes);
+                changes);
         result.cascadeRoots(cascadeRootIds());
         return result;
-    }
-
-    /** Read-only repository view of one applied mutation without exposing the package-private Change carrier. */
-    public sealed interface Transition permits Change {
-        String modelId();
-
-        Class<?> modelType();
-
-        long beforeSequenceNumber();
-
-        Long beforeLastEventIndex();
-
-        Object before();
-
-        Object after();
-
-        boolean cascadedDeletion();
-
-        TransitionDefaults defaults();
-
-        AggregateEventRouting eventRouting();
-
-        boolean active();
-
-        boolean storeEvent();
-
-        boolean publishEvent();
-
-        boolean updateState();
-
-        Transition withEffects(boolean storeEvent, boolean publishEvent, boolean updateState);
-
-        void validate();
-
-        boolean graphChange();
-    }
-
-    /** Resolved class-scoped commit defaults cached centrally by ReflectionUtils.TypeMetadata. */
-    public sealed interface TransitionDefaults permits Change.Defaults {
-        EntityMetadata metadata();
-
-        EntityMetadata.RootConfiguration model();
-
-        EntityMetadata.SnapshotSettings snapshots();
-
-        String collection();
     }
 
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
