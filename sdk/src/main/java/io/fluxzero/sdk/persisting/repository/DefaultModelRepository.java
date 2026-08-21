@@ -954,7 +954,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                    && stateIndex(current) > stateIndex
                     ? current : null;
         }
-        if (!transition.defaults().model().cached()) {
+        if (!transition.configuration().cached()) {
             return null;
         }
         if (current != null && stateIndex(current) >= stateIndex) {
@@ -971,7 +971,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         Change transition = revision.change();
         if (!revision.target().isHistoryComplete()) {
             modelCacheTracker.forget(modelId);
-        } else if (transition.defaults().model().cached()) {
+        } else if (transition.configuration().cached()) {
             modelCacheTracker.committed(
                     modelId, transition.modelType(),
                     revision.result().getStateIndex());
@@ -1030,8 +1030,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             List<CommittedRevision> revisions,
             Entity<?> previous) {
         EntityMetadata.Property entityId =
-                finalTransition.defaults().metadata().entityId().orElseThrow();
-        EntityMetadata.RootConfiguration model = finalTransition.defaults().model();
+                finalTransition.metadata().entityId().orElseThrow();
+        EntityMetadata.RootConfiguration model = finalTransition.configuration();
         Entity<?> result = previous;
         for (CommittedRevision revision : revisions) {
             Change transition = revision.change();
@@ -1182,6 +1182,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private final DocumentSerializer documentSerializer;
         private final DispatchInterceptor dispatchInterceptor;
         private final String source;
+        private final ConcurrentHashMap<Class<?>, Optional<String>> documentCollections =
+                new ConcurrentHashMap<>();
         private final ModelCommitBatchingClient.ModelCommitResultProcessor resultProcessor =
                 this::processCommitResults;
 
@@ -1527,7 +1529,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     transition, nextSequence,
                     message.getTimestamp());
             List<String> aliases = transition.updateState()
-                    ? transition.defaults().metadata().aliases(transition.after())
+                    ? transition.metadata().aliases(transition.after())
                     : null;
             return new ModelCommitTarget(
                     transition.modelId(),
@@ -1555,7 +1557,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
              * read boundary already protects the target through readModelIds, so omit only this redundant target-level
              * assertion. Retain explicit -1 for creates: it is both exact and enables the Runtime's missing-head fast path.
              */
-            return !transition.defaults().model().eventSourced()
+            return !transition.configuration().eventSourced()
                    && transition.before() != null
                     ? null : transition.beforeSequenceNumber();
         }
@@ -1678,7 +1680,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private static RelationshipUpdate relationshipUpdate(
                 Change transition) {
             List<EntityMetadata.ParentReference> parents =
-                    transition.defaults().metadata().parentReferences();
+                    transition.metadata().parentReferences();
             if (parents.isEmpty()) {
                 return transition.after() == null
                         ? RelationshipUpdate.CLEARED
@@ -1756,8 +1758,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 Change transition,
                 long nextSequence,
                 Instant timestamp) {
-            EntityMetadata.RootConfiguration model = transition.defaults().model();
-            EntityMetadata.SnapshotSettings snapshotSettings = transition.defaults().snapshots();
+            EntityMetadata.RootConfiguration model = transition.configuration();
+            EntityMetadata.SnapshotSettings snapshotSettings = model.snapshotSettings(false);
             if (snapshotSerializer == null
                 || !model.eventSourced()
                 || !transition.storeEvent()
@@ -1777,11 +1779,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 Change transition,
                 Instant eventTimestamp,
                 Metadata metadata) {
-            EntityMetadata.RootConfiguration model = transition.defaults().model();
-            if (transition.defaults().collection() == null) {
+            EntityMetadata.RootConfiguration model = transition.configuration();
+            String collection = documentCollection(transition);
+            if (collection == null) {
                 return null;
             }
-            String collection = transition.defaults().collection();
             Object value = transition.after();
             if (value == null) {
                 return new ModelDocumentMutation(collection, null);
@@ -1799,6 +1801,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private static String blankToNull(String value) {
             return value == null || value.isBlank() ? null : value;
+        }
+
+        private String documentCollection(Change transition) {
+            return documentCollections.computeIfAbsent(
+                    transition.metadata().type(), type -> {
+                        EntityMetadata.RootConfiguration model = transition.configuration();
+                        if (model.searchable()) {
+                            return Optional.of(model.collection())
+                                    .filter(value -> !value.isEmpty())
+                                    .map(ApplicationProperties::substituteProperties)
+                                    .or(() -> Optional.of(type.getSimpleName()));
+                        }
+                        return transition.metadata().participatesInGraphComposition()
+                                ? Optional.of(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION)
+                                : Optional.empty();
+                    }).orElse(null);
         }
 
         /** The one repository-owned carrier from prepared request through authoritative accepted result. */

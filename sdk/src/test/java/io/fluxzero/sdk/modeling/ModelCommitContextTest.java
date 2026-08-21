@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitContextTest {
 
     private final DefaultEntityHelper entityHelper =
-            new DefaultEntityHelper(List.of(new ModelEntityParameterResolver()), true);
+            new DefaultEntityHelper(List.of(new EntityParameterResolver()), true);
 
     @Test
     void injectsCommitModelsIntoAssertionsInterceptorsAndApplies() {

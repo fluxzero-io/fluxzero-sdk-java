@@ -17,13 +17,10 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.configuration.ApplicationProperties;
 
 import java.lang.reflect.Executable;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * One immutable model mutation outcome, from a staged Graph operation through commit preparation.
@@ -36,7 +33,7 @@ public record Change(
         long beforeSequenceNumber, Long beforeLastEventIndex,
         Object before, Object after, Executable handler,
         Graphs.StagedReplay replay, boolean cascadedDeletion,
-        Defaults defaults,
+        EntityMetadata metadata,
         AggregateEventRouting eventRouting, ModelConflictPolicy conflictPolicy,
         boolean active, boolean storeEvent, boolean publishEvent,
         boolean updateState) {
@@ -44,7 +41,7 @@ public record Change(
     public Change {
         Objects.requireNonNull(modelId, "modelId");
         Objects.requireNonNull(modelType, "modelType");
-        if (defaults == null) {
+        if (metadata == null) {
             Objects.requireNonNull(replay, "replay");
         }
     }
@@ -97,7 +94,7 @@ public record Change(
     }
 
     Change then(Change addition) {
-        if (defaults != null && !modelType.equals(addition.modelType)) {
+        if (metadata != null && !modelType.equals(addition.modelType)) {
             throw new IllegalStateException(
                     "Graph changes target repository id '%s' as both %s and %s"
                             .formatted(addition.modelId, modelType.getName(),
@@ -105,7 +102,7 @@ public record Change(
         }
         Graphs.StagedReplay combined = current ->
                 addition.replay.apply(replay.apply(current));
-        return defaults == null
+        return metadata == null
                 ? staged(modelId, addition.modelType, expectedStateIndex,
                          addition.after, combined)
                 : applied(modelId, modelType,
@@ -121,7 +118,7 @@ public record Change(
                 modelId, modelType, expectedStateIndex,
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, replay, cascadedDeletion,
-                defaults,
+                metadata,
                 eventRouting, conflictPolicy, active,
                 storeEvent, publishEvent, updateState);
     }
@@ -142,7 +139,7 @@ public record Change(
     }
 
     public void validate() {
-        if (active && defaults.model().eventSourced() && updateState && !storeEvent) {
+        if (active && configuration().eventSourced() && updateState && !storeEvent) {
             throw new IllegalStateException(
                     "Event-sourced model %s cannot change through %s without storing its reconstructing event. "
                             .formatted(modelType.getName(), handler == null
@@ -160,9 +157,11 @@ public record Change(
         Class<?> effectiveType = EntityMetadata.of(declaredType).isModel()
                 ? declaredType : after != null ? after.getClass()
                         : before != null ? before.getClass() : declaredType;
-        Defaults defaults = Defaults.of(effectiveType);
+        EntityMetadata metadata = EntityMetadata.of(effectiveType);
         EntityMetadata.TransitionSettings settings =
-                defaults.model().transitionSettings(
+                metadata.rootConfiguration().orElseThrow(() -> new IllegalStateException(
+                                effectiveType.getName() + " is not an independent model"))
+                        .transitionSettings(
                         overrides.publication(), overrides.strategy(),
                         overrides.routing(), overrides.conflict());
         EntityMetadata.TransitionDecision decision = settings.decide(
@@ -172,35 +171,12 @@ public record Change(
                 modelId, declaredType, expectedStateIndex,
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, replay, cascadedDeletion,
-                defaults, settings.routing(), settings.conflict(),
+                metadata, settings.routing(), settings.conflict(),
                 decision.active(), decision.storeEvent(),
                 decision.publishEvent(), decision.updateState());
     }
 
-    public record Defaults(
-            EntityMetadata metadata,
-            EntityMetadata.RootConfiguration model,
-            EntityMetadata.SnapshotSettings snapshots,
-            String collection) {
-
-        private static Defaults of(Class<?> type) {
-            return ReflectionUtils.getTypeMetadata(type).specializedMetadata(
-                    Defaults.class, ignored -> {
-                        EntityMetadata metadata = EntityMetadata.of(type);
-                        EntityMetadata.RootConfiguration model = metadata.rootConfiguration()
-                                .orElseThrow(() -> new IllegalStateException(
-                                        type.getName() + " is not an independent model"));
-                        String collection = model.searchable()
-                                ? Optional.of(model.collection()).filter(value -> !value.isEmpty())
-                                        .map(ApplicationProperties::substituteProperties)
-                                        .orElse(type.getSimpleName())
-                                : metadata.participatesInGraphComposition()
-                                        ? io.fluxzero.common.api.modeling.ModelDocumentMutation
-                                                .GRAPH_COMPONENT_COLLECTION
-                                        : null;
-                        return new Defaults(
-                                metadata, model, model.snapshotSettings(false), collection);
-                    });
-        }
+    public EntityMetadata.RootConfiguration configuration() {
+        return metadata.rootConfiguration().orElseThrow();
     }
 }

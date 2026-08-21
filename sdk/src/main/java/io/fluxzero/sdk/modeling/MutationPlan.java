@@ -110,11 +110,11 @@ public final class MutationPlan {
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
             List<ParameterResolver<? super DeserializingMessage>> resolvers =
                     new ArrayList<>(parameterResolvers.size() + 1);
-            if (parameterResolvers.stream().noneMatch(ModelEntityParameterResolver.class::isInstance)) {
+            if (parameterResolvers.stream().noneMatch(EntityParameterResolver.class::isInstance)) {
                 @SuppressWarnings("unchecked")
                 ParameterResolver<? super DeserializingMessage> modelResolver =
                         (ParameterResolver<? super DeserializingMessage>) (ParameterResolver<?>)
-                                new ModelEntityParameterResolver();
+                                new EntityParameterResolver();
                 resolvers.add(modelResolver);
             }
             resolvers.addAll(parameterResolvers);
@@ -402,12 +402,20 @@ public final class MutationPlan {
             return !parameters.isEmpty();
         }
 
-        Optional<Resolution> resolve(
-                DeserializingMessage message,
-                Function<EntityMetadata.ModelParameter, DirectReferences> references) {
-            return resolveDependencies(
-                    message, executable, parameters.values(), references);
+        BoundParameters bind(DeserializingMessage message) {
+            LinkedHashMap<EntityMetadata.ModelParameter, DirectReferences> references =
+                    new LinkedHashMap<>();
+            parameters.values().forEach(parameter -> references.put(
+                    parameter, directReferences(message, parameter)));
+            return new BoundParameters(
+                    resolveDependencies(message, executable, parameters.values(), references::get),
+                    Collections.unmodifiableMap(references));
         }
+    }
+
+    record BoundParameters(
+            Optional<Resolution> resolution,
+            Map<EntityMetadata.ModelParameter, DirectReferences> references) {
     }
 
     private static final class ParameterPlans {
@@ -624,7 +632,7 @@ public final class MutationPlan {
         if (handler.receiverModelType() != null) {
             local.add(new Slot(
                     handler.receiverModelType(), payload.required(handler.receiverModelType(), signature),
-                    false, Access.READ_ONLY, signature, true, apply));
+                    false, Access.READ_ONLY, signature, true, apply, null));
         }
         for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
             Property property = parameter.collectionWrapped()
@@ -633,13 +641,13 @@ public final class MutationPlan {
             if (property != null) {
                 local.add(new Slot(
                         parameter.modelType(), property, parameter.collectionWrapped(),
-                        Access.READ_ONLY, signature, false, apply));
+                        Access.READ_ONLY, signature, false, apply, parameter));
             } else if (parameter.collectionWrapped()) {
                 local.add(new Slot(
                         parameter.modelType(), Property.missing(
                                 "Payload %s has no model ID collection property '%s' required by %s".formatted(
                                 payload.type.getName(), parameter.associationProperty(), signature)),
-                        true, Access.READ_ONLY, signature, false, apply));
+                        true, Access.READ_ONLY, signature, false, apply, parameter));
             } else {
                 ancestors.add(new PlannedAncestor(new AncestorDependency(
                         parameter.modelType(), parameter.associationProperty(), signature), apply));
@@ -669,7 +677,7 @@ public final class MutationPlan {
             if (!handler.collectionApplyResult()) {
                 slots.add(new Slot(
                         type, payload.required(type, signature), false,
-                        Access.WRITE_ONLY, signature, false, true));
+                        Access.WRITE_ONLY, signature, false, true, null));
             }
         } else {
             Property exact = payload.exact(type);
@@ -678,7 +686,7 @@ public final class MutationPlan {
             if (exactSlot != null) {
                 exactSlot.write();
             } else if (exact != null) {
-                slots.add(new Slot(type, exact, false, Access.WRITE_ONLY, signature, false, true));
+                slots.add(new Slot(type, exact, false, Access.WRITE_ONLY, signature, false, true, null));
             } else {
                 deferred.add(new Deferred(type, candidates, signature, true));
             }
@@ -871,6 +879,7 @@ public final class MutationPlan {
             validate(explicitType, appliesOnly);
             Object payload = checkedPayload(input);
             Map<String, ResolvedModel> result = new LinkedHashMap<>();
+            Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
             for (Slot slot : slots) {
                 if (appliesOnly && !slot.apply || compatible(slot.modelType, explicitType)) {
@@ -883,6 +892,11 @@ public final class MutationPlan {
                 List<String> ids = slot.collection
                         ? ids(raw, slot.modelType, slot.property.name(), slot.handler, payload)
                         : List.of(repositoryId(raw, slot, payload));
+                if (slot.parameter != null) {
+                    references.put(slot.parameter, slot.collection
+                            ? DirectReferences.collection(ids)
+                            : DirectReferences.scalar(ids.getFirst()));
+                }
                 if (!deferred.isEmpty()) {
                     slotIds.put(slot, ids);
                 }
@@ -917,7 +931,8 @@ public final class MutationPlan {
                     ancestors.stream()
                             .filter(dependency -> !appliesOnly || dependency.apply)
                             .map(PlannedAncestor::dependency)
-                            .filter(dependency -> !compatible(dependency.modelType(), explicitType)).toList());
+                            .filter(dependency -> !compatible(dependency.modelType(), explicitType)).toList(),
+                    references);
         }
 
         private Object checkedPayload(Object input) {
@@ -944,7 +959,7 @@ public final class MutationPlan {
             modelIds = List.copyOf(modelIds);
         }
 
-        private static DirectReferences missing() {
+        static DirectReferences missing() {
             return new DirectReferences(false, null, List.of());
         }
 
@@ -996,15 +1011,24 @@ public final class MutationPlan {
     public record Resolution(
             List<ResolvedModel> models,
             List<DeferredWriteTarget> deferredWrites,
-            List<AncestorDependency> ancestorDependencies) {
+            List<AncestorDependency> ancestorDependencies,
+            Map<EntityMetadata.ModelParameter, DirectReferences> references) {
         public Resolution(List<ResolvedModel> models, List<DeferredWriteTarget> deferredWrites) {
-            this(models, deferredWrites, List.of());
+            this(models, deferredWrites, List.of(), Map.of());
+        }
+
+        public Resolution(
+                List<ResolvedModel> models,
+                List<DeferredWriteTarget> deferredWrites,
+                List<AncestorDependency> ancestorDependencies) {
+            this(models, deferredWrites, ancestorDependencies, Map.of());
         }
 
         public Resolution {
             models = List.copyOf(models);
             deferredWrites = List.copyOf(deferredWrites);
             ancestorDependencies = List.copyOf(ancestorDependencies);
+            references = Map.copyOf(references);
         }
 
         public boolean hasAncestorDependencies() {
@@ -1012,7 +1036,7 @@ public final class MutationPlan {
         }
 
         public Resolution withResolvedModels(List<ResolvedModel> resolvedModels) {
-            return new Resolution(resolvedModels, deferredWrites, List.of());
+            return new Resolution(resolvedModels, deferredWrites, List.of(), references);
         }
     }
 
@@ -1051,6 +1075,7 @@ public final class MutationPlan {
         private final String handler;
         private final boolean receiver;
         private final boolean apply;
+        private final EntityMetadata.ModelParameter parameter;
         private Access access;
 
         private Slot(
@@ -1060,7 +1085,8 @@ public final class MutationPlan {
                 Access access,
                 String handler,
                 boolean receiver,
-                boolean apply) {
+                boolean apply,
+                EntityMetadata.ModelParameter parameter) {
             this.modelType = collection || property.missing() ? requestedType
                     : property.modelType().filter(requestedType::isAssignableFrom)
                             .filter(type -> EntityMetadata.of(type).isModel()).orElse(requestedType);
@@ -1071,6 +1097,7 @@ public final class MutationPlan {
             this.handler = handler;
             this.receiver = receiver;
             this.apply = apply;
+            this.parameter = parameter;
         }
 
         private void write() {

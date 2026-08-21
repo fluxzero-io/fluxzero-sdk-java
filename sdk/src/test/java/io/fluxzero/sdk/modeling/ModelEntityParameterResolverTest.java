@@ -156,7 +156,7 @@ class ModelEntityParameterResolverTest {
                                 entityHandler.getParameters()[1]);
                         Function<Object, Object>
                                 valueResolver =
-                                new ModelEntityParameterResolver()
+                                new EntityParameterResolver()
                                         .resolveIfPossible(
                                                 valueHandler
                                                         .getParameters()[1],
@@ -826,7 +826,7 @@ class ModelEntityParameterResolverTest {
                                     MessageType.EVENT,
                                     fluxzero.serializer());
                     return ordinaryEvent.apply(message ->
-                            new ModelEntityParameterResolver()
+                            new EntityParameterResolver()
                                     .resolveIfPossible(
                                             parameter,
                                             handler.getAnnotation(
@@ -952,7 +952,7 @@ class ModelEntityParameterResolverTest {
             Method handler,
             Parameter parameter) {
         Function<Object, Object> resolver =
-                new ModelEntityParameterResolver()
+                new EntityParameterResolver()
                         .resolveIfPossible(
                                 parameter,
                                 handler.getDeclaredAnnotations()[0],

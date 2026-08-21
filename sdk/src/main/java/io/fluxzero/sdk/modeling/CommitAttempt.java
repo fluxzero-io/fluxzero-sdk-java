@@ -40,6 +40,7 @@ public final class CommitAttempt {
     private long readStateIndex = -1L;
     private List<MutationPlan.ResolvedModel> targets = List.of();
     private List<MutationPlan.DeferredWriteTarget> deferredWrites = List.of();
+    private Map<EntityMetadata.ModelParameter, MutationPlan.DirectReferences> references = Map.of();
     private Map<String, Entity<?>> entities = Map.of();
 
     private List<String> readModelIds = List.of();
@@ -106,6 +107,7 @@ public final class CommitAttempt {
             result.readStateIndex = readStateIndex;
             result.targets = resolution.models();
             result.deferredWrites = resolution.deferredWrites();
+            result.references = resolution.references();
             result.entities = Map.of(target.modelId(), entity);
             return result;
         }
@@ -129,6 +131,7 @@ public final class CommitAttempt {
         result.readStateIndex = readStateIndex;
         result.targets = resolution.models();
         result.deferredWrites = resolution.deferredWrites();
+        result.references = resolution.references();
         result.entities = immutable(entities);
         return result;
     }
@@ -248,6 +251,10 @@ public final class CommitAttempt {
         return candidate;
     }
 
+    MutationPlan.DirectReferences references(EntityMetadata.ModelParameter parameter) {
+        return references.get(parameter);
+    }
+
     boolean mayWrite(String modelId, Class<?> modelType, Executable handler) {
         MutationPlan.ResolvedModel target = target(modelId);
         if (target == null) {
@@ -291,6 +298,7 @@ public final class CommitAttempt {
         result.readStateIndex = readStateIndex;
         result.targets = targets;
         result.deferredWrites = deferredWrites;
+        result.references = references;
         result.entities = immutable(updated);
         return result;
     }

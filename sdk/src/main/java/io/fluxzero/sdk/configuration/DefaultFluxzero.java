@@ -51,7 +51,6 @@ import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry;
 import io.fluxzero.sdk.modeling.ModelConflictResolver;
-import io.fluxzero.sdk.modeling.ModelEntityParameterResolver;
 import io.fluxzero.sdk.persisting.caching.CacheEvictionsLogger;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SelectiveCache;
@@ -1061,7 +1060,6 @@ public class DefaultFluxzero implements Fluxzero {
                                                               : modelCommitHandlerRegistry.knownModelTypes()),
                                               new PayloadParameterResolver(),
                                               new JsonPayloadParameterResolver(),
-                                              new ModelEntityParameterResolver(),
                                               new EntityParameterResolver()));
             final List<ParameterResolver<? super DeserializingMessage>> runtimeParameterResolvers =
                     this.parameterResolvers = List.copyOf(parameterResolvers);

@@ -30,7 +30,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
-import io.fluxzero.sdk.modeling.ModelEntityParameterResolver;
+import io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -172,7 +172,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
                         ? new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation).wrap(handler)
                         : handler)
                 .map(handlerDecorator::wrap)
-                .map(handler -> ModelEntityParameterResolver.wrapGraphChanges(
+                .map(handler -> GraphChangeHandlerDecorator.wrapGraphChanges(
                         handler, messageType));
         return result.isPresent() || fallbackFactory == null
                 ? result

@@ -57,7 +57,7 @@ class GraphChangeHandlerDecoratorTest {
             @Override
             public HandlerInvoker getInvokerOrNull(
                     DeserializingMessage message) {
-                return ModelEntityParameterResolver.suppliesGraph(graphParameter)
+                return GraphChangeHandlerDecorator.suppliesGraph(graphParameter)
                         ? HandlerInvoker.noOp(GraphOnlyHandler.class, method)
                         : null;
             }
@@ -68,7 +68,7 @@ class GraphChangeHandlerDecoratorTest {
                         Metadata.of(COMMIT_ID, "commit", SUBSTEP, "0")),
                 MessageType.EVENT, null);
 
-        assertNotNull(ModelEntityParameterResolver
+        assertNotNull(GraphChangeHandlerDecorator
                               .wrapGraphChanges(source, MessageType.EVENT)
                               .getInvokerOrNull(event));
     }
@@ -93,7 +93,7 @@ class GraphChangeHandlerDecoratorTest {
             @Override
             public HandlerInvoker getInvokerOrNull(
                     DeserializingMessage message) {
-                return ModelEntityParameterResolver.suppliesGraph(graphParameter)
+                return GraphChangeHandlerDecorator.suppliesGraph(graphParameter)
                         ? HandlerInvoker.noOp(GraphOnlyHandler.class, method)
                         : null;
             }
@@ -102,7 +102,7 @@ class GraphChangeHandlerDecoratorTest {
                 new Message(new PayloadWithoutModelIdentity()),
                 MessageType.EVENT, null);
 
-        assertNull(ModelEntityParameterResolver
+        assertNull(GraphChangeHandlerDecorator
                            .wrapGraphChanges(source, MessageType.EVENT)
                            .getInvokerOrNull(event));
     }
@@ -114,11 +114,11 @@ class GraphChangeHandlerDecoratorTest {
 
         assertSame(
                 ordinary,
-                ModelEntityParameterResolver.wrapGraphChanges(
+                GraphChangeHandlerDecorator.wrapGraphChanges(
                         ordinary, MessageType.EVENT));
         assertSame(
                 explicit,
-                ModelEntityParameterResolver.wrapGraphChanges(
+                GraphChangeHandlerDecorator.wrapGraphChanges(
                         explicit, MessageType.EVENT));
     }
 
