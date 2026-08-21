@@ -154,10 +154,11 @@ public final class ModelEventWireCodec {
                 output.writeLong(stream.getLastSequenceNumber());
                 output.writeInt(stream.getMaxSize());
             }
-            output.writeNullableLong(request.getMaxStateIndex());
-            output.writeString(request.getBoundaryCommitId());
-            output.writeNullableInt(request.getBoundarySubstep());
-            output.writeNullableLong(request.getBoundaryEventIndex());
+            ModelReadBoundary boundary = request.getBoundary();
+            output.writeNullableLong(boundary.stateIndex());
+            output.writeString(boundary.commitId());
+            output.writeNullableInt(boundary.substep());
+            output.writeNullableLong(boundary.eventIndex());
             output.writeLong(request.getMaxBytes());
         }
         return output.toByteArray();
@@ -182,10 +183,12 @@ public final class ModelEventWireCodec {
                     new GetModelEvents(
                             requestId,
                             streams,
-                            input.readNullableLong(),
-                            input.readString(),
-                            input.readNullableInt(),
-                            input.readNullableLong(),
+                            new ModelReadBoundary(
+                                    input.readNullableLong(),
+                                    input.readString(),
+                                    input.readNullableInt(),
+                                    input.readNullableLong(),
+                                    false, false),
                             input.readLong()));
         }
         return new RequestBatch<>(requests);

@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -204,8 +205,7 @@ final class ModelReplayCursor {
         if (ids.isEmpty()) {
             GetModelEventsResult response = eventStoreClient.getModelEvents(
                     new GetModelEvents(
-                            List.of(), boundary.requestStateIndex(),
-                            boundary.commitId(), boundary.substep(), boundary.eventIndex(),
+                            List.of(), boundary,
                             settings.maxPayloadBytes()));
             validateBoundary(response, boundary.stateIndex());
             pageConsumer.accept(response);
@@ -269,7 +269,7 @@ final class ModelReplayCursor {
                     offset, Math.min(ids.size(), offset + settings.maxStreamsPerRequest()));
             GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
                     chunk.stream().map(id -> new ModelEventStreamRequest(id, -1L, 0)).toList(),
-                    pinned.requestStateIndex(), pinned.commitId(), pinned.substep(), pinned.eventIndex(),
+                    pinned,
                     settings.maxPayloadBytes()));
             long stateIndex = validateBoundary(response, pinned.stateIndex());
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
@@ -287,7 +287,7 @@ final class ModelReplayCursor {
         List<String> ids = validateIds(List.of(modelId));
         GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
                 List.of(new ModelEventStreamRequest(modelId, -1L, 1)),
-                boundary.requestStateIndex(), boundary.commitId(), boundary.substep(), boundary.eventIndex(),
+                boundary,
                 settings.maxPayloadBytes()));
         long stateIndex = validateBoundary(response, boundary.stateIndex());
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
@@ -338,8 +338,7 @@ final class ModelReplayCursor {
                     .toList();
             GetModelEvents request =
                     new GetModelEvents(
-                            requests, pinned.requestStateIndex(),
-                            pinned.commitId(), pinned.substep(), pinned.eventIndex(),
+                            requests, pinned,
                             settings.maxPayloadBytes());
             GetModelEventsResult response = requestBatcher.get(request);
             long responseStateIndex = validateBoundary(
@@ -874,8 +873,7 @@ final class ModelReplayCursor {
                     "Graph reconstruction requires a configured document projection and model repository");
         }
         GetModelGraph request = new GetModelGraph(
-                rootId, boundary.requestStateIndex(), boundary.commitId(), boundary.substep(),
-                boundary.eventIndex(), options.maxDepth(), options.maxModels(), 0, 0L, false);
+                rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false);
         GetModelGraphResult response = boundary.before()
                 ? eventStoreClient.getModelGraphBefore(new GetModelGraphBefore(request))
                 : eventStoreClient.getModelGraph(request);
@@ -1090,8 +1088,7 @@ final class ModelReplayCursor {
                         "Model commit requires more than %d ancestor traversal roots".formatted(maxModels));
             }
             graph = eventStoreClient.getModelAncestors(new GetModelAncestors(
-                    List.copyOf(requestRoots), boundary.stateIndex(), boundary.commitId(), boundary.substep(),
-                    boundary.eventIndex(), maxDepth, maxModels, 0, 0L));
+                    List.copyOf(requestRoots), boundary, maxDepth, maxModels, 0, 0L));
             if (!includeMessageBatch || !addPendingAncestorValues(
                     requestRoots, graph, effectiveStagedValues, namespace)) {
                 break;
@@ -2342,8 +2339,7 @@ final class ModelReplayCursor {
         }
 
         private static boolean current(GetModelEvents request) {
-            return request.getMaxStateIndex() == null && request.getBoundaryCommitId() == null
-                   && request.getBoundaryEventIndex() == null;
+            return !request.getBoundary().historical();
         }
 
         private record PendingRead(GetModelEvents request, CompletableFuture<GetModelEventsResult> result) {
@@ -2382,7 +2378,7 @@ final class ModelReplayCursor {
             private void execute(EventStoreClient client) {
                 try {
                     GetModelEventsResult response = client.getModelEvents(new GetModelEvents(
-                            List.copyOf(streams.values()), null, maxBytes));
+                            List.copyOf(streams.values()), ModelReadBoundary.current(), maxBytes));
                     if (reads.size() == 1) {
                         reads.getFirst().result().complete(response);
                         return;

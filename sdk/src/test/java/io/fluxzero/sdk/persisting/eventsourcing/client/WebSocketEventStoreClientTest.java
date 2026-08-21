@@ -33,6 +33,7 @@ import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -65,7 +66,7 @@ class WebSocketEventStoreClientTest {
                 List.of(
                         new ModelEventStreamRequest("first-code", -1L, 1),
                         new ModelEventStreamRequest("second-code", -1L, 1)),
-                null, 1_024L);
+                ModelReadBoundary.current(), 1_024L);
         SerializedMessage event = new SerializedMessage(
                 new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), "event-1", 1L);
         GetModelEventsResult packed = new GetModelEventsResult(

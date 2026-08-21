@@ -48,6 +48,7 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
@@ -1338,11 +1339,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized GetModelEventsResult getModelEvents(GetModelEvents request) {
         ModelCommitValidator.validate(request);
-        long stateIndex = modelBoundary(
-                request.getMaxStateIndex(),
-                request.getBoundaryCommitId(),
-                request.getBoundarySubstep(),
-                request.getBoundaryEventIndex());
+        long stateIndex = modelBoundary(request.getBoundary());
         if (stateIndex < -1L || stateIndex > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -1429,11 +1426,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
         ModelCommitValidator.validate(request);
-        long boundary = modelBoundary(
-                request.getMaxStateIndex(),
-                request.getBoundaryCommitId(),
-                request.getBoundarySubstep(),
-                request.getBoundaryEventIndex());
+        long boundary = modelBoundary(request.getBoundary());
         if (boundary < -1L || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -1447,11 +1440,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             GetModelGraphBefore before) {
         GetModelGraph request = before.getRequest();
         ModelCommitValidator.validate(request);
-        long boundary = modelBoundary(
-                request.getMaxStateIndex(),
-                request.getBoundaryCommitId(),
-                request.getBoundarySubstep(),
-                request.getBoundaryEventIndex());
+        long boundary = modelBoundary(request.getBoundary());
         if (boundary < 0L || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model before-state boundary %d is outside visible range 0..%d"
@@ -1477,11 +1466,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     public synchronized GetModelGraphResult getModelAncestors(
             GetModelAncestors request) {
         ModelCommitValidator.validate(request);
-        long boundary = modelBoundary(
-                request.getMaxStateIndex(),
-                request.getBoundaryCommitId(),
-                request.getBoundarySubstep(),
-                request.getBoundaryEventIndex());
+        long boundary = modelBoundary(request.getBoundary());
         if (boundary < -1L || boundary > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -1612,14 +1597,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 .toList();
     }
 
-    private long modelBoundary(
-            Long maxStateIndex,
-            String boundaryCommitId,
-            Integer boundarySubstep,
-            Long boundaryEventIndex) {
+    private long modelBoundary(ModelReadBoundary boundary) {
         return ModelRelationshipQueries.resolveBoundary(
-                maxStateIndex, boundaryCommitId, boundarySubstep,
-                boundaryEventIndex, false, () -> modelStateIndex,
+                boundary, false, () -> modelStateIndex,
                 (commitId, substep) -> {
                     CommitModelsResult result = modelCommits.get(commitId);
                     return result == null || substep >= result.getUpdates().size()

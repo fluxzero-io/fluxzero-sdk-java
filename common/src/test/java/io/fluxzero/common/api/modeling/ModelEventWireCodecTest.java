@@ -44,7 +44,7 @@ class ModelEventWireCodecTest {
                         List.of(
                                 new ModelEventStreamRequest("order-1", -1L, 100),
                                 new ModelEventStreamRequest("inventory-1", 4L, 20)),
-                        null, "commit-1", 2, 123L, 8_192L);
+                        ModelReadBoundary.event(123L), 8_192L);
 
         byte[] encoded =
                 ModelEventWireCodec.tryEncode(
@@ -60,10 +60,7 @@ class ModelEventWireCodecTest {
 
         assertEquals(request.getRequestId(), decoded.getRequestId());
         assertEquals(request.getRequests(), decoded.getRequests());
-        assertNull(decoded.getMaxStateIndex());
-        assertEquals("commit-1", decoded.getBoundaryCommitId());
-        assertEquals(2, decoded.getBoundarySubstep());
-        assertEquals(123L, decoded.getBoundaryEventIndex());
+        assertEquals(ModelReadBoundary.event(123L), decoded.getBoundary());
         assertEquals(8_192L, decoded.getMaxBytes());
         GetModelEvents direct =
                 assertInstanceOf(

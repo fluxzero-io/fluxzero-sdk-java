@@ -14,16 +14,10 @@
  * limitations under the License.
  */
 
-package io.fluxzero.sdk.persisting.repository;
-
-import io.fluxzero.common.MessageType;
-import io.fluxzero.common.api.modeling.ModelEventMetadata;
-import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.modeling.Graph;
-import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
+package io.fluxzero.common.api.modeling;
 
 /**
- * One current, state, commit or event boundary shared by model replay, graphs and ancestor lookup.
+ * One current, state, commit or event boundary shared by every Model read.
  *
  * @param stateIndex namespace-wide state boundary, or {@code null} for an unpinned or opaque boundary
  * @param commitId commit that defines the boundary, or {@code null}
@@ -39,10 +33,12 @@ public record ModelReadBoundary(
     /** Unpinned current-state boundary including active message-batch values. */
     public static final ModelReadBoundary CURRENT =
             new ModelReadBoundary(null, null, null, null, false, true);
+    private static final ModelReadBoundary REQUEST_CURRENT =
+            new ModelReadBoundary(null, null, null, null, false, false);
 
     public ModelReadBoundary {
-        int specified = (commitId == null ? 0 : 1) + (eventIndex == null ? 0 : 1);
-        if (specified > 1) {
+        int opaqueSelectors = (commitId == null ? 0 : 1) + (eventIndex == null ? 0 : 1);
+        if (opaqueSelectors > 1) {
             throw new IllegalArgumentException("Specify one model state, commit, or event boundary");
         }
         if ((commitId == null) != (substep == null)
@@ -93,11 +89,20 @@ public record ModelReadBoundary(
                 stateIndex, commitId, substep, eventIndex, true, false);
     }
 
-    /** Pins an opaque commit or event selection to the state returned by storage. */
+    /** Pins this selection to the durable state returned by storage. */
     public ModelReadBoundary resolved(long resolvedStateIndex) {
+        return resolved(resolvedStateIndex, false);
+    }
+
+    /** Pins this selection while explicitly retaining or excluding active message-batch values. */
+    public ModelReadBoundary resolved(long resolvedStateIndex, boolean includeMessageBatch) {
+        if (stateIndex != null && stateIndex == resolvedStateIndex
+            && this.includeMessageBatch == includeMessageBatch) {
+            return this;
+        }
         return new ModelReadBoundary(
                 resolvedStateIndex, commitId, substep, eventIndex,
-                before, false);
+                before, includeMessageBatch);
     }
 
     /** Returns this boundary without active message-batch visibility. */
@@ -113,75 +118,18 @@ public record ModelReadBoundary(
         return stateIndex != null || commitId != null || eventIndex != null;
     }
 
-    /** State selector sent to storage; opaque commit/event selectors keep their resolved state only as a fallback. */
-    public Long requestStateIndex() {
-        return commitId == null && eventIndex == null ? stateIndex : null;
+    /** Returns the durable selector form carried by a storage request. */
+    public ModelReadBoundary forRequest() {
+        Long requestedState = commitId == null && eventIndex == null ? stateIndex : null;
+        if (!before && !includeMessageBatch && requestedState == stateIndex) {
+            return this;
+        }
+        if (requestedState == null && commitId == null && eventIndex == null) {
+            return REQUEST_CURRENT;
+        }
+        return new ModelReadBoundary(
+                requestedState, commitId, substep, eventIndex,
+                false, false);
     }
 
-    /** Captures an exact handler/graph boundary without retaining message context in a graph object. */
-    public static ModelReadBoundary forGraph(long stateIndex, boolean exact, boolean historical) {
-        if (!exact) {
-            return current();
-        }
-        DeserializingMessage message = DeserializingMessage.getCurrent();
-        if (message != null && (message.getMessageType() == MessageType.EVENT
-                                || message.getMessageType() == MessageType.NOTIFICATION)) {
-            Object commit = message.getMetadata().get(ModelEventMetadata.COMMIT_ID);
-            Object step = message.getMetadata().get(ModelEventMetadata.SUBSTEP);
-            if (commit instanceof String id && !id.isBlank() && step != null) {
-                return new ModelReadBoundary(
-                        stateIndex, id, parseSubstep(step), null, false, false);
-            }
-        }
-        return state(stateIndex, !historical);
-    }
-
-    /** Loads a graph through the repository's single boundary-aware reconstruction capability. */
-    public Graph<?> loadGraph(
-            ModelRepository repository, String rootId, Class<?> rootType) {
-        return repository.loadGraph(
-                rootId, rootType, this, Graph.Options.DEFAULT);
-    }
-
-    private static int parseSubstep(Object value) {
-        int result = value instanceof Number number ? number.intValue() : Integer.parseInt(value.toString());
-        if (result < 0) {
-            throw new IllegalArgumentException("Model event commit substep must be non-negative");
-        }
-        return result;
-    }
-
-    /** Pins an opaque commit/event selector to the state returned by its first repository request. */
-    public static final class Pinned {
-        private final ModelReadBoundary source;
-        private Long resolvedStateIndex;
-
-        /** Creates a pin for a commit- or event-based source boundary. */
-        public Pinned(ModelReadBoundary source) {
-            if (source.commitId == null && source.eventIndex == null) {
-                throw new IllegalArgumentException("Only commit or event boundaries require pinning");
-            }
-            this.source = source;
-        }
-
-        /** Returns the source selection until pinned, and the exact resolved state afterwards. */
-        public synchronized ModelReadBoundary request() {
-            return resolvedStateIndex == null ? source : state(resolvedStateIndex, false);
-        }
-
-        /** Records and validates the state resolved by a repository request. */
-        public synchronized void pin(long value) {
-            if (resolvedStateIndex != null && resolvedStateIndex != value) {
-                throw new EventSourcingException(
-                        "Published model boundary %s resolved to both state %d and %d"
-                                .formatted(source.description(), resolvedStateIndex, value));
-            }
-            resolvedStateIndex = value;
-        }
-    }
-
-    private String description() {
-        return commitId == null ? "event %d".formatted(eventIndex)
-                : "commit %s substep %d".formatted(commitId, substep);
-    }
 }

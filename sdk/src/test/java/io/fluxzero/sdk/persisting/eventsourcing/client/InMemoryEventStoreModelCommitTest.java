@@ -27,6 +27,7 @@ import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphBefore;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -214,7 +215,8 @@ class InMemoryEventStoreModelCommitTest {
         AtomicBoolean modelVisible = new AtomicBoolean();
         store.registerMonitor(ignored -> modelVisible.set(
                 store.getModelEvents(new GetModelEvents(
-                                List.of(new ModelEventStreamRequest("visible-model", -1L, 10)), null, 1_024L))
+                                List.of(new ModelEventStreamRequest("visible-model", -1L, 10)),
+                                ModelReadBoundary.current(), 1_024L))
                         .getStreams().getFirst().getMemberships().size() == 1));
 
         store.commitModels(commit(
@@ -580,7 +582,7 @@ class InMemoryEventStoreModelCommitTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 10),
                         new ModelEventStreamRequest("inventory-1", -1L, 10)),
-                null, 0L));
+                ModelReadBoundary.current(), 0L));
 
         assertEquals(0L, result.getStateIndex());
         assertEquals(1, result.getPayloads().size());
@@ -614,7 +616,7 @@ class InMemoryEventStoreModelCommitTest {
                 new GetModelEvents(
                         List.of(new ModelEventStreamRequest(
                                 "order-1", -1L, 10)),
-                        null, "published-commit", 0, 0L));
+                        ModelReadBoundary.commit("published-commit", 0), 0L));
 
         assertEquals(0L, result.getStateIndex());
         assertEquals(
@@ -645,7 +647,7 @@ class InMemoryEventStoreModelCommitTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 10),
                         new ModelEventStreamRequest("inventory-1", -1L, 10)),
-                null, 1L));
+                ModelReadBoundary.current(), 1L));
 
         assertEquals(1, result.getPayloads().size());
         assertEquals(0L, result.getPayloads().getFirst().getStateIndex());
@@ -675,7 +677,7 @@ class InMemoryEventStoreModelCommitTest {
                 List.of(
                         new ModelEventStreamRequest("a", -1L, 1),
                         new ModelEventStreamRequest("b", -1L, 1)),
-                null, 0L));
+                ModelReadBoundary.current(), 0L));
 
         assertEquals(List.of(0L), result.getPayloads().stream()
                 .map(payload -> payload.getStateIndex()).toList());
@@ -701,9 +703,11 @@ class InMemoryEventStoreModelCommitTest {
                 ModelConflictPolicy.ACCEPT, Guarantee.STORED)).join();
 
         var historical = store.getModelEvents(new GetModelEvents(
-                List.of(new ModelEventStreamRequest("order-1", -1L, 0)), 0L, 0L));
+                List.of(new ModelEventStreamRequest("order-1", -1L, 0)),
+                ModelReadBoundary.state(0L, false), 0L));
         var current = store.getModelEvents(new GetModelEvents(
-                List.of(new ModelEventStreamRequest("order-1", -1L, 0)), null, 0L));
+                List.of(new ModelEventStreamRequest("order-1", -1L, 0)),
+                ModelReadBoundary.current(), 0L));
 
         assertEquals(0L, historical.getStateIndex());
         assertEquals(0L, historical.getStreams().getFirst().getHead().getSequenceNumber());
@@ -743,7 +747,7 @@ class InMemoryEventStoreModelCommitTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 10),
                         new ModelEventStreamRequest("inventory-1", -1L, 10)),
-                null, 0L));
+                ModelReadBoundary.current(), 0L));
         assertEquals(-1L, result.getStateIndex());
         assertTrue(result.getPayloads().isEmpty());
         assertTrue(result.getStreams().stream().allMatch(stream -> stream.getHead() == null));
@@ -807,7 +811,8 @@ class InMemoryEventStoreModelCommitTest {
         assertEquals(-1L, rejected.getConflicts().getFirst().getCurrentRelationStateIndex());
         assertEquals(0, store.getBatch(null, 10, true).size());
         assertEquals(0L, store.getModelEvents(
-                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
+                new GetModelEvents(
+                        List.of(), ModelReadBoundary.current(), 0L)).getStateIndex());
 
         CommitModelsResult rebase = store.commitModels(commit(
                 "retryable-commit", -1L, ModelConflictPolicy.ACCEPT, staleSubstep)).join();
@@ -979,31 +984,31 @@ class InMemoryEventStoreModelCommitTest {
         assertEquals(
                 1,
                 store.getModelGraph(new GetModelGraph(
-                                "parent-1", 1L,
+                                "parent-1", ModelReadBoundary.state(1L, false),
                                 1, 10, 0, 0L, false))
                         .getEdges().size());
         assertEquals(
                 1,
                 store.getModelGraph(new GetModelGraph(
-                                "parent-1", 1L,
+                                "parent-1", ModelReadBoundary.state(1L, false),
                                 -1, -1, 0, 0L, false))
                         .getEdges().size());
         assertTrue(
                 store.getModelGraph(new GetModelGraph(
-                                "parent-1", 2L,
+                                "parent-1", ModelReadBoundary.state(2L, false),
                                 1, 10, 0, 0L, false))
                         .getEdges().isEmpty());
         assertEquals(
                 1,
                 store.getModelGraphBefore(new GetModelGraphBefore(
                                 new GetModelGraph(
-                                        "parent-1", 2L,
+                                        "parent-1", ModelReadBoundary.state(2L, false),
                                         1, 10, 0, 0L, false)))
                         .getEdges().size());
         assertEquals(
                 "parent-1",
                 store.getModelAncestors(new GetModelAncestors(
-                                List.of("child-1"), 1L,
+                                List.of("child-1"), ModelReadBoundary.state(1L, false),
                                 1, 10, 0, 0L))
                         .getEdges().getFirst().getParentId());
 
@@ -1020,7 +1025,7 @@ class InMemoryEventStoreModelCommitTest {
 
         assertTrue(
                 store.getModelGraph(new GetModelGraph(
-                                "parent-1", 3L,
+                                "parent-1", ModelReadBoundary.state(3L, false),
                                 1, 10, 0, 0L, false))
                         .getEdges().isEmpty());
     }
@@ -1241,7 +1246,7 @@ class InMemoryEventStoreModelCommitTest {
                                         "parent", -1L, 10),
                                 new ModelEventStreamRequest(
                                         "child", -1L, 10)),
-                        null, 0L));
+                        ModelReadBoundary.current(), 0L));
         assertTrue(
                 streams.getStreams()
                         .stream()
@@ -1307,7 +1312,8 @@ class InMemoryEventStoreModelCommitTest {
         assertThrows(CompletionException.class, () -> store.commitModels(commit).join());
         assertEquals(0, store.getBatch(null, 10, true).size());
         assertEquals(-1L, store.getModelEvents(
-                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
+                new GetModelEvents(
+                        List.of(), ModelReadBoundary.current(), 0L)).getStateIndex());
     }
 
     @Test
@@ -1336,7 +1342,8 @@ class InMemoryEventStoreModelCommitTest {
         assertEquals(1, store.getBatch(null, 10, true).size());
         assertEquals("old", modelStream(store, "order-1").getHead().getModelType());
         assertEquals(0L, store.getModelEvents(
-                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
+                new GetModelEvents(
+                        List.of(), ModelReadBoundary.current(), 0L)).getStateIndex());
     }
 
     @Test
@@ -1382,7 +1389,8 @@ class InMemoryEventStoreModelCommitTest {
         assertEquals(1, store.getBatch(null, 10, true).size());
         assertEquals(0, store.getEvents("a").count());
         assertEquals(0L, store.getModelEvents(
-                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
+                new GetModelEvents(
+                        List.of(), ModelReadBoundary.current(), 0L)).getStateIndex());
     }
 
     @Test
@@ -1393,19 +1401,22 @@ class InMemoryEventStoreModelCommitTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 1),
                         new ModelEventStreamRequest("order-1", -1L, 1)),
-                null, 0L)));
+                ModelReadBoundary.current(), 0L)));
         assertThrows(IllegalArgumentException.class, () -> store.getModelEvents(new GetModelEvents(
                 List.of(new ModelEventStreamRequest("order-1", -1L, -1)),
-                null, 0L)));
+                ModelReadBoundary.current(), 0L)));
         assertThrows(IllegalArgumentException.class, () -> store.getModelEvents(new GetModelEvents(
                 List.of(new ModelEventStreamRequest("order-1", -1L, 1)),
-                null, -1L)));
+                ModelReadBoundary.current(), -1L)));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> store.getModelEvents(
                         new GetModelEvents(
-                                List.of(), 0L,
-                                "commit", 0, 0L)));
+                                List.of(),
+                                new ModelReadBoundary(
+                                        null, "commit", null, null,
+                                        false, false),
+                                0L)));
     }
 
     private static CommitModels commit(String commitId, ModelCommitStep... substeps) {
@@ -1421,7 +1432,8 @@ class InMemoryEventStoreModelCommitTest {
             modelStream(InMemoryEventStore store, String modelId) {
         return store.getModelEvents(new GetModelEvents(
                         List.of(new ModelEventStreamRequest(
-                                modelId, -1L, 10)), null, 1_024L))
+                                modelId, -1L, 10)),
+                        ModelReadBoundary.current(), 1_024L))
                 .getStreams().getFirst();
     }
 

@@ -16,6 +16,8 @@
 
 package io.fluxzero.common.api.modeling;
 
+import io.fluxzero.common.api.Metadata;
+
 /**
  * Reserved metadata keys identifying events emitted by an independent-model commit.
  */
@@ -30,6 +32,23 @@ public final class ModelEventMetadata {
      * Ordered substep within the model commit.
      */
     public static final String SUBSTEP = "$modelCommitSubstep";
+
+    /** Returns the commit boundary carried by {@code metadata}, or {@code null} when it is not a Model event. */
+    public static ModelReadBoundary readBoundary(Metadata metadata) {
+        if (metadata == null) {
+            return null;
+        }
+        String commitId = metadata.get(COMMIT_ID);
+        String value = metadata.get(SUBSTEP);
+        if (commitId == null || value == null) {
+            return null;
+        }
+        try {
+            return ModelReadBoundary.commit(commitId, Integer.parseInt(value));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid model commit substep " + value, e);
+        }
+    }
 
     private ModelEventMetadata() {
     }

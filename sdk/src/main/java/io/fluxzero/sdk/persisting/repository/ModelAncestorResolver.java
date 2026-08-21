@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.modeling.Graph;
 
 import java.util.Optional;

@@ -41,6 +41,7 @@ import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelEventPageDecoder;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
@@ -480,7 +481,7 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                         .map(stream -> new ModelEventStreamRequest(
                                 stream.getModelId(), -1L, maxEventsPerModel))
                         .toList(),
-                events.getStateIndex(), maxBytes);
+                ModelReadBoundary.state(events.getStateIndex(), false), maxBytes);
         GetModelEventsResult expanded = ModelEventPageDecoder.expand(pageRequest, events);
         if (expanded == events) {
             return result;

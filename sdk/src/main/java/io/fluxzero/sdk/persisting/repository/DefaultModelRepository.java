@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -391,7 +392,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private <T> Entity<T> loadDurable(
             String modelId,
             Class<T> modelType) {
-        ModelReadBoundary.Pinned handlerBoundary =
+        PinnedBoundary handlerBoundary =
                 handlerBoundary();
         if (Object.class.equals(modelType)) {
             Class<?> resolvedType = resolveUntypedType(
@@ -448,7 +449,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         MutationPlan.Access.READ_ONLY,
                         List.of(idProperty)))
                 .toList();
-        ModelReadBoundary.Pinned handlerBoundary = handlerBoundary();
+        PinnedBoundary handlerBoundary = handlerBoundary();
         CommitAttempt context = loadContext(
                 new MutationPlan.Resolution(targets, List.of()),
                 boundary(handlerBoundary),
@@ -469,7 +470,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Graph.Options options) {
         requireEventReconstruction();
         EntityMetadata.validate(rootType);
-        ModelReadBoundary.Pinned handlerBoundary =
+        PinnedBoundary handlerBoundary =
                 handlerBoundary();
         return reconstructGraph(
                 rootId, rootType, options, boundary(handlerBoundary),
@@ -549,7 +550,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         }
         AncestorResolution resolved = resolveAncestors(
                 request,
-                ancestorBoundary(boundary),
+                boundary.forRequest(),
                 stagedValues, boundary.includeMessageBatch(),
                 false, !all, all,
                 UNBOUNDED, UNBOUNDED);
@@ -562,8 +563,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                         candidate.modelType()))
                         .toList();
         Graph.Options rootOnly = new Graph.Options(0, 1);
-        ModelReadBoundary graphBoundary = graphBoundary(
-                boundary, resolved.stateIndex());
+        ModelReadBoundary graphBoundary = boundary.resolved(
+                resolved.stateIndex(), boundary.includeMessageBatch());
         return targets.stream().map(target -> {
             @SuppressWarnings("unchecked") Class<A> targetType =
                     (Class<A>) target.modelType();
@@ -571,31 +572,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     target.modelId(), targetType,
                     graphBoundary, rootOnly);
         }).toList();
-    }
-
-    private static ModelReadBoundary graphBoundary(
-            ModelReadBoundary source,
-            long stateIndex) {
-        ModelReadBoundary result = source.commitId() != null
-                                   || source.eventIndex() != null
-                ? source.resolved(stateIndex)
-                : ModelReadBoundary.state(
-                        stateIndex, source.includeMessageBatch());
-        return source.before() ? result.asBefore() : result;
-    }
-
-    private static ModelReadBoundary ancestorBoundary(
-            ModelReadBoundary boundary) {
-        if (boundary.commitId() != null) {
-            return ModelReadBoundary.commit(
-                    boundary.commitId(), boundary.substep());
-        }
-        if (boundary.eventIndex() != null) {
-            return ModelReadBoundary.event(
-                    boundary.eventIndex());
-        }
-        return ModelReadBoundary.at(
-                boundary.stateIndex());
     }
 
     /**
@@ -618,7 +594,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Class<T> rootType,
             Graph.Options options,
             ModelReadBoundary boundary,
-            ModelReadBoundary.Pinned handlerBoundary,
+            PinnedBoundary handlerBoundary,
             boolean includeMessageBatch,
             boolean historical) {
         requireEventReconstruction();
@@ -637,7 +613,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private Class<?> resolveUntypedType(
             String modelId,
-            ModelReadBoundary.Pinned handlerBoundary) {
+            PinnedBoundary handlerBoundary) {
         Class<?> payloadType = resolvePayloadFactoryType(
                 modelId, handlerBoundary);
         return payloadType == null
@@ -647,7 +623,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private Class<?> resolvePayloadFactoryType(
             String modelId,
-            ModelReadBoundary.Pinned handlerBoundary) {
+            PinnedBoundary handlerBoundary) {
         if (client.getEventStoreClient() == null
             || serializer == null) {
             return null;
@@ -704,7 +680,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private Class<?> resolveStoredType(
             String modelId,
-            ModelReadBoundary.Pinned handlerBoundary) {
+            PinnedBoundary handlerBoundary) {
         if (client.getEventStoreClient() == null) {
             throw new EventSourcingException(
                     "Loading an independent model by untyped ID requires model-head type metadata");
@@ -734,7 +710,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 .build();
     }
 
-    private ModelReadBoundary.Pinned handlerBoundary() {
+    private PinnedBoundary handlerBoundary() {
         DeserializingMessage current =
                 DeserializingMessage.getCurrent();
         if (current == null
@@ -743,55 +719,51 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return null;
         }
         return current.computeContextIfAbsent(
-                        ModelReadBoundary.Pinned.class,
+                        PinnedBoundary.class,
                         message -> {
-                            Object commitId = message.getMetadata() == null
-                                    ? null
-                                    : message.getMetadata().get(
-                                            ModelEventMetadata.COMMIT_ID);
-                            Object substep = message.getMetadata() == null
-                                    ? null
-                                    : message.getMetadata().get(
-                                            ModelEventMetadata.SUBSTEP);
-                            if (commitId instanceof String id
-                                && !id.isBlank()
-                                && substep != null) {
-                                return new ModelReadBoundary.Pinned(
-                                        ModelReadBoundary.commit(id, parseSubstep(substep)));
-                            }
-                            return null;
+                            ModelReadBoundary boundary = ModelEventMetadata.readBoundary(
+                                    message.getMetadata());
+                            return boundary == null ? null : new PinnedBoundary(boundary);
                         });
     }
 
-    private static int parseSubstep(Object value) {
-        int result;
-        if (value instanceof Number number) {
-            result = number.intValue();
-        } else {
-            try {
-                result = Integer.parseInt(value.toString());
-            } catch (NumberFormatException failure) {
+    private static final class PinnedBoundary {
+        private final ModelReadBoundary source;
+        private Long stateIndex;
+
+        private PinnedBoundary(ModelReadBoundary source) {
+            this.source = source;
+        }
+
+        private synchronized ModelReadBoundary request() {
+            return stateIndex == null
+                    ? source
+                    : ModelReadBoundary.state(stateIndex, false);
+        }
+
+        private synchronized void pin(long value) {
+            if (stateIndex != null && stateIndex != value) {
+                String description = source.commitId() == null
+                        ? "event %d".formatted(source.eventIndex())
+                        : "commit %s substep %d".formatted(
+                                source.commitId(), source.substep());
                 throw new EventSourcingException(
-                        "Published model event has an invalid commit substep",
-                        failure);
+                        "Published model boundary %s resolved to both state %d and %d"
+                                .formatted(description, stateIndex, value));
             }
+            stateIndex = value;
         }
-        if (result < 0) {
-            throw new EventSourcingException(
-                    "Published model event has a negative commit substep");
-        }
-        return result;
     }
 
     private static ModelReadBoundary boundary(
-            ModelReadBoundary.Pinned boundary) {
+            PinnedBoundary boundary) {
         return boundary == null
                 ? ModelReadBoundary.CURRENT
                 : boundary.request();
     }
 
     private static void pin(
-            ModelReadBoundary.Pinned boundary,
+            PinnedBoundary boundary,
             long stateIndex) {
         if (boundary != null) {
             boundary.pin(stateIndex);
@@ -807,7 +779,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public CommitAttempt loadContext(
             MutationPlan.Resolution resolution) {
-        ModelReadBoundary.Pinned handlerBoundary =
+        PinnedBoundary handlerBoundary =
                 handlerBoundary();
         CommitAttempt context = loadContext(
                 resolution, boundary(handlerBoundary), Map.of(), true);

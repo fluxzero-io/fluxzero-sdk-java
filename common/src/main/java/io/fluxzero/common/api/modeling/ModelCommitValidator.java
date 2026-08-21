@@ -250,12 +250,6 @@ public final class ModelCommitValidator {
         if (request == null) {
             throw new IllegalArgumentException("Model event request is required");
         }
-        if (request.getMaxStateIndex() != null) {
-            validateStateIndex(request.getMaxStateIndex());
-        }
-        validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryCommitId(),
-                request.getBoundarySubstep(), request.getBoundaryEventIndex());
         if (request.getRequests() == null) {
             throw new IllegalArgumentException("Model stream requests are required");
         }
@@ -289,12 +283,6 @@ public final class ModelCommitValidator {
             throw new IllegalArgumentException("Model graph request is required");
         }
         validateModelId(request.getRootId());
-        if (request.getMaxStateIndex() != null) {
-            validateStateIndex(request.getMaxStateIndex());
-        }
-        validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryCommitId(),
-                request.getBoundarySubstep(), request.getBoundaryEventIndex());
         validateGraphBounds(
                 "graph", request.getMaxDepth(), request.getMaxModels(),
                 request.getMaxEventsPerModel(), request.getMaxBytes(), 0, 1, "1", true);
@@ -317,12 +305,6 @@ public final class ModelCommitValidator {
                 throw new IllegalArgumentException("Duplicate model ancestor root " + modelId);
             }
         }
-        if (request.getMaxStateIndex() != null) {
-            validateStateIndex(request.getMaxStateIndex());
-        }
-        validateEventBoundary(
-                request.getMaxStateIndex(), request.getBoundaryCommitId(),
-                request.getBoundarySubstep(), request.getBoundaryEventIndex());
         validateGraphBounds(
                 "ancestor", request.getMaxDepth(), request.getMaxModels(),
                 request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count", true);
@@ -432,29 +414,6 @@ public final class ModelCommitValidator {
         if (request.getMaxDepth() < 0 || request.getMaxDepth() > 1_024
             || request.getMaxModels() < 1 || request.getMaxModels() > 100_000) {
             throw new IllegalArgumentException("Invalid model deletion bounds");
-        }
-    }
-
-    private static void validateEventBoundary(
-            Long stateIndex, String commitId, Integer substep, Long eventIndex) {
-        int specified = (stateIndex == null ? 0 : 1)
-                        + (commitId == null ? 0 : 1)
-                        + (eventIndex == null ? 0 : 1);
-        if (specified > 1) {
-            throw new IllegalArgumentException(
-                    "Specify one model state, commit, or event boundary");
-        }
-        if ((commitId == null) != (substep == null)) {
-            throw new IllegalArgumentException(
-                    "Model commit boundary requires both commitId and substep");
-        }
-        if (commitId != null && (commitId.isBlank() || substep < 0)) {
-            throw new IllegalArgumentException(
-                    "Model commit boundary must be non-blank with a non-negative substep");
-        }
-        if (eventIndex != null && eventIndex < 0L) {
-            throw new IllegalArgumentException(
-                    "Model event boundary must have a non-negative event index");
         }
     }
 

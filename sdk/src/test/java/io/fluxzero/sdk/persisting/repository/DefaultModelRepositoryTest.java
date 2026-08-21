@@ -33,6 +33,7 @@ import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.MemoryPressureController;
@@ -1653,9 +1654,9 @@ class DefaultModelRepositoryTest {
             long handledStateIndex =
                     eventStoreClient.getModelEvents(
                                     new GetModelEvents(
-                                            List.of(), null,
-                                            null, null,
-                                            handledEvent.getIndex(),
+                                            List.of(),
+                                            ModelReadBoundary.event(
+                                                    handledEvent.getIndex()),
                                             0L))
                             .getStateIndex();
             clearInvocations(eventStoreClient);
@@ -1681,15 +1682,15 @@ class DefaultModelRepositoryTest {
             assertEquals(
                     handledCommitId,
                     requests.getAllValues().getFirst()
-                            .getBoundaryCommitId());
+                            .getBoundary().commitId());
             assertEquals(
                     handledSubstep,
                     requests.getAllValues().getFirst()
-                            .getBoundarySubstep());
+                            .getBoundary().substep());
             assertEquals(
                     handledStateIndex,
                     requests.getAllValues().getLast()
-                            .getMaxStateIndex());
+                            .getBoundary().stateIndex());
         }
     }
 
@@ -1819,7 +1820,7 @@ class DefaultModelRepositoryTest {
                 .getEventStoreClient()
                 .getModelEvents(
                         new GetModelEvents(
-                                List.of(), null, 0L))
+                                List.of(), ModelReadBoundary.current(), 0L))
                 .getStateIndex();
     }
 

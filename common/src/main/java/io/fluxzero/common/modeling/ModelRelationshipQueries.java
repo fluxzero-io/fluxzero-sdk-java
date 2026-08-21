@@ -25,6 +25,7 @@ import io.fluxzero.common.api.modeling.ModelCommitValidator;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
 
@@ -49,15 +50,15 @@ public final class ModelRelationshipQueries {
 
     /** Resolves a current, state, commit or event selector against one visible store boundary. */
     public static long resolveBoundary(
-            Long maxStateIndex,
-            String commitId,
-            Integer substep,
-            Long eventIndex,
+            ModelReadBoundary boundary,
             boolean rejectNewer,
             LongSupplier currentState,
             BiFunction<String, Integer, Long> commitBoundary,
             Function<Long, Long> eventBoundary) {
         long current = currentState.getAsLong();
+        String commitId = boundary.commitId();
+        Integer substep = boundary.substep();
+        Long eventIndex = boundary.eventIndex();
         Long commit = commitId == null ? null : commitBoundary.apply(commitId, substep);
         Long event = eventIndex == null ? null : eventBoundary.apply(eventIndex);
         if (commitId != null && commit == null) {
@@ -69,7 +70,7 @@ public final class ModelRelationshipQueries {
                     "Model event boundary %d is not visible".formatted(eventIndex));
         }
         long result = event != null ? event : commit != null ? commit
-                : maxStateIndex == null ? current : maxStateIndex;
+                : boundary.stateIndex() == null ? current : boundary.stateIndex();
         if (rejectNewer && result > current) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is newer than visible stateIndex %d"
@@ -137,7 +138,7 @@ public final class ModelRelationshipQueries {
                 graph.modelIds().stream()
                         .map(id -> new ModelEventStreamRequest(id, -1L, maxEventsPerModel))
                         .toList(),
-                boundary, maxBytes));
+                ModelReadBoundary.state(boundary, false), maxBytes));
         return new GetModelGraphResult(requestId, graph.edges(), events);
     }
 

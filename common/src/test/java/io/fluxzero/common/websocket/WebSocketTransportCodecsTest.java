@@ -62,6 +62,7 @@ import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -713,7 +714,7 @@ class WebSocketTransportCodecsTest {
                 List.of(
                         new ModelEventStreamRequest("order-1", -1L, 100),
                         new ModelEventStreamRequest("inventory-1", 4L, 0)),
-                null, "commit-991", 3, 4_096L);
+                ModelReadBoundary.commit("commit-991", 3), 4_096L);
         GetModelEventsResult result = new GetModelEventsResult(
                 request.getRequestId(), 91L,
                 List.of(new ModelEventPayload(80L, serializedMessage())),
@@ -731,12 +732,9 @@ class WebSocketTransportCodecsTest {
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
             GetModelEvents decodedRequest = assertInstanceOf(
                     GetModelEvents.class, roundTrip(codec, request));
-            assertNull(decodedRequest.getMaxStateIndex());
             assertEquals(
-                    "commit-991",
-                    decodedRequest.getBoundaryCommitId());
-            assertEquals(
-                    3, decodedRequest.getBoundarySubstep());
+                    ModelReadBoundary.commit("commit-991", 3),
+                    decodedRequest.getBoundary());
             assertEquals(4_096L, decodedRequest.getMaxBytes());
             assertEquals(2, decodedRequest.getRequests().size());
             assertEquals(0, decodedRequest.getRequests().get(1).getMaxSize());
@@ -761,7 +759,7 @@ class WebSocketTransportCodecsTest {
     @Test
     void modelGraphRoundTripsTemporalEdgesAndGroupedStreams() throws Exception {
         GetModelGraph request = new GetModelGraph(
-                "order-1", null, "commit-991", 3,
+                "order-1", ModelReadBoundary.commit("commit-991", 3),
                 12, 1_000,
                 128, 8_388_608L, true);
         GetModelGraphResult result = new GetModelGraphResult(
@@ -789,12 +787,9 @@ class WebSocketTransportCodecsTest {
             GetModelGraph decodedRequest = assertInstanceOf(
                     GetModelGraph.class, roundTrip(codec, request));
             assertEquals("order-1", decodedRequest.getRootId());
-            assertNull(decodedRequest.getMaxStateIndex());
             assertEquals(
-                    "commit-991",
-                    decodedRequest.getBoundaryCommitId());
-            assertEquals(
-                    3, decodedRequest.getBoundarySubstep());
+                    ModelReadBoundary.commit("commit-991", 3),
+                    decodedRequest.getBoundary());
             assertTrue(decodedRequest.isComposableOnly());
 
             GetModelGraphResult decodedResult = assertInstanceOf(
@@ -821,8 +816,7 @@ class WebSocketTransportCodecsTest {
         GetModelGraphBefore request =
                 new GetModelGraphBefore(
                         new GetModelGraph(
-                                "order-1", null,
-                                "commit-991", 3,
+                                "order-1", ModelReadBoundary.commit("commit-991", 3),
                                 12, 1_000, 128,
                                 8_388_608L, true));
 
@@ -839,13 +833,8 @@ class WebSocketTransportCodecsTest {
                     "order-1",
                     decoded.getRequest().getRootId());
             assertEquals(
-                    "commit-991",
-                    decoded.getRequest()
-                            .getBoundaryCommitId());
-            assertEquals(
-                    3,
-                    decoded.getRequest()
-                            .getBoundarySubstep());
+                    ModelReadBoundary.commit("commit-991", 3),
+                    decoded.getRequest().getBoundary());
         }
     }
 
@@ -854,7 +843,7 @@ class WebSocketTransportCodecsTest {
             throws Exception {
         GetModelAncestors request = new GetModelAncestors(
                 List.of("line-1", "line-2"),
-                null, "commit-991", 3,
+                ModelReadBoundary.commit("commit-991", 3),
                 12, 1_000, 0, 0L);
 
         for (WebSocketTransportCodec codec :
@@ -867,9 +856,8 @@ class WebSocketTransportCodecsTest {
                     List.of("line-1", "line-2"),
                     decoded.getModelIds());
             assertEquals(
-                    "commit-991",
-                    decoded.getBoundaryCommitId());
-            assertEquals(3, decoded.getBoundarySubstep());
+                    ModelReadBoundary.commit("commit-991", 3),
+                    decoded.getBoundary());
             assertEquals(12, decoded.getMaxDepth());
             assertEquals(1_000, decoded.getMaxModels());
             assertEquals(

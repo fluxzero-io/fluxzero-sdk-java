@@ -23,7 +23,7 @@ import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
-import io.fluxzero.sdk.persisting.repository.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import org.junit.jupiter.api.Test;
 

@@ -25,6 +25,7 @@ import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
@@ -60,8 +61,8 @@ class ModelReplayCursorTest {
 
         assertEquals(42L, stateIndex);
         assertEquals(2, requests.size());
-        assertNull(requests.getFirst().getMaxStateIndex());
-        assertEquals(42L, requests.getLast().getMaxStateIndex());
+        assertNull(requests.getFirst().getBoundary().stateIndex());
+        assertEquals(42L, requests.getLast().getBoundary().stateIndex());
         assertEquals(List.of("a", "b"), requests.getFirst().getRequests().stream()
                 .map(request -> request.getModelId()).toList());
         assertEquals(List.of("c"), requests.getLast().getRequests().stream()
@@ -98,14 +99,14 @@ class ModelReplayCursorTest {
         assertEquals(42L, result.stateIndex());
         assertEquals(
                 "commit-991",
-                requests.getFirst().getBoundaryCommitId());
+                requests.getFirst().getBoundary().commitId());
         assertEquals(
                 3,
-                requests.getFirst().getBoundarySubstep());
-        assertNull(requests.getFirst().getMaxStateIndex());
-        assertNull(requests.getLast().getBoundaryCommitId());
-        assertNull(requests.getLast().getBoundarySubstep());
-        assertEquals(42L, requests.getLast().getMaxStateIndex());
+                requests.getFirst().getBoundary().substep());
+        assertNull(requests.getFirst().getBoundary().stateIndex());
+        assertNull(requests.getLast().getBoundary().commitId());
+        assertNull(requests.getLast().getBoundary().substep());
+        assertEquals(42L, requests.getLast().getBoundary().stateIndex());
     }
 
     @Test
@@ -149,10 +150,10 @@ class ModelReplayCursorTest {
                         .toList());
         assertEquals(
                 "commit-991",
-                requests.getFirst().getBoundaryCommitId());
+                requests.getFirst().getBoundary().commitId());
         assertEquals(
                 42L,
-                requests.getLast().getMaxStateIndex());
+                requests.getLast().getBoundary().stateIndex());
     }
 
     @Test
@@ -186,9 +187,9 @@ class ModelReplayCursorTest {
         assertEquals(9L, stateIndex);
         assertEquals(List.of(-1L, 0L, 1L), requests.stream()
                 .map(request -> request.getRequests().getFirst().getLastSequenceNumber()).toList());
-        assertNull(requests.getFirst().getMaxStateIndex());
+        assertNull(requests.getFirst().getBoundary().stateIndex());
         assertEquals(List.of(9L, 9L), requests.subList(1, 3).stream()
-                .map(GetModelEvents::getMaxStateIndex).toList());
+                .map(request -> request.getBoundary().stateIndex()).toList());
         assertEquals(List.of(1, 1, 1), requests.stream()
                 .map(request -> request.getRequests().getFirst().getMaxSize()).toList());
     }

@@ -321,9 +321,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         return message.getMessageType() != MessageType.EVENT
                && message.getMessageType() != MessageType.NOTIFICATION
                || message.getIndex() != null
-               || message.getMetadata() != null
-                  && message.getMetadata().containsKey(ModelEventMetadata.COMMIT_ID)
-                  && message.getMetadata().containsKey(ModelEventMetadata.SUBSTEP);
+               || ModelEventMetadata.readBoundary(message.getMetadata()) != null;
     }
 
     private static ModelResolutionCache modelResolutionCache(DeserializingMessage message) {

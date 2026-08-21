@@ -21,6 +21,7 @@ import io.fluxzero.common.api.modeling.GetModelChange;
 import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.ModelChangeTarget;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -28,7 +29,6 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
-import io.fluxzero.sdk.persisting.repository.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
@@ -129,8 +129,7 @@ public final class GraphChangeHandlerDecorator {
     }
 
     private static boolean modelChange(DeserializingMessage message) {
-        return message.getMetadataValue(ModelEventMetadata.COMMIT_ID) != null
-               && message.getMetadataValue(ModelEventMetadata.SUBSTEP) != null;
+        return ModelEventMetadata.readBoundary(message.getMetadata()) != null;
     }
 
     private static <T> List<Graph<T>> changedGraphs(
@@ -138,10 +137,9 @@ public final class GraphChangeHandlerDecorator {
             Class<T> rootType) {
         Fluxzero fluxzero = Fluxzero.get();
         String namespace = getConsumerNamespace(message);
-        String commitId = message.getMetadataValue(
-                ModelEventMetadata.COMMIT_ID);
-        int substep = parseSubstep(message.getMetadataValue(
-                ModelEventMetadata.SUBSTEP));
+        ModelReadBoundary boundary = ModelEventMetadata.readBoundary(message.getMetadata());
+        String commitId = boundary.commitId();
+        int substep = boundary.substep();
         GetModelChangeResult change = fluxzero.client()
                 .forNamespace(namespace).getEventStoreClient()
                 .getModelChange(new GetModelChange(commitId, substep));
@@ -234,19 +232,6 @@ public final class GraphChangeHandlerDecorator {
     @SuppressWarnings("unchecked")
     private static <T> Graph<T> cast(Graph<? extends T> graph) {
         return (Graph<T>) graph;
-    }
-
-    private static int parseSubstep(String value) {
-        try {
-            int result = Integer.parseInt(value);
-            if (result < 0) {
-                throw new NumberFormatException("negative");
-            }
-            return result;
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "Invalid model commit substep " + value, e);
-        }
     }
 
     static boolean suppliesGraph(Parameter parameter) {

@@ -16,14 +16,16 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
-import io.fluxzero.sdk.persisting.repository.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 
 import java.time.Instant;
@@ -83,7 +85,19 @@ public final class Graphs {
     /** Creates a graph that reuses all values loaded for the same handler boundary. */
     static <T> Graph<T> lazy(Entity<T> entity, CommitAttempt context, ModelRepository repository) {
         return GraphState.entity(entity, context.readStateIndex(), repository, context.entities(), false, true,
-                                 ModelReadBoundary.forGraph(context.readStateIndex(), true, false), Map.of()).root();
+                                 handlerBoundary(context.readStateIndex()), Map.of()).root();
+    }
+
+    private static ModelReadBoundary handlerBoundary(long stateIndex) {
+        DeserializingMessage message = DeserializingMessage.getCurrent();
+        if (message != null && (message.getMessageType() == MessageType.EVENT
+                                || message.getMessageType() == MessageType.NOTIFICATION)) {
+            ModelReadBoundary boundary = ModelEventMetadata.readBoundary(message.getMetadata());
+            if (boundary != null) {
+                return boundary.resolved(stateIndex);
+            }
+        }
+        return ModelReadBoundary.state(stateIndex, true);
     }
 
     /** Creates a complete graph from one coherent repository reconstruction. */
@@ -666,7 +680,8 @@ final class GraphState {
         return expansions.computeIfAbsent(node.data().id(), ignored -> {
             NodeData data = node.data();
             data.entity();
-            Graph<?> loaded = boundary.loadGraph(repository, data.id(), data.type());
+            Graph<?> loaded = repository.loadGraph(
+                    data.id(), data.type(), boundary, Graph.Options.DEFAULT);
             if (!(loaded instanceof GraphView<?> graph) || !graph.state().complete() || knownModels.isEmpty()) {
                 return loaded;
             }
@@ -732,7 +747,8 @@ final class GraphState {
                 continue;
             }
             Graph<?> parent = historical || exactBoundary
-                    ? boundary.loadGraph(repository, repositoryId, parentType)
+                    ? repository.loadGraph(
+                            repositoryId, parentType, boundary, Graph.Options.DEFAULT)
                     : Graphs.lazy(repository.load(parentId, parentType), stateIndex, repository);
             if (parent.isPresent()) {
                 result.putIfAbsent(repositoryId, context.decorate(parent));

@@ -20,6 +20,7 @@ import io.fluxzero.common.api.Request;
 import lombok.Value;
 
 import java.beans.ConstructorProperties;
+import java.util.Objects;
 
 /**
  * Resolves one independent-model graph and optionally includes the first bounded page of every selected model stream.
@@ -35,25 +36,8 @@ public class GetModelGraph extends Request {
      */
     String rootId;
 
-    /**
-     * Inclusive historical state boundary, or {@code null} to pin the current boundary.
-     */
-    Long maxStateIndex;
-
-    /**
-     * Durable model commit whose persisted result contains the exact boundary, or {@code null}.
-     */
-    String boundaryCommitId;
-
-    /**
-     * Ordered substep within {@link #boundaryCommitId}, or {@code null}.
-     */
-    Integer boundarySubstep;
-
-    /**
-     * Global event-log index of the published model event whose state boundary is requested.
-     */
-    Long boundaryEventIndex;
+    /** Current, state, commit or event selector shared by every Model read. */
+    ModelReadBoundary boundary;
 
     /**
      * Maximum number of child-edge levels below the root, or {@code -1} to follow every reachable level.
@@ -80,62 +64,19 @@ public class GetModelGraph extends Request {
      */
     boolean composableOnly;
 
-    public GetModelGraph(
-            String rootId,
-            Long maxStateIndex,
-            int maxDepth,
-            int maxModels,
-            int maxEventsPerModel,
-            long maxBytes,
-            boolean composableOnly) {
-        this(
-                rootId, maxStateIndex, null, null, null,
-                maxDepth, maxModels,
-                maxEventsPerModel, maxBytes, composableOnly);
-    }
-
-    public GetModelGraph(
-            String rootId,
-            Long maxStateIndex,
-            String boundaryCommitId,
-            Integer boundarySubstep,
-            int maxDepth,
-            int maxModels,
-            int maxEventsPerModel,
-            long maxBytes,
-            boolean composableOnly) {
-        this.rootId = rootId;
-        this.maxStateIndex = maxStateIndex;
-        this.boundaryCommitId = boundaryCommitId;
-        this.boundarySubstep = boundarySubstep;
-        this.boundaryEventIndex = null;
-        this.maxDepth = maxDepth;
-        this.maxModels = maxModels;
-        this.maxEventsPerModel = maxEventsPerModel;
-        this.maxBytes = maxBytes;
-        this.composableOnly = composableOnly;
-    }
-
     @ConstructorProperties({
-            "rootId", "maxStateIndex", "boundaryCommitId",
-            "boundarySubstep", "boundaryEventIndex", "maxDepth", "maxModels",
+            "rootId", "boundary", "maxDepth", "maxModels",
             "maxEventsPerModel", "maxBytes", "composableOnly"})
     public GetModelGraph(
             String rootId,
-            Long maxStateIndex,
-            String boundaryCommitId,
-            Integer boundarySubstep,
-            Long boundaryEventIndex,
+            ModelReadBoundary boundary,
             int maxDepth,
             int maxModels,
             int maxEventsPerModel,
             long maxBytes,
             boolean composableOnly) {
         this.rootId = rootId;
-        this.maxStateIndex = maxStateIndex;
-        this.boundaryCommitId = boundaryCommitId;
-        this.boundarySubstep = boundarySubstep;
-        this.boundaryEventIndex = boundaryEventIndex;
+        this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
         this.maxDepth = maxDepth;
         this.maxModels = maxModels;
         this.maxEventsPerModel = maxEventsPerModel;
@@ -146,17 +87,13 @@ public class GetModelGraph extends Request {
     @Override
     public Metric toMetric() {
         return new Metric(
-                maxStateIndex, boundaryCommitId,
-                boundarySubstep, boundaryEventIndex, maxDepth, maxModels,
+                boundary, maxDepth, maxModels,
                 maxEventsPerModel, maxBytes, composableOnly);
     }
 
     @Value
     public static class Metric {
-        Long maxStateIndex;
-        String boundaryCommitId;
-        Integer boundarySubstep;
-        Long boundaryEventIndex;
+        ModelReadBoundary boundary;
         int maxDepth;
         int maxModels;
         int maxEventsPerModel;

@@ -20,6 +20,7 @@ import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import org.junit.jupiter.api.Test;
@@ -85,7 +86,8 @@ class ModelReplayReadBatcherTest {
         for (int index = 0; index < 1_024; index++) {
             streams.add(new ModelEventStreamRequest("model-" + index, -1L, 16));
         }
-        GetModelEvents request = new GetModelEvents(streams, null, 1_024L);
+        GetModelEvents request = new GetModelEvents(
+                streams, ModelReadBoundary.current(), 1_024L);
 
         assertEquals(1_024, subject.get(request).getStreams().size());
         verify(client).getModelEvents(request);
@@ -114,7 +116,7 @@ class ModelReplayReadBatcherTest {
     private static GetModelEvents request(String modelId) {
         return new GetModelEvents(
                 List.of(new ModelEventStreamRequest(modelId, -1L, 16)),
-                null, 1_024L);
+                ModelReadBoundary.current(), 1_024L);
     }
 
     private static GetModelEventsResult response(GetModelEvents request) {

@@ -21,6 +21,7 @@ import lombok.Value;
 
 import java.beans.ConstructorProperties;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Resolves the bounded ancestor graph of one or more independent models and optionally includes the first bounded page
@@ -36,25 +37,8 @@ public class GetModelAncestors extends Request {
      */
     List<String> modelIds;
 
-    /**
-     * Inclusive historical state boundary, or {@code null} to pin the current boundary.
-     */
-    Long maxStateIndex;
-
-    /**
-     * Durable model commit whose persisted result contains the exact boundary, or {@code null}.
-     */
-    String boundaryCommitId;
-
-    /**
-     * Ordered substep within {@link #boundaryCommitId}, or {@code null}.
-     */
-    Integer boundarySubstep;
-
-    /**
-     * Global event-log index of the published model event whose state boundary is requested.
-     */
-    Long boundaryEventIndex;
+    /** Current, state, commit or event selector shared by every Model read. */
+    ModelReadBoundary boundary;
 
     /**
      * Maximum number of parent-edge levels above the roots.
@@ -76,57 +60,18 @@ public class GetModelAncestors extends Request {
      */
     long maxBytes;
 
-    public GetModelAncestors(
-            List<String> modelIds,
-            Long maxStateIndex,
-            int maxDepth,
-            int maxModels,
-            int maxEventsPerModel,
-            long maxBytes) {
-        this(
-                modelIds, maxStateIndex, null, null, null,
-                maxDepth, maxModels, maxEventsPerModel, maxBytes);
-    }
-
-    public GetModelAncestors(
-            List<String> modelIds,
-            Long maxStateIndex,
-            String boundaryCommitId,
-            Integer boundarySubstep,
-            int maxDepth,
-            int maxModels,
-            int maxEventsPerModel,
-            long maxBytes) {
-        this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
-        this.maxStateIndex = maxStateIndex;
-        this.boundaryCommitId = boundaryCommitId;
-        this.boundarySubstep = boundarySubstep;
-        this.boundaryEventIndex = null;
-        this.maxDepth = maxDepth;
-        this.maxModels = maxModels;
-        this.maxEventsPerModel = maxEventsPerModel;
-        this.maxBytes = maxBytes;
-    }
-
     @ConstructorProperties({
-            "modelIds", "maxStateIndex", "boundaryCommitId",
-            "boundarySubstep", "boundaryEventIndex", "maxDepth", "maxModels",
+            "modelIds", "boundary", "maxDepth", "maxModels",
             "maxEventsPerModel", "maxBytes"})
     public GetModelAncestors(
             List<String> modelIds,
-            Long maxStateIndex,
-            String boundaryCommitId,
-            Integer boundarySubstep,
-            Long boundaryEventIndex,
+            ModelReadBoundary boundary,
             int maxDepth,
             int maxModels,
             int maxEventsPerModel,
             long maxBytes) {
         this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
-        this.maxStateIndex = maxStateIndex;
-        this.boundaryCommitId = boundaryCommitId;
-        this.boundarySubstep = boundarySubstep;
-        this.boundaryEventIndex = boundaryEventIndex;
+        this.boundary = Objects.requireNonNull(boundary, "boundary").forRequest();
         this.maxDepth = maxDepth;
         this.maxModels = maxModels;
         this.maxEventsPerModel = maxEventsPerModel;
@@ -137,18 +82,14 @@ public class GetModelAncestors extends Request {
     public Metric toMetric() {
         return new Metric(
                 modelIds == null ? 0 : modelIds.size(),
-                maxStateIndex, boundaryCommitId,
-                boundarySubstep, boundaryEventIndex, maxDepth, maxModels,
+                boundary, maxDepth, maxModels,
                 maxEventsPerModel, maxBytes);
     }
 
     @Value
     public static class Metric {
         int rootCount;
-        Long maxStateIndex;
-        String boundaryCommitId;
-        Integer boundarySubstep;
-        Long boundaryEventIndex;
+        ModelReadBoundary boundary;
         int maxDepth;
         int maxModels;
         int maxEventsPerModel;
