@@ -59,7 +59,6 @@ public final class MutationPlan {
     private static final int WRITE = 2;
 
     private final ModelReducer reducer;
-    private final ModelReducer genericReducer;
     private final TargetPlan targets;
     private final ModelCommitPolicy commitPolicy;
     private final boolean commit;
@@ -72,8 +71,6 @@ public final class MutationPlan {
             boolean commit,
             boolean automatic) {
         this.reducer = Objects.requireNonNull(reducer, "reducer");
-        this.genericReducer = reducer.direct()
-                ? new ModelReducer(reducer.handlers(), null) : reducer;
         this.targets = Objects.requireNonNull(targets, "targets");
         this.commitPolicy = Objects.requireNonNull(commitPolicy, "commitPolicy");
         this.commit = commit;
@@ -86,10 +83,6 @@ public final class MutationPlan {
 
     ModelReducer reducer() {
         return reducer;
-    }
-
-    ModelReducer genericReducer() {
-        return genericReducer;
     }
 
     ModelCommitPolicy commitPolicy() {

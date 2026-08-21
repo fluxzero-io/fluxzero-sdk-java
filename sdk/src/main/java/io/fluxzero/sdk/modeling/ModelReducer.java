@@ -68,10 +68,6 @@ public final class ModelReducer {
         return directApply != null;
     }
 
-    MutationPlan.HandlerPlan handlers() {
-        return handlers;
-    }
-
     List<EntityMetadata.HandlerMethod> methods() {
         return handlers.methods();
     }
@@ -119,6 +115,22 @@ public final class ModelReducer {
             boolean assertions) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
+        if (directApply != null && applyHandlers) {
+            MutationPlan.CompiledHandler compiledHandler = handlers.applies().getFirst();
+            EntityMetadata.HandlerMethod handler = compiledHandler.method();
+            Object receiver = directApply.receiver()
+                    ? invocationTarget(handler, message, beginState) : null;
+            if (receiver == MissingTarget.INSTANCE) {
+                return List.of();
+            }
+            Object result = message.apply(ignored -> directApply.invoker().invoke(
+                    receiver, (Object) message.getPayload()));
+            return finishApply(
+                    message, beginState,
+                    List.of(applyResult(
+                            compiledHandler, result, 0, beginState)),
+                    assertions);
+        }
         beginState.attachTo(message);
         try {
             return message.apply(ignored -> applyInContext(
@@ -150,22 +162,12 @@ public final class ModelReducer {
                 continue;
             }
             Object result;
-            if (directApply != null && handlers.applies().size() == 1) {
-                Object receiver = directApply.receiver()
-                        ? invocationTarget(handler, message, beginState) : null;
-                if (receiver == MissingTarget.INSTANCE) {
-                    continue;
-                }
-                result = directApply.invoker().invoke(
-                        receiver, (Object) message.getPayload());
-            } else {
-                HandlerInvoker invoker = invoker(
-                        compiledHandler, message, beginState);
-                if (invoker == null) {
-                    continue;
-                }
-                result = invoker.invoke();
+            HandlerInvoker invoker = invoker(
+                    compiledHandler, message, beginState);
+            if (invoker == null) {
+                continue;
             }
+            result = invoker.invoke();
             List<?> results = MutationPlan.applyResults(handler, result);
             for (int resultIndex = 0; resultIndex < results.size(); resultIndex++) {
                 transitions = addApplyResult(
@@ -176,63 +178,27 @@ public final class ModelReducer {
         if (transitions == null) {
             return List.of();
         }
-        Map<String, Object> values = new LinkedHashMap<>(transitions.size());
-        transitions.forEach((id, transition) -> values.put(id, transition.after()));
-        List<Change> result = List.copyOf(transitions.values());
-        if (assertions) {
+        return finishApply(
+                message, beginState,
+                List.copyOf(transitions.values()), assertions);
+    }
+
+    private List<Change> finishApply(
+            DeserializingMessage message,
+            CommitAttempt beginState,
+            List<Change> transitions,
+            boolean assertions) {
+        if (assertions && !handlers.afterAssertions().isEmpty()) {
+            Map<String, Object> values = new LinkedHashMap<>(transitions.size());
+            transitions.forEach(transition -> values.put(
+                    transition.modelId(), transition.after()));
             CommitAttempt resultingState = beginState.withValues(values);
             for (int i = 0; i < handlers.afterAssertions().size(); i++) {
                 invokeIfApplicable(
                         handlers.afterAssertions().get(i), message, resultingState);
             }
         }
-        return result;
-    }
-
-    CommitAttempt evaluateDirectSingleTarget(
-            CommitAttempt attempt,
-            DeserializingMessage message,
-            long readStateIndex,
-            String modelId,
-            Class<?> modelType,
-            Entity<?> entity) {
-        Objects.requireNonNull(message, "message");
-        Objects.requireNonNull(modelId, "modelId");
-        Objects.requireNonNull(modelType, "modelType");
-        Objects.requireNonNull(entity, "entity");
-        if (handlers.applies().size() != 1 || directApply == null) {
-            throw new IllegalArgumentException(
-                    "Direct single-target evaluation requires one compiled apply");
-        }
-        MutationPlan.CompiledHandler compiledHandler = handlers.applies().getFirst();
-        EntityMetadata.HandlerMethod handler = compiledHandler.method();
-        Object before = entity.get();
-        if (directApply.receiver() && before == null) {
-            return null;
-        }
-        Object after = message.apply(ignored -> directApply.invoker().invoke(
-                directApply.receiver() ? before : null,
-                (Object) message.getPayload()));
-        if (after != null) {
-            String resultId = resultModelId(handler, modelType, after);
-            if (!modelId.equals(resultId)) {
-                throw new IllegalStateException(
-                        "Apply %s returned model '%s', which is not replay target '%s'"
-                                .formatted(
-                                        handler.executable().toGenericString(),
-                                        EntityMetadata.of(after.getClass()).entityId()
-                                                .orElseThrow().read(after),
-                                        modelId));
-            }
-        }
-        Change transition = transition(
-                compiledHandler, modelId, modelType, modelType,
-                entity, after);
-        attempt.evaluated(
-                readStateIndex, List.of(modelId),
-                Map.of(modelId, modelType),
-                List.of(new CommitAttempt.Step(message, List.of(transition))));
-        return attempt;
+        return transitions;
     }
 
     Object replay(
@@ -363,6 +329,30 @@ public final class ModelReducer {
             Object value,
             int resultIndex,
             CommitAttempt beginState) {
+        Change transition = applyResult(
+                compiledHandler, value, resultIndex, beginState);
+        Map<String, Change> result = transitions;
+        if (result == null) {
+            result = new LinkedHashMap<>();
+        }
+        Change previous = result.putIfAbsent(
+                transition.modelId(), transition);
+        if (previous != null) {
+            throw new IllegalStateException(
+                    "Model '%s' is written by both %s and %s in one substep"
+                            .formatted(
+                                    transition.modelId(),
+                                    previous.handler().toGenericString(),
+                                    compiledHandler.method().executable().toGenericString()));
+        }
+        return result;
+    }
+
+    private static Change applyResult(
+            MutationPlan.CompiledHandler compiledHandler,
+            Object value,
+            int resultIndex,
+            CommitAttempt beginState) {
         EntityMetadata.HandlerMethod handler = compiledHandler.method();
         Class<?> targetType = MutationPlan.applyTargetType(handler, value, resultIndex);
         String targetId = resolveWriteTarget(handler, targetType, value, beginState);
@@ -377,24 +367,9 @@ public final class ModelReducer {
         }
         Class<?> resolvedTargetType = target == null
                 ? value.getClass() : beginState.target(targetId).modelType();
-        Change transition = transition(
+        return transition(
                 compiledHandler, targetId, resolvedTargetType,
                 null, target, value);
-        Map<String, Change> result = transitions;
-        if (result == null) {
-            result = new LinkedHashMap<>();
-        }
-        Change previous = result.putIfAbsent(
-                targetId, transition);
-        if (previous != null) {
-            throw new IllegalStateException(
-                    "Model '%s' is written by both %s and %s in one substep"
-                            .formatted(
-                                    targetId,
-                                    previous.handler().toGenericString(),
-                                    handler.executable().toGenericString()));
-        }
-        return result;
     }
 
     private static Change transition(
@@ -519,25 +494,49 @@ public final class ModelReducer {
             DeserializingMessage initialMessage,
             Mode mode) {
         Objects.requireNonNull(resolver, "resolver");
-        DirectPreparation preparation = prepareDirect(
-                attempt, pending, resolver, initialMessage, mode);
-        if (preparation.completed()) {
-            return attempt;
-        }
-        ResolvedSubstep prepared = preparation.resolved();
-        Map<String, Object> stagedValues = new LinkedHashMap<>();
-        LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
-        Map<String, Class<?>> readModelTypes =
-                new LinkedHashMap<>();
-        List<CommitAttempt.Step> steps = new ArrayList<>();
-        long readStateIndex = -1L;
-        boolean stateIndexPinned = false;
         CommitAttempt originalContext = initialMessage == null ? null
                 : initialMessage.getContext(CommitAttempt.class).orElse(null);
         CommitAttempt commitBeginContext = null;
-        int processed = 0;
+        ResolvedSubstep prepared = null;
 
         try {
+            if (pending.size() == 1 && initialMessage != null
+                && mode == Mode.APPLY) {
+                PendingSubstep current = pending.getFirst();
+                if (current.interceptionAllowed()
+                    && !(current.message() instanceof GraphChangeMessage)) {
+                    prepared = Objects.requireNonNull(
+                            resolver.resolve(current.message(), null, Map.of()),
+                            "Substep resolver returned null");
+                    if (prepared.reducer().direct()
+                        && prepared.context().targets().size() == 1) {
+                        MutationPlan.ResolvedModel target =
+                                prepared.context().targets().getFirst();
+                        if (target.access().writes()
+                            && prepared.context().entity(target.modelId()) != null) {
+                            commitBeginContext = prepared.context();
+                            List<Change> transitions = prepared.reducer().apply(
+                                    current.message(), prepared.context(), true, true);
+                            attempt.evaluated(
+                                    prepared.context().readStateIndex(),
+                                    List.of(target.modelId()),
+                                    Map.of(target.modelId(), target.modelType()),
+                                    List.of(new CommitAttempt.Step(
+                                            current.message(), transitions)));
+                            return attempt;
+                        }
+                    }
+                }
+            }
+
+            Map<String, Object> stagedValues = new LinkedHashMap<>();
+            LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
+            Map<String, Class<?>> readModelTypes =
+                    new LinkedHashMap<>();
+            List<CommitAttempt.Step> steps = new ArrayList<>();
+            long readStateIndex = -1L;
+            boolean stateIndexPinned = false;
+            int processed = 0;
             while (!pending.isEmpty()) {
                 if (++processed > MAX_SUBSTEPS) {
                     throw new IllegalStateException(
@@ -634,42 +633,6 @@ public final class ModelReducer {
                 restore.attachTo(initialMessage);
             }
         }
-    }
-
-    private static DirectPreparation prepareDirect(
-            CommitAttempt attempt,
-            Deque<PendingSubstep> pending,
-            SubstepResolver resolver,
-            DeserializingMessage initialMessage,
-            Mode mode) {
-        if (pending.size() != 1 || initialMessage == null
-            || mode != Mode.APPLY) {
-            return DirectPreparation.NONE;
-        }
-        PendingSubstep step = pending.getFirst();
-        if (!step.interceptionAllowed()
-            || step.message() instanceof GraphChangeMessage) {
-            return DirectPreparation.NONE;
-        }
-        ResolvedSubstep resolved = Objects.requireNonNull(
-                resolver.resolve(step.message(), null, Map.of()),
-                "Substep resolver returned null");
-        if (!resolved.reducer().direct()
-            || resolved.context().targets().size() != 1) {
-            return new DirectPreparation(resolved, false);
-        }
-        MutationPlan.ResolvedModel target =
-                resolved.context().targets().getFirst();
-        Entity<?> entity = resolved.context().entity(target.modelId());
-        if (!target.access().writes() || entity == null) {
-            return new DirectPreparation(resolved, false);
-        }
-        CommitAttempt direct = resolved.reducer().evaluateDirectSingleTarget(
-                attempt, step.message(), resolved.context().readStateIndex(),
-                target.modelId(), target.modelType(), entity);
-        return direct == null
-                ? new DirectPreparation(resolved, false)
-                : new DirectPreparation(null, true);
     }
 
     private static Change evaluateGraphChange(
@@ -879,12 +842,6 @@ public final class ModelReducer {
 
     private record PendingSubstep(
             DeserializingMessage message, boolean interceptionAllowed) {
-    }
-
-    private record DirectPreparation(
-            ResolvedSubstep resolved, boolean completed) {
-        private static final DirectPreparation NONE =
-                new DirectPreparation(null, false);
     }
 
     private enum Mode {

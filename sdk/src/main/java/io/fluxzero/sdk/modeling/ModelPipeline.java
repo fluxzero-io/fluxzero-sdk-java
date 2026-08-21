@@ -1032,8 +1032,7 @@ final class ModelPipeline {
                                 prefetched.access,
                                 prefetched.sourceProperties,
                         prefetched.entity),
-                        prefetched.access.writes()
-                                ? prefetched.reducer : definition.genericReducer());
+                        definition.reducer());
             }
             ExplicitModelTarget explicitTarget = substep.getContext(
                     ExplicitModelTarget.class).orElse(null);
@@ -1076,7 +1075,7 @@ final class ModelPipeline {
             return new ModelReducer.ResolvedSubstep(
                     CommitAttempt.create(
                             stateIndex, effectiveResolution, selected),
-                    definition.genericReducer());
+                    definition.reducer());
         }
 
         @Override
@@ -1257,8 +1256,7 @@ final class ModelPipeline {
         }
         return new PrefetchSlot(
                 targets.resolveSingleModelId(message.getPayload()),
-                targets.singleModelType(), targets.singleAccess(), targets.singleSourceProperties(),
-                definition.reducer());
+                targets.singleModelType(), targets.singleAccess(), targets.singleSourceProperties());
     }
 
     private static final class PrefetchSlot
@@ -1267,7 +1265,6 @@ final class ModelPipeline {
         private final Class<?> modelType;
         private final MutationPlan.Access access;
         private final List<String> sourceProperties;
-        private final ModelReducer reducer;
         private Entity<?> entity;
         private long stateIndex;
 
@@ -1275,13 +1272,11 @@ final class ModelPipeline {
                 String modelId,
                 Class<?> modelType,
                 MutationPlan.Access access,
-                List<String> sourceProperties,
-                ModelReducer reducer) {
+                List<String> sourceProperties) {
             this.modelId = modelId;
             this.modelType = modelType;
             this.access = access;
             this.sourceProperties = sourceProperties;
-            this.reducer = reducer;
         }
 
         @Override
