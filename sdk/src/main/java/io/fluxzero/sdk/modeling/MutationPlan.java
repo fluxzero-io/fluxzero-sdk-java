@@ -141,10 +141,9 @@ public final class MutationPlan {
         private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
                 EntityMetadata.HandlerMethod handler) {
             return inspect(
-                    handler.executable().getDeclaringClass(), parameterResolvers,
+                    handler.executable().getDeclaringClass(), List.of(handler.executable()), parameterResolvers,
                     HandlerConfiguration.<DeserializingMessage>builder()
                             .methodAnnotation(annotationType(handler.kind()))
-                            .handlerFilter((type, executable) -> executable.equals(handler.executable()))
                             .build());
         }
 
@@ -379,19 +378,38 @@ public final class MutationPlan {
                 .map(AssertLegal::afterHandler).orElse(false);
     }
 
-    static BoundParameters bind(
+    static Resolution bind(
             DeserializingMessage message,
             EntityMetadata.ExecutableParameters plan) {
+        Map<String, ResolvedModel> targets = new LinkedHashMap<>();
+        Set<AncestorDependency> ancestors = new LinkedHashSet<>();
         LinkedHashMap<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
-        plan.values().forEach(parameter -> references.put(parameter, directReferences(message, parameter)));
-        return new BoundParameters(
-                resolveDependencies(message, plan.executable(), plan.values(), references::get),
-                Collections.unmodifiableMap(references));
-    }
-
-    record BoundParameters(
-            Optional<Resolution> resolution,
-            Map<EntityMetadata.ModelParameter, DirectReferences> references) {
+        for (EntityMetadata.ModelParameter parameter : plan.values()) {
+            DirectReferences direct = directReferences(message, parameter);
+            references.put(parameter, direct);
+            if (parameter.collectionWrapped()) {
+                if (direct.present()) {
+                    direct.modelIds().forEach(id -> merge(targets, new ResolvedModel(
+                            id, parameter.modelType(), Access.READ_ONLY,
+                            List.of(parameter.associationProperty()))));
+                }
+            } else if (!direct.present()) {
+                ancestors.add(new AncestorDependency(
+                        parameter.modelType(), parameter.associationProperty(),
+                        plan.executable().toGenericString()));
+            } else if (direct.modelId() != null) {
+                String source = parameter.associationProperty() == null
+                        ? EntityMetadata.of(parameter.modelType()).entityIdName()
+                        : parameter.associationProperty();
+                merge(targets, new ResolvedModel(
+                        direct.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
+            }
+        }
+        if (!ancestors.isEmpty()) {
+            resolveReferencedModels(message.getPayload()).forEach(target -> merge(targets, target));
+        }
+        return new Resolution(
+                List.copyOf(targets.values()), List.of(), List.copyOf(ancestors), references);
     }
 
     /** Application-bound definitions invalidated together when model registration changes. */
@@ -666,7 +684,7 @@ public final class MutationPlan {
     }
 
     static DirectReferences directReferences(
-            DeserializingMessage message,
+            HasMessage message,
             EntityMetadata.ModelParameter parameter) {
         String association = parameter.associationProperty();
         if (metadataContains(message, parameter)) {
@@ -708,49 +726,11 @@ public final class MutationPlan {
     }
 
     private static boolean metadataContains(
-            DeserializingMessage message,
+            HasMessage message,
             EntityMetadata.ModelParameter parameter) {
         return parameter.associationProperty() != null && !parameter.associationExcludeMetadata()
                && message.getMetadata() != null
                && message.getMetadata().containsKey(parameter.associationProperty());
-    }
-
-    static Optional<Resolution> resolveDependencies(
-            DeserializingMessage message,
-            Executable executable,
-            Collection<EntityMetadata.ModelParameter> parameters,
-            Function<EntityMetadata.ModelParameter, DirectReferences> references) {
-        Map<String, ResolvedModel> targets = new LinkedHashMap<>();
-        Set<AncestorDependency> ancestors = new LinkedHashSet<>();
-        boolean emptyCollection = false;
-        for (EntityMetadata.ModelParameter parameter : parameters) {
-            DirectReferences direct = references.apply(parameter);
-            if (parameter.collectionWrapped()) {
-                if (direct.present()) {
-                    emptyCollection |= direct.modelIds().isEmpty();
-                    direct.modelIds().forEach(id -> merge(targets, new ResolvedModel(
-                            id, parameter.modelType(), Access.READ_ONLY,
-                            List.of(parameter.associationProperty()))));
-                }
-            } else {
-                if (!direct.present()) {
-                    ancestors.add(new AncestorDependency(
-                            parameter.modelType(), parameter.associationProperty(), executable.toGenericString()));
-                } else if (direct.modelId() != null) {
-                    String source = parameter.associationProperty() == null
-                            ? EntityMetadata.of(parameter.modelType()).entityIdName()
-                            : parameter.associationProperty();
-                    merge(targets, new ResolvedModel(
-                            direct.modelId(), parameter.modelType(), Access.READ_ONLY, List.of(source)));
-                }
-            }
-        }
-        if (!ancestors.isEmpty()) {
-            resolveReferencedModels(message.getPayload()).forEach(target -> merge(targets, target));
-        }
-        return targets.isEmpty() && !emptyCollection ? Optional.empty()
-                : Optional.of(new Resolution(
-                        List.copyOf(targets.values()), List.of(), List.copyOf(ancestors)));
     }
 
     static List<ResolvedModel> resolveReferencedModels(Object input) {
@@ -805,26 +785,12 @@ public final class MutationPlan {
                    && deferred.isEmpty() && ancestors.isEmpty();
         }
 
-        String resolveSingleModelId(Object input) {
-            Object value = checkedPayload(input);
+        ResolvedModel resolveSingle(Object input) {
+            Object payload = checkedPayload(input);
             Slot slot = slots.getFirst();
-            Object id = slot.property.read(value);
-            if (id == null) {
-                throw nullId(slot);
-            }
-            return repositoryId(id, slot, value);
-        }
-
-        Class<?> singleModelType() {
-            return slots.getFirst().modelType;
-        }
-
-        Access singleAccess() {
-            return slots.getFirst().access;
-        }
-
-        List<String> singleSourceProperties() {
-            return List.of(slots.getFirst().property.name());
+            return new ResolvedModel(
+                    resolveIds(input, payload, slot).getFirst(), slot.modelType, slot.access,
+                    List.of(slot.property.name()));
         }
 
         public Resolution resolve(Object input) {
@@ -849,17 +815,11 @@ public final class MutationPlan {
                 if (appliesOnly && !slot.apply || compatible(slot.modelType, explicitType)) {
                     continue;
                 }
-                Object raw = slot.property.read(payload);
-                if (raw == null && !slot.collection) {
-                    throw nullId(slot);
-                }
-                List<String> ids = slot.collection
-                        ? ids(raw, slot.modelType, slot.property.name(), slot.handler, payload)
-                        : List.of(repositoryId(raw, slot, payload));
+                List<String> ids = resolveIds(input, payload, slot);
                 if (slot.parameter != null) {
-                    references.put(slot.parameter, slot.collection
-                            ? DirectReferences.collection(ids)
-                            : DirectReferences.scalar(ids.getFirst()));
+                    DirectReferences resolved = slot.collection
+                            ? DirectReferences.collection(ids) : DirectReferences.scalar(ids.getFirst());
+                    references.put(slot.parameter, resolved);
                 }
                 if (!deferred.isEmpty()) {
                     slotIds.put(slot, ids);
@@ -897,6 +857,24 @@ public final class MutationPlan {
                             .map(PlannedAncestor::dependency)
                             .filter(dependency -> !compatible(dependency.modelType(), explicitType)).toList(),
                     references);
+        }
+
+        private List<String> resolveIds(Object input, Object payload, Slot slot) {
+            DirectReferences direct = slot.parameter == null || !(input instanceof HasMessage message)
+                    ? DirectReferences.missing() : directReferences(message, slot.parameter);
+            if (direct.present()) {
+                if (!slot.collection && direct.modelId() == null) {
+                    throw nullId(slot);
+                }
+                return slot.collection ? direct.modelIds() : List.of(direct.modelId());
+            }
+            Object raw = slot.property.read(payload);
+            if (raw == null && !slot.collection) {
+                throw nullId(slot);
+            }
+            return slot.collection
+                    ? ids(raw, slot.modelType, slot.property.name(), slot.handler, payload)
+                    : List.of(repositoryId(raw, slot, payload));
         }
 
         private Object checkedPayload(Object input) {
@@ -992,11 +970,16 @@ public final class MutationPlan {
             models = List.copyOf(models);
             deferredWrites = List.copyOf(deferredWrites);
             ancestorDependencies = List.copyOf(ancestorDependencies);
-            references = Map.copyOf(references);
+            references = Collections.unmodifiableMap(new LinkedHashMap<>(references));
         }
 
         public boolean hasAncestorDependencies() {
             return !ancestorDependencies.isEmpty();
+        }
+
+        boolean canLoadContext() {
+            return !models.isEmpty() || references.entrySet().stream()
+                    .anyMatch(entry -> entry.getKey().collectionWrapped() && entry.getValue().present());
         }
 
         public Resolution withResolvedModels(List<ResolvedModel> resolvedModels) {

@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
@@ -117,6 +118,24 @@ class MutationPlanTest {
         assertEquals(List.of(new MutationPlan.ResolvedModel(
                              "order-selected", Order.class, READ_ONLY, List.of("selectedOrder"))),
                      resolution.models());
+    }
+
+    @Test
+    void targetAndParameterResolutionShareAssociationMetadataPrecedence() {
+        MutationPlan.Resolution resolution = MutationPlan.compile(
+                        CheckOrder.class, EntityMetadata.of(CheckOrder.class).handlerMethods())
+                .resolve(new Message(
+                        new CheckOrder(new OrderId("ignored"), new OrderId("payload")),
+                        Metadata.of("selectedOrder", "order-metadata")));
+
+        assertEquals("order-metadata", resolution.models().getFirst().modelId());
+        assertEquals("order-metadata",
+                     resolution.references().values().iterator().next().modelId());
+        assertEquals("order-metadata", MutationPlan.compile(
+                        CheckOrder.class, EntityMetadata.of(CheckOrder.class).handlerMethods())
+                .resolveSingle(new Message(
+                        new CheckOrder(new OrderId("ignored"), new OrderId("payload")),
+                        Metadata.of("selectedOrder", "order-metadata"))).modelId());
     }
 
     @Test

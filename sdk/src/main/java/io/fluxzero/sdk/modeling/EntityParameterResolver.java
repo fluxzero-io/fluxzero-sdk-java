@@ -282,7 +282,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         }
         DeserializingMessage message = currentMessage(input);
         return message == null ? MutationPlan.DirectReferences.missing()
-                : modelBinding(message, plan).parameters.references().getOrDefault(
+                : modelBinding(message, plan).resolution.references().getOrDefault(
                         parameter, MutationPlan.DirectReferences.missing());
     }
 
@@ -308,7 +308,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
             return Optional.empty();
         }
         ModelBinding binding = modelBinding(message, plan);
-        return binding.parameters.resolution().isEmpty() ? Optional.empty() : Optional.of(binding);
+        return binding.resolution.canLoadContext() ? Optional.of(binding) : Optional.empty();
     }
 
     private static ModelBinding modelBinding(
@@ -343,11 +343,11 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     }
 
     private static final class ModelBinding {
-        private final MutationPlan.BoundParameters parameters;
+        private final MutationPlan.Resolution resolution;
         private volatile CommitAttempt context;
 
-        private ModelBinding(MutationPlan.BoundParameters parameters) {
-            this.parameters = parameters;
+        private ModelBinding(MutationPlan.Resolution resolution) {
+            this.resolution = resolution;
         }
 
         private CommitAttempt context(DeserializingMessage message) {
@@ -357,7 +357,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                     result = context;
                     if (result == null) {
                         context = result = currentModelRepository(message)
-                                .loadContext(parameters.resolution().orElseThrow());
+                                .loadContext(resolution);
                     }
                 }
             }

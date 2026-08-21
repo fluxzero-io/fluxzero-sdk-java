@@ -707,7 +707,7 @@ final class ModelPipeline {
                 ? null : prefetch(initialMessage);
         if (cached != null) {
             if (repository.supplyCurrentModel(
-                    cached.modelId, cached.modelType, cached)) {
+                    cached.target.modelId(), cached.target.modelType(), cached)) {
                 return evaluate(attempt, initialMessage, cached);
             }
         }
@@ -959,14 +959,12 @@ final class ModelPipeline {
                 && prefetched.entity != null
                 && requestedStateIndex == null
                 && stagedValues.isEmpty()) {
-                commitEntities.put(prefetched.modelId, prefetched.entity);
+                MutationPlan.ResolvedModel target = prefetched.target;
+                commitEntities.put(target.modelId(), prefetched.entity);
                 return new ModelReducer.ResolvedSubstep(
                         CommitAttempt.createSingle(
                                 prefetched.stateIndex,
-                                prefetched.modelId,
-                                prefetched.modelType,
-                                prefetched.access,
-                                prefetched.sourceProperties,
+                                target.modelId(), target.modelType(), target.access(), target.sourceProperties(),
                         prefetched.entity),
                         definition.reducer());
             }
@@ -974,7 +972,7 @@ final class ModelPipeline {
                     ExplicitModelTarget.class).orElse(null);
             MutationPlan.Resolution resolution =
                     definition.targets().resolve(
-                            substep.getPayload(),
+                            substep,
                             explicitTarget == null ? null : explicitTarget.modelId(),
                             explicitTarget == null ? null : explicitTarget.modelType(),
                             applyOnly);
@@ -1027,7 +1025,7 @@ final class ModelPipeline {
                 }
                 MutationPlan.Resolution resolution = definitionFor(
                                 message.getPayloadClass())
-                        .targets().resolve(message.getPayload(), null, applyOnly);
+                        .targets().resolve(message, null, applyOnly);
                 if (resolution.hasAncestorDependencies()) {
                     continue;
                 }
@@ -1190,29 +1188,17 @@ final class ModelPipeline {
         if (!targets.isDirectSingleTarget()) {
             return null;
         }
-        return new PrefetchSlot(
-                targets.resolveSingleModelId(message.getPayload()),
-                targets.singleModelType(), targets.singleAccess(), targets.singleSourceProperties());
+        return new PrefetchSlot(targets.resolveSingle(message));
     }
 
     private static final class PrefetchSlot
             implements DefaultModelRepository.CurrentModelSink {
-        private final String modelId;
-        private final Class<?> modelType;
-        private final MutationPlan.Access access;
-        private final List<String> sourceProperties;
+        private final MutationPlan.ResolvedModel target;
         private Entity<?> entity;
         private long stateIndex;
 
-        private PrefetchSlot(
-                String modelId,
-                Class<?> modelType,
-                MutationPlan.Access access,
-                List<String> sourceProperties) {
-            this.modelId = modelId;
-            this.modelType = modelType;
-            this.access = access;
-            this.sourceProperties = sourceProperties;
+        private PrefetchSlot(MutationPlan.ResolvedModel target) {
+            this.target = target;
         }
 
         @Override
