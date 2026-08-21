@@ -19,47 +19,38 @@ package io.fluxzero.common.api.modeling;
 import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
 import java.util.List;
 
 /**
- * Temporal graph edges and model streams observed at one pinned model-state boundary.
- * <p>
- * Streams remain grouped by model. This result deliberately does not flatten independent streams into an aggregate
- * stream or duplicate shared event payloads.
+ * Temporal graph edges and one model-event page observed at the same pinned state boundary.
  */
 @Value
 public class GetModelGraphResult extends AbstractRequestResult {
     long requestId;
-    long stateIndex;
     List<ModelGraphEdge> edges;
-    List<ModelEventPayload> payloads;
-    List<ModelEventStream> streams;
+    GetModelEventsResult events;
     long timestamp = System.currentTimeMillis();
+
+    @ConstructorProperties({"requestId", "edges", "events"})
+    public GetModelGraphResult(
+            long requestId,
+            List<ModelGraphEdge> edges,
+            GetModelEventsResult events) {
+        this.requestId = requestId;
+        this.edges = edges;
+        this.events = events;
+    }
 
     @Override
     public Metric toMetric() {
-        int membershipCount = streams.stream()
-                .mapToInt(stream -> stream.getMemberships().size())
-                .sum();
-        long bytes = 0L;
-        for (ModelEventPayload payload : payloads) {
-            long eventBytes = payload.getEvent().getBytes();
-            bytes = eventBytes > Long.MAX_VALUE - bytes
-                    ? Long.MAX_VALUE : bytes + eventBytes;
-        }
-        return new Metric(
-                streams.size(), edges.size(), payloads.size(),
-                membershipCount, bytes, stateIndex, timestamp);
+        return new Metric(edges.size(), events.toMetric(), timestamp);
     }
 
     @Value
     public static class Metric {
-        int modelCount;
         int edgeCount;
-        int payloadCount;
-        int membershipCount;
-        long bytes;
-        long stateIndex;
+        GetModelEventsResult.Metric events;
         long timestamp;
     }
 }

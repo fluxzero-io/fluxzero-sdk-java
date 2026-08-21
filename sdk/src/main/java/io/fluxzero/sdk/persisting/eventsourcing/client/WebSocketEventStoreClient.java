@@ -38,11 +38,7 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
-import io.fluxzero.common.api.modeling.ModelEventPayload;
-import io.fluxzero.common.api.modeling.ModelEventPayloadBlock;
-import io.fluxzero.common.api.modeling.ModelEventDataBlock;
-import io.fluxzero.common.api.modeling.ModelEventMembership;
-import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelEventPageDecoder;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
@@ -57,10 +53,7 @@ import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.modeling.ModelWebSocketCodec;
-import io.fluxzero.common.api.modeling.ModelStreamBatchDecoder;
 import io.fluxzero.common.jfr.FluxzeroJfr;
-import io.fluxzero.common.serialization.SerializedMessagePackCodec;
-import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.sdk.common.websocket.AbstractWebsocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -68,8 +61,6 @@ import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -448,307 +439,7 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
 
     @Override
     public GetModelEventsResult getModelEvents(GetModelEvents request) {
-        return expandCompactResult(request, sendAndWait(request));
-    }
-
-    private static GetModelEventsResult expandCompactResult(
-            GetModelEvents request, GetModelEventsResult result) {
-        byte[] compactPayloads = result.getCompactPayloads();
-        List<ModelEventPayloadBlock> compactBlocks =
-                result.getCompactPayloadBlocks();
-        List<ModelEventDataBlock> compactMembershipBlocks =
-                result.getCompactMembershipBlocks();
-        boolean hasPayloads =
-                compactPayloads != null && compactPayloads.length > 0;
-        boolean hasBlocks =
-                compactBlocks != null && !compactBlocks.isEmpty();
-        boolean hasMembershipBlocks =
-                compactMembershipBlocks != null
-                && !compactMembershipBlocks.isEmpty();
-        if (!hasPayloads && !hasBlocks && !hasMembershipBlocks) {
-            return result;
-        }
-        long[] stateIndices = result.getCompactPayloadStateIndices();
-        if (stateIndices == null) {
-            throw new IllegalStateException(
-                    "Compact model-event payloads have no state-index mapping");
-        }
-        List<ModelEventPayload> expanded =
-                new ArrayList<>(
-                        result.getPayloads().size() + stateIndices.length);
-        LongSet selectedStates =
-                new LongSet(
-                        result.getPayloads().size() + stateIndices.length);
-        for (ModelEventPayload payload : result.getPayloads()) {
-            if (!selectedStates.add(payload.getStateIndex())) {
-                throw new IllegalStateException(
-                        "Duplicate model-event payload at state index "
-                        + payload.getStateIndex());
-            }
-            expanded.add(payload);
-        }
-        if (hasPayloads) {
-            List<SerializedMessage> messages =
-                    SerializedMessagePackCodec.decode(compactPayloads);
-            if (messages.size() != stateIndices.length) {
-                throw new IllegalStateException(
-                        "Compact model-event response contains %d messages for %d state indices"
-                                .formatted(messages.size(), stateIndices.length));
-            }
-            for (int i = 0; i < stateIndices.length; i++) {
-                if (!selectedStates.add(stateIndices[i])) {
-                    throw new IllegalStateException(
-                            "Duplicate model-event payload at state index " + stateIndices[i]);
-                }
-                expanded.add(
-                        new ModelEventPayload(
-                                stateIndices[i], messages.get(i)));
-            }
-        }
-        if (hasBlocks) {
-            long[] eventIndices = result.getCompactPayloadEventIndices();
-            if (eventIndices == null || eventIndices.length != stateIndices.length) {
-                throw new IllegalStateException(
-                        "Compact model-event blocks contain %d state indices and %d event indices"
-                                .formatted(
-                                        stateIndices.length,
-                                        eventIndices == null ? 0 : eventIndices.length));
-            }
-            for (int i = 1; i < eventIndices.length; i++) {
-                if (eventIndices[i] <= eventIndices[i - 1]) {
-                    throw new IllegalStateException(
-                            "Compact model-event indices are not strictly increasing");
-                }
-            }
-            int selected = 0;
-            List<DecodedPayloadBlock> decodedBlocks =
-                    compactBlocks.size() < 8
-                            ? compactBlocks.stream()
-                                    .map(WebSocketEventStoreClient::decodePayloadBlock)
-                                    .toList()
-                            : compactBlocks.parallelStream()
-                                    .map(WebSocketEventStoreClient::decodePayloadBlock)
-                                    .toList();
-            for (DecodedPayloadBlock decoded : decodedBlocks) {
-                ModelEventPayloadBlock block = decoded.block();
-                List<SerializedMessage> messages = decoded.messages();
-                if (messages.size() != block.getMessageCount()) {
-                    throw new IllegalStateException(
-                            "Compact model-event block at %d contains %d messages instead of %d"
-                                    .formatted(
-                                            block.getFirstIndex(),
-                                            messages.size(),
-                                            block.getMessageCount()));
-                }
-                for (int ordinal = 0; ordinal < messages.size(); ordinal++) {
-                    SerializedMessage message = messages.get(ordinal);
-                    long eventIndex = message.getIndex() == null
-                            ? block.getFirstIndex() + ordinal
-                            : message.getIndex();
-                    while (selected < eventIndices.length
-                           && eventIndices[selected] < eventIndex) {
-                        throw new IllegalStateException(
-                                "Compact model-event blocks do not contain selected event "
-                                + eventIndices[selected]);
-                    }
-                    if (selected < eventIndices.length
-                        && eventIndices[selected] == eventIndex) {
-                        long stateIndex = stateIndices[selected];
-                        message.setIndex(eventIndex);
-                        if (!selectedStates.add(stateIndex)) {
-                            throw new IllegalStateException(
-                                    "Duplicate model-event payload at state index " + stateIndex);
-                        }
-                        expanded.add(
-                                new ModelEventPayload(
-                                        stateIndex, message));
-                        selected++;
-                    }
-                }
-            }
-            if (selected != eventIndices.length) {
-                throw new IllegalStateException(
-                        "Compact model-event blocks contain %d of %d selected events"
-                                .formatted(selected, eventIndices.length));
-            }
-        }
-        List<ModelEventStream> streams =
-                expandCompactMemberships(
-                        request, result, compactMembershipBlocks,
-                        selectedStates);
-        boolean ordered = true;
-        for (int i = 1; i < expanded.size(); i++) {
-            if (expanded.get(i - 1).getStateIndex()
-                > expanded.get(i).getStateIndex()) {
-                ordered = false;
-                break;
-            }
-        }
-        if (!ordered) {
-            expanded.sort(
-                    Comparator.comparingLong(
-                            ModelEventPayload::getStateIndex));
-        }
-        GetModelEventsResult expandedResult =
-                new GetModelEventsResult(
-                result.getRequestId(),
-                result.getStateIndex(),
-                List.copyOf(expanded),
-                streams);
-        expandedResult.setRequestReceivedTimestamp(
-                result.getRequestReceivedTimestamp());
-        expandedResult.setResponseQueuedTimestamp(
-                result.getResponseQueuedTimestamp());
-        expandedResult.setResponseSendStartTimestamp(
-                result.getResponseSendStartTimestamp());
-        return expandedResult;
-    }
-
-    private static List<ModelEventStream> expandCompactMemberships(
-            GetModelEvents request,
-            GetModelEventsResult result,
-            List<ModelEventDataBlock> compactBlocks,
-            LongSet selectedStateIndices) {
-        if (compactBlocks == null || compactBlocks.isEmpty()) {
-            return result.getStreams();
-        }
-        Map<String, ModelEventStreamRequest> requestsByModel =
-                new HashMap<>();
-        request.getRequests().forEach(
-                stream -> requestsByModel.put(stream.getModelId(), stream));
-        Map<String, List<ModelEventMembership>> memberships =
-                new HashMap<>();
-        for (ModelEventStream stream : result.getStreams()) {
-            memberships.put(
-                    stream.getModelId(),
-                    new ArrayList<>(stream.getMemberships()));
-        }
-        List<List<ModelStreamBatchDecoder.Entry>> decodedBlocks =
-                compactBlocks.size() < 8
-                        ? compactBlocks.stream()
-                                .map(ModelStreamBatchDecoder::decode)
-                                .toList()
-                        : compactBlocks.parallelStream()
-                                .map(ModelStreamBatchDecoder::decode)
-                                .toList();
-        for (List<ModelStreamBatchDecoder.Entry> block : decodedBlocks) {
-            for (ModelStreamBatchDecoder.Entry entry : block) {
-                ModelEventStreamRequest stream =
-                        requestsByModel.get(entry.modelId());
-                if (stream == null
-                    || stream.getMaxSize() <= 0
-                    || entry.sequenceNumber()
-                       <= stream.getLastSequenceNumber()
-                    || entry.stateIndex() > result.getStateIndex()
-                    || !selectedStateIndices.contains(
-                            entry.stateIndex())) {
-                    continue;
-                }
-                memberships.get(entry.modelId()).add(
-                        new ModelEventMembership(
-                                entry.sequenceNumber(),
-                                entry.stateIndex(),
-                                entry.readStateIndex(),
-                                entry.commitId(),
-                                entry.substep()));
-            }
-        }
-        List<ModelEventStream> expanded =
-                new ArrayList<>(result.getStreams().size());
-        for (int ordinal = 0; ordinal < result.getStreams().size(); ordinal++) {
-            ModelEventStream existing = result.getStreams().get(ordinal);
-            ModelEventStreamRequest requested =
-                    request.getRequests().get(ordinal);
-            List<ModelEventMembership> selected =
-                    memberships.get(existing.getModelId());
-            selected.sort(
-                    Comparator.comparingLong(
-                                    ModelEventMembership::getSequenceNumber)
-                            .thenComparingLong(
-                                    ModelEventMembership::getStateIndex));
-            if (selected.size() > requested.getMaxSize()) {
-                selected = new ArrayList<>(
-                        selected.subList(0, requested.getMaxSize()));
-            }
-            expanded.add(
-                    new ModelEventStream(
-                            existing.getModelId(),
-                            existing.getHead(),
-                            List.copyOf(selected)));
-        }
-        return List.copyOf(expanded);
-    }
-
-    private static DecodedPayloadBlock decodePayloadBlock(
-            ModelEventPayloadBlock block) {
-        byte[] data = block.isCompressed()
-                ? CompressionAlgorithm.ZSTD.decompress(block.getData())
-                : block.getData();
-        return new DecodedPayloadBlock(
-                block, SerializedMessagePackCodec.decode(data));
-    }
-
-    private record DecodedPayloadBlock(
-            ModelEventPayloadBlock block,
-            List<SerializedMessage> messages) {
-    }
-
-    private static final class LongSet {
-        private static final long EMPTY = Long.MIN_VALUE;
-
-        private final long[] values;
-        private final int mask;
-
-        private LongSet(int expectedSize) {
-            int capacity = 1;
-            int required = Math.max(2, (int) Math.ceil(expectedSize / 0.6d));
-            while (capacity < required) {
-                capacity = Math.multiplyExact(capacity, 2);
-            }
-            values = new long[capacity];
-            java.util.Arrays.fill(values, EMPTY);
-            mask = capacity - 1;
-        }
-
-        private boolean add(long value) {
-            if (value == EMPTY) {
-                throw new IllegalArgumentException(
-                        "Long.MIN_VALUE is not a valid model state index");
-            }
-            int slot = mix(value) & mask;
-            while (true) {
-                long present = values[slot];
-                if (present == EMPTY) {
-                    values[slot] = value;
-                    return true;
-                }
-                if (present == value) {
-                    return false;
-                }
-                slot = slot + 1 & mask;
-            }
-        }
-
-        private boolean contains(long value) {
-            int slot = mix(value) & mask;
-            while (true) {
-                long present = values[slot];
-                if (present == EMPTY) {
-                    return false;
-                }
-                if (present == value) {
-                    return true;
-                }
-                slot = slot + 1 & mask;
-            }
-        }
-
-        private static int mix(long value) {
-            value ^= value >>> 33;
-            value *= 0xff51afd7ed558ccdl;
-            value ^= value >>> 33;
-            return (int) (value ^ value >>> 32);
-        }
+        return ModelEventPageDecoder.expand(request, sendAndWait(request));
     }
 
     @Override
@@ -759,18 +450,50 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
 
     @Override
     public GetModelGraphResult getModelGraph(GetModelGraph request) {
-        return sendAndWait(request);
+        return expandGraphResult(request, sendAndWait(request));
     }
 
     @Override
     public GetModelGraphResult getModelGraphBefore(
             GetModelGraphBefore request) {
-        return sendAndWait(request);
+        return expandGraphResult(request.getRequest(), sendAndWait(request));
     }
 
     @Override
     public GetModelGraphResult getModelAncestors(GetModelAncestors request) {
-        return sendAndWait(request);
+        GetModelGraphResult result = sendAndWait(request);
+        return expandGraphResult(
+                request.getMaxEventsPerModel(), request.getMaxBytes(), result);
+    }
+
+    private static GetModelGraphResult expandGraphResult(
+            GetModelGraph request, GetModelGraphResult result) {
+        return expandGraphResult(
+                request.getMaxEventsPerModel(), request.getMaxBytes(), result);
+    }
+
+    private static GetModelGraphResult expandGraphResult(
+            int maxEventsPerModel, long maxBytes, GetModelGraphResult result) {
+        GetModelEventsResult events = result.getEvents();
+        GetModelEvents pageRequest = new GetModelEvents(
+                events.getStreams().stream()
+                        .map(stream -> new ModelEventStreamRequest(
+                                stream.getModelId(), -1L, maxEventsPerModel))
+                        .toList(),
+                events.getStateIndex(), maxBytes);
+        GetModelEventsResult expanded = ModelEventPageDecoder.expand(pageRequest, events);
+        if (expanded == events) {
+            return result;
+        }
+        GetModelGraphResult expandedResult = new GetModelGraphResult(
+                result.getRequestId(), result.getEdges(), expanded);
+        expandedResult.setRequestReceivedTimestamp(
+                result.getRequestReceivedTimestamp());
+        expandedResult.setResponseQueuedTimestamp(
+                result.getResponseQueuedTimestamp());
+        expandedResult.setResponseSendStartTimestamp(
+                result.getResponseSendStartTimestamp());
+        return expandedResult;
     }
 
     @Override

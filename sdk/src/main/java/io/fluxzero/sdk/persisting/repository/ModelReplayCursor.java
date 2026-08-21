@@ -206,7 +206,7 @@ final class ModelReplayCursor {
                     new GetModelEvents(
                             List.of(), boundary.requestStateIndex(),
                             boundary.commitId(), boundary.substep(), boundary.eventIndex(),
-                            settings.maxPayloadBytes(), true));
+                            settings.maxPayloadBytes()));
             validateBoundary(response, boundary.stateIndex());
             pageConsumer.accept(response);
             return new LoadResult(response.getStateIndex(), Map.of());
@@ -270,7 +270,7 @@ final class ModelReplayCursor {
             GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
                     chunk.stream().map(id -> new ModelEventStreamRequest(id, -1L, 0)).toList(),
                     pinned.requestStateIndex(), pinned.commitId(), pinned.substep(), pinned.eventIndex(),
-                    settings.maxPayloadBytes(), true));
+                    settings.maxPayloadBytes()));
             long stateIndex = validateBoundary(response, pinned.stateIndex());
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
             chunk.forEach(id -> cursors.put(id, -1L));
@@ -288,7 +288,7 @@ final class ModelReplayCursor {
         GetModelEventsResult response = requestBatcher.get(new GetModelEvents(
                 List.of(new ModelEventStreamRequest(modelId, -1L, 1)),
                 boundary.requestStateIndex(), boundary.commitId(), boundary.substep(), boundary.eventIndex(),
-                settings.maxPayloadBytes(), true));
+                settings.maxPayloadBytes()));
         long stateIndex = validateBoundary(response, boundary.stateIndex());
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
         cursors.put(modelId, -1L);
@@ -340,7 +340,7 @@ final class ModelReplayCursor {
                     new GetModelEvents(
                             requests, pinned.requestStateIndex(),
                             pinned.commitId(), pinned.substep(), pinned.eventIndex(),
-                            settings.maxPayloadBytes(), true);
+                            settings.maxPayloadBytes());
             GetModelEventsResult response = requestBatcher.get(request);
             long responseStateIndex = validateBoundary(
                     response, pinned.stateIndex());
@@ -879,10 +879,11 @@ final class ModelReplayCursor {
         GetModelGraphResult response = boundary.before()
                 ? eventStoreClient.getModelGraphBefore(new GetModelGraphBefore(request))
                 : eventStoreClient.getModelGraph(request);
-        long stateIndex = response.getStateIndex();
-        List<MutationPlan.ResolvedModel> targets = new ArrayList<>(response.getStreams().size());
+        GetModelEventsResult graphEvents = response.getEvents();
+        long stateIndex = graphEvents.getStateIndex();
+        List<MutationPlan.ResolvedModel> targets = new ArrayList<>(graphEvents.getStreams().size());
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
-        for (ModelEventStream stream : response.getStreams()) {
+        for (ModelEventStream stream : graphEvents.getStreams()) {
             Class<?> modelType = graphModelType(stream, rootId, rootType);
             targets.add(new MutationPlan.ResolvedModel(
                     stream.getModelId(), modelType, MutationPlan.Access.READ_ONLY,
@@ -1108,7 +1109,8 @@ final class ModelReplayCursor {
                         Graphs.AncestorPlacement::id, Function.identity(),
                         (left, right) -> left, LinkedHashMap::new));
         Map<String, ModelHeadState> heads = new LinkedHashMap<>();
-        graph.getStreams().forEach(stream -> heads.put(stream.getModelId(), stream.getHead()));
+        graph.getEvents().getStreams().forEach(
+                stream -> heads.put(stream.getModelId(), stream.getHead()));
         Map<String, Class<?>> knownTypes = new LinkedHashMap<>();
         resolution.models().forEach(target -> knownTypes.put(target.modelId(), target.modelType()));
         knownTypes.putAll(stagedTypes);
@@ -1177,7 +1179,7 @@ final class ModelReplayCursor {
             }
         }
         return new AncestorResult(
-                graph.getStateIndex(),
+                graph.getEvents().getStateIndex(),
                 resolution.withResolvedModels(List.copyOf(selected.values())));
     }
 
@@ -1187,7 +1189,8 @@ final class ModelReplayCursor {
             Map<String, Object> stagedValues,
             String namespace) {
         LinkedHashSet<String> candidateIds = new LinkedHashSet<>(requestRoots);
-        graph.getStreams().forEach(stream -> candidateIds.add(stream.getModelId()));
+        graph.getEvents().getStreams().forEach(
+                stream -> candidateIds.add(stream.getModelId()));
         graph.getEdges().forEach(edge -> {
             candidateIds.add(edge.getChildId());
             candidateIds.add(edge.getParentId());
@@ -2357,10 +2360,6 @@ final class ModelReplayCursor {
             }
 
             private boolean add(PendingRead read) {
-                if (!reads.isEmpty() && reads.getFirst().request().isCompactPayloads()
-                    != read.request().isCompactPayloads()) {
-                    return false;
-                }
                 int additional = 0;
                 for (ModelEventStreamRequest request : read.request().getRequests()) {
                     ModelEventStreamRequest existing = streams.get(request.getModelId());
@@ -2383,8 +2382,7 @@ final class ModelReplayCursor {
             private void execute(EventStoreClient client) {
                 try {
                     GetModelEventsResult response = client.getModelEvents(new GetModelEvents(
-                            List.copyOf(streams.values()), null, maxBytes,
-                            reads.getFirst().request().isCompactPayloads()));
+                            List.copyOf(streams.values()), null, maxBytes));
                     if (reads.size() == 1) {
                         reads.getFirst().result().complete(response);
                         return;

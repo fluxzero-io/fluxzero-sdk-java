@@ -38,13 +38,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelEventWireCodecTest {
 
     @Test
-    void roundTripsCompactRequestWithItsTransportIdentity() throws Exception {
+    void roundTripsRequestWithItsTransportIdentity() throws Exception {
         GetModelEvents request =
                 new GetModelEvents(
                         List.of(
                                 new ModelEventStreamRequest("order-1", -1L, 100),
                                 new ModelEventStreamRequest("inventory-1", 4L, 20)),
-                        null, "commit-1", 2, 123L, 8_192L, true);
+                        null, "commit-1", 2, 123L, 8_192L);
 
         byte[] encoded =
                 ModelEventWireCodec.tryEncode(
@@ -65,8 +65,6 @@ class ModelEventWireCodecTest {
         assertEquals(2, decoded.getBoundarySubstep());
         assertEquals(123L, decoded.getBoundaryEventIndex());
         assertEquals(8_192L, decoded.getMaxBytes());
-        assertEquals(true, decoded.isCompactPayloads());
-
         GetModelEvents direct =
                 assertInstanceOf(
                         GetModelEvents.class,
@@ -100,7 +98,6 @@ class ModelEventWireCodecTest {
                                                         "commit-😀", 2))),
                                 new ModelEventStream(
                                         "missing", null, List.of())),
-                        new byte[]{9, 8, 7, 6},
                         new long[]{81L, 82L},
                         List.of(
                                 new ModelEventPayloadBlock(
@@ -146,34 +143,31 @@ class ModelEventWireCodecTest {
         assertEquals(regular.getMetadata(), decodedRegular.getMetadata());
         assertEquals(regular.getIndex(), decodedRegular.getIndex());
         assertArrayEquals(
-                result.getCompactPayloads(),
-                decoded.getCompactPayloads());
-        assertArrayEquals(
-                result.getCompactPayloadStateIndices(),
-                decoded.getCompactPayloadStateIndices());
+                result.getPayloadStateIndices(),
+                decoded.getPayloadStateIndices());
         assertEquals(
-                result.getCompactPayloadBlocks(),
-                decoded.getCompactPayloadBlocks());
+                result.getPayloadBlocks(),
+                decoded.getPayloadBlocks());
         assertArrayEquals(
-                result.getCompactPayloadEventIndices(),
-                decoded.getCompactPayloadEventIndices());
+                result.getPayloadEventIndices(),
+                decoded.getPayloadEventIndices());
         assertEquals(
-                result.getCompactMembershipBlocks().size(),
-                decoded.getCompactMembershipBlocks().size());
+                result.getMembershipBlocks().size(),
+                decoded.getMembershipBlocks().size());
         assertSame(
                 encoded,
-                decoded.getCompactMembershipBlocks()
+                decoded.getMembershipBlocks()
                         .getFirst()
                         .data());
         for (int i = 0;
-             i < result.getCompactMembershipBlocks().size();
+             i < result.getMembershipBlocks().size();
              i++) {
             assertArrayEquals(
                     bytes(
-                            result.getCompactMembershipBlocks()
+                            result.getMembershipBlocks()
                                     .get(i)),
                     bytes(
-                            decoded.getCompactMembershipBlocks()
+                            decoded.getMembershipBlocks()
                                     .get(i)));
         }
         assertEquals(10L, decoded.getRequestReceivedTimestamp());
@@ -186,15 +180,12 @@ class ModelEventWireCodecTest {
                         ModelEventWireCodec.tryDecode(
                                 ModelEventWireCodec.tryEncode(result)));
         assertEquals(result.getStreams(), direct.getStreams());
-        assertArrayEquals(
-                result.getCompactPayloads(),
-                direct.getCompactPayloads());
         assertEquals(
-                result.getCompactPayloadBlocks(),
-                direct.getCompactPayloadBlocks());
+                result.getPayloadBlocks(),
+                direct.getPayloadBlocks());
         assertArrayEquals(
-                result.getCompactPayloadEventIndices(),
-                direct.getCompactPayloadEventIndices());
+                result.getPayloadEventIndices(),
+                direct.getPayloadEventIndices());
     }
 
     @Test
@@ -252,7 +243,6 @@ class ModelEventWireCodecTest {
                                                 7L, 2L,
                                                 true, false),
                                         List.of())),
-                        new byte[0],
                         new long[0],
                         List.of(),
                         new long[0],
@@ -287,7 +277,6 @@ class ModelEventWireCodecTest {
                                         "second", secondType,
                                         0L, 2L, true, false),
                                 List.of())),
-                new byte[0],
                 new long[0],
                 List.of(),
                 new long[0],

@@ -25,12 +25,23 @@ import io.fluxzero.common.api.eventsourcing.GetEvents;
 import io.fluxzero.common.api.eventsourcing.GetEventsResult;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.ModelEventDataBlock;
+import io.fluxzero.common.api.modeling.ModelEventPageDecoder;
+import io.fluxzero.common.api.modeling.ModelEventPayload;
+import io.fluxzero.common.api.modeling.ModelEventStream;
+import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import org.junit.jupiter.api.Test;
+import org.msgpack.core.MessageBufferPacker;
+import org.msgpack.core.MessagePack;
 
+import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,6 +58,33 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
 class WebSocketEventStoreClientTest {
+
+    @Test
+    void expandsPackedMembershipsForEveryAliasOfTheCanonicalModel() throws Exception {
+        GetModelEvents request = new GetModelEvents(
+                List.of(
+                        new ModelEventStreamRequest("first-code", -1L, 1),
+                        new ModelEventStreamRequest("second-code", -1L, 1)),
+                null, 1_024L);
+        SerializedMessage event = new SerializedMessage(
+                new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), "event-1", 1L);
+        GetModelEventsResult packed = new GetModelEventsResult(
+                request.getRequestId(), 11L,
+                List.of(new ModelEventPayload(11L, event)),
+                List.of(
+                        stream("first-code", "model-1"),
+                        stream("second-code", "model-1")),
+                new long[0], List.of(), new long[0],
+                List.of(new ModelEventDataBlock(membershipBlock("model-1"))));
+
+        GetModelEventsResult expanded =
+                ModelEventPageDecoder.expand(request, packed);
+
+        assertEquals(List.of(1, 1), expanded.getStreams().stream()
+                .map(stream -> stream.getMemberships().size()).toList());
+        assertEquals(List.of("first-code", "second-code"), expanded.getStreams().stream()
+                .map(ModelEventStream::getModelId).toList());
+    }
 
     @Test
     void preservesModelResultJfrClassificationInConcreteClient() {
@@ -191,6 +229,35 @@ class WebSocketEventStoreClientTest {
         return new CommitModels(
                 id, -1L, List.of(), List.of(),
                 ModelConflictPolicy.ACCEPT, STORED);
+    }
+
+    private static ModelEventStream stream(String requestedId, String modelId) {
+        return new ModelEventStream(
+                requestedId,
+                new ModelHeadState(modelId, "TestModel", 1L, 11L, true, false),
+                List.of());
+    }
+
+    private static byte[] membershipBlock(String modelId) throws IOException {
+        try (MessageBufferPacker packer = MessagePack.newDefaultBufferPacker()) {
+            packer.packInt(6);
+            packer.packArrayHeader(1);
+            packer.packLong(0L);
+            packer.packLong(0L);
+            packer.packLong(0L);
+            packer.packBoolean(true);
+            packer.packString("TestModel");
+            packer.packString(modelId);
+            packer.packLong(11L);
+            packer.packLong(7L);
+            packer.packLong(10L);
+            packer.packString("commit-1");
+            packer.packLong(1L);
+            packer.packBoolean(true);
+            packer.packLong(1L);
+            packer.packNil();
+            return packer.toByteArray();
+        }
     }
 
     private static final class RecordingEventStoreClient

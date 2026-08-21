@@ -43,7 +43,7 @@ public final class ModelEventWireCodec {
     private static final int RESULT_MAGIC = 0x465A4552; // FZER
     private static final int DIRECT_REQUEST_MAGIC = 0x465A4571; // FZEq
     private static final int DIRECT_RESULT_MAGIC = 0x465A4572; // FZEr
-    private static final int VERSION = 5;
+    private static final int VERSION = 6;
     private static final int MAX_BATCH_SIZE = 1_000_000;
     private static final int MAX_COLLECTION_SIZE = 2_000_000;
     private static final int MAX_VALUE_BYTES = 512 * 1024 * 1024;
@@ -55,14 +55,12 @@ public final class ModelEventWireCodec {
      * Encodes a homogeneous compact model-event request or result batch.
      */
     public static byte[] tryEncode(JsonType value) throws IOException {
-        if (value instanceof GetModelEvents request
-            && request.isCompactPayloads()) {
+        if (value instanceof GetModelEvents request) {
             return encodeRequests(
                     new RequestBatch<>(List.of(request)),
                     DIRECT_REQUEST_MAGIC);
         }
-        if (value instanceof GetModelEventsResult result
-            && supportsResult(result)) {
+        if (value instanceof GetModelEventsResult result) {
             return encodeResults(
                     new ResultBatch(List.of(result)),
                     DIRECT_RESULT_MAGIC);
@@ -122,8 +120,7 @@ public final class ModelEventWireCodec {
             return false;
         }
         for (JsonType value : batch.getRequests()) {
-            if (!(value instanceof GetModelEvents request)
-                || !request.isCompactPayloads()) {
+            if (!(value instanceof GetModelEvents)) {
                 return false;
             }
         }
@@ -135,18 +132,11 @@ public final class ModelEventWireCodec {
             return false;
         }
         for (RequestResult value : batch.getResults()) {
-            if (!(value instanceof GetModelEventsResult result)
-                || !supportsResult(result)) {
+            if (!(value instanceof GetModelEventsResult)) {
                 return false;
             }
         }
         return true;
-    }
-
-    private static boolean supportsResult(GetModelEventsResult result) {
-        return result.getCompactPayloadStateIndices() != null
-               && (result.getCompactPayloads() != null
-                   || result.getCompactPayloadBlocks() != null);
     }
 
     private static byte[] encodeRequests(
@@ -169,7 +159,6 @@ public final class ModelEventWireCodec {
             output.writeNullableInt(request.getBoundarySubstep());
             output.writeNullableLong(request.getBoundaryEventIndex());
             output.writeLong(request.getMaxBytes());
-            output.writeBoolean(request.isCompactPayloads());
         }
         return output.toByteArray();
     }
@@ -197,8 +186,7 @@ public final class ModelEventWireCodec {
                             input.readString(),
                             input.readNullableInt(),
                             input.readNullableLong(),
-                            input.readLong(),
-                            input.readBoolean()));
+                            input.readLong()));
         }
         return new RequestBatch<>(requests);
     }
@@ -260,30 +248,25 @@ public final class ModelEventWireCodec {
                     output.writeInt(membership.getSubstep());
                 }
             }
-            output.writeBytes(result.getCompactPayloads());
-            output.writeLongs(result.getCompactPayloadStateIndices());
-            List<ModelEventPayloadBlock> blocks = result.getCompactPayloadBlocks();
-            output.writeInt(blocks == null ? -1 : blocks.size());
-            if (blocks != null) {
-                for (ModelEventPayloadBlock block : blocks) {
-                    output.writeLong(block.getFirstIndex());
-                    output.writeInt(block.getMessageCount());
-                    output.writeBoolean(block.isCompressed());
-                    output.writeBytes(block.getData());
-                }
+            output.writeLongs(result.getPayloadStateIndices());
+            List<ModelEventPayloadBlock> blocks = result.getPayloadBlocks();
+            output.writeInt(blocks.size());
+            for (ModelEventPayloadBlock block : blocks) {
+                output.writeLong(block.getFirstIndex());
+                output.writeInt(block.getMessageCount());
+                output.writeBoolean(block.isCompressed());
+                output.writeBytes(block.getData());
             }
-            output.writeLongs(result.getCompactPayloadEventIndices());
+            output.writeLongs(result.getPayloadEventIndices());
             List<ModelEventDataBlock> membershipBlocks =
-                    result.getCompactMembershipBlocks();
-            output.writeInt(membershipBlocks == null ? -1 : membershipBlocks.size());
-            if (membershipBlocks != null) {
-                membershipBlocks.forEach(
-                        block ->
-                                output.writeBytes(
-                                        block.data(),
-                                        block.offset(),
-                                        block.length()));
-            }
+                    result.getMembershipBlocks();
+            output.writeInt(membershipBlocks.size());
+            membershipBlocks.forEach(
+                    block ->
+                            output.writeBytes(
+                                    block.data(),
+                                    block.offset(),
+                                    block.length()));
             output.writeLong(result.getRequestReceivedTimestamp());
             output.writeLong(result.getResponseQueuedTimestamp());
             output.writeLong(result.getResponseSendStartTimestamp());
@@ -346,7 +329,6 @@ public final class ModelEventWireCodec {
                             stateIndex,
                             payloads,
                             streams,
-                            input.readBytes(),
                             input.readLongs(MAX_COLLECTION_SIZE),
                             readPayloadBlocks(input),
                             input.readLongs(MAX_COLLECTION_SIZE),
@@ -361,9 +343,6 @@ public final class ModelEventWireCodec {
 
     private static List<ModelEventPayloadBlock> readPayloadBlocks(Reader input) throws IOException {
         int size = input.readInt();
-        if (size == -1) {
-            return null;
-        }
         if (size < 0 || size > MAX_COLLECTION_SIZE) {
             throw new IOException("Invalid compact model-event payload block count " + size);
         }
@@ -381,9 +360,6 @@ public final class ModelEventWireCodec {
 
     private static List<ModelEventDataBlock> readByteBlocks(Reader input) throws IOException {
         int size = input.readInt();
-        if (size == -1) {
-            return null;
-        }
         if (size < 0 || size > MAX_COLLECTION_SIZE) {
             throw new IOException("Invalid compact model-event membership block count " + size);
         }
@@ -442,25 +418,20 @@ public final class ModelEventWireCodec {
                             + Integer.BYTES;
                 }
             }
-            size += encodedBytesSize(result.getCompactPayloads());
-            size += encodedLongsSize(result.getCompactPayloadStateIndices());
+            size += encodedLongsSize(result.getPayloadStateIndices());
             List<ModelEventPayloadBlock> payloadBlocks =
-                    result.getCompactPayloadBlocks();
+                    result.getPayloadBlocks();
             size += Integer.BYTES;
-            if (payloadBlocks != null) {
-                for (ModelEventPayloadBlock block : payloadBlocks) {
-                    size += Long.BYTES + Integer.BYTES + 1L
-                            + encodedBytesSize(block.getData());
-                }
+            for (ModelEventPayloadBlock block : payloadBlocks) {
+                size += Long.BYTES + Integer.BYTES + 1L
+                        + encodedBytesSize(block.getData());
             }
-            size += encodedLongsSize(result.getCompactPayloadEventIndices());
+            size += encodedLongsSize(result.getPayloadEventIndices());
             List<ModelEventDataBlock> membershipBlocks =
-                    result.getCompactMembershipBlocks();
+                    result.getMembershipBlocks();
             size += Integer.BYTES;
-            if (membershipBlocks != null) {
-                for (ModelEventDataBlock block : membershipBlocks) {
-                    size += Integer.BYTES + block.length();
-                }
+            for (ModelEventDataBlock block : membershipBlocks) {
+                size += Integer.BYTES + block.length();
             }
             size += Long.BYTES * 3L;
         }

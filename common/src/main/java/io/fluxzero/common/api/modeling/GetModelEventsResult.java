@@ -21,6 +21,7 @@ import lombok.Value;
 
 import java.beans.ConstructorProperties;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Model heads and stream memberships observed at one pinned {@link #stateIndex}.
@@ -36,29 +37,22 @@ public class GetModelEventsResult extends AbstractRequestResult {
     List<ModelEventPayload> payloads;
     List<ModelEventStream> streams;
     /**
-     * Consecutive persisted MessagePack event payloads. Each decoded message corresponds by ordinal to
-     * {@link #compactPayloadStateIndices}.
+     * Model state index for every selected message in {@link #payloadBlocks}.
      */
-    byte[] compactPayloads;
+    long[] payloadStateIndices;
     /**
-     * Model state index for each message in {@link #compactPayloads}.
+     * Persisted global-event blocks transported without Runtime-side message decoding or re-encoding.
      */
-    long[] compactPayloadStateIndices;
+    List<ModelEventPayloadBlock> payloadBlocks;
     /**
-     * Persisted global-event blocks used instead of {@link #compactPayloads} when transporting the original storage
-     * representation is cheaper.
+     * Selected global event indices in {@link #payloadBlocks}, aligned with {@link #payloadStateIndices}.
      */
-    List<ModelEventPayloadBlock> compactPayloadBlocks;
-    /**
-     * Selected global event indices in {@link #compactPayloadBlocks}, aligned with
-     * {@link #compactPayloadStateIndices}.
-     */
-    long[] compactPayloadEventIndices;
+    long[] payloadEventIndices;
     /**
      * Persisted independent-model stream batches. The SDK expands only entries selected by this response's payloads
      * and the original stream requests.
      */
-    List<ModelEventDataBlock> compactMembershipBlocks;
+    List<ModelEventDataBlock> membershipBlocks;
     long timestamp = System.currentTimeMillis();
 
     public GetModelEventsResult(
@@ -66,44 +60,42 @@ public class GetModelEventsResult extends AbstractRequestResult {
             long stateIndex,
             List<ModelEventPayload> payloads,
             List<ModelEventStream> streams) {
-        this(requestId, stateIndex, payloads, streams, null, null, null, null, null);
-    }
-
-    public GetModelEventsResult(
-            long requestId,
-            long stateIndex,
-            List<ModelEventPayload> payloads,
-            List<ModelEventStream> streams,
-            byte[] compactPayloads,
-            long[] compactPayloadStateIndices) {
-        this(requestId, stateIndex, payloads, streams, compactPayloads,
-             compactPayloadStateIndices, null, null, null);
+        this(
+                requestId, stateIndex, payloads, streams,
+                new long[0], List.of(), new long[0], List.of());
     }
 
     @ConstructorProperties({
             "requestId", "stateIndex", "payloads", "streams",
-            "compactPayloads", "compactPayloadStateIndices",
-            "compactPayloadBlocks", "compactPayloadEventIndices",
-            "compactMembershipBlocks"})
+            "payloadStateIndices", "payloadBlocks", "payloadEventIndices", "membershipBlocks"})
     public GetModelEventsResult(
             long requestId,
             long stateIndex,
             List<ModelEventPayload> payloads,
             List<ModelEventStream> streams,
-            byte[] compactPayloads,
-            long[] compactPayloadStateIndices,
-            List<ModelEventPayloadBlock> compactPayloadBlocks,
-            long[] compactPayloadEventIndices,
-            List<ModelEventDataBlock> compactMembershipBlocks) {
+            long[] payloadStateIndices,
+            List<ModelEventPayloadBlock> payloadBlocks,
+            long[] payloadEventIndices,
+            List<ModelEventDataBlock> membershipBlocks) {
+        Objects.requireNonNull(payloadStateIndices, "payloadStateIndices");
+        Objects.requireNonNull(payloadEventIndices, "payloadEventIndices");
+        if (payloadStateIndices.length != payloadEventIndices.length) {
+            throw new IllegalArgumentException(
+                    "Payload state and event index mappings must have equal length");
+        }
+        Objects.requireNonNull(payloadBlocks, "payloadBlocks");
+        if (payloadBlocks.isEmpty() != (payloadStateIndices.length == 0)) {
+            throw new IllegalArgumentException(
+                    "Payload blocks and their selected index mappings must be present together");
+        }
         this.requestId = requestId;
         this.stateIndex = stateIndex;
-        this.payloads = payloads;
-        this.streams = streams;
-        this.compactPayloads = compactPayloads;
-        this.compactPayloadStateIndices = compactPayloadStateIndices;
-        this.compactPayloadBlocks = compactPayloadBlocks;
-        this.compactPayloadEventIndices = compactPayloadEventIndices;
-        this.compactMembershipBlocks = compactMembershipBlocks;
+        this.payloads = Objects.requireNonNull(payloads, "payloads");
+        this.streams = Objects.requireNonNull(streams, "streams");
+        this.payloadStateIndices = payloadStateIndices;
+        this.payloadBlocks = payloadBlocks;
+        this.payloadEventIndices = payloadEventIndices;
+        this.membershipBlocks = Objects.requireNonNull(membershipBlocks, "membershipBlocks");
     }
 
     @Override
@@ -117,26 +109,16 @@ public class GetModelEventsResult extends AbstractRequestResult {
             long eventBytes = payload.getEvent().getBytes();
             bytes = eventBytes > Long.MAX_VALUE - bytes ? Long.MAX_VALUE : bytes + eventBytes;
         }
-        int compactPayloadCount =
-                compactPayloadStateIndices == null ? 0 : compactPayloadStateIndices.length;
-        if (compactPayloads != null) {
-            bytes = compactPayloads.length > Long.MAX_VALUE - bytes
-                    ? Long.MAX_VALUE : bytes + compactPayloads.length;
+        for (ModelEventPayloadBlock block : payloadBlocks) {
+            bytes = block.getData().length > Long.MAX_VALUE - bytes
+                    ? Long.MAX_VALUE : bytes + block.getData().length;
         }
-        if (compactPayloadBlocks != null) {
-            for (ModelEventPayloadBlock block : compactPayloadBlocks) {
-                bytes = block.getData().length > Long.MAX_VALUE - bytes
-                        ? Long.MAX_VALUE : bytes + block.getData().length;
-            }
-        }
-        if (compactMembershipBlocks != null) {
-            for (ModelEventDataBlock block : compactMembershipBlocks) {
-                bytes = block.length() > Long.MAX_VALUE - bytes
-                        ? Long.MAX_VALUE : bytes + block.length();
-            }
+        for (ModelEventDataBlock block : membershipBlocks) {
+            bytes = block.length() > Long.MAX_VALUE - bytes
+                    ? Long.MAX_VALUE : bytes + block.length();
         }
         return new Metric(
-                streams.size(), payloads.size() + compactPayloadCount,
+                streams.size(), payloads.size() + payloadStateIndices.length,
                 membershipCount, bytes, stateIndex, timestamp);
     }
 

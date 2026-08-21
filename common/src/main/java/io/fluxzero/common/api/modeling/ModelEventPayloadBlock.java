@@ -18,12 +18,14 @@ package io.fluxzero.common.api.modeling;
 
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
+
 /**
  * One persisted global-event block transported without runtime-side decompression or re-encoding.
  *
- * <p>The contained messages have consecutive global indices starting at {@link #firstIndex}. A model-event response
- * separately identifies which of those messages belong to the requested model streams; a block may therefore contain
- * unselected neighboring messages.</p>
+ * <p>{@link #firstIndex} is the index of the first message and the fallback for messages without an embedded index.
+ * Persisted storage blocks contain consecutive messages and may include unselected neighbors; a packed selection may
+ * contain only selected messages with their global indices embedded in the messages themselves.</p>
  */
 @Value
 public class ModelEventPayloadBlock {
@@ -33,6 +35,7 @@ public class ModelEventPayloadBlock {
     boolean compressed;
     byte[] data;
 
+    @ConstructorProperties({"firstIndex", "messageCount", "compressed", "data"})
     public ModelEventPayloadBlock(
             long firstIndex, int messageCount, boolean compressed, byte[] data) {
         if (firstIndex < 0L) {

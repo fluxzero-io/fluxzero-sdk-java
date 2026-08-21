@@ -52,8 +52,10 @@ import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelChangeTarget;
+import io.fluxzero.common.api.modeling.ModelEventDataBlock;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
+import io.fluxzero.common.api.modeling.ModelEventPayloadBlock;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
@@ -760,18 +762,25 @@ class WebSocketTransportCodecsTest {
                 12, 1_000,
                 128, 8_388_608L, true);
         GetModelGraphResult result = new GetModelGraphResult(
-                request.getRequestId(), 91L,
+                request.getRequestId(),
                 List.of(new ModelGraphEdge(
                         "line-1", "order-1", "example.Order",
                         "lines", 80L, null)),
-                List.of(new ModelEventPayload(80L, serializedMessage())),
-                List.of(new ModelEventStream(
-                        "order-1",
-                        new ModelHeadState(
-                                "order-1", "example.Order",
-                                7L, 80L, true, false),
-                        List.of(new ModelEventMembership(
-                                7L, 80L, 70L, "commit-1", 2)))));
+                new GetModelEventsResult(
+                        request.getRequestId(), 91L,
+                        List.of(new ModelEventPayload(80L, serializedMessage())),
+                        List.of(new ModelEventStream(
+                                "order-1",
+                                new ModelHeadState(
+                                        "order-1", "example.Order",
+                                        7L, 80L, true, false),
+                                List.of(new ModelEventMembership(
+                                        7L, 80L, 70L, "commit-1", 2)))),
+                        new long[]{81L},
+                        List.of(new ModelEventPayloadBlock(
+                                100L, 1, false, new byte[]{1, 2, 3})),
+                        new long[]{100L},
+                        List.of(new ModelEventDataBlock(new byte[]{4, 5, 6}))));
 
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
             GetModelGraph decodedRequest = assertInstanceOf(
@@ -787,14 +796,20 @@ class WebSocketTransportCodecsTest {
 
             GetModelGraphResult decodedResult = assertInstanceOf(
                     GetModelGraphResult.class, roundTrip(codec, result));
-            assertEquals(91L, decodedResult.getStateIndex());
+            assertEquals(91L, decodedResult.getEvents().getStateIndex());
             assertEquals("lines", decodedResult.getEdges().getFirst().getPath());
             assertEquals(
                     "example.Order",
-                    decodedResult.getStreams().getFirst().getHead().getModelType());
+                    decodedResult.getEvents().getStreams().getFirst().getHead().getModelType());
             assertSerializedMessage(
-                    result.getPayloads().getFirst().getEvent(),
-                    decodedResult.getPayloads().getFirst().getEvent());
+                    result.getEvents().getPayloads().getFirst().getEvent(),
+                    decodedResult.getEvents().getPayloads().getFirst().getEvent());
+            assertEquals(
+                    result.getEvents().getPayloadBlocks(),
+                    decodedResult.getEvents().getPayloadBlocks());
+            assertArrayEquals(
+                    result.getEvents().getMembershipBlocks().getFirst().data(),
+                    decodedResult.getEvents().getMembershipBlocks().getFirst().data());
         }
     }
 

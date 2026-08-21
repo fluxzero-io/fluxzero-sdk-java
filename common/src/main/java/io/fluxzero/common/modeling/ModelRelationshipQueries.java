@@ -138,8 +138,7 @@ public final class ModelRelationshipQueries {
                         .map(id -> new ModelEventStreamRequest(id, -1L, maxEventsPerModel))
                         .toList(),
                 boundary, maxBytes));
-        return new GetModelGraphResult(
-                requestId, boundary, graph.edges(), events.getPayloads(), events.getStreams());
+        return new GetModelGraphResult(requestId, graph.edges(), events);
     }
 
     /** Resolves models related at the configured depths and paths. */

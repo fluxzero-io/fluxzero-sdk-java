@@ -85,7 +85,7 @@ class ModelReplayReadBatcherTest {
         for (int index = 0; index < 1_024; index++) {
             streams.add(new ModelEventStreamRequest("model-" + index, -1L, 16));
         }
-        GetModelEvents request = new GetModelEvents(streams, null, 1_024L, true);
+        GetModelEvents request = new GetModelEvents(streams, null, 1_024L);
 
         assertEquals(1_024, subject.get(request).getStreams().size());
         verify(client).getModelEvents(request);
@@ -114,7 +114,7 @@ class ModelReplayReadBatcherTest {
     private static GetModelEvents request(String modelId) {
         return new GetModelEvents(
                 List.of(new ModelEventStreamRequest(modelId, -1L, 16)),
-                null, 1_024L, true);
+                null, 1_024L);
     }
 
     private static GetModelEventsResult response(GetModelEvents request) {
