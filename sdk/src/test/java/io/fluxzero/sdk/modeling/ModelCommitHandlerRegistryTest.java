@@ -795,7 +795,7 @@ class ModelCommitHandlerRegistryTest {
 
             verify(repository, times(0)).loadContext(
                     any(MutationPlan.Resolution.class),
-                    nullable(Long.class), anyMap());
+                    nullable(Long.class), anyMap(), anyBoolean());
             assertEquals(
                     committedEventId.join(),
                     updatedModels.join().getFirst().commit().getSubsteps()
@@ -1574,10 +1574,6 @@ class ModelCommitHandlerRegistryTest {
         };
         when(repository.loadContext(
                 any(MutationPlan.Resolution.class),
-                nullable(Long.class), anyMap()))
-                .thenAnswer(answer);
-        when(repository.loadContext(
-                any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
@@ -1650,10 +1646,6 @@ class ModelCommitHandlerRegistryTest {
                             List.copyOf(targets.values())),
                     loaded);
         };
-        when(repository.loadContext(
-                any(MutationPlan.Resolution.class),
-                nullable(Long.class), anyMap()))
-                .thenAnswer(answer);
         when(repository.loadContext(
                 any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))

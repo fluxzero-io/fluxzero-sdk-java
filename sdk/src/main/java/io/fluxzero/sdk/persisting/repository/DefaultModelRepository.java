@@ -813,32 +813,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     /**
-     * Loads all direct commit targets at one explicit state boundary.
-     * <p>
-     * A {@code null} boundary pins the current event-store state once. Historical document-model dependencies are
-     * reconstructed from stored model events; current document-model targets retain their direct-document load path.
-     */
-    public CommitAttempt loadContext(
-            MutationPlan.Resolution resolution, Long maxStateIndex) {
-        return loadContext(
-                resolution,
-                ModelReadBoundary.at(maxStateIndex),
-                Map.of(), false);
-    }
-
-    /**
-     * Loads an commit context and overlays relationships declared by model values staged in earlier substeps.
-     */
-    public CommitAttempt loadContext(
-            MutationPlan.Resolution resolution,
-            Long maxStateIndex,
-            Map<String, Object> stagedValues) {
-        return loadContext(
-                resolution, maxStateIndex,
-                stagedValues, true);
-    }
-
-    /**
      * Loads a commit context with an explicit choice whether pending values from the surrounding tracking batch should
      * be overlaid. Automatic model handling disables this generic overlay because its preplanned batch view already
      * supplies exactly the required predecessors; explicit operations and ordinary handlers enable it.
