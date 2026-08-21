@@ -45,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -65,9 +64,7 @@ public final class GraphChangeHandlerDecorator {
     public static Handler<DeserializingMessage> wrapGraphChanges(
             Handler<DeserializingMessage> handler,
             MessageType messageType) {
-        List<GraphPlan> plans = graphPlans(
-                handler.getTargetClass(), messageType);
-        if (plans.isEmpty()) {
+        if (!hasGraphChangeHandler(handler.getTargetClass(), messageType)) {
             return handler;
         }
         return new Handler.DelegatingHandler<>(handler) {
@@ -78,35 +75,22 @@ public final class GraphChangeHandlerDecorator {
             }
 
             @Override
+            @SneakyThrows
             public HandlerInvoker getInvokerOrNull(
                     DeserializingMessage message) {
                 HandlerInvoker selected = handler.getInvokerOrNull(message);
-                Executable selectedMethod = selected == null
-                        ? null : selected.getMethod();
-                GraphPlan plan = selectedMethod == null ? null : plans.stream()
-                        .filter(candidate -> candidate.matches(selectedMethod))
-                        .findFirst().orElse(null);
-                if (selected == null) {
-                    for (GraphPlan candidate : plans) {
-                        HandlerInvoker resolved = selectGraphHandler(
-                                handler, message, candidate);
-                        if (resolved != null
-                            && candidate.matches(resolved.getMethod())) {
-                            selected = resolved;
-                            plan = candidate;
-                            break;
-                        }
-                    }
+                if (selected == null && modelChange(message)) {
+                    selected = withGraph(null, null, () -> handler.getInvokerOrNull(message));
                 }
-                if (selected == null || plan == null) {
+                Parameter parameter = selected == null ? null : graphParameter(selected.getMethod());
+                if (parameter == null) {
                     return selected;
                 }
-                if (message.getMetadataValue(ModelEventMetadata.COMMIT_ID) == null
-                    || message.getMetadataValue(ModelEventMetadata.SUBSTEP) == null) {
+                if (!modelChange(message)) {
                     return null;
                 }
                 HandlerInvoker invoker = selected;
-                GraphPlan selectedPlan = plan;
+                Class<?> modelType = EntityMetadata.inspectModelParameter(parameter).orElseThrow().modelType();
                 return new HandlerInvoker.DelegatingHandlerInvoker(invoker) {
                     @Override
                     @SneakyThrows
@@ -115,21 +99,10 @@ public final class GraphChangeHandlerDecorator {
                         Object result = null;
                         boolean first = true;
                         for (Graph<?> graph : changedGraphs(
-                                message, selectedPlan.typedModelType())) {
+                                message, modelType)) {
                             Object next = withGraph(
-                                    selectedPlan.parameter(), graph,
-                                    () -> {
-                                        HandlerInvoker actual =
-                                                handler.getInvokerOrNull(message);
-                                        if (actual == null
-                                            || !actual.getMethod().equals(
-                                                delegate.getMethod())) {
-                                            throw new IllegalStateException(
-                                                    "Graph-change handler selection changed while supplying "
-                                                    + graph.id());
-                                        }
-                                        return actual.invoke(combiner);
-                                    });
+                                    parameter, graph,
+                                    () -> delegate.invoke(combiner));
                             result = first ? next : combiner.apply(result, next);
                             first = false;
                         }
@@ -140,31 +113,24 @@ public final class GraphChangeHandlerDecorator {
         };
     }
 
-    private static List<GraphPlan> graphPlans(
+    private static boolean hasGraphChangeHandler(
             Class<?> targetType,
             MessageType messageType) {
         if (messageType != MessageType.EVENT
             && messageType != MessageType.NOTIFICATION) {
-            return List.of();
+            return false;
         }
         Class<? extends Annotation> annotation = messageType == MessageType.EVENT
                 ? HandleEvent.class : HandleNotification.class;
-        return ReflectionUtils.getAllMethods(targetType).stream()
+        return ReflectionUtils.getTypeMetadata(targetType).methods().stream()
                 .filter(method -> ReflectionUtils.getMethodAnnotation(
                         method, annotation).isPresent())
-                .map(GraphPlan::inspect)
-                .filter(java.util.Objects::nonNull)
-                .toList();
+                .anyMatch(method -> graphParameter(method) != null);
     }
 
-    @SneakyThrows
-    private static HandlerInvoker selectGraphHandler(
-            Handler<DeserializingMessage> handler,
-            DeserializingMessage message,
-            GraphPlan plan) {
-        return withGraph(
-                plan.parameter(), null,
-                () -> handler.getInvokerOrNull(message));
+    private static boolean modelChange(DeserializingMessage message) {
+        return message.getMetadataValue(ModelEventMetadata.COMMIT_ID) != null
+               && message.getMetadataValue(ModelEventMetadata.SUBSTEP) != null;
     }
 
     private static <T> List<Graph<T>> changedGraphs(
@@ -285,12 +251,15 @@ public final class GraphChangeHandlerDecorator {
 
     static boolean suppliesGraph(Parameter parameter) {
         GraphArgument value = graphArgument.get();
-        return value != null && value.parameter().equals(parameter);
+        return value != null && (value.parameter() == null
+                                 ? parameter.equals(graphParameter(parameter.getDeclaringExecutable()))
+                                 : value.parameter().equals(parameter));
     }
 
     static Graph<?> suppliedGraph(Parameter parameter) {
         GraphArgument value = graphArgument.get();
-        return value != null && value.parameter().equals(parameter) ? value.graph() : null;
+        return value != null && (value.parameter() == null || value.parameter().equals(parameter))
+                ? value.graph() : null;
     }
 
     private static <T> T withGraph(
@@ -310,30 +279,13 @@ public final class GraphChangeHandlerDecorator {
         }
     }
 
-    private record GraphPlan(
-            Parameter parameter,
-            Class<?> modelType) {
-        private static GraphPlan inspect(Executable method) {
-            if (method.getParameterCount() != 1) {
-                return null;
-            }
-            Parameter parameter = method.getParameters()[0];
-            EntityMetadata.ModelParameter model = EntityMetadata
-                    .inspectModelParameter(parameter).orElse(null);
-            return model != null
-                   && model.graphWrapped()
-                   && model.associationProperty() == null
-                    ? new GraphPlan(parameter, model.modelType()) : null;
+    private static Parameter graphParameter(Executable method) {
+        if (method.getParameterCount() != 1) {
+            return null;
         }
-
-        private boolean matches(Executable method) {
-            return parameter.getDeclaringExecutable().equals(method);
-        }
-
-        @SuppressWarnings("unchecked")
-        private <T> Class<T> typedModelType() {
-            return (Class<T>) modelType;
-        }
+        Parameter parameter = method.getParameters()[0];
+        EntityMetadata.ModelParameter model = EntityMetadata.inspectModelParameter(parameter).orElse(null);
+        return model != null && model.graphWrapped() && model.associationProperty() == null ? parameter : null;
     }
 
     private record GraphArgument(
