@@ -391,23 +391,23 @@ public final class ModelEventWireCodec {
             String sharedModelType =
                     sharedModelType(result.getStreams());
             if (sharedModelType != null) {
-                size += encodedStringSize(sharedModelType);
+                size += BinaryWire.stringSize(sharedModelType);
             }
             String modelIdPrefix =
                     commonModelIdPrefix(result.getStreams());
-            size += encodedStringSize(modelIdPrefix);
+            size += BinaryWire.stringSize(modelIdPrefix);
             Long sharedSequenceNumber =
                     sharedSequenceNumber(result.getStreams());
             size += 1L
                     + (sharedSequenceNumber == null ? 0L : Long.BYTES);
             for (ModelEventStream stream : result.getStreams()) {
-                size += encodedStringSize(
+                size += BinaryWire.stringSize(
                         stream.getModelId()
                                 .substring(modelIdPrefix.length())) + 1L;
                 ModelHeadState head = stream.getHead();
                 if (head != null) {
                     size += (sharedModelType == null
-                            ? encodedStringSize(head.getModelType())
+                            ? BinaryWire.stringSize(head.getModelType())
                             : 0)
                             + (sharedSequenceNumber == null
                                     ? Long.BYTES
@@ -417,19 +417,19 @@ public final class ModelEventWireCodec {
                 size += Integer.BYTES;
                 for (ModelEventMembership membership : stream.getMemberships()) {
                     size += Long.BYTES * 3L
-                            + encodedStringSize(membership.getCommitId())
+                            + BinaryWire.stringSize(membership.getCommitId())
                             + Integer.BYTES;
                 }
             }
-            size += encodedLongsSize(result.getPayloadStateIndices());
+            size += BinaryWire.longsSize(result.getPayloadStateIndices());
             List<ModelEventPayloadBlock> payloadBlocks =
                     result.getPayloadBlocks();
             size += Integer.BYTES;
             for (ModelEventPayloadBlock block : payloadBlocks) {
                 size += Long.BYTES + Integer.BYTES + 1L
-                        + encodedBytesSize(block.getData());
+                        + BinaryWire.bytesSize(block.getData());
             }
-            size += encodedLongsSize(result.getPayloadEventIndices());
+            size += BinaryWire.longsSize(result.getPayloadEventIndices());
             List<ModelEventDataBlock> membershipBlocks =
                     result.getMembershipBlocks();
             size += Integer.BYTES;
@@ -503,20 +503,6 @@ public final class ModelEventWireCodec {
 
     private static int encodedMessageSize(SerializedMessage message) {
         return BinaryWire.nestedEnvelopeSize(message);
-    }
-
-    private static int encodedStringSize(String value) {
-        return Integer.BYTES + (value == null ? 0 : BinaryWire.utf8Length(value));
-    }
-
-    private static int encodedBytesSize(byte[] value) {
-        return Integer.BYTES + (value == null ? 0 : value.length);
-    }
-
-    private static int encodedLongsSize(long[] values) {
-        return Math.toIntExact(
-                Integer.BYTES
-                + (values == null ? 0L : (long) values.length * Long.BYTES));
     }
 
 }

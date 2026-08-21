@@ -26,7 +26,6 @@ import io.fluxzero.common.api.internal.BinaryWire.Writer;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -162,7 +161,7 @@ public final class ModelCommitWireCodec {
             Writer output, CommitModels commit, RequestBatchDescriptor descriptor,
             SerializedMessage message) {
         output.writeLong(commit.getRequestId());
-        writeString(output, commit.getCommitId());
+        output.writeString(commit.getCommitId());
         output.writeLong(commit.getReadStateIndex());
         if (!descriptor.readTargetOnly()) {
             writeStrings(output, commit.getReadModelIds());
@@ -175,23 +174,23 @@ public final class ModelCommitWireCodec {
         output.writeEnvelope(message);
 
         ModelCommitTarget target = step.getTargets().getFirst();
-        writeString(output, target.getModelId());
+        output.writeString(target.getModelId());
         if (!descriptor.sharedModelType()) {
-            writeString(output, target.getModelType());
+            output.writeString(target.getModelType());
         }
-        writeNullableLong(output, target.getExpectedSequenceNumber());
+        output.writeNullableLong(target.getExpectedSequenceNumber());
         output.writeBoolean(target.isStoreEvent());
         output.writeBoolean(target.isUpdateState());
         output.writeBoolean(target.isDelete());
     }
 
     private static RequestBatch<CommitModels> decodeRequests(Reader input) throws IOException {
-        int size = readSize(input, MAX_BATCH_SIZE, "batch");
+        int size = input.readSize(MAX_BATCH_SIZE, "model commit batch");
         RequestBatchDescriptor descriptor = RequestBatchDescriptor.read(input);
         List<CommitModels> commits = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long requestId = input.readLong();
-            String commitId = readString(input);
+            String commitId = input.readString();
             long readStateIndex = input.readLong();
             List<String> readModelIds =
                     descriptor.readTargetOnly() ? null : readStrings(input);
@@ -204,15 +203,15 @@ public final class ModelCommitWireCodec {
                     enumValue(GUARANTEES, input.readUnsignedByte(), "guarantee");
             Boolean possibleDuplicate = input.readBoolean() ? false : null;
             SerializedMessage event = input.readEnvelope();
-            String modelId = readString(input);
+            String modelId = input.readString();
             ModelCommitTarget target =
                     ModelCommitTarget.builder()
                             .modelId(modelId)
                             .modelType(
                                     descriptor.sharedModelType()
                                             ? descriptor.modelType()
-                                            : readString(input))
-                            .expectedSequenceNumber(readNullableLong(input))
+                                            : input.readString())
+                            .expectedSequenceNumber(input.readNullableLong())
                             .storeEvent(input.readBoolean())
                             .updateState(input.readBoolean())
                             .delete(input.readBoolean())
@@ -241,7 +240,7 @@ public final class ModelCommitWireCodec {
         int encodedSize = Integer.BYTES + 1 + Integer.BYTES;
         for (var value : batch.getResults()) {
             CommitModelsResult result = (CommitModelsResult) value;
-            encodedSize = addSize(encodedSize, Long.BYTES * 6 + 1 + nullableLongSize(
+            encodedSize = addSize(encodedSize, Long.BYTES * 6 + 1 + BinaryWire.nullableLongSize(
                     result.getSingleTargetEventIndex()));
         }
         Writer output = new Writer(encodedSize, MAX_VALUE_BYTES);
@@ -252,7 +251,7 @@ public final class ModelCommitWireCodec {
             CommitModelsResult result = (CommitModelsResult) value;
             output.writeLong(result.getRequestId());
             output.writeLong(result.getSingleTargetStateIndex());
-            writeNullableLong(output, result.getSingleTargetEventIndex());
+            output.writeNullableLong(result.getSingleTargetEventIndex());
             output.writeLong(result.getSingleTargetSequenceNumber());
             output.writeBoolean(result.isSingleTargetHistoryComplete());
             output.writeLong(result.getRequestReceivedTimestamp());
@@ -263,12 +262,12 @@ public final class ModelCommitWireCodec {
     }
 
     private static ResultBatch decodeResults(Reader input) throws IOException {
-        int size = readSize(input, MAX_BATCH_SIZE, "batch");
+        int size = input.readSize(MAX_BATCH_SIZE, "model commit batch");
         List<CommitModelsResult> results = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long requestId = input.readLong();
             long stateIndex = input.readLong();
-            Long eventIndex = readNullableLong(input);
+            Long eventIndex = input.readNullableLong();
             long sequenceNumber = input.readLong();
             boolean historyComplete = input.readBoolean();
             CommitModelsResult result =
@@ -291,44 +290,17 @@ public final class ModelCommitWireCodec {
     private static void writeStrings(Writer output, List<String> values) {
         output.writeInt(values.size());
         for (String value : values) {
-            writeString(output, value);
+            output.writeString(value);
         }
     }
 
     private static List<String> readStrings(Reader input) throws IOException {
-        int size = readSize(input, MAX_COLLECTION_SIZE, "string collection");
+        int size = input.readSize(MAX_COLLECTION_SIZE, "model commit string collection");
         List<String> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            result.add(readString(input));
+            result.add(input.readString());
         }
         return result;
-    }
-
-    private static void writeString(Writer output, String value) {
-        output.writeString(value);
-    }
-
-    private static String readString(Reader input) throws IOException {
-        return input.readString();
-    }
-
-    private static void writeNullableLong(Writer output, Long value) {
-        output.writeBoolean(value != null);
-        if (value != null) {
-            output.writeLong(value);
-        }
-    }
-
-    private static Long readNullableLong(Reader input) throws IOException {
-        return input.readBoolean() ? input.readLong() : null;
-    }
-
-    private static int readSize(Reader input, int maximum, String description) throws IOException {
-        int size = input.readInt();
-        if (size < 0 || size > maximum) {
-            throw new IOException("Invalid compact model commit " + description + " size " + size);
-        }
-        return size;
     }
 
     private static <T> T enumValue(T[] values, int ordinal, String description) throws IOException {
@@ -343,7 +315,7 @@ public final class ModelCommitWireCodec {
             RequestBatchDescriptor descriptor,
             SerializedMessage message) {
         int size = Long.BYTES;
-        size = addSize(size, stringSize(commit.getCommitId()));
+        size = addSize(size, BinaryWire.stringSize(commit.getCommitId()));
         size = addSize(size, Long.BYTES);
         if (!descriptor.readTargetOnly()) {
             size = addSize(size, stringsSize(commit.getReadModelIds()));
@@ -352,62 +324,20 @@ public final class ModelCommitWireCodec {
         ModelCommitStep step = commit.getSubsteps().getFirst();
         size = addSize(size, BinaryWire.nestedEnvelopeSize(message));
         ModelCommitTarget target = step.getTargets().getFirst();
-        size = addSize(size, stringSize(target.getModelId()));
+        size = addSize(size, BinaryWire.stringSize(target.getModelId()));
         if (!descriptor.sharedModelType()) {
-            size = addSize(size, stringSize(target.getModelType()));
+            size = addSize(size, BinaryWire.stringSize(target.getModelType()));
         }
-        size = addSize(size, nullableLongSize(target.getExpectedSequenceNumber()));
+        size = addSize(size, BinaryWire.nullableLongSize(target.getExpectedSequenceNumber()));
         return addSize(size, 3); // store event, update state and delete
     }
 
     private static int stringsSize(List<String> values) {
         int size = Integer.BYTES;
         for (String value : values) {
-            size = addSize(size, stringSize(value));
+            size = addSize(size, BinaryWire.stringSize(value));
         }
         return size;
-    }
-
-    private static int stringSize(String value) {
-        return addSize(Integer.BYTES, value == null ? 0 : utf8Size(value));
-    }
-
-    private static int utf8Size(String value) {
-        int size = 0;
-        int index = 0;
-        while (index <= value.length() - Integer.BYTES) {
-            char first = value.charAt(index);
-            char second = value.charAt(index + 1);
-            char third = value.charAt(index + 2);
-            char fourth = value.charAt(index + 3);
-            if ((first | second | third | fourth) > 0x7f) {
-                break;
-            }
-            size = addSize(size, Integer.BYTES);
-            index += Integer.BYTES;
-        }
-        for (; index < value.length(); index++) {
-            char current = value.charAt(index);
-            if (current <= 0x7f) {
-                size = addSize(size, 1);
-            } else if (current <= 0x7ff) {
-                size = addSize(size, 2);
-            } else if (Character.isHighSurrogate(current)
-                    && index + 1 < value.length()
-                    && Character.isLowSurrogate(value.charAt(index + 1))) {
-                size = addSize(size, 4);
-                index++;
-            } else if (Character.isSurrogate(current)) {
-                size = addSize(size, 1); // Standard UTF-8 replacement byte ('?')
-            } else {
-                size = addSize(size, 3);
-            }
-        }
-        return size;
-    }
-
-    private static int nullableLongSize(Long value) {
-        return 1 + (value == null ? 0 : Long.BYTES);
     }
 
     private static int addSize(int current, int addition) {
@@ -469,17 +399,17 @@ public final class ModelCommitWireCodec {
             }
             return new RequestBatchDescriptor(
                     flags,
-                    has(flags, SHARED_MODEL_TYPE) ? readString(input) : null);
+                    has(flags, SHARED_MODEL_TYPE) ? input.readString() : null);
         }
 
         private void writeSharedValues(Writer output) {
             if (sharedModelType()) {
-                writeString(output, modelType);
+                output.writeString(modelType);
             }
         }
 
         private int sharedValuesSize() {
-            return sharedModelType() ? stringSize(modelType) : 0;
+            return sharedModelType() ? BinaryWire.stringSize(modelType) : 0;
         }
 
         private boolean sharedModelType() {

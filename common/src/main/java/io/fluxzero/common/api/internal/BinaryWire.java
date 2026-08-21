@@ -94,6 +94,26 @@ public final class BinaryWire {
         return result;
     }
 
+    /** Returns the encoded size of one nullable length-prefixed UTF-8 string. */
+    public static int stringSize(String value) {
+        return Math.addExact(Integer.BYTES, value == null ? 0 : utf8Length(value));
+    }
+
+    /** Returns the encoded size of one nullable long. */
+    public static int nullableLongSize(Long value) {
+        return 1 + (value == null ? 0 : Long.BYTES);
+    }
+
+    /** Returns the encoded size of one nullable length-prefixed byte array. */
+    public static int bytesSize(byte[] value) {
+        return Math.addExact(Integer.BYTES, value == null ? 0 : value.length);
+    }
+
+    /** Returns the encoded size of one nullable length-prefixed long array. */
+    public static int longsSize(long[] values) {
+        return Math.toIntExact(Integer.BYTES + (values == null ? 0L : (long) values.length * Long.BYTES));
+    }
+
     /** Returns the complete encoded size of one native message envelope. */
     public static int envelopeSize(SerializedMessage message) {
         if (message instanceof EncodedMessage encoded && encoded.matchesVariables()) {

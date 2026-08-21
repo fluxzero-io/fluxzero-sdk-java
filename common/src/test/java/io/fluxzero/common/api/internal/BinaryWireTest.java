@@ -82,4 +82,29 @@ class BinaryWireTest {
         assertThrows(IOException.class,
                      () -> new BinaryWire.Reader(new byte[]{0, 0, 0, 2}, 1).readBytes());
     }
+
+    @Test
+    void sizingPrimitivesExactlyMatchTheirWireEncoding() {
+        for (String value : new String[]{null, "plain", "hé 😀", Character.toString((char) 0xd800)}) {
+            BinaryWire.Writer writer = new BinaryWire.Writer(BinaryWire.stringSize(value), 128);
+            writer.writeString(value);
+            assertEquals(BinaryWire.stringSize(value), writer.toExactByteArray().length);
+        }
+
+        int expectedSize =
+                BinaryWire.nullableLongSize(42L)
+                + BinaryWire.nullableLongSize(null)
+                + BinaryWire.bytesSize(new byte[]{1, 2, 3})
+                + BinaryWire.bytesSize(null)
+                + BinaryWire.longsSize(new long[]{4L, 5L})
+                + BinaryWire.longsSize(null);
+        BinaryWire.Writer writer = new BinaryWire.Writer(expectedSize, 128);
+        writer.writeNullableLong(42L);
+        writer.writeNullableLong(null);
+        writer.writeBytes(new byte[]{1, 2, 3});
+        writer.writeBytes(null);
+        writer.writeLongs(new long[]{4L, 5L});
+        writer.writeLongs(null);
+        assertEquals(expectedSize, writer.toExactByteArray().length);
+    }
 }
