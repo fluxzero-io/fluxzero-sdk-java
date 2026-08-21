@@ -597,7 +597,8 @@ final class ModelReplayCursor {
             Map<String, Object> stagedValues,
             boolean includeMessageBatch,
             String namespace,
-            ModelCacheTracker cacheTracker) {
+            ModelCacheTracker cacheTracker,
+            boolean requireBoundary) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(stagedValues, "stagedValues");
@@ -631,9 +632,19 @@ final class ModelReplayCursor {
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
         long stateIndex;
         if (eventTargets.isEmpty()) {
+            CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
+                    ? currentProjection(documentTargets, cacheTracker)
+                    : null;
+            if (current != null) {
+                return CommitAttempt.create(
+                        current.stateIndex(), resolution,
+                        current.entities());
+            }
             stateIndex = ancestorStateIndex == null
-                    ? load(Map.of(), boundary, ignored -> {
-                    }).stateIndex()
+                    ? requireBoundary
+                            ? load(Map.of(), boundary, ignored -> {
+                            }).stateIndex()
+                            : -1L
                     : ancestorStateIndex;
         } else {
             CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
@@ -669,12 +680,36 @@ final class ModelReplayCursor {
                 ? cacheTracker.safeDocumentBoundary()
                 : null;
         for (MutationPlan.ResolvedModel target : documentTargets) {
+            EntityMetadata metadata = EntityMetadata.validate(
+                    target.modelType());
             Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
-            loaded.put(target.modelId(), entity);
-            if (EntityMetadata.validate(target.modelType()).rootConfiguration().orElseThrow().cached()
-                && documentCacheBoundary != null) {
-                modelCache.put(target.modelId(), entity);
+            if (entity.isEmpty() && metadata.hasAliases()) {
+                LoadResult alias = loadHeads(
+                        List.of(target.modelId()),
+                        stateIndex < 0L ? boundary
+                                : ModelReadBoundary.at(stateIndex));
+                if (stateIndex < 0L) {
+                    stateIndex = alias.stateIndex();
+                }
+                ModelHeadState head = alias.heads().get(target.modelId());
+                String resolvedId = head == null
+                        ? target.modelId() : head.getModelId();
+                if (!resolvedId.equals(target.modelId())) {
+                    entity = documentReader.load(
+                            resolvedId, target.modelType());
+                }
             }
+            loaded.put(target.modelId(), entity);
+            if (metadata.rootConfiguration().orElseThrow().cached()
+                && documentCacheBoundary != null) {
+                String resolvedId = entity.isPresent() && entity.id() != null
+                        ? entity.id().toString() : target.modelId();
+                modelCache.put(resolvedId, entity);
+            }
+        }
+        if (!requireBoundary && eventTargets.isEmpty()
+            && ancestorStateIndex == null && documentCacheBoundary != null) {
+            stateIndex = documentCacheBoundary;
         }
 
         LinkedHashMap<String, Entity<?>> canonicalLoaded = new LinkedHashMap<>(loaded.size());
@@ -722,56 +757,6 @@ final class ModelReplayCursor {
             }
         }
         return CommitAttempt.create(stateIndex, resolution, loaded);
-    }
-
-    /** Resolves one typed entity as the direct projection strategy of this cursor. */
-    EntityProjection entity(
-            String modelId,
-            Class<?> modelType,
-            ModelReadBoundary boundary,
-            ModelCacheTracker cacheTracker) {
-        EntityMetadata metadata = EntityMetadata.validate(modelType);
-        EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration().orElseThrow();
-        if (!boundary.historical() && cacheTracker != null && configuration.cached()) {
-            ModelCacheTracker.CurrentModel current = cacheTracker.currentVersion(modelId, modelType);
-            if (current != null
-                && (current.entity().isPresent() || !metadata.hasAliases())) {
-                return new EntityProjection(current.validThrough(), current.entity());
-            }
-        }
-        if (!configuration.eventSourced() && !boundary.historical()) {
-            Entity<?> loaded = documentReader.load(modelId, modelType);
-            long stateIndex = -1L;
-            if (loaded.isEmpty() && metadata.hasAliases()) {
-                LoadResult alias = loadHeads(List.of(modelId), ModelReadBoundary.CURRENT);
-                stateIndex = alias.stateIndex();
-                ModelHeadState head = alias.heads().get(modelId);
-                String resolvedId = head == null ? modelId : head.getModelId();
-                if (!resolvedId.equals(modelId)) {
-                    loaded = documentReader.load(resolvedId, modelType);
-                }
-            }
-            if (configuration.cached() && cacheTracker != null) {
-                Long safeBoundary = cacheTracker.safeDocumentBoundary();
-                if (safeBoundary != null
-                    && (loaded.isPresent() || !metadata.hasAliases())) {
-                    String resolvedId = loaded.isPresent() ? loaded.id().toString() : modelId;
-                    modelCache.put(resolvedId, loaded);
-                    cacheTracker.loaded(resolvedId, modelType, safeBoundary);
-                    stateIndex = safeBoundary;
-                }
-            }
-            return new EntityProjection(stateIndex, loaded);
-        }
-
-        MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
-                modelId, modelType, MutationPlan.Access.READ_ONLY,
-                List.of(metadata.entityId().orElseThrow().name()));
-        CommitAttempt context = context(
-                new MutationPlan.Resolution(List.of(target), List.of()),
-                boundary, Map.of(), false, null, cacheTracker);
-        return new EntityProjection(
-                context.readStateIndex(), context.entity(context.modelIds().getFirst()));
     }
 
     /** Advances cache projections through this cursor's current replay boundary. */
@@ -2182,9 +2167,6 @@ final class ModelReplayCursor {
         LoadResult {
             heads = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(heads));
         }
-    }
-
-    record EntityProjection(long stateIndex, Entity<?> entity) {
     }
 
     /** Coalesces compatible concurrent current reads while leaving local, large and historical reads direct. */

@@ -37,6 +37,7 @@ import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.MemoryPressureController;
+import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -48,6 +49,7 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.CommitAttempt;
+import io.fluxzero.sdk.modeling.DefaultEntityHelper;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
@@ -110,8 +112,17 @@ import static io.fluxzero.common.MessageType.COMMAND;
 class DefaultModelRepositoryTest {
 
     private final Client client = mock(Client.class);
+    private final EventStoreClient eventStoreClient = mock(EventStoreClient.class);
     private final DocumentStore documentStore = mock(DocumentStore.class);
-    private final DefaultModelRepository repository = new DefaultModelRepository(client, documentStore);
+    private final DefaultModelRepository repository = repository();
+
+    private DefaultModelRepository repository() {
+        when(client.getEventStoreClient()).thenReturn(eventStoreClient);
+        return new DefaultModelRepository(
+                client, documentStore, new JacksonSerializer(),
+                new DefaultEntityHelper(List.of(), false), null,
+                NoOpCache.INSTANCE, List.of());
+    }
 
     @Test
     void delegatesDeletionPlanningUsingTheExactId() {
@@ -300,6 +311,7 @@ class DefaultModelRepositoryTest {
         assertEquals(product, result.get());
         assertEquals("productId", result.idProperty());
         verify(documentStore).fetchDocument(id.toString(), "products", Product.class);
+        verify(eventStoreClient, times(0)).getModelEvents(any());
     }
 
     @Test
@@ -326,28 +338,6 @@ class DefaultModelRepositoryTest {
 
         assertEquals(
                 "Stored model document 'product-1' reports @EntityId 'product-other'",
-                exception.getMessage());
-    }
-
-    @Test
-    void documentOnlyRepositoryRequiresReconstructionComponentsForEventSourcedModel() {
-        EventSourcingException exception = assertThrows(
-                EventSourcingException.class,
-                () -> repository.load("account-1", Account.class));
-
-        assertEquals(
-                "Event-sourced model reconstruction requires a configured serializer and model entity helper",
-                exception.getMessage());
-    }
-
-    @Test
-    void untypedIdWaitsForModelHeadLookupProtocol() {
-        EventSourcingException exception = assertThrows(
-                EventSourcingException.class,
-                () -> repository.load("product-1", Object.class));
-
-        assertEquals(
-                "Loading an independent model by untyped ID requires model-head type metadata",
                 exception.getMessage());
     }
 

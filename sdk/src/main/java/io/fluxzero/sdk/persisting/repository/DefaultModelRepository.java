@@ -124,14 +124,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             graphProjectionDefinitions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
-    /**
-     * Compatibility constructor for document-only repository use.
-     */
-    public DefaultModelRepository(Client client, DocumentStore documentStore) {
-        this(client, documentStore, null, null, null, NoOpCache.INSTANCE,
-             (MutationPlan.Compiler) null);
-    }
-
     public DefaultModelRepository(
             Client client,
             DocumentStore documentStore,
@@ -141,7 +133,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
-             parameterResolvers == null ? null : new MutationPlan.Compiler(parameterResolvers));
+             new MutationPlan.Compiler(Objects.requireNonNull(
+                     parameterResolvers, "parameterResolvers")));
     }
 
     private DefaultModelRepository(
@@ -154,28 +147,28 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             MutationPlan.Compiler modelDefinitionCompiler) {
         this.client = Objects.requireNonNull(client, "client");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
-        this.serializer = serializer;
-        this.entityHelper = entityHelper;
+        this.serializer = Objects.requireNonNull(serializer, "serializer");
+        this.entityHelper = Objects.requireNonNull(entityHelper, "entityHelper");
         this.snapshotSerializer = snapshotSerializer;
-        this.modelDefinitionCompiler = modelDefinitionCompiler;
+        this.modelDefinitionCompiler = Objects.requireNonNull(
+                modelDefinitionCompiler, "modelDefinitionCompiler");
         this.cacheSource = Objects.requireNonNull(cache, "cache");
         this.modelCache = cache == NoOpCache.INSTANCE
                 ? cache : new RepositoryCache(cache, "$Model", client.namespace());
         this.snapshotStore = snapshotSerializer == null
                 ? null : new ModelSnapshotStore(documentStore, snapshotSerializer);
-        this.replayCursor = client.getEventStoreClient() == null
-                ? null : new ModelReplayCursor(
-                        client.getEventStoreClient(), serializer, entityHelper,
-                        modelDefinitionCompiler, modelCache, snapshotStore,
-                        this::loadDocumentProjection, this);
-        this.modelCacheTracker =
-                replayCursor == null
-                || cache == NoOpCache.INSTANCE
-                        ? null
-                        : new ModelCacheTracker(
-                                client.getEventStoreClient(),
-                                modelCache,
-                                this::refreshCurrentModels);
+        EventStoreClient eventStoreClient = Objects.requireNonNull(
+                client.getEventStoreClient(), "eventStoreClient");
+        this.replayCursor = new ModelReplayCursor(
+                eventStoreClient, serializer, entityHelper,
+                modelDefinitionCompiler, modelCache, snapshotStore,
+                this::loadDocumentProjection, this);
+        this.modelCacheTracker = cache == NoOpCache.INSTANCE
+                ? null
+                : new ModelCacheTracker(
+                        eventStoreClient,
+                        modelCache,
+                        this::refreshCurrentModels);
         if (modelCacheTracker != null) {
             client.beforeShutdown(
                     modelCacheTracker::close);
@@ -395,20 +388,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     resolvedType));
         }
         EntityMetadata metadata = EntityMetadata.validate(modelType);
-        EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration()
+        metadata.rootConfiguration()
                 .filter(root -> root.kind() == EntityMetadata.RootKind.MODEL)
                 .orElseThrow(() -> new IllegalArgumentException(
                 modelType.getName() + " is not annotated with @Model"));
-        if (replayCursor == null) {
-            if (!configuration.eventSourced() && handlerBoundary == null) {
-                return loadDocument(modelId, modelType, metadata, configuration);
-            }
-            requireEventReconstruction();
-        }
-        ModelReplayCursor.EntityProjection projection = replayCursor.entity(
-                modelId, modelType, boundary(handlerBoundary), modelCacheTracker);
-        pin(handlerBoundary, projection.stateIndex());
-        return cast(projection.entity());
+        MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
+                modelId, modelType, MutationPlan.Access.READ_ONLY,
+                List.of(metadata.entityId().orElseThrow().name()));
+        CommitAttempt context = replayCursor.context(
+                new MutationPlan.Resolution(List.of(target), List.of()),
+                boundary(handlerBoundary), Map.of(), false, null,
+                modelCacheTracker, handlerBoundary != null);
+        pin(handlerBoundary, context.readStateIndex());
+        return cast(context.entity(context.targets().getFirst().modelId()));
     }
 
     @Override
@@ -458,7 +450,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull String rootId,
             @NonNull Class<T> rootType,
             @NonNull Graph.Options options) {
-        requireEventReconstruction();
         EntityMetadata.validate(rootType);
         PinnedBoundary handlerBoundary =
                 handlerBoundary();
@@ -506,7 +497,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Class<A> ancestorType,
             ModelReadBoundary boundary,
             boolean all) {
-        requireEventReconstruction();
         EntityMetadata sourceMetadata = EntityMetadata.validate(modelType);
         MutationPlan.ResolvedModel source =
                 new MutationPlan.ResolvedModel(
@@ -587,7 +577,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             PinnedBoundary handlerBoundary,
             boolean includeMessageBatch,
             boolean historical) {
-        requireEventReconstruction();
         EntityMetadata.validate(rootType);
         Map<String, Entity<?>> staged =
                 includeMessageBatch
@@ -753,11 +742,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
-        requireEventReconstruction();
         return replayCursor.context(
                 resolution, boundary, stagedValues, includeMessageBatch,
                 includeMessageBatch ? messageBatchNamespace() : null,
-                modelCacheTracker);
+                modelCacheTracker, true);
     }
 
     private AncestorResolution resolveAncestors(
@@ -952,19 +940,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @SuppressWarnings("unchecked")
     private static <T> Entity<T> castPrevious(Entity<?> entity) {
         return (Entity<T>) entity;
-    }
-
-    private void requireEventReconstruction() {
-        if (serializer == null || entityHelper == null || modelDefinitionCompiler == null || replayCursor == null) {
-            throw new EventSourcingException(
-                    "Event-sourced model reconstruction requires a configured serializer and model entity helper");
-        }
-    }
-
-    private <T> Entity<T> loadDocument(
-            String modelId, Class<T> modelType, EntityMetadata metadata,
-            EntityMetadata.RootConfiguration configuration) {
-        return cast(loadDocumentUnchecked(modelId, modelType, metadata, configuration));
     }
 
     private Entity<?> loadDocumentProjection(String modelId, Class<?> modelType) {
