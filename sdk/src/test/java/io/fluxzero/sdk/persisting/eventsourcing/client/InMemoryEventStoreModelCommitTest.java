@@ -23,7 +23,6 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
-import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
@@ -1006,7 +1005,7 @@ class InMemoryEventStoreModelCommitTest {
                         .getEdges().size());
         assertEquals(
                 "parent-1",
-                store.getModelAncestors(new GetModelAncestors(
+                store.getModelGraph(GetModelGraph.ancestors(
                                 List.of("child-1"), ModelReadBoundary.state(1L, false),
                                 1, 10, 0, 0L))
                         .getEdges().getFirst().getParentId());

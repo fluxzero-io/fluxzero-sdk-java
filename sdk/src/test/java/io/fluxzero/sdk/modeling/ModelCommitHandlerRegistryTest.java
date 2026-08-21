@@ -1638,8 +1638,7 @@ class ModelCommitHandlerRegistryTest {
         doAnswer(invocation -> {
             List<Commit.Outcome> committed = invocation.getArgument(0);
             committed.stream()
-                    .flatMap(outcome -> outcome.steps().stream())
-                    .flatMap(step -> step.changes().stream())
+                    .flatMap(outcome -> outcome.changes().stream())
                     .filter(Change::updateState)
                     .forEach(change -> durable.put(change.modelId(), change.after()));
             return null;

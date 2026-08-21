@@ -282,32 +282,28 @@ public final class ModelCommitValidator {
         if (request == null) {
             throw new IllegalArgumentException("Model graph request is required");
         }
-        validateModelId(request.getRootId());
-        validateGraphBounds(
-                "graph", request.getMaxDepth(), request.getMaxModels(),
-                request.getMaxEventsPerModel(), request.getMaxBytes(), 0, 1, "1", true);
-    }
-
-    /**
-     * Validates one bounded temporal ancestor-graph request.
-     */
-    public static void validate(GetModelAncestors request) {
-        if (request == null) {
-            throw new IllegalArgumentException("Model ancestor request is required");
-        }
         if (request.getModelIds() == null || request.getModelIds().isEmpty()) {
-            throw new IllegalArgumentException("Model ancestor roots are required");
+            throw new IllegalArgumentException("Model graph roots are required");
         }
         Set<String> roots = new LinkedHashSet<>();
         for (String modelId : request.getModelIds()) {
             validateModelId(modelId);
             if (!roots.add(modelId)) {
-                throw new IllegalArgumentException("Duplicate model ancestor root " + modelId);
+                throw new IllegalArgumentException("Duplicate model graph root " + modelId);
             }
         }
+        boolean ancestors = request.getDirection() == GetModelGraph.Direction.ANCESTORS;
+        if (ancestors && request.getBoundary().before()) {
+            throw new IllegalArgumentException("Model ancestor graphs do not support before-boundaries");
+        }
+        if (ancestors && request.isComposableOnly()) {
+            throw new IllegalArgumentException("Composable-only traversal is only supported for descendant graphs");
+        }
         validateGraphBounds(
-                "ancestor", request.getMaxDepth(), request.getMaxModels(),
-                request.getMaxEventsPerModel(), request.getMaxBytes(), 1, roots.size(), "root count", true);
+                ancestors ? "ancestor" : "graph",
+                request.getMaxDepth(), request.getMaxModels(),
+                request.getMaxEventsPerModel(), request.getMaxBytes(),
+                ancestors ? 1 : 0, roots.size(), "root count", true);
     }
 
     /** Validates one durable model-change lookup. */

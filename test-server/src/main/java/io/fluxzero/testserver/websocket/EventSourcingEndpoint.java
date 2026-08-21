@@ -27,7 +27,6 @@ import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
-import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelChange;
 import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -138,13 +137,6 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
     GetModelGraphResult handle(
             GetModelGraph request) {
         return eventStore.getModelGraph(
-                request);
-    }
-
-    @Handle
-    GetModelGraphResult handle(
-            GetModelAncestors request) {
-        return eventStore.getModelAncestors(
                 request);
     }
 

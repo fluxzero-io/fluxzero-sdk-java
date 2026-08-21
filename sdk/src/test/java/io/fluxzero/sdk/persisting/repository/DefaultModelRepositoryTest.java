@@ -23,7 +23,6 @@ import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
-import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
@@ -1510,30 +1509,32 @@ class DefaultModelRepositoryTest {
 
             assertEquals(
                     new GraphRoot(rootId, "updated root"), root.get());
-            var ancestors = org.mockito.ArgumentCaptor.forClass(
-                    GetModelAncestors.class);
-            verify(eventStoreClient).getModelAncestors(
-                    ancestors.capture());
+            var graphRequests = org.mockito.ArgumentCaptor.forClass(
+                    GetModelGraph.class);
+            verify(eventStoreClient, times(2)).getModelGraph(
+                    graphRequests.capture());
+            GetModelGraph ancestors = graphRequests.getAllValues().stream()
+                    .filter(request -> request.getDirection() == GetModelGraph.Direction.ANCESTORS)
+                    .findFirst().orElseThrow();
             assertEquals(
                     List.of(grandchildId.toString()),
-                    ancestors.getValue().getModelIds());
+                    ancestors.getModelIds());
             assertEquals(0,
-                         ancestors.getValue().getMaxEventsPerModel());
+                         ancestors.getMaxEventsPerModel());
             assertEquals(0L,
-                         ancestors.getValue().getMaxBytes());
+                         ancestors.getMaxBytes());
             assertEquals(-1,
-                         ancestors.getValue().getMaxDepth());
+                         ancestors.getMaxDepth());
             assertEquals(-1,
-                         ancestors.getValue().getMaxModels());
+                         ancestors.getMaxModels());
 
-            var loaded = org.mockito.ArgumentCaptor.forClass(
-                    GetModelGraph.class);
-            verify(eventStoreClient).getModelGraph(
-                    loaded.capture());
-            assertEquals(rootId.toString(),
-                         loaded.getValue().getRootId());
-            assertEquals(0, loaded.getValue().getMaxDepth());
-            assertEquals(1, loaded.getValue().getMaxModels());
+            GetModelGraph loaded = graphRequests.getAllValues().stream()
+                    .filter(request -> request.getDirection() == GetModelGraph.Direction.DESCENDANTS)
+                    .findFirst().orElseThrow();
+            assertEquals(List.of(rootId.toString()),
+                         loaded.getModelIds());
+            assertEquals(0, loaded.getMaxDepth());
+            assertEquals(1, loaded.getMaxModels());
         }
     }
 

@@ -21,7 +21,6 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
-import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
@@ -998,7 +997,7 @@ final class ModelReplayCursor {
                 throw new IllegalStateException(
                         "Model commit requires more than %d ancestor traversal roots".formatted(maxModels));
             }
-            graph = eventStoreClient.getModelAncestors(new GetModelAncestors(
+            graph = eventStoreClient.getModelGraph(GetModelGraph.ancestors(
                     List.copyOf(requestRoots), boundary, maxDepth, maxModels, 0, 0L));
             if (pendingAncestor == null || !addPendingAncestorValues(
                     requestRoots, graph, effectiveStagedValues, pendingAncestor)) {

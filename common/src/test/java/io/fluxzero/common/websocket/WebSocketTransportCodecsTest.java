@@ -37,7 +37,6 @@ import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
-import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelChange;
 import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -785,7 +784,7 @@ class WebSocketTransportCodecsTest {
         for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
             GetModelGraph decodedRequest = assertInstanceOf(
                     GetModelGraph.class, roundTrip(codec, request));
-            assertEquals("order-1", decodedRequest.getRootId());
+            assertEquals(List.of("order-1"), decodedRequest.getModelIds());
             assertEquals(
                     ModelReadBoundary.commit("commit-991", 3),
                     decodedRequest.getBoundary());
@@ -825,8 +824,8 @@ class WebSocketTransportCodecsTest {
                     request.getRequestId(),
                     decoded.getRequestId());
             assertEquals(
-                    "order-1",
-                    decoded.getRootId());
+                    List.of("order-1"),
+                    decoded.getModelIds());
             assertEquals(
                     ModelReadBoundary.commit("commit-991", 3).asBefore(),
                     decoded.getBoundary());
@@ -836,15 +835,15 @@ class WebSocketTransportCodecsTest {
     @Test
     void modelAncestorsRoundTripMultipleRootsAndCommitBoundary()
             throws Exception {
-        GetModelAncestors request = new GetModelAncestors(
+        GetModelGraph request = GetModelGraph.ancestors(
                 List.of("line-1", "line-2"),
                 ModelReadBoundary.commit("commit-991", 3),
                 12, 1_000, 0, 0L);
 
         for (WebSocketTransportCodec codec :
                 List.of(jsonCodec, cborCodec)) {
-            GetModelAncestors decoded = assertInstanceOf(
-                    GetModelAncestors.class,
+            GetModelGraph decoded = assertInstanceOf(
+                    GetModelGraph.class,
                     roundTrip(codec, request));
 
             assertEquals(
@@ -855,6 +854,7 @@ class WebSocketTransportCodecsTest {
                     decoded.getBoundary());
             assertEquals(12, decoded.getMaxDepth());
             assertEquals(1_000, decoded.getMaxModels());
+            assertEquals(GetModelGraph.Direction.ANCESTORS, decoded.getDirection());
             assertEquals(
                     2, decoded.toMetric().getRootCount());
         }

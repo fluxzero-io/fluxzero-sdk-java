@@ -20,21 +20,24 @@ import io.fluxzero.common.api.Request;
 import lombok.Value;
 
 import java.beans.ConstructorProperties;
+import java.util.List;
 import java.util.Objects;
 
 /**
- * Resolves one independent-model graph and optionally includes the first bounded page of every selected model stream.
+ * Resolves one bounded independent-model relationship graph and optionally includes the first page of every selected
+ * model stream.
  * <p>
- * The graph, heads, memberships, and payloads are all observed at one namespace-wide state boundary. Only child edges
- * are followed. When {@link #composableOnly} is set, relationships without an explicit graph path are not traversed.
+ * The graph, heads, memberships, and payloads are all observed at one namespace-wide state boundary. Direction and
+ * roots are query options of this one capability. When {@link #composableOnly} is set, descendant relationships
+ * without an explicit graph path are not traversed.
  */
 @Value
 public class GetModelGraph extends Request {
 
     /**
-     * Exact root model ID.
+     * Exact root model IDs.
      */
-    String rootId;
+    List<String> modelIds;
 
     /** Current, state, commit or event selector shared by every Model read. */
     ModelReadBoundary boundary;
@@ -59,23 +62,27 @@ public class GetModelGraph extends Request {
      */
     long maxBytes;
 
+    /** Relationship direction followed from the supplied roots. */
+    Direction direction;
+
     /**
      * Whether traversal is limited to relationships with an explicit graph-composition path.
      */
     boolean composableOnly;
 
     @ConstructorProperties({
-            "rootId", "boundary", "maxDepth", "maxModels",
-            "maxEventsPerModel", "maxBytes", "composableOnly"})
+            "modelIds", "boundary", "maxDepth", "maxModels",
+            "maxEventsPerModel", "maxBytes", "direction", "composableOnly"})
     public GetModelGraph(
-            String rootId,
+            List<String> modelIds,
             ModelReadBoundary boundary,
             int maxDepth,
             int maxModels,
             int maxEventsPerModel,
             long maxBytes,
+            Direction direction,
             boolean composableOnly) {
-        this.rootId = rootId;
+        this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
         ModelReadBoundary selectedBoundary = Objects.requireNonNull(boundary, "boundary");
         ModelReadBoundary requestBoundary = selectedBoundary.forRequest();
         this.boundary = selectedBoundary.before()
@@ -84,23 +91,54 @@ public class GetModelGraph extends Request {
         this.maxModels = maxModels;
         this.maxEventsPerModel = maxEventsPerModel;
         this.maxBytes = maxBytes;
+        this.direction = Objects.requireNonNull(direction, "direction");
         this.composableOnly = composableOnly;
+    }
+
+    /** Creates the ordinary single-root descendant query used by public Graph loads. */
+    public GetModelGraph(
+            String rootId,
+            ModelReadBoundary boundary,
+            int maxDepth,
+            int maxModels,
+            int maxEventsPerModel,
+            long maxBytes,
+            boolean composableOnly) {
+        this(List.of(rootId), boundary, maxDepth, maxModels,
+             maxEventsPerModel, maxBytes, Direction.DESCENDANTS, composableOnly);
+    }
+
+    /** Creates a multi-root ancestor query through the same graph capability. */
+    public static GetModelGraph ancestors(
+            List<String> modelIds,
+            ModelReadBoundary boundary,
+            int maxDepth,
+            int maxModels,
+            int maxEventsPerModel,
+            long maxBytes) {
+        return new GetModelGraph(
+                modelIds, Objects.requireNonNull(boundary, "boundary").forRequest(), maxDepth, maxModels,
+                maxEventsPerModel, maxBytes, Direction.ANCESTORS, false);
     }
 
     @Override
     public Metric toMetric() {
         return new Metric(
-                boundary, maxDepth, maxModels,
-                maxEventsPerModel, maxBytes, composableOnly);
+                modelIds == null ? 0 : modelIds.size(), boundary, maxDepth, maxModels,
+                maxEventsPerModel, maxBytes, direction, composableOnly);
     }
+
+    public enum Direction { DESCENDANTS, ANCESTORS }
 
     @Value
     public static class Metric {
+        int rootCount;
         ModelReadBoundary boundary;
         int maxDepth;
         int maxModels;
         int maxEventsPerModel;
         long maxBytes;
+        Direction direction;
         boolean composableOnly;
     }
 }

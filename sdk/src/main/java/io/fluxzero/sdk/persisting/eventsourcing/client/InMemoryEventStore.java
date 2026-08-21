@@ -21,7 +21,6 @@ import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
-import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelChange;
 import io.fluxzero.common.api.modeling.GetModelChangeResult;
 import io.fluxzero.common.api.modeling.GetModelEvents;
@@ -1360,25 +1359,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             long boundary,
             boolean before) {
         return ModelRelationshipQueries.graph(
-                request.getRequestId(), request, boundary,
-                frontier -> relationshipsByParents(
-                        frontier, boundary, before),
-                this::getModelEvents);
-    }
-
-    @Override
-    public synchronized GetModelGraphResult getModelAncestors(
-            GetModelAncestors request) {
-        ModelCommitValidator.validate(request);
-        long boundary = modelBoundary(request.getBoundary());
-        if (boundary < -1L || boundary > modelStateIndex) {
-            throw new IllegalArgumentException(
-                    "Model maxStateIndex %d is outside visible range -1..%d"
-                            .formatted(boundary, modelStateIndex));
-        }
-        return ModelRelationshipQueries.ancestors(
                 request, boundary,
-                frontier -> relationshipsByChildren(frontier, boundary),
+                frontier -> request.getDirection() == GetModelGraph.Direction.ANCESTORS
+                        ? relationshipsByChildren(frontier, boundary)
+                        : relationshipsByParents(frontier, boundary, before),
                 this::getModelEvents);
     }
 

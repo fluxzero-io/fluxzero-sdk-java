@@ -78,6 +78,8 @@ import lombok.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -1289,7 +1291,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
 
             List<ModelCommitStep> protocolSteps = new ArrayList<>();
-            List<CommitAttempt.Step> preparedSteps = new ArrayList<>();
+            Map<ModelCommitTarget, Change> preparedChanges = new IdentityHashMap<>();
             Map<String, Long> nextSequences = new LinkedHashMap<>();
             Set<String> cascadeRoots = evaluation.cascadeRootIds();
             for (CommitAttempt.Step step : evaluation.steps()) {
@@ -1320,7 +1322,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             .toBuilder().expectedSequenceNumber(null).build();
                     protocolSteps.add(new ModelCommitStep(
                             publication, true, List.of(publicationTarget)));
-                    preparedSteps.add(new CommitAttempt.Step(message, List.of()));
                 }
                 boolean publishEvent = !direct
                                        && (transitions.stream().anyMatch(Change::publishEvent)
@@ -1346,22 +1347,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
                 List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
                 for (Change transition : committedTransitions) {
-                    targets.add(target(
+                    ModelCommitTarget target = target(
                             transition, message, nextSequences,
-                            cascadeRoots.contains(transition.modelId())));
+                            cascadeRoots.contains(transition.modelId()));
+                    targets.add(target);
+                    preparedChanges.put(target, transition);
                 }
                 protocolSteps.add(new ModelCommitStep(event, publishEvent, List.copyOf(targets)));
-                preparedSteps.add(new CommitAttempt.Step(message, committedTransitions));
             }
-            boolean possibleDuplicate = possibleDuplicate(evaluation, preparedSteps);
+            boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
             if (protocolSteps.isEmpty()) {
-                return new Outcome(null, preparedSteps);
+                return new Outcome(null, preparedChanges);
             }
             CommitModels commit = new CommitModels(
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
                     possibleDuplicate);
-            return new Outcome(commit, preparedSteps);
+            return new Outcome(commit, preparedChanges);
         }
 
         public Outcome prepareRebased(
@@ -1381,20 +1383,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     candidate.getReadModelIds(), candidate.getSubsteps(),
                     candidate.getConflictPolicy(), original.commit().getGuarantee(),
                     original.commit().isPossibleDuplicate());
-            return new Outcome(
-                    commit, rebased.steps());
+            return new Outcome(commit, rebased.changes);
         }
 
         private static void requireSameShape(
                 Outcome original,
                 Outcome rebased) {
             if (rebased.commit() == null
-                || original.steps().size()
-                   != rebased.steps().size()) {
+                || original.commit().getSubsteps().size()
+                   != rebased.commit().getSubsteps().size()) {
                 throw changedRebaseShape();
             }
             for (int substep = 0;
-                 substep < original.steps().size();
+                 substep < original.commit().getSubsteps().size();
                  substep++) {
                 ModelCommitStep before = original.commit().getSubsteps().get(substep);
                 ModelCommitStep after = rebased.commit().getSubsteps().get(substep);
@@ -1555,16 +1556,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private static boolean possibleDuplicate(
                 CommitAttempt evaluation,
-                List<CommitAttempt.Step> steps) {
+                Collection<Change> changes) {
             Long sourceIndex = DeserializingMessage.getOptionally()
                     .map(DeserializingMessage::getIndex)
                     .orElse(null);
             if (sourceIndex == null
-                || steps.stream()
-                        .flatMap(step -> step.changes().stream())
-                        .anyMatch(transition ->
-                                          !transition.storeEvent()
-                                          || !transition.publishEvent())) {
+                || changes.stream().anyMatch(transition ->
+                        !transition.storeEvent() || !transition.publishEvent())) {
                 return true;
             }
             return evaluation.transitions().stream()
@@ -1701,23 +1699,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         /** The one repository-owned carrier from prepared request through authoritative accepted result. */
         public static final class Outcome {
             private final CommitModels commit;
-            private final List<CommitAttempt.Step> steps;
+            private final Map<ModelCommitTarget, Change> changes;
             private final CommitModelsResult result;
             private final List<CommittedRevision> revisions;
 
             private Outcome(
                     CommitModels commit,
-                    List<CommitAttempt.Step> steps) {
-                this(commit, List.copyOf(steps), null, List.of());
+                    Map<ModelCommitTarget, Change> changes) {
+                this(commit, changes, null, List.of());
             }
 
             private Outcome(
                     CommitModels commit,
-                    List<CommitAttempt.Step> steps,
+                    Map<ModelCommitTarget, Change> changes,
                     CommitModelsResult result,
                     List<CommittedRevision> revisions) {
                 this.commit = commit;
-                this.steps = Objects.requireNonNull(steps);
+                this.changes = new IdentityHashMap<>(Objects.requireNonNull(changes));
                 this.result = result;
                 this.revisions = revisions;
             }
@@ -1726,13 +1724,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 return commit;
             }
 
-            public List<CommitAttempt.Step> steps() {
-                return steps;
+            public Collection<Change> changes() {
+                return Collections.unmodifiableCollection(changes.values());
             }
 
             public boolean hasCascadedDeletion() {
-                return steps.stream().flatMap(step -> step.changes().stream())
-                        .anyMatch(Change::cascadedDeletion);
+                return changes.values().stream().anyMatch(Change::cascadedDeletion);
             }
 
             public CommitModelsResult result() {
@@ -1744,29 +1741,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     throw new IllegalArgumentException(
                             "A repository commit outcome requires an accepted result");
                 }
-                if (steps.size() != accepted.getUpdates().size()
-                    || commit.getSubsteps().size() != accepted.getUpdates().size()) {
+                if (commit.getSubsteps().size() != accepted.getUpdates().size()) {
                     throw new IllegalStateException(
                             "Model commit returned a different number of substeps than requested");
                 }
                 List<CommittedRevision> revisions = new ArrayList<>();
-                for (int substep = 0; substep < steps.size(); substep++) {
-                    CommitAttempt.Step journalStep = steps.get(substep);
+                for (int substep = 0; substep < commit.getSubsteps().size(); substep++) {
                     ModelCommitStep requestStep = commit.getSubsteps().get(substep);
                     ModelUpdate resultStep = accepted.getUpdates().get(substep);
-                    List<Change> changes = journalStep.changes();
-                    if (requestStep.getTargets().size() != resultStep.getTargets().size()
-                        || !changes.isEmpty()
-                           && changes.size() != resultStep.getTargets().size()) {
+                    if (requestStep.getTargets().size() != resultStep.getTargets().size()) {
                         throw new IllegalStateException(
                                 "Model commit returned a different number of targets than requested");
                     }
                     long timestamp = requestStep.getEvent() == null
                             ? System.currentTimeMillis()
                             : requestStep.getEvent().getTimestamp();
-                    for (int target = 0; target < changes.size(); target++) {
-                        Change change = changes.get(target);
-                        if (change.updateState()) {
+                    for (int target = 0; target < requestStep.getTargets().size(); target++) {
+                        Change change = changes.get(requestStep.getTargets().get(target));
+                        if (change != null && change.updateState()) {
                             revisions.add(new CommittedRevision(
                                     change, requestStep, resultStep,
                                     resultStep.getTargets().get(target), timestamp));
@@ -1774,7 +1766,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
                 return new Outcome(
-                        commit, steps, accepted, List.copyOf(revisions));
+                        commit, changes, accepted, List.copyOf(revisions));
             }
 
             List<CommittedRevision> revisions() {

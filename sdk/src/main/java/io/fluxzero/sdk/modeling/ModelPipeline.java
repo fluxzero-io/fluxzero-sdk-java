@@ -370,8 +370,7 @@ final class ModelPipeline {
     interface RetryEvaluator {
         CompletableFuture<CommitAttempt> reevaluate(
                 CommitModelsResult result,
-                CommitAttempt current,
-                Commit.Outcome original);
+                CommitAttempt current);
     }
 
     private CompletableFuture<Object> executeEvaluation(
@@ -382,17 +381,17 @@ final class ModelPipeline {
         ModelConflictPolicy effectiveConflictPolicy =
                 evaluation.conflictPolicy(conflictPolicy);
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
-                ? Retry.accepting((result, current, original) -> {
+                ? Retry.accepting((result, current) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(original.steps(), result.getRebaseStateIndex()));
+                                rebase(current.steps(), result.getRebaseStateIndex()));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
                 })
                 : Retry.conflicts(
                         conflictResolver, maxConflictRetries,
-                        (conflict, current, original) -> reload(message, current, conflict));
+                        (conflict, current) -> reload(message, current, conflict));
         CompletableFuture<Optional<CommitModelsResult>> committed =
                 repositoryCommit.trackLocalCommit(
                         evaluation,
@@ -456,7 +455,7 @@ final class ModelPipeline {
                             .thenCompose(ignored -> invokeAsync(
                                     context,
                                     () -> retry.evaluator().reevaluate(
-                                            result, evaluation, original),
+                                            result, evaluation),
                                     "Model commit reevaluation returned null"))
                             .thenCompose(next -> {
                                 if (retry.accepting()

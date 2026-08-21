@@ -16,7 +16,6 @@
 
 package io.fluxzero.common.modeling;
 
-import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
@@ -82,48 +81,32 @@ public final class ModelRelationshipQueries {
         return result;
     }
 
-    /** Resolves a bounded descendant graph and its first stream page. */
+    /** Resolves one bounded relationship graph and its first stream page. */
     public static <R extends Relationship> GetModelGraphResult graph(
-            long requestId,
             GetModelGraph request,
             long boundary,
             Function<Collection<String>, List<R>> relationships,
             Function<GetModelEvents, GetModelEventsResult> events) {
-        ModelRelationshipTraversal.Result graph = ModelRelationshipTraversal.traverse(
-                List.of(request.getRootId()),
-                new ModelRelationshipTraversal.Policy(
-                        request.getMaxDepth(), request.getMaxModels(), false, false,
-                        "Model graph exceeds maxModels " + request.getMaxModels(), null),
-                frontier -> () -> relationships.apply(frontier).stream()
-                        .filter(relation -> !request.isComposableOnly() || relation.path() != null)
-                        .iterator(),
-                Relationship::childId,
-                Relationship::edge);
-        return result(
-                requestId, boundary, graph, request.getMaxEventsPerModel(),
-                request.getMaxBytes(), events);
-    }
-
-    /** Resolves a bounded ancestor graph and its first stream page. */
-    public static <R extends Relationship> GetModelGraphResult ancestors(
-            GetModelAncestors request,
-            long boundary,
-            Function<Collection<String>, List<R>> relationships,
-            Function<GetModelEvents, GetModelEventsResult> events) {
+        boolean ancestors = request.getDirection() == GetModelGraph.Direction.ANCESTORS;
         ModelRelationshipTraversal.Result graph = ModelRelationshipTraversal.traverse(
                 request.getModelIds(),
                 new ModelRelationshipTraversal.Policy(
-                        request.getMaxDepth(), request.getMaxModels(), true, false,
-                        "Model ancestor graph exceeds maxModels " + request.getMaxModels(),
-                        "Model ancestor graph exceeds maxDepth " + request.getMaxDepth()),
-                frontier -> relationships.apply(frontier).stream()
-                        .sorted(Comparator.comparing(Relationship::childId)
-                                        .thenComparing(Relationship::parentId)
-                                        .thenComparing(
-                                                Relationship::path,
-                                                Comparator.nullsFirst(Comparator.naturalOrder())))
-                        .toList(),
-                Relationship::parentId,
+                        request.getMaxDepth(), request.getMaxModels(), ancestors, false,
+                        "Model %s graph exceeds maxModels %d"
+                                .formatted(ancestors ? "ancestor" : "descendant", request.getMaxModels()),
+                        ancestors ? "Model ancestor graph exceeds maxDepth " + request.getMaxDepth() : null),
+                frontier -> {
+                    var selected = relationships.apply(frontier).stream();
+                    return ancestors
+                            ? selected.sorted(Comparator.comparing(Relationship::childId)
+                                    .thenComparing(Relationship::parentId)
+                                    .thenComparing(Relationship::path,
+                                                   Comparator.nullsFirst(Comparator.naturalOrder())))
+                                    .toList()
+                            : selected.filter(relation -> !request.isComposableOnly() || relation.path() != null)
+                                    .toList();
+                },
+                relation -> ancestors ? relation.parentId() : relation.childId(),
                 Relationship::edge);
         return result(
                 request.getRequestId(), boundary, graph,

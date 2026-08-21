@@ -158,13 +158,7 @@ class DefaultModelRepositoryCommitTest {
                         prepared.commit().getSubsteps().getLast().getEvent(),
                         MessageType.EVENT).getPayload());
         assertNull(direct.target(storedId.toString()).getState());
-        List<CommitAttempt.Step> preparedSteps = prepared.steps();
-        assertEquals(2, preparedSteps.size());
-        assertSame(event, preparedSteps.getFirst().message().getPayload());
-        assertSame(event, preparedSteps.getLast().message().getPayload());
-        assertEquals(
-                preparedSteps.getFirst().message().getMessageId(),
-                preparedSteps.getLast().message().getMessageId());
+        assertEquals(2, prepared.changes().size());
     }
 
     @Test
@@ -205,9 +199,9 @@ class DefaultModelRepositoryCommitTest {
         assertEquals(
                 after,
                 serializer.deserialize(direct.target(id.toString()).getState()));
-        assertEquals(2, prepared.steps().size());
-        assertTrue(prepared.steps().getFirst().changes().isEmpty());
-        assertSame(event, prepared.steps().getLast().message().getPayload());
+        assertEquals(
+                List.of(transition.withEffects(true, false, true)),
+                List.copyOf(prepared.changes()));
     }
 
     @Test
@@ -244,9 +238,9 @@ class DefaultModelRepositoryCommitTest {
 
         var accepted = ModelPipeline.commit(
                 protocol, "standalone-rebase", original, ModelConflictPolicy.ACCEPT,
-                ModelPipeline.Retry.accepting((result, current, prepared) -> {
+                ModelPipeline.Retry.accepting((result, current) -> {
                     assertEquals(51L, result.getRebaseStateIndex());
-                    assertEquals(2, prepared.steps().size());
+                    assertEquals(1, current.steps().size());
                     return CompletableFuture.completedFuture(rebased);
                 }), null, -1).join();
 
@@ -603,7 +597,7 @@ class DefaultModelRepositoryCommitTest {
                 ModelConflictPolicy.RETRY,
                 ModelPipeline.Retry.conflicts(
                         ModelConflictResolver.retryIfAllowed(), 1,
-                        (conflict, current, original) -> {
+                        (conflict, current) -> {
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(reloadedEvaluation);
                 }), null, -1).join();
@@ -648,7 +642,7 @@ class DefaultModelRepositoryCommitTest {
                 ModelConflictPolicy.RETRY,
                 ModelPipeline.Retry.conflicts(
                         ModelConflictResolver.retryIfAllowed(), 1,
-                        (conflict, current, original) -> {
+                        (conflict, current) -> {
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(evaluation);
                 }), null, -1).join());
@@ -664,7 +658,7 @@ class DefaultModelRepositoryCommitTest {
                         ignored -> {
                             throw applicationError;
                         }, 0,
-                        (conflict, current, original) ->
+                        (conflict, current) ->
                                 CompletableFuture.completedFuture(evaluation)),
                 null, -1).join());
         assertEquals(applicationError, mapped.getCause());
@@ -843,7 +837,6 @@ class DefaultModelRepositoryCommitTest {
         verify(repository).updateAfterCommit(outcomes.capture());
         assertEquals(1, outcomes.getValue().size());
         assertSame(prepared.commit(), outcomes.getValue().getFirst().commit());
-        assertSame(prepared.steps(), outcomes.getValue().getFirst().steps());
         assertSame(result, outcomes.getValue().getFirst().result());
     }
 
@@ -945,9 +938,9 @@ class DefaultModelRepositoryCommitTest {
 
         var accepted = ModelPipeline.commit(
                 protocol, "commit-rebase", original, ModelConflictPolicy.ACCEPT,
-                ModelPipeline.Retry.accepting((result, current, prepared) -> {
+                ModelPipeline.Retry.accepting((result, current) -> {
                     assertEquals(51L, result.getRebaseStateIndex());
-                    assertEquals(1, prepared.steps().size());
+                    assertEquals(1, current.steps().size());
                     return CompletableFuture.completedFuture(
                             rebased);
                 }), null, -1).join();
@@ -1032,7 +1025,7 @@ class DefaultModelRepositoryCommitTest {
             completion = ModelPipeline.commit(
                             protocol, "callback-rebase", original,
                             ModelConflictPolicy.ACCEPT,
-                            ModelPipeline.Retry.accepting((result, current, prepared) -> {
+                            ModelPipeline.Retry.accepting((result, current) -> {
                                 assertSame(
                                         expectedContext,
                                         Fluxzero.instance.get());
