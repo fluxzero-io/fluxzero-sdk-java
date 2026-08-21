@@ -511,6 +511,24 @@ class ReflectionUtilsTest {
             assertEquals(1, first.computation());
             assertEquals(1, invocations.get());
         }
+
+        @Test
+        void supportsReentrantSpecializedMetadataConstruction() {
+            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(ReentrantFixture.class);
+            SpecializedFixture nested = new SpecializedFixture(ReentrantFixture.class, 1);
+
+            SpecializedFixture result = metadata.specializedMetadata(
+                    SpecializedFixture.class,
+                    type -> {
+                        assertSame(nested, metadata.specializedMetadata(
+                                SpecializedFixture.class, ignored -> nested));
+                        return new SpecializedFixture(type, 2);
+                    });
+
+            assertSame(nested, result);
+            assertSame(result, metadata.specializedMetadata(
+                    SpecializedFixture.class, ignored -> new SpecializedFixture(Object.class, 3)));
+        }
     }
 
     @Nested
@@ -617,6 +635,9 @@ class ReflectionUtilsTest {
     }
 
     private record SpecializedFixture(Class<?> type, int computation) {
+    }
+
+    private static class ReentrantFixture {
     }
 
     @TypeMarker("outer")

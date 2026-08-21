@@ -208,7 +208,9 @@ class EntityMetadataTest {
         assertFalse(ModelRoot.class.isAssignableFrom(AggregateRoot.class));
         assertEquals(Set.of("parent", "lastEventId", "lastEventIndex", "withEventIndex", "sequenceNumber",
                             "withSequenceNumber", "timestamp", "previous"),
-                     stream(AggregateRoot.class.getDeclaredMethods()).map(java.lang.reflect.Method::getName)
+                     stream(AggregateRoot.class.getDeclaredMethods())
+                             .filter(method -> !method.isSynthetic())
+                             .map(java.lang.reflect.Method::getName)
                              .collect(toSet()));
     }
 

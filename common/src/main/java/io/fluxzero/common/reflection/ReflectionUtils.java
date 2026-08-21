@@ -1199,7 +1199,13 @@ public class ReflectionUtils {
                     }
                 }
             }
-            return metadataType.cast(metadata.computeIfAbsent(metadataType, ignored -> factory.apply(type)));
+            Object result = metadata.get(metadataType);
+            if (result == null) {
+                M computed = Objects.requireNonNull(factory.apply(type), "Specialized metadata must not be null");
+                Object existing = metadata.putIfAbsent(metadataType, computed);
+                result = existing == null ? computed : existing;
+            }
+            return metadataType.cast(result);
         }
 
         @SuppressWarnings("unchecked")
