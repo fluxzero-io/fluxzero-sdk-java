@@ -33,7 +33,9 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitStepResult;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
@@ -905,46 +907,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      */
     public void updateAfterCommit(
             List<Commit.Outcome> outcomes) {
-        LinkedHashMap<String, List<Long>> byModel = new LinkedHashMap<>();
-        for (int outcomeIndex = 0; outcomeIndex < outcomes.size(); outcomeIndex++) {
-            Commit.Outcome outcome = outcomes.get(outcomeIndex);
-            if (outcome.attempt().stepCount() != outcome.result().getSubsteps().size()) {
-                throw new IllegalStateException(
-                        "Model commit returned a different number of substeps than requested");
-            }
-            for (int substep = 0; substep < outcome.attempt().stepCount(); substep++) {
-                List<Change> changes = outcome.attempt().stepChanges(substep);
-                var request = outcome.commit().getSubsteps().get(substep);
-                var result = outcome.result().getSubsteps().get(substep);
-                if (request.getTargets().size() != result.getTargets().size()
-                    || !changes.isEmpty() && changes.size() != result.getTargets().size()) {
-                    throw new IllegalStateException(
-                            "Model commit returned a different number of targets than requested");
-                }
-                for (int target = 0; target < changes.size(); target++) {
-                    Change change = changes.get(target);
-                    if (change.updateState()) {
-                        byModel.computeIfAbsent(change.modelId(), ignored -> new ArrayList<>())
-                                .add(commitPosition(
-                                        outcomeIndex,
-                                        outcome.targetOrdinal(substep, target)));
-                    }
-                }
-            }
-        }
+        LinkedHashMap<String, List<CommittedRevision>> byModel = new LinkedHashMap<>();
+        outcomes.stream().flatMap(outcome -> outcome.revisions().stream())
+                .forEach(revision -> byModel.computeIfAbsent(
+                        revision.change().modelId(), ignored -> new ArrayList<>()).add(revision));
         if (byModel.isEmpty()) {
             return;
         }
-        List<Map.Entry<String, List<Long>>> committedModels =
+        List<Map.Entry<String, List<CommittedRevision>>> committedModels =
                 new ArrayList<>(byModel.entrySet());
         if (committedModels.size() == 1) {
-            updateAfterCommit(committedModels.getFirst(), outcomes);
+            updateAfterCommit(committedModels.getFirst());
             return;
         }
         for (int offset = 0;
              offset < committedModels.size();
              offset += COMMITTED_CACHE_UPDATE_BATCH_SIZE) {
-            modelCache.<Map.Entry<String, List<Long>>, Entity<?>>updateAll(
+            modelCache.<Map.Entry<String, List<CommittedRevision>>, Entity<?>>updateAll(
                     committedModels.subList(
                             offset,
                             Math.min(
@@ -954,28 +933,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     Map.Entry::getKey,
                     (committed, current) ->
                             applyCommittedModel(
-                                    current, committed.getKey(), committed.getValue(), outcomes));
+                                    current, committed.getKey(), committed.getValue()));
         }
         if (modelCacheTracker == null) {
             return;
         }
         committedModels.forEach(committed ->
-                updateTrackerAfterCommit(committed, outcomes));
+                updateTrackerAfterCommit(committed));
     }
 
     private Entity<?> applyCommittedModel(
             Entity<?> current,
             String modelId,
-            List<Long> positions,
-            List<Commit.Outcome> outcomes) {
-        long position = positions.getLast();
-        Commit.Outcome committed = outcomes.get(commitOutcome(position));
-        Change transition = change(committed, position);
-        int substep = committed.substep(position);
-        int target = committed.target(position);
-        var resultStep = committed.result().getSubsteps().get(substep);
-        long stateIndex = resultStep.getStateIndex();
-        if (!resultStep.getTargets().get(target).isHistoryComplete()) {
+            List<CommittedRevision> revisions) {
+        CommittedRevision committed = revisions.getLast();
+        Change transition = committed.change();
+        long stateIndex = committed.result().getStateIndex();
+        if (!committed.target().isHistoryComplete()) {
             return current != null
                    && stateIndex(current) > stateIndex
                     ? current : null;
@@ -987,38 +961,32 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return current;
         }
         return committedEntity(
-                modelId, transition, positions, outcomes, current);
+                modelId, transition, revisions, current);
     }
 
     private void updateTrackerAfterCommit(
-            Map.Entry<String, List<Long>> committed,
-            List<Commit.Outcome> outcomes) {
+            Map.Entry<String, List<CommittedRevision>> committed) {
         String modelId = committed.getKey();
-        long position = committed.getValue().getLast();
-        Commit.Outcome outcome = outcomes.get(commitOutcome(position));
-        Change transition = change(outcome, position);
-        int substep = outcome.substep(position);
-        int target = outcome.target(position);
-        var resultStep = outcome.result().getSubsteps().get(substep);
-        if (!resultStep.getTargets().get(target).isHistoryComplete()) {
+        CommittedRevision revision = committed.getValue().getLast();
+        Change transition = revision.change();
+        if (!revision.target().isHistoryComplete()) {
             modelCacheTracker.forget(modelId);
         } else if (transition.defaults().model().cached()) {
             modelCacheTracker.committed(
                     modelId, transition.modelType(),
-                    resultStep.getStateIndex());
+                    revision.result().getStateIndex());
         }
     }
 
     private void updateAfterCommit(
-            Map.Entry<String, List<Long>> committed,
-            List<Commit.Outcome> outcomes) {
+            Map.Entry<String, List<CommittedRevision>> committed) {
         modelCache.<Entity<?>>compute(
                 committed.getKey(),
                 (ignored, current) ->
                         applyCommittedModel(
-                                current, committed.getKey(), committed.getValue(), outcomes));
+                                current, committed.getKey(), committed.getValue()));
         if (modelCacheTracker != null) {
-            updateTrackerAfterCommit(committed, outcomes);
+            updateTrackerAfterCommit(committed);
         }
     }
 
@@ -1059,29 +1027,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private Entity<?> committedEntity(
             String modelId,
             Change finalTransition,
-            List<Long> positions,
-            List<Commit.Outcome> outcomes,
+            List<CommittedRevision> revisions,
             Entity<?> previous) {
         EntityMetadata.Property entityId =
                 finalTransition.defaults().metadata().entityId().orElseThrow();
         EntityMetadata.RootConfiguration model = finalTransition.defaults().model();
         Entity<?> result = previous;
-        for (long position : positions) {
-            Commit.Outcome outcome = outcomes.get(commitOutcome(position));
-            int substep = outcome.substep(position);
-            int target = outcome.target(position);
-            Change transition = outcome.attempt().stepChanges(substep).get(target);
-            var requestStep = outcome.commit().getSubsteps().get(substep);
-            var resultStep = outcome.result().getSubsteps().get(substep);
-            var targetResult = resultStep.getTargets().get(target);
+        for (CommittedRevision revision : revisions) {
+            Change transition = revision.change();
+            ModelCommitStep requestStep = revision.request();
+            ModelCommitStepResult resultStep = revision.result();
+            ModelCommitTargetResult targetResult = revision.target();
             result = ImmutableModelRoot.committed(
                     modelId, (Class<Object>) finalTransition.modelType(),
                     entityId.name(), transition.after(), entityHelper, serializer,
                     requestStep.getEvent() == null ? null : requestStep.getEvent().getMessageId(),
                     resultStep.getEventIndex(),
-                    Instant.ofEpochMilli(requestStep.getEvent() == null
-                                                ? outcome.completedAt(substep)
-                                                : requestStep.getEvent().getTimestamp()),
+                    Instant.ofEpochMilli(revision.timestamp()),
                     targetResult.getSequenceNumber(), resultStep.getStateIndex(),
                     castPrevious(ImmutableRoot.retainPrevious(result, model)));
         }
@@ -1093,16 +1055,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return result;
     }
 
-    private static Change change(Commit.Outcome outcome, long position) {
-        return outcome.attempt().stepChanges(outcome.substep(position)).get(outcome.target(position));
-    }
-
-    private static long commitPosition(int outcome, int targetOrdinal) {
-        return (long) outcome << Integer.SIZE | Integer.toUnsignedLong(targetOrdinal);
-    }
-
-    private static int commitOutcome(long position) {
-        return (int) (position >>> Integer.SIZE);
+    private record CommittedRevision(
+            Change change,
+            ModelCommitStep request,
+            ModelCommitStepResult result,
+            ModelCommitTargetResult target,
+            long timestamp) {
     }
 
     @SuppressWarnings("unchecked")
@@ -1381,26 +1339,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Objects.requireNonNull(evaluation, "evaluation");
             Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
-            if (evaluation.stepCount() == 1
-                && evaluation.stepChanges(0).size() == 1
-                && !evaluation.stepChanges(0).getFirst().graphChange()) {
-                return prepareSingle(
-                        commitId, evaluation, conflictPolicy,
-                        evaluation.stepMessage(0), evaluation.stepChanges(0));
-            }
-
-            List<DeserializingMessage> evaluatedMessages = new ArrayList<>(evaluation.stepCount());
-            List<List<Change>> evaluatedChanges = new ArrayList<>(evaluation.stepCount());
+            List<CommitAttempt.Step> evaluatedSteps =
+                    new ArrayList<>(evaluation.steps().size());
             Map<String, List<Change>> graphPublications = new LinkedHashMap<>();
             Set<String> ordinaryEventIds = new java.util.HashSet<>();
-            for (int step = 0; step < evaluation.stepCount(); step++) {
-                DeserializingMessage message = evaluation.stepMessage(step);
-                List<Change> transitions = evaluation.stepChanges(step).stream()
+            for (CommitAttempt.Step step : evaluation.steps()) {
+                DeserializingMessage message = step.message();
+                List<Change> transitions = step.changes().stream()
                         .peek(Change::validate)
                         .filter(Change::active)
                         .toList();
-                evaluatedMessages.add(message);
-                evaluatedChanges.add(transitions);
+                evaluatedSteps.add(new CommitAttempt.Step(message, transitions));
                 if (transitions.isEmpty()) {
                     continue;
                 }
@@ -1424,13 +1373,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
 
             List<ModelCommitStep> protocolSteps = new ArrayList<>();
-            List<DeserializingMessage> preparedMessages = new ArrayList<>();
-            List<List<Change>> preparedChanges = new ArrayList<>();
+            List<CommitAttempt.Step> preparedSteps = new ArrayList<>();
             Map<String, Long> nextSequences = new LinkedHashMap<>();
             Set<String> cascadeRoots = evaluation.cascadeRootIds();
-            for (int step = 0; step < evaluatedMessages.size(); step++) {
-                DeserializingMessage message = evaluatedMessages.get(step);
-                List<Change> transitions = evaluatedChanges.get(step);
+            for (CommitAttempt.Step step : evaluatedSteps) {
+                DeserializingMessage message = step.message();
+                List<Change> transitions = step.changes();
                 if (transitions.isEmpty()) {
                     continue;
                 }
@@ -1455,8 +1403,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             .toBuilder().expectedSequenceNumber(null).build();
                     protocolSteps.add(new ModelCommitStep(
                             publication, true, List.of(publicationTarget)));
-                    preparedMessages.add(message);
-                    preparedChanges.add(List.of());
+                    preparedSteps.add(new CommitAttempt.Step(message, List.of()));
                 }
                 boolean publishEvent = !direct
                                        && (transitions.stream().anyMatch(Change::publishEvent)
@@ -1487,62 +1434,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             cascadeRoots.contains(transition.modelId())));
                 }
                 protocolSteps.add(new ModelCommitStep(event, publishEvent, List.copyOf(targets)));
-                preparedMessages.add(message);
-                preparedChanges.add(committedTransitions);
+                preparedSteps.add(new CommitAttempt.Step(message, committedTransitions));
             }
-            CommitAttempt prepared = preparedAttempt(evaluation, preparedMessages, preparedChanges);
+            CommitAttempt prepared = evaluation.prepared(preparedSteps);
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, prepared);
             }
             CommitModels commit = new CommitModels(
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
-                    possibleDuplicate(evaluation, preparedChanges));
+                    possibleDuplicate(evaluation, preparedSteps));
             return new Outcome(commit, prepared);
-        }
-
-        private Outcome prepareSingle(
-                String commitId,
-                CommitAttempt evaluation,
-                ModelConflictPolicy conflictPolicy,
-                DeserializingMessage message,
-                List<Change> changes) {
-            Change transition = changes.getFirst();
-            transition.validate();
-            CommitAttempt prepared = preparedAttempt(
-                    evaluation, List.of(message), List.of(changes));
-            if (!transition.active()) {
-                return new Outcome(null, preparedAttempt(evaluation, List.of(), List.of()));
-            }
-            boolean eventRequired = transition.publishEvent() || transition.storeEvent();
-            SerializedMessage event = eventRequired
-                    ? serialize(message, commitId, 0, transition.cascadedDeletion()) : null;
-            if (event != null) {
-                event.setSource(source);
-                if (transition.publishEvent()
-                    && transition.eventRouting() == AggregateEventRouting.AGGREGATE_ID) {
-                    event.setSegment(ConsistentHashing.computeSegment(transition.modelId()));
-                }
-                event = SerializedMessage.encode(event);
-            }
-            long nextSequence = transition.beforeSequenceNumber()
-                                + (transition.storeEvent() ? 1L : 0L);
-            ModelCommitTarget target = target(
-                    transition, message, nextSequence,
-                    evaluation.cascadeRootIds().contains(transition.modelId()));
-            ModelCommitStep step = new ModelCommitStep(
-                    event, transition.publishEvent(), List.of(target));
-            CommitModels commit = new CommitModels(
-                    commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
-                    List.of(step), conflictPolicy, STORED, possibleDuplicate(transition));
-            return new Outcome(commit, prepared);
-        }
-
-        private static CommitAttempt preparedAttempt(
-                CommitAttempt evaluation,
-                List<DeserializingMessage> messages,
-                List<List<Change>> changes) {
-            return evaluation.prepared(messages, changes);
         }
 
         public Outcome prepareRebased(
@@ -1570,12 +1472,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 Outcome original,
                 Outcome rebased) {
             if (rebased.commit() == null
-                || original.attempt().stepCount()
-                   != rebased.attempt().stepCount()) {
+                || original.attempt().steps().size()
+                   != rebased.attempt().steps().size()) {
                 throw changedRebaseShape();
             }
             for (int substep = 0;
-                 substep < original.attempt().stepCount();
+                 substep < original.attempt().steps().size();
                  substep++) {
                 ModelCommitStep before = original.commit().getSubsteps().get(substep);
                 ModelCommitStep after = rebased.commit().getSubsteps().get(substep);
@@ -1736,13 +1638,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private static Boolean possibleDuplicate(
                 CommitAttempt evaluation,
-                List<List<Change>> changesByStep) {
+                List<CommitAttempt.Step> steps) {
             Long sourceIndex = DeserializingMessage.getOptionally()
                     .map(DeserializingMessage::getIndex)
                     .orElse(null);
             if (sourceIndex == null
-                || changesByStep.stream()
-                        .flatMap(List::stream)
+                || steps.stream()
+                        .flatMap(step -> step.changes().stream())
                         .anyMatch(transition ->
                                           !transition.storeEvent()
                                           || !transition.publishEvent())) {
@@ -1752,21 +1654,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .map(Change::beforeLastEventIndex)
                     .filter(Objects::nonNull)
                     .anyMatch(index -> index >= sourceIndex);
-        }
-
-        private static Boolean possibleDuplicate(Change transition) {
-            Long sourceIndex = DeserializingMessage.getOptionally()
-                    .map(DeserializingMessage::getIndex)
-                    .orElse(null);
-            if (sourceIndex == null
-                || !transition.storeEvent()
-                || !transition.publishEvent()) {
-                return null;
-            }
-            Long beforeLastEventIndex =
-                    transition.beforeLastEventIndex();
-            return beforeLastEventIndex != null
-                   && beforeLastEventIndex >= sourceIndex;
         }
 
         private static void applyEventRouting(
@@ -1924,26 +1811,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             private final CommitModels commit;
             private final CommitAttempt attempt;
             private final CommitModelsResult result;
-            private final long[] completedAt;
-            private final int[] targetOffsets;
+            private final List<CommittedRevision> revisions;
 
             private Outcome(
                     CommitModels commit,
                     CommitAttempt attempt) {
-                this(commit, attempt, null, null, null);
+                this(commit, attempt, null, List.of());
             }
 
             private Outcome(
                     CommitModels commit,
                     CommitAttempt attempt,
                     CommitModelsResult result,
-                    long[] completedAt,
-                    int[] targetOffsets) {
+                    List<CommittedRevision> revisions) {
                 this.commit = commit;
                 this.attempt = Objects.requireNonNull(attempt);
                 this.result = result;
-                this.completedAt = completedAt;
-                this.targetOffsets = targetOffsets;
+                this.revisions = revisions;
             }
 
             public CommitModels commit() {
@@ -1963,45 +1847,41 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     throw new IllegalArgumentException(
                             "A repository commit outcome requires an accepted result");
                 }
-                long[] completedAt = new long[commit.getSubsteps().size()];
-                int[] targetOffsets = new int[completedAt.length + 1];
-                for (int substep = 0; substep < completedAt.length; substep++) {
-                    targetOffsets[substep + 1] = Math.addExact(
-                            targetOffsets[substep],
-                            commit.getSubsteps().get(substep).getTargets().size());
-                    if (commit.getSubsteps().get(substep).getEvent() == null) {
-                        completedAt[substep] = System.currentTimeMillis();
+                if (attempt.steps().size() != accepted.getSubsteps().size()
+                    || commit.getSubsteps().size() != accepted.getSubsteps().size()) {
+                    throw new IllegalStateException(
+                            "Model commit returned a different number of substeps than requested");
+                }
+                List<CommittedRevision> revisions = new ArrayList<>();
+                for (int substep = 0; substep < attempt.steps().size(); substep++) {
+                    CommitAttempt.Step journalStep = attempt.steps().get(substep);
+                    ModelCommitStep requestStep = commit.getSubsteps().get(substep);
+                    ModelCommitStepResult resultStep = accepted.getSubsteps().get(substep);
+                    List<Change> changes = journalStep.changes();
+                    if (requestStep.getTargets().size() != resultStep.getTargets().size()
+                        || !changes.isEmpty()
+                           && changes.size() != resultStep.getTargets().size()) {
+                        throw new IllegalStateException(
+                                "Model commit returned a different number of targets than requested");
+                    }
+                    long timestamp = requestStep.getEvent() == null
+                            ? System.currentTimeMillis()
+                            : requestStep.getEvent().getTimestamp();
+                    for (int target = 0; target < changes.size(); target++) {
+                        Change change = changes.get(target);
+                        if (change.updateState()) {
+                            revisions.add(new CommittedRevision(
+                                    change, requestStep, resultStep,
+                                    resultStep.getTargets().get(target), timestamp));
+                        }
                     }
                 }
-                return new Outcome(commit, attempt, accepted, completedAt, targetOffsets);
+                return new Outcome(
+                        commit, attempt, accepted, List.copyOf(revisions));
             }
 
-            long completedAt(int substep) {
-                return completedAt[substep];
-            }
-
-            int targetOrdinal(int substep, int target) {
-                return targetOffsets[substep] + target;
-            }
-
-            int substep(long position) {
-                int ordinal = (int) position;
-                int low = 1;
-                int high = targetOffsets.length;
-                while (low < high) {
-                    int middle = low + (high - low) / 2;
-                    if (targetOffsets[middle] <= ordinal) {
-                        low = middle + 1;
-                    } else {
-                        high = middle;
-                    }
-                }
-                return low - 1;
-            }
-
-            int target(long position) {
-                int substep = substep(position);
-                return (int) position - targetOffsets[substep];
+            List<CommittedRevision> revisions() {
+                return revisions;
             }
 
         }

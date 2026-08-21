@@ -236,15 +236,15 @@ class ModelBatchScopeTest {
                     if (DeserializingMessage.getMessageBatchIndex() == 0) {
                         stage(
                                 null,
-                                CommitAttempt.fromChanges(
+                                CommitAttempt.fromSteps(
                                         0L,
                                         List.of(before.id()),
                                         Map.of(before.id(), ModelContract.class),
-                                        List.of(current),
-                                        List.of(List.of(Change.applied(
+                                        List.of(new CommitAttempt.Step(
+                                                current, List.of(Change.applied(
                                                         before.id(), ModelContract.class,
                                                         0L, null, before, after, null,
-                                                        null, false)))));
+                                                        null, false))))));
                     } else {
                         Entity<Object> empty = ImmutableModelRoot.builder()
                                 .id("new")
@@ -354,15 +354,15 @@ class ModelBatchScopeTest {
             String modelId,
             AliasModel before,
             AliasModel after) {
-        return CommitAttempt.fromChanges(
+        return CommitAttempt.fromSteps(
                 0L,
                 List.of(modelId),
                 Map.of(modelId, AliasModel.class),
-                List.of(message),
-                List.of(List.of(Change.applied(
+                List.of(new CommitAttempt.Step(
+                        message, List.of(Change.applied(
                                 modelId, AliasModel.class,
                                 0L, null, before, after, null,
-                                null, false))));
+                                null, false)))));
     }
 
     private static Entity<AliasModel> entity(AliasModel value) {

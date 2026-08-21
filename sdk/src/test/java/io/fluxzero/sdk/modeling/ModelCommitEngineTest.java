@@ -341,16 +341,16 @@ class ModelCommitEngineTest {
                 result.readModelIds());
         assertEquals(
                 List.of(firstId, secondId),
-                result.stepMessages().stream()
+                result.steps().stream().map(CommitAttempt.Step::message)
                         .map(DeserializingMessage::getPayload)
                         .map(AdjustInventory.class::cast)
                         .map(AdjustInventory::inventoryId).toList());
         assertEquals(4, ((Inventory) result.finalValues().get(firstId.toString())).available());
         assertEquals(8, ((Inventory) result.finalValues().get(secondId.toString())).available());
-        assertNotEquals(result.stepMessage(0).getMessageId(),
-                        result.stepMessage(result.stepCount() - 1).getMessageId());
-        assertNotEquals(source.getMessageId(), result.stepMessage(0).getMessageId());
-        assertEquals(source.getTimestamp(), result.stepMessage(0).getTimestamp());
+        assertNotEquals(result.steps().getFirst().message().getMessageId(),
+                        result.steps().getLast().message().getMessageId());
+        assertNotEquals(source.getMessageId(), result.steps().getFirst().message().getMessageId());
+        assertEquals(source.getTimestamp(), result.steps().getFirst().message().getTimestamp());
     }
 
     @Test
@@ -369,11 +369,11 @@ class ModelCommitEngineTest {
                 (substep, requestedStateIndex, stagedValues) ->
                         resolveSubstep(substep, 79, stored));
 
-        assertEquals(1, result.stepCount());
-        assertSame(command, result.stepMessage(0).getPayload());
+        assertEquals(1, result.steps().size());
+        assertSame(command, result.steps().getFirst().message().getPayload());
         assertEquals(
                 List.of(inventoryId.toString(), orderId.toString()),
-                result.stepChanges(0).stream()
+                result.steps().getFirst().changes().stream()
                         .map(Change::modelId)
                         .sorted().toList());
     }
@@ -392,7 +392,7 @@ class ModelCommitEngineTest {
                 (substep, requestedStateIndex, stagedValues) ->
                         resolveSubstep(substep, 88, stored));
 
-        assertEquals(2, result.stepCount());
+        assertEquals(2, result.steps().size());
         assertEquals(5, ((Inventory) result.transitions().get(0).before()).available());
         assertEquals(6, ((Inventory) result.transitions().get(1).before()).available());
         assertEquals(8, ((Inventory) result.finalValues().get(id.toString())).available());
@@ -438,9 +438,9 @@ class ModelCommitEngineTest {
                 });
 
         assertEquals(2, resolutions[0]);
-        assertEquals(1, result.stepCount());
-        assertEquals(source.getMessageId(), result.stepMessage(0).getMessageId());
-        assertTrue(((NormalizeInventory) result.stepMessage(0)
+        assertEquals(1, result.steps().size());
+        assertEquals(source.getMessageId(), result.steps().getFirst().message().getMessageId());
+        assertTrue(((NormalizeInventory) result.steps().getFirst().message()
                 .getPayload()).normalized());
         assertEquals(3, ((Inventory) result.finalValues().get(id.toString())).available());
     }
@@ -453,7 +453,7 @@ class ModelCommitEngineTest {
                         resolveSubstep(substep, 12, Map.of()));
 
         assertEquals(12, result.readStateIndex());
-        assertTrue(result.stepCount() == 0);
+        assertTrue(result.steps().isEmpty());
         assertTrue(result.finalValues().isEmpty());
     }
 
@@ -515,29 +515,29 @@ class ModelCommitEngineTest {
         assertEquals(
                 List.of(orderId.toString(), inventoryId.toString()),
                 result.readModelIds());
-        assertEquals(2, result.stepCount());
-        assertEquals(1, result.stepChanges(0).size());
-        assertEquals(1, result.stepChanges(result.stepCount() - 1).size());
-        assertSame(command, result.stepMessage(0).getPayload());
+        assertEquals(2, result.steps().size());
+        assertEquals(1, result.steps().getFirst().changes().size());
+        assertEquals(1, result.steps().getLast().changes().size());
+        assertSame(command, result.steps().getFirst().message().getPayload());
         assertNull(result.finalValues().get(inventoryId.toString()));
 
         DeserializingMessage deletionEvent =
-                result.stepMessage(0);
+                result.steps().getFirst().message();
         CommitAttempt rebased = reapply(
                 List.of(
-                        result.stepMessage(0),
+                        result.steps().getFirst().message(),
                         ModelReducer.graphChangeReplay(
                                 deletionEvent,
                                 inventoryId.toString(), Inventory.class,
-                                result.stepChanges(result.stepCount() - 1).stream()
+                                result.steps().getLast().changes().stream()
                                         .filter(transition -> transition.modelId()
                                                 .equals(inventoryId.toString()))
                                         .findFirst().orElseThrow().replay())),
                 resolver);
 
-        assertEquals(2, rebased.stepCount());
-        assertEquals(1, rebased.stepChanges(0).size());
-        assertEquals(1, rebased.stepChanges(rebased.stepCount() - 1).size());
+        assertEquals(2, rebased.steps().size());
+        assertEquals(1, rebased.steps().getFirst().changes().size());
+        assertEquals(1, rebased.steps().getLast().changes().size());
         assertNull(rebased.finalValues().get(inventoryId.toString()));
     }
 
@@ -559,7 +559,7 @@ class ModelCommitEngineTest {
 
         assertEquals(7, ((Inventory) result.finalValues()
                 .get(inventoryId.toString())).available());
-        Change graphTransition = result.stepChanges(result.stepCount() - 1).stream()
+        Change graphTransition = result.steps().getLast().changes().stream()
                 .filter(transition -> transition.modelId()
                         .equals(inventoryId.toString()))
                 .findFirst().orElseThrow();
@@ -567,7 +567,7 @@ class ModelCommitEngineTest {
 
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));
-        DeserializingMessage event = result.stepMessage(0);
+        DeserializingMessage event = result.steps().getFirst().message();
         CommitAttempt rebased = reapply(
                 List.of(event, ModelReducer.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
@@ -578,7 +578,7 @@ class ModelCommitEngineTest {
 
         assertEquals(11, ((Inventory) rebased.finalValues()
                 .get(inventoryId.toString())).available());
-        assertEquals(2, rebased.stepCount());
+        assertEquals(2, rebased.steps().size());
     }
 
     @Test
@@ -601,16 +601,16 @@ class ModelCommitEngineTest {
 
         assertEquals(8, ((Inventory) result.finalValues()
                 .get(inventoryId.toString())).available());
-        assertEquals(2, result.stepCount());
-        assertEquals(1, result.stepChanges(result.stepCount() - 1).size());
+        assertEquals(2, result.steps().size());
+        assertEquals(1, result.steps().getLast().changes().size());
         Change combined =
-                result.stepChanges(result.stepCount() - 1).getFirst();
+                result.steps().getLast().changes().getFirst();
         assertEquals(new Inventory(inventoryId, 5), combined.before());
         assertEquals(new Inventory(inventoryId, 8), combined.after());
 
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));
-        DeserializingMessage event = result.stepMessage(0);
+        DeserializingMessage event = result.steps().getFirst().message();
         CommitAttempt rebased = reapply(
                 List.of(event, ModelReducer.graphChangeReplay(
                         event, inventoryId.toString(), Inventory.class,
@@ -621,7 +621,7 @@ class ModelCommitEngineTest {
 
         assertEquals(12, ((Inventory) rebased.finalValues()
                 .get(inventoryId.toString())).available());
-        assertEquals(1, rebased.stepChanges(rebased.stepCount() - 1).size());
+        assertEquals(1, rebased.steps().getLast().changes().size());
     }
 
     @Test
@@ -656,7 +656,7 @@ class ModelCommitEngineTest {
                         resolveSubstep(substep, -1, stored));
 
         assertEquals(-1, result.readStateIndex());
-        assertSame(command, result.stepMessage(0).getPayload());
+        assertSame(command, result.steps().getFirst().message().getPayload());
         assertEquals(1, result.transitions().size());
         assertTrue(result.finalValues().containsKey(id.toString()));
         assertNull(result.finalValues().get(id.toString()));

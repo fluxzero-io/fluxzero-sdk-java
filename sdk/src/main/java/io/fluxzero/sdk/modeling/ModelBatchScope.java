@@ -69,8 +69,8 @@ public final class ModelBatchScope {
             return;
         }
         if (trackedCompletion) {
-            evaluation.stepMessages().forEach(message ->
-                    message.putContext(CommitDependency.class, evaluation));
+            evaluation.steps().forEach(step ->
+                    step.message().putContext(CommitDependency.class, evaluation));
         }
         Map<String, Object> before = new HashMap<>();
         Map<String, Long> sequences = new HashMap<>();

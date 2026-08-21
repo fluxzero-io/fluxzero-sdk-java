@@ -79,16 +79,15 @@ public final class CommitAttempt implements CommitDependency {
         }
     }
 
-    static CommitAttempt fromChanges(
+    static CommitAttempt fromSteps(
             long readStateIndex,
             Collection<String> readModelIds,
             Map<String, Class<?>> readModelTypes,
-            List<DeserializingMessage> messages,
-            List<List<Change>> changesByStep) {
+            List<Step> steps) {
         CommitAttempt result = new CommitAttempt(false);
         result.evaluated(
                 readStateIndex, readModelIds, readModelTypes,
-                messages, changesByStep);
+                steps);
         return result;
     }
 
@@ -98,9 +97,9 @@ public final class CommitAttempt implements CommitDependency {
             Map<String, Class<?>> readModelTypes,
             DeserializingMessage message,
             List<Change> changes) {
-        return fromChanges(
+        return fromSteps(
                 readStateIndex, readModelIds, readModelTypes,
-                Collections.singletonList(message), List.of(changes));
+                List.of(new Step(message, changes)));
     }
 
     /** Creates a loaded begin-state for one resolved target set. */
@@ -310,29 +309,20 @@ public final class CommitAttempt implements CommitDependency {
             long stateIndex,
             Collection<String> readIds,
             Map<String, Class<?>> readTypes,
-            List<DeserializingMessage> messages,
-            List<List<Change>> changesByStep) {
-        if (messages.size() != changesByStep.size()) {
-            throw new IllegalArgumentException(
-                    "Commit attempt messages and change groups must have equal size");
-        }
+            List<Step> steps) {
         readStateIndex = stateIndex;
         List<String> copiedReadIds = List.copyOf(readIds);
         Map<String, Class<?>> copiedReadTypes = Map.copyOf(readTypes);
-        List<DeserializingMessage> copiedMessages =
-                Collections.unmodifiableList(new ArrayList<>(messages));
-        ArrayList<List<Change>> copiedSteps = new ArrayList<>(changesByStep.size());
+        List<Step> copiedSteps = List.copyOf(steps);
         ArrayList<Change> ordered = new ArrayList<>();
         LinkedHashMap<String, Object> values = new LinkedHashMap<>();
-        for (List<Change> step : changesByStep) {
-            List<Change> copied = List.copyOf(step);
-            copiedSteps.add(copied);
-            ordered.addAll(copied);
-            copied.forEach(change -> values.put(change.modelId(), change.after()));
+        for (Step step : copiedSteps) {
+            ordered.addAll(step.changes());
+            step.changes().forEach(change ->
+                    values.put(change.modelId(), change.after()));
         }
         evaluation = new Evaluation(
-                copiedReadIds, copiedReadTypes, copiedMessages,
-                List.copyOf(copiedSteps), List.copyOf(ordered),
+                copiedReadIds, copiedReadTypes, copiedSteps, List.copyOf(ordered),
                 immutable(values));
     }
 
@@ -349,24 +339,8 @@ public final class CommitAttempt implements CommitDependency {
         return evaluation().readModelTypes;
     }
 
-    public int stepCount() {
-        return evaluation().stepMessages.size();
-    }
-
-    public DeserializingMessage stepMessage(int index) {
-        return evaluation().stepMessages.get(index);
-    }
-
-    public List<Change> stepChanges(int index) {
-        return evaluation().stepChanges.get(index);
-    }
-
-    List<DeserializingMessage> stepMessages() {
-        return evaluation().stepMessages;
-    }
-
-    List<List<Change>> changesByStep() {
-        return evaluation().stepChanges;
+    public List<Step> steps() {
+        return evaluation().steps;
     }
 
     public List<Change> transitions() {
@@ -383,19 +357,19 @@ public final class CommitAttempt implements CommitDependency {
 
     List<DeserializingMessage> rebaseMessages() {
         if (transitions().stream().noneMatch(Change::graphChange)) {
-            return stepMessages();
+            return steps().stream().map(Step::message).toList();
         }
-        List<DeserializingMessage> result = new ArrayList<>(stepCount() + 1);
-        for (int step = 0; step < stepCount(); step++) {
-            List<Change> group = stepChanges(step);
+        List<DeserializingMessage> result = new ArrayList<>(steps().size() + 1);
+        for (Step step : steps()) {
+            List<Change> group = step.changes();
             if (group.isEmpty()) {
                 continue;
             }
             if (group.stream().noneMatch(Change::graphChange)) {
-                result.add(stepMessage(step));
+                result.add(step.message());
                 continue;
             }
-            DeserializingMessage eventMessage = stepMessage(step);
+            DeserializingMessage eventMessage = step.message();
             if (group.stream().anyMatch(change -> !change.graphChange())) {
                 result.add(eventMessage);
             }
@@ -410,13 +384,10 @@ public final class CommitAttempt implements CommitDependency {
         return transitions().stream().anyMatch(Change::cascadedDeletion);
     }
 
-    public CommitAttempt prepared(
-            List<DeserializingMessage> messages,
-            List<List<Change>> changes) {
+    public CommitAttempt prepared(List<Step> steps) {
         CommitAttempt result = detached();
         result.evaluated(
-                readStateIndex(), readModelIds(), readModelTypes(), messages,
-                changes);
+                readStateIndex(), readModelIds(), readModelTypes(), steps);
         result.cascadeRoots(cascadeRootIds());
         return result;
     }
@@ -734,14 +705,22 @@ public final class CommitAttempt implements CommitDependency {
         return Collections.unmodifiableMap(values);
     }
 
+    /** One ordered mutation journal entry. */
+    public record Step(
+            DeserializingMessage message,
+            List<Change> changes) {
+        public Step {
+            changes = List.copyOf(changes);
+        }
+    }
+
     private static final class Evaluation {
         private static final Evaluation EMPTY = new Evaluation(
-                List.of(), Map.of(), List.of(), List.of(), List.of(), Map.of());
+                List.of(), Map.of(), List.of(), List.of(), Map.of());
 
         private final List<String> readModelIds;
         private final Map<String, Class<?>> readModelTypes;
-        private final List<DeserializingMessage> stepMessages;
-        private final List<List<Change>> stepChanges;
+        private final List<Step> steps;
         private final List<Change> changes;
         private final Map<String, Object> finalValues;
         private Set<String> cascadeRootIds = Set.of();
@@ -749,14 +728,12 @@ public final class CommitAttempt implements CommitDependency {
         private Evaluation(
                 List<String> readModelIds,
                 Map<String, Class<?>> readModelTypes,
-                List<DeserializingMessage> stepMessages,
-                List<List<Change>> stepChanges,
+                List<Step> steps,
                 List<Change> changes,
                 Map<String, Object> finalValues) {
             this.readModelIds = readModelIds;
             this.readModelTypes = readModelTypes;
-            this.stepMessages = stepMessages;
-            this.stepChanges = stepChanges;
+            this.steps = steps;
             this.changes = changes;
             this.finalValues = finalValues;
         }

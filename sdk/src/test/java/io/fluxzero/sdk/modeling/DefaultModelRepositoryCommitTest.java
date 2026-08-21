@@ -1251,10 +1251,10 @@ class DefaultModelRepositoryCommitTest {
             Map<String, Class<?>> readModelTypes,
             List<TestStep> substeps,
             Map<String, Object> finalValues) {
-        return CommitAttempt.fromChanges(
+        return CommitAttempt.fromSteps(
                 readStateIndex, readModelIds, readModelTypes,
-                substeps.stream().map(TestStep::message).toList(),
-                substeps.stream().map(TestStep::transitions).toList());
+                substeps.stream().map(step -> new CommitAttempt.Step(
+                        step.message(), step.transitions())).toList());
     }
 
     private static TestStep substep(

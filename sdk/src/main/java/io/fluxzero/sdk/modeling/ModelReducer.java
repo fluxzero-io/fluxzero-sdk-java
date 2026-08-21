@@ -231,7 +231,7 @@ public final class ModelReducer {
         attempt.evaluated(
                 readStateIndex, List.of(modelId),
                 Map.of(modelId, modelType),
-                List.of(message), List.of(List.of(transition)));
+                List.of(new CommitAttempt.Step(message, List.of(transition))));
         return attempt;
     }
 
@@ -529,8 +529,7 @@ public final class ModelReducer {
         LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
         Map<String, Class<?>> readModelTypes =
                 new LinkedHashMap<>();
-        List<DeserializingMessage> stepMessages = new ArrayList<>();
-        List<List<Change>> changesByStep = new ArrayList<>();
+        List<CommitAttempt.Step> steps = new ArrayList<>();
         long readStateIndex = -1L;
         boolean stateIndexPinned = false;
         CommitAttempt originalContext = initialMessage == null ? null
@@ -588,9 +587,7 @@ public final class ModelReducer {
                                     graphChangeMessage.change.modelId()));
                     stagedValues.put(
                             change.modelId(), change.after());
-                    mergeGraphChange(
-                            stepMessages, changesByStep,
-                            graphChangeMessage, change);
+                    mergeGraphChange(steps, graphChangeMessage, change);
                     continue;
                 }
                 if (current.interceptionAllowed()) {
@@ -624,12 +621,11 @@ public final class ModelReducer {
                                 transition.modelType());
                     }
                 }
-                stepMessages.add(current.message());
-                changesByStep.add(transitions);
+                steps.add(new CommitAttempt.Step(current.message(), transitions));
             }
             attempt.evaluated(
                     readStateIndex, readModelIds, readModelTypes,
-                    stepMessages, changesByStep);
+                    steps);
             return attempt;
         } finally {
             CommitAttempt restore =
@@ -712,13 +708,13 @@ public final class ModelReducer {
     }
 
     private static void mergeGraphChange(
-            List<DeserializingMessage> stepMessages,
-            List<List<Change>> changesByStep,
+            List<CommitAttempt.Step> steps,
             DeserializingMessage message,
             Change addition) {
         String eventMessageId = message.getMessageId();
-        for (int i = stepMessages.size() - 1; i >= 0; i--) {
-            DeserializingMessage existing = stepMessages.get(i);
+        for (int i = steps.size() - 1; i >= 0; i--) {
+            CommitAttempt.Step step = steps.get(i);
+            DeserializingMessage existing = step.message();
             if (!Objects.equals(
                     existing.getMessageId(), eventMessageId)
                 || (existing instanceof GraphChangeMessage)
@@ -727,15 +723,15 @@ public final class ModelReducer {
             }
             LinkedHashMap<String, Change> transitions =
                     new LinkedHashMap<>();
-            changesByStep.get(i).forEach(
+            step.changes().forEach(
                     transition -> transitions.merge(
                             transition.modelId(), transition, Change::then));
             transitions.merge(addition.modelId(), addition, Change::then);
-            changesByStep.set(i, List.copyOf(transitions.values()));
+            steps.set(i, new CommitAttempt.Step(
+                    existing, List.copyOf(transitions.values())));
             return;
         }
-        stepMessages.add(message);
-        changesByStep.add(List.of(addition));
+        steps.add(new CommitAttempt.Step(message, List.of(addition)));
     }
 
     private static DeserializingMessage emittedMessage(

@@ -368,7 +368,7 @@ final class ModelPipeline {
         if (request.warnMissingApply()
             && !hasModelApplies(request.message().getPayloadClass())
             && evaluation.transitions().isEmpty()
-            && evaluation.stepCount() > 0) {
+            && !evaluation.steps().isEmpty()) {
             log.warn(
                     "Fluxzero.assertAndApply({}) ran model interceptors and assertions, but this application has no "
                     + "locally reachable model @Apply handler. No model changes were committed.",
@@ -801,8 +801,8 @@ final class ModelPipeline {
         LinkedHashSet<String> explicitlyDeleted = null;
         LinkedHashMap<String, Change> latestTransitions =
                 new LinkedHashMap<>();
-        for (int step = 0; step < evaluation.stepCount(); step++) {
-            for (Change transition : evaluation.stepChanges(step)) {
+        for (CommitAttempt.Step step : evaluation.steps()) {
+            for (Change transition : step.changes()) {
                 latestTransitions.put(transition.modelId(), transition);
                 if (transition.before() != null
                     && transition.after() == null
@@ -871,19 +871,16 @@ final class ModelPipeline {
                         node.value(), null, null, null, true))
                 .toList();
         DeserializingMessage source =
-                evaluation.stepMessage(0);
+                evaluation.steps().getFirst().message();
         DeserializingMessage cascadeMessage = source.withMessage(
                 new Message(
                         new CascadedModelDeletion(
                                 List.copyOf(explicitlyDeleted)),
                         source.getMetadata(), null,
                         source.getTimestamp()));
-        List<DeserializingMessage> messages =
-                new ArrayList<>(evaluation.stepMessages());
-        messages.add(cascadeMessage);
-        List<List<Change>> changesByStep =
-                new ArrayList<>(evaluation.changesByStep());
-        changesByStep.add(transitions);
+        List<CommitAttempt.Step> steps =
+                new ArrayList<>(evaluation.steps());
+        steps.add(new CommitAttempt.Step(cascadeMessage, transitions));
         LinkedHashSet<String> readModelIds =
                 new LinkedHashSet<>(evaluation.readModelIds());
         Map<String, Class<?>> readModelTypes =
@@ -895,7 +892,7 @@ final class ModelPipeline {
         });
         evaluation.evaluated(
                 evaluation.readStateIndex(), readModelIds,
-                readModelTypes, messages, changesByStep);
+                readModelTypes, steps);
         evaluation.cascadeRoots(explicitlyDeleted);
         return evaluation;
     }
