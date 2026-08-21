@@ -345,8 +345,8 @@ class ModelCommitEngineTest {
                         .map(DeserializingMessage::getPayload)
                         .map(AdjustInventory.class::cast)
                         .map(AdjustInventory::inventoryId).toList());
-        assertEquals(4, ((Inventory) result.finalValues().get(firstId.toString())).available());
-        assertEquals(8, ((Inventory) result.finalValues().get(secondId.toString())).available());
+        assertEquals(4, ((Inventory) finalValues(result).get(firstId.toString())).available());
+        assertEquals(8, ((Inventory) finalValues(result).get(secondId.toString())).available());
         assertNotEquals(result.steps().getFirst().message().getMessageId(),
                         result.steps().getLast().message().getMessageId());
         assertNotEquals(source.getMessageId(), result.steps().getFirst().message().getMessageId());
@@ -395,7 +395,7 @@ class ModelCommitEngineTest {
         assertEquals(2, result.steps().size());
         assertEquals(5, ((Inventory) result.transitions().get(0).before()).available());
         assertEquals(6, ((Inventory) result.transitions().get(1).before()).available());
-        assertEquals(8, ((Inventory) result.finalValues().get(id.toString())).available());
+        assertEquals(8, ((Inventory) finalValues(result).get(id.toString())).available());
     }
 
     @Test
@@ -442,7 +442,7 @@ class ModelCommitEngineTest {
         assertEquals(source.getMessageId(), result.steps().getFirst().message().getMessageId());
         assertTrue(((NormalizeInventory) result.steps().getFirst().message()
                 .getPayload()).normalized());
-        assertEquals(3, ((Inventory) result.finalValues().get(id.toString())).available());
+        assertEquals(3, ((Inventory) finalValues(result).get(id.toString())).available());
     }
 
     @Test
@@ -454,7 +454,7 @@ class ModelCommitEngineTest {
 
         assertEquals(12, result.readStateIndex());
         assertTrue(result.steps().isEmpty());
-        assertTrue(result.finalValues().isEmpty());
+        assertTrue(finalValues(result).isEmpty());
     }
 
     @Test
@@ -519,7 +519,7 @@ class ModelCommitEngineTest {
         assertEquals(1, result.steps().getFirst().changes().size());
         assertEquals(1, result.steps().getLast().changes().size());
         assertSame(command, result.steps().getFirst().message().getPayload());
-        assertNull(result.finalValues().get(inventoryId.toString()));
+        assertNull(finalValues(result).get(inventoryId.toString()));
 
         DeserializingMessage deletionEvent =
                 result.steps().getFirst().message();
@@ -538,7 +538,7 @@ class ModelCommitEngineTest {
         assertEquals(2, rebased.steps().size());
         assertEquals(1, rebased.steps().getFirst().changes().size());
         assertEquals(1, rebased.steps().getLast().changes().size());
-        assertNull(rebased.finalValues().get(inventoryId.toString()));
+        assertNull(finalValues(rebased).get(inventoryId.toString()));
     }
 
     @Test
@@ -557,7 +557,7 @@ class ModelCommitEngineTest {
                         77L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), inventory)));
 
-        assertEquals(7, ((Inventory) result.finalValues()
+        assertEquals(7, ((Inventory) finalValues(result)
                 .get(inventoryId.toString())).available());
         Change graphTransition = result.steps().getLast().changes().stream()
                 .filter(transition -> transition.modelId()
@@ -576,7 +576,7 @@ class ModelCommitEngineTest {
                         88L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), concurrent)));
 
-        assertEquals(11, ((Inventory) rebased.finalValues()
+        assertEquals(11, ((Inventory) finalValues(rebased)
                 .get(inventoryId.toString())).available());
         assertEquals(2, rebased.steps().size());
     }
@@ -599,7 +599,7 @@ class ModelCommitEngineTest {
                         77L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), inventory)));
 
-        assertEquals(8, ((Inventory) result.finalValues()
+        assertEquals(8, ((Inventory) finalValues(result)
                 .get(inventoryId.toString())).available());
         assertEquals(2, result.steps().size());
         assertEquals(1, result.steps().getLast().changes().size());
@@ -619,7 +619,7 @@ class ModelCommitEngineTest {
                         88L, Map.of(orderId.toString(), order,
                                     inventoryId.toString(), concurrent)));
 
-        assertEquals(12, ((Inventory) rebased.finalValues()
+        assertEquals(12, ((Inventory) finalValues(rebased)
                 .get(inventoryId.toString())).available());
         assertEquals(1, rebased.steps().getLast().changes().size());
     }
@@ -658,8 +658,8 @@ class ModelCommitEngineTest {
         assertEquals(-1, result.readStateIndex());
         assertSame(command, result.steps().getFirst().message().getPayload());
         assertEquals(1, result.transitions().size());
-        assertTrue(result.finalValues().containsKey(id.toString()));
-        assertNull(result.finalValues().get(id.toString()));
+        assertTrue(finalValues(result).containsKey(id.toString()));
+        assertNull(finalValues(result).get(id.toString()));
     }
 
     @Test
@@ -685,7 +685,7 @@ class ModelCommitEngineTest {
                 observations);
         assertEquals(
                 new ReceiverOrder(id, "renamed"),
-                result.finalValues().get(id.toString()));
+                finalValues(result).get(id.toString()));
     }
 
     @Test
@@ -719,6 +719,7 @@ class ModelCommitEngineTest {
         CommitAttempt begin = context(command, handlers, order);
 
         ModelReducer.assertLegal(
+                CommitAttempt.detached(),
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
                         new ModelReducer.ResolvedSubstep(
@@ -744,6 +745,7 @@ class ModelCommitEngineTest {
         CommitAttempt begin = context(command, handlers, order);
 
         ModelReducer.assertLegal(
+                CommitAttempt.detached(),
                 message(command),
                 (substep, requestedStateIndex, stagedValues) ->
                         new ModelReducer.ResolvedSubstep(
@@ -830,13 +832,13 @@ class ModelCommitEngineTest {
     private CommitAttempt evaluate(
             DeserializingMessage message,
             ModelReducer.SubstepResolver resolver) {
-        return ModelReducer.apply(message, resolver);
+        return ModelReducer.apply(CommitAttempt.detached(), List.of(message), resolver);
     }
 
     private CommitAttempt reapply(
             List<DeserializingMessage> messages,
             ModelReducer.SubstepResolver resolver) {
-        return ModelReducer.reapply(messages, resolver);
+        return ModelReducer.reapply(CommitAttempt.detached(), messages, resolver);
     }
 
     private ModelReducer.ResolvedSubstep resolveSubstep(
@@ -920,10 +922,18 @@ class ModelCommitEngineTest {
     private static CommitAttempt resultingState(
             CommitAttempt begin,
             List<Change> transitions) {
+        return begin.withValues(finalValues(transitions));
+    }
+
+    private static Map<String, Object> finalValues(CommitAttempt attempt) {
+        return finalValues(attempt.transitions());
+    }
+
+    private static Map<String, Object> finalValues(List<Change> transitions) {
         LinkedHashMap<String, Object> values = new LinkedHashMap<>();
         transitions.forEach(
                 transition -> values.put(transition.modelId(), transition.after()));
-        return begin.withValues(values);
+        return values;
     }
 
     private static DeserializingMessage message(Object command) {

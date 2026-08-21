@@ -48,7 +48,7 @@ public final class ModelBatchScope {
     private static final ThreadLocal<CommitAttempt> currentDependency =
             ThreadLocalContext.create();
 
-    private final ConcurrentHashMap<ModelKey, ConcurrentLinkedDeque<CommitAttempt>> values =
+    private final ConcurrentHashMap<ModelKey, ConcurrentLinkedDeque<PendingValue>> values =
             new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Object, Batch> batches = new ConcurrentHashMap<>();
 
@@ -60,7 +60,7 @@ public final class ModelBatchScope {
             CommitAttempt evaluation,
             boolean trackedCompletion) {
         int position = DeserializingMessage.getMessageBatchIndex();
-        if (position < 0 || evaluation.finalValues().isEmpty()) {
+        if (position < 0 || evaluation.transitions().isEmpty()) {
             return;
         }
         ModelBatchScope scope = DeserializingMessage.computeForMessageBatchIfAbsent(
@@ -69,31 +69,31 @@ public final class ModelBatchScope {
             return;
         }
         if (trackedCompletion) {
+            Dependency dependency = new Dependency(evaluation);
             evaluation.steps().forEach(step ->
-                    step.message().putContext(CommitDependency.class, evaluation));
+                    step.message().putContext(Dependency.class, dependency));
         }
-        Map<String, Object> before = new HashMap<>();
-        Map<String, Long> sequences = new HashMap<>();
+        Map<String, Change> first = new HashMap<>();
+        Map<String, Change> last = new LinkedHashMap<>();
         evaluation.transitions().forEach(transition -> {
-            before.putIfAbsent(transition.modelId(), transition.before());
-            sequences.putIfAbsent(
-                    transition.modelId(), transition.beforeSequenceNumber());
+            first.putIfAbsent(transition.modelId(), transition);
+            last.put(transition.modelId(), transition);
         });
         int segment = currentSegment();
         String effectiveNamespace = normalize(namespace);
-        evaluation.stageAt(position, segment, trackedCompletion);
-        evaluation.finalValues().forEach((modelId, value) -> {
-            Object previous = before.get(modelId);
+        last.forEach((modelId, transition) -> {
+            Change initial = first.get(modelId);
+            Object value = transition.after();
+            Object previous = initial.before();
             Class<?> type = value != null ? value.getClass()
                     : previous != null ? previous.getClass()
-                            : evaluation.readModelTypes().getOrDefault(modelId, Object.class);
+                            : transition.modelType();
             scope.stageModel(
                     evaluation,
                     effectiveNamespace, modelId, type, previous, value,
-                    sequences.getOrDefault(modelId, -1L), position, segment);
+                    initial.beforeSequenceNumber(), position, segment,
+                    trackedCompletion);
         });
-        evaluation.stagedKeys().forEach(key ->
-                scope.candidates(effectiveNamespace, key).addFirst(evaluation));
     }
 
     static void stage(
@@ -131,8 +131,8 @@ public final class ModelBatchScope {
             DeserializingMessage message,
             Supplier<T> action) {
         return withDependency(
-                message.getContext(CommitDependency.class)
-                        .map(CommitDependency::attempt).orElse(null), action);
+                message.getContext(Dependency.class)
+                        .map(Dependency::attempt).orElse(null), action);
     }
 
     static CommitAttempt register(
@@ -168,31 +168,30 @@ public final class ModelBatchScope {
             Class<T> requestedType,
             Entity<T> durable) {
         ModelBatchScope scope = current();
-        CommitAttempt lookup = scope == null ? null : scope.lookup(namespace, requestedId, false);
+        PendingValue lookup = scope == null ? null : scope.lookup(namespace, requestedId, false);
         if (lookup == null
-            || !lookup.exact(requestedId) && durable.isPresent()
+            || !lookup.modelId().equals(requestedId) && durable.isPresent()
                && requestedId.equals(String.valueOf(durable.id()))) {
             return durable;
         }
-        Object stagedValue = lookup.stagedValue(requestedId);
+        Object stagedValue = lookup.value();
         Class<?> actualType = stagedValue != null ? stagedValue.getClass()
-                : durable.isPresent() ? durable.type() : lookup.stagedType(requestedId);
+                : durable.isPresent() ? durable.type() : lookup.type();
         if (!Object.class.equals(requestedType)
             && !requestedType.isAssignableFrom(actualType)) {
             return durable;
         }
-        String id = lookup.stagedAvailable(requestedId)
-                ? lookup.stagedModelId(requestedId) : requestedId;
+        String id = lookup.removed() ? requestedId : lookup.modelId();
         if (durable instanceof ImmutableEntity<?> immutable) {
             return (Entity<T>) immutable.toBuilder()
                     .id(id).type((Class) actualType)
                     .idProperty(EntityMetadata.of(actualType).entityIdName())
-                    .value(lookup.stagedAvailable(requestedId) ? stagedValue : null).build();
+                    .value(lookup.removed() ? null : stagedValue).build();
         }
         return (Entity<T>) ImmutableModelRoot.builder()
                 .id(id).type((Class) actualType)
                 .idProperty(EntityMetadata.of(actualType).entityIdName())
-                .value(lookup.stagedAvailable(requestedId) ? stagedValue : null).build();
+                .value(lookup.removed() ? null : stagedValue).build();
     }
 
     /** Overlays pending exact values without changing the durable context's pinned state boundary. */
@@ -205,10 +204,10 @@ public final class ModelBatchScope {
         }
         LinkedHashMap<String, Object> overlays = new LinkedHashMap<>();
         durable.modelIds().forEach(modelId -> {
-            CommitAttempt value = scope.lookup(
+            PendingValue value = scope.lookup(
                     namespace, modelId, true);
             if (value != null) {
-                overlays.put(modelId, value.stagedValue(modelId));
+                overlays.put(modelId, value.value());
             }
         });
         return overlays.isEmpty() ? durable : durable.withValues(overlays);
@@ -222,24 +221,23 @@ public final class ModelBatchScope {
             return Map.of();
         }
         String effectiveNamespace = normalize(namespace);
-        List<Map.Entry<ModelKey, CommitAttempt>> visible = new ArrayList<>();
+        List<Map.Entry<ModelKey, PendingValue>> visible = new ArrayList<>();
         scope.values.forEach((key, candidates) -> {
-            CommitAttempt candidate = key.namespace().equals(effectiveNamespace)
+            PendingValue candidate = key.namespace().equals(effectiveNamespace)
                     ? visible(candidates, key.modelId(), position, true) : null;
             if (candidate != null && status(candidate) == Status.PENDING) {
                 visible.add(Map.entry(key, candidate));
             }
         });
         visible.sort(Comparator
-                .comparingInt((Map.Entry<ModelKey, CommitAttempt> entry) ->
-                        entry.getValue().batchPosition())
+                .comparingInt((Map.Entry<ModelKey, PendingValue> entry) ->
+                        entry.getValue().position())
                 .thenComparing(entry -> entry.getKey().modelId()));
         LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
         visible.forEach(entry -> {
-            CommitAttempt candidate = entry.getValue();
+            PendingValue candidate = entry.getValue();
             dependOn(candidate);
-            result.put(entry.getKey().modelId(),
-                       stagedEntity(candidate, entry.getKey().modelId()));
+            result.put(entry.getKey().modelId(), stagedEntity(candidate));
         });
         return result.isEmpty() ? Map.of() : Collections.unmodifiableMap(result);
     }
@@ -247,8 +245,8 @@ public final class ModelBatchScope {
     /** Returns one pending exact value; aliases are deliberately not resolved. */
     public static Entity<?> currentValue(String namespace, String modelId) {
         ModelBatchScope scope = current();
-        CommitAttempt value = scope == null ? null : scope.lookup(namespace, modelId, true);
-        return value == null ? null : stagedEntity(value, modelId);
+        PendingValue value = scope == null ? null : scope.lookup(namespace, modelId, true);
+        return value == null ? null : stagedEntity(value);
     }
 
     static Map<String, Object> currentValues(
@@ -263,26 +261,26 @@ public final class ModelBatchScope {
         String effectiveNamespace = normalize(namespace);
         if (resolution.hasAncestorDependencies()) {
             scope.values.forEach((key, candidates) -> {
-                CommitAttempt candidate = key.namespace().equals(effectiveNamespace)
+                PendingValue candidate = key.namespace().equals(effectiveNamespace)
                         ? visible(candidates, key.modelId(), position, true) : null;
                 if (candidate != null && status(candidate) != Status.FAILURE
                     && resolution.ancestorDependencies().stream().anyMatch(dependency ->
                             compatible(dependency.modelType(),
-                                       candidate.stagedType(key.modelId())))) {
+                                       candidate.type()))) {
                     dependOn(candidate);
-                    result.put(key.modelId(), candidate.stagedValue(key.modelId()));
+                    result.put(key.modelId(), candidate.value());
                 }
             });
         }
         List<String> pending = new ArrayList<>();
         resolution.models().forEach(target -> pending.add(target.modelId()));
         for (int index = 0; index < pending.size(); index++) {
-            CommitAttempt value = scope.lookup(namespace, pending.get(index), true);
+            PendingValue value = scope.lookup(namespace, pending.get(index), true);
             String modelId = pending.get(index);
             if (value == null || result.containsKey(modelId)) {
                 continue;
             }
-            Object stagedValue = value.stagedValue(modelId);
+            Object stagedValue = value.value();
             result.put(modelId, stagedValue);
             if (stagedValue != null) {
                 EntityMetadata.validate(stagedValue.getClass()).parentReferences().forEach(parent -> {
@@ -305,9 +303,9 @@ public final class ModelBatchScope {
         }
         LinkedHashMap<String, Object> result = new LinkedHashMap<>();
         context.modelIds().forEach(modelId -> {
-            CommitAttempt value = scope.lookup(namespace, modelId, true);
+            PendingValue value = scope.lookup(namespace, modelId, true);
             if (value != null) {
-                result.put(modelId, value.stagedValue(modelId));
+                result.put(modelId, value.value());
             }
         });
         return immutable(result);
@@ -322,17 +320,23 @@ public final class ModelBatchScope {
             Object after,
             long sequenceNumber,
             int position,
-            int segment) {
-        ConcurrentLinkedDeque<CommitAttempt> exact = candidates(namespace, modelId);
+            int segment,
+            boolean trackedCompletion) {
+        ConcurrentLinkedDeque<PendingValue> exact = candidates(namespace, modelId);
         Set<String> beforeAliases = aliases(before, modelType);
         Set<String> afterAliases = aliases(after, modelType);
-        attempt.stageModel(
-                modelId, modelType, after,
-                existedBefore(exact, modelId, before, position, segment),
-                sequenceNumber, beforeAliases, afterAliases);
+        PendingValue value = new PendingValue(
+                attempt, modelId, modelType, after,
+                existedBefore(exact, modelId, before, position, segment), sequenceNumber,
+                position, segment, trackedCompletion, false);
+        exact.addFirst(value);
+        beforeAliases.stream().filter(alias -> !alias.equals(modelId) && !afterAliases.contains(alias))
+                .forEach(alias -> candidates(namespace, alias).addFirst(value.removedAlias()));
+        afterAliases.stream().filter(alias -> !alias.equals(modelId))
+                .forEach(alias -> candidates(namespace, alias).addFirst(value));
     }
 
-    private ConcurrentLinkedDeque<CommitAttempt> candidates(
+    private ConcurrentLinkedDeque<PendingValue> candidates(
             String namespace,
             String modelId) {
         return values.computeIfAbsent(
@@ -340,14 +344,14 @@ public final class ModelBatchScope {
                 ignored -> new ConcurrentLinkedDeque<>());
     }
 
-    private CommitAttempt lookup(String namespace, String id, boolean exactOnly) {
+    private PendingValue lookup(String namespace, String id, boolean exactOnly) {
         int position = DeserializingMessage.getMessageBatchIndex();
         if (position < 0) {
             return null;
         }
-        ConcurrentLinkedDeque<CommitAttempt> candidates = values.get(
+        ConcurrentLinkedDeque<PendingValue> candidates = values.get(
                 new ModelKey(normalize(namespace), id));
-        CommitAttempt candidate = visible(candidates, id, position, true);
+        PendingValue candidate = visible(candidates, id, position, true);
         if (candidate == null && !exactOnly) {
             candidate = visible(candidates, id, position, false);
         }
@@ -358,8 +362,8 @@ public final class ModelBatchScope {
         return candidate;
     }
 
-    private static CommitAttempt visible(
-            Collection<CommitAttempt> candidates,
+    private static PendingValue visible(
+            Collection<PendingValue> candidates,
             String requestedId,
             int position,
             boolean exactOnly) {
@@ -368,56 +372,59 @@ public final class ModelBatchScope {
         }
         CommitAttempt consumer = currentDependency.get();
         int segment = currentSegment();
-        CommitAttempt result = null;
-        for (CommitAttempt candidate : candidates) {
-            if (candidate.batchPosition() > position
-                || exactOnly && !candidate.exact(requestedId)
-                || candidate.batchSegment() != segment
+        PendingValue result = null;
+        for (PendingValue candidate : candidates) {
+            if (candidate.position() > position
+                || exactOnly && !candidate.modelId().equals(requestedId)
+                || candidate.segment() != segment
                 || status(candidate) == Status.FAILURE
-                || consumer == candidate) {
+                || consumer == candidate.attempt()) {
                 continue;
             }
-            if (result == null || candidate.batchPosition() > result.batchPosition()) {
+            if (result == null || candidate.position() > result.position()) {
                 result = candidate;
             }
         }
         return result;
     }
 
-    private static void dependOn(CommitAttempt producer) {
+    private static void dependOn(PendingValue producer) {
         if (producer == null || !producer.trackedCompletion()) {
             return;
         }
         CommitAttempt consumer = currentDependency.get();
         if (consumer != null) {
-            if (consumer != producer) {
-                consumer.dependsOn(producer);
+            if (consumer != producer.attempt()) {
+                consumer.flow().dependsOn(producer.attempt());
             }
         } else if (DeserializingMessage.getCurrent() != null) {
             Invocation.awaitBeforeResultPublication(
-                    DeserializingMessage.getCurrent(), producer.completion());
+                    DeserializingMessage.getCurrent(), producer.attempt().completion());
         }
     }
 
-    private static Status status(CommitAttempt candidate) {
-        if (!candidate.trackedCompletion() || !candidate.completion().isDone()) {
+    private static Status status(PendingValue candidate) {
+        if (!candidate.trackedCompletion()) {
             return Status.PENDING;
         }
-        CompletableFuture<?> completion = candidate.completion();
+        CompletableFuture<?> completion = candidate.attempt().completion();
+        if (!completion.isDone()) {
+            return Status.PENDING;
+        }
         return completion.isCompletedExceptionally() || completion.isCancelled()
                 ? Status.FAILURE : Status.SUCCESS;
     }
 
     private static boolean existedBefore(
-            Collection<CommitAttempt> candidates,
+            Collection<PendingValue> candidates,
             String modelId,
             Object before,
             int position,
             int segment) {
-        CommitAttempt previous = visible(candidates, modelId, position, true);
-        return previous != null && previous.batchSegment() == segment
+        PendingValue previous = visible(candidates, modelId, position, true);
+        return previous != null && previous.segment() == segment
                && status(previous) == Status.PENDING
-                ? previous.stagedExistedBefore(modelId) : before != null;
+                ? previous.existedBefore() : before != null;
     }
 
     private static Set<String> aliases(Object value, Class<?> type) {
@@ -430,14 +437,14 @@ public final class ModelBatchScope {
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static Entity<?> stagedEntity(
-            CommitAttempt attempt, String modelId) {
-        Class<?> type = attempt.stagedType(modelId);
+            PendingValue value) {
+        Class<?> type = value.type();
         return ImmutableModelRoot.<Object>builder()
-                .id(modelId).type((Class<Object>) type)
+                .id(value.modelId()).type((Class<Object>) type)
                 .idProperty(EntityMetadata.validate(type).entityId().orElseThrow().name())
-                .value(attempt.stagedValue(modelId))
-                .sequenceNumber(attempt.stagedExistedBefore(modelId)
-                                        ? Math.max(0L, attempt.stagedSequence(modelId)) : -1L)
+                .value(value.value())
+                .sequenceNumber(value.existedBefore()
+                                        ? Math.max(0L, value.sequenceNumber()) : -1L)
                 .build();
     }
 
@@ -476,6 +483,130 @@ public final class ModelBatchScope {
             BooleanSupplier awaitBeforeResultPublication) {
     }
 
+    /** Batch-owned coordination for one commit; mutation data stays in {@link CommitAttempt}. */
+    static final class Flow {
+        private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
+        final CompletableFuture<Void> initialized;
+        private final CompletableFuture<Void> release;
+        final ModelCommitPolicy policy;
+        final boolean batched;
+        private final Runnable flushBatch;
+        private volatile Set<CommitAttempt> dependencies;
+        volatile Set<String> modelIds;
+        volatile ModelCommitBatchingClient.ModelCommitBatch transport;
+        volatile int slot = -1;
+
+        private Flow(ModelCommitPolicy policy, CompletableFuture<Void> initialized,
+                     CompletableFuture<Void> release, Runnable flushBatch) {
+            this.policy = policy;
+            this.batched = policy != null;
+            this.initialized = initialized;
+            this.release = release;
+            this.flushBatch = flushBatch;
+        }
+
+        static Flow direct() {
+            return new Flow(null, COMPLETED, COMPLETED, null);
+        }
+
+        static Flow batched(ModelCommitPolicy policy, boolean released, Runnable flushBatch) {
+            return new Flow(Objects.requireNonNull(policy), new CompletableFuture<>(),
+                            released ? COMPLETED : new CompletableFuture<>(),
+                            Objects.requireNonNull(flushBatch));
+        }
+
+        void initialize(Collection<String> ids) {
+            modelIds = batched ? Set.copyOf(ids) : null;
+            initialized.complete(null);
+        }
+
+        void dependsOn(CommitAttempt producer) {
+            Set<CommitAttempt> current = dependencies;
+            if (current == null) {
+                synchronized (this) {
+                    if ((current = dependencies) == null) {
+                        dependencies = current = ConcurrentHashMap.newKeySet();
+                    }
+                }
+            }
+            current.add(producer);
+        }
+
+        boolean hasDependencies() {
+            return dependencies != null && !dependencies.isEmpty();
+        }
+
+        int dependencyCount() {
+            return dependencies == null ? 0 : dependencies.size();
+        }
+
+        CompletableFuture<Void> dependenciesComplete() {
+            return !hasDependencies() ? COMPLETED : CompletableFuture.allOf(
+                    dependencies.stream().map(CommitAttempt::completion)
+                            .toArray(CompletableFuture[]::new));
+        }
+
+        CompletableFuture<Object> execute(Function<Boolean, CompletableFuture<Object>> action) {
+            if (hasDependencies()) {
+                if (batched && !policy.commitAfterBatch() && transport != null) {
+                    flushTransport();
+                }
+                detachTransport();
+            }
+            return release.thenCompose(ignored -> {
+                boolean dependent = hasDependencies();
+                if (dependent) {
+                    detachTransport();
+                }
+                return dependenciesComplete().thenCompose(unused ->
+                        Objects.requireNonNull(action.apply(dependent), "Model commit attempt returned null"));
+            }).whenComplete((value, failure) -> settleTransport());
+        }
+
+        <T> CompletableFuture<T> afterDependencies(Supplier<T> action, boolean asynchronous) {
+            int count = dependencyCount();
+            CompletableFuture<T> result = asynchronous
+                    ? dependenciesComplete().thenCompose(ignored -> CompletableFuture.supplyAsync(action))
+                    : dependenciesComplete().thenApply(ignored -> action.get());
+            return result.thenCompose(value -> dependencyCount() == count
+                    ? CompletableFuture.completedFuture(value)
+                    : afterDependencies(action, asynchronous));
+        }
+
+        void fail(Throwable failure) {
+            initialized.completeExceptionally(failure);
+            release.completeExceptionally(failure);
+            settleTransport();
+        }
+
+        void release() {
+            release.complete(null);
+        }
+
+        void transport(ModelCommitBatchingClient.ModelCommitBatch batch, int batchSlot) {
+            transport = batch;
+            slot = batchSlot;
+        }
+
+        synchronized void detachTransport() {
+            settleTransport();
+            transport = null;
+            slot = -1;
+        }
+
+        void flushTransport() {
+            if (flushBatch != null) {
+                flushBatch.run();
+            }
+        }
+
+        private void settleTransport() {
+            if (transport != null) {
+                transport.skip(slot);
+            }
+        }
+    }
+
     private static final class Batch {
         private final BatchLifecycle lifecycle;
         private final List<CommitAttempt> entries = new ArrayList<>();
@@ -491,15 +622,18 @@ public final class ModelBatchScope {
                 DeserializingMessage message,
                 ModelCommitPolicy policy) {
             if (closed) {
-                return CommitAttempt.batched(policy, true, () -> settleTransport(null));
+                CommitAttempt result = CommitAttempt.detached();
+                result.flow(Flow.batched(policy, true, () -> settleTransport(null)));
+                return result;
             }
-            CommitAttempt entry = CommitAttempt.batched(
-                    policy, !policy.commitAfterBatch(), () -> settleTransport(null));
+            CommitAttempt entry = CommitAttempt.detached();
+            entry.flow(Flow.batched(
+                    policy, !policy.commitAfterBatch(), () -> settleTransport(null)));
             if (!policy.commitAfterBatch()) {
                 if (readyTransport == null) {
                     readyTransport = lifecycle.readyBatch().get();
                 }
-                entry.transport(readyTransport, entries.size());
+                entry.flow().transport(readyTransport, entries.size());
                 if (lifecycle.awaitBeforeResultPublication().getAsBoolean()) {
                     Invocation.awaitBeforeResultPublication(message, entry.completion());
                 }
@@ -524,10 +658,10 @@ public final class ModelBatchScope {
                 return;
             }
             List<CommitAttempt> deferred = snapshot.stream()
-                    .filter(entry -> entry.policy().commitAfterBatch()).toList();
+                    .filter(entry -> entry.flow().policy.commitAfterBatch()).toList();
             if (!deferred.isEmpty()) {
                 CompletableFuture.allOf(deferred.stream()
-                                .map(CommitAttempt::initialization)
+                                .map(entry -> entry.flow().initialized)
                                 .toArray(CompletableFuture[]::new))
                         .whenComplete((ignored, initializationFailure) -> {
                             if (initializationFailure == null) {
@@ -545,30 +679,30 @@ public final class ModelBatchScope {
         private void release(
                 List<CommitAttempt> all,
                 List<CommitAttempt> deferred) {
-            boolean sequential = all.stream().anyMatch(entry -> !entry.policy().async());
+            boolean sequential = all.stream().anyMatch(entry -> !entry.flow().policy.async());
             Map<String, CommitAttempt> tails = new HashMap<>();
             CommitAttempt previous = null;
             for (CommitAttempt entry : all) {
                 if (sequential && previous != null) {
-                    entry.dependsOn(previous);
+                    entry.flow().dependsOn(previous);
                 }
                 previous = entry;
-                if (entry.resolvedModelIds() != null) {
-                    entry.resolvedModelIds().forEach(modelId -> {
+                if (entry.flow().modelIds != null) {
+                    entry.flow().modelIds.forEach(modelId -> {
                         CommitAttempt predecessor = tails.put(modelId, entry);
                         if (predecessor != null) {
-                            entry.dependsOn(predecessor);
+                            entry.flow().dependsOn(predecessor);
                         }
                     });
                 }
             }
             ModelCommitBatchingClient.ModelCommitBatch transport = deferred.stream()
-                    .allMatch(entry -> entry.policy().async())
+                    .allMatch(entry -> entry.flow().policy.async())
                     ? lifecycle.batch().apply(deferred.size()) : null;
             for (int index = 0; index < deferred.size(); index++) {
-                deferred.get(index).transport(transport, index);
+                deferred.get(index).flow().transport(transport, index);
             }
-            deferred.forEach(CommitAttempt::release);
+            deferred.forEach(entry -> entry.flow().release());
         }
 
         private synchronized void settleTransport(Throwable failure) {
@@ -584,6 +718,28 @@ public final class ModelBatchScope {
     }
 
     private enum Status { PENDING, SUCCESS, FAILURE }
+
+    private record Dependency(CommitAttempt attempt) {
+    }
+
+    private record PendingValue(
+            CommitAttempt attempt,
+            String modelId,
+            Class<?> type,
+            Object value,
+            boolean existedBefore,
+            long sequenceNumber,
+            int position,
+            int segment,
+            boolean trackedCompletion,
+            boolean removed) {
+
+        private PendingValue removedAlias() {
+            return new PendingValue(attempt, modelId, type, null, existedBefore,
+                                    sequenceNumber, position, segment,
+                                    trackedCompletion, true);
+        }
+    }
 
     private record ModelKey(String namespace, String modelId) {
         private ModelKey {

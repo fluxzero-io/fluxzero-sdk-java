@@ -18,7 +18,6 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
-import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 
 import java.lang.reflect.Executable;
 import java.util.ArrayList;
@@ -26,56 +25,43 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
  * Internal state of one model commit attempt, from its loaded begin-state through ordered changes and completion.
  * Instances used only as a handler read context leave the evaluation and completion portions empty.
  */
-public final class CommitAttempt implements CommitDependency {
-    private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
+public final class CommitAttempt {
     private long readStateIndex = -1L;
-    private Map<String, MutationPlan.ResolvedModel> targets = Map.of();
-    private Map<String, Entity<?>> entities = Map.of();
+    private List<MutationPlan.ResolvedModel> targets = List.of();
     private List<MutationPlan.DeferredWriteTarget> deferredWrites = List.of();
+    private Map<String, Entity<?>> entities = Map.of();
 
-    private Evaluation evaluation;
-    private Lifecycle lifecycle;
-    private Staging staging;
+    private List<String> readModelIds = List.of();
+    private Map<String, Class<?>> readModelTypes = Map.of();
+    private List<Step> steps = List.of();
+    private List<Change> changes = List.of();
+    private Set<String> cascadeRootIds = Set.of();
+    private volatile ModelBatchScope.Flow flow;
+    private volatile CompletableFuture<Object> completion;
+    private boolean submitted;
 
     CommitAttempt() {
-        lifecycle = Lifecycle.direct();
+        flow = ModelBatchScope.Flow.direct();
     }
 
     static CommitAttempt detached() {
         return new CommitAttempt(false);
     }
 
-    @Override
-    public CommitAttempt attempt() {
-        return this;
-    }
-
-    static CommitAttempt batched(
-            ModelCommitPolicy policy,
-            boolean released,
-            Runnable flushBatch) {
-        CommitAttempt result = new CommitAttempt(false);
-        result.lifecycle = Lifecycle.batched(policy, released, flushBatch);
-        return result;
-    }
-
-    private CommitAttempt(boolean lifecycle) {
-        if (lifecycle) {
-            this.lifecycle = Lifecycle.direct();
+    private CommitAttempt(boolean flow) {
+        if (flow) {
+            this.flow = ModelBatchScope.Flow.direct();
         }
     }
 
@@ -118,13 +104,11 @@ public final class CommitAttempt implements CommitDependency {
             validateLoadedEntity(target, entity);
             CommitAttempt result = new CommitAttempt(false);
             result.readStateIndex = readStateIndex;
-            result.targets = Map.of(target.modelId(), target);
+            result.targets = resolution.models();
+            result.deferredWrites = resolution.deferredWrites();
             result.entities = Map.of(target.modelId(), entity);
-            result.deferredWrites = List.copyOf(resolution.deferredWrites());
             return result;
         }
-        LinkedHashMap<String, MutationPlan.ResolvedModel> targets =
-                new LinkedHashMap<>(resolution.models().size());
         LinkedHashMap<String, Entity<?>> entities =
                 new LinkedHashMap<>(resolution.models().size());
         Map<String, Entity<?>> remaining = new LinkedHashMap<>(loadedModels);
@@ -134,7 +118,6 @@ public final class CommitAttempt implements CommitDependency {
                 throw missing(target, readStateIndex);
             }
             validateLoadedEntity(target, entity);
-            targets.put(target.modelId(), target);
             entities.put(target.modelId(), entity);
         }
         if (!remaining.isEmpty()) {
@@ -144,9 +127,9 @@ public final class CommitAttempt implements CommitDependency {
         }
         CommitAttempt result = new CommitAttempt(false);
         result.readStateIndex = readStateIndex;
-        result.targets = immutable(targets);
+        result.targets = resolution.models();
+        result.deferredWrites = resolution.deferredWrites();
         result.entities = immutable(entities);
-        result.deferredWrites = List.copyOf(resolution.deferredWrites());
         return result;
     }
 
@@ -170,7 +153,7 @@ public final class CommitAttempt implements CommitDependency {
         validateLoadedEntity(target, entity);
         CommitAttempt result = new CommitAttempt(false);
         result.readStateIndex = readStateIndex;
-        result.targets = Map.of(modelId, target);
+        result.targets = List.of(target);
         result.entities = Map.of(modelId, entity);
         return result;
     }
@@ -197,15 +180,22 @@ public final class CommitAttempt implements CommitDependency {
     }
 
     public List<String> modelIds() {
-        return List.copyOf(targets.keySet());
+        ArrayList<String> result = new ArrayList<>(targets.size());
+        targets.forEach(target -> result.add(target.modelId()));
+        return List.copyOf(result);
     }
 
     public List<MutationPlan.ResolvedModel> targets() {
-        return List.copyOf(targets.values());
+        return targets;
     }
 
     public MutationPlan.ResolvedModel target(String modelId) {
-        return targets.get(modelId);
+        for (MutationPlan.ResolvedModel target : targets) {
+            if (target.modelId().equals(modelId)) {
+                return target;
+            }
+        }
+        return null;
     }
 
     public Entity<?> entity(String modelId) {
@@ -227,7 +217,7 @@ public final class CommitAttempt implements CommitDependency {
         Entity<?> candidate = null;
         Entity<?> secondCandidate = null;
         Entity<?> exact = null;
-        for (MutationPlan.ResolvedModel target : targets.values()) {
+        for (MutationPlan.ResolvedModel target : targets) {
             Class<?> targetType = target.modelType();
             if (!(modelType.isAssignableFrom(targetType) || targetType.isAssignableFrom(modelType))) {
                 continue;
@@ -251,7 +241,7 @@ public final class CommitAttempt implements CommitDependency {
             return exact;
         }
         if (secondCandidate != null) {
-            throw ambiguous(modelType, null, targets.values().stream()
+            throw ambiguous(modelType, null, targets.stream()
                     .filter(target -> compatible(modelType, target.modelType()))
                     .map(MutationPlan.ResolvedModel::modelId).toList());
         }
@@ -259,7 +249,7 @@ public final class CommitAttempt implements CommitDependency {
     }
 
     boolean mayWrite(String modelId, Class<?> modelType, Executable handler) {
-        MutationPlan.ResolvedModel target = targets.get(modelId);
+        MutationPlan.ResolvedModel target = target(modelId);
         if (target == null) {
             return false;
         }
@@ -285,7 +275,7 @@ public final class CommitAttempt implements CommitDependency {
         LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(entities);
         values.forEach((modelId, value) -> {
             Entity<?> current = updated.get(modelId);
-            MutationPlan.ResolvedModel target = targets.get(modelId);
+            MutationPlan.ResolvedModel target = target(modelId);
             if (current == null || target == null) {
                 return;
             }
@@ -300,8 +290,8 @@ public final class CommitAttempt implements CommitDependency {
         CommitAttempt result = new CommitAttempt(false);
         result.readStateIndex = readStateIndex;
         result.targets = targets;
-        result.entities = immutable(updated);
         result.deferredWrites = deferredWrites;
+        result.entities = immutable(updated);
         return result;
     }
 
@@ -311,48 +301,38 @@ public final class CommitAttempt implements CommitDependency {
             Map<String, Class<?>> readTypes,
             List<Step> steps) {
         readStateIndex = stateIndex;
-        List<String> copiedReadIds = List.copyOf(readIds);
-        Map<String, Class<?>> copiedReadTypes = Map.copyOf(readTypes);
-        List<Step> copiedSteps = List.copyOf(steps);
+        readModelIds = List.copyOf(readIds);
+        readModelTypes = Map.copyOf(readTypes);
+        this.steps = List.copyOf(steps);
         ArrayList<Change> ordered = new ArrayList<>();
-        LinkedHashMap<String, Object> values = new LinkedHashMap<>();
-        for (Step step : copiedSteps) {
+        for (Step step : this.steps) {
             ordered.addAll(step.changes());
-            step.changes().forEach(change ->
-                    values.put(change.modelId(), change.after()));
         }
-        evaluation = new Evaluation(
-                copiedReadIds, copiedReadTypes, copiedSteps, List.copyOf(ordered),
-                immutable(values));
+        changes = List.copyOf(ordered);
     }
 
     void cascadeRoots(Set<String> modelIds) {
-        Objects.requireNonNull(evaluation, "Commit attempt has not been evaluated")
-                .cascadeRootIds = Set.copyOf(modelIds);
+        cascadeRootIds = Set.copyOf(modelIds);
     }
 
     public List<String> readModelIds() {
-        return evaluation().readModelIds;
+        return readModelIds;
     }
 
     Map<String, Class<?>> readModelTypes() {
-        return evaluation().readModelTypes;
+        return readModelTypes;
     }
 
     public List<Step> steps() {
-        return evaluation().steps;
+        return steps;
     }
 
     public List<Change> transitions() {
-        return evaluation().changes;
-    }
-
-    Map<String, Object> finalValues() {
-        return evaluation().finalValues;
+        return changes;
     }
 
     public Set<String> cascadeRootIds() {
-        return evaluation().cascadeRootIds;
+        return cascadeRootIds;
     }
 
     List<DeserializingMessage> rebaseMessages() {
@@ -385,27 +365,23 @@ public final class CommitAttempt implements CommitDependency {
     }
 
     public CommitAttempt prepared(List<Step> steps) {
-        CommitAttempt result = detached();
-        result.evaluated(
-                readStateIndex(), readModelIds(), readModelTypes(), steps);
-        result.cascadeRoots(cascadeRootIds());
-        return result;
+        evaluated(readStateIndex, readModelIds, readModelTypes, steps);
+        return this;
     }
 
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
         ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
-        Evaluation state = evaluation();
-        if (state.changes.size() == 1 && state.readModelTypes.size() == 1
-            && state.readModelTypes.containsKey(state.changes.getFirst().modelId())) {
-            return transitionPolicy(state.changes.getFirst(), application);
+        if (changes.size() == 1 && readModelTypes.size() == 1
+            && readModelTypes.containsKey(changes.getFirst().modelId())) {
+            return transitionPolicy(changes.getFirst(), application);
         }
         ModelConflictPolicy result = ModelConflictPolicy.ACCEPT;
         Set<String> written = new HashSet<>();
-        for (Change change : state.changes) {
+        for (Change change : changes) {
             written.add(change.modelId());
             result = strictest(result, transitionPolicy(change, application));
         }
-        for (Map.Entry<String, Class<?>> entry : state.readModelTypes.entrySet()) {
+        for (Map.Entry<String, Class<?>> entry : readModelTypes.entrySet()) {
             if (!written.contains(entry.getKey())) {
                 result = strictest(result, inherit(modelPolicy(entry.getValue()), application));
             }
@@ -413,132 +389,46 @@ public final class CommitAttempt implements CommitDependency {
         return result;
     }
 
-    void stageAt(int position, int segment, boolean tracked) {
-        staging = new Staging(position, segment, tracked);
-        if (tracked && lifecycle == null) {
-            lifecycle = Lifecycle.direct();
+    ModelBatchScope.Flow flow() {
+        ModelBatchScope.Flow result = flow;
+        if (result == null) {
+            synchronized (this) {
+                result = flow;
+                if (result == null) {
+                    flow = result = ModelBatchScope.Flow.direct();
+                }
+            }
         }
-    }
-
-    void stageModel(
-            String modelId,
-            Class<?> modelType,
-            Object value,
-            boolean existedBefore,
-            long sequenceNumber,
-            Set<String> beforeAliases,
-            Set<String> afterAliases) {
-        Staging state = staging();
-        state.models.put(modelId, new StagedValue(
-                value, modelType, sequenceNumber, existedBefore));
-        beforeAliases.stream().filter(alias -> !afterAliases.contains(alias)).forEach(alias -> {
-            state.availableAliases.remove(alias);
-            state.removedAliases.put(alias, modelId);
-        });
-        afterAliases.forEach(alias -> {
-            state.removedAliases.remove(alias);
-            state.availableAliases.put(alias, modelId);
-        });
-    }
-
-    Set<String> stagedModelIds() {
-        return staging().models.keySet();
-    }
-
-    Set<String> stagedKeys() {
-        Staging state = staging();
-        LinkedHashSet<String> result = new LinkedHashSet<>(state.models.keySet());
-        result.addAll(state.removedAliases.keySet());
-        result.addAll(state.availableAliases.keySet());
         return result;
     }
 
-    boolean exact(String requestedId) {
-        return staging().models.containsKey(requestedId);
+    void flow(ModelBatchScope.Flow flow) {
+        this.flow = Objects.requireNonNull(flow, "flow");
     }
 
-    String stagedModelId(String requestedId) {
-        if (exact(requestedId)) {
-            return requestedId;
-        }
-        Staging state = staging();
-        String result = state.availableAliases.get(requestedId);
-        return result == null ? state.removedAliases.get(requestedId) : result;
-    }
-
-    boolean stagedAvailable(String requestedId) {
-        Staging state = staging();
-        return state.models.containsKey(requestedId)
-               || state.availableAliases.containsKey(requestedId);
-    }
-
-    Object stagedValue(String requestedId) {
-        String modelId = stagedModelId(requestedId);
-        StagedValue value = stagedAvailable(requestedId) && modelId != null
-                ? staging().models.get(modelId) : null;
-        return value == null ? null : value.value;
-    }
-
-    Class<?> stagedType(String requestedId) {
-        StagedValue value = staging().models.get(stagedModelId(requestedId));
-        return value == null ? null : value.type;
-    }
-
-    boolean stagedExistedBefore(String requestedId) {
-        StagedValue value = staging().models.get(stagedModelId(requestedId));
-        return value != null && value.existedBefore;
-    }
-
-    long stagedSequence(String requestedId) {
-        StagedValue value = staging().models.get(stagedModelId(requestedId));
-        return value == null ? -1L : value.sequenceNumber;
-    }
-
-    int batchPosition() {
-        return staging().position;
-    }
-
-    int batchSegment() {
-        return staging().segment;
-    }
-
-    boolean trackedCompletion() {
-        return staging().trackedCompletion;
-    }
-
-    void dependsOn(CommitAttempt producer) {
-        if (producer != this) {
-            lifecycle().dependencies().add(producer);
-        }
-    }
-
-    CompletableFuture<Void> initialization() {
-        return lifecycle == null ? COMPLETED : lifecycle.initialized;
-    }
-
-    void initialize(Collection<String> resolvedModelIds) {
-        Lifecycle state = lifecycle();
-        state.modelIds = state.batched ? Set.copyOf(resolvedModelIds) : null;
-        state.initialized.complete(null);
-    }
-
-    void submitAfterRelease(
-            Function<Boolean, CompletableFuture<Object>> action) {
-        Lifecycle state = lifecycle();
-        if (!state.arrived.compareAndSet(false, true)) {
-            throw new IllegalStateException("Model commit attempt was awaited twice");
-        }
-        CompletableFuture<Object> submitted = state.release.thenCompose(ignored -> {
-            boolean dependent = hasDependencies();
-            if (dependent) {
-                detachTransport();
+    CompletableFuture<Object> completion() {
+        CompletableFuture<Object> result = completion;
+        if (result == null) {
+            synchronized (this) {
+                result = completion;
+                if (result == null) {
+                    completion = result = new CompletableFuture<>();
+                }
             }
-            return dependencyCompletion().thenCompose(unused ->
-                    Objects.requireNonNull(action.apply(dependent), "Model commit attempt returned null"));
-        }).whenComplete((ignored, failure) -> settleTransport());
-        submitted.whenComplete((value, failure) -> {
+        }
+        return result;
+    }
+
+    void submit(Function<Boolean, CompletableFuture<Object>> action) {
+        synchronized (this) {
+            if (submitted) {
+                throw new IllegalStateException("Model commit attempt was awaited twice");
+            }
+            submitted = true;
+        }
+        flow().execute(action).whenComplete((value, failure) -> {
             if (failure == null) {
-                complete(value);
+                completion().complete(value);
             } else {
                 fail(failure);
             }
@@ -546,106 +436,8 @@ public final class CommitAttempt implements CommitDependency {
     }
 
     void fail(Throwable failure) {
-        Lifecycle state = lifecycle();
-        state.completion.completeExceptionally(failure);
-        state.initialized.completeExceptionally(failure);
-        state.release.completeExceptionally(failure);
-        settleTransport();
-    }
-
-    CompletableFuture<Object> completion() {
-        return lifecycle().completion;
-    }
-
-    void complete(Object result) {
-        lifecycle().completion.complete(result);
-    }
-
-    void release() {
-        lifecycle().release.complete(null);
-    }
-
-    void transport(ModelCommitBatchingClient.ModelCommitBatch batch, int batchSlot) {
-        Lifecycle state = lifecycle();
-        state.transport = batch;
-        state.slot = batchSlot;
-    }
-
-    synchronized void detachTransport() {
-        settleTransport();
-        Lifecycle state = lifecycle();
-        state.transport = null;
-        state.slot = -1;
-    }
-
-    void flushTransport() {
-        if (lifecycle != null && lifecycle.flushBatch != null) {
-            lifecycle.flushBatch.run();
-        }
-    }
-
-    private void settleTransport() {
-        if (lifecycle != null && lifecycle.transport != null) {
-            lifecycle.transport.skip(lifecycle.slot);
-        }
-    }
-
-    boolean batched() {
-        return lifecycle != null && lifecycle.batched;
-    }
-
-    ModelCommitPolicy policy() {
-        return lifecycle().policy;
-    }
-
-    Set<String> resolvedModelIds() {
-        return lifecycle().modelIds;
-    }
-
-    boolean hasDependencies() {
-        return lifecycle != null && lifecycle.dependencies != null
-               && !lifecycle.dependencies.isEmpty();
-    }
-
-    int dependencyCount() {
-        return lifecycle == null || lifecycle.dependencies == null
-                ? 0 : lifecycle.dependencies.size();
-    }
-
-    CompletableFuture<Void> dependencyCompletion() {
-        return lifecycle == null || lifecycle.dependencies == null
-               || lifecycle.dependencies.isEmpty() ? COMPLETED
-                : CompletableFuture.allOf(lifecycle.dependencies.stream()
-                        .map(CommitAttempt::completion).toArray(CompletableFuture[]::new));
-    }
-
-    ModelCommitBatchingClient.ModelCommitBatch transportBatch() {
-        return lifecycle().transport;
-    }
-
-    int transportSlot() {
-        return lifecycle().slot;
-    }
-
-    private Evaluation evaluation() {
-        return evaluation == null ? Evaluation.EMPTY : evaluation;
-    }
-
-    private Lifecycle lifecycle() {
-        Lifecycle result = lifecycle;
-        if (result == null) {
-            synchronized (this) {
-                result = lifecycle;
-                if (result == null) {
-                    lifecycle = result = Lifecycle.direct();
-                }
-            }
-        }
-        return result;
-    }
-
-    private Staging staging() {
-        return Objects.requireNonNull(staging, "Commit attempt has not been staged");
+        completion().completeExceptionally(failure);
+        flow().fail(failure);
     }
 
     private static IllegalStateException ambiguous(
@@ -714,107 +506,4 @@ public final class CommitAttempt implements CommitDependency {
         }
     }
 
-    private static final class Evaluation {
-        private static final Evaluation EMPTY = new Evaluation(
-                List.of(), Map.of(), List.of(), List.of(), Map.of());
-
-        private final List<String> readModelIds;
-        private final Map<String, Class<?>> readModelTypes;
-        private final List<Step> steps;
-        private final List<Change> changes;
-        private final Map<String, Object> finalValues;
-        private Set<String> cascadeRootIds = Set.of();
-
-        private Evaluation(
-                List<String> readModelIds,
-                Map<String, Class<?>> readModelTypes,
-                List<Step> steps,
-                List<Change> changes,
-                Map<String, Object> finalValues) {
-            this.readModelIds = readModelIds;
-            this.readModelTypes = readModelTypes;
-            this.steps = steps;
-            this.changes = changes;
-            this.finalValues = finalValues;
-        }
-    }
-
-    private static final class Lifecycle {
-        private final CompletableFuture<Object> completion = new CompletableFuture<>();
-        private final CompletableFuture<Void> initialized;
-        private final CompletableFuture<Void> release;
-        private final AtomicBoolean arrived = new AtomicBoolean();
-        private final ModelCommitPolicy policy;
-        private final boolean batched;
-        private final Runnable flushBatch;
-        private volatile Set<CommitAttempt> dependencies;
-        private volatile Set<String> modelIds;
-        private volatile ModelCommitBatchingClient.ModelCommitBatch transport;
-        private volatile int slot = -1;
-
-        private Lifecycle(
-                CompletableFuture<Void> initialized,
-                CompletableFuture<Void> release,
-                ModelCommitPolicy policy,
-                boolean batched,
-                Runnable flushBatch) {
-            this.initialized = initialized;
-            this.release = release;
-            this.policy = policy;
-            this.batched = batched;
-            this.flushBatch = flushBatch;
-        }
-
-        private static Lifecycle direct() {
-            return new Lifecycle(COMPLETED, COMPLETED, null, false, null);
-        }
-
-        private static Lifecycle batched(
-                ModelCommitPolicy policy, boolean released, Runnable flushBatch) {
-            return new Lifecycle(
-                    new CompletableFuture<>(),
-                    released ? COMPLETED : new CompletableFuture<>(),
-                    Objects.requireNonNull(policy, "policy"), true,
-                    Objects.requireNonNull(flushBatch, "flushBatch"));
-        }
-
-        private Set<CommitAttempt> dependencies() {
-            Set<CommitAttempt> result = dependencies;
-            if (result == null) {
-                synchronized (this) {
-                    result = dependencies;
-                    if (result == null) {
-                        dependencies = result = ConcurrentHashMap.newKeySet();
-                    }
-                }
-            }
-            return result;
-        }
-    }
-
-    private static final class Staging {
-        private final int position;
-        private final int segment;
-        private final boolean trackedCompletion;
-        private final Map<String, StagedValue> models = new LinkedHashMap<>();
-        private final Map<String, String> availableAliases = new LinkedHashMap<>();
-        private final Map<String, String> removedAliases = new LinkedHashMap<>();
-
-        private Staging(int position, int segment, boolean trackedCompletion) {
-            this.position = position;
-            this.segment = segment;
-            this.trackedCompletion = trackedCompletion;
-        }
-    }
-
-    private record StagedValue(
-            Object value,
-            Class<?> type,
-            long sequenceNumber,
-            boolean existedBefore) {
-    }
-}
-
-interface CommitDependency {
-    CommitAttempt attempt();
 }

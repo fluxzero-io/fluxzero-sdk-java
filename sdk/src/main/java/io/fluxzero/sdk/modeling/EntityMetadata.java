@@ -77,7 +77,6 @@ public final class EntityMetadata {
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
-    private final Map<Parameter, ModelParameter> modelParameters;
 
     /**
      * Returns the centrally cached entity metadata for a Java type.
@@ -190,10 +189,6 @@ public final class EntityMetadata {
             }
         }
         this.handlerMethods = inspectHandlerMethods(typeMetadata);
-        Map<Parameter, ModelParameter> modelParameters = new LinkedHashMap<>();
-        handlerMethods.stream().map(HandlerMethod::modelParameters).flatMap(Collection::stream)
-                .forEach(parameter -> modelParameters.put(parameter.parameter(), parameter));
-        this.modelParameters = Map.copyOf(modelParameters);
     }
 
     public Class<?> type() {
@@ -476,15 +471,11 @@ public final class EntityMetadata {
         return handlerMethods;
     }
 
-    Optional<ModelParameter> modelParameter(Parameter parameter) {
-        return Optional.ofNullable(modelParameters.get(parameter));
-    }
-
     /**
      * Inspects one arbitrary handler parameter for a model value or {@code Entity<Model>} dependency.
      * <p>
-     * Unlike {@link #modelParameter(Parameter)}, this method is not limited to model-aware apply methods and can be
-     * used by regular message-handler parameter resolvers.
+     * This method is not limited to model-aware apply methods and can also be used by regular message-handler
+     * parameter resolvers.
      */
     static Optional<ModelParameter> inspectModelParameter(Parameter parameter) {
         ParameterType parameterType = modelParameterType(parameter).orElse(null);

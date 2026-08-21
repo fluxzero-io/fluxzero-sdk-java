@@ -1149,10 +1149,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return (Entity<T>) entity;
     }
 
-    private static boolean compatible(Class<?> left, Class<?> right) {
-        return left.isAssignableFrom(right) || right.isAssignableFrom(left);
-    }
-
     private static long stateIndex(Entity<?> entity) {
         return entity instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
     }
@@ -1339,8 +1335,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Objects.requireNonNull(evaluation, "evaluation");
             Objects.requireNonNull(conflictPolicy, "conflictPolicy");
 
-            List<CommitAttempt.Step> evaluatedSteps =
-                    new ArrayList<>(evaluation.steps().size());
             Map<String, List<Change>> graphPublications = new LinkedHashMap<>();
             Set<String> ordinaryEventIds = new java.util.HashSet<>();
             for (CommitAttempt.Step step : evaluation.steps()) {
@@ -1349,7 +1343,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         .peek(Change::validate)
                         .filter(Change::active)
                         .toList();
-                evaluatedSteps.add(new CommitAttempt.Step(message, transitions));
                 if (transitions.isEmpty()) {
                     continue;
                 }
@@ -1376,9 +1369,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             List<CommitAttempt.Step> preparedSteps = new ArrayList<>();
             Map<String, Long> nextSequences = new LinkedHashMap<>();
             Set<String> cascadeRoots = evaluation.cascadeRootIds();
-            for (CommitAttempt.Step step : evaluatedSteps) {
+            for (CommitAttempt.Step step : evaluation.steps()) {
                 DeserializingMessage message = step.message();
-                List<Change> transitions = step.changes();
+                List<Change> transitions = step.changes().stream()
+                        .filter(Change::active).toList();
                 if (transitions.isEmpty()) {
                     continue;
                 }
@@ -1436,6 +1430,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 protocolSteps.add(new ModelCommitStep(event, publishEvent, List.copyOf(targets)));
                 preparedSteps.add(new CommitAttempt.Step(message, committedTransitions));
             }
+            Boolean possibleDuplicate = possibleDuplicate(evaluation, preparedSteps);
             CommitAttempt prepared = evaluation.prepared(preparedSteps);
             if (protocolSteps.isEmpty()) {
                 return new Outcome(null, prepared);
@@ -1443,7 +1438,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             CommitModels commit = new CommitModels(
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
-                    possibleDuplicate(evaluation, preparedSteps));
+                    possibleDuplicate);
             return new Outcome(commit, prepared);
         }
 

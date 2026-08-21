@@ -89,8 +89,7 @@ public class ModelEntityParameterResolver
             Annotation methodAnnotation) {
         MutationPlan.ParameterPlan plan =
                 MutationPlan.parameterPlan(parameter.getDeclaringExecutable());
-        EntityMetadata.ModelParameter modelParameter =
-                plan.parameters().get(parameter);
+        EntityMetadata.ModelParameter modelParameter = plan.parameters().get(parameter);
         return modelParameter == null ? null
                 : input -> argument(parameter, modelParameter, input, plan);
     }
@@ -102,8 +101,7 @@ public class ModelEntityParameterResolver
             Object input) {
         MutationPlan.ParameterPlan plan =
                 MutationPlan.parameterPlan(parameter.getDeclaringExecutable());
-        EntityMetadata.ModelParameter modelParameter =
-                plan.parameters().get(parameter);
+        EntityMetadata.ModelParameter modelParameter = plan.parameters().get(parameter);
         if (modelParameter == null) {
             return false;
         }
@@ -118,8 +116,7 @@ public class ModelEntityParameterResolver
                     Object input) {
         MutationPlan.ParameterPlan plan =
                 MutationPlan.parameterPlan(parameter.getDeclaringExecutable());
-        EntityMetadata.ModelParameter modelParameter =
-                plan.parameters().get(parameter);
+        EntityMetadata.ModelParameter modelParameter = plan.parameters().get(parameter);
         if (modelParameter == null) {
             return null;
         }
@@ -484,10 +481,7 @@ public class ModelEntityParameterResolver
             CommitAttempt context = commitContext(input)
                     .orElseGet(() -> input instanceof DeserializingMessage message
                             ? context(message, plan) : null);
-            DeserializingMessage message = input instanceof DeserializingMessage deserializingMessage
-                    ? deserializingMessage : DeserializingMessage.getOptionally().orElse(null);
-            ModelRepository repository = message == null
-                    ? Fluxzero.get().modelRepository() : currentRepository(message);
+            ModelRepository repository = repository(input);
             if (context != null) {
                 return Graphs.lazy(entity, context, repository);
             }
@@ -533,10 +527,7 @@ public class ModelEntityParameterResolver
             throw new IllegalStateException(
                     "No coherent model context is available for graph collection parameter " + parameter);
         }
-        DeserializingMessage message = input instanceof DeserializingMessage deserializingMessage
-                ? deserializingMessage : DeserializingMessage.getOptionally().orElse(null);
-        ModelRepository repository = message == null
-                ? Fluxzero.get().modelRepository() : currentRepository(message);
+        ModelRepository repository = repository(input);
         List<Graph<?>> result = new java.util.ArrayList<>(references.modelIds().size());
         for (String modelId : references.modelIds()) {
             Entity<?> entity = context.entity(modelId);
@@ -574,8 +565,7 @@ public class ModelEntityParameterResolver
         if (parameter.collectionWrapped()) {
             return false;
         }
-        DeserializingMessage message = input instanceof DeserializingMessage direct
-                ? direct : DeserializingMessage.getOptionally().orElse(null);
+        DeserializingMessage message = message(input);
         if (message == null) {
             return false;
         }
@@ -587,8 +577,7 @@ public class ModelEntityParameterResolver
     private static MutationPlan.DirectReferences directReferences(
             Object input,
             EntityMetadata.ModelParameter parameter) {
-        DeserializingMessage message = input instanceof DeserializingMessage direct
-                ? direct : DeserializingMessage.getOptionally().orElse(null);
+        DeserializingMessage message = message(input);
         if (message == null) {
             return new MutationPlan.DirectReferences(false, null, List.of());
         }
@@ -661,6 +650,16 @@ public class ModelEntityParameterResolver
         return Fluxzero.get().modelRepository()
                 .forNamespace(
                         getConsumerNamespace(message));
+    }
+
+    private static DeserializingMessage message(Object input) {
+        return input instanceof DeserializingMessage direct
+                ? direct : DeserializingMessage.getOptionally().orElse(null);
+    }
+
+    private static ModelRepository repository(Object input) {
+        DeserializingMessage message = message(input);
+        return message == null ? Fluxzero.get().modelRepository() : currentRepository(message);
     }
 
     private static final class ResolvedHandlerPlan {

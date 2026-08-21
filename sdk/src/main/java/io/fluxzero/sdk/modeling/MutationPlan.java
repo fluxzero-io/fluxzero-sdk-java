@@ -55,9 +55,6 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyType;
  * Registered and compiled knowledge for one reachable model mutation payload.
  */
 public final class MutationPlan {
-    private static final int READ = 1;
-    private static final int WRITE = 2;
-
     private final ModelReducer reducer;
     private final TargetPlan targets;
     private final ModelCommitPolicy commitPolicy;
@@ -627,7 +624,7 @@ public final class MutationPlan {
         if (handler.receiverModelType() != null) {
             local.add(new Slot(
                     handler.receiverModelType(), payload.required(handler.receiverModelType(), signature),
-                    false, READ, signature, true, apply));
+                    false, Access.READ_ONLY, signature, true, apply));
         }
         for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
             Property property = parameter.collectionWrapped()
@@ -636,13 +633,13 @@ public final class MutationPlan {
             if (property != null) {
                 local.add(new Slot(
                         parameter.modelType(), property, parameter.collectionWrapped(),
-                        READ, signature, false, apply));
+                        Access.READ_ONLY, signature, false, apply));
             } else if (parameter.collectionWrapped()) {
                 local.add(new Slot(
                         parameter.modelType(), Property.missing(
                                 "Payload %s has no model ID collection property '%s' required by %s".formatted(
                                 payload.type.getName(), parameter.associationProperty(), signature)),
-                        true, READ, signature, false, apply));
+                        true, Access.READ_ONLY, signature, false, apply));
             } else {
                 ancestors.add(new PlannedAncestor(new AncestorDependency(
                         parameter.modelType(), parameter.associationProperty(), signature), apply));
@@ -650,7 +647,7 @@ public final class MutationPlan {
         }
         if (handler.kind() == EntityMetadata.HandlerKind.APPLY) {
             if (handler.dynamicApplyResult()) {
-                local.forEach(slot -> slot.access |= WRITE);
+                local.forEach(Slot::write);
             }
             handler.targetModelTypes().forEach(type -> writeSlot(payload, handler, type, local, deferred));
         }
@@ -667,20 +664,21 @@ public final class MutationPlan {
         List<Slot> candidates = slots.stream().filter(slot -> slot.modelType.equals(type)).toList();
         Slot receiver = candidates.stream().filter(slot -> slot.receiver).findFirst().orElse(null);
         if (receiver != null || candidates.size() == 1) {
-            (receiver == null ? candidates.getFirst() : receiver).access |= WRITE;
+            (receiver == null ? candidates.getFirst() : receiver).write();
         } else if (candidates.isEmpty()) {
             if (!handler.collectionApplyResult()) {
                 slots.add(new Slot(
-                        type, payload.required(type, signature), false, WRITE, signature, false, true));
+                        type, payload.required(type, signature), false,
+                        Access.WRITE_ONLY, signature, false, true));
             }
         } else {
             Property exact = payload.exact(type);
             Slot exactSlot = exact == null ? null : candidates.stream()
                     .filter(slot -> slot.property.name.equals(exact.name)).findFirst().orElse(null);
             if (exactSlot != null) {
-                exactSlot.access |= WRITE;
+                exactSlot.write();
             } else if (exact != null) {
-                slots.add(new Slot(type, exact, false, WRITE, signature, false, true));
+                slots.add(new Slot(type, exact, false, Access.WRITE_ONLY, signature, false, true));
             } else {
                 deferred.add(new Deferred(type, candidates, signature, true));
             }
@@ -850,7 +848,7 @@ public final class MutationPlan {
         }
 
         Access singleAccess() {
-            return Access.from(slots.getFirst().access);
+            return slots.getFirst().access;
         }
 
         List<String> singleSourceProperties() {
@@ -889,7 +887,7 @@ public final class MutationPlan {
                     slotIds.put(slot, ids);
                 }
                 ids.forEach(id -> merge(result, new ResolvedModel(
-                        id, slot.modelType, Access.from(slot.access), List.of(slot.property.name()))));
+                        id, slot.modelType, slot.access, List.of(slot.property.name()))));
             }
             List<DeferredWriteTarget> unresolved = new ArrayList<>();
             for (Deferred target : deferred) {
@@ -1030,35 +1028,18 @@ public final class MutationPlan {
 
     /** Required state access for one resolved model. */
     public enum Access {
-        READ_ONLY(true, false), WRITE_ONLY(false, true), READ_WRITE(true, true);
-
-        private final boolean read;
-        private final boolean write;
-
-        Access(boolean read, boolean write) {
-            this.read = read;
-            this.write = write;
-        }
+        READ_ONLY, WRITE_ONLY, READ_WRITE;
 
         public boolean reads() {
-            return read;
+            return this != WRITE_ONLY;
         }
 
         public boolean writes() {
-            return write;
+            return this != READ_ONLY;
         }
 
         private Access merge(Access other) {
-            return from((read || other.read ? READ : 0) | (write || other.write ? WRITE : 0));
-        }
-
-        private static Access from(int value) {
-            return switch (value) {
-                case READ -> READ_ONLY;
-                case WRITE -> WRITE_ONLY;
-                case READ | WRITE -> READ_WRITE;
-                default -> throw new IllegalArgumentException("Unsupported model access value " + value);
-            };
+            return this == other ? this : READ_WRITE;
         }
     }
 
@@ -1070,13 +1051,13 @@ public final class MutationPlan {
         private final String handler;
         private final boolean receiver;
         private final boolean apply;
-        private int access;
+        private Access access;
 
         private Slot(
                 Class<?> requestedType,
                 Property property,
                 boolean collection,
-                int access,
+                Access access,
                 String handler,
                 boolean receiver,
                 boolean apply) {
@@ -1090,6 +1071,10 @@ public final class MutationPlan {
             this.handler = handler;
             this.receiver = receiver;
             this.apply = apply;
+        }
+
+        private void write() {
+            access = access == Access.READ_ONLY ? Access.READ_WRITE : access;
         }
     }
 

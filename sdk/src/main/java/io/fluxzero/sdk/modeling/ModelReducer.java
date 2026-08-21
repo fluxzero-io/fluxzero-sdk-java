@@ -409,18 +409,6 @@ public final class ModelReducer {
 
 
     static CommitAttempt apply(
-            DeserializingMessage message,
-            SubstepResolver resolver) {
-        return apply(CommitAttempt.detached(), List.of(message), resolver);
-    }
-
-    static CommitAttempt apply(
-            List<DeserializingMessage> messages,
-            SubstepResolver resolver) {
-        return apply(CommitAttempt.detached(), messages, resolver);
-    }
-
-    static CommitAttempt apply(
             CommitAttempt attempt,
             List<DeserializingMessage> messages,
             SubstepResolver resolver) {
@@ -428,28 +416,10 @@ public final class ModelReducer {
     }
 
     static CommitAttempt assertLegal(
-            DeserializingMessage message,
-            SubstepResolver resolver) {
-        return assertLegal(CommitAttempt.detached(), message, resolver);
-    }
-
-    static CommitAttempt assertLegal(
             CommitAttempt attempt,
             DeserializingMessage message,
             SubstepResolver resolver) {
         return execute(attempt, List.of(message), resolver, Mode.ASSERT);
-    }
-
-    static CommitAttempt reapply(
-            DeserializingMessage message,
-            SubstepResolver resolver) {
-        return reapply(CommitAttempt.detached(), List.of(message), resolver);
-    }
-
-    static CommitAttempt reapply(
-            List<DeserializingMessage> messages,
-            SubstepResolver resolver) {
-        return reapply(CommitAttempt.detached(), messages, resolver);
     }
 
     static CommitAttempt reapply(

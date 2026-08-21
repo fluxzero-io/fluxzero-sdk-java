@@ -298,7 +298,6 @@ class ModelBatchScopeTest {
         DeserializingMessage.forEachInBatch(List.of(message), current -> {
             stagePending(null, evaluation(current, value.id(), null, value));
             assertSame(beginState, current.getContext(CommitAttempt.class).orElseThrow());
-            assertTrue(current.getContext(CommitDependency.class).isPresent());
         });
     }
 

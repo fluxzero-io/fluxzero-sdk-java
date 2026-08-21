@@ -199,9 +199,8 @@ final class ModelPipeline {
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot) {
         try {
-            return evaluateExplicit(
-                    message, transportBatch, transportSlot, true, true,
-                    this::evaluateLive)
+            return execute(
+                    new ExecutionRequest(message, transportBatch, transportSlot, Mode.LIVE), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -220,9 +219,7 @@ final class ModelPipeline {
             Objects.requireNonNull(update, "update");
             DeserializingMessage message =
                     new DeserializingMessage(update, MessageType.COMMAND, serializer);
-            return evaluateExplicit(
-                    message, null, -1, true, false,
-                    this::evaluateAssertions)
+            return execute(new ExecutionRequest(message, null, -1, Mode.ASSERT), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -236,30 +233,16 @@ final class ModelPipeline {
         try {
             Objects.requireNonNull(event, "event");
             DeserializingMessage message = new DeserializingMessage(event, MessageType.EVENT, serializer);
-            return evaluateExplicit(
-                    message, null, -1, false, false,
-                    this::evaluateStored).thenApply(ignored -> null);
+            return execute(new ExecutionRequest(message, null, -1, Mode.REPLAY), null)
+                    .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
         }
     }
 
-    private CompletableFuture<Object> evaluateExplicit(
-            DeserializingMessage message,
-            ModelCommitBatchingClient.ModelCommitBatch transport,
-            int slot,
-            boolean skipEmpty,
-            boolean warnMissingApply,
-            Evaluation evaluation) {
-        return execute(new ExecutionRequest(
-                message, transport, slot, skipEmpty, warnMissingApply, false),
-                       null, evaluation);
-    }
-
     private CompletableFuture<Object> execute(
             ExecutionRequest request,
-            ModelCommitPolicy policy,
-            Evaluation evaluator) {
+            ModelCommitPolicy policy) {
         CommitAttempt attempt = ModelBatchScope.register(
                 this, request.message(), policy, batchLifecycle);
         ThreadLocalContext.Snapshot context = request.message().captureContext();
@@ -267,43 +250,36 @@ final class ModelPipeline {
         CommitAttempt initial;
         try {
             initial = context.supply(() -> ModelBatchScope.withDependency(
-                    attempt, () -> evaluator.evaluate(
-                            request, attempt, false, attempt.batched())));
+                    attempt, () -> evaluate(request, attempt, false)));
             if (initial != attempt) {
                 throw new IllegalStateException("Model evaluation replaced its commit attempt");
             }
             warnEmptyExplicitApply(request, initial);
             ModelBatchScope.stage(
                     ModelBatchScope.namespace(request.message()), initial, true);
-            attempt.initialize(initial.readModelIds());
+            attempt.flow().initialize(initial.readModelIds());
         } catch (Throwable failure) {
             attempt.fail(failure);
             return attempt.completion();
         }
         try {
-            if (attempt.hasDependencies()) {
-                if (attempt.batched() && !attempt.policy().commitAfterBatch()
-                    && attempt.transportBatch() != null) {
-                    attempt.flushTransport();
-                }
-                attempt.detachTransport();
-            }
-            attempt.submitAfterRelease(dependent -> {
+            attempt.submit(dependent -> {
                 CompletableFuture<CommitAttempt> ready = dependent
-                        ? reevaluate(
-                                attempt, context, request, evaluator,
-                                asynchronousReevaluation)
+                        ? attempt.flow().afterDependencies(
+                                () -> context.supply(() -> ModelBatchScope.withDependency(
+                                        attempt, () -> evaluate(request, attempt, true))),
+                                attempt.flow().batched && asynchronousReevaluation)
                         : CompletableFuture.completedFuture(initial);
                 return ready.thenCompose(context.wrap(evaluation -> {
-                    if (request.skipEmpty() && evaluation.transitions().isEmpty()) {
+                    if (request.mode().skipEmpty && evaluation.transitions().isEmpty()) {
                         return CompletableFuture.completedFuture(null);
                     }
                     ModelCommitBatchingClient.ModelCommitBatch batch =
-                            attempt.transportBatch();
+                            attempt.flow().transport;
                     return executeEvaluation(
                             request.message(), evaluation,
                             batch == null ? request.transport() : batch,
-                            batch == null ? request.transportSlot() : attempt.transportSlot());
+                            batch == null ? request.transportSlot() : attempt.flow().slot);
                 }));
             });
         } catch (Throwable failure) {
@@ -312,60 +288,26 @@ final class ModelPipeline {
         return attempt.completion();
     }
 
-    private CompletableFuture<CommitAttempt> reevaluate(
-            CommitAttempt attempt,
-            ThreadLocalContext.Snapshot context,
-            ExecutionRequest request,
-            Evaluation evaluator,
-            boolean asynchronous) {
-        int dependencyCount = attempt.dependencyCount();
-        Supplier<CommitAttempt> evaluation = () -> context.supply(() ->
-                ModelBatchScope.withDependency(attempt, () ->
-                        evaluator.evaluate(request, attempt, true, attempt.batched())));
-        CompletableFuture<CommitAttempt> result =
-                attempt.batched() && asynchronous
-                        ? attempt.dependencyCompletion().thenCompose(ignored ->
-                                CompletableFuture.supplyAsync(context.wrap(evaluation)))
-                        : attempt.dependencyCompletion().thenApply(ignored -> evaluation.get());
-        return result.thenCompose(value ->
-                attempt.dependencyCount() == dependencyCount
-                        ? CompletableFuture.completedFuture(value)
-                        : reevaluate(
-                                attempt, context, request, evaluator,
-                                asynchronous));
-    }
-
-    private CommitAttempt evaluateLive(
-            ExecutionRequest request, CommitAttempt attempt,
-            boolean retry, boolean batched) {
-        if (request.directLoadsInBatch()) {
-            return !retry || batched
-                    ? evaluate(attempt, request.message())
-                    : evaluate(attempt, request.message(), null);
-        }
-        return DeserializingMessage.getMessageBatchIndex() < 0
-                ? evaluate(attempt, request.message())
-                : evaluate(attempt, request.message(), null);
-    }
-
-    private CommitAttempt evaluateAssertions(
-            ExecutionRequest request, CommitAttempt attempt,
-            boolean retry, boolean batched) {
-        return ModelReducer.assertLegal(
-                attempt, request.message(), new CommitLoader(null));
-    }
-
-    private CommitAttempt evaluateStored(
-            ExecutionRequest request, CommitAttempt attempt,
-            boolean retry, boolean batched) {
-        return ModelReducer.reapply(
-                attempt, List.of(request.message()), new CommitLoader(null, true));
+    private CommitAttempt evaluate(ExecutionRequest request, CommitAttempt attempt, boolean retry) {
+        return switch (request.mode()) {
+            case ASSERT -> ModelReducer.assertLegal(
+                    attempt, request.message(), new CommitLoader(null));
+            case REPLAY -> ModelReducer.reapply(
+                    attempt, List.of(request.message()), new CommitLoader(null, true));
+            case LIVE, AUTOMATIC -> {
+                boolean direct = request.mode() == Mode.AUTOMATIC
+                        ? !retry || attempt.flow().batched
+                        : DeserializingMessage.getMessageBatchIndex() < 0;
+                yield direct ? evaluate(attempt, request.message())
+                        : evaluate(attempt, request.message(), null);
+            }
+        };
     }
 
     private void warnEmptyExplicitApply(
             ExecutionRequest request,
             CommitAttempt evaluation) {
-        if (request.warnMissingApply()
+        if (request.mode().warnMissingApply
             && !hasModelApplies(request.message().getPayloadClass())
             && evaluation.transitions().isEmpty()
             && !evaluation.steps().isEmpty()) {
@@ -380,16 +322,19 @@ final class ModelPipeline {
             DeserializingMessage message,
             ModelCommitBatchingClient.ModelCommitBatch transport,
             int transportSlot,
-            boolean skipEmpty,
-            boolean warnMissingApply,
-            boolean directLoadsInBatch) {
+            Mode mode) {
     }
 
-    @FunctionalInterface
-    private interface Evaluation {
-        CommitAttempt evaluate(
-                ExecutionRequest request, CommitAttempt attempt,
-                boolean retry, boolean batched);
+    private enum Mode {
+        LIVE(true, true), ASSERT(true, false), REPLAY(false, false), AUTOMATIC(false, false);
+
+        private final boolean skipEmpty;
+        private final boolean warnMissingApply;
+
+        Mode(boolean skipEmpty, boolean warnMissingApply) {
+            this.skipEmpty = skipEmpty;
+            this.warnMissingApply = warnMissingApply;
+        }
     }
 
     record Retry(
@@ -733,6 +678,7 @@ final class ModelPipeline {
                             message,
                             () -> expandCascadeDeletes(
                                     ModelReducer.apply(
+                                            CommitAttempt.detached(),
                                             List.of(message),
                                             new CommitLoader(retryStateIndex)))));
         } catch (Throwable failure) {
@@ -784,6 +730,7 @@ final class ModelPipeline {
         return ModelBatchScope.withMessageDependency(
                 messages.getFirst(),
                 () -> expandCascadeDeletes(ModelReducer.reapply(
+                        CommitAttempt.detached(),
                         messages.stream()
                                 .filter(message -> !(message.getPayload()
                                         instanceof CascadedModelDeletion))
@@ -798,23 +745,19 @@ final class ModelPipeline {
      */
     private CommitAttempt expandCascadeDeletes(
             CommitAttempt evaluation) {
-        LinkedHashSet<String> explicitlyDeleted = null;
         LinkedHashMap<String, Change> latestTransitions =
                 new LinkedHashMap<>();
+        LinkedHashSet<String> explicitlyDeleted = new LinkedHashSet<>();
         for (CommitAttempt.Step step : evaluation.steps()) {
             for (Change transition : step.changes()) {
                 latestTransitions.put(transition.modelId(), transition);
-                if (transition.before() != null
-                    && transition.after() == null
-                    && evaluation.finalValues().get(transition.modelId()) == null) {
-                    if (explicitlyDeleted == null) {
-                        explicitlyDeleted = new LinkedHashSet<>();
-                    }
+                if (transition.before() != null && transition.after() == null) {
                     explicitlyDeleted.add(transition.modelId());
                 }
             }
         }
-        if (explicitlyDeleted == null) {
+        explicitlyDeleted.removeIf(modelId -> latestTransitions.get(modelId).after() != null);
+        if (explicitlyDeleted.isEmpty()) {
             return evaluation;
         }
         LinkedHashMap<String, CascadeNode> nodes = new LinkedHashMap<>();
@@ -836,8 +779,7 @@ final class ModelPipeline {
                     descendant -> addCascadeNode(nodes, descendant));
         }
 
-        overlayFinalValues(
-                evaluation, latestTransitions, nodes);
+        overlayFinalValues(latestTransitions, nodes);
         boolean changed;
         do {
             changed = false;
@@ -927,19 +869,15 @@ final class ModelPipeline {
     }
 
     private static void overlayFinalValues(
-            CommitAttempt evaluation,
             Map<String, Change> latestTransitions,
             Map<String, CascadeNode> nodes) {
-        evaluation.finalValues().forEach((modelId, value) -> {
+        latestTransitions.forEach((modelId, transition) -> {
+            Object value = transition.after();
             if (value == null) {
                 return;
             }
-            Change transition =
-                    latestTransitions.get(modelId);
             CascadeNode known = nodes.get(modelId);
-            Class<?> type = transition == null
-                    ? evaluation.readModelTypes().get(modelId)
-                    : transition.modelType();
+            Class<?> type = transition.modelType();
             if (type == null) {
                 type = value.getClass();
             }
@@ -948,10 +886,8 @@ final class ModelPipeline {
                     new CascadeNode(
                             modelId, type, value,
                             known != null ? known.sequenceNumber()
-                                    : transition == null ? -1L
                                     : transition.beforeSequenceNumber(),
                             known != null ? known.lastEventIndex()
-                                    : transition == null ? null
                                     : transition.beforeLastEventIndex()));
         });
     }
@@ -1234,8 +1170,8 @@ final class ModelPipeline {
             ModelCommitPolicy commitPolicy) {
         CompletableFuture<Object> completion = execute(
                 new ExecutionRequest(
-                        message, null, -1, false, false, true),
-                commitPolicy, this::evaluateLive);
+                        message, null, -1, Mode.AUTOMATIC),
+                commitPolicy);
         if (commitPolicy.awaitAfterBatch()) {
             return awaitAfterHandlerCommitsBeforeResults
                     ? completion : null;
