@@ -3210,9 +3210,9 @@ Changing `userId` moves the address without loading or rewriting either parent. 
 injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
 `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. `searchGraph(User.class)` returns complete typed,
 lazy `Graph<User>` results: it uses a configured materialized projection and otherwise stitches current direct
-documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetchJsonGraphs(...)` only at a boundary
-that explicitly needs raw `ObjectNode` documents. Graph constraints have the same full-document meaning on both
-routes. `searchable = false` suppresses only the address's own search collection: an explicit
+documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a
+boundary that explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
+`searchable = false` suppresses only the address's own search collection: an explicit
 `@ParentId(path = "...")` still gives graph composition an internal current document.
 
 One relationship property may deliberately accept several parent model types. Declare those possibilities statically

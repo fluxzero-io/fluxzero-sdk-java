@@ -223,7 +223,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     }
 
     @Override
-    public <T> GraphSearch<T> searchGraph(
+    public <T> Search searchGraph(
             Class<T> rootModelType,
             boolean forceAdHoc) {
         EntityMetadata.RootConfiguration root =
@@ -715,9 +715,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
     }
 
-    protected class DefaultGraphSearch<T>
-            extends DefaultSearch
-            implements GraphSearch<T> {
+    protected class DefaultGraphSearch<T> extends DefaultSearch {
 
         private final Class<T> rootModelType;
         private final Map<String, String> pathOverrides;
@@ -737,41 +735,6 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                     List.copyOf(requestPathOverrides);
         }
 
-        @Override public GraphSearch<T> since(Instant start, boolean inclusive) {
-            super.since(start, inclusive); return this;
-        }
-        @Override public GraphSearch<T> before(Instant end, boolean inclusive) {
-            super.before(end, inclusive); return this;
-        }
-        @Override public GraphSearch<T> inPeriod(
-                Instant start, boolean startInclusive, Instant end, boolean endInclusive) {
-            super.inPeriod(start, startInclusive, end, endInclusive); return this;
-        }
-        @Override public GraphSearch<T> constraint(Constraint... constraints) {
-            super.constraint(constraints); return this;
-        }
-        @Override public GraphSearch<T> relation(ModelRelationConstraint... constraints) {
-            super.relation(constraints); return this;
-        }
-        @Override public GraphSearch<T> sortByTimestamp(boolean descending) {
-            super.sortByTimestamp(descending); return this;
-        }
-        @Override public GraphSearch<T> sortByScore() {
-            super.sortByScore(); return this;
-        }
-        @Override public GraphSearch<T> sortBy(String path, boolean descending) {
-            super.sortBy(path, descending); return this;
-        }
-        @Override public GraphSearch<T> exclude(String... paths) {
-            super.exclude(paths); return this;
-        }
-        @Override public GraphSearch<T> includeOnly(String... paths) {
-            super.includeOnly(paths); return this;
-        }
-        @Override public GraphSearch<T> skip(Integer n) {
-            super.skip(n); return this;
-        }
-
         @Override
         protected Class<?> defaultResultType() {
             return Graph.class;
@@ -785,7 +748,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 if (hasPathFilters()) {
                     throw new IllegalStateException(
                             "Typed Graph results require complete model documents; "
-                            + "use fetchJsonGraphs when includeOnly or exclude is configured");
+                            + "request ObjectNode results when includeOnly or exclude is configured");
                 }
                 return MaterializedGraphFactory.create(
                         document, rootModelType, serializer,

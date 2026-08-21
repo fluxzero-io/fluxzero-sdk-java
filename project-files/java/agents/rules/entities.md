@@ -335,9 +335,9 @@ List<Task> tasks = Fluxzero.search(Task.class)
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
-`searchGraph(Root.class).fetchGraphs(...)` for complete typed lazy `Graph<Root>` results. It reads a configured
+`searchGraph(Root.class).fetch(...)` for complete typed lazy `Graph<Root>` results. It reads a configured
 `@GraphProjection` by default and otherwise stitches current direct documents live; `searchGraph(Root.class, true)`
-forces live composition. Use `fetchJsonGraphs(...)` for explicit raw JSON. Enable materialization with
+forces live composition. Use `fetch(..., ObjectNode.class)` for explicit raw JSON. Enable materialization with
 `@Model(searchable = true, materializeGraph = true)`. A blank projection collection derives
 `<resolved model collection>-graphs`; explicit lower-level composition limits fail rather than returning a partial
 graph.

@@ -1331,7 +1331,7 @@ class ModelCommitHandlerIntegrationTest {
                             IllegalStateException.class,
                             () -> Fluxzero.searchGraph(FamilyRoot.class)
                                     .includeOnly("children")
-                                    .fetchGraphs(1));
+                                    .fetch(1));
                     List<com.fasterxml.jackson.databind.node.ObjectNode>
                             graphs =
                             Fluxzero.searchGraph(
@@ -1340,7 +1340,7 @@ class ModelCommitHandlerIntegrationTest {
                                     "composed", true,
                                     "children/primaryGrandchildren/familyGrandchildId"))
                             .includeOnly("children")
-                            .fetchJsonGraphs(1);
+                            .fetch(1, com.fasterxml.jackson.databind.node.ObjectNode.class);
                     var document =
                             graphs.getFirst();
                     return List.of(
@@ -1428,12 +1428,12 @@ class ModelCommitHandlerIntegrationTest {
                                         List<Graph<ProjectionRoot>> stored =
                                                 Fluxzero.searchGraph(
                                                                 ProjectionRoot.class)
-                                                        .fetchGraphs(1);
+                                                        .fetch(1);
                                         List<Graph<ProjectionRoot>> live =
                                                 Fluxzero.searchGraph(
                                                                 ProjectionRoot.class,
                                                                 true)
-                                                        .fetchGraphs(1);
+                                                        .fetch(1);
                                         return "payload"
                                                        .equals(
                                                                stored.getFirst()
@@ -1547,7 +1547,7 @@ class ModelCommitHandlerIntegrationTest {
                 .expectThat(fluxzero -> {
                     Graph<ProjectionRoot> graph =
                             Fluxzero.searchGraph(ProjectionRoot.class)
-                                    .fetchAllGraphs().stream()
+                                    .<Graph<ProjectionRoot>>fetchAll().stream()
                                     .filter(candidate -> emptyRoot.equals(
                                             candidate.get().projectionRootId()))
                                     .findFirst().orElseThrow();
@@ -1584,7 +1584,7 @@ class ModelCommitHandlerIntegrationTest {
                 .expectTrue(fluxzero -> {
                     Graph<ProjectionRoot> graph = Fluxzero.searchGraph(
                                     ProjectionRoot.class)
-                            .fetchAllGraphs().getFirst();
+                            .<Graph<ProjectionRoot>>fetchAll().getFirst();
                     Graph<ProjectionRoot> filtered =
                             fluxzero.serializer().filterContent(graph, null);
                     return filtered.childModels(
