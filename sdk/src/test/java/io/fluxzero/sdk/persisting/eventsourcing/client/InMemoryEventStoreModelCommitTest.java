@@ -23,8 +23,10 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
+import io.fluxzero.common.api.modeling.GetModelAncestors;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphBefore;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
@@ -991,6 +993,19 @@ class InMemoryEventStoreModelCommitTest {
                                 "parent-1", 2L,
                                 1, 10, 0, 0L, false))
                         .getEdges().isEmpty());
+        assertEquals(
+                1,
+                store.getModelGraphBefore(new GetModelGraphBefore(
+                                new GetModelGraph(
+                                        "parent-1", 2L,
+                                        1, 10, 0, 0L, false)))
+                        .getEdges().size());
+        assertEquals(
+                "parent-1",
+                store.getModelAncestors(new GetModelAncestors(
+                                List.of("child-1"), 1L,
+                                1, 10, 0, 0L))
+                        .getEdges().getFirst().getParentId());
 
         ModelCommitTarget ordinaryChildUpdate =
                 storedTarget("child-1");

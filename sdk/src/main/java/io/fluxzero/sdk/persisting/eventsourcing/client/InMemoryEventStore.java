@@ -63,6 +63,7 @@ import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
+import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
 import io.fluxzero.sdk.tracking.IndexUtils;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
@@ -76,7 +77,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -943,92 +943,34 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             long boundary,
             int maxDepth,
             int maxModels) {
-        LinkedHashSet<String> selected =
-                new LinkedHashSet<>();
-        selected.add(rootId);
-        List<String> frontier =
-                List.of(rootId);
-        for (int depth = 0;
-             depth < maxDepth
-             && !frontier.isEmpty();
-             depth++) {
-            Set<String> parentIds =
-                    Set.copyOf(frontier);
-            LinkedHashSet<String> children =
-                    modelRelationshipHistory.stream()
-                            .filter(relation ->
-                                            parentIds.contains(
-                                                    relation.relationship
-                                                            .getParentId()))
-                            .filter(relation ->
-                                            relation.isValidAt(
-                                                    boundary)
-                                            || relation.parentDeleted
-                                               && relation.validUntil
-                                                  != null
-                                               && relation.validUntil
-                                                  <= boundary)
-                            .map(relation ->
-                                         relation.childId)
-                            .collect(
-                                    Collectors
-                                            .toCollection(
-                                                    LinkedHashSet::new));
-            parentIds.stream()
-                    .map(InMemoryEventStore
-                                 ::protectedToken)
-                    .map(protectedModelDescendants
-                                 ::get)
-                    .filter(Objects::nonNull)
-                    .forEach(children::addAll);
-            List<String> next =
-                    new ArrayList<>();
-            children.stream()
-                    .sorted()
-                    .forEach(childId -> {
-                        if (selected.add(childId)) {
-                            if (selected.size()
-                                > maxModels) {
-                                throw new IllegalArgumentException(
-                                        "Model deletion plan exceeds maxModels "
-                                        + maxModels);
-                            }
-                            next.add(childId);
-                        }
-                    });
-            frontier = List.copyOf(next);
-        }
-        if (!frontier.isEmpty()) {
-            Set<String> parentIds =
-                    Set.copyOf(frontier);
-            boolean truncated =
-                    modelRelationshipHistory.stream()
-                            .anyMatch(relation ->
-                                              parentIds.contains(
-                                                      relation.relationship
-                                                              .getParentId())
-                                              && (relation.isValidAt(
-                                                      boundary)
-                                                  || relation.parentDeleted
-                                                     && relation.validUntil
-                                                        != null
-                                                     && relation.validUntil
-                                                        <= boundary))
-                    || parentIds.stream()
-                            .map(InMemoryEventStore
-                                         ::protectedToken)
-                            .map(protectedModelDescendants
-                                         ::get)
-                            .filter(Objects::nonNull)
-                            .anyMatch(children ->
-                                              !children.isEmpty());
-            if (truncated) {
-                throw new IllegalArgumentException(
-                        "Model deletion plan exceeds maxDepth "
-                        + maxDepth);
-            }
-        }
-        return Set.copyOf(selected);
+        return Set.copyOf(ModelRelationshipTraversal.traverse(
+                List.of(rootId),
+                new ModelRelationshipTraversal.Policy(
+                        maxDepth, maxModels, true, false,
+                        "Model deletion plan exceeds maxModels " + maxModels,
+                        "Model deletion plan exceeds maxDepth " + maxDepth),
+                frontier -> {
+                    Set<String> parents = Set.copyOf(frontier);
+                    return modelRelationshipHistory.stream()
+                            .filter(relation -> parents.contains(
+                                    relation.relationship.getParentId()))
+                            .filter(relation -> relation.isValidAt(boundary)
+                                                || relation.parentDeleted
+                                                   && relation.validUntil != null
+                                                   && relation.validUntil <= boundary)
+                            .sorted(Comparator.comparing(relation -> relation.childId))
+                            .toList();
+                },
+                relation -> relation.childId,
+                null,
+                frontier -> frontier.stream()
+                        .map(InMemoryEventStore::protectedToken)
+                        .map(protectedModelDescendants::get)
+                        .filter(Objects::nonNull)
+                        .flatMap(Set::stream)
+                        .sorted()
+                        .toList(),
+                null).modelIds());
     }
 
     private void sanitizeModelCommitResults(
@@ -1229,57 +1171,21 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             List<String> modelIds,
             long stateIndex,
             int maxDepth) {
-        LinkedHashSet<String> result =
-                new LinkedHashSet<>();
-        List<String> frontier =
-                List.copyOf(modelIds);
-        for (int depth = 0;
-             !frontier.isEmpty()
-             && (maxDepth
-                 == ModelGraphComposition.UNBOUNDED
-                 || depth < maxDepth);
-             depth++) {
-            Set<String> children =
-                    Set.copyOf(frontier);
-            LinkedHashSet<String> parents =
-                    modelRelationshipHistory.stream()
-                            .filter(relation ->
-                                            children.contains(
-                                                    relation.childId))
-                            .filter(relation ->
-                                            relation.isValidAt(
-                                                    stateIndex))
-                            .filter(relation ->
-                                            relation.relationship
-                                                    .getPath()
-                                            != null)
-                            .map(relation ->
-                                         relation.relationship
-                                                 .getParentId())
-                            .collect(
-                                    Collectors.toCollection(
-                                            LinkedHashSet::new));
-            result.addAll(parents);
-            frontier = List.copyOf(parents);
-        }
-        if (!frontier.isEmpty()
-            && maxDepth
-               != ModelGraphComposition.UNBOUNDED) {
-            Set<String> children = Set.copyOf(frontier);
-            boolean hasMore = modelRelationshipHistory.stream()
-                    .filter(relation -> children.contains(
-                            relation.childId))
-                    .filter(relation -> relation.isValidAt(
-                            stateIndex))
-                    .anyMatch(relation -> relation.relationship
-                            .getPath() != null);
-            if (hasMore) {
-                throw new IllegalArgumentException(
-                        "Model graph projection exceeds maxDepth "
-                        + maxDepth);
-            }
-        }
-        return Set.copyOf(result);
+        return ModelRelationshipTraversal.traverse(
+                modelIds,
+                new ModelRelationshipTraversal.Policy(
+                        maxDepth, UNBOUNDED, true, false, null,
+                        "Model graph projection exceeds maxDepth " + maxDepth),
+                frontier -> () -> {
+                    Set<String> children = Set.copyOf(frontier);
+                    return modelRelationshipHistory.stream()
+                            .filter(relation -> children.contains(relation.childId))
+                            .filter(relation -> relation.isValidAt(stateIndex))
+                            .filter(relation -> relation.relationship.getPath() != null)
+                            .iterator();
+                },
+                relation -> relation.relationship.getParentId(),
+                null).without(modelIds);
     }
 
     private ModelStreamHead modelHeadAt(
@@ -1768,48 +1674,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     "Model maxStateIndex %d is outside visible range -1..%d"
                             .formatted(boundary, modelStateIndex));
         }
-        LinkedHashSet<String> modelIds = new LinkedHashSet<>();
-        modelIds.add(request.getRootId());
-        List<String> frontier = List.of(request.getRootId());
-        List<ModelGraphEdge> edges = new ArrayList<>();
-        for (int depth = 0;
-             !frontier.isEmpty()
-             && (request.getMaxDepth() == UNBOUNDED
-                 || depth < request.getMaxDepth());
-             depth++) {
-            Set<String> parents = Set.copyOf(frontier);
-            List<String> next = new ArrayList<>();
-            for (MutableModelRelationship relation : modelRelationshipHistory) {
-                if (!parents.contains(relation.relationship.getParentId())
-                    || !relation.isValidAt(boundary)
-                    || request.isComposableOnly()
-                       && relation.relationship.getPath() == null) {
-                    continue;
-                }
-                edges.add(new ModelGraphEdge(
-                        relation.childId, relation.relationship.getParentId(),
-                        relation.relationship.getParentType(), relation.relationship.getPath(),
-                        relation.validFrom, relation.validUntil));
-                if (modelIds.add(relation.childId)) {
-                    if (request.getMaxModels() != UNBOUNDED
-                        && modelIds.size() > request.getMaxModels()) {
-                        throw new IllegalArgumentException(
-                                "Model graph exceeds maxModels " + request.getMaxModels());
-                    }
-                    next.add(relation.childId);
-                }
-            }
-            frontier = next;
-        }
-        GetModelEventsResult events = getModelEvents(new GetModelEvents(
-                modelIds.stream()
-                        .map(id -> new ModelEventStreamRequest(
-                                id, -1L, request.getMaxEventsPerModel()))
-                        .toList(),
-                boundary, request.getMaxBytes()));
-        return new GetModelGraphResult(
-                request.getRequestId(), boundary, List.copyOf(edges),
-                events.getPayloads(), events.getStreams());
+        return getModelGraph(request.getRequestId(), request, boundary, false);
     }
 
     @Override
@@ -1828,54 +1693,36 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             .formatted(
                                     boundary, modelStateIndex));
         }
-        LinkedHashSet<String> modelIds =
-                new LinkedHashSet<>();
-        modelIds.add(request.getRootId());
-        List<String> frontier =
-                List.of(request.getRootId());
-        List<ModelGraphEdge> edges =
-                new ArrayList<>();
-        for (int depth = 0;
-             !frontier.isEmpty()
-             && (request.getMaxDepth() == UNBOUNDED
-                 || depth < request.getMaxDepth());
-             depth++) {
-            Set<String> parents = Set.copyOf(frontier);
-            List<String> next = new ArrayList<>();
-            for (MutableModelRelationship relation :
-                    modelRelationshipHistory) {
-                if (!parents.contains(
-                        relation.relationship.getParentId())
-                    || relation.validFrom >= boundary
-                    || relation.validUntil != null
-                       && relation.validUntil < boundary
-                    || request.isComposableOnly()
-                       && relation.relationship.getPath() == null) {
-                    continue;
-                }
-                edges.add(new ModelGraphEdge(
-                        relation.childId,
-                        relation.relationship.getParentId(),
-                        relation.relationship.getParentType(),
-                        relation.relationship.getPath(),
-                        relation.validFrom,
-                        relation.validUntil));
-                if (modelIds.add(relation.childId)) {
-                    if (request.getMaxModels() != UNBOUNDED
-                        && modelIds.size()
-                           > request.getMaxModels()) {
-                        throw new IllegalArgumentException(
-                                "Model graph exceeds maxModels "
-                                + request.getMaxModels());
-                    }
-                    next.add(relation.childId);
-                }
-            }
-            frontier = next;
-        }
+        return getModelGraph(before.getRequestId(), request, boundary, true);
+    }
+
+    private GetModelGraphResult getModelGraph(
+            long requestId,
+            GetModelGraph request,
+            long boundary,
+            boolean before) {
+        ModelRelationshipTraversal.Result graph = ModelRelationshipTraversal.traverse(
+                List.of(request.getRootId()),
+                new ModelRelationshipTraversal.Policy(
+                        request.getMaxDepth(), request.getMaxModels(), false, false,
+                        "Model graph exceeds maxModels " + request.getMaxModels(), null),
+                frontier -> () -> {
+                    Set<String> parents = Set.copyOf(frontier);
+                    return modelRelationshipHistory.stream()
+                            .filter(relation -> parents.contains(
+                                    relation.relationship.getParentId()))
+                            .filter(relation -> before
+                                                ? relation.isValidBefore(boundary)
+                                                : relation.isValidAt(boundary))
+                            .filter(relation -> !request.isComposableOnly()
+                                                || relation.relationship.getPath() != null)
+                            .iterator();
+                },
+                relation -> relation.childId,
+                MutableModelRelationship::edge);
         GetModelEventsResult events = getModelEvents(
                 new GetModelEvents(
-                        modelIds.stream()
+                        graph.modelIds().stream()
                                 .map(id ->
                                         new ModelEventStreamRequest(
                                                 id, -1L,
@@ -1884,8 +1731,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         boundary,
                         request.getMaxBytes()));
         return new GetModelGraphResult(
-                before.getRequestId(), boundary,
-                List.copyOf(edges), events.getPayloads(),
+                requestId, boundary,
+                graph.edges(), events.getPayloads(),
                 events.getStreams());
     }
 
@@ -1903,75 +1750,29 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     "Model maxStateIndex %d is outside visible range -1..%d"
                             .formatted(boundary, modelStateIndex));
         }
-        LinkedHashSet<String> modelIds =
-                new LinkedHashSet<>(request.getModelIds());
-        List<String> frontier = List.copyOf(modelIds);
-        List<ModelGraphEdge> edges = new ArrayList<>();
-        for (int depth = 0;
-             !frontier.isEmpty()
-             && (request.getMaxDepth() == UNBOUNDED
-                 || depth < request.getMaxDepth());
-             depth++) {
-            Set<String> children = Set.copyOf(frontier);
-            List<String> next = new ArrayList<>();
-            List<MutableModelRelationship> relationships =
-                    modelRelationshipHistory.stream()
-                            .filter(relation ->
-                                            children.contains(
-                                                    relation.childId)
-                                            && relation.isValidAt(
-                                                    boundary))
+        ModelRelationshipTraversal.Result graph = ModelRelationshipTraversal.traverse(
+                request.getModelIds(),
+                new ModelRelationshipTraversal.Policy(
+                        request.getMaxDepth(), request.getMaxModels(), true, false,
+                        "Model ancestor graph exceeds maxModels " + request.getMaxModels(),
+                        "Model ancestor graph exceeds maxDepth " + request.getMaxDepth()),
+                frontier -> {
+                    Set<String> children = Set.copyOf(frontier);
+                    return modelRelationshipHistory.stream()
+                            .filter(relation -> children.contains(relation.childId)
+                                                && relation.isValidAt(boundary))
                             .sorted(Comparator
-                                    .comparing(
-                                            (MutableModelRelationship value) ->
-                                                    value.childId)
-                                    .thenComparing(value ->
-                                                           value.relationship
-                                                                   .getParentId())
+                                    .comparing((MutableModelRelationship value) -> value.childId)
+                                    .thenComparing(value -> value.relationship.getParentId())
                                     .thenComparing(
-                                            value -> value.relationship
-                                                    .getPath(),
-                                            Comparator.nullsFirst(
-                                                    Comparator
-                                                            .naturalOrder())))
+                                            value -> value.relationship.getPath(),
+                                            Comparator.nullsFirst(Comparator.naturalOrder())))
                             .toList();
-            for (MutableModelRelationship relation :
-                    relationships) {
-                edges.add(new ModelGraphEdge(
-                        relation.childId,
-                        relation.relationship.getParentId(),
-                        relation.relationship.getParentType(),
-                        relation.relationship.getPath(),
-                        relation.validFrom, relation.validUntil));
-                if (modelIds.add(
-                        relation.relationship.getParentId())) {
-                    if (request.getMaxModels() != UNBOUNDED
-                        && modelIds.size() > request.getMaxModels()) {
-                        throw new IllegalArgumentException(
-                                "Model ancestor graph exceeds maxModels "
-                                + request.getMaxModels());
-                    }
-                    next.add(relation.relationship.getParentId());
-                }
-            }
-            frontier = next;
-        }
-        if (request.getMaxDepth() != UNBOUNDED
-            && !frontier.isEmpty()) {
-            Set<String> truncatedChildren = Set.copyOf(frontier);
-            boolean truncated = modelRelationshipHistory.stream()
-                    .anyMatch(relation ->
-                                      truncatedChildren.contains(
-                                              relation.childId)
-                                      && relation.isValidAt(boundary));
-            if (truncated) {
-                throw new IllegalArgumentException(
-                        "Model ancestor graph exceeds maxDepth "
-                        + request.getMaxDepth());
-            }
-        }
+                },
+                relation -> relation.relationship.getParentId(),
+                MutableModelRelationship::edge);
         GetModelEventsResult events = getModelEvents(new GetModelEvents(
-                modelIds.stream()
+                graph.modelIds().stream()
                         .map(id -> new ModelEventStreamRequest(
                                 id, -1L,
                                 request.getMaxEventsPerModel()))
@@ -1979,7 +1780,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 boundary, request.getMaxBytes()));
         return new GetModelGraphResult(
                 request.getRequestId(), boundary,
-                List.copyOf(edges), events.getPayloads(),
+                graph.edges(), events.getPayloads(),
                 events.getStreams());
     }
 
@@ -2025,83 +1826,43 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     + constraint.getMaxRelatedModels());
         }
         LinkedHashSet<String> result = new LinkedHashSet<>();
-        LinkedHashSet<String> uniqueModels =
-                new LinkedHashSet<>(relatedModelIds);
-        Set<TraversalState> traversalStates = new HashSet<>();
-        List<String> frontier = List.copyOf(relatedModelIds);
-        for (int depth = 1;
-             depth <= constraint.getMaxDepth()
-             && !frontier.isEmpty();
-             depth++) {
-            Set<String> frontierIds = Set.copyOf(frontier);
-            List<MutableModelRelationship> relationshipBatch =
-                    modelRelationshipHistory.stream()
-                            .filter(relation ->
-                                            relation.isValidAt(
-                                                    modelStateIndex))
-                            .filter(relation ->
-                                            constraint.getPaths()
-                                                    .isEmpty()
-                                            || constraint.getPaths()
-                                                    .contains(
-                                                            relation.relationship
-                                                                    .getPath()))
-                            .filter(relation ->
-                                            switch (constraint
-                                                            .getDirection()) {
-                                                case ANCESTOR ->
-                                                        frontierIds.contains(
-                                                                relation.relationship
-                                                                        .getParentId());
-                                                case DESCENDANT ->
-                                                        frontierIds.contains(
-                                                                relation.childId);
-                                            })
+        boolean ancestors = constraint.getDirection()
+                            == ModelRelationConstraint.Direction.ANCESTOR;
+        ModelRelationshipTraversal.traverse(
+                relatedModelIds,
+                new ModelRelationshipTraversal.Policy(
+                        constraint.getMaxDepth(), constraint.getMaxTraversedModels(), false, true,
+                        "Model relation traversal exceeds maxTraversedModels "
+                        + constraint.getMaxTraversedModels()
+                        + "; narrow the query or use a materialized graph projection",
+                        null),
+                frontier -> {
+                    Set<String> frontierIds = Set.copyOf(frontier);
+                    return modelRelationshipHistory.stream()
+                            .filter(relation -> relation.isValidAt(modelStateIndex))
+                            .filter(relation -> constraint.getPaths().isEmpty()
+                                                || constraint.getPaths().contains(
+                                                        relation.relationship.getPath()))
+                            .filter(relation -> ancestors
+                                                ? frontierIds.contains(
+                                                        relation.relationship.getParentId())
+                                                : frontierIds.contains(relation.childId))
                             .sorted(Comparator
-                                    .comparing(
-                                            (MutableModelRelationship value) ->
-                                                    value.childId)
-                                    .thenComparing(value ->
-                                                           value.relationship
-                                                                   .getParentId())
+                                    .comparing((MutableModelRelationship value) -> value.childId)
+                                    .thenComparing(value -> value.relationship.getParentId())
                                     .thenComparing(
-                                            value -> value.relationship
-                                                    .getPath(),
-                                            Comparator.nullsFirst(
-                                                    Comparator
-                                                            .naturalOrder())))
+                                            value -> value.relationship.getPath(),
+                                            Comparator.nullsFirst(Comparator.naturalOrder())))
                             .toList();
-            LinkedHashSet<String> next = new LinkedHashSet<>();
-            for (MutableModelRelationship relation :
-                    relationshipBatch) {
-                String modelId = switch (constraint
-                        .getDirection()) {
-                    case ANCESTOR -> relation.childId;
-                    case DESCENDANT ->
-                            relation.relationship.getParentId();
-                };
-                if (traversalStates.add(
-                        new TraversalState(modelId, depth))) {
-                    next.add(modelId);
-                    uniqueModels.add(modelId);
-                    if (traversalStates.size()
-                        > constraint
-                                .getMaxTraversedModels()
-                        || uniqueModels.size()
-                           > constraint
-                                   .getMaxTraversedModels()) {
-                        throw new IllegalArgumentException(
-                                "Model relation traversal exceeds maxTraversedModels "
-                                + constraint.getMaxTraversedModels()
-                                + "; narrow the query or use a materialized graph projection");
+                },
+                relation -> ancestors ? relation.childId : relation.relationship.getParentId(),
+                null,
+                ignored -> List.of(),
+                (depth, models) -> {
+                    if (depth >= constraint.getMinDepth()) {
+                        result.addAll(models);
                     }
-                }
-            }
-            if (depth >= constraint.getMinDepth()) {
-                result.addAll(next);
-            }
-            frontier = List.copyOf(next);
-        }
+                });
         return Set.copyOf(result);
     }
 
@@ -2132,95 +1893,32 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     "Model graph roots exceed maxModels "
                     + composition.getMaxModels());
         }
-        List<String> frontier =
-                List.copyOf(modelIds);
-        List<ModelGraphEdge> edges =
-                new ArrayList<>();
-        int depth = 0;
-        for (;
-             !frontier.isEmpty()
-             && (composition.getMaxDepth()
-                 == ModelGraphComposition.UNBOUNDED
-                 || depth < composition.getMaxDepth());
-             depth++) {
-            Set<String> parents =
-                    Set.copyOf(frontier);
-            List<MutableModelRelationship> batch =
-                    modelRelationshipHistory.stream()
-                            .filter(relation ->
-                                            parents.contains(
-                                                    relation.relationship
-                                                            .getParentId()))
-                            .filter(relation ->
-                                            relation.isValidAt(
-                                                    modelStateIndex))
-                            .filter(relation ->
-                                            relation.relationship
-                                                    .getPath()
-                                            != null)
-                            .sorted(Comparator
-                                    .comparing(
-                                            (MutableModelRelationship
-                                                     relation) ->
-                                                    relation.relationship
-                                                            .getParentId())
-                                    .thenComparing(
-                                            relation ->
-                                                    relation.relationship
-                                                            .getPath())
-                                    .thenComparing(
-                                            relation ->
-                                                    relation.childId))
-                            .toList();
-            List<String> next =
-                    new ArrayList<>();
-            for (MutableModelRelationship relation :
-                    batch) {
-                edges.add(new ModelGraphEdge(
-                        relation.childId,
-                        relation.relationship
-                                .getParentId(),
-                        relation.relationship
-                                .getParentType(),
-                        relation.relationship
-                                .getPath(),
-                        relation.validFrom,
-                        relation.validUntil));
-                if (modelIds.add(
-                        relation.childId)) {
-                    if (composition.getMaxModels()
-                        != ModelGraphComposition.UNBOUNDED
-                        && modelIds.size()
-                           > composition.getMaxModels()) {
-                        throw new IllegalArgumentException(
-                                "Model graph exceeds maxModels "
-                                + composition
-                                        .getMaxModels()
-                                + "; narrow the result or use a materialized graph projection");
-                    }
-                    next.add(
-                            relation.childId);
-                }
-            }
-            frontier = next;
-        }
-        if (!frontier.isEmpty()
-            && composition.getMaxDepth()
-               != ModelGraphComposition.UNBOUNDED) {
-            Set<String> parents = Set.copyOf(frontier);
-            boolean hasMore = modelRelationshipHistory.stream()
-                    .filter(relation -> parents.contains(
-                            relation.relationship.getParentId()))
-                    .filter(relation -> relation.isValidAt(modelStateIndex))
-                    .anyMatch(relation -> relation.relationship.getPath() != null);
-            if (hasMore) {
-                throw new IllegalArgumentException(
+        return ModelRelationshipTraversal.traverse(
+                modelIds,
+                new ModelRelationshipTraversal.Policy(
+                        composition.getMaxDepth(), composition.getMaxModels(), true, false,
+                        "Model graph exceeds maxModels "
+                        + composition.getMaxModels()
+                        + "; narrow the result or use a materialized graph projection",
                         "Model graph exceeds maxDepth "
                         + composition.getMaxDepth()
-                        + "; narrow the result or remove the explicit composition limit");
-            }
-        }
-        return List.copyOf(edges);
+                        + "; narrow the result or remove the explicit composition limit"),
+                frontier -> {
+                    Set<String> parents = Set.copyOf(frontier);
+                    return modelRelationshipHistory.stream()
+                            .filter(relation -> parents.contains(
+                                    relation.relationship.getParentId()))
+                            .filter(relation -> relation.isValidAt(modelStateIndex))
+                            .filter(relation -> relation.relationship.getPath() != null)
+                            .sorted(Comparator
+                                    .comparing((MutableModelRelationship relation) ->
+                                            relation.relationship.getParentId())
+                                    .thenComparing(relation -> relation.relationship.getPath())
+                                    .thenComparing(relation -> relation.childId))
+                            .toList();
+                },
+                relation -> relation.childId,
+                MutableModelRelationship::edge).edges();
     }
 
     /**
@@ -2464,10 +2162,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 boolean rebuild);
     }
 
-    private record TraversalState(
-            String modelId, int depth) {
-    }
-
     private static final class MutableModelRelationship {
         private final String childId;
         private final ModelRelationship relationship;
@@ -2485,6 +2179,21 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         private boolean isValidAt(long stateIndex) {
             return validFrom <= stateIndex
                    && (validUntil == null || stateIndex < validUntil);
+        }
+
+        private boolean isValidBefore(long stateIndex) {
+            return validFrom < stateIndex
+                   && (validUntil == null || stateIndex <= validUntil);
+        }
+
+        private ModelGraphEdge edge() {
+            return new ModelGraphEdge(
+                    childId,
+                    relationship.getParentId(),
+                    relationship.getParentType(),
+                    relationship.getPath(),
+                    validFrom,
+                    validUntil);
         }
     }
 }
