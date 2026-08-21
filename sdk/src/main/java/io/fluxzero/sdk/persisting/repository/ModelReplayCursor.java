@@ -103,8 +103,6 @@ final class ModelReplayCursor {
     private final ModelSnapshotStore snapshotStore;
     private final DocumentReader documentReader;
     private final ModelRepository repository;
-    private final Map<HandlerKey, MutationPlan> replayPlans =
-            new ConcurrentHashMap<>();
 
     ModelReplayCursor(EventStoreClient eventStoreClient) {
         this(eventStoreClient, DEFAULT_SETTINGS);
@@ -1534,15 +1532,8 @@ final class ModelReplayCursor {
             if (payloadType == null) {
                 return null;
             }
-            MutationPlan definition =
-                    replayPlans.computeIfAbsent(
-                            new HandlerKey(
-                                    payloadType,
-                                    modelType),
-                            ignored ->
-                                    replayPlan(
-                                            payloadType,
-                                            modelType));
+            MutationPlan definition = modelDefinitionCompiler.compileReplay(
+                    payloadType, modelType);
             return definition.direct() ? definition : null;
         }
 
@@ -1892,15 +1883,8 @@ final class ModelReplayCursor {
                     .map(event -> {
                         Class<?> payloadType =
                                 event.getPayloadClass();
-                        MutationPlan definition =
-                                replayPlans.computeIfAbsent(
-                                        new HandlerKey(
-                                                payloadType,
-                                                target.modelType()),
-                                        ignored ->
-                                                replayPlan(
-                                                        payloadType,
-                                                        target.modelType()));
+                        MutationPlan definition = modelDefinitionCompiler.compileReplay(
+                                payloadType, target.modelType());
                         return new PreparedReplay(
                                 event,
                                 definition,
@@ -1949,22 +1933,6 @@ final class ModelReplayCursor {
                                     Stream.of(storedEvent.event()), EVENT,
                                     ignoreUnknown ? UnknownTypeStrategy.IGNORE : UnknownTypeStrategy.FAIL)
                             .toList());
-        }
-
-        private MutationPlan replayPlan(
-                Class<?> payloadType, Class<?> modelType) {
-            LinkedHashSet<EntityMetadata.HandlerMethod> result = new LinkedHashSet<>();
-            EntityMetadata.of(payloadType).applyMethods().stream()
-                    .filter(handler -> handler.dynamicApplyResult()
-                                       || handler.targetModelTypes().stream()
-                                               .anyMatch(target -> compatible(target, modelType)))
-                    .forEach(result::add);
-            EntityMetadata.of(modelType).applyMethods().stream()
-                    .filter(handler -> EntityMetadata.acceptsPayload(handler, payloadType))
-                    .forEach(result::add);
-            List<EntityMetadata.HandlerMethod> handlers = List.copyOf(result);
-            return modelDefinitionCompiler.compileReplay(
-                    payloadType, modelType, handlers);
         }
 
         @SuppressWarnings("unchecked")
@@ -2200,9 +2168,6 @@ final class ModelReplayCursor {
     }
 
     private record PayloadKey(long stateIndex, boolean ignoreUnknown) {
-    }
-
-    private record HandlerKey(Class<?> payloadType, Class<?> modelType) {
     }
 
     private record PreparedReplay(

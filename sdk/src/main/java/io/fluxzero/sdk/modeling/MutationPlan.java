@@ -115,14 +115,18 @@ public final class MutationPlan {
     /** Compiles immutable definition data with application-specific parameter resolvers. */
     public static final class Compiler {
         private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
+        private final ConcurrentHashMap<ReplayKey, MutationPlan> replayPlans = new ConcurrentHashMap<>();
+
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
             List<ParameterResolver<? super DeserializingMessage>> resolvers =
                     new ArrayList<>(parameterResolvers.size() + 1);
-            @SuppressWarnings("unchecked")
-            ParameterResolver<? super DeserializingMessage> modelResolver =
-                    (ParameterResolver<? super DeserializingMessage>) (ParameterResolver<?>)
-                            new ModelEntityParameterResolver();
-            resolvers.add(modelResolver);
+            if (parameterResolvers.stream().noneMatch(ModelEntityParameterResolver.class::isInstance)) {
+                @SuppressWarnings("unchecked")
+                ParameterResolver<? super DeserializingMessage> modelResolver =
+                        (ParameterResolver<? super DeserializingMessage>) (ParameterResolver<?>)
+                                new ModelEntityParameterResolver();
+                resolvers.add(modelResolver);
+            }
             resolvers.addAll(parameterResolvers);
             this.parameterResolvers = List.copyOf(resolvers);
         }
@@ -164,22 +168,37 @@ public final class MutationPlan {
             };
         }
 
-        public MutationPlan compileReplay(
-                Class<?> payloadType,
-                Class<?> modelType,
-                List<EntityMetadata.HandlerMethod> handlers) {
+        public MutationPlan compileReplay(Class<?> payloadType, Class<?> modelType) {
+            return replayPlans.computeIfAbsent(
+                    new ReplayKey(payloadType, modelType), this::compileReplay);
+        }
+
+        private MutationPlan compileReplay(ReplayKey key) {
+            LinkedHashSet<EntityMetadata.HandlerMethod> selected = new LinkedHashSet<>();
+            EntityMetadata.of(key.payloadType()).applyMethods().stream()
+                    .filter(handler -> handler.dynamicApplyResult()
+                                       || handler.targetModelTypes().stream()
+                                               .anyMatch(target -> compatible(target, key.modelType())))
+                    .forEach(selected::add);
+            EntityMetadata.of(key.modelType()).applyMethods().stream()
+                    .filter(handler -> EntityMetadata.acceptsPayload(handler, key.payloadType()))
+                    .forEach(selected::add);
+            List<EntityMetadata.HandlerMethod> handlers = List.copyOf(selected);
             DirectSingleTargetApply direct = handlers.size() == 1
                     && handlers.getFirst().targetModelTypes().size() == 1
-                    && compatible(handlers.getFirst().targetModelTypes().getFirst(), modelType)
-                    ? directSingleTargetApply(handlers.getFirst(), payloadType) : null;
+                    && compatible(handlers.getFirst().targetModelTypes().getFirst(), key.modelType())
+                    ? directSingleTargetApply(handlers.getFirst(), key.payloadType()) : null;
             return new MutationPlan(
                     new ModelReducer(compileHandlers(handlers), direct),
-                    compile(payloadType, handlers),
+                    compile(key.payloadType(), handlers),
                     ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty(), false);
         }
 
         private static boolean compatible(Class<?> left, Class<?> right) {
             return left.isAssignableFrom(right) || right.isAssignableFrom(left);
+        }
+
+        private record ReplayKey(Class<?> payloadType, Class<?> modelType) {
         }
 
     }

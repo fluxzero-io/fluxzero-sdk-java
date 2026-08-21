@@ -1103,9 +1103,8 @@ public class DefaultFluxzero implements Fluxzero {
             DefaultModelRepository commandModelRepository =
                     new DefaultModelRepository(
                             client, runtimeDocumentStore, serializer,
-                            DefaultEntityHelper.forModels(
-                                    runtimeParameterResolvers,
-                                    disablePayloadValidation),
+                            new DefaultEntityHelper(
+                                    runtimeParameterResolvers, disablePayloadValidation),
                             snapshotSerializer, modelCache,
                             runtimeParameterResolvers);
             graphRepository.set(commandModelRepository);

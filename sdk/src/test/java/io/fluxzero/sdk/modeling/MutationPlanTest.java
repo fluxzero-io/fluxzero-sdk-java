@@ -18,6 +18,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import io.fluxzero.sdk.tracking.handling.Association;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,15 @@ class MutationPlanTest {
         var executable = EntityMetadata.of(Transfer.class).handlerMethods().getFirst().executable();
 
         assertSame(MutationPlan.parameterPlan(executable), MutationPlan.parameterPlan(executable));
+    }
+
+    @Test
+    void replayPlansAreOwnedAndCachedByTheApplicationCompiler() {
+        MutationPlan.Compiler compiler = new MutationPlan.Compiler(
+                List.of(new PayloadParameterResolver()));
+
+        assertSame(compiler.compileReplay(RenameProduct.class, Product.class),
+                   compiler.compileReplay(RenameProduct.class, Product.class));
     }
 
     @Test
