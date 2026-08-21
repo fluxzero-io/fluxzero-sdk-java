@@ -1311,6 +1311,35 @@ class InMemoryEventStoreModelCommitTest {
     }
 
     @Test
+    void rejectsModelTypeChangesBeforePublishingAnything() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit(
+                "create-typed",
+                ModelCommitStep.builder()
+                        .event(event("created"))
+                        .publishEvent(true)
+                        .targets(List.of(storedTarget("order-1").toBuilder()
+                                                 .modelType("old").build()))
+                        .build())).join();
+
+        assertThrows(
+                CompletionException.class,
+                () -> store.commitModels(commit(
+                        "change-type", 0L, ModelConflictPolicy.ACCEPT,
+                        ModelCommitStep.builder()
+                                .event(event("rejected"))
+                                .publishEvent(true)
+                                .targets(List.of(storedTarget("order-1").toBuilder()
+                                                         .modelType("new").build()))
+                                .build())).join());
+
+        assertEquals(1, store.getBatch(null, 10, true).size());
+        assertEquals("old", modelStream(store, "order-1").getHead().getModelType());
+        assertEquals(0L, store.getModelEvents(
+                new GetModelEvents(List.of(), null, 0L)).getStateIndex());
+    }
+
+    @Test
     void rejectsDynamicRelationshipCyclesBeforePublishingOrMutating() {
         InMemoryEventStore store = denseStore();
         ModelCommitTarget child = storedTarget("b")
