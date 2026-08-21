@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
 import io.fluxzero.common.api.publishing.Truncate;
@@ -121,7 +122,7 @@ public class WebsocketGatewayClient extends AbstractWebsocketClient implements G
         try {
             SerializedMessage[] encoded = new SerializedMessage[messages.length];
             for (int i = 0; i < messages.length; i++) {
-                encoded[i] = SerializedMessage.encode(messages[i]);
+                encoded[i] = BinaryWire.prepareEnvelope(messages[i]);
             }
             return sendCommand(new Append(messageType, Arrays.asList(encoded), guarantee));
         } finally {

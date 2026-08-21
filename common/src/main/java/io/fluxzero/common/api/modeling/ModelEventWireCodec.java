@@ -43,7 +43,7 @@ public final class ModelEventWireCodec {
     private static final int RESULT_MAGIC = 0x465A4552; // FZER
     private static final int DIRECT_REQUEST_MAGIC = 0x465A4571; // FZEq
     private static final int DIRECT_RESULT_MAGIC = 0x465A4572; // FZEr
-    private static final int VERSION = 6;
+    private static final int VERSION = 7;
     private static final int MAX_BATCH_SIZE = 1_000_000;
     private static final int MAX_COLLECTION_SIZE = 2_000_000;
     private static final int MAX_VALUE_BYTES = 512 * 1024 * 1024;
@@ -499,7 +499,7 @@ public final class ModelEventWireCodec {
     }
 
     private static int encodedMessageSize(SerializedMessage message) {
-        return Math.addExact(Integer.BYTES, SerializedMessage.encode(message).envelopeSize());
+        return BinaryWire.nestedEnvelopeSize(message);
     }
 
     private static int encodedStringSize(String value) {

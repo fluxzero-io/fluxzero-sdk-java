@@ -177,31 +177,30 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void nativeBinaryTrackingCodecRetainsPatchableMessageEnvelopes() throws Exception {
+    void binaryTrackingCodecRetainsMutableMessageValues() throws Exception {
         Append append = new Append(MessageType.EVENT, List.of(serializedMessage()), Guarantee.STORED);
 
         Append decoded = assertInstanceOf(Append.class, roundTrip(binaryCodec, append));
 
         SerializedMessage message = decoded.getMessages().getFirst();
-        assertTrue(message.isReusable());
+        assertNotNull(message.getData().byteArrayView());
         assertSerializedMessage(serializedMessage(), message);
         message.setIndex(123L);
         SerializedMessage roundTripped =
                 assertInstanceOf(Append.class, roundTrip(binaryCodec, decoded)).getMessages().getFirst();
-        assertTrue(roundTripped.isReusable());
+        assertNotNull(roundTripped.getData().byteArrayView());
         assertEquals(123L, roundTripped.getIndex());
     }
 
     @Test
-    void binaryCodecPreservesNativeMessagesWithoutOriginalRevision() throws Exception {
+    void binaryCodecPreservesMessagesWithoutExplicitOriginalRevision() throws Exception {
         SerializedMessage expected = serializedMessage();
         expected.setOriginalRevision(null);
         Append append = new Append(
-                MessageType.EVENT, List.of(SerializedMessage.encode(expected)), Guarantee.STORED);
+                MessageType.EVENT, List.of(expected), Guarantee.STORED);
 
         Append decoded = assertInstanceOf(Append.class, roundTrip(binaryCodec, append));
 
-        assertTrue(decoded.getMessages().getFirst().isReusable());
         assertSerializedMessage(expected, decoded.getMessages().getFirst());
     }
 
@@ -237,12 +236,12 @@ class WebSocketTransportCodecsTest {
     }
 
     @Test
-    void nativeBinaryModelCommitCodecRetainsEventEnvelope() throws Exception {
+    void binaryModelCommitCodecRetainsEvent() throws Exception {
         SerializedMessage event = serializedMessage();
         CommitModels commit = new CommitModels(
                 "commit-native", 1L, List.of("order-1"),
                 List.of(ModelCommitStep.builder()
-                                .event(SerializedMessage.encode(event))
+                                .event(event)
                                 .publishEvent(true)
                                 .targets(List.of(ModelCommitTarget.builder()
                                                          .modelId("order-1")
@@ -259,7 +258,7 @@ class WebSocketTransportCodecsTest {
                 roundTrip(binaryCodec, new RequestBatch<>(List.of(commit))));
         CommitModels decoded = assertInstanceOf(
                 CommitModels.class, decodedBatch.getRequests().getFirst());
-        assertTrue(decoded.getSubsteps().getFirst().getEvent().isReusable());
+        assertNotNull(decoded.getSubsteps().getFirst().getEvent().getData().byteArrayView());
         assertSerializedMessage(event, decoded.getSubsteps().getFirst().getEvent());
     }
 

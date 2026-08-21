@@ -44,7 +44,7 @@ public final class ModelCommitWireCodec {
 
     private static final int REQUEST_MAGIC = 0x465A4D43; // FZMC
     private static final int RESULT_MAGIC = 0x465A4D52; // FZMR
-    private static final int VERSION = 4;
+    private static final int VERSION = 5;
     private static final int SHARED_MODEL_TYPE = 1;
     private static final int READ_TARGET_ONLY = 1 << 1;
     private static final int MAX_BATCH_SIZE = 1_000_000;
@@ -350,7 +350,7 @@ public final class ModelCommitWireCodec {
         }
         size = addSize(size, 3); // conflict policy, guarantee and possible-duplicate marker
         ModelCommitStep step = commit.getSubsteps().getFirst();
-        size = addSize(size, addSize(Integer.BYTES, message.envelopeSize()));
+        size = addSize(size, BinaryWire.nestedEnvelopeSize(message));
         ModelCommitTarget target = step.getTargets().getFirst();
         size = addSize(size, stringSize(target.getModelId()));
         if (!descriptor.sharedModelType()) {
@@ -430,8 +430,7 @@ public final class ModelCommitWireCodec {
             size = addSize(size, descriptor.sharedValuesSize());
             for (int index = 0; index < batch.getRequests().size(); index++) {
                 CommitModels commit = (CommitModels) batch.getRequests().get(index);
-                SerializedMessage message = SerializedMessage.encode(
-                        commit.getSubsteps().getFirst().getEvent());
+                SerializedMessage message = commit.getSubsteps().getFirst().getEvent();
                 messages[index] = message;
                 size = addSize(size, commitSize(commit, descriptor, message));
             }

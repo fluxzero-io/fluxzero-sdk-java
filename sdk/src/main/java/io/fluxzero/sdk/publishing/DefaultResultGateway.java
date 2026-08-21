@@ -19,6 +19,7 @@ import io.fluxzero.common.Backlog;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Message;
@@ -243,7 +244,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             event.preparationNanos = System.nanoTime() - preparationStarted;
             long bytes = 0L;
             for (SerializedMessage message : appendBatch) {
-                bytes += message.envelopeSize();
+                bytes += message.getBytes();
             }
             event.bytes = bytes;
             appendStarted = System.nanoTime();
@@ -325,7 +326,7 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
                     if (response.monitor()) {
                         messages[index] = message;
                     }
-                    serialized[index] = SerializedMessage.encode(result);
+                    serialized[index] = BinaryWire.prepareEnvelope(result);
                 } catch (Throwable e) {
                     failures[index] = e;
                 }

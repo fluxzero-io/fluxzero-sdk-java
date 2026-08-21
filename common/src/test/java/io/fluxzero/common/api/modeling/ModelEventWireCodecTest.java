@@ -135,7 +135,7 @@ class ModelEventWireCodecTest {
         assertEquals(1, decoded.getPayloads().size());
         SerializedMessage decodedRegular =
                 decoded.getPayloads().getFirst().getEvent();
-        assertTrue(decodedRegular.isReusable());
+        assertTrue(decodedRegular.getData().byteArrayView() != null);
         assertArrayEquals(
                 regular.getData().getValue(),
                 decodedRegular.getData().getValue());

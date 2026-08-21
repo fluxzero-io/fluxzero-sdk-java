@@ -37,14 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
-    void binaryCodecRetainsSelfContainedEventEnvelopesAndRejectsPreviewVersions() throws Exception {
-        CommitModels original = commit("native-😀", false);
-        ModelCommitStep step = original.getSubsteps().getFirst();
-        SerializedMessage nativeEvent = SerializedMessage.encode(step.getEvent());
-        CommitModels commit = new CommitModels(
-                original.getCommitId(), original.getReadStateIndex(), original.getReadModelIds(),
-                List.of(step.toBuilder().event(nativeEvent).build()), original.getConflictPolicy(),
-                original.getGuarantee(), original.getPossibleDuplicate());
+    void binaryCodecRetainsSelfContainedEventsAndRejectsPreviewVersions() throws Exception {
+        CommitModels commit = commit("native-😀", false);
 
         byte[] nativeBytes = ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(commit)));
 
@@ -52,8 +46,10 @@ class ModelCommitWireCodecTest {
                 RequestBatch.class, ModelCommitWireCodec.tryDecode(nativeBytes));
         SerializedMessage decodedEvent = assertInstanceOf(CommitModels.class, decoded.getRequests().getFirst())
                 .getSubsteps().getFirst().getEvent();
-        assertTrue(decodedEvent.isReusable());
-        assertArrayEquals(nativeEvent.copyEnvelope(), decodedEvent.copyEnvelope());
+        SerializedMessage expectedEvent = commit.getSubsteps().getFirst().getEvent();
+        assertEquals(expectedEvent, decodedEvent);
+        assertEquals(expectedEvent.getOriginalRevision(), decodedEvent.getOriginalRevision());
+        assertTrue(decodedEvent.getData().byteArrayView() != null);
 
         nativeBytes[Integer.BYTES]--;
         assertThrows(IOException.class, () -> ModelCommitWireCodec.tryDecode(nativeBytes));

@@ -43,7 +43,7 @@ import java.util.List;
 public final class TrackingWireCodec {
 
     private static final int MAGIC = 0x465A5457; // FZTW
-    private static final int VERSION = 2;
+    private static final int VERSION = 3;
     private static final int DIRECT_APPEND = 1;
     private static final int APPEND_BATCH = 2;
     private static final int DIRECT_READ = 3;
@@ -411,10 +411,7 @@ public final class TrackingWireCodec {
     private static long envelopesWireSize(List<SerializedMessage> messages) {
         long result = 0;
         for (SerializedMessage message : messages) {
-            if (!message.isReusable()) {
-                return -1;
-            }
-            result += Integer.BYTES + (long) message.envelopeSize();
+            result += BinaryWire.nestedEnvelopeSize(message);
             if (result > MAX_VALUE_BYTES) {
                 return -1;
             }

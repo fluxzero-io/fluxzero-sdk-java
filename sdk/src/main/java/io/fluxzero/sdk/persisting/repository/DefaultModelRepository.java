@@ -19,6 +19,7 @@ package io.fluxzero.sdk.persisting.repository;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
@@ -1391,7 +1392,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             message, commitId, protocolSteps.size(), false);
                     publication.setSource(source);
                     applyEventRouting(publication, graphPublished);
-                    publication = SerializedMessage.encode(publication);
+                    publication = BinaryWire.prepareEnvelope(publication);
                     Change anchor = graphPublished.getFirst();
                     ModelCommitTarget publicationTarget = target(
                             anchor.withEffects(false, true, false), message,
@@ -1421,7 +1422,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         routingTransitions.addAll(graphPublished);
                         applyEventRouting(event, routingTransitions);
                     }
-                    event = SerializedMessage.encode(event);
+                    event = BinaryWire.prepareEnvelope(event);
                 }
                 List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
                 for (Change transition : committedTransitions) {
@@ -1579,7 +1580,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
              * command and event dispatch interceptors still receive an independent message.
              */
             SerializedMessage candidate = new SerializedMessage(
-                    source,
+                    source.getData(),
                     logicalMessage.getMetadata(),
                     logicalMessage.getMessageId(),
                     logicalMessage.getTimestamp().toEpochMilli());

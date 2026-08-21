@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -206,14 +207,16 @@ public final class DefaultRequestHandlerCompletionBenchmark {
     }
 
     private static List<SerializedMessage> envelopeMessages(int count, Data<byte[]> data) {
-        SerializedMessage encoded = SerializedMessage.encode(
-                new SerializedMessage(data, RESULT_METADATA, "result", 0L));
-        byte[] template = encoded.copyEnvelope();
+        SerializedMessage source = new SerializedMessage(data, RESULT_METADATA, "result", 0L);
+        int size = Math.toIntExact(source.getBytes());
+        BinaryWire.Writer writer = new BinaryWire.Writer(size, size);
+        writer.writeEnvelope(source);
+        byte[] template = writer.toExactByteArray();
         SerializedMessage[] messages = new SerializedMessage[count];
         for (int i = 0; i < count; i++) {
             byte[] envelope = template.clone();
             try {
-                messages[i] = SerializedMessage.decodeView(envelope, 0, envelope.length);
+                messages[i] = new BinaryWire.Reader(envelope, envelope.length).readEnvelope();
             } catch (Exception e) {
                 throw new IllegalStateException("Could not construct benchmark result envelope", e);
             }

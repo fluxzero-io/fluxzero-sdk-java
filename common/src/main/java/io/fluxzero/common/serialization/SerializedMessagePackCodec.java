@@ -19,6 +19,7 @@ package io.fluxzero.common.serialization;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.internal.BinaryWire;
 import org.msgpack.core.MessagePack;
 import org.msgpack.core.MessageUnpacker;
 import org.msgpack.core.buffer.ArrayBufferInput;
@@ -30,7 +31,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Decodes native or legacy MessagePack representations used by the Fluxzero event store.
+ * Decodes the shared binary or legacy MessagePack representations used by the Fluxzero event store.
  * <p>
  * This codec deliberately owns only the read contract needed by compact model-event responses. Event-store writes
  * remain owned by the runtime.
@@ -38,6 +39,7 @@ import java.util.Map;
 public final class SerializedMessagePackCodec {
 
     private static final byte[] EMPTY = new byte[0];
+    private static final int MAXIMUM_VALUE_SIZE = 512 * 1024 * 1024;
     private static final MessagePack.UnpackerConfig UNPACKER_CONFIG =
             new MessagePack.UnpackerConfig()
                     .withBufferSize(8_192)
@@ -61,11 +63,11 @@ public final class SerializedMessagePackCodec {
     /** Decodes consecutive serialized messages from a zero-copy byte range. */
     public static List<SerializedMessage> decode(
             byte[] bytes, int offset, int length) {
-        if (SerializedMessage.isEnvelope(bytes, offset, length)) {
+        if (BinaryWire.isEnvelopeSequence(bytes, offset, length)) {
             try {
-                return SerializedMessage.decodeAllViews(bytes, offset, length);
+                return BinaryWire.decodeEnvelopes(bytes, offset, length, MAXIMUM_VALUE_SIZE);
             } catch (IOException e) {
-                throw new IllegalArgumentException("Could not decode native event payloads", e);
+                throw new IllegalArgumentException("Could not decode binary event payloads", e);
             }
         }
         ReusableUnpacker reusable = UNPACKERS.get();
