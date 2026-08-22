@@ -222,12 +222,10 @@ public final class MutationPlan {
 
     static record HandlerPlan(
             List<CompiledHandler> all,
-            List<CompiledHandler> beforeAssertions,
-            List<CompiledHandler> afterAssertions,
-            List<CompiledHandler> applies,
-            List<CompiledHandler> interceptors) {
+            HandlerPhase payload,
+            HandlerPhase model) {
         static final HandlerPlan EMPTY = new HandlerPlan(
-                List.of(), List.of(), List.of(), List.of(), List.of());
+                List.of(), HandlerPhase.EMPTY, HandlerPhase.EMPTY);
 
         private HandlerPlan(List<EntityMetadata.HandlerMethod> handlers, Compiler compiler) {
             this(handlers.stream().map(handler -> {
@@ -240,14 +238,35 @@ public final class MutationPlan {
 
         private HandlerPlan(List<CompiledHandler> handlers) {
             this(List.copyOf(handlers),
-                 select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, false),
-                 select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, true),
-                 select(handlers, EntityMetadata.HandlerKind.APPLY, null),
-                 select(handlers, EntityMetadata.HandlerKind.INTERCEPT_APPLY, null));
+                 new HandlerPhase(handlers.stream()
+                                          .filter(handler -> !handler.method().modelHandler()).toList()),
+                 new HandlerPhase(handlers.stream()
+                                          .filter(handler -> handler.method().modelHandler()).toList()));
         }
 
         List<EntityMetadata.HandlerMethod> methods() {
             return all.stream().map(CompiledHandler::method).toList();
+        }
+
+        CompiledHandler singleApply() {
+            return payload.applies().isEmpty()
+                    ? model.applies().getFirst() : payload.applies().getFirst();
+        }
+    }
+
+    static record HandlerPhase(
+            List<CompiledHandler> beforeAssertions,
+            List<CompiledHandler> afterAssertions,
+            List<CompiledHandler> applies,
+            List<CompiledHandler> interceptors) {
+        private static final HandlerPhase EMPTY = new HandlerPhase(
+                List.of(), List.of(), List.of(), List.of());
+
+        private HandlerPhase(List<CompiledHandler> handlers) {
+            this(select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, false),
+                 select(handlers, EntityMetadata.HandlerKind.ASSERT_LEGAL, true),
+                 select(handlers, EntityMetadata.HandlerKind.APPLY, null),
+                 select(handlers, EntityMetadata.HandlerKind.INTERCEPT_APPLY, null));
         }
 
         private static List<CompiledHandler> select(
@@ -289,6 +308,20 @@ public final class MutationPlan {
                     apply.eventPublication(), apply.publicationStrategy(),
                     apply.eventRouting(), apply.conflictPolicy(),
                     apply.graphProjectionCompletion());
+        }
+
+        EffectOverrides then(EffectOverrides override) {
+            return new EffectOverrides(
+                    override.publication != EventPublication.DEFAULT
+                            ? override.publication : publication,
+                    override.strategy != EventPublicationStrategy.DEFAULT
+                            ? override.strategy : strategy,
+                    override.routing != AggregateEventRouting.DEFAULT
+                            ? override.routing : routing,
+                    override.conflict != ModelConflictPolicy.DEFAULT
+                            ? override.conflict : conflict,
+                    override.graphProjectionCompletion != GraphProjectionCompletion.DEFAULT
+                            ? override.graphProjectionCompletion : graphProjectionCompletion);
         }
     }
 

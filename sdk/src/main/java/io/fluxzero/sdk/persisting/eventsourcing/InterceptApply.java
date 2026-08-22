@@ -36,6 +36,9 @@ import java.util.Collection;
  * <p>
  * Interceptors are invoked <strong>before</strong> any {@link Apply @Apply} or {@link AssertLegal @AssertLegal}
  * methods. If multiple interceptors match, they are invoked recursively until the result stabilizes.
+ * For independently stored models, an interceptor declared on the payload runs before an applicable interceptor
+ * declared on the model. The model interceptor receives the payload interceptor's actual output. A replacement with
+ * a different payload type starts the same payload-then-model selection for that new type.
  *
  * <p>
  * Interceptors can return:

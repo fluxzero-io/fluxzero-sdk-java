@@ -875,7 +875,7 @@ public final class EntityMetadata {
             }
             validateParameterAmbiguity(executable, parameters);
             result.add(new HandlerMethod(
-                    executable, kind, receiverModelType,
+                    executable, kind, model != null, receiverModelType,
                     applyResult.targetModelTypes(),
                     applyResult.collection(), applyResult.dynamic(),
                     parameters, emittedPayloadTypes));
@@ -1286,6 +1286,7 @@ public final class EntityMetadata {
      *
      * @param executable        annotated handler method or constructor
      * @param kind              model-aware handler annotation kind
+     * @param modelHandler      whether the handler is declared by a {@link Model}
      * @param receiverModelType model type of a non-static handler receiver, or {@code null}
      * @param targetModelTypes  model types targeted by an apply return value
      * @param collectionApplyResult whether the apply returns an ordered collection of models
@@ -1296,6 +1297,7 @@ public final class EntityMetadata {
     public record HandlerMethod(
             Executable executable,
             HandlerKind kind,
+            boolean modelHandler,
             Class<?> receiverModelType,
             List<Class<?>> targetModelTypes,
             boolean collectionApplyResult,

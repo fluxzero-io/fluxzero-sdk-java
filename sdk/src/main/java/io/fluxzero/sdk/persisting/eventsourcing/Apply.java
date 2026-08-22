@@ -58,6 +58,15 @@ import java.lang.annotation.Target;
  * apply is invalid for a model. Legacy mutable entities inside aggregates may continue to use {@code void}, although
  * immutable return values are strongly preferred.
  * <p>
+ * When an update has applicable applies on both its payload type and an independently stored model, payload applies
+ * run first. Model applies then receive the complete intermediate state produced by all payload applies, including a
+ * model that the payload has just created. The two phases produce one atomic transition per model identity. Static
+ * model applies remain supported as factories or stateless transformations; an independent static factory is a
+ * fallback when the payload phase did not already produce its target. Explicit per-apply settings compose field by
+ * field,
+ * with an explicit model-side value overriding an explicit payload-side value and {@code DEFAULT} inheriting the
+ * earlier value. Aggregates retain their existing entity-first, payload-fallback selection contract.
+ * <p>
  * When the entity is part of a larger aggregate, Fluxzero automatically routes the update to the correct entity
  * instance using matching identifier fields, typically annotated with {@link EntityId}.
  * <p>

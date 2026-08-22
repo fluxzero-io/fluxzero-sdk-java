@@ -146,6 +146,23 @@ public record RenameProject(ProjectId projectId,
 Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
 direct target and related ancestor resolved for the action. They must not perform nested model writes.
 
+## Combine payload and Model handlers
+
+Keep action-specific handlers on the payload. Put genuinely cross-cutting state behavior on the Model when several
+payload types share it. If both owners have an applicable handler, Fluxzero always evaluates the payload phase before
+the Model phase for each annotation family:
+
+1. payload `@InterceptApply`, then Model `@InterceptApply`;
+2. payload immediate `@AssertLegal`, then Model immediate `@AssertLegal`;
+3. all payload `@Apply` results, then all Model `@Apply` results;
+4. payload `afterHandler = true` assertions, then Model after-handler assertions.
+
+`priority` orders handlers only within a phase. Model applies receive the complete intermediate state produced by all
+payload applies. This lets an instance Model apply finalize a newly created Model and makes multi-Model finalization
+independent of Model-handler iteration order. Both phases are reduced to one atomic `Change` per Model ID. Static Model
+applies remain valid; an independent static creation factory is used only when the payload did not already create its
+target. Keep every phase pure and deterministic because live handling, retry, rebase and replay share this route.
+
 ## Multi-model commits
 
 One payload can read and update unrelated models:

@@ -170,6 +170,8 @@ class ModelCommitHandlerRegistryTest {
 
             assertEquals(1, appender.list.stream()
                     .filter(event -> event.getFormattedMessage()
+                            .contains(CrossApplicationCommand.class.getName()))
+                    .filter(event -> event.getFormattedMessage()
                             .contains("no locally reachable model @Apply handler"))
                     .count());
             verify(eventStoreClient, never()).commitModels(any());

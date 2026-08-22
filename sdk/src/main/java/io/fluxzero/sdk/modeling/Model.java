@@ -59,6 +59,9 @@ import java.lang.annotation.Target;
  *     }
  * }
  * }</pre>
+ * An update may instead create or update the model from a payload-side {@code @Apply}. When both sides define an
+ * applicable apply, Fluxzero applies the payload first and invokes the model method against that intermediate state.
+ * This lets one instance method consistently enforce model-owned behavior for both creation and later updates.
  *
  * @see Aggregate
  * @see io.fluxzero.sdk.Fluxzero#loadModel(Id)

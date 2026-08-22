@@ -944,6 +944,29 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void payloadCreationThenModelInstanceApplyCommitsOneReplayableTransition() {
+        IntegratedPhasedModelId id =
+                new IntegratedPhasedModelId("payload-first");
+        CreateIntegratedPhasedModel command =
+                new CreateIntegratedPhasedModel(id);
+
+        TestFixture.create(IntegratedPhasedModel.class)
+                .whenCommand(command)
+                .expectThat(fluxzero -> {
+                    assertEquals(1L, fluxzero.eventStore()
+                            .getEvents(id.toString()).count());
+                    assertEquals(command, fluxzero.eventStore()
+                            .getEvents(id.toString()).findFirst()
+                            .orElseThrow().getPayload());
+                    fluxzero.cache().clear();
+                    assertEquals(
+                            new IntegratedPhasedModel(
+                                    id, "payload-model"),
+                            fluxzero.modelRepository().load(id).get());
+                });
+    }
+
+    @Test
     void receiverApplyUsesConsumerConfiguredForCommandRootPackage()
             throws Throwable {
         LocalClient client = LocalClient.newInstance(null);
@@ -2672,6 +2695,34 @@ class ModelCommitHandlerIntegrationTest {
 
     private record CreateStaticModel(
             String staticCreatedModelId) {
+    }
+
+    @Model(cached = false)
+    private record IntegratedPhasedModel(
+            @EntityId IntegratedPhasedModelId integratedPhasedModelId,
+            String value) {
+        @Apply
+        IntegratedPhasedModel finish(
+                CreateIntegratedPhasedModel command) {
+            return new IntegratedPhasedModel(
+                    integratedPhasedModelId, value + "-model");
+        }
+    }
+
+    private static class IntegratedPhasedModelId
+            extends Id<IntegratedPhasedModel> {
+        private IntegratedPhasedModelId(String id) {
+            super(id, "integrated-phased-");
+        }
+    }
+
+    private record CreateIntegratedPhasedModel(
+            IntegratedPhasedModelId integratedPhasedModelId) {
+        @Apply
+        IntegratedPhasedModel create() {
+            return new IntegratedPhasedModel(
+                    integratedPhasedModelId, "payload");
+        }
     }
 
     private record FailingCreate(AccountId accountId) {

@@ -252,6 +252,182 @@ class ModelCommitEngineTest {
     }
 
     @Test
+    void phasesPayloadBeforeModelForInterceptionAssertionsAndApply() {
+        PhasedOrderId id = new PhasedOrderId("update");
+        List<String> observations = new ArrayList<>();
+        PhasedOrderCommand command = new PhasedOrderCommand(
+                id, "raw", observations);
+        List<EntityMetadata.HandlerMethod> handlers = phasedHandlers();
+        Entity<PhasedOrder> stored = entity(
+                id, new PhasedOrder(id, "initial"));
+
+        CommitAttempt result = evaluate(
+                message(command), phasedResolver(
+                        handlers, 121, Map.of(id.toString(), stored)));
+
+        assertEquals(List.of(
+                "payload-intercept-raw",
+                "model-intercept-payload",
+                "payload-before-initial-payload-model",
+                "model-before-initial-payload-model",
+                "payload-apply-initial-payload-model",
+                "model-apply-initial-payload-payload-model",
+                "payload-after-initial-payload-model-payload-model",
+                "model-after-initial-payload-model-payload-model"), observations);
+        assertEquals(1, result.transitions().size());
+        Change transition = result.transitions().getFirst();
+        assertEquals(new PhasedOrder(id, "initial"), transition.before());
+        assertEquals(
+                new PhasedOrder(id, "initial-payload-model"),
+                transition.after());
+        assertTrue(transition.storeEvent());
+        assertTrue(!transition.publishEvent());
+    }
+
+    @Test
+    void modelInstanceApplyReceivesModelCreatedByPayload() {
+        PhasedOrderId id = new PhasedOrderId("create");
+        List<String> observations = new ArrayList<>();
+        PhasedOrderCommand command = new PhasedOrderCommand(
+                id, "raw", observations);
+        List<EntityMetadata.HandlerMethod> handlers = phasedHandlers();
+
+        CommitAttempt result = evaluate(
+                message(command), phasedResolver(
+                        handlers, 122, Map.of(id.toString(), entity(id, null))));
+
+        assertEquals(List.of(
+                "payload-intercept-raw",
+                "payload-before-empty-payload",
+                "payload-apply-empty-payload",
+                "model-apply-created-payload-payload",
+                "payload-after-created-payload-model-payload",
+                "model-after-created-payload-model-payload"), observations);
+        assertEquals(1, result.transitions().size());
+        assertNull(result.transitions().getFirst().before());
+        assertEquals(
+                new PhasedOrder(id, "created-payload-model"),
+                result.transitions().getFirst().after());
+    }
+
+    @Test
+    void rebaseAndReplayUseTheSamePayloadThenModelComposition() {
+        PhasedOrderId id = new PhasedOrderId("repeat");
+        PhasedOrderCommand command = new PhasedOrderCommand(
+                id, "normalized", new ArrayList<>());
+        List<EntityMetadata.HandlerMethod> handlers = phasedHandlers();
+        Entity<PhasedOrder> initial = entity(
+                id, new PhasedOrder(id, "initial"));
+        CommitAttempt applied = evaluate(
+                message(command), phasedResolver(
+                        handlers, 123, Map.of(id.toString(), initial)));
+
+        Entity<PhasedOrder> concurrent = entity(
+                id, new PhasedOrder(id, "concurrent"));
+        CommitAttempt rebased = reapplySteps(
+                applied.steps(), phasedResolver(
+                        handlers, 124, Map.of(id.toString(), concurrent)));
+
+        assertEquals(
+                new PhasedOrder(id, "concurrent-payload-model"),
+                finalValues(rebased).get(id.toString()));
+
+        MutationPlan replayPlan = compiler.compileReplay(
+                PhasedOrderCommand.class, PhasedOrder.class);
+        CommitAttempt replayContext = context(
+                command, replayPlan.reducer().methods(), initial);
+        assertEquals(
+                new PhasedOrder(id, "initial-payload-model"),
+                ModelReducer.replay(
+                        replayPlan, message(command), replayContext, id.toString()));
+    }
+
+    @Test
+    void modelPhaseSeesAllPayloadResultsOfAMultiModelSubstep() {
+        PhaseLeftId leftId = new PhaseLeftId("one");
+        PhaseRightId rightId = new PhaseRightId("one");
+        PhasePairCommand command = new PhasePairCommand(leftId, rightId);
+        List<EntityMetadata.HandlerMethod> handlers = new ArrayList<>();
+        handlers.addAll(EntityMetadata.of(PhasePairCommand.class).handlerMethods());
+        handlers.addAll(EntityMetadata.of(PhaseLeft.class).handlerMethods());
+        handlers.addAll(EntityMetadata.of(PhaseRight.class).handlerMethods());
+        CommitAttempt begin = context(
+                command, handlers,
+                entity(leftId, null), entity(rightId, null));
+
+        List<Change> changes = evaluate(
+                message(command), begin, handlers);
+
+        assertEquals(2, changes.size());
+        assertEquals(
+                new PhaseLeft(leftId, "left-payload|saw-right-payload"),
+                changes.stream().filter(change -> change.modelId().equals(leftId.toString()))
+                        .findFirst().orElseThrow().after());
+        assertEquals(
+                new PhaseRight(rightId, "right-payload|saw-left-payload"),
+                changes.stream().filter(change -> change.modelId().equals(rightId.toString()))
+                        .findFirst().orElseThrow().after());
+    }
+
+    @Test
+    void payloadCreationTakesPrecedenceOverIndependentStaticModelFactory() {
+        StaticPhaseModelId id = new StaticPhaseModelId("one");
+        StaticPhaseCommand command = new StaticPhaseCommand(id);
+        List<EntityMetadata.HandlerMethod> handlers = new ArrayList<>();
+        handlers.addAll(EntityMetadata.of(StaticPhaseCommand.class).handlerMethods());
+        handlers.addAll(EntityMetadata.of(StaticPhaseModel.class).handlerMethods());
+        CommitAttempt begin = context(
+                command, handlers, entity(id, null));
+
+        List<Change> changes = evaluate(
+                message(command), begin, handlers);
+
+        assertEquals(1, changes.size());
+        assertEquals(
+                new StaticPhaseModel(id, "payload"),
+                changes.getFirst().after());
+    }
+
+    @Test
+    void payloadDeletionSkipsTheNowMissingModelInstanceApply() {
+        DeletedPhaseModelId id = new DeletedPhaseModelId("one");
+        DeletePhaseModel command = new DeletePhaseModel(id);
+        List<EntityMetadata.HandlerMethod> handlers = new ArrayList<>();
+        handlers.addAll(EntityMetadata.of(DeletePhaseModel.class).handlerMethods());
+        handlers.addAll(EntityMetadata.of(DeletedPhaseModel.class).handlerMethods());
+        CommitAttempt begin = context(
+                command, handlers,
+                entity(id, new DeletedPhaseModel(id, "before")));
+
+        List<Change> changes = evaluate(
+                message(command), begin, handlers);
+
+        assertEquals(1, changes.size());
+        assertEquals(new DeletedPhaseModel(id, "before"), changes.getFirst().before());
+        assertNull(changes.getFirst().after());
+    }
+
+    @Test
+    void modelPhaseFailureDoesNotExposePayloadPhaseState() {
+        FailingPhaseModelId id = new FailingPhaseModelId("one");
+        FailInModelPhase command = new FailInModelPhase(id);
+        List<EntityMetadata.HandlerMethod> handlers = new ArrayList<>();
+        handlers.addAll(EntityMetadata.of(FailInModelPhase.class).handlerMethods());
+        handlers.addAll(EntityMetadata.of(FailingPhaseModel.class).handlerMethods());
+        Entity<FailingPhaseModel> stored = entity(
+                id, new FailingPhaseModel(id, "before"));
+        CommitAttempt begin = context(command, handlers, stored);
+
+        assertThrows(
+                MockFailure.class,
+                () -> evaluate(message(command), begin, handlers));
+
+        assertEquals(new FailingPhaseModel(id, "before"), stored.get());
+        assertEquals(new FailingPhaseModel(id, "before"),
+                     begin.resolve(FailingPhaseModel.class, null).get());
+    }
+
+    @Test
     void failureRollsBackAllStagedWritesInMemory() {
         FailingMultiWrite command = new FailingMultiWrite(
                 new OrderId("1"), new InventoryId("1"));
@@ -847,6 +1023,33 @@ class ModelCommitEngineTest {
                         compiler.compileHandlers(handlers), null));
     }
 
+    private ModelReducer.SubstepResolver phasedResolver(
+            List<EntityMetadata.HandlerMethod> handlers,
+            long stateIndex,
+            Map<String, Entity<?>> stored) {
+        return (substep, requestedStateIndex, stagedValues) -> {
+            MutationPlan.Resolution resolution = MutationPlan.compile(
+                    substep.getPayloadClass(), handlers).resolve(substep);
+            Map<String, Entity<?>> loaded = new LinkedHashMap<>();
+            resolution.models().forEach(target -> loaded.put(
+                    target.modelId(), stored.get(target.modelId())));
+            return new ModelReducer.ResolvedSubstep(
+                    CommitAttempt.create(
+                            requestedStateIndex == null
+                                    ? stateIndex : requestedStateIndex,
+                            resolution, loaded),
+                    new ModelReducer(
+                            compiler.compileHandlers(handlers), null));
+        };
+    }
+
+    private static List<EntityMetadata.HandlerMethod> phasedHandlers() {
+        List<EntityMetadata.HandlerMethod> result = new ArrayList<>();
+        result.addAll(EntityMetadata.of(PhasedOrderCommand.class).handlerMethods());
+        result.addAll(EntityMetadata.of(PhasedOrder.class).handlerMethods());
+        return List.copyOf(result);
+    }
+
     private ModelReducer.SubstepResolver graphResolver(
             long stateIndex,
             Map<String, Entity<?>> stored) {
@@ -1272,6 +1475,207 @@ class ModelCommitEngineTest {
 
     private record RenameReceiverOrder(
             ReceiverOrderId receiverOrderId, String name, List<String> observations) {
+    }
+
+    @Model
+    private record PhasedOrder(
+            @EntityId PhasedOrderId phasedOrderId,
+            String value) {
+
+        @InterceptApply
+        PhasedOrderCommand intercept(PhasedOrderCommand command) {
+            command.observations().add(
+                    "model-intercept-" + command.phase());
+            return command.withPhase(command.phase() + "-model");
+        }
+
+        @AssertLegal(priority = 100)
+        void before(PhasedOrderCommand command) {
+            command.observations().add(
+                    "model-before-" + value + "-" + command.phase());
+        }
+
+        @Apply
+        PhasedOrder apply(PhasedOrderCommand command) {
+            command.observations().add(
+                    "model-apply-" + value + "-" + command.phase());
+            return new PhasedOrder(phasedOrderId, value + "-model");
+        }
+
+        @AssertLegal(afterHandler = true, priority = 100)
+        void after(PhasedOrderCommand command) {
+            command.observations().add(
+                    "model-after-" + value + "-" + command.phase());
+        }
+    }
+
+    private static class PhasedOrderId extends Id<PhasedOrder> {
+        private PhasedOrderId(String id) {
+            super(id, "phased-order-");
+        }
+    }
+
+    private record PhasedOrderCommand(
+            PhasedOrderId phasedOrderId,
+            String phase,
+            List<String> observations) {
+
+        @InterceptApply
+        PhasedOrderCommand intercept() {
+            observations.add("payload-intercept-" + phase);
+            return withPhase("payload");
+        }
+
+        @AssertLegal(priority = -100)
+        void before(Entity<PhasedOrder> order) {
+            observations.add("payload-before-"
+                             + (order.get() == null ? "empty" : order.get().value())
+                             + "-" + phase);
+        }
+
+        @Apply(publicationStrategy = EventPublicationStrategy.STORE_ONLY)
+        PhasedOrder apply(Entity<PhasedOrder> order) {
+            observations.add("payload-apply-"
+                             + (order.get() == null ? "empty" : order.get().value())
+                             + "-" + phase);
+            return new PhasedOrder(
+                    phasedOrderId,
+                    order.get() == null
+                            ? "created-payload" : order.get().value() + "-payload");
+        }
+
+        @AssertLegal(afterHandler = true, priority = -100)
+        void after(PhasedOrder order) {
+            observations.add("payload-after-" + order.value() + "-" + phase);
+        }
+
+        PhasedOrderCommand withPhase(String value) {
+            return new PhasedOrderCommand(
+                    phasedOrderId, value, observations);
+        }
+    }
+
+    @Model
+    private record PhaseLeft(
+            @EntityId PhaseLeftId phaseLeftId,
+            String value) {
+        @Apply
+        PhaseLeft finish(PhasePairCommand command, PhaseRight right) {
+            return new PhaseLeft(
+                    phaseLeftId, value + "|saw-" + right.value());
+        }
+    }
+
+    private static class PhaseLeftId extends Id<PhaseLeft> {
+        private PhaseLeftId(String id) {
+            super(id, "phase-left-");
+        }
+    }
+
+    @Model
+    private record PhaseRight(
+            @EntityId PhaseRightId phaseRightId,
+            String value) {
+        @Apply
+        PhaseRight finish(PhasePairCommand command, PhaseLeft left) {
+            return new PhaseRight(
+                    phaseRightId, value + "|saw-" + left.value());
+        }
+    }
+
+    private static class PhaseRightId extends Id<PhaseRight> {
+        private PhaseRightId(String id) {
+            super(id, "phase-right-");
+        }
+    }
+
+    private record PhasePairCommand(
+            PhaseLeftId phaseLeftId,
+            PhaseRightId phaseRightId) {
+        @Apply
+        PhaseLeft createLeft() {
+            return new PhaseLeft(phaseLeftId, "left-payload");
+        }
+
+        @Apply
+        PhaseRight createRight() {
+            return new PhaseRight(phaseRightId, "right-payload");
+        }
+    }
+
+    @Model
+    private record StaticPhaseModel(
+            @EntityId StaticPhaseModelId staticPhaseModelId,
+            String value) {
+        @Apply
+        static StaticPhaseModel create(StaticPhaseCommand command) {
+            return new StaticPhaseModel(
+                    command.staticPhaseModelId(), "static-model");
+        }
+    }
+
+    private static class StaticPhaseModelId extends Id<StaticPhaseModel> {
+        private StaticPhaseModelId(String id) {
+            super(id, "static-phase-");
+        }
+    }
+
+    private record StaticPhaseCommand(
+            StaticPhaseModelId staticPhaseModelId) {
+        @Apply
+        StaticPhaseModel create() {
+            return new StaticPhaseModel(
+                    staticPhaseModelId, "payload");
+        }
+    }
+
+    @Model
+    private record DeletedPhaseModel(
+            @EntityId DeletedPhaseModelId deletedPhaseModelId,
+            String value) {
+        @Apply
+        DeletedPhaseModel shouldNotRun(DeletePhaseModel command) {
+            throw new AssertionError("Model instance apply ran after deletion");
+        }
+    }
+
+    private static class DeletedPhaseModelId extends Id<DeletedPhaseModel> {
+        private DeletedPhaseModelId(String id) {
+            super(id, "deleted-phase-");
+        }
+    }
+
+    private record DeletePhaseModel(
+            DeletedPhaseModelId deletedPhaseModelId) {
+        @Apply
+        DeletedPhaseModel delete(DeletedPhaseModel current) {
+            return null;
+        }
+    }
+
+    @Model
+    private record FailingPhaseModel(
+            @EntityId FailingPhaseModelId failingPhaseModelId,
+            String value) {
+        @Apply
+        FailingPhaseModel fail(FailInModelPhase command) {
+            throw new MockFailure();
+        }
+    }
+
+    private static class FailingPhaseModelId extends Id<FailingPhaseModel> {
+        private FailingPhaseModelId(String id) {
+            super(id, "failing-phase-");
+        }
+    }
+
+    private record FailInModelPhase(
+            FailingPhaseModelId failingPhaseModelId) {
+        @Apply
+        FailingPhaseModel apply(FailingPhaseModel current) {
+            return new FailingPhaseModel(
+                    failingPhaseModelId, "payload-staged");
+        }
     }
 
     @Model

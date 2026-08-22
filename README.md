@@ -3195,6 +3195,50 @@ public record UpdateProfile(
 Sending `UpdateProfile` is sufficient; Fluxzero resolves `UserId`, runs assertions and applies, and commits the model
 action without a boilerplate command handler. One payload may read or update multiple models.
 
+### Combining payload and Model handlers
+
+Action-specific logic normally belongs on the payload. A Model may additionally own cross-cutting state logic that
+must run for several payload types. When both have an applicable `@InterceptApply`, `@AssertLegal` or `@Apply`, Fluxzero
+uses two deterministic phases: all applicable payload handlers run first and the corresponding Model handlers run
+second. `priority` controls order only within one phase.
+
+Payload applies are staged as one complete intermediate state before any Model apply runs. A Model instance method can
+therefore receive a Model that the payload has just created, without needing a second static creation handler:
+
+```java
+@Model
+public record UserAccount(
+        @EntityId UserId userId,
+        UserProfile profile,
+        Instant lastUpdated) {
+
+    @Apply
+    UserAccount recordUpdate(UpdateProfile update) {
+        return new UserAccount(userId, profile, update.updatedAt());
+    }
+}
+
+public record UpdateProfile(
+        UserId userId,
+        UserProfile profile,
+        Instant updatedAt) {
+
+    @Apply
+    UserAccount apply(@Nullable UserAccount current) {
+        return new UserAccount(
+                userId, profile,
+                current == null ? null : current.lastUpdated());
+    }
+}
+```
+
+The payload and Model phases still produce only one atomic transition per Model ID. Model applies see every payload
+result from a multi-Model action, but not partially finalized sibling results from the Model phase. Static Model
+applies remain supported as factories or stateless transformations; a separate static factory acts as a fallback when
+the payload did not already produce that Model. Payload `@InterceptApply` runs before Model interception. Immediate
+assertions run payload then Model before applying, while `afterHandler = true` assertions run in that order against the
+final state. Live handling, retry, rebase and event replay use this same phasing.
+
 Related models remain independently stored:
 
 ```java
