@@ -187,9 +187,11 @@ for that Model. The event payloads remain the long-term history.
 
 Loading an old Model with billions of unrelated namespace commits does not scan the namespace log. The Runtime selects
 the Model's own stream and the SDK starts from its newest applicable snapshot or checkpoint, then replays only that
-Model's remaining suffix. Choose snapshot periods from the expected per-Model history and state size; namespace age by
-itself does not increase replay work. Long histories for one individual Model still deserve an explicit snapshot and
-retention policy.
+Model's remaining suffix. That suffix is transferred in membership- and byte-bounded pages; while the SDK applies one
+page it may fetch exactly one following transport page, without delivering events out of order or retaining an
+unbounded read-ahead queue. Choose snapshot periods from the expected per-Model history and state size; namespace age
+by itself does not increase replay work. Long histories for one individual Model still deserve an explicit snapshot
+and retention policy.
 
 ## Conflict policies
 

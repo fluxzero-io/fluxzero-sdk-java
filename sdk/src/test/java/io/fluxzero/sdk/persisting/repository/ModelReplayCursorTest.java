@@ -28,16 +28,23 @@ import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
+import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -197,6 +204,96 @@ class ModelReplayCursorTest {
     }
 
     @Test
+    void prefetchesExactlyOneFollowingPageWhileApplyingTheCurrentPage() {
+        EventStoreClient client = mock(EventStoreClient.class);
+        BlockingQueue<GetModelEvents> requested = new LinkedBlockingQueue<>();
+        ModelHeadState head = new ModelHeadState(
+                "a", "example.A", 2L, 2L, true, false);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            requested.add(request);
+            return pageResponse(request, head);
+        });
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(4, 1, 1, 16L));
+        AtomicInteger applied = new AtomicInteger();
+
+        loader.load(List.of("a"), null, ignored -> {
+            switch (applied.getAndIncrement()) {
+                case 0 -> {
+                    assertEquals(-1L, requestCursor(awaitRequest(requested)));
+                    assertEquals(0L, requestCursor(awaitRequest(requested)));
+                    assertTrue(requested.isEmpty(), "More than one page was prefetched");
+                }
+                case 1 -> assertEquals(1L, requestCursor(awaitRequest(requested)));
+                case 2 -> assertTrue(requested.isEmpty(), "A page was requested beyond the pinned head");
+                default -> throw new AssertionError("Unexpected replay page");
+            }
+        });
+
+        assertEquals(3, applied.get());
+    }
+
+    @Test
+    void keepsLocalMultiPageReplayOnTheCallingThread() {
+        LocalEventStoreClient client = mock(LocalEventStoreClient.class);
+        Thread callingThread = Thread.currentThread();
+        ModelHeadState head = new ModelHeadState(
+                "a", "example.A", 1L, 1L, true, false);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            assertSame(callingThread, Thread.currentThread());
+            return pageResponse(invocation.getArgument(0), head);
+        });
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(4, 1, 1, 16L));
+        AtomicInteger applied = new AtomicInteger();
+
+        loader.load(List.of("a"), null, ignored -> applied.incrementAndGet());
+
+        assertEquals(2, applied.get());
+    }
+
+    @Test
+    void cancelsPrefetchWhenApplyingTheCurrentPageFails() throws Exception {
+        EventStoreClient client = mock(EventStoreClient.class);
+        CountDownLatch prefetchStarted = new CountDownLatch(1);
+        CountDownLatch prefetchInterrupted = new CountDownLatch(1);
+        CountDownLatch blockPrefetch = new CountDownLatch(1);
+        AtomicInteger requests = new AtomicInteger();
+        ModelHeadState head = new ModelHeadState(
+                "a", "example.A", 1L, 1L, true, false);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            if (requests.getAndIncrement() == 0) {
+                return pageResponse(request, head);
+            }
+            prefetchStarted.countDown();
+            try {
+                blockPrefetch.await();
+                throw new AssertionError("Cancelled prefetch unexpectedly resumed");
+            } catch (InterruptedException expected) {
+                prefetchInterrupted.countDown();
+                throw new EventSourcingException("Prefetch interrupted", expected);
+            }
+        });
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(4, 1, 1, 16L));
+        IllegalStateException expected = new IllegalStateException("Apply failed");
+
+        IllegalStateException actual = assertThrows(
+                IllegalStateException.class,
+                () -> loader.load(List.of("a"), null, ignored -> {
+                    await(prefetchStarted);
+                    throw expected;
+                }));
+
+        assertSame(expected, actual);
+        assertTrue(prefetchInterrupted.await(2L, TimeUnit.SECONDS),
+                   "The prefetched transport read was not interrupted");
+        assertEquals(2, requests.get());
+    }
+
+    @Test
     void continuesWhenTheByteBoundAdvancesOnlyOneOfSeveralStreams() {
         EventStoreClient client = mock(EventStoreClient.class);
         AtomicInteger invocation = new AtomicInteger();
@@ -305,6 +402,47 @@ class ModelReplayCursorTest {
                 request.getRequests().stream()
                         .map(stream -> new ModelEventStream(stream.getModelId(), null, List.of()))
                         .toList());
+    }
+
+    private static GetModelEventsResult pageResponse(
+            GetModelEvents request,
+            ModelHeadState head) {
+        long sequenceNumber = requestCursor(request) + 1L;
+        return new GetModelEventsResult(
+                request.getRequestId(), 9L,
+                List.of(new ModelEventPayload(
+                        sequenceNumber, event("event-" + sequenceNumber))),
+                List.of(new ModelEventStream(
+                        "a", head,
+                        List.of(new ModelEventMembership(
+                                sequenceNumber, sequenceNumber,
+                                sequenceNumber == 0L ? -1L : sequenceNumber - 1L,
+                                "commit-" + sequenceNumber, 0)))));
+    }
+
+    private static long requestCursor(GetModelEvents request) {
+        return request.getRequests().getFirst().getLastSequenceNumber();
+    }
+
+    private static GetModelEvents awaitRequest(
+            BlockingQueue<GetModelEvents> requests) {
+        try {
+            GetModelEvents result = requests.poll(2L, TimeUnit.SECONDS);
+            assertTrue(result != null, "Expected replay page was not requested");
+            return result;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while awaiting replay request", e);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(2L, TimeUnit.SECONDS), "Expected prefetch did not start");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while awaiting prefetch", e);
+        }
     }
 
     private static SerializedMessage event(String value) {

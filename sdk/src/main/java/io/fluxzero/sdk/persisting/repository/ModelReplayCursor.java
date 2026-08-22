@@ -93,6 +93,7 @@ final class ModelReplayCursor {
 
     private final EventStoreClient eventStoreClient;
     private final ReadBatcher requestBatcher;
+    private final boolean prefetchPages;
     private final Settings settings;
     private final Serializer serializer;
     private final EntityHelper entityHelper;
@@ -137,6 +138,9 @@ final class ModelReplayCursor {
         this.settings = Objects.requireNonNull(settings, "settings");
         this.requestBatcher = new ReadBatcher(
                 eventStoreClient, settings.maxStreamsPerRequest());
+        this.prefetchPages = settings.prefetchPages()
+                             && !(eventStoreClient instanceof LocalEventStoreClient
+                                  || eventStoreClient instanceof InMemoryEventStore);
         this.serializer = serializer;
         this.entityHelper = entityHelper;
         this.modelDefinitionCompiler = modelDefinitionCompiler;
@@ -160,7 +164,8 @@ final class ModelReplayCursor {
      *
      * @param modelIds      exact persisted model identities in deterministic order
      * @param maxStateIndex inclusive historical boundary, or {@code null} to pin the current boundary
-     * @param pageConsumer  synchronous consumer that must release each page before this method requests the next
+     * @param pageConsumer  synchronous consumer that releases each page before the next is delivered; one following
+     *                      transport page may be fetched concurrently and retained within the same configured bounds
      * @return the one state boundary shared by every delivered page
      */
     long load(
@@ -273,51 +278,87 @@ final class ModelReplayCursor {
         LinkedHashMap<String, Long> cursors = new LinkedHashMap<>(initialCursors);
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         ModelReadBoundary pinned = boundary;
+        PageRequest pageRequest = nextPageRequest(
+                cursors, heads, pinned, headsOnly);
+        CompletableFuture<GetModelEventsResult> prefetched = null;
 
-        while (true) {
-            List<String> active = cursors.entrySet().stream()
-                    .filter(entry -> {
-                        ModelHeadState head = heads.get(entry.getKey());
-                        return head == null
-                               ? !heads.containsKey(entry.getKey())
-                               : entry.getValue() < head.getSequenceNumber();
-                    })
-                    .map(Map.Entry::getKey)
-                    .toList();
-            if (active.isEmpty()) {
-                return new LoadResult(
-                        Objects.requireNonNull(pinned.stateIndex()), heads);
-            }
-
-            int perStreamLimit = headsOnly ? 0 : Math.min(
-                    settings.maxMembershipsPerStream(),
-                    Math.max(1, settings.maxMembershipsPerRequest() / active.size()));
-            List<ModelEventStreamRequest> requests = active.stream()
-                    .map(modelId -> new ModelEventStreamRequest(
-                            modelId, cursors.get(modelId), perStreamLimit))
-                    .toList();
-            GetModelEvents request =
-                    new GetModelEvents(
-                            requests, pinned,
-                            settings.maxPayloadBytes());
-            GetModelEventsResult response = requestBatcher.get(request);
+        while (pageRequest != null) {
+            GetModelEventsResult response = prefetched == null
+                    ? requestBatcher.get(pageRequest.request())
+                    : await(prefetched);
             long responseStateIndex = validateBoundary(
                     response, pinned.stateIndex());
             pinned = ModelReadBoundary.state(responseStateIndex, false);
 
             ValidatedPage page = validatePage(
-                    response, active, cursors, heads,
-                    perStreamLimit,
+                    response, pageRequest.active(), cursors, heads,
+                    pageRequest.perStreamLimit(),
                     settings.maxPayloadBytes(), requireCompleteHistory);
-            pageConsumer.accept(page);
             if (headsOnly) {
+                pageConsumer.accept(page);
                 return new LoadResult(responseStateIndex, heads);
             }
-            if (page.advanced() == 0 && hasIncompleteStream(cursors, heads)) {
+            PageRequest next = nextPageRequest(
+                    cursors, heads, pinned, false);
+            if (page.advanced() == 0 && next != null) {
                 throw invalid(
                         "Model event page made no progress at state index "
                         + pinned.stateIndex());
             }
+            CompletableFuture<GetModelEventsResult> nextPage = next == null || !prefetchPages
+                    ? null : requestBatcher.getAsync(next.request());
+            try {
+                pageConsumer.accept(page);
+            } catch (RuntimeException | Error failure) {
+                if (nextPage != null) {
+                    nextPage.cancel(true);
+                }
+                throw failure;
+            }
+            pageRequest = next;
+            prefetched = nextPage;
+        }
+        return new LoadResult(
+                Objects.requireNonNull(pinned.stateIndex()), heads);
+    }
+
+    private PageRequest nextPageRequest(
+            Map<String, Long> cursors,
+            Map<String, ModelHeadState> heads,
+            ModelReadBoundary boundary,
+            boolean headsOnly) {
+        List<String> active = cursors.entrySet().stream()
+                .filter(entry -> {
+                    ModelHeadState head = heads.get(entry.getKey());
+                    return head == null
+                           ? !heads.containsKey(entry.getKey())
+                           : entry.getValue() < head.getSequenceNumber();
+                })
+                .map(Map.Entry::getKey)
+                .toList();
+        if (active.isEmpty()) {
+            return null;
+        }
+        int perStreamLimit = headsOnly ? 0 : Math.min(
+                settings.maxMembershipsPerStream(),
+                Math.max(1, settings.maxMembershipsPerRequest() / active.size()));
+        List<ModelEventStreamRequest> requests = active.stream()
+                .map(modelId -> new ModelEventStreamRequest(
+                        modelId, cursors.get(modelId), perStreamLimit))
+                .toList();
+        return new PageRequest(
+                active, perStreamLimit,
+                new GetModelEvents(
+                        requests, boundary,
+                        settings.maxPayloadBytes()));
+    }
+
+    private static GetModelEventsResult await(
+            CompletableFuture<GetModelEventsResult> response) {
+        try {
+            return response.join();
+        } catch (RuntimeException | Error failure) {
+            throw io.fluxzero.common.ObjectUtils.rethrow(failure);
         }
     }
 
@@ -512,15 +553,6 @@ final class ModelReplayCursor {
         if (previous != null && !previous.equals(head)) {
             throw invalid("Model head changed while loading " + requestedId);
         }
-    }
-
-    private static boolean hasIncompleteStream(
-            Map<String, Long> cursors,
-            Map<String, ModelHeadState> heads) {
-        return cursors.entrySet().stream().anyMatch(entry -> {
-            ModelHeadState head = heads.get(entry.getKey());
-            return head != null && entry.getValue() < head.getSequenceNumber();
-        });
     }
 
     private static long addSaturated(long left, long right) {
@@ -2023,6 +2055,12 @@ final class ModelReplayCursor {
             int advanced) {
     }
 
+    private record PageRequest(
+            List<String> active,
+            int perStreamLimit,
+            GetModelEvents request) {
+    }
+
     private record PayloadLookup(
             long[] stateIndices,
             SerializedMessage[] events,
@@ -2128,7 +2166,17 @@ final class ModelReplayCursor {
             int maxStreamsPerRequest,
             int maxMembershipsPerRequest,
             int maxMembershipsPerStream,
-            long maxPayloadBytes) {
+            long maxPayloadBytes,
+            boolean prefetchPages) {
+        Settings(
+                int maxStreamsPerRequest,
+                int maxMembershipsPerRequest,
+                int maxMembershipsPerStream,
+                long maxPayloadBytes) {
+            this(maxStreamsPerRequest, maxMembershipsPerRequest,
+                 maxMembershipsPerStream, maxPayloadBytes, true);
+        }
+
         Settings {
             if (maxStreamsPerRequest <= 0
                 || maxMembershipsPerRequest <= 0
@@ -2170,17 +2218,55 @@ final class ModelReplayCursor {
         }
 
         GetModelEventsResult get(GetModelEvents request) {
-            if (!current(request) || request.getRequests().isEmpty()
-                || client instanceof LocalEventStoreClient || client instanceof InMemoryEventStore
-                || request.getRequests().size() >= DIRECT_REQUEST_SIZE) {
+            if (direct(request)) {
                 return client.getModelEvents(request);
             }
+            return enqueue(request).join();
+        }
+
+        CompletableFuture<GetModelEventsResult> getAsync(
+                GetModelEvents request) {
+            if (direct(request)) {
+                CompletableFuture<GetModelEventsResult> result =
+                        new CompletableFuture<>();
+                Thread worker = Thread.ofVirtual()
+                        .name("fluxzero-model-replay-prefetch")
+                        .unstarted(() -> {
+                            if (result.isCancelled()) {
+                                return;
+                            }
+                            try {
+                                result.complete(client.getModelEvents(request));
+                            } catch (Throwable failure) {
+                                result.completeExceptionally(failure);
+                            }
+                        });
+                result.whenComplete((ignored, failure) -> {
+                    if (result.isCancelled()) {
+                        worker.interrupt();
+                    }
+                });
+                worker.start();
+                return result;
+            }
+            return enqueue(request);
+        }
+
+        private boolean direct(GetModelEvents request) {
+            return !current(request) || request.getRequests().isEmpty()
+                   || client instanceof LocalEventStoreClient
+                   || client instanceof InMemoryEventStore
+                   || request.getRequests().size() >= DIRECT_REQUEST_SIZE;
+        }
+
+        private CompletableFuture<GetModelEventsResult> enqueue(
+                GetModelEvents request) {
             PendingRead read = new PendingRead(request, new CompletableFuture<>());
             pending.add(read);
             if (flushing.compareAndSet(false, true)) {
                 Thread.ofVirtual().name("fluxzero-model-read-batcher").start(this::flush);
             }
-            return read.result().join();
+            return read.result();
         }
 
         private void flush() {
@@ -2189,7 +2275,9 @@ final class ModelReplayCursor {
                 List<PendingRead> reads = new ArrayList<>(maxStreams);
                 PendingRead read;
                 while (reads.size() < maxStreams && (read = pending.poll()) != null) {
-                    reads.add(read);
+                    if (!read.result().isCancelled()) {
+                        reads.add(read);
+                    }
                 }
                 process(reads);
                 if (pending.isEmpty()) {
