@@ -16,14 +16,17 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
+import io.fluxzero.sdk.test.TestFixture;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -54,6 +57,33 @@ class ModelSnapshotStoreTest {
         assertEquals(5L, snapshot.sequenceNumber());
         assertEquals(8L, snapshot.stateIndex());
         assertEquals(timestamp, snapshot.timestamp());
+    }
+
+    @Test
+    void selectsSnapshotAtExactStateIndexAcrossFullLongRange() {
+        var fluxzero = TestFixture.create().getFluxzero();
+        List<SerializedDocument> snapshots = List.of(
+                new ModelSnapshotMutation(
+                        serializer.serialize("previous"), 1L, 1, 2)
+                        .toDocument("model-1", 1L, Long.MAX_VALUE - 1L),
+                new ModelSnapshotMutation(
+                        serializer.serialize("latest"), 2L, 1, 2)
+                        .toDocument("model-1", 2L, Long.MAX_VALUE));
+        fluxzero.client().getSearchClient()
+                .index(snapshots, Guarantee.STORED, false)
+                .join();
+
+        ModelSnapshotStore store = new ModelSnapshotStore(
+                fluxzero.documentStore(), serializer);
+
+        assertEquals(
+                "previous",
+                store.getSnapshot("model-1", Long.MAX_VALUE - 1L)
+                        .orElseThrow().value());
+        assertEquals(
+                "latest",
+                store.getSnapshot("model-1", Long.MAX_VALUE)
+                        .orElseThrow().value());
     }
 
     @SuppressWarnings("unchecked")

@@ -104,7 +104,8 @@ public class ModelSnapshotMutation {
                                 sequenceNumber),
                         new SortableEntry(
                                 STATE_INDEX,
-                                stateIndex)));
+                                ModelStateIndexCodec.encode(
+                                        stateIndex))));
     }
 
     /**

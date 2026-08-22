@@ -17,8 +17,10 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
+import io.fluxzero.common.api.modeling.ModelStateIndexCodec;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.search.constraints.BetweenConstraint;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
@@ -27,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import static io.fluxzero.common.api.modeling.ModelSnapshotMutation.MODEL_ID_FACET;
 import static io.fluxzero.common.api.modeling.ModelSnapshotMutation.SEQUENCE_NUMBER;
@@ -59,16 +60,14 @@ final class ModelSnapshotStore {
                     .matchFacet(MODEL_ID_FACET,
                                 modelId)
                     .sortBy("sequenceNumber", true);
-            // State indices span the full opaque long range. Select against their exact facet; snapshot retention
-            // bounds this stream independently of the document store's sortable encoding.
-            try (Stream<SerializedDocument> snapshots =
-                         search.stream(SerializedDocument.class)) {
-                return snapshots
-                        .filter(document -> maxStateIndex == null
-                                            || facetLong(document, STATE_INDEX) <= maxStateIndex)
-                        .findFirst()
-                        .flatMap(this::deserialize);
+            if (maxStateIndex != null && maxStateIndex < Long.MAX_VALUE) {
+                search = search.constraint(BetweenConstraint.below(
+                        ModelStateIndexCodec.encode(maxStateIndex + 1L),
+                        STATE_INDEX));
             }
+            return search.fetchFirst(
+                            SerializedDocument.class)
+                    .flatMap(this::deserialize);
         } catch (Exception e) {
             throw new EventSourcingException(
                     "Failed to obtain a snapshot for model " + modelId, e);
