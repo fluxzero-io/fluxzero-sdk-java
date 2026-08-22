@@ -36,6 +36,7 @@ import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
+import io.fluxzero.common.api.modeling.ModelCommitWireCodec;
 import io.fluxzero.common.api.modeling.ModelEventPageDecoder;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
@@ -128,18 +129,16 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
 
     @Override
     protected String jfrResultType(List<RequestResult> results) {
-        if (results.isEmpty() || results.getFirst() == null) {
+        if (results.isEmpty()) {
             return "RESULT";
         }
-        Class<?> type = results.getFirst().getClass();
-        String label = type == CommitModelsResult.class
-                ? "MODEL_COMMIT"
-                : type == TrackModelUpdatesResult.class ? "MODEL_UPDATE" : "RESULT";
-        if ("RESULT".equals(label)) {
-            return label;
+        if (results.stream().allMatch(result -> result != null
+                && (result.getClass() == CommitModelsResult.class
+                || ModelCommitWireCodec.requiresRequestContext(result)))) {
+            return "MODEL_COMMIT";
         }
-        return results.stream().allMatch(result -> result != null && result.getClass() == type)
-                ? label : "RESULT";
+        return results.stream().allMatch(TrackModelUpdatesResult.class::isInstance)
+                ? "MODEL_UPDATE" : "RESULT";
     }
 
     /**
@@ -419,18 +418,26 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
     }
 
     @Override
-    protected void restoreResultContext(
-            RequestResult candidate, Request request) {
-        if (!(candidate instanceof CommitModelsResult result)
-                || result.getCommitId() != null
-                || !(request instanceof CommitModels commit)
-                || !result.hasSingleTargetResult()
-                || commit.singleTarget() == null) {
-            return;
+    protected List<RequestResult> restoreResultContext(
+            List<RequestResult> results) {
+        List<RequestResult> restored = null;
+        for (int index = 0; index < results.size(); index++) {
+            RequestResult candidate = results.get(index);
+            if (!ModelCommitWireCodec.requiresRequestContext(candidate)) {
+                continue;
+            }
+            Request outstanding = outstandingRequest(candidate.getRequestId());
+            RequestResult value = ModelCommitWireCodec.restoreResultContext(
+                    candidate,
+                    outstanding instanceof CommitModels commit ? commit : null);
+            if (value != candidate) {
+                if (restored == null) {
+                    restored = new ArrayList<>(results);
+                }
+                restored.set(index, value);
+            }
         }
-        result.restoreTransportIdentities(
-                commit.getCommitId(),
-                commit.singleTarget().getModelId());
+        return restored == null ? results : restored;
     }
 
     @Override

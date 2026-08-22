@@ -17,7 +17,6 @@
 package io.fluxzero.common.api.modeling;
 
 import lombok.Value;
-import lombok.experimental.NonFinal;
 
 /**
  * Resulting stream/head metadata for one committed target model.
@@ -28,7 +27,6 @@ public class ModelCommitTargetResult {
     /**
      * Exact persisted model ID.
      */
-    @NonFinal
     String modelId;
 
     /**
@@ -41,14 +39,4 @@ public class ModelCommitTargetResult {
      */
     boolean historyComplete;
 
-    /** Restores an ID omitted from a compact transport result before that result is published. */
-    void restoreTransportIdentity(String modelId) {
-        if (this.modelId != null
-            && !this.modelId.equals(modelId)) {
-            throw new IllegalStateException(
-                    "Cannot replace model target identity %s with %s"
-                            .formatted(this.modelId, modelId));
-        }
-        this.modelId = modelId;
-    }
 }

@@ -19,6 +19,7 @@ package io.fluxzero.sdk.persisting.eventsourcing.client;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.eventsourcing.EventBatch;
 import io.fluxzero.common.api.eventsourcing.GetEvents;
@@ -35,6 +36,7 @@ import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelCommitWireCodec;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
@@ -97,6 +99,20 @@ class WebSocketEventStoreClientTest {
             assertEquals("RESULT", subject.resultType(List.of(
                     mock(CommitModelsResult.class), mock(TrackModelUpdatesResult.class))));
             assertEquals("RESULT", subject.resultType(List.of()));
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void classifiesCompactModelResultsBeforeRequestCorrelation() throws Exception {
+        CommitModelsResult result = CommitModelsResult.acceptedSingleTarget(
+                1L, "commit", 2L, 3L, "model", 4L, true);
+        ResultBatch decoded = (ResultBatch) ModelCommitWireCodec.tryDecode(
+                ModelCommitWireCodec.tryEncode(new ResultBatch(List.of(result))));
+        RecordingEventStoreClient subject = new RecordingEventStoreClient();
+        try {
+            assertEquals("MODEL_COMMIT", subject.resultType(decoded.getResults()));
         } finally {
             subject.close();
         }

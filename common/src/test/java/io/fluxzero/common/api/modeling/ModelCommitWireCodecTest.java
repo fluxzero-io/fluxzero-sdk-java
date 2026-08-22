@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.RequestBatch;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import org.junit.jupiter.api.Test;
@@ -147,7 +148,7 @@ class ModelCommitWireCodecTest {
 
     @Test
     void roundTripsSupportedAcceptedResultBatchIncludingTransportTimings() throws Exception {
-        CommitModelsResult first = compactResult(11L, "one", 101L, 501L);
+        CommitModelsResult first = singleTargetResult(11L, "one", 101L, 501L);
         first.setRequestReceivedTimestamp(10L);
         first.setResponseQueuedTimestamp(20L);
         first.setResponseSendStartTimestamp(30L);
@@ -158,16 +159,19 @@ class ModelCommitWireCodecTest {
         ResultBatch decoded =
                 assertInstanceOf(ResultBatch.class, ModelCommitWireCodec.tryDecode(encoded));
 
-        CommitModelsResult decodedFirst =
-                assertInstanceOf(CommitModelsResult.class, decoded.getResults().getFirst());
+        CommitModelsResult decodedFirst = assertInstanceOf(
+                CommitModelsResult.class,
+                ModelCommitWireCodec.restoreResultContext(
+                        decoded.getResults().getFirst(), commit("one", false)));
         assertTrue(decodedFirst.hasSingleTargetResult());
-        assertEquals(101L, decodedFirst.getSingleTargetStateIndex());
-        assertEquals(501L, decodedFirst.getSingleTargetEventIndex());
-        assertEquals(7L, decodedFirst.getSingleTargetSequenceNumber());
-        assertTrue(decodedFirst.isSingleTargetHistoryComplete());
+        ModelUpdate decodedUpdate = decodedFirst.getUpdates().getFirst();
+        ModelCommitTargetResult decodedTarget = decodedUpdate.getTargets().getFirst();
+        assertEquals(101L, decodedUpdate.getStateIndex());
+        assertEquals(501L, decodedUpdate.getEventIndex());
+        assertEquals(7L, decodedTarget.getSequenceNumber());
+        assertTrue(decodedTarget.isHistoryComplete());
         assertEquals(first.getRequestId(), decodedFirst.getRequestId());
-        assertNull(decodedFirst.getCommitId());
-        assertNull(decodedFirst.getUpdates().getFirst().getTargets().getFirst().getModelId());
+        assertEquals(first.getCommitId(), decodedFirst.getCommitId());
         assertEquals(
                 first.getUpdates().getFirst().getStateIndex(),
                 decodedFirst.getUpdates().getFirst().getStateIndex());
@@ -180,28 +184,58 @@ class ModelCommitWireCodecTest {
         assertEquals(10L, decodedFirst.getRequestReceivedTimestamp());
         assertEquals(20L, decodedFirst.getResponseQueuedTimestamp());
         assertEquals(30L, decodedFirst.getResponseSendStartTimestamp());
-        decodedFirst.restoreTransportIdentities(
-                first.getCommitId(),
-                first.getUpdates().getFirst()
-                        .getTargets().getFirst().getModelId());
-        assertEquals(first.getCommitId(), decodedFirst.getCommitId());
         assertEquals(
                 first.getCommitId(),
                 decodedFirst.getUpdates().getFirst().getCommitId());
         assertEquals(
                 first.getUpdates().getFirst().getTargets().getFirst().getModelId(),
                 decodedFirst.getUpdates().getFirst().getTargets().getFirst().getModelId());
-        assertThrows(
-                IllegalStateException.class,
-                () -> decodedFirst.restoreTransportIdentities(
-                        "another-commit", "another-model"));
+        assertThrows(UnsupportedOperationException.class,
+                     () -> decodedFirst.getUpdates().clear());
+        assertThrows(UnsupportedOperationException.class,
+                     () -> decodedFirst.getUpdates().getFirst().getTargets().clear());
         CommitModelsResult decodedSecond = assertInstanceOf(
-                CommitModelsResult.class, decoded.getResults().get(1));
-        assertNull(decodedSecond.getCommitId());
-        assertNull(decodedSecond.getUpdates().getFirst().getTargets().getFirst().getModelId());
+                CommitModelsResult.class,
+                ModelCommitWireCodec.restoreResultContext(
+                        decoded.getResults().get(1), commit("two", false)));
+        assertEquals(second.getCommitId(), decodedSecond.getCommitId());
+        assertEquals(
+                second.getUpdates().getFirst().getTargets().getFirst().getModelId(),
+                decodedSecond.getUpdates().getFirst().getTargets().getFirst().getModelId());
         assertEquals(
                 second.getUpdates().getFirst().getStateIndex(),
                 decodedSecond.getUpdates().getFirst().getStateIndex());
+    }
+
+    @Test
+    void materializesTransportOwnedResultOnlyAfterRequestCorrelation() throws Exception {
+        CommitModels request = commit("transport", false);
+        RequestResult compact = ModelCommitWireCodec.compactAcceptedResult(
+                request.getRequestId(), 101L, 501L, 7L, true);
+        compact.setRequestReceivedTimestamp(10L);
+        compact.setResponseQueuedTimestamp(20L);
+        compact.setResponseSendStartTimestamp(30L);
+
+        byte[] encoded = ModelCommitWireCodec.tryEncode(compact);
+        ResultBatch decoded = assertInstanceOf(
+                ResultBatch.class, ModelCommitWireCodec.tryDecode(encoded));
+        CommitModelsResult result = assertInstanceOf(
+                CommitModelsResult.class,
+                ModelCommitWireCodec.restoreResultContext(
+                        decoded.getResults().getFirst(), request));
+
+        assertEquals(request.getRequestId(), result.getRequestId());
+        assertEquals(request.getCommitId(), result.getCommitId());
+        assertEquals(101L, result.getUpdates().getFirst().getStateIndex());
+        assertEquals(501L, result.getUpdates().getFirst().getEventIndex());
+        assertEquals(
+                request.singleTarget().getModelId(),
+                result.getUpdates().getFirst().getTargets().getFirst().getModelId());
+        assertEquals(7L, result.getUpdates().getFirst().getTargets().getFirst().getSequenceNumber());
+        assertTrue(result.getUpdates().getFirst().getTargets().getFirst().isHistoryComplete());
+        assertEquals(10L, result.getRequestReceivedTimestamp());
+        assertEquals(20L, result.getResponseQueuedTimestamp());
+        assertEquals(30L, result.getResponseSendStartTimestamp());
     }
 
     @Test
@@ -379,7 +413,7 @@ class ModelCommitWireCodecTest {
                                                 true)))));
     }
 
-    private static CommitModelsResult compactResult(
+    private static CommitModelsResult singleTargetResult(
             long requestId, String id, long stateIndex, Long eventIndex) {
         return CommitModelsResult.acceptedSingleTarget(
                 requestId, "commit-" + id, stateIndex, eventIndex,

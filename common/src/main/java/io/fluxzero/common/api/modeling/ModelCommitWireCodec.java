@@ -16,13 +16,16 @@
 package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.AbstractRequestResult;
 import io.fluxzero.common.api.JsonType;
 import io.fluxzero.common.api.RequestBatch;
+import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.api.internal.BinaryWire.Reader;
 import io.fluxzero.common.api.internal.BinaryWire.Writer;
+import lombok.Value;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -66,6 +69,9 @@ public final class ModelCommitWireCodec {
         if (value instanceof ResultBatch batch && isSupportedResultBatch(batch)) {
             return encodeResults(batch);
         }
+        if (value instanceof RequestResult result && isCompactResult(result)) {
+            return encodeResults(new ResultBatch(List.of(result)));
+        }
         return null;
     }
 
@@ -97,6 +103,66 @@ public final class ModelCommitWireCodec {
         } catch (EOFException e) {
             throw new IOException("Truncated compact model commit batch", e);
         }
+    }
+
+    /**
+     * Completes a compact decoded result with identities owned by its correlated request.
+     * Other result representations are returned unchanged.
+     */
+    public static RequestResult restoreResultContext(
+            RequestResult candidate, CommitModels request) {
+        if (!(candidate instanceof CompactSingleTargetResult result)
+                || request == null) {
+            return candidate;
+        }
+        ModelCommitTarget target = request.singleTarget();
+        if (target == null) {
+            throw new IllegalStateException(
+                    "Compact model commit result requires a single-target request");
+        }
+        CommitModelsResult restored = CommitModelsResult.acceptedSingleTarget(
+                result.requestId,
+                request.getCommitId(),
+                result.stateIndex,
+                result.eventIndex,
+                target.getModelId(),
+                result.sequenceNumber,
+                result.historyComplete);
+        restored.setRequestReceivedTimestamp(result.getRequestReceivedTimestamp());
+        restored.setResponseQueuedTimestamp(result.getResponseQueuedTimestamp());
+        restored.setResponseSendStartTimestamp(result.getResponseSendStartTimestamp());
+        return restored;
+    }
+
+    /**
+     * Creates the compact transport form of an accepted single-target result without the durable
+     * commit and model identities owned by its correlated request. The SDK restores those
+     * identities before publication.
+     */
+    public static RequestResult compactAcceptedResult(
+            long requestId,
+            long stateIndex,
+            Long eventIndex,
+            long sequenceNumber,
+            boolean historyComplete) {
+        return new CompactSingleTargetResult(
+                requestId, stateIndex, eventIndex, sequenceNumber, historyComplete);
+    }
+
+    /** Returns whether a decoded transport result still needs its correlated request context. */
+    public static boolean requiresRequestContext(RequestResult candidate) {
+        return candidate instanceof CompactSingleTargetResult;
+    }
+
+    /** Returns whether a result can use the compact single-target wire representation. */
+    public static boolean isCompactResult(RequestResult candidate) {
+        if (requiresRequestContext(candidate)) {
+            return true;
+        }
+        return candidate instanceof CommitModelsResult result
+                && result.isAccepted()
+                && !result.isDuplicate()
+                && result.hasSingleTargetResult();
     }
 
     private static boolean isSupportedRequestBatch(RequestBatch<?> batch) {
@@ -134,10 +200,7 @@ public final class ModelCommitWireCodec {
             return false;
         }
         for (var value : batch.getResults()) {
-            if (!(value instanceof CommitModelsResult result)
-                    || !result.isAccepted()
-                    || result.isDuplicate()
-                    || !result.hasSingleTargetResult()) {
+            if (!isCompactResult(value)) {
                 return false;
             }
         }
@@ -242,52 +305,86 @@ public final class ModelCommitWireCodec {
     private static byte[] encodeResults(ResultBatch batch) throws IOException {
         int encodedSize = Integer.BYTES + 1 + Integer.BYTES;
         for (var value : batch.getResults()) {
-            CommitModelsResult result = (CommitModelsResult) value;
             encodedSize = addSize(encodedSize, Long.BYTES * 6 + 1 + BinaryWire.nullableLongSize(
-                    result.getSingleTargetEventIndex()));
+                    eventIndex(value)));
         }
         Writer output = new Writer(encodedSize, MAX_VALUE_BYTES);
         output.writeInt(RESULT_MAGIC);
         output.writeByte(VERSION);
         output.writeInt(batch.getResults().size());
         for (var value : batch.getResults()) {
-            CommitModelsResult result = (CommitModelsResult) value;
-            output.writeLong(result.getRequestId());
-            output.writeLong(result.getSingleTargetStateIndex());
-            output.writeNullableLong(result.getSingleTargetEventIndex());
-            output.writeLong(result.getSingleTargetSequenceNumber());
-            output.writeBoolean(result.isSingleTargetHistoryComplete());
-            output.writeLong(result.getRequestReceivedTimestamp());
-            output.writeLong(result.getResponseQueuedTimestamp());
-            output.writeLong(result.getResponseSendStartTimestamp());
+            output.writeLong(value.getRequestId());
+            output.writeLong(stateIndex(value));
+            output.writeNullableLong(eventIndex(value));
+            output.writeLong(sequenceNumber(value));
+            output.writeBoolean(historyComplete(value));
+            output.writeLong(value.getRequestReceivedTimestamp());
+            output.writeLong(value.getResponseQueuedTimestamp());
+            output.writeLong(value.getResponseSendStartTimestamp());
         }
         return output.toExactByteArray();
     }
 
+    private static ModelUpdate update(RequestResult value) {
+        return ((CommitModelsResult) value).getUpdates().getFirst();
+    }
+
+    private static long stateIndex(RequestResult value) {
+        return value instanceof CompactSingleTargetResult result
+                ? result.stateIndex : update(value).getStateIndex();
+    }
+
+    private static Long eventIndex(RequestResult value) {
+        return value instanceof CompactSingleTargetResult result
+                ? result.eventIndex : update(value).getEventIndex();
+    }
+
+    private static long sequenceNumber(RequestResult value) {
+        return value instanceof CompactSingleTargetResult result
+                ? result.sequenceNumber
+                : update(value).getTargets().getFirst().getSequenceNumber();
+    }
+
+    private static boolean historyComplete(RequestResult value) {
+        return value instanceof CompactSingleTargetResult result
+                ? result.historyComplete
+                : update(value).getTargets().getFirst().isHistoryComplete();
+    }
+
     private static ResultBatch decodeResults(Reader input) throws IOException {
         int size = input.readSize(MAX_BATCH_SIZE, "model commit batch");
-        List<CommitModelsResult> results = new ArrayList<>(size);
+        List<RequestResult> results = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            long requestId = input.readLong();
-            long stateIndex = input.readLong();
-            Long eventIndex = input.readNullableLong();
-            long sequenceNumber = input.readLong();
-            boolean historyComplete = input.readBoolean();
-            CommitModelsResult result =
-                    CommitModelsResult.acceptedSingleTarget(
-                            requestId,
-                            null,
-                            stateIndex,
-                            eventIndex,
-                            null,
-                            sequenceNumber,
-                            historyComplete);
+            CompactSingleTargetResult result = new CompactSingleTargetResult(
+                    input.readLong(),
+                    input.readLong(),
+                    input.readNullableLong(),
+                    input.readLong(),
+                    input.readBoolean());
             result.setRequestReceivedTimestamp(input.readLong());
             result.setResponseQueuedTimestamp(input.readLong());
             result.setResponseSendStartTimestamp(input.readLong());
             results.add(result);
         }
-        return new ResultBatch(new ArrayList<>(results));
+        return new ResultBatch(results);
+    }
+
+    /** Transport-only scalar state that must not cross the request-correlation boundary. */
+    @Value
+    private static final class CompactSingleTargetResult
+            extends AbstractRequestResult {
+        long requestId;
+        long stateIndex;
+        Long eventIndex;
+        long sequenceNumber;
+        boolean historyComplete;
+        long timestamp = System.currentTimeMillis();
+
+        @Override
+        public Object toMetric() {
+            return new CommitModelsResult.Metric(
+                    1, 1, 0, false, false, false, timestamp);
+        }
     }
 
     private static void writeStrings(Writer output, List<String> values) {
