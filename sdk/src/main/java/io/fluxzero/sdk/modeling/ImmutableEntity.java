@@ -191,6 +191,10 @@ public class ImmutableEntity<T> implements Entity<T> {
         return value == null ? type : (Class<T>) value.getClass();
     }
 
+    Class<T> declaredType() {
+        return type;
+    }
+
     @Override
     public Entity<T> withType(Class<T> type) {
         if (!type().isAssignableFrom(type)) {

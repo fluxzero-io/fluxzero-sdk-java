@@ -551,8 +551,9 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         }
 
         public CompletableFuture<Void> commit(Entity<?> after, List<AppliedEvent> unpublishedEvents, Entity<?> before) {
-            if (after.type() != null && !Objects.equals(after.type(), type)) {
-                return delegates.apply(after.type()).commit(after, unpublishedEvents, before);
+            Class<?> aggregateType = after.get() == null && before != null ? before.type() : after.type();
+            if (aggregateType != null && !Objects.equals(aggregateType, type)) {
+                return delegates.apply(aggregateType).commit(after, unpublishedEvents, before);
             }
             if (after == before && unpublishedEvents.isEmpty()) {
                 return CompletableFuture.completedFuture(null);
