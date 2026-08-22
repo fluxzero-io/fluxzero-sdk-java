@@ -109,8 +109,9 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
 
     public Entity<T> apply(DeserializingMessage message) {
         long newSequenceNumber = sequenceNumber() + 1L;
-        return ((ImmutableAggregateRoot<T>) super.apply(message))
-                .toBuilder()
+        ImmutableAggregateRoot<T> updated = (ImmutableAggregateRoot<T>) super.apply(message);
+        return updated.toBuilder()
+                .type(resolveDeclaredType(updated))
                 .previous(asPrevious(newSequenceNumber))
                 .timestamp(message.getTimestamp())
                 .lastEventId(message.getMessageId())
@@ -135,11 +136,19 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
 
     @Override
     public Entity<T> update(UnaryOperator<T> function) {
-        return ((ImmutableAggregateRoot<T>) super.update(function))
-                .toBuilder()
+        ImmutableAggregateRoot<T> updated = (ImmutableAggregateRoot<T>) super.update(function);
+        return updated.toBuilder()
+                .type(resolveDeclaredType(updated))
                 .timestamp(currentTime())
                 .sequenceNumber(sequenceNumber + 1)
                 .build();
+    }
+
+    private Class<T> resolveDeclaredType(ImmutableAggregateRoot<T> updated) {
+        if (!Object.class.equals(declaredType())) {
+            return declaredType();
+        }
+        return updated.get() == null ? type() : updated.type();
     }
 
     @Override
