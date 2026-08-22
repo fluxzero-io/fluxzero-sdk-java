@@ -993,8 +993,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 .filter(value -> !value.isEmpty())
                                 .map(ApplicationProperties::substituteProperties)
                                 .orElse(modelType.getSimpleName());
-        GetDocument request = new GetDocument(modelId, collection);
-        GetDocumentResult result = client.getSearchClient().fetchModelDocument(request);
+        GetDocumentResult result = client.getSearchClient().fetchModelDocument(
+                new GetDocument(modelId, collection));
         ModelHeadState head = result.getModelHead();
         if (head != null) {
             if (!modelId.equals(head.getModelId())) {
@@ -1010,13 +1010,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 .formatted(modelId, storedType.getName(), modelType.getName()));
             }
         }
-        var document = result.getDocument();
-        if (head == null && document == null) {
-            // Legacy indexed entities have no durable Model head until their first Model commit.
-            document = client.getSearchClient().fetch(request).orElse(null);
-        }
-        Object value = document == null
-                ? null : serializer.deserialize(document.getDocument(), modelType);
+        Object value = result.getDocument() == null
+                ? null : serializer.deserialize(
+                        result.getDocument().getDocument(), modelType);
         if (value != null && !modelType.isInstance(value)) {
             throw new EventSourcingException(
                     "Direct Model document '%s' contains %s instead of %s"

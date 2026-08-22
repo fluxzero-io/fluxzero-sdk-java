@@ -129,30 +129,6 @@ class TestFixtureModelApiTest {
     }
 
     @Test
-    void legacySearchDocumentSeedsCurrentDocumentModel() {
-        UncachedDocument document = new UncachedDocument("document-1", 3);
-
-        TestFixture.create()
-                .givenDocument(document, "document-1", "UncachedDocument")
-                .whenApplying(ignored -> Fluxzero.loadGraph(
-                        "document-1", UncachedDocument.class).get())
-                .expectResult(document);
-    }
-
-    @Test
-    void firstModelCommitContinuesFromLegacySearchDocument() {
-        TestFixture.create()
-                .givenDocument(new UncachedDocument("document-1", 3),
-                               "document-1", "UncachedDocument")
-                .whenCommand(new UpdateUncachedDocument("document-1", 2))
-                .expectOnlyEvents(new UpdateUncachedDocument("document-1", 2))
-                .andThen()
-                .whenApplying(ignored -> Fluxzero.loadGraph(
-                        "document-1", UncachedDocument.class).get())
-                .expectResult(new UncachedDocument("document-1", 5));
-    }
-
-    @Test
     void givenAppliedEventsAutomaticallyUseIndependentModelApplies() {
         StoredModelEvent event = new StoredModelEvent("model-1");
 
