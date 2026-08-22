@@ -769,7 +769,7 @@ class GraphTest {
         Graph<Root> staged = graph
                 .update(value -> new Root(value.id(), value.name() + "-one"))
                 .update(value -> new Root(value.id(), value.name() + "-two"));
-        Change change = Graphs.stagedChanges(staged).getFirst();
+        GraphMutation change = Graphs.stagedChanges(staged).getFirst();
         Entity<Root> concurrent = ImmutableEntity.<Root>builder()
                 .id(id.toString()).type(Root.class)
                 .value(new Root(id, "concurrent")).build();

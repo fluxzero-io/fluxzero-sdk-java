@@ -19,18 +19,19 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import java.lang.reflect.Executable;
 import java.util.Objects;
+import java.util.function.UnaryOperator;
 
 /**
- * One immutable model mutation outcome, from a staged Graph operation through commit preparation.
+ * One fully resolved immutable model mutation outcome consumed by commit preparation.
  *
  * <p>This type is public only so the repository package can consume the canonical internal value directly; it is not
  * a supported application extension point.</p>
  */
 public record Change(
-        String modelId, Class<?> modelType, Long expectedStateIndex,
+        String modelId, Class<?> modelType,
         long beforeSequenceNumber, Long beforeLastEventIndex,
         Object before, Object after, Executable handler,
-        Graphs.StagedReplay replay, boolean cascadedDeletion,
+        UnaryOperator<Entity<?>> directReplay, boolean cascadedDeletion,
         EntityMetadata metadata,
         AggregateEventRouting eventRouting, ModelConflictPolicy conflictPolicy,
         GraphProjectionCompletion graphProjectionCompletion,
@@ -40,19 +41,17 @@ public record Change(
     public Change {
         Objects.requireNonNull(modelId, "modelId");
         Objects.requireNonNull(modelType, "modelType");
-        if (metadata == null) {
-            Objects.requireNonNull(replay, "replay");
-        }
+        Objects.requireNonNull(metadata, "metadata");
     }
 
     static Change applied(
             String modelId, Class<?> modelType,
             long beforeSequenceNumber, Long beforeLastEventIndex,
             Object before, Object after, Executable handler,
-            Graphs.StagedReplay replay, boolean cascadedDeletion) {
+            UnaryOperator<Entity<?>> directReplay, boolean cascadedDeletion) {
         return applied(
                 modelId, modelType, beforeSequenceNumber, beforeLastEventIndex,
-                before, after, handler, replay, cascadedDeletion,
+                before, after, handler, directReplay, cascadedDeletion,
                 MutationPlan.EffectOverrides.of(handler));
     }
 
@@ -60,75 +59,64 @@ public record Change(
             String modelId, Class<?> modelType,
             long beforeSequenceNumber, Long beforeLastEventIndex,
             Object before, Object after, Executable handler,
-            Graphs.StagedReplay replay, boolean cascadedDeletion,
+            UnaryOperator<Entity<?>> directReplay, boolean cascadedDeletion,
             MutationPlan.EffectOverrides overrides) {
         return resolved(
-                modelId, modelType, null,
+                modelId, modelType,
                 beforeSequenceNumber, beforeLastEventIndex,
-                before, after, handler, replay, cascadedDeletion, overrides);
+                before, after, handler, directReplay, cascadedDeletion, overrides);
     }
 
-    static Change staged(
-            String modelId, Class<?> modelType, Long expectedStateIndex,
-            Object after, Graphs.StagedReplay replay) {
-        return new Change(
-                modelId, modelType, expectedStateIndex, -1L, null,
-                null, after, null, replay, false,
-                null, null, null, GraphProjectionCompletion.DEFAULT,
-                false, false, false, false);
+    GraphMutation forRebase() {
+        if (directReplay == null) {
+            throw new IllegalStateException("Only a direct Graph mutation has a replay operation");
+        }
+        return new GraphMutation(modelId, modelType, null, null, directReplay);
     }
 
-    Change forRebase() {
-        return staged(
-                modelId, modelType, null, null,
-                replay == null
-                        ? current -> current.update(ignored -> null)
-                        : replay);
-    }
-
-    Change resolveAgainst(Entity<?> target, Object resolvedAfter) {
+    static Change resolve(GraphMutation mutation, Entity<?> target, Object resolvedAfter) {
         Objects.requireNonNull(target, "target");
         return resolved(
-                modelId, modelType, expectedStateIndex,
+                mutation.modelId(), mutation.modelType(),
                 target instanceof ModelRoot<?> root ? root.sequenceNumber() : -1L,
                 target instanceof ModelRoot<?> root ? root.lastEventIndex() : null,
-                target.get(), resolvedAfter, null, replay, false,
+                target.get(), resolvedAfter, null, mutation.replay(), false,
                 MutationPlan.EffectOverrides.of(null));
     }
 
     Change then(Change addition) {
-        if (metadata != null && !modelType.equals(addition.modelType)) {
+        if (!directMutation() || !addition.directMutation()) {
+            throw new IllegalStateException("Only direct Graph changes can be combined");
+        }
+        if (!modelType.equals(addition.modelType)) {
             throw new IllegalStateException(
                     "Graph changes target repository id '%s' as both %s and %s"
                             .formatted(addition.modelId, modelType.getName(),
                                        addition.modelType.getName()));
         }
-        Graphs.StagedReplay combined = current ->
-                addition.replay.apply(replay.apply(current));
-        return metadata == null
-                ? staged(modelId, addition.modelType, expectedStateIndex,
-                         addition.after, combined)
-                : applied(modelId, modelType,
-                          beforeSequenceNumber, beforeLastEventIndex,
-                          before, addition.after, addition.handler,
-                          combined, addition.cascadedDeletion);
+        UnaryOperator<Entity<?>> combined = current ->
+                addition.directReplay.apply(directReplay.apply(current));
+        return applied(modelId, modelType,
+                       beforeSequenceNumber, beforeLastEventIndex,
+                       before, addition.after, addition.handler,
+                       combined, addition.cascadedDeletion);
     }
 
     public Change withEffects(
             boolean storeEvent, boolean publishEvent,
             boolean updateState) {
         return new Change(
-                modelId, modelType, expectedStateIndex,
+                modelId, modelType,
                 beforeSequenceNumber, beforeLastEventIndex,
-                before, after, handler, replay, cascadedDeletion,
+                before, after, handler, directReplay, cascadedDeletion,
                 metadata,
                 eventRouting, conflictPolicy, graphProjectionCompletion, active,
                 storeEvent, publishEvent, updateState);
     }
 
     /** Whether this change originated from a direct graph mutation rather than a model handler. */
-    public boolean graphChange() {
-        return !cascadedDeletion && (replay != null || handler == null && after == null);
+    public boolean directMutation() {
+        return directReplay != null;
     }
 
     public void validate() {
@@ -142,10 +130,10 @@ public record Change(
     }
 
     private static Change resolved(
-            String modelId, Class<?> declaredType, Long expectedStateIndex,
+            String modelId, Class<?> declaredType,
             long beforeSequenceNumber, Long beforeLastEventIndex,
             Object before, Object after, Executable handler,
-            Graphs.StagedReplay replay, boolean cascadedDeletion,
+            UnaryOperator<Entity<?>> directReplay, boolean cascadedDeletion,
             MutationPlan.EffectOverrides overrides) {
         Class<?> effectiveType = EntityMetadata.of(declaredType).isModel()
                 ? declaredType : after != null ? after.getClass()
@@ -161,9 +149,9 @@ public record Change(
                 settings.forceModified() || !Objects.equals(before, after),
                 cascadedDeletion, true);
         return new Change(
-                modelId, declaredType, expectedStateIndex,
+                modelId, declaredType,
                 beforeSequenceNumber, beforeLastEventIndex,
-                before, after, handler, replay, cascadedDeletion,
+                before, after, handler, directReplay, cascadedDeletion,
                 metadata, settings.routing(), settings.conflict(),
                 overrides.graphProjectionCompletion(),
                 decision.active(), decision.storeEvent(),

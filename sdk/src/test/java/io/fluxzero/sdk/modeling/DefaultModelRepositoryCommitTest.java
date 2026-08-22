@@ -92,7 +92,7 @@ class DefaultModelRepositoryCommitTest {
                         Change.applied(
                                 id.toString(), StoredOnly.class, 0L,
                                 null, before, null, null,
-                                null, false)),
+                                current -> current.update(ignored -> null), false)),
                 Map.of());
 
         CommitModels commit = protocol.prepare(
@@ -137,7 +137,7 @@ class DefaultModelRepositoryCommitTest {
                                 Change.applied(
                                         storedId.toString(), StoredOnly.class, 0L,
                                         null, stored, null, null,
-                                        null, false)))),
+                                        current -> current.update(ignored -> null), false)))),
                 Map.of(publishedId.toString(), published));
 
         Commit.Outcome prepared =

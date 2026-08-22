@@ -263,7 +263,7 @@ public final class Graphs {
         return pathOverrides.isEmpty() ? result : remapPaths(result, pathOverrides);
     }
 
-    static List<Change> stagedChanges(Graph<?> graph) {
+    static List<GraphMutation> stagedChanges(Graph<?> graph) {
         return graph instanceof GraphView<?> view ? List.copyOf(view.state().stagedChanges().values()) : List.of();
     }
 
@@ -272,16 +272,11 @@ public final class Graphs {
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private static Graph<?> refreshStaged(Change change) {
+    private static Graph<?> refreshStaged(GraphMutation change) {
         Graph current = Fluxzero.loadGraph(change.modelId(), change.modelType());
         return current.update(value -> change.replay().apply(
                 ImmutableEntity.builder().id(change.modelId()).type((Class) change.modelType()).value(value).build())
                 .get());
-    }
-
-    @FunctionalInterface
-    interface StagedReplay {
-        Entity<?> apply(Entity<?> current);
     }
 
     /** Returns a lazy view whose values are transformed independently on first access. */
@@ -398,7 +393,7 @@ final class GraphState {
     private final ModelReadBoundary boundary;
     final Map<String, Entity<?>> knownModels;
     final List<ModelGraphEdge> edges;
-    private final Map<String, Change> stagedChanges;
+    private final Map<String, GraphMutation> stagedChanges;
     private final Map<String, List<Node>> byId;
     private final Map<String, Node> detachedById;
     private final Map<Class<?>, List<String>> declaredPaths;
@@ -411,7 +406,7 @@ final class GraphState {
     private GraphState(
             long stateIndex, ModelRepository repository, boolean complete, boolean historical, boolean exactBoundary,
             ModelReadBoundary boundary, Map<String, Entity<?>> knownModels, List<ModelGraphEdge> edges,
-            Map<String, Change> stagedChanges, List<Node> placements,
+            Map<String, GraphMutation> stagedChanges, List<Node> placements,
             Map<Class<?>, List<String>> declaredPaths, Node root, Identity identity) {
         this.stateIndex = stateIndex;
         this.repository = repository;
@@ -446,7 +441,7 @@ final class GraphState {
     static <T> GraphState entity(
             Entity<T> root, long stateIndex, ModelRepository repository, Map<String, Entity<?>> models,
             boolean historical, boolean exactBoundary, ModelReadBoundary boundary,
-            Map<String, Change> changes) {
+            Map<String, GraphMutation> changes) {
         LinkedHashMap<String, NodeData> data = entityData(models);
         data.putIfAbsent(root.id().toString(), NodeData.entity(root));
         Node rootNode = new Node(data.get(root.id().toString()), null, null, true);
@@ -476,7 +471,7 @@ final class GraphState {
     static GraphState composed(
             String rootId, long stateIndex, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
             ModelRepository repository, boolean historical, ModelReadBoundary boundary,
-            Map<String, Change> changes) {
+            Map<String, GraphMutation> changes) {
         LinkedHashMap<String, NodeData> data = entityData(models);
         LinkedHashMap<String, List<ModelGraphEdge>> byParent = new LinkedHashMap<>();
         edges.forEach(edge -> byParent.computeIfAbsent(edge.getParentId(), ignored -> new ArrayList<>()).add(edge));
@@ -544,7 +539,7 @@ final class GraphState {
     private static GraphState indexed(
             long stateIndex, ModelRepository repository, boolean complete, boolean historical, boolean exactBoundary,
             ModelReadBoundary boundary, Map<String, Entity<?>> models, List<ModelGraphEdge> edges,
-            Map<String, Change> changes, List<Node> placements,
+            Map<String, GraphMutation> changes, List<Node> placements,
             Map<Class<?>, List<String>> declaredPaths, Node root, Identity identity) {
         return new GraphState(stateIndex, repository, complete, historical, exactBoundary, boundary, models, edges,
                               changes, placements, declaredPaths, root, identity);
@@ -708,16 +703,16 @@ final class GraphState {
         return List.copyOf(result.values());
     }
 
-    <T> Graph<T> replace(Entity<T> entity, Graphs.StagedReplay replay) {
+    <T> Graph<T> replace(Entity<T> entity, UnaryOperator<Entity<?>> replay) {
         LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(knownModels);
         String modelId = entity.id().toString();
         updated.put(modelId, entity);
-        LinkedHashMap<String, Change> changes = new LinkedHashMap<>(stagedChanges);
+        LinkedHashMap<String, GraphMutation> changes = new LinkedHashMap<>(stagedChanges);
         Long expectedStateIndex = entity instanceof ModelRoot<?> root && root.stateIndex() >= 0L
                 ? root.stateIndex() : stateIndex >= 0L ? stateIndex : null;
-        Change addition = Change.staged(
+        GraphMutation addition = new GraphMutation(
                 modelId, entity.type(), expectedStateIndex, entity.get(), replay);
-        changes.merge(modelId, addition, Change::then);
+        changes.merge(modelId, addition, GraphMutation::then);
         return GraphState.entity(entity, stateIndex, repository, updated, historical, exactBoundary, boundary, changes)
                 .root();
     }
@@ -761,7 +756,7 @@ final class GraphState {
         return identity;
     }
 
-    Map<String, Change> stagedChanges() {
+    Map<String, GraphMutation> stagedChanges() {
         return stagedChanges;
     }
 

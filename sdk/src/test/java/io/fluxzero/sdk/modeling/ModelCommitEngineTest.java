@@ -551,7 +551,7 @@ class ModelCommitEngineTest {
                 .filter(transition -> transition.modelId()
                         .equals(inventoryId.toString()))
                 .findFirst().orElseThrow();
-        assertNotNull(graphTransition.replay());
+        assertNotNull(graphTransition.directReplay());
 
         Entity<Inventory> concurrent = entity(
                 inventoryId, new Inventory(inventoryId, 9));

@@ -439,6 +439,17 @@ public final class CommitAttempt {
             List<Change> changes) {
         public Step {
             changes = List.copyOf(changes);
+            if (!changes.isEmpty()) {
+                boolean direct = changes.getFirst().directMutation();
+                if (changes.stream().anyMatch(change -> change.directMutation() != direct)) {
+                    throw new IllegalArgumentException(
+                            "Direct mutations must occupy their own model commit step");
+                }
+            }
+        }
+
+        public boolean directMutation() {
+            return !changes.isEmpty() && changes.getFirst().directMutation();
         }
     }
 

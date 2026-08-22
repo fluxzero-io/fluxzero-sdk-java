@@ -438,10 +438,10 @@ public final class ModelReducer {
         for (CommitAttempt.Step step : steps) {
             Objects.requireNonNull(step, "step");
             List<Change> changes = step.changes();
-            if (changes.stream().anyMatch(change -> !change.graphChange())) {
+            if (!step.directMutation()) {
                 pending.add(new PendingSubstep(step.message(), null, false));
             }
-            changes.stream().filter(Change::graphChange).forEach(change ->
+            changes.stream().filter(Change::directMutation).forEach(change ->
                     pending.add(new PendingSubstep(
                             step.message(), change.forRebase(), false)));
         }
@@ -532,20 +532,20 @@ public final class ModelReducer {
                             "Model commit exceeded %d interceptor substeps".formatted(MAX_SUBSTEPS));
                 }
                 PendingSubstep current = pending.removeFirst();
-                Change graphChange = current.stagedChange();
+                GraphMutation graphMutation = current.stagedChange();
                 ResolvedSubstep resolved = prepared == null
                         ? Objects.requireNonNull(
-                        graphChange == null
+                        graphMutation == null
                                 ? resolver.resolve(
                                         current.message(),
                                         stateIndexPinned ? readStateIndex : null,
                                         stagedValues)
                                 : resolver.resolveGraph(
-                                        graphChange.modelId(),
-                                        graphChange.modelType(),
+                                        graphMutation.modelId(),
+                                        graphMutation.modelType(),
                                         stateIndexPinned
                                                 ? Long.valueOf(readStateIndex)
-                                                : graphChange.expectedStateIndex(),
+                                                : graphMutation.expectedStateIndex(),
                                         stagedValues),
                         "Substep resolver returned null")
                         : prepared;
@@ -565,15 +565,15 @@ public final class ModelReducer {
                     readModelTypes.putIfAbsent(
                             target.modelId(), target.modelType());
                 });
-                if (graphChange != null) {
-                    Change change = evaluateGraphChange(
-                            graphChange,
+                if (graphMutation != null) {
+                    Change change = evaluateGraphMutation(
+                            graphMutation,
                             context, readStateIndex,
                             stagedValues.containsKey(
-                                    graphChange.modelId()));
+                                    graphMutation.modelId()));
                     stagedValues.put(
                             change.modelId(), change.after());
-                    mergeGraphChange(steps, current.message(), change);
+                    mergeDirectMutation(steps, current.message(), change);
                     continue;
                 }
                 if (current.interceptionAllowed()) {
@@ -622,8 +622,8 @@ public final class ModelReducer {
         }
     }
 
-    private static Change evaluateGraphChange(
-            Change change,
+    private static Change evaluateGraphMutation(
+            GraphMutation change,
             CommitAttempt context,
             long readStateIndex,
             boolean alreadyStaged) {
@@ -645,8 +645,8 @@ public final class ModelReducer {
         }
         Object after = change.expectedStateIndex() == null || alreadyStaged
                 ? change.replay().apply(target).get()
-                : change.after();
-        return change.resolveAgainst(target, after);
+                : change.preview();
+        return Change.resolve(change, target, after);
     }
 
     private static long targetStateIndex(
@@ -656,7 +656,7 @@ public final class ModelReducer {
                 ? root.stateIndex() : fallback;
     }
 
-    private static void mergeGraphChange(
+    private static void mergeDirectMutation(
             List<CommitAttempt.Step> steps,
             DeserializingMessage message,
             Change addition) {
@@ -667,8 +667,7 @@ public final class ModelReducer {
             if (!Objects.equals(
                     existing.getMessageId(), eventMessageId)
                 || step.changes().isEmpty()
-                || step.changes().stream().anyMatch(
-                        change -> !change.graphChange())) {
+                || !step.directMutation()) {
                 continue;
             }
             LinkedHashMap<String, Change> transitions =
@@ -729,7 +728,7 @@ public final class ModelReducer {
                     "@InterceptApply emitted a null element; return null directly to suppress the update");
         }
         if (output instanceof Graph<?> graph) {
-            List<Change> changes = stagedChanges(graph);
+            List<GraphMutation> changes = stagedChanges(graph);
             for (int index = changes.size() - 1; index >= 0; index--) {
                 pending.addFirst(new PendingSubstep(
                         source, changes.get(index), false));
@@ -743,9 +742,9 @@ public final class ModelReducer {
         pending.addFirst(new PendingSubstep(emitted, null, reintercept));
     }
 
-    private static List<Change> stagedChanges(Graph<?> graph) {
+    private static List<GraphMutation> stagedChanges(Graph<?> graph) {
         Objects.requireNonNull(graph, "graph");
-        List<Change> staged = Graphs.stagedChanges(graph);
+        List<GraphMutation> staged = Graphs.stagedChanges(graph);
         if (!staged.isEmpty()) {
             return staged;
         }
@@ -762,7 +761,7 @@ public final class ModelReducer {
                     "Staged graph deletion target %s is not an independent @Model"
                             .formatted(modelType.getName()));
         }
-        return List.of(Change.staged(
+        return List.of(new GraphMutation(
                 modelId, modelType, graph.stateIndex(), null,
                 current -> current.update(ignored -> null)));
     }
@@ -810,7 +809,7 @@ public final class ModelReducer {
 
     private record PendingSubstep(
             DeserializingMessage message,
-            Change stagedChange,
+            GraphMutation stagedChange,
             boolean interceptionAllowed) {
     }
 

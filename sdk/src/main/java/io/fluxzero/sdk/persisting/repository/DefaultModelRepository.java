@@ -1270,11 +1270,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 if (transitions.isEmpty()) {
                     continue;
                 }
-                boolean direct = directGraphGroup(transitions);
-                if (!direct && transitions.stream().anyMatch(Change::graphChange)) {
-                    throw new IllegalStateException(
-                            "Direct graph changes must occupy their own evaluated model substep");
-                }
+                boolean direct = step.directMutation();
                 String messageId = message.getMessageId();
                 if (direct) {
                     List<Change> published = message.getPayload() instanceof Graph<?>
@@ -1300,7 +1296,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 if (transitions.isEmpty()) {
                     continue;
                 }
-                boolean direct = directGraphGroup(transitions);
+                boolean direct = step.directMutation();
                 List<Change> committedTransitions = direct
                         ? transitions.stream().map(transition -> transition.withEffects(
                                 transition.storeEvent(), false, transition.updateState())).toList()
@@ -1544,13 +1540,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             logical.getTimestamp()),
                     EVENT, null, serializer);
             return serialize(direct, commitId, substep, true);
-        }
-
-        private static boolean directGraphGroup(
-                List<Change> transitions) {
-            return !transitions.isEmpty()
-                   && transitions.stream().allMatch(
-                           Change::graphChange);
         }
 
         private static boolean possibleDuplicate(
