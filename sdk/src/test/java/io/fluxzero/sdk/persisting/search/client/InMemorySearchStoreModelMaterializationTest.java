@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemorySearchStoreModelMaterializationTest {
@@ -74,6 +75,11 @@ class InMemorySearchStoreModelMaterializationTest {
                 subject.fetch(new GetDocument("model-1", "models"))
                         .orElseThrow()
                         .getSummary());
+        var version = subject.fetchModelDocument(
+                new GetDocument("model-1", "models"));
+        assertEquals(12L, version.getModelHead().getStateIndex());
+        assertEquals("TestModel", version.getModelHead().getModelType());
+        assertFalse(version.getModelHead().isDeleted());
     }
 
     @Test
@@ -222,6 +228,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         .modelId(modelId)
                         .modelType("TestModel")
                         .updateState(true)
+                        .delete(mutation.getDocument() == null)
                         .document(mutation)
                         .relationships(List.of())
                         .build();

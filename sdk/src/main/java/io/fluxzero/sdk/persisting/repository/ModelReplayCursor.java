@@ -251,15 +251,6 @@ final class ModelReplayCursor {
         return loadHeads(modelIds, boundary, false);
     }
 
-    /**
-     * Loads model heads and rejects streams whose stored history cannot support event replay.
-     */
-    LoadResult loadReplayableHeads(
-            List<String> modelIds,
-            ModelReadBoundary boundary) {
-        return loadHeads(modelIds, boundary, true);
-    }
-
     private LoadResult loadHeads(
             List<String> modelIds,
             ModelReadBoundary boundary,
@@ -592,7 +583,7 @@ final class ModelReplayCursor {
                         current.entities());
             }
             stateIndex = ancestorStateIndex == null
-                    ? requireBoundary
+                    ? requireBoundary && documentTargets.isEmpty()
                             ? load(Map.of(), boundary, ignored -> {
                             }).stateIndex()
                             : -1L
@@ -611,18 +602,6 @@ final class ModelReplayCursor {
             }
         }
 
-        boolean writesEventSourcedModel = resolution.models().stream().anyMatch(
-                target -> target.access().writes()
-                          && EntityMetadata.validate(target.modelType())
-                                  .rootConfiguration().orElseThrow().eventSourced());
-        List<String> documentDependencies = documentTargets.stream()
-                .filter(target -> target.access().reads())
-                .map(MutationPlan.ResolvedModel::modelId)
-                .toList();
-        if (writesEventSourcedModel && !documentDependencies.isEmpty()) {
-            loadReplayableHeads(documentDependencies, ModelReadBoundary.at(stateIndex));
-        }
-
         Long documentCacheBoundary = !historicalBoundary
                                      && cacheTracker != null
                                      && documentTargets.stream().anyMatch(
@@ -630,10 +609,13 @@ final class ModelReplayCursor {
                         .rootConfiguration().orElseThrow().cached())
                 ? cacheTracker.safeDocumentBoundary()
                 : null;
+        Map<String, ModelHeadState> documentHeads = new LinkedHashMap<>();
         for (MutationPlan.ResolvedModel target : documentTargets) {
             EntityMetadata metadata = EntityMetadata.validate(
                     target.modelType());
-            Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
+            DocumentVersion document = documentReader.load(
+                    target.modelId(), target.modelType());
+            Entity<?> entity = document.entity();
             if (entity.isEmpty() && metadata.hasAliases()) {
                 LoadResult alias = loadHeads(
                         List.of(target.modelId()),
@@ -646,17 +628,41 @@ final class ModelReplayCursor {
                 String resolvedId = head == null
                         ? target.modelId() : head.getModelId();
                 if (!resolvedId.equals(target.modelId())) {
-                    entity = documentReader.load(
+                    document = documentReader.load(
                             resolvedId, target.modelType());
+                    entity = document.entity();
                 }
             }
             loaded.put(target.modelId(), entity);
+            documentHeads.put(target.modelId(), document.head());
             if (metadata.rootConfiguration().orElseThrow().cached()
                 && documentCacheBoundary != null) {
                 String resolvedId = entity.isPresent() && entity.id() != null
                         ? entity.id().toString() : target.modelId();
                 modelCache.put(resolvedId, entity);
             }
+            if (requireBoundary && replayTargets.isEmpty()
+                && ancestorStateIndex == null
+                && document.head() != null) {
+                stateIndex = Math.max(stateIndex, document.head().getStateIndex());
+            }
+        }
+        boolean writesEventSourcedModel = resolution.models().stream().anyMatch(
+                target -> target.access().writes()
+                          && EntityMetadata.validate(target.modelType())
+                                  .rootConfiguration().orElseThrow().eventSourced());
+        if (writesEventSourcedModel) {
+            documentTargets.stream()
+                    .filter(target -> target.access().reads())
+                    .map(target -> documentHeads.get(target.modelId()))
+                    .filter(Objects::nonNull)
+                    .filter(head -> !head.isHistoryComplete())
+                    .findFirst()
+                    .ifPresent(head -> {
+                        throw invalid(
+                                "Model '%s' cannot be reconstructed at state index %d because its stored history is incomplete"
+                                        .formatted(head.getModelId(), head.getStateIndex()));
+                    });
         }
         if (!requireBoundary && replayTargets.isEmpty()
             && ancestorStateIndex == null && documentCacheBoundary != null) {
@@ -733,7 +739,8 @@ final class ModelReplayCursor {
             }
         }
         documentTargets.forEach(target -> modelCache.put(
-                target.modelId(), documentReader.load(target.modelId(), target.modelType())));
+                target.modelId(), documentReader.load(
+                        target.modelId(), target.modelType()).entity()));
         return new ModelCacheTracker.RefreshedBatch(safeStateIndex);
     }
 
@@ -839,29 +846,16 @@ final class ModelReplayCursor {
             result.putAll(reconstructed.entities());
         }
         for (MutationPlan.ResolvedModel target : documentTargets) {
-            Entity<?> entity = documentReader.load(target.modelId(), target.modelType());
+            DocumentVersion document = documentReader.load(
+                    target.modelId(), target.modelType());
+            Entity<?> entity = document.entity();
             ModelHeadState expected = heads.get(target.modelId());
-            if (expected == null) {
-                if (entity.isPresent()) {
-                    throw new EventSourcingException(
-                            "Model graph has no head for document model " + target.modelId());
-                }
-            } else {
-                entity = withDocumentHead(entity, expected);
+            if (!Objects.equals(expected, document.head())) {
+                throw new EventSourcingException(
+                        "Document model '%s' moved while reconstructing graph boundary"
+                                .formatted(target.modelId()));
             }
             result.put(target.modelId(), entity);
-        }
-        if (!documentTargets.isEmpty()) {
-            Map<String, ModelHeadState> currentHeads = loadHeads(
-                    documentTargets.stream().map(MutationPlan.ResolvedModel::modelId).toList(),
-                    ModelReadBoundary.CURRENT).heads();
-            for (MutationPlan.ResolvedModel target : documentTargets) {
-                if (!Objects.equals(heads.get(target.modelId()), currentHeads.get(target.modelId()))) {
-                    throw new EventSourcingException(
-                            "Document model '%s' moved while reconstructing graph boundary"
-                                    .formatted(target.modelId()));
-                }
-            }
         }
         return result;
     }
@@ -908,16 +902,6 @@ final class ModelReplayCursor {
                     "Could not resolve stored model type '%s' for %s"
                             .formatted(storedType, modelId), failure);
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Entity<?> withDocumentHead(Entity<?> entity, ModelHeadState head) {
-        if (head.isDeleted() != entity.isEmpty()) {
-            throw new EventSourcingException(
-                    "Document model '%s' has document presence=%s but its head reports deletion=%s"
-                            .formatted(head.getModelId(), entity.isPresent(), head.isDeleted()));
-        }
-        return withHead(entity, head, null);
     }
 
     @SuppressWarnings("unchecked")
@@ -2131,7 +2115,13 @@ final class ModelReplayCursor {
 
     @FunctionalInterface
     interface DocumentReader {
-        Entity<?> load(String modelId, Class<?> modelType);
+        DocumentVersion load(String modelId, Class<?> modelType);
+    }
+
+    record DocumentVersion(Entity<?> entity, ModelHeadState head) {
+        DocumentVersion {
+            Objects.requireNonNull(entity, "entity");
+        }
     }
 
     record Settings(

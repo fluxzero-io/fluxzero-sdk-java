@@ -341,7 +341,7 @@ class DefaultModelRepositoryCommitTest {
         assertTrue(commit.getSubsteps().getFirst().isPublishEvent());
         var target = commit.getSubsteps().getFirst().getTargets().getFirst();
         assertEquals(orderId.toString(), target.getModelId());
-        assertNull(target.getExpectedSequenceNumber());
+        assertEquals(-1L, target.getExpectedSequenceNumber());
         assertTrue(target.isStoreEvent());
         assertNotNull(target.getDocument());
         assertEquals(

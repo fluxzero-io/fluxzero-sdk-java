@@ -21,6 +21,7 @@ import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
@@ -153,6 +154,11 @@ class DocumentTrackingSearchClient implements SearchClient {
     @Override
     public Optional<SerializedDocument> fetch(GetDocument request) {
         return delegate.fetch(request);
+    }
+
+    @Override
+    public GetDocumentResult fetchModelDocument(GetDocument request) {
+        return delegate.fetchModelDocument(request);
     }
 
     @Override

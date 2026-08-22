@@ -43,6 +43,8 @@ import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -948,14 +950,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return (Entity<T>) entity;
     }
 
-    private Entity<?> loadDocumentProjection(String modelId, Class<?> modelType) {
+    private ModelReplayCursor.DocumentVersion loadDocumentProjection(
+            String modelId, Class<?> modelType) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         return loadDocumentUnchecked(
                 modelId, modelType, metadata, metadata.rootConfiguration().orElseThrow());
     }
 
     @SuppressWarnings("unchecked")
-    private Entity<?> loadDocumentUnchecked(
+    private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
             EntityMetadata.RootConfiguration configuration) {
         String collection = configuration.searchable()
@@ -970,12 +973,44 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 .filter(value -> !value.isEmpty())
                                 .map(ApplicationProperties::substituteProperties)
                                 .orElse(modelType.getSimpleName());
-        Object value = documentStore.fetchDocument(modelId, collection, modelType).orElse(null);
+        GetDocumentResult result = client.getSearchClient().fetchModelDocument(
+                new GetDocument(modelId, collection));
+        ModelHeadState head = result.getModelHead();
+        if (head != null) {
+            if (!modelId.equals(head.getModelId())) {
+                throw new EventSourcingException(
+                        "Direct Model document '%s' reports head identity '%s'"
+                                .formatted(modelId, head.getModelId()));
+            }
+            Class<?> storedType = replayCursor.modelType(
+                    head.getModelType(), modelId);
+            if (!modelType.isAssignableFrom(storedType)) {
+                throw new EventSourcingException(
+                        "Direct Model document '%s' has stored type %s instead of %s"
+                                .formatted(modelId, storedType.getName(), modelType.getName()));
+            }
+        }
+        Object value = result.getDocument() == null
+                ? null : serializer.deserialize(
+                        result.getDocument().getDocument(), modelType);
+        if (value != null && !modelType.isInstance(value)) {
+            throw new EventSourcingException(
+                    "Direct Model document '%s' contains %s instead of %s"
+                            .formatted(modelId, value.getClass().getName(), modelType.getName()));
+        }
         String idProperty = metadata.entityId().orElseThrow().name();
         ModelReplayCursor.validateValueId(modelId, metadata, value);
-        return ImmutableModelRoot.initial(
+        Entity<?> entity = ImmutableModelRoot.initial(
                 modelId, (Class<Object>) modelType, idProperty, value,
                 entityHelper, serializer);
+        if (head == null) {
+            return new ModelReplayCursor.DocumentVersion(entity, null);
+        }
+        Entity<?> revision = ImmutableModelRoot.revision(
+                entity.id(), (Class<Object>) entity.type(), entity.idProperty(), entity.get(),
+                entityHelper, serializer, null, null, entity.timestamp(),
+                head.getSequenceNumber(), head.getStateIndex(), null);
+        return new ModelReplayCursor.DocumentVersion(revision, head);
     }
 
     /**
@@ -1450,7 +1485,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             return new ModelCommitTarget(
                     transition.modelId(),
                     transition.modelType().getName(),
-                    expectedSequenceNumber(transition),
+                    transition.beforeSequenceNumber(),
                     transition.storeEvent(),
                     transition.updateState(),
                     transition.updateState()
@@ -1463,19 +1498,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     relationships.update(),
                     relationships.relationships(),
                     aliases);
-        }
-
-        private static Long expectedSequenceNumber(
-                Change transition) {
-            /*
-             * A directly loaded document contains the model value but no stream head. For an existing document, -1 would
-             * falsely claim that this is a create and force every update through conflict rebase. The commit-wide pinned
-             * read boundary already protects the target through readModelIds, so omit only this redundant target-level
-             * assertion. Retain explicit -1 for creates: it is both exact and enables the Runtime's missing-head fast path.
-             */
-            return !transition.configuration().eventSourced()
-                   && transition.before() != null
-                    ? null : transition.beforeSequenceNumber();
         }
 
         private SerializedMessage serialize(

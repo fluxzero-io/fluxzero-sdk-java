@@ -21,6 +21,7 @@ import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
@@ -156,6 +157,15 @@ public interface SearchClient extends AutoCloseable {
      * @return an optional containing the document, if found
      */
     Optional<SerializedDocument> fetch(GetDocument request);
+
+    /**
+     * Fetches a direct Model document together with the durable head written by the same
+     * materialization transaction.
+     */
+    default GetDocumentResult fetchModelDocument(GetDocument request) {
+        throw new UnsupportedOperationException(
+                "Versioned Model document loading is not supported by this search client");
+    }
 
     /**
      * Fetches a collection of serialized documents that match the given request.

@@ -18,6 +18,7 @@ package io.fluxzero.sdk.persisting.repository;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
@@ -31,8 +32,11 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelDeletionPlan;
 import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.MemoryPressureController;
@@ -68,6 +72,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.Searchable;
+import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -113,12 +118,27 @@ class DefaultModelRepositoryTest {
     private final Client client = mock(Client.class);
     private final EventStoreClient eventStoreClient = mock(EventStoreClient.class);
     private final DocumentStore documentStore = mock(DocumentStore.class);
+    private final SearchClient searchClient = mock(SearchClient.class);
+    private final JacksonSerializer serializer = new JacksonSerializer();
     private final DefaultModelRepository repository = repository();
 
     private DefaultModelRepository repository() {
         when(client.getEventStoreClient()).thenReturn(eventStoreClient);
+        when(client.getSearchClient()).thenReturn(searchClient);
+        when(searchClient.fetchModelDocument(any())).thenAnswer(invocation -> {
+            var request = (io.fluxzero.common.api.search.GetDocument) invocation.getArgument(0);
+            Product value = documentStore
+                    .<Product>fetchDocument(request.getId(), request.getCollection(), Product.class)
+                    .orElse(null);
+            return new GetDocumentResult(
+                    request.getRequestId(),
+                    value == null ? null : serializer.toDocument(
+                            value, request.getId(), request.getCollection(), null, null, Metadata.empty()),
+                    value == null ? null : new ModelHeadState(
+                            request.getId(), Product.class.getName(), 0L, 0L, true, false));
+        });
         return new DefaultModelRepository(
-                client, documentStore, new JacksonSerializer(),
+                client, documentStore, serializer,
                 new DefaultEntityHelper(List.of(), false), null,
                 NoOpCache.INSTANCE, List.of());
     }
@@ -309,6 +329,8 @@ class DefaultModelRepositoryTest {
         assertEquals(Product.class, result.type());
         assertEquals(product, result.get());
         assertEquals("productId", result.idProperty());
+        assertEquals(0L, result.sequenceNumber());
+        assertEquals(0L, ((ModelRoot<?>) result.root()).stateIndex());
         verify(documentStore).fetchDocument(id.toString(), "products", Product.class);
         verify(eventStoreClient, times(0)).getModelEvents(any());
     }
@@ -348,42 +370,10 @@ class DefaultModelRepositoryTest {
             fluxzero.serializer().registerTypeCaster(
                     "legacy.example.AliasedAccount",
                     AliasedAccount.class.getName());
-            ModelCommitStep substep =
-                    ModelCommitStep.builder()
-                            .event(new Message(
-                                    new CreateAliasedAccount(
-                                            id, 7))
-                                           .serialize(
-                                                   fluxzero.serializer()))
-                            .targets(List.of(
-                                    ModelCommitTarget.builder()
-                                            .modelId(
-                                                    id.toString())
-                                            .modelType(
-                                                    "legacy.example.AliasedAccount")
-                                            .storeEvent(false)
-                                            .updateState(true)
-                                            .relationships(
-                                                    List.of())
-                                            .build()))
-                            .build();
-            CommitModelsResult result =
-                    fluxzero.client()
-                            .getEventStoreClient()
-                            .commitModels(
-                                    new CommitModels(
-                                            "renamed-type",
-                                            -1L,
-                                            List.of(
-                                                    id.toString()),
-                                            List.of(substep),
-                                            ModelConflictPolicy.ACCEPT,
-                                            Guarantee.STORED, true))
-                            .join();
-            assertTrue(result.isAccepted());
-            fluxzero.documentStore().index(
-                    new AliasedAccount(id, 7),
-                    id, "aliasedAccounts").join();
+            commitDirectDocument(
+                    fluxzero, "renamed-type", id.toString(),
+                    "legacy.example.AliasedAccount", "aliasedAccounts",
+                    new AliasedAccount(id, 7));
 
             Entity<Object> loaded =
                     fluxzero.modelRepository()
@@ -755,14 +745,16 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void standardFluxzeroConfigurationLoadsFromItsDirectDocumentStore() {
+    void standardFluxzeroConfigurationLoadsItsAtomicDirectModelDocument() {
         ProductId id = new ProductId("configured");
         Product product = new Product(id, "configured");
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableKeepalive()
                 .disableShutdownHook()
                 .build(LocalClient.newInstance(null))) {
-            fluxzero.documentStore().index(product, id, "products").join();
+            commitDirectDocument(
+                    fluxzero, "configured-product", id.toString(),
+                    Product.class.getName(), "products", product);
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -1790,6 +1782,33 @@ class DefaultModelRepositoryTest {
         assertTrue(result.isAccepted());
         return result.getUpdates().getLast()
                 .getStateIndex();
+    }
+
+    private static void commitDirectDocument(
+            Fluxzero fluxzero, String commitId, String modelId,
+            String modelType, String collection, Object value) {
+        ModelCommitStep substep = ModelCommitStep.builder()
+                .event(new Message(value).serialize(fluxzero.serializer()))
+                .targets(List.of(ModelCommitTarget.builder()
+                                         .modelId(modelId)
+                                         .modelType(modelType)
+                                         .expectedSequenceNumber(-1L)
+                                         .updateState(true)
+                                         .document(new ModelDocumentMutation(
+                                                 collection,
+                                                 fluxzero.configuration().documentSerializer()
+                                                         .toDocument(
+                                                                 value, modelId, collection,
+                                                                 null, null)))
+                                         .relationships(List.of())
+                                         .build()))
+                .build();
+        CommitModelsResult result = fluxzero.client().getEventStoreClient()
+                .commitModels(new CommitModels(
+                        commitId, -1L, List.of(modelId), List.of(substep),
+                        ModelConflictPolicy.ACCEPT, Guarantee.STORED, true))
+                .join();
+        assertTrue(result.isAccepted());
     }
 
     private static long commitModels(

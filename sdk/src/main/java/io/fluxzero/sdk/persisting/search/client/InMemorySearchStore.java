@@ -26,6 +26,7 @@ import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
@@ -33,6 +34,7 @@ import io.fluxzero.common.api.search.DocumentUpdate;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
@@ -104,7 +106,7 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     private final Map<String, SerializedDocument> documents = new ConcurrentHashMap<>();
-    private final Map<String, Long> modelDocumentStateIndices =
+    private final Map<String, DirectDocumentVersion> modelDocumentVersions =
             new ConcurrentHashMap<>();
     private volatile long modelStateIndex = -1L;
     private final Map<String, Long>
@@ -379,6 +381,16 @@ public class InMemorySearchStore implements SearchClient {
         return Optional.ofNullable(documents.get(asIdentifier(r.getCollection(), r.getId())));
     }
 
+    @Override
+    public synchronized GetDocumentResult fetchModelDocument(GetDocument request) {
+        DirectDocumentVersion version = modelDocumentVersions.get(request.getId());
+        ModelHeadState head = version != null && version.collection().equals(request.getCollection())
+                ? version.head() : null;
+        return new GetDocumentResult(
+                request.getRequestId(), head == null ? null
+                        : documents.get(asIdentifier(request.getCollection(), request.getId())), head);
+    }
+
     /**
      * Resolves target model IDs from related matches at the current relationship boundary.
      */
@@ -589,25 +601,37 @@ public class InMemorySearchStore implements SearchClient {
                 }
                 long stateIndex =
                         assigned.getStateIndex();
+                ModelCommitTargetResult position =
+                        assigned.getTargets().get(targetIndex);
                 if (target.getDocument() != null) {
-                    long current =
-                            modelDocumentStateIndices
-                                    .getOrDefault(
-                                            target.getModelId(),
-                                            -1L);
+                    DirectDocumentVersion currentVersion =
+                            modelDocumentVersions.get(target.getModelId());
+                    long current = currentVersion == null ? -1L
+                            : currentVersion.head().getStateIndex();
                     if (current < stateIndex) {
-                        modelDocumentStateIndices.put(
-                                target.getModelId(),
-                                stateIndex);
                         var mutation =
                                 target.getDocument();
                         SerializedDocument document =
                                 mutation.getDocument();
+                        String documentKey = asIdentifier(
+                                mutation.getCollection(), target.getModelId());
+                        String modelType = target.getModelType() != null
+                                ? target.getModelType()
+                                : currentVersion == null ? null
+                                        : currentVersion.head().getModelType();
+                        if (modelType == null) {
+                            throw new IllegalArgumentException(
+                                    "A direct Model document's first commit must provide its model type");
+                        }
+                        modelDocumentVersions.put(
+                                target.getModelId(),
+                                new DirectDocumentVersion(
+                                        mutation.getCollection(), new ModelHeadState(
+                                                target.getModelId(), modelType,
+                                                position.getSequenceNumber(), stateIndex,
+                                                position.isHistoryComplete(), target.isDelete())));
                         if (document == null) {
-                            documents.remove(
-                                    asIdentifier(
-                                            mutation.getCollection(),
-                                            target.getModelId()));
+                            documents.remove(documentKey);
                         } else {
                             documents.put(
                                     identifier.apply(document),
@@ -620,9 +644,6 @@ public class InMemorySearchStore implements SearchClient {
                         }
                     }
                 }
-                ModelCommitTargetResult position =
-                        assigned.getTargets()
-                                .get(targetIndex);
                 if (target.getSnapshot() != null
                     && position.isHistoryComplete()) {
                     SerializedDocument document =
@@ -644,6 +665,9 @@ public class InMemorySearchStore implements SearchClient {
             }
         }
         storeMessages(indexed);
+    }
+
+    private record DirectDocumentVersion(String collection, ModelHeadState head) {
     }
 
     /**

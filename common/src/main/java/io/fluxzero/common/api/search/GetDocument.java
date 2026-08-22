@@ -18,6 +18,8 @@ import io.fluxzero.common.api.Request;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
+
 /**
  * Request to fetch a single document from the search store by ID and collection.
  * <p>
@@ -36,4 +38,21 @@ public class GetDocument extends Request {
      * The collection in which the document is stored.
      */
     String collection;
+
+    /**
+     * Whether the result should include the durable Model head stored atomically with a direct
+     * Model document. Ordinary document reads leave this disabled.
+     */
+    boolean includeModelHead;
+
+    public GetDocument(String id, String collection) {
+        this(id, collection, false);
+    }
+
+    @ConstructorProperties({"id", "collection", "includeModelHead"})
+    public GetDocument(String id, String collection, boolean includeModelHead) {
+        this.id = id;
+        this.collection = collection;
+        this.includeModelHead = includeModelHead;
+    }
 }
