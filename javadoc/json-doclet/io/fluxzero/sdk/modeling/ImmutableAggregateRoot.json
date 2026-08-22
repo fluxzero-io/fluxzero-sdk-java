@@ -206,6 +206,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "resolveDeclaredType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot#resolveDeclaredType",
+    "returnType" : "java.lang.Class<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updated",
+      "type" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "update",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableAggregateRoot#update",
     "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",

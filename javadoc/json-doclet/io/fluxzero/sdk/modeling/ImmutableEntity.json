@@ -544,6 +544,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "declaredType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#declaredType",
+    "returnType" : "java.lang.Class<T>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "expectedTargetId",
     "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity#expectedTargetId",
     "returnType" : "java.lang.Object",
