@@ -34,6 +34,8 @@ import java.lang.annotation.Target;
  * The parent model type is inferred when the property is an {@link Id}{@code <T>}. For a {@link String} or another
  * untyped ID, {@link #value()} may name the parent model explicitly. An explicit type is required only for features
  * that need parent model metadata, including automatic graph-document composition.
+ * A typed parent may target the declaring model type itself, for example to represent folders within folders.
+ * Concrete relationship cycles are rejected atomically when the relationship change is committed.
  * <p>
  * {@link #path()} is an optional path relative to the parent document. Supplying it opts this edge into automatic
  * virtual-document stitching and CQRS graph placement. Omitting it leaves relationship navigation and graph bundles

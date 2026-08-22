@@ -95,7 +95,8 @@ public final class EntityMetadata {
      * Returns and validates the centrally cached metadata, including all statically typed parent relations reachable
      * from this type.
      * <p>
-     * Relations using untyped IDs are checked for cycles when their relationship deltas are committed.
+     * Same-type recursive relations and relations using untyped IDs are checked for concrete ID cycles when their
+     * relationship deltas are committed.
      */
     public static EntityMetadata validate(Class<?> type) {
         EntityMetadata result = of(type);
@@ -991,6 +992,9 @@ public final class EntityMetadata {
         path.add(current);
         for (ParentReference reference : of(current).parentReferences) {
             for (Class<?> parentType : reference.parentModelTypes()) {
+                if (current.equals(parentType)) {
+                    continue;
+                }
                 validateParentGraph(parentType, visited, path);
             }
         }

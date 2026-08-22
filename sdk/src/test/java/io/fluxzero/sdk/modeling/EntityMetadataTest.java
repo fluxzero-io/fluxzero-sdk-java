@@ -472,6 +472,15 @@ class EntityMetadataTest {
     }
 
     @Test
+    void acceptsRecursiveSameTypeParentRelationship() {
+        EntityMetadata.ParentReference parent = EntityMetadata.validate(RecursiveFolder.class)
+                .parentReferences().getFirst();
+
+        assertEquals(RecursiveFolder.class, parent.parentModelType());
+        assertEquals("children", parent.path());
+    }
+
+    @Test
     void leavesUntypedParentCycleDetectionToCommitTime() {
         assertNull(EntityMetadata.validate(UntypedParentModel.class)
                            .parentReferences().getFirst().parentModelType());
@@ -892,6 +901,18 @@ class EntityMetadataTest {
         CycleBId(String id) {
             super(id);
         }
+    }
+
+    private static class RecursiveFolderId extends Id<RecursiveFolder> {
+        RecursiveFolderId(String id) {
+            super(id);
+        }
+    }
+
+    @Model
+    private record RecursiveFolder(
+            @EntityId RecursiveFolderId id,
+            @Parent(path = "children") RecursiveFolderId parentId) {
     }
 
     @Model
