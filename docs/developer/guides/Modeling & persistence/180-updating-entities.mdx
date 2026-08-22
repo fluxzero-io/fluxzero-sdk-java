@@ -88,6 +88,26 @@ attached without changing the update:
 Fluxzero.assertAndApply(command, Metadata.of("source", "admin"));
 ```
 
+## Flushing an existing automatic commit early
+
+Fluxzero normally commits Model changes automatically at the configured handler or batch boundary. Code that runs
+later in the same handling context can exceptionally request that an already produced automatic commit be made
+durable immediately:
+
+```java
+CompletableFuture<Void> durable = Fluxzero.commit();
+```
+
+`Fluxzero.commit()` does not apply an update and does not create a second commit. It releases the current commit through
+the ordinary conflict, retry, document, snapshot, relationship and completion path and returns that commit's existing
+future. Repeated calls observe the same completion. The normal automatic boundary remains active but cannot commit the
+changes twice.
+
+When the current handling context has not produced Model changes, the returned future is already complete and no
+Runtime request is sent. Use `Fluxzero.assertAndApply(...)`, `Graph.assertAndApply(...)` or `Graph.commit()` to produce
+an explicit change; `Fluxzero.commit()` is only an early durability boundary for changes that already exist. Never
+block on it from inside `@Apply`: applies must remain pure and have not returned their change yet.
+
 ## Creating and deleting
 
 An apply without a current value can create a model:

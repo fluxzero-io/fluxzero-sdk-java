@@ -111,6 +111,12 @@ CompletableFuture<Void> handle(ImportProject command) {
 }
 ```
 
+Fluxzero commits automatically. Only when a later step in the same handling context must force an already produced
+automatic Model commit to durability, use `Fluxzero.commit()` and compose on its returned `CompletableFuture<Void>`.
+It is a release of the existing commit, not another mutation path: repeated calls share its completion, automatic
+commit remains enabled, and a context without pending changes completes without Runtime transport. Do not call or wait
+on it inside `@Apply`; the apply has not returned its change yet.
+
 ## Assertions and interceptors
 
 ```java

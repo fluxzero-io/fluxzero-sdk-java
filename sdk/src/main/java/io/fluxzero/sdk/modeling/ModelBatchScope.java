@@ -154,6 +154,17 @@ public final class ModelBatchScope {
         return io.fluxzero.sdk.common.ClientUtils.getConsumerNamespace(current == null ? message : current);
     }
 
+    /**
+     * Releases the pending Model commit attached to the current message and returns its existing completion. A context
+     * without pending changes completes immediately and never opens transport.
+     */
+    public static CompletableFuture<Void> commitCurrent() {
+        DeserializingMessage message = DeserializingMessage.getCurrent();
+        CommitCoordination current = message == null ? null
+                : message.getContext(CommitCoordination.class).orElse(null);
+        return current == null ? CommitCoordination.COMPLETED : current.commitCurrent();
+    }
+
     /** Overlays a durable direct load with the newest pending model or alias visible to the current message. */
     @SuppressWarnings({"rawtypes", "unchecked"})
     public static <T> Entity<T> overlayCurrent(
@@ -462,8 +473,10 @@ public final class ModelBatchScope {
         private final CompletableFuture<Void> release;
         final ModelCommitPolicy policy;
         private final Runnable flushBatch;
+        private final Batch batch;
         private volatile boolean claimed;
         private volatile boolean cancelled;
+        private volatile boolean explicitlyCommitted;
         private volatile Set<CommitCoordination> dependencies;
         volatile Set<String> modelIds;
         volatile ModelCommitBatchingClient.ModelCommitBatch transport;
@@ -471,12 +484,14 @@ public final class ModelBatchScope {
 
         private CommitCoordination(CommitAttempt attempt, ModelCommitPolicy policy,
                       CompletableFuture<Void> initialized,
-                      CompletableFuture<Void> release, Runnable flushBatch) {
+                      CompletableFuture<Void> release, Runnable flushBatch,
+                      Batch batch) {
             this.attempt = Objects.requireNonNull(attempt, "attempt");
             this.policy = policy;
             this.initialized = initialized;
             this.release = release;
             this.flushBatch = flushBatch;
+            this.batch = batch;
         }
 
         static CommitCoordination direct() {
@@ -484,14 +499,19 @@ public final class ModelBatchScope {
         }
 
         static CommitCoordination direct(CommitAttempt attempt) {
-            return new CommitCoordination(attempt, null, COMPLETED, COMPLETED, null);
+            return new CommitCoordination(attempt, null, COMPLETED, COMPLETED, null, null);
         }
 
-        static CommitCoordination batched(ModelCommitPolicy policy, boolean released, Runnable flushBatch) {
+        static CommitCoordination batched(
+                ModelCommitPolicy policy,
+                boolean released,
+                Runnable flushBatch,
+                Batch batch) {
             return new CommitCoordination(new CommitAttempt(), Objects.requireNonNull(policy),
                              new CompletableFuture<>(),
                              released ? COMPLETED : new CompletableFuture<>(),
-                             Objects.requireNonNull(flushBatch));
+                             Objects.requireNonNull(flushBatch),
+                             Objects.requireNonNull(batch));
         }
 
         CommitAttempt attempt() {
@@ -500,6 +520,16 @@ public final class ModelBatchScope {
 
         boolean batched() {
             return policy != null;
+        }
+
+        CompletableFuture<Void> commitCurrent() {
+            if (batch == null) {
+                release();
+                flushTransport();
+            } else {
+                batch.commit(this);
+            }
+            return attempt.completionResult();
         }
 
         void initialize(Collection<String> ids) {
@@ -625,10 +655,12 @@ public final class ModelBatchScope {
 
         private synchronized CommitCoordination register(ModelCommitPolicy policy) {
             if (closed) {
-                return CommitCoordination.batched(policy, true, () -> settleTransport(null));
+                return CommitCoordination.batched(
+                        policy, true, () -> settleTransport(null), this);
             }
             CommitCoordination entry = CommitCoordination.batched(
-                    policy, !policy.commitAfterBatch(), () -> settleTransport(null));
+                    policy, !policy.commitAfterBatch(),
+                    () -> settleTransport(null), this);
             if (!policy.commitAfterBatch()) {
                 if (readyTransport == null) {
                     readyTransport = lifecycle.readyBatch().get();
@@ -637,6 +669,33 @@ public final class ModelBatchScope {
             }
             entries.add(entry);
             return entry;
+        }
+
+        private void commit(CommitCoordination entry) {
+            synchronized (this) {
+                if (entry.explicitlyCommitted) {
+                    return;
+                }
+                entry.explicitlyCommitted = true;
+                int index = entries.indexOf(entry);
+                if (index > 0) {
+                    List<CommitCoordination> predecessors = entries.subList(0, index);
+                    if (!entry.policy.async()
+                        || predecessors.stream().anyMatch(previous -> !previous.policy.async())) {
+                        predecessors.forEach(entry::dependsOn);
+                    } else if (entry.modelIds == null) {
+                        predecessors.forEach(entry::dependsOn);
+                    } else {
+                        predecessors.stream()
+                                .filter(previous -> previous.modelIds == null
+                                                    || previous.modelIds.stream()
+                                                            .anyMatch(entry.modelIds::contains))
+                                .forEach(entry::dependsOn);
+                    }
+                }
+                entry.release();
+            }
+            entry.flushTransport();
         }
 
         private void close(Throwable failure) {
@@ -673,7 +732,7 @@ public final class ModelBatchScope {
                             .toArray(CompletableFuture[]::new)));
         }
 
-        private void release(
+        private synchronized void release(
                 List<CommitCoordination> all,
                 List<CommitCoordination> deferred) {
             for (CommitCoordination entry : all) {
@@ -683,6 +742,12 @@ public final class ModelBatchScope {
                     break;
                 }
             }
+            if (deferred.isEmpty()) {
+                return;
+            }
+            deferred = deferred.stream()
+                    .filter(entry -> !entry.explicitlyCommitted)
+                    .toList();
             if (deferred.isEmpty()) {
                 return;
             }

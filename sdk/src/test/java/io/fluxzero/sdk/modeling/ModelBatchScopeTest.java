@@ -15,9 +15,13 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import org.junit.jupiter.api.Test;
 
@@ -25,14 +29,120 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mock;
 
 class ModelBatchScopeTest {
+
+    @Test
+    void publicCommitIsANoOpWithoutCurrentChanges() {
+        Fluxzero previous = Fluxzero.instance.get();
+        try {
+            Fluxzero.instance.set(mock(Fluxzero.class, CALLS_REAL_METHODS));
+
+            CompletableFuture<Void> result = Fluxzero.commit();
+
+            assertTrue(result.isDone());
+            assertSame(result, ModelBatchScope.commitCurrent());
+        } finally {
+            Fluxzero.instance.set(previous);
+        }
+    }
+
+    @Test
+    void explicitCommitReleasesCurrentEntryAndRemovesItFromDeferredTransport() {
+        AtomicInteger deferredCapacity = new AtomicInteger(-1);
+        AtomicInteger skipped = new AtomicInteger();
+        List<String> committed = new ArrayList<>();
+        ModelCommitBatchingClient.ModelCommitBatch deferred = batch(
+                skipped, new AtomicInteger());
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(
+                () -> null,
+                capacity -> {
+                    deferredCapacity.set(capacity);
+                    return deferred;
+                });
+        AtomicReference<CompletableFuture<Void>> explicit = new AtomicReference<>();
+
+        DeserializingMessage.forEachInBatch(
+                List.of(message("first"), message("second")), current -> {
+                    String id = current.getPayload().toString();
+                    ModelBatchScope.CommitCoordination entry = ModelBatchScope.register(
+                            this, current, ModelCommitPolicy.ASYNC_AFTER_BATCH, lifecycle);
+                    entry.attempt().evaluated(
+                            0L, List.of(id), Map.of(id, AliasModel.class),
+                            List.of(new CommitAttempt.Step(
+                                    current, List.of(Change.applied(
+                                            id, AliasModel.class, -1L, null,
+                                            null, new AliasModel(id, id, 1),
+                                            null, null, false)))));
+                    ModelBatchScope.stage(null, entry);
+                    entry.initialize(List.of(id));
+                    entry.submit(ignored -> {
+                        committed.add(id);
+                        return CompletableFuture.completedFuture(null);
+                    });
+                    if ("first".equals(id)) {
+                        explicit.set(ModelBatchScope.commitCurrent());
+                        assertSame(explicit.get(), ModelBatchScope.commitCurrent());
+                        assertEquals(List.of("first"), committed);
+                    } else {
+                        assertEquals(List.of("first"), committed);
+                    }
+                });
+
+        assertTrue(explicit.get().isDone());
+        assertEquals(List.of("first", "second"), committed);
+        assertEquals(1, deferredCapacity.get());
+        assertEquals(1, skipped.get());
+    }
+
+    @Test
+    void explicitCommitFlushesTheExistingReadyTransportAndReturnsItsCompletion() {
+        AtomicInteger flushed = new AtomicInteger();
+        AtomicInteger skipped = new AtomicInteger();
+        ModelCommitBatchingClient.ModelCommitBatch ready = batch(skipped, flushed);
+        ModelBatchScope.BatchLifecycle lifecycle = new ModelBatchScope.BatchLifecycle(
+                () -> ready,
+                ignored -> null);
+        CompletableFuture<Object> durable = new CompletableFuture<>();
+        AtomicReference<CompletableFuture<Void>> explicit = new AtomicReference<>();
+
+        DeserializingMessage.forEachInBatch(List.of(message("ready")), current -> {
+            ModelBatchScope.CommitCoordination entry = ModelBatchScope.register(
+                    this, current,
+                    ModelCommitPolicy.ASYNC_AFTER_HANDLER_AWAIT_AFTER_BATCH,
+                    lifecycle);
+            entry.attempt().evaluated(
+                    0L, List.of("ready"), Map.of("ready", AliasModel.class),
+                    List.of(new CommitAttempt.Step(
+                            current, List.of(Change.applied(
+                                    "ready", AliasModel.class, -1L, null,
+                                    null, new AliasModel("ready", "ready", 1),
+                                    null, null, false)))));
+            ModelBatchScope.stage(null, entry);
+            entry.initialize(List.of("ready"));
+            entry.submit(ignored -> durable);
+
+            explicit.set(ModelBatchScope.commitCurrent());
+            assertSame(entry.attempt().completion(), explicit.get());
+            assertSame(explicit.get(), ModelBatchScope.commitCurrent());
+            assertFalse(explicit.get().isDone());
+            assertEquals(1, flushed.get());
+            durable.complete(null);
+            explicit.get().join();
+        });
+
+        assertEquals(1, flushed.get());
+        assertEquals(1, skipped.get());
+    }
 
     @Test
     void exposesPendingValuesAndAliasChangesOnlyInsideTheirMessageBatch() {
@@ -389,6 +499,34 @@ class ModelBatchScopeTest {
                         .withSegment(segment),
                 ignored -> payload,
                 MessageType.COMMAND, null, serializer);
+    }
+
+    private static ModelCommitBatchingClient.ModelCommitBatch batch(
+            AtomicInteger skipped,
+            AtomicInteger flushed) {
+        return new ModelCommitBatchingClient.ModelCommitBatch() {
+            @Override
+            public CompletableFuture<CommitModelsResult> add(
+                    int slot,
+                    CommitModels commit) {
+                throw new AssertionError("The coordination test does not add transport payloads");
+            }
+
+            @Override
+            public void skip(int slot) {
+                skipped.incrementAndGet();
+            }
+
+            @Override
+            public void flush() {
+                flushed.incrementAndGet();
+            }
+
+            @Override
+            public void fail(Throwable failure) {
+                throw new AssertionError(failure);
+            }
+        };
     }
 
     @Model

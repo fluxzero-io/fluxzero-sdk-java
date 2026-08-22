@@ -50,6 +50,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
@@ -585,6 +586,21 @@ public interface Fluxzero extends AutoCloseable {
         Message message = modelMessage(update);
         awaitModelCommit(get().executeModelCommit(
                 message.withMetadata(message.getMetadata().with(metadata))));
+    }
+
+    /**
+     * Commits Model changes already produced in the current handling context without waiting for its normal automatic
+     * commit boundary.
+     * <p>
+     * This is an optional early flush of the existing Model commit, not a separate mutation or commit path. The
+     * returned future is the existing durable commit completion and therefore carries the same success or failure.
+     * When the current context has no pending Model changes, the method returns an already completed future and sends
+     * nothing to the Runtime. Automatic committing remains active and observes the same completion.
+     *
+     * @return completion of the current durable Model commit, or completed completion when no changes are pending
+     */
+    static CompletableFuture<Void> commit() {
+        return get().commitModelChanges();
     }
 
     /**
@@ -1817,6 +1833,14 @@ public interface Fluxzero extends AutoCloseable {
     default CompletableFuture<Void> executeModelCommit(Message update) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
                 "This Fluxzero implementation does not support direct model commits"));
+    }
+
+    /**
+     * Flushes Model changes already attached to the current handling context. This extension point backs
+     * {@link #commit()} and may be overridden by custom Fluxzero implementations with a different Model pipeline.
+     */
+    default CompletableFuture<Void> commitModelChanges() {
+        return ModelBatchScope.commitCurrent();
     }
 
     /**

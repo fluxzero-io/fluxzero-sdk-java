@@ -91,6 +91,12 @@ Use an explicit handler only for real orchestration and call `Fluxzero.assertAnd
 When the handler itself should remain asynchronous, return `Fluxzero.assertAndApplyAsync(command)` and let the handler
 future represent the durable model commit.
 
+Fluxzero commits automatically. Only when a later step in the same handling context must force an already produced
+automatic Model commit to durability, use `Fluxzero.commit()` and compose on its returned `CompletableFuture<Void>`.
+It releases the existing commit rather than starting another mutation path: repeated calls share its completion,
+automatic commit remains enabled, and a context without pending changes completes without Runtime transport. Do not
+call or wait on it inside `@Apply`; the apply has not returned its change yet.
+
 ## Assertions and interceptors
 
 ```kotlin

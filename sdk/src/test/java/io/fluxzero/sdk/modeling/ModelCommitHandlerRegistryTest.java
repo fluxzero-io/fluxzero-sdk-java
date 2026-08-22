@@ -31,6 +31,7 @@ import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.serialization.RegisterType;
+import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -62,9 +63,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -1144,6 +1147,97 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void explicitCommitReleasesTheExistingAfterBatchCommitExactlyOnce()
+            throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            commitStarted.complete(commit);
+            return commitResponse;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        Fluxzero fluxzero = mock(Fluxzero.class, CALLS_REAL_METHODS);
+        AtomicReference<CompletableFuture<Void>> explicit = new AtomicReference<>();
+        CompletableFuture<CompletableFuture<Void>> explicitIssued = new CompletableFuture<>();
+        CountDownLatch finishHandlerIteration = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() -> {
+                Fluxzero previous = Fluxzero.instance.get();
+                Fluxzero.instance.set(fluxzero);
+                try {
+                    DeserializingMessage.forEachInBatch(
+                            List.of(message(new BatchTimingCreateCommand("explicit"))),
+                            current -> {
+                                subject.handle(current).orElseThrow();
+                                explicit.set(Fluxzero.commit());
+                                assertSame(explicit.get(), Fluxzero.commit());
+                                explicitIssued.complete(explicit.get());
+                                try {
+                                    finishHandlerIteration.await();
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(e);
+                                }
+                            });
+                } finally {
+                    Fluxzero.instance.set(previous);
+                }
+            }, executor);
+
+            CommitModels commit = commitStarted.get(5, TimeUnit.SECONDS);
+            CompletableFuture<Void> explicitCompletion = explicitIssued.get(5, TimeUnit.SECONDS);
+            assertFalse(explicitCompletion.isDone());
+            assertFalse(batch.isDone());
+
+            commitResponse.complete(CommitModelsResult.acceptedSingleTarget(
+                    commit.getRequestId(), commit.getCommitId(), 1L, 1L,
+                    "explicit", 0L, true));
+            explicitCompletion.get(5, TimeUnit.SECONDS);
+            assertFalse(batch.isDone());
+
+            finishHandlerIteration.countDown();
+            batch.get(5, TimeUnit.SECONDS);
+            verify(eventStoreClient, times(1)).commitModels(any());
+        } finally {
+            finishHandlerIteration.countDown();
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
+    void explicitCommitDoesNotOpenTransportForAnEmptyModelChange() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        Fluxzero fluxzero = mock(Fluxzero.class, CALLS_REAL_METHODS);
+
+        try {
+            Fluxzero previous = Fluxzero.instance.get();
+            Fluxzero.instance.set(fluxzero);
+            try {
+                DeserializingMessage.forEachInBatch(
+                        List.of(message(new EmptyModelChangeCommand())), current -> {
+                            subject.handle(current).orElseThrow();
+                            Fluxzero.commit().join();
+                        });
+            } finally {
+                Fluxzero.instance.set(previous);
+            }
+            verify(eventStoreClient, never()).commitModels(any());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void synchronousAfterBatchPolicyCommitsSequentially()
             throws Exception {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
@@ -1972,6 +2066,13 @@ class ModelCommitHandlerRegistryTest {
         @Apply
         BatchTimingModel apply() {
             return new BatchTimingModel(id);
+        }
+    }
+
+    private record EmptyModelChangeCommand() {
+        @Apply
+        List<Object> apply() {
+            return List.of();
         }
     }
 

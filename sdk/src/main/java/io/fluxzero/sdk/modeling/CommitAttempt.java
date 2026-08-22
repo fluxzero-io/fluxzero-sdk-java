@@ -360,6 +360,12 @@ public final class CommitAttempt {
         return result;
     }
 
+    /** Returns this exact commit completion through its public no-value contract. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    CompletableFuture<Void> completionResult() {
+        return (CompletableFuture) completion();
+    }
+
     void submit(Supplier<CompletableFuture<Object>> execution) {
         synchronized (this) {
             if (submitted) {
