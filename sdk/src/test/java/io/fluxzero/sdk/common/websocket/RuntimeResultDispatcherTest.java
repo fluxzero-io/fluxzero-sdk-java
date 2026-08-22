@@ -248,15 +248,16 @@ class RuntimeResultDispatcherTest {
                         }
                         await(failureReleased);
                     });
-            dispatcher.submitStaged("a", () -> {});
-            dispatcher.submitStaged("b", () -> {});
+            RuntimeIngressController.MessageDispatch sameSession = dispatcher.submitStaged("a", () -> {});
+            RuntimeIngressController.MessageDispatch otherSession = dispatcher.submitStaged("b", () -> {});
             RuntimeIngressController.MessageDispatch waiting = dispatcher.submitStaged("c", () -> {});
 
             assertTrue(callbacksEntered.await(10, TimeUnit.SECONDS));
             assertFalse(waiting.admission().isDone());
             allowFailure.countDown();
             assertThrows(Exception.class, () -> failing.get(10, TimeUnit.SECONDS));
-            waiting.completion().get(10, TimeUnit.SECONDS);
+            CompletableFuture.allOf(sameSession.completion(), otherSession.completion(), waiting.completion())
+                    .get(10, TimeUnit.SECONDS);
 
             assertTrue(waiting.admission().isDone());
             assertEquals(new RuntimeResultDispatcher.State(0, 0, 0, 0, 3), dispatcher.state());
