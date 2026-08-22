@@ -126,11 +126,14 @@ public @interface HandleDocument {
      * collection do not receive them.
      * <p>
      * A non-passive handler may return the injected complete {@code Graph<RootModel>} to persist ordinary serializer
-     * upcasting of its root and descendants into the materialized projection. This is a projection-only migration:
-     * the graph must retain the handled root, state boundary, nodes and placements, and direct Models, relationships
-     * and projection progress are never changed. The Runtime replaces the document only if its original manifest is
-     * still current, so a delayed handler cannot overwrite a newer projection. Returning a Graph whose node schemas
-     * are already current is a no-op; tombstones remain observational.
+     * upcasting of its root and descendants into the materialized projection. Every node retains its own serialized
+     * type and revision and uses the ordinary {@link io.fluxzero.sdk.common.serialization.casting.Upcast @Upcast}
+     * chain; there is no Graph-wide upcaster. An upcaster may return a {@code Data<T>} envelope to evolve a node's type
+     * and content together without a separate typecaster. This is a projection-only migration: the graph must retain
+     * the handled root, state boundary, nodes and placements, and direct Models, relationships and projection progress
+     * are never changed. The Runtime replaces the document only if its original manifest is still current, so a
+     * delayed handler cannot overwrite a newer projection. Returning a Graph whose node schemas are already current
+     * is a no-op; tombstones remain observational.
      * <p>
      * An explicit {@link #value()} takes precedence. Otherwise this attribute takes precedence over
      * {@link #documentClass()} and inference from the first handler parameter.

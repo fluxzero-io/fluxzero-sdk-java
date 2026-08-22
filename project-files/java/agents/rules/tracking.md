@@ -190,6 +190,23 @@ public class OrderRebuilder {
 }
 ```
 
+Materialized Model Graphs use a distinct projection-only rebuild contract. Every node is lazily upcast through its own
+type and revision. If that evolved JSON must be made durable for search, return the complete typed Graph:
+
+```java
+@Consumer(name = "rematerialize-project-graphs-v2", minIndex = 0)
+public class ProjectGraphRebuilder {
+    @HandleDocument(modelGraph = Project.class)
+    Graph<Project> onProject(Graph<Project> graph) {
+        return graph;
+    }
+}
+```
+
+The Graph must preserve its root, state boundary, nodes and placements. This does not update direct Models, events,
+snapshots, relationships or projection progress. An unchanged Graph is a no-op, and the Runtime atomically prevents a
+delayed handler from replacing a newer projection.
+
 ---
 
 <a name="retention"></a>

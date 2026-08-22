@@ -181,7 +181,15 @@ record Account(@EntityId AccountId accountId, Money balance) {
 - stale snapshot or cache writes can never overwrite a higher `stateIndex`.
 
 Snapshots are an optimization. The model stream remains authoritative for event-sourced loading unless publication was
-explicitly configured to omit required history.
+explicitly configured to omit required history. Fluxzero does not retain a full direct document in every Model commit:
+the direct search collection contains the current document, while `maxSnapshotCount` bounds the durable snapshots kept
+for that Model. The event payloads remain the long-term history.
+
+Loading an old Model with billions of unrelated namespace commits does not scan the namespace log. The Runtime selects
+the Model's own stream and the SDK starts from its newest applicable snapshot or checkpoint, then replays only that
+Model's remaining suffix. Choose snapshot periods from the expected per-Model history and state size; namespace age by
+itself does not increase replay work. Long histories for one individual Model still deserve an explicit snapshot and
+retention policy.
 
 ## Conflict policies
 

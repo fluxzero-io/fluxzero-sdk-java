@@ -3215,6 +3215,21 @@ boundary that explicitly needs raw documents. Graph constraints have the same fu
 `searchable = false` suppresses only the address's own search collection: an explicit
 `@Parent(path = "...")` still gives graph composition an internal current document.
 
+Relations may be recursive. A `Folder` can, for example, point to another `Folder` through a typed parent ID; the
+relation remains an ordinary independently stored edge and does not turn the descendants into embedded state:
+
+```java
+@Model(searchable = true)
+record Folder(
+        @EntityId FolderId folderId,
+        @Parent(path = "folders") FolderId parentFolderId,
+        String name) {
+}
+```
+
+Fluxzero supports this direct same-type recursion without requiring a finite type graph. It rejects a concrete cycle
+atomically when a write would make a folder its own ancestor.
+
 One relationship property may deliberately accept several parent model types. Declare those possibilities statically
 and keep the domain value as a typed `Id`; the concrete `Id` subtype selects the relationship at runtime:
 
@@ -3272,6 +3287,26 @@ default. Set `GraphProjection.collection` only when a custom durable name is nee
 completion is explicitly configured otherwise. Both live and materialized composition follow the complete finite graph
 by default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use `UNBOUNDED` (`-1`) when
 absent. An explicit guardrail fails instead of publishing a partial graph.
+
+Every node in a materialized graph keeps its own serialized type and revision. On read, the normal serializer applies
+the registered `@Upcast` chain lazily to each root or descendant when that node is accessed; there is no separate
+Graph-wide revision or Graph upcaster. Increment `@Revision` and register the same ordinary upcaster you would use for
+that Model's direct document or snapshot. When a class rename and a content change happen together, return a
+`Data<ObjectNode>` and update both through that envelope; a separate typecaster is not required.
+
+Read-time upcasting is sufficient for correctness. If the evolved JSON must also be persisted into the durable Graph
+projection for search, return the complete typed Graph from a dedicated document handler:
+
+```java
+@HandleDocument(modelGraph = User.class)
+Graph<User> rematerialize(Graph<User> graph) {
+    return graph;
+}
+```
+
+This rewrites only the derived projection, and only when one or more node schemas actually changed. The root identity,
+state boundary, nodes and placements must remain identical. Direct Models, their histories and relationships remain
+authoritative and unchanged; a delayed handler cannot overwrite a newer projection.
 
 Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
 lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
@@ -5090,12 +5125,15 @@ class CreateUserUpcaster {
 This method is applied before deserialization. The object is transformed as needed so your code always receives the
 current version.
 
-To also modify the **type name**, return a `Data<ObjectNode>`:
+To modify the **type name**, or the type and JSON together, return a `Data<ObjectNode>`. The envelope is the preferred
+owner for this evolution; a separate typecaster is not required:
 
 ```java
 
 @Upcast(type = "com.example.CreateUser", revision = 0)
 Data<ObjectNode> renameType(Data<ObjectNode> data) {
+    ObjectNode json = data.getValue();
+    json.set("userId", json.remove("id"));
     return data.withType("com.example.RegisterUser");
 }
 ```
@@ -5238,7 +5276,8 @@ All casting occurs **in your application**, not in the Fluxzero Runtime. Stored 
 ### Best Practices
 
 - Use `@Revision` to version any payloads that are stored or transmitted
-- Use `ObjectNode` for simple structural changes, or `Data<ObjectNode>` to modify metadata
+- Use `ObjectNode` for structural changes, or `Data<ObjectNode>` when the serialized type, revision and content evolve
+  together; use a `Metadata` parameter/result specifically for message metadata
 - Chain upcasters one revision at a time (`v0 → v1`, `v1 → v2`, etc.)
 - Ensure upcasters are **side-effect free** and **deterministic**
 
@@ -6142,6 +6181,17 @@ This simulates the entire platform in-memory without external dependencies.
 --- 
 
 ## Compatibility and Dependencies
+
+### SDK and Runtime versions
+
+A newer Runtime continues to support released workflows from older SDKs. A newer SDK also continues to work with an
+older Runtime while the application uses only requests that Runtime understands. New Model capabilities that require a
+new protocol operation do not silently fall back: an older Runtime returns an explicit unsupported failure at the first
+such request. Upgrade the Runtime before enabling those capabilities. Applications that do not use them can upgrade
+SDK and Runtime independently within their supported release ranges.
+
+Upcasting always runs in the application SDK, not in the Runtime. Runtime upgrades therefore do not execute or replace
+application upcasters.
 
 ### Java Version
 

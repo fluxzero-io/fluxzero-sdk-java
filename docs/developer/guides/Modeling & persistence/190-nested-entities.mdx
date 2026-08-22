@@ -36,6 +36,20 @@ The child does not have to be independently searchable. With `@Model(searchable 
 `@Parent(path = "lines")` still retains a private current document for graph composition; only the child’s own public
 search collection is suppressed.
 
+The relation may point to the same Model type, which makes recursive domains such as folders natural:
+
+```java
+@Model(searchable = true)
+record Folder(
+        @EntityId FolderId folderId,
+        @Parent(path = "folders") FolderId parentFolderId,
+        String name) {
+}
+```
+
+This is a relation between independently stored `Folder` Models, not an embedded recursive value. Fluxzero permits an
+arbitrarily deep concrete tree and rejects a write atomically if it would introduce a cycle.
+
 ## Attach, detach and move
 
 The relation is ordinary model state:
@@ -214,6 +228,12 @@ Projection completion is configurable:
 Prefer an operation-level `AWAIT` override when only some commands query the complete root immediately afterwards.
 `LocalClient`, the test server and synchronous `TestFixture` executions honor the same contract and materialize the
 root before releasing an awaited command result.
+
+Each node in a materialized graph retains its own serialized Model type and `@Revision`. Ordinary serializer upcasters
+therefore evolve the root and descendants independently and lazily; there is no Graph-wide revision or Graph upcaster.
+Read-time upcasting is enough for correctness. To persist the evolved JSON back into the derived search projection,
+return the complete Graph from `@HandleDocument(modelGraph = Order.class)`. That rematerialization cannot change the
+root, state boundary, nodes or placements, and never modifies direct Models or relationships.
 
 ## Embedded members
 

@@ -45,7 +45,8 @@ Upcasting transforms a serialized object from an older revision to a newer one.
 <Aside type="note">
 Upcasters operate on top-level serialized objects (payloads, documents, snapshots, key-value entries), not on nested
 types in isolation. If a nested model change affects multiple top-level payload/document types, add upcasters (and new
-`@Revision`s) for each affected top-level type.
+`@Revision`s) for each affected top-level type. A materialized Model Graph is the deliberate exception: every root and
+descendant is recorded as a separate serialized node and is upcast independently.
 </Aside>
 
 <Tabs>
@@ -78,13 +79,16 @@ types in isolation. If a nested model change affects multiple top-level payload/
 This method is applied before deserialization. The object is transformed as needed so your code always receives the
 current version.
 
-To also modify the **type name**, return a `Data<ObjectNode>`:
+To modify the **type name**, or the type and content together, return a `Data<ObjectNode>`. This ordinary upcaster is
+the preferred owner of a class rename; a separate typecaster is not required:
 
 <Tabs>
   <TabItem label="Java">
     ```java
     @Upcast(type = "com.example.CreateUser", revision = 0)
     Data<ObjectNode> renameType(Data<ObjectNode> data) {
+        ObjectNode json = data.getValue();
+        json.set("userId", json.remove("id"));
         return data.withType("com.example.RegisterUser");
     }
     ```
@@ -93,6 +97,7 @@ To also modify the **type name**, return a `Data<ObjectNode>`:
     ```kotlin
     @Upcast(type = "com.example.CreateUser", revision = 0)
     fun renameType(data: Data<ObjectNode>): Data<ObjectNode> {
+        data.value.set<JsonNode>("userId", data.value.remove("id"))
         return data.withType("com.example.RegisterUser")
     }
     ```
@@ -153,6 +158,27 @@ the upcaster supports both cases, make the parameter nullable:
 For Java, any runtime annotation whose simple name is `Nullable` is accepted. Kotlin nullable parameter types are
 recognized directly. Returning `Metadata` still requires message input because non-message data has nowhere to store
 it.
+
+---
+
+## Materialized Model Graphs
+
+A materialized Graph has no single schema revision. Its hidden manifest records the serialized type and revision for
+every root and descendant placement. When a node is first accessed, Fluxzero passes that node through the same
+registered serializer chain as its direct Model document or snapshot.
+
+For every changed Model type:
+
+1. increment that type's `@Revision`;
+2. register an ordinary `@Upcast` for its serialized source type and revision;
+3. return `Data<ObjectNode>` when the upcast also changes the type name;
+4. test the old node JSON with `TestFixture.whenUpcasting(...)`.
+
+No Graph-specific upcaster is needed. Lazy upcasting makes reads correct immediately. If search should also retain the
+evolved JSON, use a projection-only `@HandleDocument(modelGraph = RootModel.class)` handler as described in
+[Tracking, updating documents](/docs/guides/modeling-and-persistence/tracking-and-updating-documents#evolving-a-materialized-model-graph).
+Returning its complete Graph conditionally replaces only the derived materialized document; it never rewrites Model
+events, snapshots, direct documents or relationships.
 
 ---
 
@@ -359,7 +385,8 @@ All casting occurs in your application, not in the Fluxzero Runtime. Stored mess
 ## Best practices
 
 - Use `@Revision` to version any payloads that are stored or transmitted
-- Use `ObjectNode` for simple structural changes, or `Data<ObjectNode>` to modify metadata
+- Use `ObjectNode` for structural changes, or `Data<ObjectNode>` when serialized content, type or revision evolve
+  together; use a `Metadata` parameter/result specifically for message metadata
 - Chain upcasters one revision at a time (`v0 → v1`, `v1 → v2`, etc.)
 - Ensure upcasters are side-effect free and deterministic
 

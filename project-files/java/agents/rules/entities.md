@@ -214,6 +214,9 @@ public record Task(
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set
   `deleteOnParentDeletion = false` for deliberately detached or independently retained children.
 - Relationships are temporal; graph reconstruction can pin a `stateIndex`.
+- Same-type recursion is supported. A `Folder` may hold
+  `@Parent(path = "folders") FolderId parentFolderId`; Fluxzero accepts an arbitrarily deep tree and atomically rejects
+  a concrete cycle. This remains a relation between independent Models, not an embedded recursive object.
 
 Inject parents and further ancestors into assertions, interceptors and applies:
 
@@ -228,6 +231,12 @@ void assertOpen(
 ```
 
 Use `@Association` when the relation/path or same-type target would otherwise be ambiguous.
+
+Every root and descendant in a materialized Graph retains its own serialized type and `@Revision`. The ordinary
+serializer upcasts nodes independently and lazily; do not create a Graph-wide upcaster. Use
+`@HandleDocument(modelGraph = Root.class)` and return the complete Graph only when evolved node JSON must be persisted
+back into the derived projection. That operation must preserve the root, state boundary, nodes and placements and does
+not modify direct Models, histories or relationships.
 
 ## Embedded members
 

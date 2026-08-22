@@ -29,7 +29,8 @@ code.
    implementing one.
 3. **Automatic Application**: Upcasting is applied to **ALL** deserializing objects in Fluxzero, including messages,
    documents, and stateful handlers.
-4. **Register as Components**: Upcaster classes must be annotated with `@Component` to be discovered by the SDK.
+4. **Register Once**: Spring applications discover upcaster beans (normally `@Component`) automatically. Without
+   Spring, register caster instances explicitly with the serializer.
 5. **Test with TestFixture**: Upcasters can be verified using `TestFixture.whenUpcasting(...)`.
 
 ---
@@ -82,17 +83,18 @@ class ProjectUpcaster {
 
 ### Data Upcasters and Message Metadata
 
-Use `Data<JsonNode>` when you need to change the **type** or set the **revision** explicitly. A `Metadata` or
-`SerializedMessage` parameter may be injected when the serialized input is a message. Return `Metadata` to replace the
-message metadata without changing the payload; the caster chain advances the revision automatically.
+Use `Data<JsonNode>` when content, serialized **type** or **revision** must evolve together. This is the preferred route
+for a class rename; no separate typecaster is required. A `Metadata` or `SerializedMessage` parameter may be injected
+when the serialized input is a message. Return `Metadata` to replace the message metadata without changing the payload;
+the caster chain advances the revision automatically.
 
 ```kotlin
 @Component
 class CreateProjectUpcaster {
     @Upcast(type = "io.fluxzero.app.old.CreateProject", revision = 0)
-    fun renameType(data: Data<JsonNode>, metadata: Metadata): Data<JsonNode> {
+    fun renameType(data: Data<ObjectNode>): Data<ObjectNode> {
+        data.value.set<JsonNode>("projectId", data.value.remove("id"))
         return data.withType("io.fluxzero.app.new.api.CreateProject")
-            .withRevision(1)
     }
 
     @Upcast(type = "io.fluxzero.app.ProjectCreated", revision = 0)
@@ -106,6 +108,18 @@ Upcasting also runs for non-message data such as snapshots, key-value entries, a
 supports those inputs, declare its metadata parameter as `Metadata?`; Fluxzero then injects `null`. Without a nullable
 parameter, missing message metadata causes deserialization to fail. Returning `Metadata` always requires message input
 because non-message data has nowhere to store it.
+
+### Materialized Model Graphs
+
+A materialized Graph is not one top-level schema. Its hidden manifest retains the serialized type and revision of every
+root and descendant, so each node uses the ordinary upcaster chain independently and lazily. Increment `@Revision` and
+register an ordinary `@Upcast` for every changed Model type. Use `Data<JsonNode>` if a node's type changes. Do not add a
+Graph-specific upcaster.
+
+Read-time upcasting is sufficient for correctness. A dedicated
+`@HandleDocument(modelGraph = RootModel::class)` handler may return the complete Graph to persist evolved JSON into the
+derived projection. It must not change the root, state boundary, nodes or placements and never rewrites Models,
+snapshots, events or relationships.
 
 ---
 
@@ -205,7 +219,8 @@ fun testProjectUpcasting() {
   `@JvmStatic` and `@Upcast`) or in a separate package. For shared logic, a separate upcaster component is often cleaner.
 - **Chain of Responsibility**: Fluxzero automatically chains upcasters. To move from Revision 0 to 2, the SDK will look
   for a 0->1 upcaster and then a 1->2 upcaster.
-- **FQNs**: Always use the Fully Qualified Name of the target class in the `type` attribute of the `@Upcast` annotation.
+- **FQNs**: Use the Fully Qualified Name stored in the source data in `@Upcast.type`. After a class rename that is
+  usually the old name; return `Data.withType(...)` to select the new name for the remainder of the chain.
 - **Type Coverage**: If a shared nested value object changes (for example `ProjectDetails`), add upcasters for each
   top-level type that embeds it (for example `CreateProject`, `UpdateProject`, and `Project`).
 - **Revision Discipline**: Whenever a payload/document schema changes, increment `@Revision` on each affected top-level
