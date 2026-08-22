@@ -30,8 +30,8 @@ import java.util.Optional;
  * Hidden structural description carried by a composed independent-model graph document.
  * <p>
  * The visible document remains ordinary nested JSON. This compact, dictionary-encoded manifest preserves exact node
- * identities, concrete types and placements so SDK clients can reconstruct a typed lazy graph without guessing types
- * from JSON paths. Parent nodes always precede their children.
+ * identities, concrete types, revisions and placements so SDK clients can reconstruct and independently upcast a
+ * typed lazy graph without guessing schema information from JSON paths. Parent nodes always precede their children.
  */
 public record ModelGraphDocumentManifest(
         @JsonProperty("v") int version,
@@ -41,7 +41,7 @@ public record ModelGraphDocumentManifest(
         @JsonProperty("n") List<Node> nodes) {
 
     /** Current manifest format version. */
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 2;
 
     /** Reserved document-metadata key containing the manifest. */
     public static final String METADATA_KEY = "$fluxzeroModelGraph";
@@ -162,11 +162,13 @@ public record ModelGraphDocumentManifest(
 
     /**
      * One concrete placement in pre-order. Type and relationship path are dictionary indexes; {@code parent} is the
-     * parent node index or {@code -1} for the root. Ordinal is the child's position among siblings at the same path.
+     * parent node index or {@code -1} for the root. Revision belongs to this node's direct document. Ordinal is the
+     * child's position among siblings at the same path.
      */
     public record Node(
             @JsonProperty("i") String id,
             @JsonProperty("t") int type,
+            @JsonProperty("v") int revision,
             @JsonProperty("p") int parent,
             @JsonProperty("r") int relationshipPath,
             @JsonProperty("o") int ordinal) {

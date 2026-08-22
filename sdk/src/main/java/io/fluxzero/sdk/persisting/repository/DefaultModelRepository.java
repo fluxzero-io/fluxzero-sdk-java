@@ -123,10 +123,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
     private final ModelCacheTracker modelCacheTracker;
-    private final ConcurrentHashMap<Class<?>, ModelGraphProjectionConfiguration>
-            graphProjectionDefinitions = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Class<?>, CompletableFuture<ModelGraphProjectionStatus>>
+    private final ConcurrentHashMap<Class<?>, GraphProjectionRegistration>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
+    private volatile Supplier<List<Class<?>>> graphProjectionModelTypes = List::of;
+
     public DefaultModelRepository(
             Client client,
             DocumentStore documentStore,
@@ -306,23 +306,38 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 modelType,
                 (ignored, current) -> rebuild
                         || current == null
-                        || current.isCompletedExceptionally()
-                        ? requestGraphProjectionRegistration(
-                                configuration, rebuild)
-                        : current);
+                        || current.future().isCompletedExceptionally()
+                        || !current.configuration().equals(configuration)
+                        ? new GraphProjectionRegistration(
+                                configuration,
+                                current == null
+                                        ? requestGraphProjectionRegistration(
+                                                configuration, rebuild)
+                                        : current.future()
+                                                .handle((status, failure) -> null)
+                                                .thenCompose(ignoredStatus ->
+                                                        requestGraphProjectionRegistration(
+                                                                configuration, rebuild)))
+                        : current).future();
+    }
+
+    /** Configures the application-bound model catalog used to version materialized Graph schemas. */
+    public void configureGraphProjectionModelTypes(
+            Supplier<List<Class<?>>> modelTypes) {
+        this.graphProjectionModelTypes = Objects.requireNonNull(
+                modelTypes, "Graph projection model types");
     }
 
     /** Returns the application-resolved durable definition owned by this repository. */
     public ModelGraphProjectionConfiguration graphProjectionDefinition(
             @NonNull Class<?> modelType) {
-        return graphProjectionDefinitions.computeIfAbsent(
-                modelType,
-                type -> EntityMetadata.validate(type)
-                        .graphProjectionConfiguration()
-                        .orElseThrow(() ->
-                                new IllegalArgumentException(
-                                        type.getName()
-                                        + " does not enable a graph projection")));
+        return EntityMetadata.validate(modelType)
+                .graphProjectionConfiguration(
+                        graphProjectionModelTypes.get())
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                modelType.getName()
+                                + " does not enable a graph projection"));
     }
 
     /** Completes when every affected durable graph projection has processed the supplied commit range. */
@@ -366,6 +381,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 .getModelGraphProjectionStatus(
                         new GetModelGraphProjectionStatus(
                                 collection));
+    }
+
+    private record GraphProjectionRegistration(
+            ModelGraphProjectionConfiguration configuration,
+            CompletableFuture<ModelGraphProjectionStatus> future) {
     }
 
     @Override

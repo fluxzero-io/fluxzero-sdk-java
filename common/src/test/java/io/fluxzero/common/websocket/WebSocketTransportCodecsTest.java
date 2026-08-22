@@ -1067,6 +1067,8 @@ class WebSocketTransportCodecsTest {
                                         .builder()
                                         .maxDepth(4)
                                         .build(),
+                                List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                        "example.Order", 2)),
                                 List.of(
                                         new ModelGraphPathOverride(
                                                 "lines",
@@ -1107,6 +1109,10 @@ class WebSocketTransportCodecsTest {
                     decoded.getConfiguration()
                             .getComposition()
                             .getMaxDepth());
+            assertEquals(
+                    List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                            "example.Order", 2)),
+                    decoded.getConfiguration().getModelRevisions());
 
             GetModelGraphProjectionStatus
                     decodedRequest =
@@ -1259,6 +1265,8 @@ class WebSocketTransportCodecsTest {
                         ModelGraphComposition
                                 .builder()
                                 .build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "example.Order", 0)),
                         List.of(
                                 new ModelGraphPathOverride(
                                         "lines", "items"),

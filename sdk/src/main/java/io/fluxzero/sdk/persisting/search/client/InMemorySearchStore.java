@@ -963,7 +963,7 @@ public class InMemorySearchStore implements SearchClient {
             Long previousStateIndex) {
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
                 stateIndex, List.of(rootType), List.of(),
-                List.of(new ModelGraphDocumentManifest.Node(rootId, 0, -1, -1, 0)));
+                List.of(new ModelGraphDocumentManifest.Node(rootId, 0, 0, -1, -1, 0)));
         Metadata metadata = Metadata.of(
                 ModelGraphDocumentManifest.METADATA_KEY, manifest.serialize(),
                 ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY, true);

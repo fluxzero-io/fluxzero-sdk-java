@@ -18,6 +18,7 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.reflection.ReflectionUtils;
+import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
@@ -172,6 +173,27 @@ class EntityMetadataTest {
                 IllegalStateException.class,
                 () -> EntityMetadata.validate(ConflictingProjectionCollection.class)
                         .graphProjectionConfiguration());
+    }
+
+    @Test
+    void versionsAProjectionWithEveryReachableModelSchema() {
+        var configuration = EntityMetadata.validate(ProjectedModel.class)
+                .graphProjectionConfiguration(List.of(
+                        UnrelatedRevisionedModel.class,
+                        RevisionedProjectedGrandchild.class,
+                        RevisionedProjectedChild.class,
+                        ProjectedModel.class))
+                .orElseThrow();
+
+        assertEquals(
+                List.of(
+                        new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision(
+                                ProjectedModel.class.getName(), 0),
+                        new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision(
+                                RevisionedProjectedChild.class.getName(), 2),
+                        new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision(
+                                RevisionedProjectedGrandchild.class.getName(), 3)),
+                configuration.getModelRevisions());
     }
 
     @Test
@@ -536,6 +558,28 @@ class EntityMetadataTest {
                             path = "children",
                             projectionPath = "items")))
     private record ProjectedModel(
+            @EntityId String id) {
+    }
+
+    @Model
+    @Revision(2)
+    private record RevisionedProjectedChild(
+            @EntityId String id,
+            @Parent(value = ProjectedModel.class, path = "children")
+            String parentId) {
+    }
+
+    @Model
+    @Revision(3)
+    private record RevisionedProjectedGrandchild(
+            @EntityId String id,
+            @Parent(value = RevisionedProjectedChild.class, path = "details")
+            String parentId) {
+    }
+
+    @Model
+    @Revision(9)
+    private record UnrelatedRevisionedModel(
             @EntityId String id) {
     }
 

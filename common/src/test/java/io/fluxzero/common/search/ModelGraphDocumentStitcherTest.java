@@ -126,13 +126,13 @@ class ModelGraphDocumentStitcherTest {
     void preservesExactTypedPlacementsInHiddenManifest() {
         SerializedDocument root = typedDocument(
                 "root", "roots", "example.Root",
-                "name", "root");
+                1, "name", "root");
         SerializedDocument child = typedDocument(
                 "child", "children", "example.Child",
-                "name", "child");
+                2, "name", "child");
         SerializedDocument shared = typedDocument(
                 "shared", "details", "example.Detail",
-                "name", "detail");
+                3, "name", "detail");
 
         SerializedDocument stitched =
                 ModelGraphDocumentStitcher.stitch(
@@ -160,13 +160,13 @@ class ModelGraphDocumentStitcherTest {
                      manifest.relationshipPaths());
         assertEquals(List.of(
                 new ModelGraphDocumentManifest.Node(
-                        "root", 0, -1, -1, 0),
+                        "root", 0, 1, -1, -1, 0),
                 new ModelGraphDocumentManifest.Node(
-                        "child", 1, 0, 0, 0),
+                        "child", 1, 2, 0, 0, 0),
                 new ModelGraphDocumentManifest.Node(
-                        "shared", 2, 1, 1, 0),
+                        "shared", 2, 3, 1, 1, 0),
                 new ModelGraphDocumentManifest.Node(
-                        "shared", 2, 0, 1, 0)),
+                        "shared", 2, 3, 0, 1, 0)),
                      manifest.nodes());
         assertTrue(stitched.deserializeDocument()
                            .getMatchingEntries(path ->
@@ -180,10 +180,10 @@ class ModelGraphDocumentStitcherTest {
     void manifestUsesSuppliedRootWhenItIsAbsentFromDocumentMap() {
         SerializedDocument root = typedDocument(
                 "root", "roots", "example.Root",
-                "name", "root");
+                0, "name", "root");
         SerializedDocument child = typedDocument(
                 "child", "children", "example.Child",
-                "name", "child");
+                0, "name", "child");
 
         SerializedDocument stitched = ModelGraphDocumentStitcher.stitch(
                         List.of(root),
@@ -559,12 +559,13 @@ class ModelGraphDocumentStitcherTest {
             String id,
             String collection,
             String type,
+            int revision,
             String path,
             String value) {
         return new SerializedDocument(
                 document(id, collection, path, value)
                         .deserializeDocument().toBuilder()
-                        .type(type).build());
+                        .type(type).revision(revision).build());
     }
 
     private static ModelGraphEdge edge(

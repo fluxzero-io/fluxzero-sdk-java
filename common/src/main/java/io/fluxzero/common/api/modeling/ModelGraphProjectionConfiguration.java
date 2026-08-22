@@ -19,6 +19,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import lombok.Value;
 
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +55,14 @@ public class ModelGraphProjectionConfiguration {
     ModelGraphComposition composition;
 
     /**
+     * Types that can occur in this projection and the revision of their direct document schema.
+     * <p>
+     * The ordered list is part of the durable projection definition. Changing any participating model revision
+     * therefore advances the Runtime's existing configuration fence and triggers a complete rebuild.
+     */
+    List<ModelRevision> modelRevisions;
+
+    /**
      * Optional projection-local canonical path replacements.
      */
     List<ModelGraphPathOverride> pathOverrides;
@@ -68,6 +77,8 @@ public class ModelGraphProjectionConfiguration {
             String collection,
             @JsonProperty("composition")
             ModelGraphComposition composition,
+            @JsonProperty("modelRevisions")
+            List<ModelRevision> modelRevisions,
             @JsonProperty("pathOverrides")
             List<ModelGraphPathOverride> pathOverrides) {
         this.rootModelType = requireText(
@@ -82,6 +93,26 @@ public class ModelGraphProjectionConfiguration {
         }
         this.composition = Objects.requireNonNull(
                 composition, "Model graph composition");
+        this.modelRevisions = Objects.requireNonNull(
+                        modelRevisions, "Model graph revisions")
+                .stream()
+                .sorted(Comparator.comparing(ModelRevision::modelType))
+                .toList();
+        if (this.modelRevisions.isEmpty()
+            || this.modelRevisions.stream()
+                       .noneMatch(revision -> this.rootModelType.equals(
+                               revision.modelType()))) {
+            throw new IllegalArgumentException(
+                    "Model graph revisions must include the root model type "
+                    + this.rootModelType);
+        }
+        if (this.modelRevisions.stream()
+                    .map(ModelRevision::modelType)
+                    .distinct().count()
+            != this.modelRevisions.size()) {
+            throw new IllegalArgumentException(
+                    "Model graph revisions must contain unique model types");
+        }
         this.pathOverrides = pathOverrides == null
                 ? List.of() : List.copyOf(pathOverrides);
         Map<String, String> unique = new LinkedHashMap<>();
@@ -120,5 +151,14 @@ public class ModelGraphProjectionConfiguration {
                     + " must not be blank or have surrounding whitespace");
         }
         return result;
+    }
+
+    /** One independently evolvable direct-document schema participating in a materialized Graph. */
+    public record ModelRevision(
+            @JsonProperty("modelType") String modelType,
+            @JsonProperty("revision") int revision) {
+        public ModelRevision {
+            modelType = requireText(modelType, "Graph model type");
+        }
     }
 }

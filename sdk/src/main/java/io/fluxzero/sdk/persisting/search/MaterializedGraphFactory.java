@@ -18,6 +18,7 @@ package io.fluxzero.sdk.persisting.search;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.SearchUtils;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -54,7 +55,7 @@ final class MaterializedGraphFactory {
         return create(new Source(
                 document.getId(), document.getCollection(), document.getTimestamp(), document.getEnd(),
                 documentSerializer, repositorySupplier, registeredModelTypes, pathOverrides, manifest, null,
-                () -> documentSerializer.fromDocument(document, JsonNode.class)), rootType);
+                () -> Source.rawJson(document, documentSerializer)), rootType);
     }
 
     static <T> Graph<T> create(
@@ -132,7 +133,9 @@ final class MaterializedGraphFactory {
                                     .formatted(manifestNode.parent(), manifestNode.id()));
                 }
                 String typeName = manifest.type(manifestNode);
-                Class<?> type = ReflectionUtils.classForName(typeName, null);
+                String currentTypeName = documentSerializer instanceof Serializer serializer
+                        ? serializer.upcastType(typeName) : typeName;
+                Class<?> type = ReflectionUtils.classForName(currentTypeName, null);
                 if (type == null) {
                     throw new IllegalArgumentException(
                             "Could not resolve materialized graph model type " + typeName);
@@ -156,13 +159,31 @@ final class MaterializedGraphFactory {
                 return null;
             }
             if (documentSerializer instanceof Serializer serializer) {
-                return serializer.convert(value, type);
+                if (manifest.type(node).equals(type.getName())
+                    && node.revision() == EntityMetadata.of(type).revision()) {
+                    return serializer.convert(value, type);
+                }
+                Data<JsonNode> nested = new Data<>(
+                        value, manifest.type(node), node.revision(), Data.JSON_FORMAT);
+                return serializer.deserialize(serializer.normalize(nested), type);
             }
             SerializedDocument nested = documentSerializer.toDocument(
                     value, node.id(), collection,
                     timestamp == null ? null : Instant.ofEpochMilli(timestamp),
                     end == null ? null : Instant.ofEpochMilli(end), Metadata.empty());
-            return documentSerializer.fromDocument(nested, type);
+            return documentSerializer.fromDocument(
+                    nested.withData(() -> nested.getDocument()
+                            .withType(manifest.type(node))
+                            .withRevision(node.revision())), type);
+        }
+
+        private static JsonNode rawJson(
+                SerializedDocument document,
+                DocumentSerializer documentSerializer) {
+            SerializedDocument raw = document.withData(() -> document.getDocument()
+                    .withType(JsonNode.class.getName())
+                    .withRevision(0));
+            return documentSerializer.fromDocument(raw, JsonNode.class);
         }
 
         private JsonNode json(String documentPath) {

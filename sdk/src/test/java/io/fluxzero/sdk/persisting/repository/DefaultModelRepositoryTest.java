@@ -221,6 +221,55 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void registersAChangedChildSchemaThroughTheExistingProjectionFence() {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ModelGraphProjectionStatus status = new ModelGraphProjectionStatus(
+                0L, "repository-graphs", -1L, -1L, 0L, 0L, false);
+        when(client.getEventStoreClient()).thenReturn(eventStore);
+        CompletableFuture<ModelGraphProjectionStatus> firstRegistration =
+                new CompletableFuture<>();
+        when(eventStore.registerModelGraphProjection(any()))
+                .thenReturn(firstRegistration)
+                .thenReturn(CompletableFuture.completedFuture(status));
+        java.util.concurrent.atomic.AtomicReference<List<Class<?>>> modelTypes =
+                new java.util.concurrent.atomic.AtomicReference<>(
+                        List.of(ProjectedRoot.class));
+        repository.configureGraphProjectionModelTypes(modelTypes::get);
+
+        CompletableFuture<ModelGraphProjectionStatus> rootRegistration =
+                repository.registerGraphProjection(ProjectedRoot.class, false);
+        modelTypes.set(List.of(ProjectedRoot.class, RevisionedProjectedChild.class));
+        CompletableFuture<ModelGraphProjectionStatus> changedRegistration =
+                repository.registerGraphProjection(ProjectedRoot.class, false);
+        assertFalse(changedRegistration.isDone());
+        verify(eventStore).registerModelGraphProjection(any());
+
+        firstRegistration.complete(status);
+        rootRegistration.join();
+        changedRegistration.join();
+        repository.registerGraphProjection(ProjectedRoot.class, false).join();
+
+        var requests = org.mockito.ArgumentCaptor.forClass(
+                io.fluxzero.common.api.modeling.RegisterModelGraphProjection.class);
+        verify(eventStore, times(2)).registerModelGraphProjection(requests.capture());
+        assertEquals(
+                List.of(1, 2),
+                requests.getAllValues().stream()
+                        .map(request -> request.getConfiguration().getModelRevisions())
+                        .map(List::size)
+                        .toList());
+        assertEquals(
+                1,
+                requests.getAllValues().getLast().getConfiguration()
+                        .getModelRevisions().getLast().revision());
+        assertEquals(
+                List.of(false, false),
+                requests.getAllValues().stream()
+                        .map(io.fluxzero.common.api.modeling.RegisterModelGraphProjection::isRebuild)
+                        .toList());
+    }
+
+    @Test
     void delegatesGraphProjectionAwaitToItsDurableCapability() {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ModelGraphProjectionStatus status =
@@ -2649,6 +2698,14 @@ class DefaultModelRepositoryTest {
                     collection = "repository-graphs"))
     private record ProjectedRoot(
             @EntityId String id) {
+    }
+
+    @Model
+    @Revision(1)
+    private record RevisionedProjectedChild(
+            @EntityId String id,
+            @Parent(value = ProjectedRoot.class, path = "children")
+            String rootId) {
     }
 
     @Model(

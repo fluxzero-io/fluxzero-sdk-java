@@ -429,6 +429,8 @@ class TestServerWebsocketContractTest {
                                                   ModelGraphComposition
                                                           .builder()
                                                           .build(),
+                                                  List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                                          rootType, 0)),
                                                   List.of()),
                                           true)));
 

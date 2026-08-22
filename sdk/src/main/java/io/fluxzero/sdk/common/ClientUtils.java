@@ -437,7 +437,18 @@ public class ClientUtils {
      * @return the revision number, or 0 if not present
      */
     public static int getRevisionNumber(Object object) {
-        return Optional.ofNullable(object).map(o -> o.getClass().getAnnotation(Revision.class))
+        return object == null ? 0 : getRevisionNumberForType(object.getClass());
+    }
+
+    /**
+     * Extracts the revision number from the {@link Revision} annotation on the given type.
+     *
+     * @return the revision number, or 0 if not present
+     */
+    public static int getRevisionNumberForType(Class<?> type) {
+        return Optional.ofNullable(type)
+                .map(ReflectionUtils::getTypeMetadata)
+                .map(metadata -> metadata.<Revision>typeAnnotation(Revision.class))
                 .map(Revision::value).orElse(0);
     }
 

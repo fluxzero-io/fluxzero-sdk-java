@@ -241,7 +241,7 @@ public final class ModelGraphDocumentStitcher {
             Document direct =
                     serialized.deserializeDocument();
             int nodeIndex = manifest.add(
-                    modelId, direct.getType(), parent,
+                    modelId, direct.getType(), direct.getRevision(), parent,
                     relationshipPath, ordinal);
             Map<String, List<ModelGraphEdge>> byPath =
                     new LinkedHashMap<>();
@@ -489,14 +489,14 @@ public final class ModelGraphDocumentStitcher {
         }
 
         private int add(
-                String modelId, String type, int parent,
+                String modelId, String type, int revision, int parent,
                 String relationshipPath, int ordinal) {
             int nodeIndex = nodes.size();
             int typeIndex = index(type, types, typeIndexes);
             int pathIndex = relationshipPath == null ? -1
                     : index(relationshipPath, paths, pathIndexes);
             nodes.add(new ModelGraphDocumentManifest.Node(
-                    modelId, typeIndex, parent, pathIndex, ordinal));
+                    modelId, typeIndex, revision, parent, pathIndex, ordinal));
             return nodeIndex;
         }
 

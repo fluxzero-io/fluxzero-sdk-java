@@ -17,8 +17,11 @@ package io.fluxzero.sdk.persisting.search;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
+import io.fluxzero.common.serialization.Revision;
+import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
@@ -43,10 +46,51 @@ import static org.mockito.Mockito.when;
 class MaterializedGraphFactoryTest {
 
     @Test
+    void upcastsRootAndDescendantFromTheirOwnManifestRevisions() {
+        JacksonSerializer serializer = new JacksonSerializer(
+                List.of(new GraphNodeUpcaster()));
+        serializer.registerTypeCaster(
+                "legacy.RevisionedRoot", RevisionedRoot.class.getName());
+        serializer.registerTypeCaster(
+                "legacy.RevisionedChild", RevisionedChild.class.getName());
+        ObjectNode json = serializer.getObjectMapper().createObjectNode()
+                .put("id", "root")
+                .put("oldName", "current root");
+        json.putArray("children").addObject()
+                .put("id", "child")
+                .put("rootId", "root")
+                .put("oldValue", "current child");
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L,
+                List.of("legacy.RevisionedRoot",
+                        "legacy.RevisionedChild"),
+                List.of("children"),
+                List.of(
+                        new ModelGraphDocumentManifest.Node(
+                                "root", 0, 0, -1, -1, 0),
+                        new ModelGraphDocumentManifest.Node(
+                                "child", 1, 0, 0, 0, 0)));
+        SerializedDocument document = serializer.toDocument(
+                json, "root", "revisioned-graphs", null, null,
+                Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                            manifest.serialize()));
+
+        Graph<RevisionedRoot> graph = MaterializedGraphFactory.create(
+                document, RevisionedRoot.class, serializer,
+                () -> mock(ModelRepository.class),
+                List.of(RevisionedRoot.class, RevisionedChild.class),
+                Map.of());
+
+        assertEquals("current root", graph.get().name());
+        assertEquals("current child", graph.children(
+                "children", RevisionedChild.class).getFirst().get().value());
+    }
+
+    @Test
     void materializesEachSelectedNodeAtMostOnce() {
         CountingRoot.constructions.set(0);
         CountingChild.constructions.set(0);
-        JacksonSerializer serializer = new JacksonSerializer();
+        CountingJacksonSerializer serializer = new CountingJacksonSerializer();
         ObjectNode json = serializer.getObjectMapper().createObjectNode()
                 .put("id", "root");
         ArrayNode children = json.putArray("children");
@@ -59,9 +103,9 @@ class MaterializedGraphFactoryTest {
                         List.of("children"),
                         List.of(
                                 new ModelGraphDocumentManifest.Node(
-                                        "root", 0, -1, -1, 0),
+                                        "root", 0, 0, -1, -1, 0),
                                 new ModelGraphDocumentManifest.Node(
-                                        "child", 1, 0, 0, 0)));
+                                        "child", 1, 0, 0, 0, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "root", "root-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -84,6 +128,7 @@ class MaterializedGraphFactoryTest {
         assertEquals("child", child.get().id());
         assertEquals("child", child.get().id());
         assertEquals(1, CountingChild.constructions.get());
+        assertEquals(0, serializer.normalizations.get());
     }
 
     @Test
@@ -95,7 +140,7 @@ class MaterializedGraphFactoryTest {
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
                 41L, List.of(CountingChild.class.getName()), List.of(),
                 List.of(new ModelGraphDocumentManifest.Node(
-                        "child", 0, -1, -1, 0)));
+                        "child", 0, 0, -1, -1, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "child", "child-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -149,15 +194,15 @@ class MaterializedGraphFactoryTest {
                 List.of("primaryParents", "secondaryParents", "children"),
                 List.of(
                         new ModelGraphDocumentManifest.Node(
-                                "root", 0, -1, -1, 0),
+                                "root", 0, 0, -1, -1, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "primary", 1, 0, 0, 0),
+                                "primary", 1, 0, 0, 0, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "child", 3, 1, 2, 0),
+                                "child", 3, 0, 1, 2, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "secondary", 2, 0, 1, 0),
+                                "secondary", 2, 0, 0, 1, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "alternate-primary", 1, 0, 0, 1)));
+                                "alternate-primary", 1, 0, 0, 0, 1)));
         SerializedDocument document = serializer.toDocument(
                 json, "root", "multi-parent-root-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -202,9 +247,9 @@ class MaterializedGraphFactoryTest {
                 List.of("children"),
                 List.of(
                         new ModelGraphDocumentManifest.Node(
-                                "primary", 0, -1, -1, 0),
+                                "primary", 0, 0, -1, -1, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "child", 1, 0, 0, 0)));
+                                "child", 1, 0, 0, 0, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "primary", "primary-parent-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -233,7 +278,7 @@ class MaterializedGraphFactoryTest {
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
                 41L, List.of(CountingChild.class.getName()), List.of(),
                 List.of(new ModelGraphDocumentManifest.Node(
-                        "child", 0, -1, -1, 0)));
+                        "child", 0, 0, -1, -1, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "child", "child-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -267,7 +312,7 @@ class MaterializedGraphFactoryTest {
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
                 41L, List.of(CountingRoot.class.getName()), List.of(),
                 List.of(new ModelGraphDocumentManifest.Node(
-                        "root", 0, -1, -1, 0)));
+                        "root", 0, 0, -1, -1, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "root", "root-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -307,6 +352,52 @@ class MaterializedGraphFactoryTest {
 
         private CountingRoot {
             constructions.incrementAndGet();
+        }
+    }
+
+    @Model
+    @Revision(1)
+    private record RevisionedRoot(
+            @EntityId String id,
+            String name) {
+    }
+
+    @Model
+    @Revision(1)
+    private record RevisionedChild(
+            @EntityId String id,
+            @Parent(value = RevisionedRoot.class, path = "children")
+            String rootId,
+            String value) {
+    }
+
+    private static final class GraphNodeUpcaster {
+        @Upcast(
+                type = "legacy.RevisionedRoot",
+                revision = 0)
+        ObjectNode upcastRoot(ObjectNode value) {
+            value.set("name", value.remove("oldName"));
+            return value;
+        }
+
+        @Upcast(
+                type = "legacy.RevisionedChild",
+                revision = 0)
+        ObjectNode upcastChild(ObjectNode value) {
+            value.set("value", value.remove("oldValue"));
+            return value;
+        }
+    }
+
+    private static final class CountingJacksonSerializer
+            extends JacksonSerializer {
+        private final AtomicInteger normalizations = new AtomicInteger();
+
+        @Override
+        public SerializedObject<byte[]> normalize(
+                SerializedObject<?> serializedObject) {
+            normalizations.incrementAndGet();
+            return super.normalize(serializedObject);
         }
     }
 

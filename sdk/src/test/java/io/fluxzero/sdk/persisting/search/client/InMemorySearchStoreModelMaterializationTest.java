@@ -146,6 +146,8 @@ class InMemorySearchStoreModelMaterializationTest {
                         "rootGraphs",
                         ModelGraphComposition.builder()
                                 .build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "Root", 0)),
                         List.of(
                                 new ModelGraphPathOverride(
                                         "children",

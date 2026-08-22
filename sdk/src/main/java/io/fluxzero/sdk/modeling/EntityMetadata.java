@@ -26,11 +26,12 @@ import io.fluxzero.common.reflection.DefaultMemberInvoker;
 import io.fluxzero.common.reflection.GenericTypeResolver;
 import io.fluxzero.common.reflection.MemberInvoker;
 import io.fluxzero.common.reflection.ReflectionUtils;
-import io.fluxzero.sdk.persisting.eventsourcing.Apply;
-import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
+import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.tracking.handling.Association;
 import io.fluxzero.sdk.web.ApiDoc;
 
@@ -81,6 +82,7 @@ public final class EntityMetadata {
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
+    private final int revision;
     private volatile Boolean selfReferentialMember;
 
     /**
@@ -156,6 +158,7 @@ public final class EntityMetadata {
         ReflectionUtils.TypeMetadata typeMetadata = ReflectionUtils.getTypeMetadata(type);
         this.model = typeMetadata.typeAnnotation(Model.class);
         this.aggregate = typeMetadata.typeAnnotation(Aggregate.class);
+        this.revision = ClientUtils.getRevisionNumberForType(type);
         this.rootConfiguration = rootConfiguration(type, model, aggregate);
         if (model != null) {
             validateGraphProjection(model);
@@ -224,6 +227,11 @@ public final class EntityMetadata {
 
     public boolean isModel() {
         return model != null;
+    }
+
+    /** Returns this type's serializer revision. */
+    public int revision() {
+        return revision;
     }
 
     /**
@@ -509,6 +517,14 @@ public final class EntityMetadata {
 
     /** Returns this root's application-resolved materialized graph definition, if enabled. */
     public Optional<ModelGraphProjectionConfiguration> graphProjectionConfiguration() {
+        return graphProjectionConfiguration(List.of(type));
+    }
+
+    /**
+     * Returns this root's durable graph definition including every known model schema that can be placed below it.
+     */
+    public Optional<ModelGraphProjectionConfiguration> graphProjectionConfiguration(
+            Collection<Class<?>> knownModelTypes) {
         if (model == null || !model.materializeGraph()) {
             return Optional.empty();
         }
@@ -528,10 +544,52 @@ public final class EntityMetadata {
         return Optional.of(new ModelGraphProjectionConfiguration(
                 type.getName(), rootCollection, collection,
                 ModelGraphComposition.builder().build(),
+                graphModelRevisions(knownModelTypes),
                 Arrays.stream(projection.pathOverrides())
                         .map(override -> new ModelGraphPathOverride(
                                 override.path(), override.projectionPath()))
                         .toList()));
+    }
+
+    private List<ModelGraphProjectionConfiguration.ModelRevision>
+            graphModelRevisions(Collection<Class<?>> knownModelTypes) {
+        Objects.requireNonNull(knownModelTypes, "Known model types");
+        LinkedHashSet<Class<?>> reachable = new LinkedHashSet<>();
+        reachable.add(type);
+        List<Class<?>> candidates = java.util.stream.Stream.concat(
+                        knownModelTypes.stream(), java.util.stream.Stream.of(type))
+                .filter(Objects::nonNull)
+                .filter(candidate -> EntityMetadata.of(candidate).isModel())
+                .distinct()
+                .sorted(java.util.Comparator.comparing(Class::getName))
+                .toList();
+        boolean changed;
+        do {
+            changed = false;
+            for (Class<?> candidate : candidates) {
+                if (reachable.contains(candidate)) {
+                    continue;
+                }
+                boolean participates = EntityMetadata.of(candidate).parentReferences().stream()
+                        .filter(ParentReference::automaticallyComposed)
+                        .flatMap(reference -> reference.parentModelTypes().stream())
+                        .anyMatch(parent -> reachable.stream()
+                                .anyMatch(reachableType ->
+                                        compatibleTypes(parent, reachableType)));
+                if (participates) {
+                    reachable.add(candidate);
+                    changed = true;
+                }
+            }
+        } while (changed);
+        return reachable.stream()
+                .sorted(java.util.Comparator.comparing(Class::getName))
+                .map(modelType -> {
+                    EntityMetadata metadata = EntityMetadata.of(modelType);
+                    return new ModelGraphProjectionConfiguration.ModelRevision(
+                            modelType.getName(), metadata.revision());
+                })
+                .toList();
     }
 
     /** Returns every materialized projection root reachable through this model's typed parent relationships. */

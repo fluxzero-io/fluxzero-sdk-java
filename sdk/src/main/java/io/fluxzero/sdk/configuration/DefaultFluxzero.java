@@ -1117,6 +1117,8 @@ public class DefaultFluxzero implements Fluxzero {
                     configuredMaxModelConflictRetries(),
                     configuredAutomaticModelHandling(),
                     configuredGraphProjectionCompletion());
+            commandModelRepository.configureGraphProjectionModelTypes(
+                    modelCommitHandlerRegistry::knownModelTypes);
             if (runtimeDocumentStore instanceof DefaultDocumentStore defaultDocumentStore) {
                 defaultDocumentStore.configureModelGraphSupport(
                         commandModelRepository,
