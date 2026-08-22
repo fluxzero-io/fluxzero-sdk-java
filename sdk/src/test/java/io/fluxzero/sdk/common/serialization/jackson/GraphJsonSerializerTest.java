@@ -25,7 +25,7 @@ import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProperty;
 import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ParentId;
+import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.authentication.MockUser;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
@@ -271,7 +271,7 @@ class GraphJsonSerializerTest {
     @Model
     private record Child(
             @EntityId String id,
-            @ParentId(value = Root.class, path = "children") String rootId,
+            @Parent(value = Root.class, path = "children") String rootId,
             String value) {
 
         @FilterContent
@@ -288,7 +288,7 @@ class GraphJsonSerializerTest {
     @Model
     private record Leaf(
             @EntityId String id,
-            @ParentId(value = Child.class, path = "details/leaves") String childId,
+            @Parent(value = Child.class, path = "details/leaves") String childId,
             String value) {
 
         @FilterContent
@@ -315,7 +315,7 @@ class GraphJsonSerializerTest {
     @Model
     private record ViewChild(
             @EntityId String id,
-            @ParentId(value = ViewRoot.class, path = "children") String rootId,
+            @Parent(value = ViewRoot.class, path = "children") String rootId,
             String value) {
 
         @FilterContent

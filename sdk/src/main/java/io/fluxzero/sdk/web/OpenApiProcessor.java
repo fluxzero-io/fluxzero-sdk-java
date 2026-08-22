@@ -193,7 +193,7 @@ public class OpenApiProcessor extends AbstractProcessor {
     static final String API_DOC_RESPONSES = "io.fluxzero.sdk.web.ApiDocResponses";
     static final String API_DOC_EXCLUDE = "io.fluxzero.sdk.web.ApiDocExclude";
     static final String MODEL = "io.fluxzero.sdk.modeling.Model";
-    static final String PARENT_ID = "io.fluxzero.sdk.modeling.ParentId";
+    static final String PARENT_ID = "io.fluxzero.sdk.modeling.Parent";
     static final String MODEL_ID = "io.fluxzero.sdk.modeling.Id";
     static final String SWAGGER_SCHEMA = "io.swagger.v3.oas.annotations.media.Schema";
     static final String SWAGGER_ARRAY_SCHEMA = "io.swagger.v3.oas.annotations.media.ArraySchema";
@@ -297,7 +297,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             if (!isNoResponseType(explicitParent) && !parentTypes.isEmpty()) {
                 messager.printMessage(
                         Diagnostic.Kind.ERROR,
-                        "@ParentId may declare either value or types, but not both",
+                        "@Parent may declare either value or types, but not both",
                         member, parentId);
                 continue;
             }
@@ -1071,7 +1071,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                 .map(value -> value == null ? "" : annotationValues(value).toString())
                 .anyMatch(value -> !firstValue.equals(value))) {
             messager.printMessage(Diagnostic.Kind.ERROR,
-                                  "Conflicting @ParentId.apiDoc declarations for graph path '%s' below %s"
+                                  "Conflicting @Parent.apiDoc declarations for graph path '%s' below %s"
                                           .formatted(path, qualifiedName(parentType)));
         }
         return first;

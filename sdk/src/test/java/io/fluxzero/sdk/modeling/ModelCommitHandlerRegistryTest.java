@@ -2024,7 +2024,7 @@ class ModelCommitHandlerRegistryTest {
     @Model
     private record BatchChild(
             @EntityId BatchChildId id,
-            @ParentId(path = "children") BatchParentId parentId,
+            @Parent(path = "children") BatchParentId parentId,
             int observedParentVersion) {
     }
 
@@ -2216,7 +2216,7 @@ class ModelCommitHandlerRegistryTest {
     @Model
     private record ProjectionChild(
             @EntityId String id,
-            @ParentId(path = "children")
+            @Parent(path = "children")
             ProjectionRootId rootId) {
     }
 

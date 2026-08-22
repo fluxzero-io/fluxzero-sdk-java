@@ -20,7 +20,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ParentId;
+import io.fluxzero.sdk.modeling.Parent;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -397,7 +397,7 @@ class OpenApiProcessorTest {
     @Model
     record ProcessorLocation(
             @EntityId String id,
-            @ParentId(path = "locations",
+            @Parent(path = "locations",
                     apiDoc = @ApiDoc(description = "Organisation locations", required = true,
                             type = "object"))
             ProcessorOrganisationId organisationId) {
@@ -406,7 +406,7 @@ class OpenApiProcessorTest {
     @Model
     record ProcessorConnection(
             @EntityId String id,
-            @ParentId(value = ProcessorLocation.class, path = "assets/connections",
+            @Parent(value = ProcessorLocation.class, path = "assets/connections",
                     apiDoc = @ApiDoc(description = "Location connections"))
             String locationId) {
     }
@@ -418,14 +418,14 @@ class OpenApiProcessorTest {
     @Model
     record ProcessorContact(
             @EntityId String id,
-            @ParentId(types = {ProcessorOrganisation.class, ProcessorAlternateRoot.class}, path = "contacts")
+            @Parent(types = {ProcessorOrganisation.class, ProcessorAlternateRoot.class}, path = "contacts")
             Id<?> parentId) {
     }
 
     @Model
     record ProcessorHiddenChild(
             @EntityId String id,
-            @ParentId(value = ProcessorOrganisation.class, path = "hiddenChildren",
+            @Parent(value = ProcessorOrganisation.class, path = "hiddenChildren",
                     apiDoc = @ApiDoc(exclude = true))
             String organisationId) {
     }
@@ -437,19 +437,19 @@ class OpenApiProcessorTest {
     @Model
     record SelectedChild(
             @EntityId String id,
-            @ParentId(value = SelectedRoot.class, path = "children") String rootId) {
+            @Parent(value = SelectedRoot.class, path = "children") String rootId) {
     }
 
     @Model
     record SelectedLeaf(
             @EntityId String id,
-            @ParentId(value = SelectedChild.class, path = "leaves") String childId) {
+            @Parent(value = SelectedChild.class, path = "leaves") String childId) {
     }
 
     @Model
     record ExcludedChild(
             @EntityId String id,
-            @ParentId(value = SelectedRoot.class, path = "excludedChildren") String rootId) {
+            @Parent(value = SelectedRoot.class, path = "excludedChildren") String rootId) {
     }
 
     @lombok.Value

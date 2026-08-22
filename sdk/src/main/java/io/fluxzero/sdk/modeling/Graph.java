@@ -208,7 +208,7 @@ public interface Graph<T> {
 
     /**
      * Returns all direct parents of this model. A concrete placement normally has one parent, while a directly loaded
-     * model may expose multiple declared {@link ParentId} relationships.
+     * model may expose multiple declared {@link Parent} relationships.
      */
     default List<Graph<?>> parents() {
         return parent().stream().toList();

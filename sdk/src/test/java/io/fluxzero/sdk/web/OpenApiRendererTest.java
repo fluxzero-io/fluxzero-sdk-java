@@ -21,7 +21,7 @@ import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProperty;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ParentId;
+import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Length;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.Range;
 import io.fluxzero.sdk.tracking.handling.validation.constraints.URL;
@@ -455,7 +455,7 @@ class OpenApiRendererTest {
     @Model
     record LocationModel(
             @EntityId String id,
-            @ParentId(value = OrganisationModel.class, path = "locations",
+            @Parent(value = OrganisationModel.class, path = "locations",
                     apiDoc = @ApiDoc(description = "Locations belonging to the organisation", required = true,
                             type = "object"))
             String organisationId,
@@ -465,7 +465,7 @@ class OpenApiRendererTest {
     @Model
     record ConnectionModel(
             @EntityId String id,
-            @ParentId(value = LocationModel.class, path = "infrastructure/connections",
+            @Parent(value = LocationModel.class, path = "infrastructure/connections",
                     apiDoc = @ApiDoc(description = "Physical connections at this location"))
             String locationId,
             String ean) {
@@ -474,7 +474,7 @@ class OpenApiRendererTest {
     @Model
     record ContractModel(
             @EntityId String id,
-            @ParentId(value = OrganisationModel.class, path = "contracts",
+            @Parent(value = OrganisationModel.class, path = "contracts",
                     apiDoc = @ApiDoc(exclude = true)) String organisationId) {
     }
 
@@ -485,7 +485,7 @@ class OpenApiRendererTest {
     @Model
     record ContactModel(
             @EntityId String id,
-            @ParentId(types = {OrganisationModel.class, AlternateRootModel.class}, path = "contacts")
+            @Parent(types = {OrganisationModel.class, AlternateRootModel.class}, path = "contacts")
             Id<?> parentId) {
     }
 

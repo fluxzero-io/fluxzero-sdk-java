@@ -144,7 +144,7 @@ public final class TaskId extends Id<Task> {
 
 @Model(searchable = true)
 public record Task(@EntityId TaskId taskId,
-                   @ParentId(path = "tasks") ProjectId projectId,
+                   @Parent(path = "tasks") ProjectId projectId,
                    String description,
                    boolean completed) {
 }
@@ -159,7 +159,7 @@ class TaskId(value: String) : Id<Task>(value, "task-")
 @Model(searchable = true)
 data class Task(
     @EntityId val taskId: TaskId,
-    @ParentId(path = "tasks") val projectId: ProjectId,
+    @Parent(path = "tasks") val projectId: ProjectId,
     val description: String,
     val completed: Boolean
 )
@@ -168,7 +168,7 @@ data class Task(
   </TabItem>
 </Tabs>
 
-`@ParentId` stores a current and temporal relationship edge. The stable `tasks` path tells graph loading and stitched
+`@Parent` stores a current and temporal relationship edge. The stable `tasks` path tells graph loading and stitched
 documents where children belong.
 
 Now create a task while checking its unrelated parent model:

@@ -60,7 +60,7 @@ public class ModelRelationConstraint {
     int maxDepth = 1;
 
     /**
-     * Optional allowed {@code @ParentId(path = ...)} values. When non-empty, every traversed edge must match one.
+     * Optional allowed {@code @Parent(path = ...)} values. When non-empty, every traversed edge must match one.
      */
     @Singular("path")
     List<String> paths;

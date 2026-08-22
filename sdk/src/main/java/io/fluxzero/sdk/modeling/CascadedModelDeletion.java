@@ -19,7 +19,7 @@ package io.fluxzero.sdk.modeling;
 import java.util.List;
 
 /**
- * Internal reconstructing event stored for models deleted through an owning {@link ParentId} relationship.
+ * Internal reconstructing event stored for models deleted through an owning {@link Parent} relationship.
  * <p>
  * The payload is intentionally stable because event-sourced descendant streams retain it. It is never globally
  * published and applications do not need an {@link io.fluxzero.sdk.persisting.eventsourcing.Apply @Apply} handler for

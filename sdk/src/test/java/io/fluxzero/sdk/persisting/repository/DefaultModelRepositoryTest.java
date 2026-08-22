@@ -64,7 +64,7 @@ import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.ModelRoot;
 import io.fluxzero.sdk.modeling.ModelCommitTestBuilder;
-import io.fluxzero.sdk.modeling.ParentId;
+import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
@@ -2331,7 +2331,7 @@ class DefaultModelRepositoryTest {
     @Model
     private record GraphChild(
             @EntityId GraphChildId graphChildId,
-            @ParentId(path = "children") GraphRootId graphRootId,
+            @Parent(path = "children") GraphRootId graphRootId,
             String name) {
     }
 
@@ -2360,7 +2360,7 @@ class DefaultModelRepositoryTest {
     @Model
     private record GraphGrandchild(
             @EntityId GraphGrandchildId graphGrandchildId,
-            @ParentId(path = "grandchildren") GraphChildId graphChildId,
+            @Parent(path = "grandchildren") GraphChildId graphChildId,
             String name) {
     }
 
@@ -2384,7 +2384,7 @@ class DefaultModelRepositoryTest {
     @Model
     private record UnplacedChild(
             @EntityId UnplacedChildId unplacedChildId,
-            @ParentId GraphRootId graphRootId) {
+            @Parent GraphRootId graphRootId) {
     }
 
     private static class UnplacedChildId extends Id<UnplacedChild> {

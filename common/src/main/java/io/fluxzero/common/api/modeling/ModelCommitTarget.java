@@ -100,7 +100,7 @@ public class ModelCommitTarget {
     /**
      * Whether {@link #relationships} intentionally replaces the model's outgoing parent relationships.
      * <p>
-     * A regular transition whose {@code @ParentId} values did not change leaves this false. This prevents such a
+     * A regular transition whose {@code @Parent} values did not change leaves this false. This prevents such a
      * transition from reopening relationships which the runtime closed because a parent was deleted. Logical model
      * deletion always sets this to true.
      */

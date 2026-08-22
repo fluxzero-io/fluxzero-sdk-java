@@ -10,7 +10,7 @@ import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
 Domain objects may form a tree without sharing one permanent storage boundary. A child `@Model` owns the relation by
-storing its parent's ID in an `@ParentId` property:
+storing its parent's ID in an `@Parent` property:
 
 ```java
 @Model(searchable = true)
@@ -22,7 +22,7 @@ record Order(
 @Model(searchable = true)
 record LineItem(
         @EntityId LineItemId lineItemId,
-        @ParentId(path = "lines") OrderId orderId,
+        @Parent(path = "lines") OrderId orderId,
         ProductId productId,
         int quantity) {
 }
@@ -33,7 +33,7 @@ and direct search document. Updating it does not load or
 rewrite the order.
 
 The child does not have to be independently searchable. With `@Model(searchable = false)`, the explicit
-`@ParentId(path = "lines")` still retains a private current document for graph composition; only the child’s own public
+`@Parent(path = "lines")` still retains a private current document for graph composition; only the child’s own public
 search collection is suppressed.
 
 ## Attach, detach and move
@@ -68,14 +68,14 @@ today.
 With `Id<Parent>`, Fluxzero infers the parent type:
 
 ```java
-@ParentId(path = "lines")
+@Parent(path = "lines")
 OrderId orderId
 ```
 
 For a string or another untyped ID, declare the type when graph features need it:
 
 ```java
-@ParentId(value = Order.class, path = "lines")
+@Parent(value = Order.class, path = "lines")
 String orderId
 ```
 
@@ -87,7 +87,7 @@ concatenated into the persisted key.
 `path` is an explicit durable placement contract. It is intentionally not derived from a Java class name:
 
 ```java
-@ParentId(path = "shipping/lines")
+@Parent(path = "shipping/lines")
 OrderId orderId
 ```
 
@@ -240,11 +240,11 @@ Promote a member to its own `@Model` when any of these statements stops being tr
 ## Deletion and detached descendants
 
 A logical delete returns `null` from an apply and retains model history. By default it recursively deletes children
-whose relevant `@ParentId` keeps `deleteOnParentDeletion = true`. This ownership rule follows pathless relations and
+whose relevant `@Parent` keeps `deleteOnParentDeletion = true`. This ownership rule follows pathless relations and
 shared-DAG descendants too. Opt out for independently retained children:
 
 ```java
-@ParentId(path = "auditEntries", deleteOnParentDeletion = false)
+@Parent(path = "auditEntries", deleteOnParentDeletion = false)
 OrderId orderId
 ```
 

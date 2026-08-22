@@ -435,7 +435,7 @@ class EntityMetadataTest {
 
     @Test
     void rejectsInvalidParentDeclarations() {
-        assertMessage(ParentOnNonModel.class, "@ParentId is only supported on @Model");
+        assertMessage(ParentOnNonModel.class, "@Parent is only supported on @Model");
         assertMessage(CollectionParentModel.class, "must contain one scalar ID");
         assertMessage(PaddedPathModel.class, "must not be blank or have surrounding whitespace");
         assertMessage(InvalidPathModel.class, "relative path without empty segments");
@@ -604,22 +604,22 @@ class EntityMetadataTest {
     @Model
     private record PolymorphicChildModel(
             @EntityId String id,
-            @ParentId(types = {ParentModel.class, AlternateParentModel.class}, path = "children") Id<?> parentId) {
+            @Parent(types = {ParentModel.class, AlternateParentModel.class}, path = "children") Id<?> parentId) {
     }
 
     @Model
     private record ChildModel(
             @EntityId ChildModelId childId,
-            @ParentId(path = "items", apiDoc = @ApiDoc(description = "Child items")) ParentModelId parentId,
-            @ParentId(value = ParentModel.class, path = "externalItems") String externalParentId) {
+            @Parent(path = "items", apiDoc = @ApiDoc(description = "Child items")) ParentModelId parentId,
+            @Parent(value = ParentModel.class, path = "externalItems") String externalParentId) {
     }
 
     @Model
     private record DuplicateParentModel(
             @EntityId String id,
-            @ParentId(value = ParentModel.class, path = "items", deleteOnParentDeletion = false)
+            @Parent(value = ParentModel.class, path = "items", deleteOnParentDeletion = false)
             ParentModelId reference,
-            @ParentId(value = ParentModel.class, path = "items") ParentModelId ownedReference) {
+            @Parent(value = ParentModel.class, path = "items") ParentModelId ownedReference) {
     }
 
     private static class ChildModelId extends Id<ChildModel> {
@@ -646,14 +646,14 @@ class EntityMetadataTest {
     @Model
     private record ScopedBranchModel(
             @EntityId String branchId,
-            @ParentId(value = ScopedRootModel.class, path = "branches") String rootId) {
+            @Parent(value = ScopedRootModel.class, path = "branches") String rootId) {
     }
 
     @Model
     private record ScopedLeafModel(
             @EntityId(parentScoped = true) String leafId,
-            @ParentId(value = ScopedRootModel.class, path = "leaves") String rootId,
-            @ParentId(value = ScopedBranchModel.class, path = "leaves") String branchId) {
+            @Parent(value = ScopedRootModel.class, path = "leaves") String rootId,
+            @Parent(value = ScopedBranchModel.class, path = "leaves") String branchId) {
     }
 
     private record ScopedTargetPayload(String rootId, String branchId, String leafId) {
@@ -671,12 +671,12 @@ class EntityMetadataTest {
     @Model
     private record AmbiguousScopedModel(
             @EntityId(parentScoped = true) String leafId,
-            @ParentId(value = ScopedRootModel.class, path = "leaves") String firstRootId,
-            @ParentId(value = OtherScopedRootModel.class, path = "leaves") String secondRootId) {
+            @Parent(value = ScopedRootModel.class, path = "leaves") String firstRootId,
+            @Parent(value = OtherScopedRootModel.class, path = "leaves") String secondRootId) {
     }
 
     private interface ParentLink {
-        @ParentId(path = "interfaceChildren")
+        @Parent(path = "interfaceChildren")
         ParentModelId parentId();
     }
 
@@ -788,44 +788,44 @@ class EntityMetadataTest {
     private record ModelAggregate(@EntityId String id) {
     }
 
-    private record ParentOnNonModel(@ParentId String parentId) {
+    private record ParentOnNonModel(@Parent String parentId) {
     }
 
     @Model
-    private record CollectionParentModel(@EntityId String id, @ParentId List<String> parentIds) {
+    private record CollectionParentModel(@EntityId String id, @Parent List<String> parentIds) {
     }
 
     @Model
     private record PaddedPathModel(@EntityId String id,
-                                   @ParentId(value = ParentModel.class, path = " items ") String parent) {
+                                   @Parent(value = ParentModel.class, path = " items ") String parent) {
     }
 
     @Model
     private record InvalidPathModel(@EntityId String id,
-                                    @ParentId(value = ParentModel.class, path = "items//archived") String parent) {
+                                    @Parent(value = ParentModel.class, path = "items//archived") String parent) {
     }
 
     @Model
     private record TraversalPathModel(@EntityId String id,
-                                      @ParentId(value = ParentModel.class, path = "items/../archived") String parent) {
+                                      @Parent(value = ParentModel.class, path = "items/../archived") String parent) {
     }
 
     @Model
     private record NumericPathModel(
             @EntityId String id,
-            @ParentId(value = ParentModel.class, path = "items/0")
+            @Parent(value = ParentModel.class, path = "items/0")
             String parent) {
     }
 
     @Model
     private record MetadataPathModel(
             @EntityId String id,
-            @ParentId(value = ParentModel.class, path = "$metadata/items")
+            @Parent(value = ParentModel.class, path = "$metadata/items")
             String parent) {
     }
 
     @Model
-    private record UntypedPathModel(@EntityId String id, @ParentId(path = "items") String parent) {
+    private record UntypedPathModel(@EntityId String id, @Parent(path = "items") String parent) {
     }
 
     private static class NotAModel {
@@ -838,34 +838,34 @@ class EntityMetadataTest {
     }
 
     @Model
-    private record InvalidTypedParentModel(@EntityId String id, @ParentId NotAModelId parentId) {
+    private record InvalidTypedParentModel(@EntityId String id, @Parent NotAModelId parentId) {
     }
 
     @Model
-    private record InvalidExplicitParentModel(@EntityId String id, @ParentId(NotAModel.class) String parentId) {
+    private record InvalidExplicitParentModel(@EntityId String id, @Parent(NotAModel.class) String parentId) {
     }
 
     @Model
     private record MismatchedParentModel(
-            @EntityId String id, @ParentId(value = ChildModel.class) ParentModelId parentId) {
+            @EntityId String id, @Parent(value = ChildModel.class) ParentModelId parentId) {
     }
 
     @Model
     private record ConflictingPolymorphicParentModel(
             @EntityId String id,
-            @ParentId(value = ParentModel.class, types = AlternateParentModel.class) Id<?> parentId) {
+            @Parent(value = ParentModel.class, types = AlternateParentModel.class) Id<?> parentId) {
     }
 
     @Model
     private record UntypedPolymorphicParentModel(
             @EntityId String id,
-            @ParentId(types = {ParentModel.class, AlternateParentModel.class}) String parentId) {
+            @Parent(types = {ParentModel.class, AlternateParentModel.class}) String parentId) {
     }
 
     @Model
     private record InvalidPolymorphicParentModel(
             @EntityId String id,
-            @ParentId(types = {ParentModel.class, NotAModel.class}) Id<?> parentId) {
+            @Parent(types = {ParentModel.class, NotAModel.class}) Id<?> parentId) {
     }
 
     private static class AmbiguousTransfer {
@@ -895,14 +895,14 @@ class EntityMetadataTest {
     }
 
     @Model
-    private record CycleA(@EntityId CycleAId id, @ParentId CycleBId parentId) {
+    private record CycleA(@EntityId CycleAId id, @Parent CycleBId parentId) {
     }
 
     @Model
-    private record CycleB(@EntityId CycleBId id, @ParentId CycleAId parentId) {
+    private record CycleB(@EntityId CycleBId id, @Parent CycleAId parentId) {
     }
 
     @Model
-    private record UntypedParentModel(@EntityId String id, @ParentId String parentId) {
+    private record UntypedParentModel(@EntityId String id, @Parent String parentId) {
     }
 }

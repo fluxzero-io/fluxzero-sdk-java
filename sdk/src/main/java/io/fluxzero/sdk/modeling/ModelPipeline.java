@@ -618,7 +618,7 @@ final class ModelPipeline {
     }
 
     /**
-     * Adds one internal, non-published delete substep for descendants owned through {@link ParentId} relationships.
+     * Adds one internal, non-published delete substep for descendants owned through {@link Parent} relationships.
      * The ordinary evaluation path only pays the single final-value scan below; graph reconstruction is exclusive to
      * actual logical deletions.
      */

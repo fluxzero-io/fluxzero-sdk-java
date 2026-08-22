@@ -1323,7 +1323,7 @@ class DefaultModelRepositoryCommitTest {
             searchProjection = @Searchable(collection = "orders", timestampPath = "changedAt"))
     private record Order(
             @EntityId OrderId orderId,
-            @ParentId(value = Customer.class, path = "orders") CustomerId customerId,
+            @Parent(value = Customer.class, path = "orders") CustomerId customerId,
             String status,
             Instant changedAt) {
     }
@@ -1357,7 +1357,7 @@ class DefaultModelRepositoryCommitTest {
     @Model(eventSourced = false)
     private record PolymorphicContact(
             @EntityId String id,
-            @ParentId(types = {Customer.class, AlternateCustomer.class}, path = "contacts") Id<?> parentId) {
+            @Parent(types = {Customer.class, AlternateCustomer.class}, path = "contacts") Id<?> parentId) {
     }
 
     private record CreatePolymorphicContact() {
@@ -1374,7 +1374,7 @@ class DefaultModelRepositoryCommitTest {
     @Model
     private record GraphOnlyChild(
             @EntityId GraphOnlyChildId childId,
-            @ParentId(path = "children")
+            @Parent(path = "children")
             CustomerId customerId,
             String value) {
     }

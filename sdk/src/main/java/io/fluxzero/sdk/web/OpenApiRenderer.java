@@ -632,7 +632,7 @@ public final class OpenApiRenderer {
         ApiDoc first = relations.getFirst().apiDoc();
         if (relations.stream().map(ModelGraphRelation::apiDoc).anyMatch(apiDoc -> !first.equals(apiDoc))) {
             throw new IllegalArgumentException(
-                    "Conflicting @ParentId.apiDoc declarations for graph path '%s' below %s"
+                    "Conflicting @Parent.apiDoc declarations for graph path '%s' below %s"
                             .formatted(path, parentType.getName()));
         }
         return first;

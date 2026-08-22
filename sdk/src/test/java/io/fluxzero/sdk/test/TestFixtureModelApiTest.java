@@ -23,7 +23,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ParentId;
+import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
@@ -279,25 +279,25 @@ class TestFixtureModelApiTest {
     @Model
     private record FixtureLocation(
             @EntityId String locationId,
-            @ParentId(value = FixtureRoot.class, path = "locations") String rootId) {
+            @Parent(value = FixtureRoot.class, path = "locations") String rootId) {
     }
 
     @Model
     private record FixtureParent(
             @EntityId String parentId,
-            @ParentId(value = FixtureLocation.class, path = "parents") String locationId) {
+            @Parent(value = FixtureLocation.class, path = "parents") String locationId) {
     }
 
     @Model
     private record FixtureChild(
             @EntityId String childId,
-            @ParentId(value = FixtureParent.class, path = "children") String parentId) {
+            @Parent(value = FixtureParent.class, path = "children") String parentId) {
     }
 
     @Model
     private record ScopedFixtureChild(
             @EntityId(parentScoped = true) String childId,
-            @ParentId(value = FixtureRoot.class, path = "scopedChildren") String rootId) {
+            @Parent(value = FixtureRoot.class, path = "scopedChildren") String rootId) {
     }
 
     private record CreateFixtureRoot(String rootId) {

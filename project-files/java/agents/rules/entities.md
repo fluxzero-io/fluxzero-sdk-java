@@ -35,7 +35,7 @@ Important settings:
 
 - `eventSourced`: controls the current-state load route. Events are still stored when `false`.
 - `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
-  model's own collection; an explicit `@ParentId(path = "...")` still retains a private graph-component document.
+  model's own collection; an explicit `@Parent(path = "...")` still retains a private graph-component document.
 - `searchProjection`: optional `@Searchable` configuration for the direct collection and timestamp paths.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `STORE_AND_PUBLISH`, `STORE_ONLY`, `PUBLISH_ONLY` or `NEVER`.
@@ -194,13 +194,13 @@ when that order is a domain requirement.
 
 ## Relationships
 
-Use `@ParentId` on the child:
+Use `@Parent` on the child:
 
 ```java
 @Model(searchable = true)
 public record Task(
         @EntityId TaskId taskId,
-        @ParentId(path = "tasks") ProjectId projectId,
+        @Parent(path = "tasks") ProjectId projectId,
         TaskDetails details,
         boolean completed) {
 }
@@ -211,7 +211,7 @@ public record Task(
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
 - `path` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
-- A child is logically deleted by default when any parent referenced by that `@ParentId` is finally deleted. Set
+- A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set
   `deleteOnParentDeletion = false` for deliberately detached or independently retained children.
 - Relationships are temporal; graph reconstruction can pin a `stateIndex`.
 
@@ -356,7 +356,7 @@ If multiple applies request different policies, the stricter applicable policy w
 ## Deletion
 
 - Returning `null` from `@Apply` is logical deletion and preserves history.
-- Logical parent deletion recursively deletes children whose relevant `@ParentId` keeps the default
+- Logical parent deletion recursively deletes children whose relevant `@Parent` keeps the default
   `deleteOnParentDeletion = true`. This follows pathless relations and shared descendants too; a shared descendant is
   deleted when any owning parent disappears. Moving a child away in the same atomic commit preserves it.
 - `modelRepository().deleteModel(id, NONE)` physically erases that model's stream, current document, snapshots and

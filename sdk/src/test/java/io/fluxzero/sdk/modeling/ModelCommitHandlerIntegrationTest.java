@@ -2971,7 +2971,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record PathlessFamilyChild(
             @EntityId String id,
-            @ParentId FamilyRootId familyRootId) {
+            @Parent FamilyRootId familyRootId) {
     }
 
     private record CreatePathlessFamilyChild(
@@ -2986,7 +2986,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record RetainedFamilyChild(
             @EntityId String id,
-            @ParentId(deleteOnParentDeletion = false)
+            @Parent(deleteOnParentDeletion = false)
             FamilyRootId familyRootId) {
     }
 
@@ -3027,7 +3027,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record ScopedNote(
             @EntityId(parentScoped = true) String noteId,
-            @ParentId(path = "notes") FamilyRootId familyRootId,
+            @Parent(path = "notes") FamilyRootId familyRootId,
             int value) {
     }
 
@@ -3054,7 +3054,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record AffixedChild(
             @EntityId(prefix = "nested-") AffixedChildId affixedChildId,
-            @ParentId(path = "children") AffixedRootId affixedRootId) {
+            @Parent(path = "children") AffixedRootId affixedRootId) {
     }
 
     private static final class AffixedChildId extends Id<AffixedChild> {
@@ -3075,7 +3075,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record AffixedCompanion(
             @EntityId(prefix = "companion-")
-            @ParentId(path = "companion")
+            @Parent(path = "companion")
             AffixedRootId affixedRootId,
             String status) {
     }
@@ -3092,7 +3092,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model(searchable = true)
     private record FamilyChild(
             @EntityId FamilyChildId familyChildId,
-            @ParentId(path = "children")
+            @Parent(path = "children")
             FamilyRootId familyRootId,
             String name) {
     }
@@ -3118,7 +3118,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model(eventSourced = false, searchable = true)
     private record DocumentFamilyChild(
             @EntityId DocumentFamilyChildId documentFamilyChildId,
-            @ParentId(path = "documentChildren")
+            @Parent(path = "documentChildren")
             FamilyRootId familyRootId,
             String name) {
     }
@@ -3144,9 +3144,9 @@ class ModelCommitHandlerIntegrationTest {
     @Model(cached = false, searchable = true)
     private record FamilyGrandchild(
             @EntityId FamilyGrandchildId familyGrandchildId,
-            @ParentId(path = "primaryGrandchildren")
+            @Parent(path = "primaryGrandchildren")
             FamilyChildId primaryId,
-            @ParentId(path = "secondaryGrandchildren")
+            @Parent(path = "secondaryGrandchildren")
             FamilyChildId secondaryId,
             String observations) {
     }
@@ -3316,7 +3316,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record ProjectionChild(
             @EntityId ProjectionChildId projectionChildId,
-            @ParentId(path = "children")
+            @Parent(path = "children")
             ProjectionRootId projectionRootId) {
 
         @FilterContent

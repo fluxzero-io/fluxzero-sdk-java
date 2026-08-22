@@ -23,7 +23,7 @@ import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ParentId;
+import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import org.junit.jupiter.api.Test;
@@ -313,7 +313,7 @@ class MaterializedGraphFactoryTest {
     @Model
     private record CountingChild(
             @EntityId String id,
-            @ParentId(value = CountingRoot.class, path = "children")
+            @Parent(value = CountingRoot.class, path = "children")
             String rootId) {
         private static final AtomicInteger constructions =
                 new AtomicInteger();
@@ -330,25 +330,25 @@ class MaterializedGraphFactoryTest {
     @Model
     private record PrimaryParent(
             @EntityId String id,
-            @ParentId(value = MultiParentRoot.class, path = "primaryParents")
+            @Parent(value = MultiParentRoot.class, path = "primaryParents")
             String rootId) {
     }
 
     @Model
     private record SecondaryParent(
             @EntityId String id,
-            @ParentId(value = MultiParentRoot.class, path = "secondaryParents")
+            @Parent(value = MultiParentRoot.class, path = "secondaryParents")
             String rootId) {
     }
 
     @Model
     private record MultiParentChild(
             @EntityId String id,
-            @ParentId(value = PrimaryParent.class, path = "children")
+            @Parent(value = PrimaryParent.class, path = "children")
             String primaryId,
-            @ParentId(value = SecondaryParent.class)
+            @Parent(value = SecondaryParent.class)
             String secondaryId,
-            @ParentId(value = PrimaryParent.class)
+            @Parent(value = PrimaryParent.class)
             String alternatePrimaryId) {
     }
 

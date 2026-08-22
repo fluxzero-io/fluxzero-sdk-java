@@ -44,7 +44,7 @@ import java.lang.annotation.Target;
  * For a model value or {@link io.fluxzero.sdk.modeling.Entity Entity&lt;T&gt;} parameter of a model-aware
  * {@code @AssertLegal}, {@code @InterceptApply}, or {@code @Apply} method, one association value first selects a
  * same-named payload ID property. If that property is absent, the value qualifies a reachable ancestor by its explicit
- * {@link io.fluxzero.sdk.modeling.ParentId#path() @ParentId path}. On any message-handler model parameter, the
+ * {@link io.fluxzero.sdk.modeling.Parent#path() @Parent path}. On any message-handler model parameter, the
  * association value selects a direct model ID from message metadata or payload. If neither contains the value, it can
  * qualify a reachable ancestor path. {@link #excludeMetadata()} restricts this lookup to the payload and graph.
  *

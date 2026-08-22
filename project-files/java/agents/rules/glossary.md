@@ -8,7 +8,7 @@ Key terms and definitions used within the Fluxzero SDK and ecosystem.
 
 An independently persisted immutable domain object identified by `@EntityId`. Each `@Model` has its own modelstream,
 cache entry, direct document, snapshots and lifecycle. Related models form dynamic action boundaries and a temporal
-graph through `@ParentId`.
+graph through `@Parent`.
 
 ### Aggregate (legacy)
 

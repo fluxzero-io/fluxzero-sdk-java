@@ -22,7 +22,6 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.modeling.Model;
-import io.fluxzero.sdk.modeling.ParentId;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.search.Searchable;
 
@@ -60,7 +59,7 @@ public record DownstreamModel(@EntityId String id, String value, @Member List<Pa
     @Model
     public record Child(
             @EntityId String id,
-            @ParentId(path = "children") DownstreamParentId parentId,
-            @ParentId(value = Parent.class, path = "externalChildren") String externalParentId) {
+            @io.fluxzero.sdk.modeling.Parent(path = "children") DownstreamParentId parentId,
+            @io.fluxzero.sdk.modeling.Parent(value = Parent.class, path = "externalChildren") String externalParentId) {
     }
 }

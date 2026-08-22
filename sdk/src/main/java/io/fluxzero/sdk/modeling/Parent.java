@@ -59,7 +59,7 @@ import java.lang.annotation.Target;
 @Documented
 @Target({ElementType.FIELD, ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface ParentId {
+public @interface Parent {
 
     /**
      * Explicit parent model type for an untyped ID. Must match the inferred {@link Id} target when both are present.

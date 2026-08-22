@@ -41,7 +41,7 @@ import java.lang.annotation.Target;
  * documentation must cross module boundaries.
  * </p>
  * <p>
- * The annotation can also be nested in {@link io.fluxzero.sdk.modeling.ParentId} to describe the list property that
+ * The annotation can also be nested in {@link io.fluxzero.sdk.modeling.Parent} to describe the list property that
  * an independent-model relationship contributes to a documented model graph. Select such a graph as a response with
  * {@link ApiDocResponse#modelGraph()}.
  * </p>
@@ -133,7 +133,7 @@ public @interface ApiDoc {
      * generated API documentation.
      * <p>
      * This is the composable equivalent of {@link ApiDocExclude}, useful in particular when {@code ApiDoc} is nested
-     * inside another annotation such as {@link io.fluxzero.sdk.modeling.ParentId#apiDoc()}.
+     * inside another annotation such as {@link io.fluxzero.sdk.modeling.Parent#apiDoc()}.
      */
     boolean exclude() default false;
 

@@ -2448,7 +2448,7 @@ JsonNode getOrganisation(@PathParam String id) {
 @Model
 record Location(
         @EntityId String id,
-        @ParentId(
+        @Parent(
                 value = Organisation.class,
                 path = "locations",
                 apiDoc = @ApiDoc(
@@ -2460,7 +2460,7 @@ record Location(
 @Model
 record InternalContract(
         @EntityId String id,
-        @ParentId(
+        @Parent(
                 value = Organisation.class,
                 path = "contracts",
                 apiDoc = @ApiDoc(exclude = true))
@@ -2472,7 +2472,7 @@ The root schema is inferred from `Organisation`; the `locations` property is ren
 Slash-separated paths create nested objects before the final list property, and descendants are followed recursively.
 If the handler returns an array or collection of JSON trees, the response remains an array whose items use the complete
 model-graph schema. By default all graph relationships are included except relationships whose nested
-`@ParentId.apiDoc` declares `exclude = true`. Use `modelGraphPaths` only to select an endpoint-specific subgraph;
+`@Parent.apiDoc` declares `exclude = true`. Use `modelGraphPaths` only to select an endpoint-specific subgraph;
 ancestors of each selected path are included automatically, while sibling and deeper descendant paths must be selected
 explicitly. Exclusion and path selection affect documentation only, not the graph returned at runtime.
 `ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
@@ -3201,7 +3201,7 @@ Related models remain independently stored:
 @Model(searchable = true)
 public record Address(
         @EntityId AddressId addressId,
-        @ParentId(path = "addresses") UserId userId,
+        @Parent(path = "addresses") UserId userId,
         AddressDetails details) {
 }
 ```
@@ -3213,7 +3213,7 @@ lazy `Graph<User>` results: it uses a configured materialized projection and oth
 documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a
 boundary that explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
 `searchable = false` suppresses only the address's own search collection: an explicit
-`@ParentId(path = "...")` still gives graph composition an internal current document.
+`@Parent(path = "...")` still gives graph composition an internal current document.
 
 One relationship property may deliberately accept several parent model types. Declare those possibilities statically
 and keep the domain value as a typed `Id`; the concrete `Id` subtype selects the relationship at runtime:
@@ -3222,7 +3222,7 @@ and keep the domain value as a typed `Id`; the concrete `Id` subtype selects the
 @Model
 record Authorisation(
         @EntityId AuthorisationId id,
-        @ParentId(
+        @Parent(
                 types = {UserProfile.class, Organisation.class},
                 path = "receivedAuthorisations")
         Id<?> nominee) {
@@ -3242,7 +3242,7 @@ child IDs. Automatic apply routing uses the deepest non-null parent relation in 
 @Model
 record Line(
         @EntityId(parentScoped = true) String lineId,
-        @ParentId(value = Order.class, path = "lines") OrderId orderId) {
+        @Parent(value = Order.class, path = "lines") OrderId orderId) {
 }
 
 Graph<Line> line = Fluxzero.loadGraph(orderId, Order.class, "one", Line.class);
@@ -3350,7 +3350,7 @@ not materialize intermediate parent values. `optional()`,
 `stream()` traverses the complete graph lazily and `find(idOrAlias[, type])` resolves a primary identity or `@Alias`
 without manually enumerating model types or relationship paths. `hasChanged(...)`, `previousValue(...)` and
 `revisions()` cover common before/after and revision use cases. Returning a graph from a handler serializes the model
-tree through explicitly named `@ParentId(path = "...")` edges. Pathless relations remain available for typed traversal
+tree through explicitly named `@Parent(path = "...")` edges. Pathless relations remain available for typed traversal
 and lifecycle handling but do not invent a JSON field name. The serializer emits every known named relationship as an
 array, including a stable empty `[]`. `selectPaths(...)` creates a lazy immutable response view containing only selected
 branches and their ancestors without copying model values. `filterNodes(...)` likewise creates a lazy immutable view
@@ -3390,7 +3390,7 @@ deletion supplies an empty current graph plus its complete previous graph, and a
 new roots. Ordinary handlers that also declare an event payload keep their existing direct model-injection semantics.
 
 Logical deletion follows model ownership by default. When a parent is finally deleted, every child relation whose
-`@ParentId` keeps `deleteOnParentDeletion = true` recursively deletes that child, including pathless relations and
+`@Parent` keeps `deleteOnParentDeletion = true` recursively deletes that child, including pathless relations and
 shared-DAG descendants. Set it to `false` for independently retained children. A child moved away in the same atomic
 commit survives, and an intermediate delete followed by recreation does not trigger the cascade. Physical erasure is
 still a separately planned and confirmed operation.

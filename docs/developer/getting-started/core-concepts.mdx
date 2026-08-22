@@ -209,12 +209,12 @@ Account debit(@Association("sourceId") Account source) { ... }
 
 ## Relationships instead of ownership
 
-Use `@ParentId` when independently stored models form a navigable graph:
+Use `@Parent` when independently stored models form a navigable graph:
 
 ```java
 @Model(searchable = true)
 public record Task(@EntityId TaskId taskId,
-                   @ParentId(path = "tasks") ProjectId projectId,
+                   @Parent(path = "tasks") ProjectId projectId,
                    String description,
                    boolean completed) {
 }
@@ -258,7 +258,7 @@ public record InvoiceLine(@EntityId LineId lineId,
 ```
 
 The invoice and lines above intentionally share one stream, cache entry, document and lifecycle. Prefer a separate
-`@Model` plus `@ParentId` as soon as a child is independently updated, searched, moved, retained or erased.
+`@Model` plus `@Parent` as soon as a child is independently updated, searched, moved, retained or erased.
 
 ## Loading and exact event state
 

@@ -96,7 +96,7 @@ Use `@EntityId(parentScoped = true)` when a parent-owned child ID is intentional
 @Model
 record Line(
         @EntityId(parentScoped = true) String lineId,
-        @ParentId(value = Order.class, path = "lines") OrderId orderId) {
+        @Parent(value = Order.class, path = "lines") OrderId orderId) {
 }
 ```
 
@@ -226,7 +226,7 @@ keeps the direct or ancestor-injection semantics described above.
 
 ## Loading a complete model graph
 
-Relations declared with `@ParentId` can be traversed without turning the models back into one permanent consistency
+Relations declared with `@Parent` can be traversed without turning the models back into one permanent consistency
 boundary:
 
 ```java
@@ -247,11 +247,11 @@ Graph loads have no caller-imposed depth or model-count limit by default. Pass e
 operation intentionally accepts only a bounded graph; use a direct model load when the command needs only one model.
 
 Returning `Graph<T>` from a message or web handler serializes the root and descendants placed through explicit
-`@ParentId(path = "...")` edges. Pathless relationships remain available through typed `children(...)` and
+`@Parent(path = "...")` edges. Pathless relationships remain available through typed `children(...)` and
 `descendants(...)`, but do not invent a public JSON property name.
 
 A current graph load inside an ordered tracking batch includes pending model state produced by earlier messages in the
-same routing segment. This includes newly created nodes, changed values and `@ParentId` moves. Moving an existing node
+same routing segment. This includes newly created nodes, changed values and `@Parent` moves. Moving an existing node
 into the graph also brings along its durable descendants. `loadGraphAt(...)` is deliberately different: it always
 returns the exact requested historical boundary and never overlays pending batch state.
 
@@ -268,7 +268,7 @@ record SmallOrder(
 ```
 
 Embedded members share the model's stream, cache, document, snapshots and lifecycle. Use them only when that is exactly
-the intended ownership. Use a separate `@Model` plus `@ParentId` when a child must move, be searched independently,
+the intended ownership. Use a separate `@Model` plus `@Parent` when a child must move, be searched independently,
 have its own lifecycle or be changed without loading the root.
 
 <Aside type="note" title="Legacy aggregate API">

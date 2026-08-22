@@ -521,7 +521,9 @@ class MutationPlanTest {
     }
 
     @Model
-    private record Child(@EntityId ChildId childId, @ParentId ParentIdValue parentId) {
+    private record Child(
+            @EntityId ChildId childId,
+            @io.fluxzero.sdk.modeling.Parent ParentIdValue parentId) {
         @Apply
         Child rename(RenameChild command) {
             return this;

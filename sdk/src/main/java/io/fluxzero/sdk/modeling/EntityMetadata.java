@@ -188,7 +188,7 @@ public final class EntityMetadata {
 
         this.parentReferences = inspectParentReferences(typeMetadata);
         if (model == null && !parentReferences.isEmpty()) {
-            throw invalid("@ParentId is only supported on @Model types, but was found on %s".formatted(type.getName()));
+            throw invalid("@Parent is only supported on @Model types, but was found on %s".formatted(type.getName()));
         }
         if (parentScopedEntityId) {
             if (model == null) {
@@ -196,11 +196,11 @@ public final class EntityMetadata {
                                       .formatted(type.getName()));
             }
             if (parentReferences.isEmpty()) {
-                throw invalid("@EntityId(parentScoped = true) on %s requires at least one @ParentId"
+                throw invalid("@EntityId(parentScoped = true) on %s requires at least one @Parent"
                                       .formatted(type.getName()));
             }
             if (parentReferences.stream().anyMatch(reference -> reference.parentModelTypes().isEmpty())) {
-                throw invalid("Every @ParentId on parent-scoped model %s must declare or infer its parent model type"
+                throw invalid("Every @Parent on parent-scoped model %s must declare or infer its parent model type"
                                       .formatted(type.getName()));
             }
         }
@@ -320,7 +320,7 @@ public final class EntityMetadata {
                 .toList();
         if (matches.size() != 1) {
             throw new IllegalArgumentException(
-                    "Expected exactly one @ParentId on %s for parent type %s, but found %d"
+                    "Expected exactly one @Parent on %s for parent type %s, but found %d"
                             .formatted(type.getName(), parentType == null ? "<unspecified>" : parentType.getName(),
                                        matches.size()));
         }
@@ -377,7 +377,7 @@ public final class EntityMetadata {
     private String scopedRepositoryId(Object functionalId, List<ParentValue> parents) {
         if (parents.size() != 1) {
             throw new IllegalArgumentException(
-                    "Parent-scoped model %s requires exactly one non-null @ParentId, but found %d"
+                    "Parent-scoped model %s requires exactly one non-null @Parent, but found %d"
                             .formatted(type.getName(), parents.size()));
         }
         ParentValue parent = parents.getFirst();
@@ -452,7 +452,7 @@ public final class EntityMetadata {
     /**
      * Resolves and deduplicates the outgoing parent relationships of one model value.
      *
-     * <p>This is the only runtime extraction of {@link ParentId} values. Graph views, batch overlays, cascade
+     * <p>This is the only runtime extraction of {@link Parent} values. Graph views, batch overlays, cascade
      * selection and repository commits consume this immutable result instead of independently reading structural
      * metadata.</p>
      */
@@ -470,7 +470,7 @@ public final class EntityMetadata {
             }
             String repositoryId = Objects.requireNonNull(
                     reference.repositoryId(parentId),
-                    () -> "@ParentId " + reference.property().name() + " returned a null ID string");
+                    () -> "@Parent " + reference.property().name() + " returned a null ID string");
             if (Objects.equals(modelId, repositoryId)) {
                 throw new IllegalStateException(
                         "Model '%s' cannot be its own parent".formatted(modelId));
@@ -606,13 +606,13 @@ public final class EntityMetadata {
     private List<ParentReference> inspectParentReferences(ReflectionUtils.TypeMetadata typeMetadata) {
         LinkedHashMap<String, ParentProperty> properties = new LinkedHashMap<>();
         for (AccessibleObject candidate : parentCandidates(typeMetadata)) {
-            ParentId annotation = parentAnnotation(typeMetadata, candidate);
+            Parent annotation = parentAnnotation(typeMetadata, candidate);
             if (annotation != null) {
                 String propertyName = getPropertyName(candidate);
                 ParentProperty previous = properties.putIfAbsent(
                         propertyName, new ParentProperty(property(candidate), annotation));
                 if (previous != null && !previous.annotation().equals(annotation)) {
-                    throw invalid("Conflicting @ParentId declarations on property %s.%s"
+                    throw invalid("Conflicting @Parent declarations on property %s.%s"
                                           .formatted(type.getName(), propertyName));
                 }
             }
@@ -620,24 +620,24 @@ public final class EntityMetadata {
 
         List<ParentReference> result = new ArrayList<>();
         for (ParentProperty parentProperty : properties.values()) {
-            validateScalarId(parentProperty.property(), "@ParentId");
-            ParentId annotation = parentProperty.annotation();
+            validateScalarId(parentProperty.property(), "@Parent");
+            Parent annotation = parentProperty.annotation();
             String path = validateParentPath(parentProperty.property(), annotation.path());
             Class<?> inferredType = inferIdTarget(
                     parentProperty.property().type(), parentProperty.property().genericType()).orElse(null);
             Class<?> explicitType = void.class.equals(annotation.value()) ? null : annotation.value();
             List<Class<?>> explicitTypes = List.of(annotation.types());
             if (explicitType != null && !explicitTypes.isEmpty()) {
-                throw invalid("@ParentId %s.%s may declare either value or types, but not both"
+                throw invalid("@Parent %s.%s may declare either value or types, but not both"
                                       .formatted(type.getName(), parentProperty.property().name()));
             }
             LinkedHashSet<Class<?>> parentTypes = new LinkedHashSet<>(explicitTypes);
             if (parentTypes.size() != explicitTypes.size()) {
-                throw invalid("@ParentId %s.%s declares duplicate parent model types"
+                throw invalid("@Parent %s.%s declares duplicate parent model types"
                                       .formatted(type.getName(), parentProperty.property().name()));
             }
             if (parentTypes.remove(void.class)) {
-                throw invalid("@ParentId %s.%s types must not contain void"
+                throw invalid("@Parent %s.%s types must not contain void"
                                       .formatted(type.getName(), parentProperty.property().name()));
             }
             if (explicitType != null) {
@@ -646,7 +646,7 @@ public final class EntityMetadata {
                 parentTypes.add(inferredType);
             }
             if (inferredType != null && !parentTypes.isEmpty() && !parentTypes.contains(inferredType)) {
-                throw invalid("@ParentId %s.%s explicitly refers to %s but its ID type refers to %s"
+                throw invalid("@Parent %s.%s explicitly refers to %s but its ID type refers to %s"
                                       .formatted(type.getName(), parentProperty.property().name(),
                                                  parentTypes.stream().map(Class::getName).toList(),
                                                  inferredType.getName()));
@@ -655,16 +655,16 @@ public final class EntityMetadata {
                 if (isModelType(parentModelType)) {
                     continue;
                 }
-                throw invalid("@ParentId %s.%s refers to %s, which is not annotated with @Model"
+                throw invalid("@Parent %s.%s refers to %s, which is not annotated with @Model"
                                       .formatted(type.getName(), parentProperty.property().name(),
                                                  parentModelType.getName()));
             }
             if (parentTypes.size() > 1 && !Id.class.isAssignableFrom(parentProperty.property().type())) {
-                throw invalid("Polymorphic @ParentId %s.%s requires an Id property so its runtime parent type is unambiguous"
+                throw invalid("Polymorphic @Parent %s.%s requires an Id property so its runtime parent type is unambiguous"
                                       .formatted(type.getName(), parentProperty.property().name()));
             }
             if (!path.isEmpty() && parentTypes.isEmpty()) {
-                throw invalid("@ParentId path '%s' on %s.%s requires a typed Id<T> or an explicit parent model type"
+                throw invalid("@Parent path '%s' on %s.%s requires a typed Id<T> or an explicit parent model type"
                                       .formatted(path, type.getName(), parentProperty.property().name()));
             }
             result.add(new ParentReference(
@@ -674,12 +674,12 @@ public final class EntityMetadata {
         return List.copyOf(result);
     }
 
-    private static ParentId parentAnnotation(
+    private static Parent parentAnnotation(
             ReflectionUtils.TypeMetadata typeMetadata, AccessibleObject candidate) {
         return switch (candidate) {
-            case Field field -> (ParentId) typeMetadata.fieldAnnotation(field, ParentId.class).orElse(null);
+            case Field field -> (Parent) typeMetadata.fieldAnnotation(field, Parent.class).orElse(null);
             case Executable executable ->
-                    (ParentId) typeMetadata.methodAnnotation(executable, ParentId.class).orElse(null);
+                    (Parent) typeMetadata.methodAnnotation(executable, Parent.class).orElse(null);
             default -> null;
         };
     }
@@ -689,27 +689,27 @@ public final class EntityMetadata {
             return path;
         }
         if (path.isBlank() || !path.equals(path.trim())) {
-            throw invalid("@ParentId path on %s.%s must not be blank or have surrounding whitespace"
+            throw invalid("@Parent path on %s.%s must not be blank or have surrounding whitespace"
                                   .formatted(type.getName(), property.name()));
         }
         if (path.startsWith("/") || path.endsWith("/") || path.contains("//")) {
-            throw invalid("@ParentId path '%s' on %s.%s must be a relative path without empty segments"
+            throw invalid("@Parent path '%s' on %s.%s must be a relative path without empty segments"
                                   .formatted(path, type.getName(), property.name()));
         }
         for (String segment : path.split("/")) {
             if (".".equals(segment) || "..".equals(segment)) {
-                throw invalid("@ParentId path '%s' on %s.%s must not contain '.' or '..' segments"
+                throw invalid("@Parent path '%s' on %s.%s must not contain '.' or '..' segments"
                                       .formatted(path, type.getName(), property.name()));
             }
             if (io.fluxzero.common.SearchUtils
                     .isInteger(segment)) {
-                throw invalid("@ParentId path '%s' on %s.%s must not contain numeric segments because graph children are list-valued"
+                throw invalid("@Parent path '%s' on %s.%s must not contain numeric segments because graph children are list-valued"
                                       .formatted(path, type.getName(), property.name()));
             }
         }
         if (io.fluxzero.common.search.JacksonInverter
                 .isMetadataPath(path)) {
-            throw invalid("@ParentId path '%s' on %s.%s must not use the reserved document metadata path"
+            throw invalid("@Parent path '%s' on %s.%s must not use the reserved document metadata path"
                                   .formatted(path, type.getName(), property.name()));
         }
         return path;
@@ -1155,7 +1155,7 @@ public final class EntityMetadata {
             }
             if (!(parentId instanceof Id<?> id)) {
                 throw new IllegalArgumentException(
-                        "Polymorphic @ParentId %s requires a typed Id value, but found %s"
+                        "Polymorphic @Parent %s requires a typed Id value, but found %s"
                                 .formatted(property.name(), parentId == null ? "null" : parentId.getClass().getName()));
             }
             Class<?> runtimeType = id.getType();
@@ -1485,7 +1485,7 @@ public final class EntityMetadata {
         AGGREGATE
     }
 
-    private record ParentProperty(Property property, ParentId annotation) {
+    private record ParentProperty(Property property, Parent annotation) {
     }
 
     private record ParameterType(

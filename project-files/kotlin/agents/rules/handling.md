@@ -80,11 +80,11 @@ data class DeleteProject(val projectId: ProjectId) {
 
 **Example: Independently stored child model**
 
-Use `@ParentId` on the child model. Creating or updating it does not rewrite the parent.
+Use `@Parent` on the child model. Creating or updating it does not rewrite the parent.
 
 [//]: # (@formatter:off)
 ```kotlin
-// Task is @Model and has @ParentId(path = "tasks") ProjectId projectId.
+// Task is @Model and has @Parent(path = "tasks") ProjectId projectId.
 data class CreateTask(val projectId: ProjectId, @field:NotNull val taskId: TaskId, @field:NotNull @field:Valid val details: TaskDetails) {
     @Apply
     fun apply(): Task {
@@ -529,16 +529,16 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   response without repeating its body type. Use `ref = "error"` to reference `#/components/responses/error`.
 - For a composed independent-model graph returned as `JsonNode`, select its root with
   `@ApiDocResponse(status = 200, modelGraph = RootModel::class)`. Add
-  `apiDoc = ApiDoc(...)` next to each child model's `@ParentId(path = ...)`; the final path segment is documented as a
+  `apiDoc = ApiDoc(...)` next to each child model's `@Parent(path = ...)`; the final path segment is documented as a
   list of that child model and slash-separated prefixes become nested objects. Array and collection return types remain
   arrays whose items are complete model graphs. An empty `modelGraphPaths` selection includes every relation except
-  those with `@ParentId(apiDoc = ApiDoc(exclude = true))`. Use
+  those with `@Parent(apiDoc = ApiDoc(exclude = true))`. Use
   `modelGraphPaths = ["children/grandchildren"]` only for endpoint-specific subgraphs; ancestors are implicit, siblings
   and deeper descendants are not. `type` and `modelGraph` are mutually exclusive. Runtime-served docs include registered
   child models from other modules.
 - Use `@ApiDocExclude` or `@ApiDoc(exclude = true)` to exclude package/class/method endpoints or model
   fields/record components/parameters from generated docs only. The `exclude` attribute also works in nested
-  `@ParentId.apiDoc`; neither form changes runtime handling or returned graph data.
+  `@Parent.apiDoc`; neither form changes runtime handling or returned graph data.
 - Use `@ApiDocInfo` on a package or handler type for document-level metadata such as title, version, description,
   contact, logo, servers, top-level security requirements, shared components via `@ApiDocComponent`, and top-level
   vendor extensions. Prefer this over external Swagger configuration files.

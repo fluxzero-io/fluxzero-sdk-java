@@ -20,7 +20,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Replaces one canonical {@link ParentId#path()} only inside a materialized graph projection.
+ * Replaces one canonical {@link Parent#path()} only inside a materialized graph projection.
  */
 @Documented
 @Target({})
