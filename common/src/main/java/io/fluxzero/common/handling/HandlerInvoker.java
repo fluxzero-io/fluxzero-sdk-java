@@ -56,7 +56,8 @@ public interface HandlerInvoker extends HandlerDescriptor {
      * Registers framework lifecycle state on the dispatching thread before this invocation moves to an asynchronous
      * worker. The returned cleanup runs after invocation or when the worker handoff fails, and must leave lifecycle
      * state that was consumed by the invocation untouched. Cleanup must not throw. The default returns {@code null}
-     * when no preparation is required.
+     * when no preparation is required. Preparation does not alter invocation-result or result-publication completion;
+     * an invoker must express those through its result and the owning publication mechanism.
      */
     default Registration prepareAsyncInvocation() {
         return null;

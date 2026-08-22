@@ -991,7 +991,7 @@ public class DefaultTracking implements Tracking {
                         h.requiresBatchSegmentOrder());
             }
             try {
-                CompletableFuture<Object> invocation = handleAsync(
+                return handleAsync(
                         message, () -> {
                             try {
                                 return doHandle(message, h, handler, config);
@@ -1000,8 +1000,6 @@ public class DefaultTracking implements Tracking {
                             }
                         },
                         h.requiresBatchSegmentOrder());
-                return invocation.thenCompose(result -> Invocation.resultPublicationBarrier(message)
-                        .thenApply(ignored -> result));
             } catch (RuntimeException | Error failure) {
                 preparation.cancel();
                 throw failure;

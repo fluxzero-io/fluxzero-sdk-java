@@ -377,7 +377,7 @@ class DefaultTrackingAsyncResultTest {
 
     @Test
     @Timeout(5)
-    void preparedAsyncInvokerAwaitsPublicationBarrierWithoutResultReporting() throws Exception {
+    void preparedAsyncInvokerDoesNotImplyResultPublicationWaiting() throws Exception {
         JacksonSerializer serializer = new JacksonSerializer();
         ResultGateway resultGateway = mock(ResultGateway.class);
         when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
@@ -404,9 +404,8 @@ class DefaultTrackingAsyncResultTest {
                     List.of(message(serializer)), List.of(handlerInvoker(invoker)), asyncConfig(true), false), executor);
 
             invocationStarted.get(1, TimeUnit.SECONDS);
-            assertFalse(processing.isDone());
-            publication.complete(null);
             processing.get(1, TimeUnit.SECONDS);
+            assertFalse(publication.isDone());
         } finally {
             publication.complete(null);
             executor.shutdownNow();
