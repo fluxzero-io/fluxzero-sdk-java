@@ -16,8 +16,10 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
@@ -36,11 +38,15 @@ import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
+import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocumentResult;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.MemoryPressureController;
 import io.fluxzero.common.caching.NoOpCache;
+import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -92,6 +98,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -720,6 +727,52 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void modelEventUpcastingPreservesSplitDropHistoricalAndFreshRepositoryReads() {
+        EvolvedLedgerId id = new EvolvedLedgerId("matrix");
+        JacksonSerializer serializer = new JacksonSerializer();
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .replaceSerializer(serializer)
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(LocalClient.newInstance(null)))) {
+            commit(
+                    fluxzero, "evolution-create", -1L,
+                    new OpenEvolvedLedger(id, 1),
+                    EvolvedLedger.class, id.toString());
+            long splitBoundary = commit(
+                    fluxzero, "evolution-split", 0L,
+                    new LegacySplitLedgerChange(id, 2),
+                    EvolvedLedger.class, id.toString());
+            long dropBoundary = commit(
+                    fluxzero, "evolution-drop", splitBoundary,
+                    new LegacyDroppedLedgerChange(id, 100),
+                    EvolvedLedger.class, id.toString());
+            commit(
+                    fluxzero, "evolution-current", dropBoundary,
+                    new CurrentLedgerChange(id, 3),
+                    EvolvedLedger.class, id.toString());
+            serializer.registerUpcasters(new LedgerEventUpcaster());
+
+            DefaultModelRepository repository =
+                    (DefaultModelRepository) fluxzero.modelRepository();
+            repository.invalidateModels(List.of(id.toString()));
+
+            assertEquals(
+                    new EvolvedLedger(id, 5),
+                    repository.loadGraphAt(id, splitBoundary).get());
+            assertEquals(
+                    new EvolvedLedger(id, 5),
+                    repository.loadGraphAt(id, dropBoundary).get());
+            assertEquals(
+                    new EvolvedLedger(id, 8),
+                    repository.load(id).get());
+            assertEquals(
+                    new EvolvedLedger(id, 8),
+                    freshRepository(fluxzero, serializer).load(id).get());
+        }
+    }
+
+    @Test
     void reconstructionIncludesEarlierSubstepsFromTheSameCommit() {
         InventoryId inventoryId = new InventoryId("prefix");
         OrderId orderId = new OrderId("prefix");
@@ -1050,6 +1103,109 @@ class DefaultModelRepositoryTest {
             assertEquals(
                     1L, captor.getValue().getRequests().getFirst()
                             .getLastSequenceNumber());
+        }
+    }
+
+    @Test
+    void directModelDocumentUpcastingSurvivesCacheAndFreshRepositoryReads() {
+        EvolvedDocumentId id =
+                new EvolvedDocumentId("matrix");
+        JacksonSerializer serializer =
+                new JacksonSerializer();
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .replaceSerializer(serializer)
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(LocalClient.newInstance(null)))) {
+            fluxzero.commandGateway().send(
+                    new CreateEvolvedDocument(id, 2)).join();
+            downgradeOnlyDocument(
+                    fluxzero, "evolvedDocuments", id.toString());
+            serializer.registerUpcasters(
+                    new ModelStateUpcaster());
+            DefaultModelRepository repository =
+                    (DefaultModelRepository) fluxzero.modelRepository();
+            repository.invalidateModels(
+                    List.of(id.toString()));
+
+            EvolvedDocument expected =
+                    new EvolvedDocument(id, 20, "upcast");
+            assertEquals(expected, repository.load(id).get());
+            assertEquals(expected, repository.load(id).get());
+            assertEquals(
+                    expected,
+                    freshRepository(fluxzero, serializer)
+                            .load(id).get());
+        }
+    }
+
+    @Test
+    void upcastSnapshotCanProduceANewCurrentRevisionSnapshot() {
+        EvolvedSnapshotId id =
+                new EvolvedSnapshotId("matrix");
+        JacksonSerializer serializer =
+                new JacksonSerializer();
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .replaceSerializer(serializer)
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(LocalClient.newInstance(null)))) {
+            fluxzero.commandGateway().send(
+                    new CreateEvolvedSnapshot(id, 1)).join();
+            fluxzero.commandGateway().send(
+                    new ChangeEvolvedSnapshot(id, 1)).join();
+            downgradeDocument(
+                    fluxzero,
+                    fluxzero.documentStore()
+                            .search(ModelSnapshotMutation.COLLECTION)
+                            .fetchFirst(SerializedDocument.class)
+                            .orElseThrow());
+            serializer.registerUpcasters(
+                    new ModelStateUpcaster());
+
+            Entity<EvolvedSnapshot> evolved =
+                    freshRepository(fluxzero, serializer)
+                            .load(id);
+            long oldSnapshotBoundary =
+                    ((ModelRoot<?>) evolved).stateIndex();
+            assertEquals(
+                    new EvolvedSnapshot(id, 20, "upcast"),
+                    evolved.get());
+
+            fluxzero.commandGateway().send(
+                    new ChangeEvolvedSnapshot(id, 1)).join();
+            fluxzero.commandGateway().send(
+                    new ChangeEvolvedSnapshot(id, 1)).join();
+
+            DefaultModelRepository restarted =
+                    freshRepository(fluxzero, serializer);
+            assertEquals(
+                    new EvolvedSnapshot(id, 22, "upcast"),
+                    restarted.load(id).get());
+            List<SerializedDocument> retainedSnapshots =
+                    fluxzero.documentStore()
+                            .search(ModelSnapshotMutation.COLLECTION)
+                            .fetchAll(SerializedDocument.class);
+            assertEquals(
+                    2,
+                    retainedSnapshots.size());
+            assertEquals(
+                    new EvolvedSnapshot(id, 20, "upcast"),
+                    new ModelSnapshotStore(
+                            fluxzero.documentStore(), serializer)
+                            .getSnapshot(
+                                    id.toString(), oldSnapshotBoundary)
+                            .orElseThrow().value());
+            assertEquals(
+                    new EvolvedSnapshot(id, 20, "upcast"),
+                    restarted.loadGraphAt(
+                            id, oldSnapshotBoundary).get());
+            assertEquals(
+                    Set.of(0, 1),
+                    retainedSnapshots.stream()
+                            .map(document -> document.getDocument()
+                                    .getRevision())
+                            .collect(java.util.stream.Collectors.toSet()));
         }
     }
 
@@ -1704,6 +1860,38 @@ class DefaultModelRepositoryTest {
                 .build(LocalClient.newInstance(null)));
     }
 
+    private static DefaultModelRepository freshRepository(
+            Fluxzero fluxzero,
+            JacksonSerializer serializer) {
+        return new DefaultModelRepository(
+                fluxzero.client(), fluxzero.documentStore(),
+                serializer, new DefaultEntityHelper(List.of(), false),
+                serializer, NoOpCache.INSTANCE, List.of());
+    }
+
+    private static void downgradeOnlyDocument(
+            Fluxzero fluxzero,
+            String collection,
+            String documentId) {
+        SerializedDocument document = fluxzero.client()
+                .getSearchClient()
+                .fetchModelDocument(
+                        new GetDocument(documentId, collection))
+                .getDocument();
+        assertNotNull(document);
+        downgradeDocument(fluxzero, document);
+    }
+
+    private static void downgradeDocument(
+            Fluxzero fluxzero,
+            SerializedDocument document) {
+        Data<byte[]> data = document.getDocument();
+        fluxzero.client().getSearchClient().index(
+                List.of(document.withData(
+                        () -> data.withRevision(0))),
+                Guarantee.STORED, false).join();
+    }
+
     private static Cache testCache() {
         return new AdaptiveObjectCache(
                 100, MemoryPressureController.none());
@@ -2200,6 +2388,170 @@ class DefaultModelRepositoryTest {
             return input.deepCopy().put(
                     "delta",
                     input.get("delta").asInt() * 10);
+        }
+    }
+
+    @Model(cached = true)
+    private record EvolvedLedger(
+            @EntityId EvolvedLedgerId id,
+            int balance) {
+    }
+
+    private static class EvolvedLedgerId
+            extends Id<EvolvedLedger> {
+        private EvolvedLedgerId(String id) {
+            super(id, "evolved-ledger-");
+        }
+    }
+
+    private record OpenEvolvedLedger(
+            EvolvedLedgerId id,
+            int balance) {
+        @Apply
+        EvolvedLedger apply() {
+            return new EvolvedLedger(id, balance);
+        }
+    }
+
+    private record LegacySplitLedgerChange(
+            EvolvedLedgerId id,
+            int delta) {
+    }
+
+    private record LegacyDroppedLedgerChange(
+            EvolvedLedgerId id,
+            int delta) {
+    }
+
+    @Revision(1)
+    private record CurrentLedgerChange(
+            EvolvedLedgerId id,
+            int delta) {
+        @Apply
+        EvolvedLedger apply(EvolvedLedger current) {
+            return new EvolvedLedger(
+                    id, current.balance() + delta);
+        }
+    }
+
+    private static class LedgerEventUpcaster {
+        @Upcast(
+                type = "io.fluxzero.sdk.persisting.repository."
+                       + "DefaultModelRepositoryTest$LegacySplitLedgerChange",
+                revision = 0)
+        Stream<Data<JsonNode>> split(Data<JsonNode> input) {
+            ObjectNode first = ((ObjectNode) input.getValue())
+                    .deepCopy();
+            ObjectNode second = first.deepCopy();
+            return Stream.of(
+                    new Data<>(
+                            first,
+                            CurrentLedgerChange.class.getName(),
+                            1, input.getFormat()),
+                    new Data<>(
+                            second,
+                            CurrentLedgerChange.class.getName(),
+                            1, input.getFormat()));
+        }
+
+        @Upcast(
+                type = "io.fluxzero.sdk.persisting.repository."
+                       + "DefaultModelRepositoryTest$LegacyDroppedLedgerChange",
+                revision = 0)
+        void drop() {
+        }
+    }
+
+    @Revision(1)
+    @Model(
+            eventSourced = false,
+            cached = true,
+            searchable = true,
+            searchProjection = @Searchable(
+                    collection = "evolvedDocuments"))
+    private record EvolvedDocument(
+            @EntityId EvolvedDocumentId id,
+            int balance,
+            String marker) {
+    }
+
+    private static class EvolvedDocumentId
+            extends Id<EvolvedDocument> {
+        private EvolvedDocumentId(String id) {
+            super(id, "evolved-document-");
+        }
+    }
+
+    private record CreateEvolvedDocument(
+            EvolvedDocumentId id,
+            int balance) {
+        @Apply
+        EvolvedDocument apply() {
+            return new EvolvedDocument(
+                    id, balance, "legacy");
+        }
+    }
+
+    @Revision(1)
+    @Model(
+            snapshotPeriod = 2,
+            maxSnapshotCount = 2,
+            cached = false)
+    private record EvolvedSnapshot(
+            @EntityId EvolvedSnapshotId id,
+            int balance,
+            String marker) {
+    }
+
+    private static class EvolvedSnapshotId
+            extends Id<EvolvedSnapshot> {
+        private EvolvedSnapshotId(String id) {
+            super(id, "evolved-snapshot-");
+        }
+    }
+
+    private record CreateEvolvedSnapshot(
+            EvolvedSnapshotId id,
+            int balance) {
+        @Apply
+        EvolvedSnapshot apply() {
+            return new EvolvedSnapshot(
+                    id, balance, "legacy");
+        }
+    }
+
+    private record ChangeEvolvedSnapshot(
+            EvolvedSnapshotId id,
+            int delta) {
+        @Apply
+        EvolvedSnapshot apply(EvolvedSnapshot current) {
+            return new EvolvedSnapshot(
+                    id, current.balance() + delta,
+                    current.marker());
+        }
+    }
+
+    private static class ModelStateUpcaster {
+        @Upcast(
+                type = "io.fluxzero.sdk.persisting.repository."
+                       + "DefaultModelRepositoryTest$EvolvedDocument",
+                revision = 0)
+        ObjectNode document(ObjectNode input) {
+            return evolve(input);
+        }
+
+        @Upcast(
+                type = "io.fluxzero.sdk.persisting.repository."
+                       + "DefaultModelRepositoryTest$EvolvedSnapshot",
+                revision = 0)
+        ObjectNode snapshot(ObjectNode input) {
+            return evolve(input);
+        }
+
+        private static ObjectNode evolve(ObjectNode input) {
+            return input.deepCopy()
+                    .put("balance", input.get("balance").asInt() * 10)
+                    .put("marker", "upcast");
         }
     }
 
