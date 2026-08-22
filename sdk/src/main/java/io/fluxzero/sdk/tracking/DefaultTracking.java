@@ -984,9 +984,28 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                             ConsumerConfiguration config) {
         if (shouldHandleOnWorker(message, config)) {
-            return handleAsync(
-                    message, () -> doHandle(message, h, handler, config),
-                    h.requiresBatchSegmentOrder());
+            Registration preparation = h.prepareAsyncInvocation();
+            if (preparation == null) {
+                return handleAsync(
+                        message, () -> doHandle(message, h, handler, config),
+                        h.requiresBatchSegmentOrder());
+            }
+            try {
+                CompletableFuture<Object> invocation = handleAsync(
+                        message, () -> {
+                            try {
+                                return doHandle(message, h, handler, config);
+                            } finally {
+                                preparation.cancel();
+                            }
+                        },
+                        h.requiresBatchSegmentOrder());
+                return invocation.thenCompose(result -> Invocation.resultPublicationBarrier(message)
+                        .thenApply(ignored -> result));
+            } catch (RuntimeException | Error failure) {
+                preparation.cancel();
+                throw failure;
+            }
         }
         return doHandle(message, h, handler, config);
     }

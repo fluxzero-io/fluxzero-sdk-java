@@ -114,7 +114,10 @@ public interface HandlerRegistry extends HasLocalHandlers {
      * @return the local handling result, including an explicit not-handled result when no handler matches
      */
     default LocalHandlerResult handleResult(DeserializingMessage message) {
-        return handle(message).map(LocalHandlerResult::asynchronous).orElseGet(LocalHandlerResult::notHandled);
+        return handle(message).map(result -> LocalHandlerResult.asynchronous(
+                        result.thenCompose(value -> Invocation.resultPublicationBarrier(message)
+                                .thenApply(ignored -> value))))
+                .orElseGet(LocalHandlerResult::notHandled);
     }
 
     /**

@@ -35,7 +35,6 @@ import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
-import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
 
 import java.lang.reflect.Parameter;
 import java.time.Instant;
@@ -150,12 +149,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         } catch (Throwable failure) {
             return Optional.of(CompletableFuture.failedFuture(failure));
         }
-    }
-
-    @Override
-    public LocalHandlerResult handleResult(DeserializingMessage message) {
-        return handle(message).map(LocalHandlerResult::asynchronous)
-                .orElseGet(LocalHandlerResult::notHandled);
     }
 
     @Override

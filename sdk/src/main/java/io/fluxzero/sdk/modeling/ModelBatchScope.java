@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.Registration;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -33,7 +34,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -146,7 +146,7 @@ public final class ModelBatchScope {
             DeserializingMessage.whenBatchCompletes(created::close);
             return created;
         });
-        return batch.register(message, policy);
+        return batch.register(policy);
     }
 
     static String namespace(DeserializingMessage message) {
@@ -451,18 +451,19 @@ public final class ModelBatchScope {
 
     record BatchLifecycle(
             Supplier<ModelCommitBatchingClient.ModelCommitBatch> readyBatch,
-            Function<Integer, ModelCommitBatchingClient.ModelCommitBatch> batch,
-            BooleanSupplier awaitBeforeResultPublication) {
+            Function<Integer, ModelCommitBatchingClient.ModelCommitBatch> batch) {
     }
 
     /** Batch-owned coordination for one commit; mutation data and attempt status stay in {@link CommitAttempt}. */
-    static final class CommitCoordination {
+    static final class CommitCoordination implements Registration {
         private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
         private final CommitAttempt attempt;
         final CompletableFuture<Void> initialized;
         private final CompletableFuture<Void> release;
         final ModelCommitPolicy policy;
         private final Runnable flushBatch;
+        private volatile boolean claimed;
+        private volatile boolean cancelled;
         private volatile Set<CommitCoordination> dependencies;
         volatile Set<String> modelIds;
         volatile ModelCommitBatchingClient.ModelCommitBatch transport;
@@ -533,7 +534,20 @@ public final class ModelBatchScope {
         }
 
         void submit(Function<Boolean, CompletableFuture<Object>> action) {
+            claimed = true;
             attempt.submit(() -> execute(action));
+        }
+
+        @Override
+        public synchronized void cancel() {
+            if (!claimed) {
+                claimed = true;
+                cancelled = true;
+                initialized.complete(null);
+                release.complete(null);
+                settleTransport();
+                attempt.completion().complete(null);
+            }
         }
 
         private CompletableFuture<Object> execute(Function<Boolean, CompletableFuture<Object>> action) {
@@ -609,9 +623,7 @@ public final class ModelBatchScope {
             this.lifecycle = lifecycle;
         }
 
-        private synchronized CommitCoordination register(
-                DeserializingMessage message,
-                ModelCommitPolicy policy) {
+        private synchronized CommitCoordination register(ModelCommitPolicy policy) {
             if (closed) {
                 return CommitCoordination.batched(policy, true, () -> settleTransport(null));
             }
@@ -622,9 +634,6 @@ public final class ModelBatchScope {
                     readyTransport = lifecycle.readyBatch().get();
                 }
                 entry.transport(readyTransport, entries.size());
-                if (lifecycle.awaitBeforeResultPublication().getAsBoolean()) {
-                    Invocation.awaitBeforeResultPublication(message, entry.attempt().completion());
-                }
             }
             entries.add(entry);
             return entry;
@@ -667,6 +676,16 @@ public final class ModelBatchScope {
         private void release(
                 List<CommitCoordination> all,
                 List<CommitCoordination> deferred) {
+            for (CommitCoordination entry : all) {
+                if (entry.cancelled) {
+                    all = all.stream().filter(candidate -> !candidate.cancelled).toList();
+                    deferred = deferred.stream().filter(candidate -> !candidate.cancelled).toList();
+                    break;
+                }
+            }
+            if (deferred.isEmpty()) {
+                return;
+            }
             boolean sequential = all.stream().anyMatch(entry -> !entry.policy.async());
             Map<String, CommitCoordination> tails = new HashMap<>();
             CommitCoordination previous = null;

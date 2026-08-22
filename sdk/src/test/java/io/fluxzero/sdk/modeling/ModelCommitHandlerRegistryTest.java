@@ -27,7 +27,9 @@ import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
+import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
+import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -824,14 +826,18 @@ class ModelCommitHandlerRegistryTest {
         });
         ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
         CompletableFuture<CompletableFuture<Object>> handlingStarted = new CompletableFuture<>();
+        CompletableFuture<CompletableFuture<Void>> publicationBarrierStarted = new CompletableFuture<>();
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         try {
             CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
                     DeserializingMessage.forEachInBatch(
                             List.of(message(new TimingCreateCommand("timed"))),
-                            current -> handlingStarted.complete(
-                                    subject.handle(current).orElseThrow())), executor);
+                            current -> {
+                                handlingStarted.complete(subject.handle(current).orElseThrow());
+                                publicationBarrierStarted.complete(
+                                        Invocation.resultPublicationBarrier(current));
+                            }), executor);
 
             CompletableFuture.anyOf(commitStarted, batch).get(5, TimeUnit.SECONDS);
             if (!commitStarted.isDone()) {
@@ -839,16 +845,109 @@ class ModelCommitHandlerRegistryTest {
             }
             CommitModels commit = commitStarted.join();
             CompletableFuture<Object> handlingResult = handlingStarted.get(5, TimeUnit.SECONDS);
+            CompletableFuture<Void> publicationBarrier = publicationBarrierStarted.get(5, TimeUnit.SECONDS);
             assertFalse(batch.isDone());
-            assertFalse(handlingResult.isDone());
+            assertTrue(handlingResult.isDone());
+            assertFalse(publicationBarrier.isDone());
 
             commitResponse.complete(CommitModelsResult.acceptedSingleTarget(
                     commit.getRequestId(), commit.getCommitId(), 1L, 1L,
                     "timed", 0L, true));
             batch.get(5, TimeUnit.SECONDS);
             handlingResult.get(5, TimeUnit.SECONDS);
+            publicationBarrier.get(5, TimeUnit.SECONDS);
         } finally {
             executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
+    void preparedAsyncModelInvocationMayStartAfterBatchClose() throws Exception {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> commitStarted = new CompletableFuture<>();
+        CompletableFuture<CommitModelsResult> commitResponse = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            commitStarted.complete(commit);
+            return commitResponse;
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        Handler<DeserializingMessage> handler = subject.createHandler(
+                TimingCreateCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        DeserializingMessage command = message(new TimingCreateCommand("async-close"));
+        CompletableFuture<HandlerInvoker> prepared = new CompletableFuture<>();
+        CompletableFuture<Void> closeCallbackRan = new CompletableFuture<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            CompletableFuture<Void> batch = CompletableFuture.runAsync(() ->
+                    DeserializingMessage.forEachInBatch(
+                            List.of(command),
+                            current -> {
+                                HandlerInvoker invoker = handler.getInvokerOrNull(current);
+                                invoker.prepareAsyncInvocation();
+                                prepared.complete(invoker);
+                                DeserializingMessage.whenBatchCompletes(
+                                        error -> closeCallbackRan.complete(null));
+                            }), executor);
+
+            HandlerInvoker invoker = prepared.get(5, TimeUnit.SECONDS);
+            closeCallbackRan.get(5, TimeUnit.SECONDS);
+            assertFalse(batch.isDone());
+            assertTrue(Invocation.resultPublicationBarrier(command).isDone());
+
+            CompletableFuture<Object> invocation = CompletableFuture.supplyAsync(invoker::invoke);
+            CommitModels commit = commitStarted.get(5, TimeUnit.SECONDS);
+            assertEquals(null, invocation.get(5, TimeUnit.SECONDS));
+            CompletableFuture<Void> publicationBarrier = Invocation.resultPublicationBarrier(command);
+            assertFalse(batch.isDone());
+            assertFalse(publicationBarrier.isDone());
+
+            commitResponse.complete(CommitModelsResult.acceptedSingleTarget(
+                    commit.getRequestId(), commit.getCommitId(), 1L, 1L,
+                    "async-close", 0L, true));
+            batch.get(5, TimeUnit.SECONDS);
+            publicationBarrier.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+            subject.close();
+        }
+    }
+
+    @Test
+    void abandonedPreparedAsyncModelInvocationDoesNotFailBatch() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
+                CompletableFuture.completedFuture(acceptedResult(invocation.getArgument(0))));
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        Handler<DeserializingMessage> abandonedHandler = subject.createHandler(
+                TimingCreateCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        Handler<DeserializingMessage> activeHandler = subject.createHandler(
+                BatchTimingCreateCommand.class, HandlerFilter.ALWAYS_HANDLE, List.of()).orElseThrow();
+        DeserializingMessage abandoned = message(new TimingCreateCommand("abandoned"));
+        DeserializingMessage active = message(new BatchTimingCreateCommand("active"));
+        AtomicInteger index = new AtomicInteger();
+
+        try {
+            DeserializingMessage.forEachInBatch(List.of(abandoned, active), current -> {
+                boolean first = index.getAndIncrement() == 0;
+                HandlerInvoker invoker = (first ? abandonedHandler : activeHandler).getInvokerOrNull(current);
+                Registration preparation = invoker.prepareAsyncInvocation();
+                if (!first) {
+                    invoker.invoke();
+                }
+                preparation.cancel();
+            });
+
+            verify(eventStoreClient, times(1)).commitModels(any());
+            assertTrue(Invocation.resultPublicationBarrier(abandoned).isDone());
+            assertTrue(Invocation.resultPublicationBarrier(active).isDone());
+        } finally {
             subject.close();
         }
     }
@@ -879,6 +978,7 @@ class ModelCommitHandlerRegistryTest {
         }).when(transportBatch).flush();
         ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
         CompletableFuture<CompletableFuture<Object>> handlingStarted = new CompletableFuture<>();
+        CompletableFuture<CompletableFuture<Void>> publicationBarrierStarted = new CompletableFuture<>();
         CountDownLatch finishHandlerIteration = new CountDownLatch(1);
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -889,6 +989,8 @@ class ModelCommitHandlerRegistryTest {
                             current -> {
                                 handlingStarted.complete(
                                         subject.handle(current).orElseThrow());
+                                publicationBarrierStarted.complete(
+                                        Invocation.resultPublicationBarrier(current));
                                 try {
                                     finishHandlerIteration.await();
                                 } catch (InterruptedException e) {
@@ -899,9 +1001,11 @@ class ModelCommitHandlerRegistryTest {
 
             CommitModels commit = commitPrepared.get(5, TimeUnit.SECONDS);
             CompletableFuture<Object> handlingResult = handlingStarted.get(5, TimeUnit.SECONDS);
+            CompletableFuture<Void> publicationBarrier = publicationBarrierStarted.get(5, TimeUnit.SECONDS);
             assertFalse(transportFlushed.isDone());
             assertFalse(batch.isDone());
-            assertFalse(handlingResult.isDone());
+            assertTrue(handlingResult.isDone());
+            assertFalse(publicationBarrier.isDone());
             verify(eventStoreClient, never()).commitModels(any());
 
             finishHandlerIteration.countDown();
@@ -913,6 +1017,7 @@ class ModelCommitHandlerRegistryTest {
                     "timed", 0L, true));
             batch.get(5, TimeUnit.SECONDS);
             handlingResult.get(5, TimeUnit.SECONDS);
+            publicationBarrier.get(5, TimeUnit.SECONDS);
         } finally {
             finishHandlerIteration.countDown();
             executor.shutdownNow();
@@ -996,6 +1101,7 @@ class ModelCommitHandlerRegistryTest {
         });
         ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
         CompletableFuture<CompletableFuture<Object>> handlingStarted = new CompletableFuture<>();
+        CompletableFuture<CompletableFuture<Void>> publicationBarrierStarted = new CompletableFuture<>();
         CountDownLatch finishHandlerIteration = new CountDownLatch(1);
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -1005,6 +1111,8 @@ class ModelCommitHandlerRegistryTest {
                             List.of(message(new BatchTimingCreateCommand("deferred"))),
                             current -> {
                                 handlingStarted.complete(subject.handle(current).orElseThrow());
+                                publicationBarrierStarted.complete(
+                                        Invocation.resultPublicationBarrier(current));
                                 try {
                                     finishHandlerIteration.await();
                                 } catch (InterruptedException e) {
@@ -1014,8 +1122,10 @@ class ModelCommitHandlerRegistryTest {
                             }), executor);
 
             CompletableFuture<Object> handlingResult = handlingStarted.get(5, TimeUnit.SECONDS);
+            CompletableFuture<Void> publicationBarrier = publicationBarrierStarted.get(5, TimeUnit.SECONDS);
             assertFalse(commitStarted.isDone());
-            assertFalse(handlingResult.isDone());
+            assertTrue(handlingResult.isDone());
+            assertFalse(publicationBarrier.isDone());
 
             finishHandlerIteration.countDown();
             CommitModels commit = commitStarted.get(5, TimeUnit.SECONDS);
@@ -1025,6 +1135,7 @@ class ModelCommitHandlerRegistryTest {
                     "deferred", 0L, true));
             batch.get(5, TimeUnit.SECONDS);
             handlingResult.get(5, TimeUnit.SECONDS);
+            publicationBarrier.get(5, TimeUnit.SECONDS);
         } finally {
             finishHandlerIteration.countDown();
             executor.shutdownNow();

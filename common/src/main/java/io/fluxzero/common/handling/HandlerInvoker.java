@@ -15,6 +15,7 @@
 package io.fluxzero.common.handling;
 
 import io.fluxzero.common.ObjectUtils;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.ThrowingRunnable;
 import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
@@ -49,6 +50,16 @@ public interface HandlerInvoker extends HandlerDescriptor {
      */
     default boolean requiresBatchSegmentOrder() {
         return true;
+    }
+
+    /**
+     * Registers framework lifecycle state on the dispatching thread before this invocation moves to an asynchronous
+     * worker. The returned cleanup runs after invocation or when the worker handoff fails, and must leave lifecycle
+     * state that was consumed by the invocation untouched. Cleanup must not throw. The default returns {@code null}
+     * when no preparation is required.
+     */
+    default Registration prepareAsyncInvocation() {
+        return null;
     }
 
     /**
@@ -211,6 +222,11 @@ public interface HandlerInvoker extends HandlerDescriptor {
         @Override
         public boolean requiresBatchSegmentOrder() {
             return delegate.requiresBatchSegmentOrder();
+        }
+
+        @Override
+        public Registration prepareAsyncInvocation() {
+            return delegate.prepareAsyncInvocation();
         }
 
         @Override

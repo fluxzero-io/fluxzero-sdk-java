@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.tracking;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
@@ -36,6 +37,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 import io.fluxzero.sdk.web.WebRequest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
@@ -45,7 +47,10 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -319,6 +324,123 @@ class DefaultTrackingAsyncResultTest {
             releaseHandler.complete(null);
             tracking.close();
         }
+    }
+
+    @Test
+    @Timeout(5)
+    void asyncInvokerRegistersBatchLifecycleBeforeWorkerHandoff() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> batchClosed = new CompletableFuture<>();
+        AtomicBoolean preparationCleaned = new AtomicBoolean();
+        AtomicReference<Thread> preparationThread = new AtomicReference<>();
+        AtomicReference<Thread> invocationThread = new AtomicReference<>();
+        Thread dispatcherThread = Thread.currentThread();
+        HandlerInvoker invoker = new HandlerInvoker.DelegatingHandlerInvoker(HandlerInvoker.noOp()) {
+            @Override
+            public Registration prepareAsyncInvocation() {
+                preparationThread.set(Thread.currentThread());
+                DeserializingMessage.whenBatchCompletes(error -> {
+                    if (error == null) {
+                        batchClosed.complete(null);
+                    } else {
+                        batchClosed.completeExceptionally(error);
+                    }
+                });
+                return () -> preparationCleaned.set(true);
+            }
+
+            @Override
+            public Object invoke(java.util.function.BiFunction<Object, Object, Object> resultCombiner) {
+                invocationThread.set(Thread.currentThread());
+                return batchClosed.join();
+            }
+        };
+
+        try {
+            tracking.handleBatch(
+                    List.of(message(serializer)),
+                    List.of(handlerInvoker(invoker)),
+                    asyncConfig(true),
+                    false);
+        } finally {
+            tracking.close();
+        }
+
+        assertTrue(batchClosed.isDone());
+        assertTrue(preparationCleaned.get());
+        assertEquals(dispatcherThread, preparationThread.get());
+        assertNotEquals(dispatcherThread, invocationThread.get());
+    }
+
+    @Test
+    @Timeout(5)
+    void preparedAsyncInvokerAwaitsPublicationBarrierWithoutResultReporting() throws Exception {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        CompletableFuture<Void> invocationStarted = new CompletableFuture<>();
+        CompletableFuture<Void> publication = new CompletableFuture<>();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        HandlerInvoker invoker = new HandlerInvoker.DelegatingHandlerInvoker(HandlerInvoker.noOp()) {
+            @Override
+            public Registration prepareAsyncInvocation() {
+                return Registration.noOp();
+            }
+
+            @Override
+            public Object invoke(java.util.function.BiFunction<Object, Object, Object> resultCombiner) {
+                Invocation.awaitBeforeResultPublication(publication);
+                invocationStarted.complete(null);
+                return null;
+            }
+        };
+
+        try {
+            CompletableFuture<Void> processing = CompletableFuture.runAsync(() -> tracking.handleBatch(
+                    List.of(message(serializer)), List.of(handlerInvoker(invoker)), asyncConfig(true), false), executor);
+
+            invocationStarted.get(1, TimeUnit.SECONDS);
+            assertFalse(processing.isDone());
+            publication.complete(null);
+            processing.get(1, TimeUnit.SECONDS);
+        } finally {
+            publication.complete(null);
+            executor.shutdownNow();
+            tracking.close();
+        }
+    }
+
+    @Test
+    void failedAsyncWorkerHandoffCancelsPreparedLifecycle() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        ResultGateway resultGateway = mock(ResultGateway.class);
+        when(resultGateway.forNamespace(null)).thenReturn(resultGateway);
+        TestTracking tracking = tracking(resultGateway, serializer);
+        AtomicBoolean cancelled = new AtomicBoolean();
+        HandlerInvoker invoker = new HandlerInvoker.DelegatingHandlerInvoker(HandlerInvoker.noOp()) {
+            @Override
+            public Registration prepareAsyncInvocation() {
+                return () -> cancelled.set(true);
+            }
+
+            @Override
+            public Object invoke(java.util.function.BiFunction<Object, Object, Object> resultCombiner) {
+                return delegate.invoke(resultCombiner);
+            }
+        };
+        tracking.close();
+
+        assertThrows(RuntimeException.class, () -> tracking.handleBatch(
+                List.of(message(serializer)),
+                List.of(handlerInvoker(invoker)),
+                asyncConfig(true),
+                false));
+
+        assertTrue(cancelled.get());
     }
 
     @Test
@@ -817,7 +939,10 @@ class DefaultTrackingAsyncResultTest {
     }
 
     private static Handler<DeserializingMessage> handler(Runnable task) {
-        HandlerInvoker invoker = HandlerInvoker.run(task::run);
+        return handlerInvoker(HandlerInvoker.run(task::run));
+    }
+
+    private static Handler<DeserializingMessage> handlerInvoker(HandlerInvoker invoker) {
         return new Handler<>() {
             @Override
             public Class<?> getTargetClass() {

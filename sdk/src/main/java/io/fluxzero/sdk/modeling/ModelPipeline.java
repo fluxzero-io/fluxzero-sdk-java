@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
@@ -33,6 +34,7 @@ import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.handling.Invocation;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -103,8 +105,7 @@ final class ModelPipeline {
                 eventDispatchInterceptor, source, snapshotSerializer,
                 graphProjectionCompletion);
         this.batchLifecycle = new ModelBatchScope.BatchLifecycle(
-                repositoryCommit::beginReadyBatch, repositoryCommit::beginBatch,
-                () -> awaitAfterHandlerCommitsBeforeResults);
+                repositoryCommit::beginReadyBatch, repositoryCommit::beginBatch);
     }
 
     Handler<DeserializingMessage> handler(Class<?> trackingTarget) {
@@ -238,8 +239,16 @@ final class ModelPipeline {
     private CompletableFuture<Object> execute(
             ExecutionRequest request,
             ModelCommitPolicy policy) {
-        ModelBatchScope.CommitCoordination entry = ModelBatchScope.register(
-                this, request.message(), policy, batchLifecycle);
+        return execute(request, policy, null);
+    }
+
+    private CompletableFuture<Object> execute(
+            ExecutionRequest request,
+            ModelCommitPolicy policy,
+            ModelBatchScope.CommitCoordination preparedEntry) {
+        ModelBatchScope.CommitCoordination entry = preparedEntry == null
+                ? ModelBatchScope.register(this, request.message(), policy, batchLifecycle)
+                : preparedEntry;
         CommitAttempt attempt = entry.attempt();
         ThreadLocalContext.Snapshot context = request.message().captureContext();
         boolean asynchronousReevaluation = !localHandlingEnabled.getAsBoolean();
@@ -974,8 +983,9 @@ final class ModelPipeline {
             ModelCommitPolicy commitPolicy =
                     commitPolicyFor(message.getPayloadClass());
             return new HandlerInvoker.DelegatingHandlerInvoker(
-                    HandlerInvoker.call(
-                            () -> executeAutomatic(message, commitPolicy))) {
+                    HandlerInvoker.noOp()) {
+                private ModelBatchScope.CommitCoordination preparedEntry;
+
                 @Override
                 public boolean requiresBatchSegmentOrder() {
                     /*
@@ -986,9 +996,17 @@ final class ModelPipeline {
                 }
 
                 @Override
+                public Registration prepareAsyncInvocation() {
+                    return preparedEntry = ModelBatchScope.register(
+                            ModelPipeline.this, message, commitPolicy, batchLifecycle);
+                }
+
+                @Override
                 public Object invoke(
                         java.util.function.BiFunction<Object, Object, Object> resultCombiner) {
-                    return delegate.invoke(resultCombiner);
+                    ModelBatchScope.CommitCoordination entry = preparedEntry;
+                    preparedEntry = null;
+                    return executeAutomatic(message, commitPolicy, entry);
                 }
             };
         }
@@ -996,14 +1014,16 @@ final class ModelPipeline {
 
     private Object executeAutomatic(
             DeserializingMessage message,
-            ModelCommitPolicy commitPolicy) {
-        CompletableFuture<Object> completion = execute(
-                new ExecutionRequest(
-                        message, null, -1, Mode.AUTOMATIC),
-                commitPolicy);
+            ModelCommitPolicy commitPolicy,
+            ModelBatchScope.CommitCoordination preparedEntry) {
+        ExecutionRequest request = new ExecutionRequest(
+                message, null, -1, Mode.AUTOMATIC);
+        CompletableFuture<Object> completion = execute(request, commitPolicy, preparedEntry);
         if (commitPolicy.awaitAfterBatch()) {
-            return awaitAfterHandlerCommitsBeforeResults
-                    ? completion : null;
+            if (awaitAfterHandlerCommitsBeforeResults) {
+                Invocation.awaitBeforeResultPublication(message, completion);
+            }
+            return null;
         }
         /*
          * One automatic model handler produces one atomic commit. There are therefore no independent roots inside this
