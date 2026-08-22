@@ -15,14 +15,22 @@
 package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.handling.Handler;
+import io.fluxzero.common.handling.HandlerInspector;
+import io.fluxzero.common.search.ModelGraphDocumentManifest;
+import io.fluxzero.common.search.ModelGraphDocumentStitcher;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
@@ -31,17 +39,20 @@ import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.search.SearchTest.SomeDocument;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
-import io.fluxzero.common.MessageType;
-import io.fluxzero.common.handling.Handler;
-import io.fluxzero.common.handling.HandlerInspector;
 import lombok.Builder;
 import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -104,6 +115,44 @@ public class HandleDocumentTest {
                 .andThen()
                 .whenExecuting(fc -> Fluxzero.index("direct", "graph-roots").get())
                 .expectOnlyEvents("directModel");
+    }
+
+    @Test
+    void returnedMaterializedGraphMigratesThroughTheLocalRuntimeBoundary() {
+        testFixture.registerHandlers(new Object() {
+                    @HandleDocument(modelGraph = GraphRoot.class)
+                    Graph<GraphRoot> migrate(Graph<GraphRoot> graph) {
+                        return graph;
+                    }
+                }).whenExecuting(fc -> {
+                    var serializer = (JacksonSerializer) fc.documentStore().getSerializer();
+                    var json = serializer
+                            .getObjectMapper().createObjectNode().put("id", "root");
+                    SerializedDocument direct = new SerializedDocument(
+                            serializer.toDocument(
+                                            json, "root", "graph-roots", null,
+                                            null, Metadata.empty())
+                                    .deserializeDocument().toBuilder()
+                                    .type(GraphRoot.class.getName())
+                                    .revision(0)
+                                    .build());
+                    SerializedDocument oldGraph = ModelGraphDocumentStitcher.stitch(
+                            List.of(direct), List.of(), Map.of("root", direct),
+                            ModelGraphComposition.builder().build(), 41L)
+                            .getFirst().withCollection("graph-roots-graphs");
+                    fc.client().getSearchClient().index(
+                            List.of(oldGraph), Guarantee.STORED, false).join();
+                })
+                .expectNoErrors()
+                .expectTrue(fc -> {
+                    SerializedDocument migrated = fc.client().getSearchClient().fetch(
+                            new io.fluxzero.common.api.search.GetDocument(
+                                    "root", "graph-roots-graphs"))
+                            .orElseThrow();
+                    return migrated.getDocument().getRevision() == 1
+                           && ModelGraphDocumentManifest.from(migrated)
+                                   .orElseThrow().nodes().getFirst().revision() == 1;
+                });
     }
 
     @Test
@@ -233,6 +282,84 @@ public class HandleDocumentTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void graphResultMigratesOnlyTheHandledProjection() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        DocumentStore store = mock(DocumentStore.class);
+        when(store.getSerializer()).thenReturn(serializer);
+        Graph<GraphRoot> graph = mock(Graph.class);
+        when(graph.isRoot()).thenReturn(true);
+        when(graph.id()).thenReturn("root");
+        when(graph.type()).thenReturn(GraphRoot.class);
+        when(graph.stateIndex()).thenReturn(41L);
+        when(graph.get()).thenReturn(new GraphRoot("root"));
+        when(graph.children()).thenReturn(List.of());
+        AtomicReference<io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration.Migration>
+                migration = new AtomicReference<>();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new GraphMigrationHandler(graph), HandleDocument.class, List.of());
+        Handler<DeserializingMessage> wrapped = new DocumentHandlerDecorator(
+                () -> store, value -> {
+                    migration.set(value);
+                    return CompletableFuture.completedFuture(null);
+                }).wrap(handler);
+        DeserializingMessage message = graphDocumentMessage(serializer);
+
+        Object result = wrapped.getInvokerOrNull(message).invoke();
+
+        assertSame(graph, result);
+        assertEquals(1, ModelGraphDocumentManifest.from(
+                        migration.get().replacement()).orElseThrow()
+                             .nodes().getFirst().revision());
+        verify(store).getSerializer();
+        verify(store, never()).deleteDocument(any(), any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void graphMigrationFailureFailsHandling() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        DocumentStore store = mock(DocumentStore.class);
+        when(store.getSerializer()).thenReturn(serializer);
+        Graph<GraphRoot> graph = mock(Graph.class);
+        when(graph.isRoot()).thenReturn(true);
+        when(graph.id()).thenReturn("root");
+        when(graph.type()).thenReturn(GraphRoot.class);
+        when(graph.stateIndex()).thenReturn(41L);
+        when(graph.get()).thenReturn(new GraphRoot("root"));
+        when(graph.children()).thenReturn(List.of());
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new GraphMigrationHandler(graph), HandleDocument.class, List.of());
+        Handler<DeserializingMessage> wrapped = new DocumentHandlerDecorator(
+                () -> store, ignored -> CompletableFuture.failedFuture(
+                        new UnsupportedOperationException("old runtime"))).wrap(handler);
+
+        CompletionException failure = assertThrows(
+                CompletionException.class,
+                () -> wrapped.getInvokerOrNull(graphDocumentMessage(serializer)).invoke());
+
+        assertInstanceOf(UnsupportedOperationException.class, failure.getCause());
+    }
+
+    @Test
+    void nonGraphResultFromModelGraphHandlerDoesNotMutateTheProjection() {
+        DocumentStore store = mock(DocumentStore.class);
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                new ObjectGraphHandler(), HandleDocument.class, List.of());
+        Handler<DeserializingMessage> wrapped = new DocumentHandlerDecorator(
+                () -> store, ignored -> {
+                    throw new AssertionError("Unexpected graph rewrite");
+                }).wrap(handler);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(new Object()), MessageType.DOCUMENT,
+                "graph-roots-graphs", new JacksonSerializer());
+
+        wrapped.getInvokerOrNull(message).invoke();
+
+        org.mockito.Mockito.verifyNoInteractions(store);
+    }
+
+    @Test
     void namespacedDocumentStoreInvokesLocalHandlerInThatNamespace() {
         AtomicReference<String> handled = new AtomicReference<>();
         TestFixture fixture = TestFixture.create(new Object() {
@@ -247,9 +374,38 @@ public class HandleDocumentTest {
                 .expectThat(fc -> assertEquals("customer", handled.get()));
     }
 
+    private static DeserializingMessage graphDocumentMessage(
+            JacksonSerializer serializer) {
+        ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
+                41L, List.of(GraphRoot.class.getName()), List.of(),
+                List.of(new ModelGraphDocumentManifest.Node(
+                        "root", 0, 0, -1, -1, 0)));
+        var payload = serializer.getObjectMapper().createObjectNode()
+                .put("id", "root");
+        return new DeserializingMessage(
+                new Message(payload, Metadata.of(
+                        ModelGraphDocumentManifest.METADATA_KEY,
+                        manifest.serialize()), "root", null),
+                MessageType.DOCUMENT, "graph-roots-graphs", serializer);
+    }
+
     static class NamespacedDocumentHandler {
         @HandleDocument
         MyDocument delete(MyDocument document) {
+            return null;
+        }
+    }
+
+    record GraphMigrationHandler(Graph<GraphRoot> graph) {
+        @HandleDocument(modelGraph = GraphRoot.class)
+        Graph<GraphRoot> migrate() {
+            return graph;
+        }
+    }
+
+    static class ObjectGraphHandler {
+        @HandleDocument(modelGraph = GraphRoot.class)
+        Object observe() {
             return null;
         }
     }
@@ -274,6 +430,7 @@ public class HandleDocumentTest {
             searchable = true,
             searchProjection = @Searchable(collection = "graph-roots"),
             materializeGraph = true)
+    @Revision(1)
     record GraphRoot(@EntityId String id) {
     }
 

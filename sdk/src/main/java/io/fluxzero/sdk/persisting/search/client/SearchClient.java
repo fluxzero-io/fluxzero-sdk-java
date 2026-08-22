@@ -77,6 +77,18 @@ public interface SearchClient extends AutoCloseable {
     CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists);
 
     /**
+     * Conditionally replaces one materialized model-graph document while its manifest still matches the handled
+     * version. Implementations without durable model-graph projections may retain the unsupported default.
+     */
+    default CompletableFuture<Void> rewriteModelGraphDocument(
+            SerializedDocument document,
+            String expectedManifest,
+            Guarantee guarantee) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "Materialized model graph document migration is not supported by this client"));
+    }
+
+    /**
      * Executes a streaming search query using the given criteria and fetch size.
      *
      * @param searchDocuments the search parameters and query

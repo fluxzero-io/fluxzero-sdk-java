@@ -31,6 +31,8 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
+import io.fluxzero.common.search.ModelGraphDocumentManifest;
+import io.fluxzero.common.search.ModelGraphDocumentStitcher;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -212,6 +214,54 @@ class InMemorySearchStoreModelMaterializationTest {
                         .getValue());
     }
 
+    @Test
+    void localGraphMigrationUsesTheHandledManifestAsCompareAndSetBoundary() {
+        String rootId = "root-cas";
+        InMemorySearchStore graphStore = new InMemorySearchStore(
+                Duration.ofDays(1), null,
+                (ignored, composition) -> List.of(),
+                ignored -> Map.of(rootId, "roots"));
+        graphStore.index(List.of(structuredDocument(
+                rootId, "roots", "original")), STORED, false).join();
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "TestModel", "roots", "rootGraphs",
+                        ModelGraphComposition.builder().build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "TestModel", 0)), List.of());
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 10L, false);
+        SerializedDocument original = graphStore.fetch(
+                new GetDocument(rootId, "rootGraphs")).orElseThrow();
+        String expectedManifest = original.getMetadata().get(
+                ModelGraphDocumentManifest.METADATA_KEY);
+        SerializedDocument migrated = graphProjectionDocument(
+                rootId, "rootGraphs", "CurrentModel", 1, 10L,
+                "migrated");
+
+        graphStore.rewriteModelGraphDocument(
+                migrated, expectedManifest, STORED).join();
+        graphStore.rewriteModelGraphDocument(
+                graphProjectionDocument(
+                        rootId, "rootGraphs", "CompetingModel", 2, 10L,
+                        "competing"),
+                expectedManifest, STORED).join();
+
+        assertEquals(1, graphStore.fetch(
+                        new GetDocument(rootId, "rootGraphs"))
+                             .orElseThrow().getDocument().getRevision());
+
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, false);
+        graphStore.rewriteModelGraphDocument(
+                migrated, expectedManifest, STORED).join();
+        SerializedDocument current = graphStore.fetch(
+                new GetDocument(rootId, "rootGraphs")).orElseThrow();
+        assertEquals(0, current.getDocument().getRevision());
+        assertEquals(11L, ModelGraphDocumentManifest.from(current)
+                .orElseThrow().stateIndex());
+    }
+
     private void materialize(
             long stateIndex, SerializedDocument document) {
         materialize(
@@ -289,5 +339,27 @@ class InMemorySearchStoreModelMaterializationTest {
                                                         "name"))))
                         .summary(() -> value)
                         .build());
+    }
+
+    private static SerializedDocument graphProjectionDocument(
+            String id,
+            String collection,
+            String type,
+            int revision,
+            long stateIndex,
+            String value) {
+        SerializedDocument direct = new SerializedDocument(
+                Document.builder()
+                        .id(id).type(type).revision(revision)
+                        .collection(collection)
+                        .entries(Map.of(
+                                new Document.Entry(TEXT, value),
+                                List.of(new Document.Path("name"))))
+                        .summary(() -> value)
+                        .build());
+        return ModelGraphDocumentStitcher.stitch(
+                List.of(direct), List.of(), Map.of(id, direct),
+                ModelGraphComposition.builder().build(), stateIndex)
+                .getFirst();
     }
 }

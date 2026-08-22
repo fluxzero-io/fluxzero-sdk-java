@@ -69,6 +69,15 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     }
 
     @Override
+    public CompletableFuture<Void> rewriteModelGraphDocument(
+            SerializedDocument document,
+            String expectedManifest,
+            Guarantee guarantee) {
+        return sendCommand(new RewriteModelGraphDocument(
+                document, expectedManifest, guarantee));
+    }
+
+    @Override
     public CompletableFuture<Void> bulkUpdate(Collection<DocumentUpdate> batch, Guarantee guarantee) {
         return sendCommand(new BulkUpdateDocuments(batch, guarantee));
     }

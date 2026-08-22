@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.configuration;
 
 import io.fluxzero.common.DelegatingClock;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.InMemoryTaskScheduler;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.ObjectUtils;
@@ -999,7 +1000,11 @@ public class DefaultFluxzero implements Fluxzero {
             AtomicReference<DocumentStore> documentStore = new AtomicReference<>();
             Supplier<DocumentStore> documentStoreSupplier = documentStore::get;
             handlerChains.computeIfPresent(
-                    DOCUMENT, (t, i) -> new DocumentHandlerDecorator(documentStoreSupplier).andThen(i));
+                    DOCUMENT, (t, i) -> new DocumentHandlerDecorator(
+                            documentStoreSupplier,
+                            migration -> client.getSearchClient().rewriteModelGraphDocument(
+                                    migration.replacement(), migration.expectedManifest(), Guarantee.STORED))
+                            .andThen(i));
 
             if (!disableWebResponseCompression) {
                 dispatchChains.computeIfPresent(

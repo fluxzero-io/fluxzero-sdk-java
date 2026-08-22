@@ -500,6 +500,38 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     @Override
+    public synchronized CompletableFuture<Void> rewriteModelGraphDocument(
+            SerializedDocument replacement,
+            String expectedManifest,
+            Guarantee guarantee) {
+        ModelGraphDocumentManifest replacementManifest =
+                ModelGraphDocumentManifest.from(replacement)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "A model graph replacement requires a typed graph manifest"));
+        ModelGraphDocumentManifest expected = ModelGraphDocumentManifest.from(
+                        Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
+                                    expectedManifest))
+                .orElseThrow();
+        String key = asIdentifier(
+                replacement.getCollection(), replacement.getId());
+        SerializedDocument current = documents.get(key);
+        ModelGraphDocumentManifest currentManifest = current == null ? null
+                : ModelGraphDocumentManifest.from(current).orElse(null);
+        if (!Objects.equals(expected, currentManifest)) {
+            return CompletableFuture.completedFuture(null);
+        }
+        if (replacementManifest.stateIndex() != expected.stateIndex()
+            || !replacement.getId().equals(replacementManifest.nodes().getFirst().id())) {
+            throw new IllegalArgumentException(
+                    "A model graph replacement must retain its root identity and state boundary");
+        }
+        documents.put(key, replacement);
+        collections.add(replacement.getCollection());
+        storeMessages(Map.of(key, replacement));
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     public CompletableFuture<Void> move(String documentId, String collection, String targetCollection,
                                         Guarantee guarantee) {
         SerializedDocument document = documents.remove(asIdentifier(collection, documentId));

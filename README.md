@@ -4913,7 +4913,7 @@ You can subscribe to a document collection using any of the following styles:
 
 - `@HandleDocument` — infers the collection from the **first parameter** of the handler method; this is the preferred style when the document is the first parameter
 - `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the model’s `@Searchable` annotation when the document type cannot be inferred from the first parameter
-- `@HandleDocument(modelGraph = MyModel.class)` — subscribes to the model's enabled materialized graph projection and can inject a typed lazy `Graph<MyModel>`, including its derived or explicitly configured graph collection. Deleting the root delivers a typed empty graph that retains its identity and boundary; `previous()` returns the complete last graph. Ordinary document handlers for the same collection do not receive this deletion record.
+- `@HandleDocument(modelGraph = MyModel.class)` — subscribes to the model's enabled materialized graph projection and can inject a typed lazy `Graph<MyModel>`, including its derived or explicitly configured graph collection. Returning that complete Graph persists node-by-node serializer upcasting only into the derived projection, using an atomic manifest comparison so a delayed handler cannot overwrite newer state; direct Models and relationships remain authoritative and unchanged. Returning an already-current Graph is a no-op. Deleting the root delivers an observational typed empty graph that retains its identity and boundary; `previous()` returns the complete last graph. Ordinary document handlers for the same collection do not receive this deletion record.
 - `@HandleDocument("myCollection")` — binds directly to the named collection
 
 ---

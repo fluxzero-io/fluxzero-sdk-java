@@ -16,11 +16,14 @@ package io.fluxzero.sdk.persisting.search;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.common.serialization.Revision;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -41,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class MaterializedGraphFactoryTest {
@@ -84,6 +88,59 @@ class MaterializedGraphFactoryTest {
         assertEquals("current root", graph.get().name());
         assertEquals("current child", graph.children(
                 "children", RevisionedChild.class).getFirst().get().value());
+
+        Metadata metadata = Metadata.of(
+                ModelGraphDocumentManifest.METADATA_KEY,
+                manifest.serialize(), "$start", 1000L, "$end", 2000L);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(json, metadata, "root", null),
+                MessageType.DOCUMENT, "revisioned-graphs", serializer);
+        MaterializedGraphDocumentMigration.Migration migration =
+                MaterializedGraphDocumentMigration.create(
+                        graph, message, serializer).orElseThrow();
+        SerializedDocument replacement = migration.replacement();
+        ModelGraphDocumentManifest migrated = ModelGraphDocumentManifest.from(
+                replacement).orElseThrow();
+
+        assertEquals(manifest.serialize(), migration.expectedManifest());
+        assertEquals(41L, migrated.stateIndex());
+        assertEquals(
+                List.of(RevisionedRoot.class.getName(),
+                        RevisionedChild.class.getName()),
+                migrated.types());
+        assertEquals(List.of(1, 1), migrated.nodes().stream()
+                .map(ModelGraphDocumentManifest.Node::revision).toList());
+        assertEquals(1000L, replacement.getTimestamp());
+        assertEquals(2000L, replacement.getEnd());
+        Graph<RevisionedRoot> rewritten = MaterializedGraphFactory.create(
+                replacement, RevisionedRoot.class, serializer,
+                () -> mock(ModelRepository.class),
+                List.of(RevisionedRoot.class, RevisionedChild.class), Map.of());
+        assertEquals("current root", rewritten.get().name());
+        assertEquals("current child", rewritten.children(
+                RevisionedChild.class).getFirst().get().value());
+
+        DeserializingMessage rewrittenMessage = new DeserializingMessage(
+                new Message(serializer.getObjectMapper().valueToTree(rewritten),
+                            replacement.getMetadata(), "root", null),
+                MessageType.DOCUMENT, "revisioned-graphs", serializer);
+        assertEquals(Optional.empty(), MaterializedGraphDocumentMigration.create(
+                rewritten, rewrittenMessage, serializer));
+    }
+
+    @Test
+    void materializedGraphTombstonesRemainObservational() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        Graph<?> graph = mock(Graph.class);
+        DeserializingMessage message = new DeserializingMessage(
+                new Message(serializer.getObjectMapper().createObjectNode(),
+                            Metadata.of(ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY,
+                                        true), "root", null),
+                MessageType.DOCUMENT, "revisioned-graphs", serializer);
+
+        assertEquals(Optional.empty(), MaterializedGraphDocumentMigration.create(
+                graph, message, serializer));
+        verifyNoInteractions(graph);
     }
 
     @Test
