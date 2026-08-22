@@ -20,12 +20,13 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -114,32 +115,34 @@ class BacklogTest {
     }
 
     @Test
-    void boundsInFlightBatchesAndRefillsEachAvailableSlot() {
-        List<CompletableFuture<Void>> gates = new CopyOnWriteArrayList<>();
-        AtomicInteger active = new AtomicInteger();
-        AtomicInteger maximumActive = new AtomicInteger();
+    void boundsInFlightBatchesAndRefillsEachAvailableSlot() throws Exception {
+        BlockingQueue<BatchGate> admitted = new LinkedBlockingQueue<>();
         Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
-            int current = active.incrementAndGet();
-            maximumActive.accumulateAndGet(current, Math::max);
-            CompletableFuture<Void> gate = new CompletableFuture<>();
-            gate.whenComplete((ignored, failure) -> active.decrementAndGet());
-            gates.add(gate);
-            return gate;
+            BatchGate gate = new BatchGate(batch.getFirst(), new CompletableFuture<>());
+            admitted.add(gate);
+            return gate.completion();
         }, 1, 2);
 
         CompletableFuture<Void> result = subject.add(List.of("one", "two", "three", "four"));
-        await(() -> gates.size() == 2);
+        BatchGate first = awaitBatch(admitted);
+        BatchGate second = awaitBatch(admitted);
+        assertEquals(List.of("one", "two"), List.of(first.value(), second.value()));
+        assertTrue(admitted.isEmpty(), "A third batch was admitted before a consumer slot completed");
         assertFalse(result.isDone());
 
-        gates.get(1).complete(null);
-        await(() -> gates.size() == 3);
-        gates.get(2).complete(null);
-        await(() -> gates.size() == 4);
-        assertEquals(2, maximumActive.get());
+        second.completion().complete(null);
+        BatchGate third = awaitBatch(admitted);
+        assertEquals("three", third.value());
+        assertTrue(admitted.isEmpty(), "The remaining occupied slot was not respected");
+
+        third.completion().complete(null);
+        BatchGate fourth = awaitBatch(admitted);
+        assertEquals("four", fourth.value());
         assertFalse(result.isDone());
 
-        gates.get(3).complete(null);
-        gates.get(0).complete(null);
+        fourth.completion().complete(null);
+        assertFalse(result.isDone());
+        first.completion().complete(null);
         result.join();
         subject.shutDown();
     }
@@ -253,5 +256,14 @@ class BacklogTest {
             Thread.onSpinWait();
         }
         assertTrue(condition.getAsBoolean(), "Condition did not become true before the deadline");
+    }
+
+    private static BatchGate awaitBatch(BlockingQueue<BatchGate> admitted) throws InterruptedException {
+        BatchGate result = admitted.poll(2L, TimeUnit.SECONDS);
+        assertTrue(result != null, "Batch was not admitted before the deadline");
+        return result;
+    }
+
+    private record BatchGate(String value, CompletableFuture<Void> completion) {
     }
 }
