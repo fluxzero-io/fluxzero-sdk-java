@@ -166,7 +166,12 @@ public class ImmutableAggregateRoot<T> extends ImmutableEntity<T> implements Agg
             }
             return updated;
         }
-        return toBuilder().previous(previous().withEventIndex(index, messageId)).build();
+        Entity<T> previous = previous();
+        if (previous == null) {
+            throw new IllegalStateException(
+                    "Cannot assign an event index to an aggregate revision that is no longer retained.");
+        }
+        return toBuilder().previous(previous.withEventIndex(index, messageId)).build();
     }
 
     @Override

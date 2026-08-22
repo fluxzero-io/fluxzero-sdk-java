@@ -86,6 +86,23 @@ class AggregatePlaybackTest {
     private final TestFixture testFixture = TestFixture.create();
 
     @Test
+    void missingAggregateRevisionFailsWithoutDereferencingTruncatedChain() {
+        ImmutableAggregateRoot<SampleAggregate> aggregate = ImmutableAggregateRoot.<SampleAggregate>builder()
+                .id("sample")
+                .type(SampleAggregate.class)
+                .value(SampleAggregate.builder().build())
+                .lastEventId("current")
+                .sequenceNumber(1L)
+                .build();
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class, () -> aggregate.withEventIndex(42L, "not-retained"));
+
+        assertEquals("Cannot assign an event index to an aggregate revision that is no longer retained.",
+                     exception.getMessage());
+    }
+
+    @Test
     void resolvesAggregateToHandledEventEvenIfLaterApplyExistsInCache() throws NoSuchMethodException {
         Method method = ProbeHandler.class.getDeclaredMethod("handle", Entity.class);
         Parameter parameter = method.getParameters()[0];
