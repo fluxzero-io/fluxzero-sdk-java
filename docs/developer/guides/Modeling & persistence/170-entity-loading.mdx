@@ -254,8 +254,12 @@ collection in the same transaction. Adoption drains bounded batches and then reb
 projections declared by the catalog; repeat the command to resume an interrupted cutover. A value difference, unknown
 staged type or concurrent legacy write retains staging and fails adoption.
 
-Qualify catch-up, an explicit final event boundary, handler cutover and rollback before switching write ownership.
-Listeners moved before that point must not apply changes directly to legacy Aggregates.
+Qualify catch-up, an explicit final event boundary, exact Model and Graph state, converted listener traffic and
+representative performance before switching write ownership. Listeners moved before that point must not apply changes
+directly to legacy Aggregates. Once every gate reports `GO`, stop legacy command handling and enable Model commands as
+a forward-only ownership change. From the first ordinary Model write, recover by fixing and replaying forward. Durable
+Model commit history can support an application-specific emergency projection into legacy state, but Fluxzero does not
+promise a generic post-write rollback.
 
 Commands, queries, schedules, results, errors, metrics, documents, custom messages and web handlers use the same
 parameter rules. They share one current handler load context: event-sourced targets use its pinned repository boundary,

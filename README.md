@@ -3562,7 +3562,7 @@ unchanged. An existing document is left untouched and receives its Model write f
 exists, the staged document is copied into its normal collection in that transaction. Fluxzero keeps the accepted
 normalized value in a separate invisible Graph-composition source. New replay staging cannot alter that accepted
 source: if legacy traffic is resumed before the first ordinary Model write, catch up and adopt the newer boundary
-explicitly. The first ordinary Model write atomically removes the source and closes this rollback window. After all
+explicitly. The first ordinary Model write atomically removes the source and closes this pre-cutover fallback. After all
 documents are adopted, the repository rebuilds every application-declared materialized Graph projection. Repeating
 adoption returns zero adopted documents and safely resumes those rebuilds. A mismatch or concurrent legacy write fails
 without discarding staging, so the consumer can catch up and retry.
@@ -3575,9 +3575,12 @@ Aggregates.
 
 Write cutover remains application-specific and can follow later, per Model type. Stop legacy business writes for that
 ownership boundary before enabling Model commands. Before the first ordinary Model write, traffic may return to the
-unchanged legacy application and a newer legacy boundary can be caught up and re-adopted. After such a Model write,
-rollback requires an application-proven reverse migration. Do not treat changing `@Aggregate` to `@Model` as a
-persistence migration.
+unchanged legacy application and a newer legacy boundary can be caught up and re-adopted. Make the final switch only
+after catch-up, exact state and Graph comparisons, converted listener traffic and representative performance tests all
+report `GO`. From the first ordinary Model write onward the supported route is forward recovery, not rollback. Durable
+Model commit history remains available for replay, repair and an application-specific emergency projection back into
+legacy state, but such a reverse projection is not a generic migration guarantee. Do not treat changing `@Aggregate`
+to `@Model` as a persistence migration.
 
 ## Legacy aggregate API (existing Fluxzero 1.x applications only)
 

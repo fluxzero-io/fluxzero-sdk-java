@@ -442,6 +442,8 @@ compares every staged and production value, atomically adopts only unchanged equ
 documents, and rebuilds declared materialized Graphs.
 The accepted normalized source remains isolated from later staging until the first ordinary Model write, so resumed
 legacy traffic can be caught up and re-adopted without using unverified document content in materialized Graph
-composition. Repeat the plural operation to resume a partial cutover. Live cutover and any post-Model-write rollback
-still require an application-specific boundary and proof.
+composition. Repeat the plural operation to resume a partial cutover. Switch command ownership only after catch-up,
+exact state and Graph comparisons, converted listeners and representative performance all report `GO`. The first
+ordinary Model write makes recovery forward-only; durable Model commit history may feed an application-specific
+emergency legacy projection, but there is no generic post-write rollback contract.
 All new examples and implementations should use `@Model`.
