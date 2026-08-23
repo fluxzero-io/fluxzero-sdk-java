@@ -42,8 +42,9 @@ public class GetModelMigrationResult extends AbstractRequestResult {
             throw new IllegalArgumentException(
                     "A production document and its conditional index must be present together");
         }
-        if (migratedHead != null
-            && migratedHead.isDeleted() != (migratedDocument == null)) {
+        if (migratedHead == null
+                ? migratedDocument != null
+                : migratedHead.isDeleted() != (migratedDocument == null)) {
             throw new IllegalArgumentException(
                     "A staged Model document must match its durable head");
         }
