@@ -74,6 +74,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -188,24 +190,31 @@ final class ModelReplayCursor {
     }
 
     private GetModelEventsResult getModelEvents(GetModelEvents request) {
-        GetModelEventsResult response = eventStoreClient.getModelEvents(request);
-        if (!awaitMissingEventBoundary(request.getBoundary(), response.isExactBoundary())) {
-            return response;
-        }
-        GetModelEventsResult retried = eventStoreClient.getModelEvents(request);
-        requireExactEventBoundary(request.getBoundary(), retried.isExactBoundary());
-        return retried;
+        return readAtEventBoundary(
+                request.getBoundary(),
+                () -> eventStoreClient.getModelEvents(request),
+                GetModelEventsResult::isExactBoundary);
     }
 
     private GetModelGraphResult getModelGraph(GetModelGraph request) {
-        GetModelGraphResult response = eventStoreClient.getModelGraph(request);
+        return readAtEventBoundary(
+                request.getBoundary(),
+                () -> eventStoreClient.getModelGraph(request),
+                response -> response.getEvents().isExactBoundary());
+    }
+
+    private <T> T readAtEventBoundary(
+            ModelReadBoundary boundary,
+            Supplier<T> reader,
+            Predicate<T> exactBoundary) {
+        T response = reader.get();
         if (!awaitMissingEventBoundary(
-                request.getBoundary(), response.getEvents().isExactBoundary())) {
+                boundary, exactBoundary.test(response))) {
             return response;
         }
-        GetModelGraphResult retried = eventStoreClient.getModelGraph(request);
+        T retried = reader.get();
         requireExactEventBoundary(
-                request.getBoundary(), retried.getEvents().isExactBoundary());
+                boundary, exactBoundary.test(retried));
         return retried;
     }
 

@@ -211,10 +211,6 @@ public final class PublishedEventModelMigration implements AutoCloseable {
         }
     }
 
-    CompletableFuture<Void> migrate(DeserializingMessage event) {
-        return application.migratePublishedEvent(event);
-    }
-
     static Long adoptionBoundary(String[] args) {
         Objects.requireNonNull(args, "Arguments");
         if (args.length == 0) {
@@ -276,11 +272,6 @@ public final class PublishedEventModelMigration implements AutoCloseable {
             throw new IllegalArgumentException(
                     "Configure at least one Model type or package containing registered Models");
         }
-        result.forEach(type -> {
-            if (!EntityMetadata.of(type).isModel()) {
-                throw new IllegalArgumentException(type.getName() + " is not a Model root");
-            }
-        });
         return result.stream().sorted(Comparator.comparing(Class::getName)).toList();
     }
 
