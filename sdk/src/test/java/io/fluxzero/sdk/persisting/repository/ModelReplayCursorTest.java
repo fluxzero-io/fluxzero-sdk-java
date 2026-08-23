@@ -34,6 +34,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -116,6 +117,78 @@ class ModelReplayCursorTest {
         assertNull(requests.getLast().getBoundary().commitId());
         assertNull(requests.getLast().getBoundary().substep());
         assertEquals(42L, requests.getLast().getBoundary().stateIndex());
+    }
+
+    @Test
+    void retriesAnUnmappedLegacyBoundaryAfterMigrationCatchesUp() {
+        EventStoreClient client = mock(EventStoreClient.class);
+        AtomicInteger reads = new AtomicInteger();
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            boolean exact = reads.getAndIncrement() > 0;
+            return new GetModelEventsResult(
+                    request.getRequestId(), exact ? 3L : 7L,
+                    exact, List.of(), List.of());
+        });
+        List<Long> awaited = new ArrayList<>();
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(2, 8, 4, 1_024L),
+                eventIndex -> {
+                    awaited.add(eventIndex);
+                    return true;
+                });
+
+        var result = loader.load(
+                Map.of(), ModelReadBoundary.eventOrCurrent(42L), ignored -> {
+                });
+
+        assertEquals(3L, result.stateIndex());
+        assertEquals(2, reads.get());
+        assertEquals(List.of(42L), awaited);
+    }
+
+    @Test
+    void mappedLegacyBoundaryDoesNotConsultMigrationProgress() {
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), 3L,
+                    true, List.of(), List.of());
+        });
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(2, 8, 4, 1_024L),
+                eventIndex -> {
+                    throw new AssertionError("Mapped reads must not query migration progress");
+                });
+
+        var result = loader.load(
+                Map.of(), ModelReadBoundary.eventOrCurrent(42L), ignored -> {
+                });
+
+        assertEquals(3L, result.stateIndex());
+    }
+
+    @Test
+    void failsWhenProcessedLegacyEventStillHasNoModelMapping() {
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), 7L,
+                    false, List.of(), List.of());
+        });
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new ModelReplayCursor.Settings(2, 8, 4, 1_024L),
+                eventIndex -> true);
+
+        EventSourcingException failure = assertThrows(
+                EventSourcingException.class,
+                () -> loader.load(
+                        Map.of(), ModelReadBoundary.eventOrCurrent(42L), ignored -> {
+                        }));
+
+        assertTrue(failure.getMessage().contains("legacy event 42"));
     }
 
     @Test

@@ -73,6 +73,7 @@ class WebSocketEventStoreClientTest {
                 new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), "event-1", 1L);
         GetModelEventsResult packed = new GetModelEventsResult(
                 request.getRequestId(), 11L,
+                true,
                 List.of(new ModelEventPayload(11L, event)),
                 List.of(
                         stream("first-code", "model-1"),

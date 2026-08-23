@@ -3527,6 +3527,21 @@ the catch-all handler and fixes it to `minIndex = 0`, one synchronous thread, `s
 Multiple instances with the same stable migration name are therefore safe: one receives the complete globally ordered
 log and the others provide failover. Do not give replicas different migration names.
 
+The listener application can move to Models and Graphs before command ownership changes. Configure its owning
+repository once with the same durable consumer name before enabling handlers that inject Model or Graph state for
+legacy events:
+
+```java
+Fluxzero.get().modelRepository()
+        .followPublishedEventMigration("orders-model-migration-v1");
+```
+
+An already mapped legacy event remains one ordinary Model read without a tracking request. Only a missing mapping
+checks the durable migration position. The read waits while replay is behind, retries the exact event boundary after
+catch-up, and fails clearly if the consumer passed the event without producing the requested Model state. The default
+wait is 30 seconds; an overload accepts a bounded `Duration` so normal consumer retry can take over. The setting may
+remain enabled after catch-up because it is inactive on the mapped fast path.
+
 Fluxzero runs the normal replay phase (`@Apply` on the payload before `@Apply` on the Model), commits with the original
 message ID, links the resulting Model state to the original global event index and does not publish the event again.
 Retrying the same event is idempotent. A later handler for that old event can therefore inject the exact event-sourced
@@ -3553,13 +3568,16 @@ adoption returns zero adopted documents and safely resumes those rebuilds. A mis
 without discarding staging, so the consumer can catch up and retry.
 
 The replay commits are durable Model history and can be read by direct Model/Graph loads. Staging isolation applies to
-direct search documents and the accepted source used for materialized Graph composition. Do not start the ordinary
-Model application before replay, adoption and cutover verification have completed.
+direct search documents and the accepted source used for materialized Graph composition. Keep the legacy application
+as the sole business-write owner while the new application first validates shadow Models and then moves read-only
+queries and listeners to Graphs. Legacy listeners moved to the new application must not write back to the old
+Aggregates.
 
-Live handler cutover remains application-specific: stop legacy business writes at an explicit event boundary before
-adoption. Before the first ordinary Model write, traffic may return to the unchanged legacy application and a newer
-legacy boundary can be re-adopted. After such a Model write, rollback requires an application-proven reverse migration.
-Do not treat changing `@Aggregate` to `@Model` as a persistence migration.
+Write cutover remains application-specific and can follow later, per Model type. Stop legacy business writes for that
+ownership boundary before enabling Model commands. Before the first ordinary Model write, traffic may return to the
+unchanged legacy application and a newer legacy boundary can be caught up and re-adopted. After such a Model write,
+rollback requires an application-proven reverse migration. Do not treat changing `@Aggregate` to `@Model` as a
+persistence migration.
 
 ## Legacy aggregate API (existing Fluxzero 1.x applications only)
 

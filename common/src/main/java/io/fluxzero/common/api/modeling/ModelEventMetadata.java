@@ -55,8 +55,9 @@ public final class ModelEventMetadata {
      * Returns the Model boundary carried by a Model event, or falls back to an existing global event index.
      *
      * <p>The fallback lets events that predate Model metadata address state reconstructed from that same published
-     * event. An event without a Model mapping retains ordinary current-state behavior; an event index is never
-     * interpreted as a Model state index.</p>
+     * event. Without migration coordination, an event without a Model mapping retains ordinary current-state behavior.
+     * A repository configured with {@code followPublishedEventMigration} may instead wait for the mapping or reject a
+     * processed event that produced none. An event index is never interpreted as a Model state index.</p>
      */
     public static ModelReadBoundary readBoundary(
             Metadata metadata, MessageType messageType, Long messageIndex) {

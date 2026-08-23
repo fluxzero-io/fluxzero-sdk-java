@@ -451,6 +451,14 @@ class InMemoryEventStoreModelCommitTest {
         InMemoryEventStore store = denseStore();
         SerializedMessage source = event("legacy-event");
         store.append(List.of(source)).join();
+        var beforeMigration = store.getModelEvents(new GetModelEvents(
+                List.of(new ModelEventStreamRequest("model-1", -1L, 10)),
+                ModelReadBoundary.eventOrCurrent(source.getIndex()), 0L));
+        var graphBeforeMigration = store.getModelGraph(new GetModelGraph(
+                "model-1", ModelReadBoundary.eventOrCurrent(source.getIndex()),
+                1, 10, 0, 0L, false));
+        assertFalse(beforeMigration.isExactBoundary());
+        assertFalse(graphBeforeMigration.getEvents().isExactBoundary());
         ModelCommitStep migration = ModelCommitStep.builder()
                 .event(source)
                 .publishEvent(false)
@@ -472,6 +480,10 @@ class InMemoryEventStoreModelCommitTest {
                         new ModelEventStreamRequest("model-2", -1L, 10)),
                 ModelReadBoundary.event(source.getIndex()), 0L));
         assertEquals(result.getUpdates().getFirst().getStateIndex(), atSource.getStateIndex());
+        assertTrue(atSource.isExactBoundary());
+        assertTrue(store.getModelGraph(new GetModelGraph(
+                "model-1", ModelReadBoundary.eventOrCurrent(source.getIndex()),
+                1, 10, 0, 0L, false)).getEvents().isExactBoundary());
         assertEquals(1, atSource.getStreams().getFirst().getMemberships().size());
         assertEquals(1, atSource.getStreams().get(1).getMemberships().size());
 

@@ -33,6 +33,7 @@ import io.fluxzero.sdk.modeling.MutationPlan;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -215,6 +216,39 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
         return CompletableFuture.failedFuture(
                 new UnsupportedOperationException(
                         "Model migration adoption is not supported by this repository"));
+    }
+
+    /**
+     * Coordinates legacy-event Model and Graph reads with a published-event migration consumer.
+     *
+     * <p>A mapped event remains a single ordinary Model read. Only when an event boundary had to fall back to current
+     * state does the repository wait for the durable migration-consumer position and retry the exact same read. If the
+     * consumer has processed the event but no mapping becomes visible, the read fails instead of exposing stale or
+     * future state.</p>
+     *
+     * @param migrationName stable consumer name used by {@link
+     *                      io.fluxzero.sdk.configuration.PublishedEventModelMigration}
+     * @return this repository
+     */
+    default ModelRepository followPublishedEventMigration(
+            @NonNull String migrationName) {
+        return followPublishedEventMigration(
+                migrationName, Duration.ofSeconds(30));
+    }
+
+    /**
+     * Coordinates legacy-event reads with a migration consumer using a bounded wait before normal handler retry takes
+     * over.
+     *
+     * @param migrationName stable durable migration-consumer name
+     * @param maxWait maximum time one read waits for the migration consumer to reach its event
+     * @return this repository
+     */
+    default ModelRepository followPublishedEventMigration(
+            @NonNull String migrationName,
+            @NonNull Duration maxWait) {
+        throw new UnsupportedOperationException(
+                "Published-event migration coordination is not supported by this repository");
     }
 
     /**

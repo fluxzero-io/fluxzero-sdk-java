@@ -34,6 +34,11 @@ public class GetModelEventsResult extends AbstractRequestResult {
 
     long requestId;
     long stateIndex;
+    /**
+     * Whether the requested boundary was resolved exactly. This is {@code false} only when an event boundary that
+     * explicitly permits fallback had no Model mapping and therefore resolved to current state.
+     */
+    boolean exactBoundary;
     List<ModelEventPayload> payloads;
     List<ModelEventStream> streams;
     /**
@@ -60,17 +65,27 @@ public class GetModelEventsResult extends AbstractRequestResult {
             long stateIndex,
             List<ModelEventPayload> payloads,
             List<ModelEventStream> streams) {
+        this(requestId, stateIndex, true, payloads, streams);
+    }
+
+    public GetModelEventsResult(
+            long requestId,
+            long stateIndex,
+            boolean exactBoundary,
+            List<ModelEventPayload> payloads,
+            List<ModelEventStream> streams) {
         this(
-                requestId, stateIndex, payloads, streams,
+                requestId, stateIndex, exactBoundary, payloads, streams,
                 new long[0], List.of(), new long[0], List.of());
     }
 
     @ConstructorProperties({
-            "requestId", "stateIndex", "payloads", "streams",
+            "requestId", "stateIndex", "exactBoundary", "payloads", "streams",
             "payloadStateIndices", "payloadBlocks", "payloadEventIndices", "membershipBlocks"})
     public GetModelEventsResult(
             long requestId,
             long stateIndex,
+            boolean exactBoundary,
             List<ModelEventPayload> payloads,
             List<ModelEventStream> streams,
             long[] payloadStateIndices,
@@ -90,12 +105,27 @@ public class GetModelEventsResult extends AbstractRequestResult {
         }
         this.requestId = requestId;
         this.stateIndex = stateIndex;
+        this.exactBoundary = exactBoundary;
         this.payloads = Objects.requireNonNull(payloads, "payloads");
         this.streams = Objects.requireNonNull(streams, "streams");
         this.payloadStateIndices = payloadStateIndices;
         this.payloadBlocks = payloadBlocks;
         this.payloadEventIndices = payloadEventIndices;
         this.membershipBlocks = Objects.requireNonNull(membershipBlocks, "membershipBlocks");
+    }
+
+    /** Returns this result with explicit evidence whether the original selector resolved exactly. */
+    public GetModelEventsResult withExactBoundary(boolean exactBoundary) {
+        if (this.exactBoundary == exactBoundary) {
+            return this;
+        }
+        GetModelEventsResult result = new GetModelEventsResult(
+                requestId, stateIndex, exactBoundary, payloads, streams,
+                payloadStateIndices, payloadBlocks, payloadEventIndices, membershipBlocks);
+        result.setRequestReceivedTimestamp(getRequestReceivedTimestamp());
+        result.setResponseQueuedTimestamp(getResponseQueuedTimestamp());
+        result.setResponseSendStartTimestamp(getResponseSendStartTimestamp());
+        return result;
     }
 
     @Override

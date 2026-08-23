@@ -69,6 +69,13 @@ class ModelReadBoundaryTest {
         assertEquals(3L, ModelRelationshipQueries.resolveBoundary(
                 fallback, true, () -> 7L, (commit, substep) -> null,
                 event -> event == 42L ? 3L : null));
+        assertFalse(ModelRelationshipQueries.resolveBoundaryWithEvidence(
+                fallback, true, () -> 7L,
+                (commit, substep) -> null, event -> null).exact());
+        assertTrue(ModelRelationshipQueries.resolveBoundaryWithEvidence(
+                fallback, true, () -> 7L,
+                (commit, substep) -> null,
+                event -> event == 42L ? 3L : null).exact());
         assertThrows(IllegalArgumentException.class, () ->
                 ModelRelationshipQueries.resolveBoundary(
                         ModelReadBoundary.event(42L), true,

@@ -430,8 +430,13 @@ boundaries change. Keep old persisted aggregate code on the 1.x compatibility AP
 For an event-sourced backfill, configure `PublishedEventModelMigration` with a stable name, isolated client, legacy
 serializer/upcasters and the replacement Model packages or types. Run it without arguments for replay and as
 `adopt <cutover-event-index>` for cutover. The SDK-owned consumer is always global, synchronous, single-tracker and
-fail-fast; replicas with the same name provide failover. Replay runs payload then Model `@Apply`, retains the original
-event index and message ID, does not republish, and is idempotent. It does not recover legacy `STORE_ONLY` events.
+fail-fast; it completes each Model commit before advancing its durable position, and replicas with the same name
+provide failover. Replay runs payload then Model `@Apply`, retains the original event index and message ID, does not
+republish, and is idempotent. It does not recover legacy `STORE_ONLY` events. A listener application that gradually
+moves legacy event handlers to Model/Graph injection should configure its owning repository with
+`followPublishedEventMigration(theSameName)`. Mapped events stay on the ordinary read path; only a missing mapping waits
+for the durable consumer and then retries exactly. Keep legacy Aggregates as the sole write owner during this read
+phase, and do not let moved listeners apply changes back to them.
 Document-backed Models are rebuilt in invisible staging; adoption through the owning `ModelRepository` upcasts and
 compares every staged and production value, atomically adopts only unchanged equal results without rewriting existing
 documents, and rebuilds declared materialized Graphs.

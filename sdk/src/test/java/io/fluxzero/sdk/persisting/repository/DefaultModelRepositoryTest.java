@@ -44,6 +44,7 @@ import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetModelMigrationResult;
 import io.fluxzero.common.api.search.GetModelMigrationsResult;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.MemoryPressureController;
@@ -82,9 +83,11 @@ import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.tracking.client.TrackingClient;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -150,6 +153,38 @@ class DefaultModelRepositoryTest {
                 client, documentStore, serializer,
                 new DefaultEntityHelper(List.of(), false), null,
                 NoOpCache.INSTANCE, List.of());
+    }
+
+    @Test
+    void waitsForDurableMigrationProgressOnlyUntilTheLegacyEventIsCovered() {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        when(client.getTrackingClient(EVENT)).thenReturn(trackingClient);
+        when(trackingClient.getPosition("model-migration"))
+                .thenReturn(new Position(41L), new Position(42L));
+        repository.followPublishedEventMigration(
+                "model-migration", Duration.ofSeconds(1));
+
+        assertTrue(repository.awaitPublishedEventMigration(42L));
+        assertTrue(repository.awaitPublishedEventMigration(42L));
+
+        verify(trackingClient, times(2)).getPosition("model-migration");
+    }
+
+    @Test
+    void boundsWaitingForAStoppedMigrationConsumer() {
+        TrackingClient trackingClient = mock(TrackingClient.class);
+        when(client.getTrackingClient(EVENT)).thenReturn(trackingClient);
+        when(trackingClient.getPosition("model-migration"))
+                .thenReturn(Position.newPosition());
+        repository.followPublishedEventMigration(
+                "model-migration", Duration.ofNanos(1));
+
+        EventSourcingException failure = assertThrows(
+                EventSourcingException.class,
+                () -> repository.awaitPublishedEventMigration(42L));
+
+        assertTrue(failure.getMessage().contains("no durable position"));
+        assertTrue(failure.getMessage().contains("legacy event 42"));
     }
 
     @Test

@@ -214,8 +214,24 @@ PublishedEventModelMigration.builder()
 
 No arguments starts replay; `adopt <cutover-event-index>` verifies catch-up and performs the cutover operation. The
 runner owns the catch-all handler and always uses the complete global log, one synchronous thread, a single tracker and
-hard failure. Multiple application instances with the same stable migration name provide failover without processing
+hard failure. It durably completes each event's Model commit before reducing the next event or advancing its tracking
+position. Multiple application instances with the same stable migration name provide failover without processing
 events concurrently.
+
+This supports gradual read migration while the legacy application remains the only business-write owner. Before
+enabling listeners that inject Models or Graphs for legacy events, configure the listener application's repository with
+the same stable consumer name:
+
+```java
+Fluxzero.get().modelRepository()
+        .followPublishedEventMigration("orders-model-migration-v1");
+```
+
+Mapped events take the ordinary one-read path. If a legacy event has no mapping yet, the repository checks the durable
+migration position and waits only while replay is behind. After catch-up it retries the exact boundary once; passing an
+event without producing the requested Model state is an explicit error. The default bounded wait is 30 seconds and can
+be overridden with the `Duration` overload. Thus queries and read-only listeners can move to Graphs independently;
+command ownership moves later and should remain exclusive per Model type.
 
 Fluxzero reuses the Model replay phase: payload `@Apply` methods run before Model `@Apply` methods, while
 `@InterceptApply` and command `@AssertLegal` methods are not rerun. The original message ID is the idempotent commit ID,
@@ -239,6 +255,7 @@ projections declared by the catalog; repeat the command to resume an interrupted
 staged type or concurrent legacy write retains staging and fails adoption.
 
 Qualify catch-up, an explicit final event boundary, handler cutover and rollback before switching write ownership.
+Listeners moved before that point must not apply changes directly to legacy Aggregates.
 
 Commands, queries, schedules, results, errors, metrics, documents, custom messages and web handlers use the same
 parameter rules. They share one current handler load context: event-sourced targets use its pinned repository boundary,

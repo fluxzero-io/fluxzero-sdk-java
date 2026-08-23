@@ -54,7 +54,10 @@ import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
  *
  * <p>The consumer name must remain stable across restarts and application instances. Fluxzero fixes the consumer to
  * one globally ordered tracker and one synchronous handler thread; extra application instances therefore act as
- * failover candidates. The durable consumer position and idempotent source-event identity make restart overlap safe.</p>
+ * failover candidates. Each event's Model commit completes before the next event is reduced and before the durable
+ * consumer position advances. The durable position and idempotent source-event identity make restart overlap safe and
+ * allow a reading application to coordinate legacy-event Graph injection through {@link
+ * io.fluxzero.sdk.persisting.repository.ModelRepository#followPublishedEventMigration(String)}.</p>
  *
  * <p>A legacy Aggregate application and this migration may run concurrently as separate applications. If an old
  * entity and its replacement Model use the same fully qualified class name, they cannot coexist in one classloader;
@@ -309,8 +312,9 @@ public final class PublishedEventModelMigration implements AutoCloseable {
 
     private record EventMigrator(DefaultFluxzero application) {
         @HandleEvent
-        CompletableFuture<Void> migrate(Object ignored, DeserializingMessage event) {
-            return application.migratePublishedEvent(event);
+        void migrate(Object ignored, DeserializingMessage event) {
+            // The durable consumer position is the cross-process read barrier; commits in one batch may not overlap.
+            application.migratePublishedEvent(event).join();
         }
     }
 

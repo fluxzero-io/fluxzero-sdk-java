@@ -767,6 +767,7 @@ class WebSocketTransportCodecsTest {
                         "lines", 80L, null, true)),
                 new GetModelEventsResult(
                         request.getRequestId(), 91L,
+                        true,
                         List.of(new ModelEventPayload(80L, serializedMessage())),
                         List.of(new ModelEventStream(
                                 "order-1",

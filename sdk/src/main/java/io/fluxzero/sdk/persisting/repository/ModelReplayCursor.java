@@ -102,13 +102,23 @@ final class ModelReplayCursor {
     private final ModelSnapshotStore snapshotStore;
     private final DocumentReader documentReader;
     private final ModelRepository repository;
+    private final EventBoundaryBarrier eventBoundaryBarrier;
 
     ModelReplayCursor(EventStoreClient eventStoreClient) {
         this(eventStoreClient, DEFAULT_SETTINGS);
     }
 
     ModelReplayCursor(EventStoreClient eventStoreClient, Settings settings) {
-        this(eventStoreClient, settings, null, null, null, null, null, null, null);
+        this(eventStoreClient, settings, null, null, null, null, null, null, null,
+             EventBoundaryBarrier.NONE);
+    }
+
+    ModelReplayCursor(
+            EventStoreClient eventStoreClient,
+            Settings settings,
+            EventBoundaryBarrier eventBoundaryBarrier) {
+        this(eventStoreClient, settings, null, null, null, null, null, null, null,
+             eventBoundaryBarrier);
     }
 
     ModelReplayCursor(
@@ -120,8 +130,22 @@ final class ModelReplayCursor {
             ModelSnapshotStore snapshotStore,
             DocumentReader documentReader,
             ModelRepository repository) {
+        this(eventStoreClient, serializer, entityHelper, modelDefinitionCompiler, modelCache,
+             snapshotStore, documentReader, repository, EventBoundaryBarrier.NONE);
+    }
+
+    ModelReplayCursor(
+            EventStoreClient eventStoreClient,
+            Serializer serializer,
+            EntityHelper entityHelper,
+            MutationPlan.Compiler modelDefinitionCompiler,
+            Cache modelCache,
+            ModelSnapshotStore snapshotStore,
+            DocumentReader documentReader,
+            ModelRepository repository,
+            EventBoundaryBarrier eventBoundaryBarrier) {
         this(eventStoreClient, DEFAULT_SETTINGS, serializer, entityHelper, modelDefinitionCompiler,
-             modelCache, snapshotStore, documentReader, repository);
+             modelCache, snapshotStore, documentReader, repository, eventBoundaryBarrier);
     }
 
     private ModelReplayCursor(
@@ -133,11 +157,15 @@ final class ModelReplayCursor {
             Cache modelCache,
             ModelSnapshotStore snapshotStore,
             DocumentReader documentReader,
-            ModelRepository repository) {
+            ModelRepository repository,
+            EventBoundaryBarrier eventBoundaryBarrier) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.settings = Objects.requireNonNull(settings, "settings");
+        this.eventBoundaryBarrier = Objects.requireNonNull(
+                eventBoundaryBarrier, "eventBoundaryBarrier");
         this.requestBatcher = new ReadBatcher(
-                eventStoreClient, settings.maxStreamsPerRequest());
+                eventStoreClient, this::getModelEvents,
+                settings.maxStreamsPerRequest());
         this.prefetchPages = settings.prefetchPages()
                              && !(eventStoreClient instanceof LocalEventStoreClient
                                   || eventStoreClient instanceof InMemoryEventStore);
@@ -157,6 +185,47 @@ final class ModelReplayCursor {
                     "Event-sourced model reconstruction requires a configured serializer and model entity helper");
         }
         return new Session();
+    }
+
+    private GetModelEventsResult getModelEvents(GetModelEvents request) {
+        GetModelEventsResult response = eventStoreClient.getModelEvents(request);
+        if (!awaitMissingEventBoundary(request.getBoundary(), response.isExactBoundary())) {
+            return response;
+        }
+        GetModelEventsResult retried = eventStoreClient.getModelEvents(request);
+        requireExactEventBoundary(request.getBoundary(), retried.isExactBoundary());
+        return retried;
+    }
+
+    private GetModelGraphResult getModelGraph(GetModelGraph request) {
+        GetModelGraphResult response = eventStoreClient.getModelGraph(request);
+        if (!awaitMissingEventBoundary(
+                request.getBoundary(), response.getEvents().isExactBoundary())) {
+            return response;
+        }
+        GetModelGraphResult retried = eventStoreClient.getModelGraph(request);
+        requireExactEventBoundary(
+                request.getBoundary(), retried.getEvents().isExactBoundary());
+        return retried;
+    }
+
+    private boolean awaitMissingEventBoundary(
+            ModelReadBoundary boundary,
+            boolean exactBoundary) {
+        return !exactBoundary
+               && boundary.eventIndex() != null
+               && boundary.fallbackToCurrent()
+               && eventBoundaryBarrier.await(boundary.eventIndex());
+    }
+
+    private static void requireExactEventBoundary(
+            ModelReadBoundary boundary,
+            boolean exactBoundary) {
+        if (!exactBoundary) {
+            throw new EventSourcingException(
+                    "Published-event Model migration processed legacy event %d, but no Model state mapping is visible"
+                            .formatted(boundary.eventIndex()));
+        }
     }
 
     /**
@@ -214,7 +283,7 @@ final class ModelReplayCursor {
         LinkedHashMap<String, Long> validatedCursors = validateCursors(lastSequenceNumbers);
         List<String> ids = List.copyOf(validatedCursors.keySet());
         if (ids.isEmpty()) {
-            GetModelEventsResult response = eventStoreClient.getModelEvents(
+            GetModelEventsResult response = getModelEvents(
                     new GetModelEvents(
                             List.of(), boundary,
                             settings.maxPayloadBytes()));
@@ -836,7 +905,7 @@ final class ModelReplayCursor {
         }
         GetModelGraph request = new GetModelGraph(
                 rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false);
-        GetModelGraphResult response = eventStoreClient.getModelGraph(request);
+        GetModelGraphResult response = getModelGraph(request);
         GetModelEventsResult graphEvents = response.getEvents();
         long stateIndex = graphEvents.getStateIndex();
         List<MutationPlan.ResolvedModel> targets = new ArrayList<>(graphEvents.getStreams().size());
@@ -1026,7 +1095,7 @@ final class ModelReplayCursor {
                 throw new IllegalStateException(
                         "Model commit requires more than %d ancestor traversal roots".formatted(maxModels));
             }
-            graph = eventStoreClient.getModelGraph(GetModelGraph.ancestors(
+            graph = getModelGraph(GetModelGraph.ancestors(
                     List.copyOf(requestRoots), boundary, maxDepth, maxModels, 0, 0L));
             if (pendingAncestor == null || !addPendingAncestorValues(
                     requestRoots, graph, effectiveStagedValues, pendingAncestor)) {
@@ -2207,23 +2276,48 @@ final class ModelReplayCursor {
         }
     }
 
+    @FunctionalInterface
+    interface EventBoundaryBarrier {
+        EventBoundaryBarrier NONE = ignored -> false;
+
+        /** Waits until migration has processed the event and returns whether the read must be retried. */
+        boolean await(long eventIndex);
+    }
+
     /** Coalesces compatible concurrent current reads while leaving local, large and historical reads direct. */
     static final class ReadBatcher {
         private static final long COALESCING_DELAY_NANOS = 200_000L;
         private static final int DIRECT_REQUEST_SIZE = 1_024;
 
         private final EventStoreClient client;
+        private final Function<GetModelEvents, GetModelEventsResult> loader;
         private final int maxStreams;
         private final long delayNanos;
         private final ConcurrentLinkedQueue<PendingRead> pending = new ConcurrentLinkedQueue<>();
         private final AtomicBoolean flushing = new AtomicBoolean();
 
         ReadBatcher(EventStoreClient client, int maxStreams) {
-            this(client, maxStreams, COALESCING_DELAY_NANOS);
+            this(client, client::getModelEvents, maxStreams, COALESCING_DELAY_NANOS);
         }
 
         ReadBatcher(EventStoreClient client, int maxStreams, long delayNanos) {
+            this(client, client::getModelEvents, maxStreams, delayNanos);
+        }
+
+        ReadBatcher(
+                EventStoreClient client,
+                Function<GetModelEvents, GetModelEventsResult> loader,
+                int maxStreams) {
+            this(client, loader, maxStreams, COALESCING_DELAY_NANOS);
+        }
+
+        private ReadBatcher(
+                EventStoreClient client,
+                Function<GetModelEvents, GetModelEventsResult> loader,
+                int maxStreams,
+                long delayNanos) {
             this.client = Objects.requireNonNull(client, "client");
+            this.loader = Objects.requireNonNull(loader, "loader");
             this.maxStreams = maxStreams;
             if (delayNanos < 0L) {
                 throw new IllegalArgumentException("Coalescing delay must not be negative");
@@ -2233,7 +2327,7 @@ final class ModelReplayCursor {
 
         GetModelEventsResult get(GetModelEvents request) {
             if (direct(request)) {
-                return client.getModelEvents(request);
+                return loader.apply(request);
             }
             return enqueue(request).join();
         }
@@ -2250,7 +2344,7 @@ final class ModelReplayCursor {
                                 return;
                             }
                             try {
-                                result.complete(client.getModelEvents(request));
+                                result.complete(loader.apply(request));
                             } catch (Throwable failure) {
                                 result.completeExceptionally(failure);
                             }
@@ -2314,7 +2408,7 @@ final class ModelReplayCursor {
                         index++;
                     }
                 }
-                group.execute(client);
+                group.execute(loader);
             }
         }
 
@@ -2355,9 +2449,10 @@ final class ModelReplayCursor {
                 return true;
             }
 
-            private void execute(EventStoreClient client) {
+            private void execute(
+                    Function<GetModelEvents, GetModelEventsResult> loader) {
                 try {
-                    GetModelEventsResult response = client.getModelEvents(new GetModelEvents(
+                    GetModelEventsResult response = loader.apply(new GetModelEvents(
                             List.copyOf(streams.values()), ModelReadBoundary.current(), maxBytes));
                     if (reads.size() == 1) {
                         reads.getFirst().result().complete(response);
@@ -2368,7 +2463,7 @@ final class ModelReplayCursor {
                     for (PendingRead read : reads) {
                         GetModelEventsResult split = split(read.request(), response, responseStreams);
                         if (madeNoProgress(read.request(), split)) {
-                            split = client.getModelEvents(read.request());
+                            split = loader.apply(read.request());
                         }
                         read.result().complete(split);
                     }
@@ -2387,6 +2482,7 @@ final class ModelReplayCursor {
                         .forEach(membership -> payloads.add(membership.getStateIndex()));
                 return new GetModelEventsResult(
                         request.getRequestId(), response.getStateIndex(),
+                        response.isExactBoundary(),
                         response.getPayloads().stream()
                                 .filter(payload -> payloads.contains(payload.getStateIndex())).toList(), selected);
             }

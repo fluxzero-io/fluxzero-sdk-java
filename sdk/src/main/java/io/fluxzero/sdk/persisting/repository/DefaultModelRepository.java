@@ -50,6 +50,7 @@ import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.GetModelMigrationResult;
 import io.fluxzero.common.api.search.GetModelMigrations;
 import io.fluxzero.common.api.search.SerializedDocument;
+import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -82,6 +83,7 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.NonNull;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -98,6 +100,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.Guarantee.STORED;
@@ -105,6 +110,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
 import static io.fluxzero.common.SearchUtils.parseTimeProperty;
 import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
+import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 
 /**
  * Default repository for independently stored models.
@@ -117,6 +123,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private static final int COMMITTED_CACHE_UPDATE_BATCH_SIZE = 128;
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
+    private static final long INITIAL_MIGRATION_POLL_NANOS = Duration.ofMillis(10).toNanos();
+    private static final long MAX_MIGRATION_POLL_NANOS = Duration.ofMillis(250).toNanos();
 
     private final Client client;
     private final DocumentStore documentStore;
@@ -129,6 +137,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final Serializer snapshotSerializer;
     private final ModelSnapshotStore snapshotStore;
     private final ModelCacheTracker modelCacheTracker;
+    private final AtomicReference<MigrationReadBarrierConfiguration>
+            migrationReadBarrierConfiguration;
+    private final AtomicLong migratedThrough = new AtomicLong(-1L);
     private final ConcurrentHashMap<Class<?>, GraphProjectionRegistration>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
@@ -143,7 +154,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
              new MutationPlan.Compiler(Objects.requireNonNull(
-                     parameterResolvers, "parameterResolvers")));
+                     parameterResolvers, "parameterResolvers")),
+             new AtomicReference<>());
     }
 
     private DefaultModelRepository(
@@ -153,7 +165,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityHelper entityHelper,
             Serializer snapshotSerializer,
             Cache cache,
-            MutationPlan.Compiler modelDefinitionCompiler) {
+            MutationPlan.Compiler modelDefinitionCompiler,
+            AtomicReference<MigrationReadBarrierConfiguration>
+                    migrationReadBarrierConfiguration) {
         this.client = Objects.requireNonNull(client, "client");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
@@ -161,6 +175,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         this.snapshotSerializer = snapshotSerializer;
         this.modelDefinitionCompiler = Objects.requireNonNull(
                 modelDefinitionCompiler, "modelDefinitionCompiler");
+        this.migrationReadBarrierConfiguration = Objects.requireNonNull(
+                migrationReadBarrierConfiguration, "migrationReadBarrierConfiguration");
         this.cacheSource = Objects.requireNonNull(cache, "cache");
         this.modelCache = cache == NoOpCache.INSTANCE
                 ? cache : new RepositoryCache(cache, "$Model", client.namespace());
@@ -171,7 +187,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         this.replayCursor = new ModelReplayCursor(
                 eventStoreClient, serializer, entityHelper,
                 modelDefinitionCompiler, modelCache, snapshotStore,
-                this::loadDocumentProjection, this);
+                this::loadDocumentProjection, this,
+                this::awaitPublishedEventMigration);
         this.modelCacheTracker = cache == NoOpCache.INSTANCE
                 ? null
                 : new ModelCacheTracker(
@@ -190,7 +207,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         DocumentStore namespacedDocumentStore = documentStore.forNamespace(namespace);
         DefaultModelRepository result = new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
-                snapshotSerializer, cacheSource, modelDefinitionCompiler);
+                snapshotSerializer, cacheSource, modelDefinitionCompiler,
+                migrationReadBarrierConfiguration);
         result.configureModelTypes(modelTypes);
         return result;
     }
@@ -198,6 +216,101 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     /** Returns the model-definition compiler shared by live commits and stored-event replay. */
     public MutationPlan.Compiler modelDefinitionCompiler() {
         return modelDefinitionCompiler;
+    }
+
+    @Override
+    public ModelRepository followPublishedEventMigration(
+            @NonNull String migrationName,
+            @NonNull Duration maxWait) {
+        MigrationReadBarrierConfiguration requested =
+                new MigrationReadBarrierConfiguration(migrationName, maxWait);
+        MigrationReadBarrierConfiguration configured =
+                migrationReadBarrierConfiguration.updateAndGet(
+                        current -> current == null ? requested : current);
+        if (!configured.equals(requested)) {
+            throw new IllegalStateException(
+                    "Model repository already follows published-event migration "
+                    + configured.migrationName());
+        }
+        return this;
+    }
+
+    boolean awaitPublishedEventMigration(long eventIndex) {
+        MigrationReadBarrierConfiguration configuration =
+                migrationReadBarrierConfiguration.get();
+        if (configuration == null) {
+            return false;
+        }
+        if (eventIndex < 0L) {
+            throw new IllegalArgumentException(
+                    "Legacy event index must not be negative");
+        }
+        if (migratedThrough.get() >= eventIndex) {
+            return true;
+        }
+        long started = System.nanoTime();
+        long timeoutNanos = configuration.maxWait().toNanos();
+        long pollNanos = INITIAL_MIGRATION_POLL_NANOS;
+        while (true) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw interruptedMigrationWait(configuration, eventIndex);
+            }
+            Position position = client.getTrackingClient(EVENT)
+                    .getPosition(configuration.migrationName());
+            Long observed = position == null
+                    ? null
+                    : position.lowestIndexForSegment(
+                            new int[]{0, MAX_SEGMENT}).orElse(null);
+            if (observed != null) {
+                migratedThrough.accumulateAndGet(observed, Math::max);
+            }
+            long current = migratedThrough.get();
+            if (current >= eventIndex) {
+                return true;
+            }
+            long elapsed = System.nanoTime() - started;
+            if (elapsed >= timeoutNanos) {
+                throw new EventSourcingException(
+                        "Published-event Model migration %s reached event %s while legacy event %d requires an exact Model state"
+                                .formatted(
+                                        configuration.migrationName(),
+                                        current < 0L ? "no durable position" : Long.toString(current),
+                                        eventIndex));
+            }
+            LockSupport.parkNanos(Math.min(pollNanos, timeoutNanos - elapsed));
+            pollNanos = Math.min(MAX_MIGRATION_POLL_NANOS, pollNanos * 2L);
+        }
+    }
+
+    private static EventSourcingException interruptedMigrationWait(
+            MigrationReadBarrierConfiguration configuration,
+            long eventIndex) {
+        Thread.currentThread().interrupt();
+        return new EventSourcingException(
+                "Interrupted while waiting for published-event Model migration %s to process legacy event %d"
+                        .formatted(configuration.migrationName(), eventIndex));
+    }
+
+    private record MigrationReadBarrierConfiguration(
+            String migrationName,
+            Duration maxWait) {
+        private MigrationReadBarrierConfiguration {
+            if (migrationName == null || migrationName.isBlank()) {
+                throw new IllegalArgumentException(
+                        "Migration name must not be blank");
+            }
+            Objects.requireNonNull(maxWait, "maxWait");
+            if (maxWait.isZero() || maxWait.isNegative()) {
+                throw new IllegalArgumentException(
+                        "Migration read maxWait must be positive");
+            }
+            try {
+                maxWait.toNanos();
+            } catch (ArithmeticException e) {
+                throw new IllegalArgumentException(
+                        "Migration read maxWait is too large", e);
+            }
+        }
     }
 
     @Override

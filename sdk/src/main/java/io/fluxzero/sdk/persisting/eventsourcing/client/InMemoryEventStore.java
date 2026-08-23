@@ -1315,7 +1315,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized GetModelEventsResult getModelEvents(GetModelEvents request) {
         ModelCommitValidator.validate(request);
-        long stateIndex = modelBoundary(request.getBoundary());
+        ModelRelationshipQueries.ResolvedBoundary resolved =
+                modelBoundary(request.getBoundary());
+        long stateIndex = resolved.stateIndex();
         if (stateIndex < -1L || stateIndex > modelStateIndex) {
             throw new IllegalArgumentException(
                     "Model maxStateIndex %d is outside visible range -1..%d"
@@ -1380,7 +1382,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             .toList()));
         }
         return new GetModelEventsResult(
-                request.getRequestId(), stateIndex,
+                request.getRequestId(), stateIndex, resolved.exact(),
                 payloads.entrySet().stream()
                         .map(entry -> new ModelEventPayload(entry.getKey(), entry.getValue())).toList(),
                 List.copyOf(streams));
@@ -1402,7 +1404,9 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public synchronized GetModelGraphResult getModelGraph(GetModelGraph request) {
         ModelCommitValidator.validate(request);
-        long boundary = modelBoundary(request.getBoundary());
+        ModelRelationshipQueries.ResolvedBoundary resolved =
+                modelBoundary(request.getBoundary());
+        long boundary = resolved.stateIndex();
         boolean before = request.getBoundary().before();
         long minimumBoundary = before ? 0L : -1L;
         if (boundary < minimumBoundary || boundary > modelStateIndex) {
@@ -1412,15 +1416,16 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             : "Model maxStateIndex %d is outside visible range -1..%d")
                             .formatted(boundary, modelStateIndex));
         }
-        return getModelGraph(request, boundary, before);
+        return getModelGraph(request, boundary, resolved.exact(), before);
     }
 
     private GetModelGraphResult getModelGraph(
             GetModelGraph request,
             long boundary,
+            boolean exactBoundary,
             boolean before) {
         return ModelRelationshipQueries.graph(
-                request, boundary,
+                request, boundary, exactBoundary,
                 frontier -> request.getDirection() == GetModelGraph.Direction.ANCESTORS
                         ? relationshipsByChildren(frontier, boundary)
                         : relationshipsByParents(frontier, boundary, before),
@@ -1546,8 +1551,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 .toList();
     }
 
-    private long modelBoundary(ModelReadBoundary boundary) {
-        return ModelRelationshipQueries.resolveBoundary(
+    private ModelRelationshipQueries.ResolvedBoundary modelBoundary(ModelReadBoundary boundary) {
+        return ModelRelationshipQueries.resolveBoundaryWithEvidence(
                 boundary, false, () -> modelStateIndex,
                 (commitId, substep) -> {
                     CommitModelsResult result = modelCommits.get(commitId);

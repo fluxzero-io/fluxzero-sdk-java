@@ -229,7 +229,9 @@ relations for that event. Use `@Association("property")` to select another paylo
 ancestor path; add `excludeMetadata = true` to require the payload. `Graph<T>` can be empty after logical deletion;
 bare non-null `T` only matches a present model. Ordinary indexed events without a model-commit boundary resolve
 directly addressed Models at one current pinned boundary. If an Aggregate-to-Model migration linked that global event,
-the same parameters resolve its exact historical Model boundary.
+the same parameters resolve its exact historical Model boundary. During live catch-up, configure the owning
+`ModelRepository` with `followPublishedEventMigration(theStableConsumerName)`: only a missing mapping consults the
+durable consumer position, waits while it is behind and retries the exact boundary after catch-up.
 
 The same parameters work in command, query, schedule, result, error, metrics, document, custom and web handlers when
 their payload or metadata addresses at least one model. Those non-event handlers use one current handler load context.

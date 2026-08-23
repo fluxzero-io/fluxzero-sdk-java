@@ -45,6 +45,7 @@ public final class ModelEventWireCodec {
     private static final int DIRECT_RESULT_MAGIC = 0x465A4572; // FZEr
     private static final int VERSION = 7;
     private static final int FALLBACK_REQUEST_VERSION = 8;
+    private static final int BOUNDARY_EVIDENCE_RESULT_VERSION = 9;
     private static final int MAX_BATCH_SIZE = 1_000_000;
     private static final int MAX_COLLECTION_SIZE = 2_000_000;
     private static final int MAX_VALUE_BYTES = 512 * 1024 * 1024;
@@ -94,7 +95,8 @@ public final class ModelEventWireCodec {
             int version = input.readUnsignedByte();
             boolean request = magic == REQUEST_MAGIC || magic == DIRECT_REQUEST_MAGIC;
             if (version != VERSION
-                && !(request && version == FALLBACK_REQUEST_VERSION)) {
+                && !(request && version == FALLBACK_REQUEST_VERSION)
+                && !(!request && version == BOUNDARY_EVIDENCE_RESULT_VERSION)) {
                 throw new IOException("Unsupported compact model-event wire version " + version);
             }
             JsonType result;
@@ -104,7 +106,7 @@ public final class ModelEventWireCodec {
                         ? decoded.getRequests().getFirst()
                         : decoded;
             } else {
-                ResultBatch decoded = decodeResults(input);
+                ResultBatch decoded = decodeResults(input, version);
                 result = magic == DIRECT_RESULT_MAGIC
                         ? (JsonType) decoded.getResults().getFirst()
                         : decoded;
@@ -209,14 +211,21 @@ public final class ModelEventWireCodec {
 
     private static byte[] encodeResults(
             ResultBatch batch, int magic) {
-        Writer output = new Writer(encodedResultSize(batch), MAX_VALUE_BYTES);
+        int version = batch.getResults().stream()
+                .map(GetModelEventsResult.class::cast)
+                .anyMatch(result -> !result.isExactBoundary())
+                ? BOUNDARY_EVIDENCE_RESULT_VERSION : VERSION;
+        Writer output = new Writer(encodedResultSize(batch, version), MAX_VALUE_BYTES);
         output.writeInt(magic);
-        output.writeByte(VERSION);
+        output.writeByte(version);
         output.writeInt(batch.getResults().size());
         for (RequestResult value : batch.getResults()) {
             GetModelEventsResult result = (GetModelEventsResult) value;
             output.writeLong(result.getRequestId());
             output.writeLong(result.getStateIndex());
+            if (version == BOUNDARY_EVIDENCE_RESULT_VERSION) {
+                output.writeBoolean(result.isExactBoundary());
+            }
             output.writeInt(result.getPayloads().size());
             for (ModelEventPayload payload : result.getPayloads()) {
                 output.writeLong(payload.getStateIndex());
@@ -290,12 +299,14 @@ public final class ModelEventWireCodec {
         return output.toExactByteArray();
     }
 
-    private static ResultBatch decodeResults(Reader input) throws IOException {
+    private static ResultBatch decodeResults(Reader input, int version) throws IOException {
         int size = input.readSize(MAX_BATCH_SIZE, "batch");
         List<RequestResult> results = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             long requestId = input.readLong();
             long stateIndex = input.readLong();
+            boolean exactBoundary = version != BOUNDARY_EVIDENCE_RESULT_VERSION
+                    || input.readBoolean();
             int payloadCount = input.readSize(MAX_COLLECTION_SIZE, "payload collection");
             List<ModelEventPayload> payloads = new ArrayList<>(payloadCount);
             for (int payload = 0; payload < payloadCount; payload++) {
@@ -343,6 +354,7 @@ public final class ModelEventWireCodec {
                     new GetModelEventsResult(
                             requestId,
                             stateIndex,
+                            exactBoundary,
                             payloads,
                             streams,
                             input.readLongs(MAX_COLLECTION_SIZE),
@@ -392,11 +404,14 @@ public final class ModelEventWireCodec {
         return result;
     }
 
-    private static int encodedResultSize(ResultBatch batch) {
+    private static int encodedResultSize(ResultBatch batch, int version) {
         long size = Integer.BYTES + 1L + Integer.BYTES;
         for (RequestResult value : batch.getResults()) {
             GetModelEventsResult result = (GetModelEventsResult) value;
             size += Long.BYTES * 2L + Integer.BYTES;
+            if (version == BOUNDARY_EVIDENCE_RESULT_VERSION) {
+                size += 1L;
+            }
             for (ModelEventPayload payload : result.getPayloads()) {
                 size += Long.BYTES + encodedMessageSize(payload.getEvent());
             }

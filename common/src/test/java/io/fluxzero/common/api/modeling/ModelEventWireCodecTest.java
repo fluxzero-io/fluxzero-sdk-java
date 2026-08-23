@@ -29,6 +29,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -97,6 +98,7 @@ class ModelEventWireCodecTest {
                 new GetModelEventsResult(
                         99L,
                         91L,
+                        true,
                         List.of(new ModelEventPayload(80L, regular)),
                         List.of(
                                 new ModelEventStream(
@@ -143,6 +145,7 @@ class ModelEventWireCodecTest {
 
         assertEquals(result.getRequestId(), decoded.getRequestId());
         assertEquals(result.getStateIndex(), decoded.getStateIndex());
+        assertTrue(decoded.isExactBoundary());
         assertEquals(result.getStreams(), decoded.getStreams());
         assertEquals(1, decoded.getPayloads().size());
         SerializedMessage decodedRegular =
@@ -201,6 +204,25 @@ class ModelEventWireCodecTest {
     }
 
     @Test
+    void carriesFallbackEvidenceOnlyInTheNewResultVersion() throws Exception {
+        GetModelEventsResult exact = new GetModelEventsResult(
+                1L, 2L, List.of(), List.of());
+        GetModelEventsResult fallback = exact.withExactBoundary(false);
+
+        byte[] exactBytes = ModelEventWireCodec.tryEncode(exact);
+        byte[] fallbackBytes = ModelEventWireCodec.tryEncode(fallback);
+
+        assertEquals(7, exactBytes[Integer.BYTES] & 0xff);
+        assertEquals(9, fallbackBytes[Integer.BYTES] & 0xff);
+        assertTrue(assertInstanceOf(
+                GetModelEventsResult.class,
+                ModelEventWireCodec.tryDecode(exactBytes)).isExactBoundary());
+        assertFalse(assertInstanceOf(
+                GetModelEventsResult.class,
+                ModelEventWireCodec.tryDecode(fallbackBytes)).isExactBoundary());
+    }
+
+    @Test
     void rejectsUnreleasedPreviewVersions() throws Exception {
         byte[] encoded = ModelEventWireCodec.tryEncode(compactResult("first", "second"));
 
@@ -237,6 +259,7 @@ class ModelEventWireCodecTest {
                 new GetModelEventsResult(
                         1L,
                         2L,
+                        true,
                         List.of(),
                         List.of(
                                 new ModelEventStream(
@@ -275,6 +298,7 @@ class ModelEventWireCodecTest {
         return new GetModelEventsResult(
                 1L,
                 2L,
+                true,
                 List.of(),
                 List.of(
                         new ModelEventStream(

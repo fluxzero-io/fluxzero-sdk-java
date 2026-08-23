@@ -57,6 +57,17 @@ public final class ModelRelationshipQueries {
             LongSupplier currentState,
             BiFunction<String, Integer, Long> commitBoundary,
             Function<Long, Long> eventBoundary) {
+        return resolveBoundaryWithEvidence(
+                boundary, rejectNewer, currentState, commitBoundary, eventBoundary).stateIndex();
+    }
+
+    /** Resolves a boundary and records whether an event selector used its explicit current-state fallback. */
+    public static ResolvedBoundary resolveBoundaryWithEvidence(
+            ModelReadBoundary boundary,
+            boolean rejectNewer,
+            LongSupplier currentState,
+            BiFunction<String, Integer, Long> commitBoundary,
+            Function<Long, Long> eventBoundary) {
         long current = currentState.getAsLong();
         String commitId = boundary.commitId();
         Integer substep = boundary.substep();
@@ -78,13 +89,23 @@ public final class ModelRelationshipQueries {
                     "Model maxStateIndex %d is newer than visible stateIndex %d"
                             .formatted(result, current));
         }
-        return result;
+        return new ResolvedBoundary(result, eventIndex == null || event != null);
     }
 
     /** Resolves one bounded relationship graph and its first stream page. */
     public static <R extends Relationship> GetModelGraphResult graph(
             GetModelGraph request,
             long boundary,
+            Function<Collection<String>, List<R>> relationships,
+            Function<GetModelEvents, GetModelEventsResult> events) {
+        return graph(request, boundary, true, relationships, events);
+    }
+
+    /** Resolves a graph while retaining evidence about the original selector that established its boundary. */
+    public static <R extends Relationship> GetModelGraphResult graph(
+            GetModelGraph request,
+            long boundary,
+            boolean exactBoundary,
             Function<Collection<String>, List<R>> relationships,
             Function<GetModelEvents, GetModelEventsResult> events) {
         boolean ancestors = request.getDirection() == GetModelGraph.Direction.ANCESTORS;
@@ -110,7 +131,7 @@ public final class ModelRelationshipQueries {
                 Relationship::edge);
         return result(
                 request.getRequestId(), boundary, graph,
-                request.getMaxEventsPerModel(), request.getMaxBytes(), events);
+                request.getMaxEventsPerModel(), request.getMaxBytes(), exactBoundary, events);
     }
 
     private static GetModelGraphResult result(
@@ -119,13 +140,19 @@ public final class ModelRelationshipQueries {
             ModelRelationshipTraversal.Result graph,
             int maxEventsPerModel,
             long maxBytes,
+            boolean exactBoundary,
             Function<GetModelEvents, GetModelEventsResult> eventLoader) {
         GetModelEventsResult events = eventLoader.apply(new GetModelEvents(
                 graph.modelIds().stream()
                         .map(id -> new ModelEventStreamRequest(id, -1L, maxEventsPerModel))
                         .toList(),
                 ModelReadBoundary.state(boundary, false), maxBytes));
-        return new GetModelGraphResult(requestId, graph.edges(), events);
+        return new GetModelGraphResult(
+                requestId, graph.edges(), events.withExactBoundary(exactBoundary));
+    }
+
+    /** State selected for a read and whether it came from the requested selector rather than an allowed fallback. */
+    public record ResolvedBoundary(long stateIndex, boolean exact) {
     }
 
     /** Resolves models related at the configured depths and paths. */

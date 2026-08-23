@@ -78,6 +78,7 @@ public final class ModelEventPageDecoder {
         GetModelEventsResult expandedResult =
                 new GetModelEventsResult(
                         result.getRequestId(), result.getStateIndex(),
+                        result.isExactBoundary(),
                         List.copyOf(expanded), streams);
         expandedResult.setRequestReceivedTimestamp(result.getRequestReceivedTimestamp());
         expandedResult.setResponseQueuedTimestamp(result.getResponseQueuedTimestamp());
