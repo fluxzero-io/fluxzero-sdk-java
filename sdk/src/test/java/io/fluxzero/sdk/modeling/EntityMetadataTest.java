@@ -36,6 +36,7 @@ import java.util.Set;
 import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toSet;
 
+import static io.fluxzero.common.api.modeling.ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.APPLY;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.ASSERT_LEGAL;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.INTERCEPT_APPLY;
@@ -135,6 +136,20 @@ class EntityMetadataTest {
     }
 
     @Test
+    void ownsDirectModelDocumentCollectionResolution() {
+        assertEquals("models", EntityMetadata.validate(ConfiguredModel.class)
+                .modelDocumentCollection().orElseThrow());
+        assertEquals(GRAPH_COMPONENT_COLLECTION, EntityMetadata.validate(ChildModel.class)
+                .modelDocumentCollection().orElseThrow());
+        assertTrue(EntityMetadata.validate(ParentModel.class)
+                           .modelDocumentCollection().isEmpty());
+        assertEquals("ParentModel", EntityMetadata.validate(ParentModel.class)
+                .modelDocumentReadCollection());
+        assertTrue(EntityMetadata.validate(ConfiguredAggregate.class)
+                           .modelDocumentCollection().isEmpty());
+    }
+
+    @Test
     void validatesAndExposesMaterializedGraphProjection() {
         var configuration =
                 EntityMetadata.validate(ProjectedModel.class)
@@ -204,6 +219,23 @@ class EntityMetadataTest {
         assertEquals(
                 List.of("second-models", "second-graphs"),
                 projectionCollections("second"));
+    }
+
+    @Test
+    void keepsApplicationResolvedModelDocumentCollectionOutOfTheClassCache() {
+        assertEquals("first-models", modelDocumentCollection("first"));
+        assertEquals("second-models", modelDocumentCollection("second"));
+    }
+
+    private static String modelDocumentCollection(String prefix) {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                        "graphRootCollection", prefix + "-models")).andThen(existing))
+                .build(LocalClient.newInstance())) {
+            return fluxzero.apply(ignored -> EntityMetadata
+                    .validate(ConfiguredProjectionCollections.class)
+                    .modelDocumentCollection().orElseThrow());
+        }
     }
 
     private static List<String> projectionCollections(String prefix) {

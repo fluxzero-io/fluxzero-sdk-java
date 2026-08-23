@@ -419,10 +419,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private CompletableFuture<Void> adoptPersistedModelMigration(
             String persistedId,
             Class<?> modelType,
-            EntityMetadata metadata,
-            EntityMetadata.RootConfiguration configuration) {
-        String collection = modelDocumentCollection(
-                modelType, metadata, configuration);
+            EntityMetadata metadata) {
+        String collection = metadata.modelDocumentCollection()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        modelType.getName() + " has no direct document to adopt"));
         GetModelMigrationResult migration = client.getSearchClient()
                 .getModelMigration(new GetModelMigration(
                         persistedId, collection));
@@ -458,23 +458,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         migratedHead.getStateIndex(), STORED));
     }
 
-    private static String modelDocumentCollection(
-            Class<?> modelType,
-            EntityMetadata metadata,
-            EntityMetadata.RootConfiguration configuration) {
-        if (configuration.searchable()) {
-            return Optional.of(configuration.collection())
-                    .filter(value -> !value.isEmpty())
-                    .map(ApplicationProperties::substituteProperties)
-                    .orElse(modelType.getSimpleName());
-        }
-        if (metadata.participatesInGraphComposition()) {
-            return ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION;
-        }
-        throw new IllegalArgumentException(
-                modelType.getName() + " has no direct document to adopt");
-    }
-
     @Override
     public CompletableFuture<Integer> adoptModelMigrations() {
         return adoptModelMigrationBatch(0)
@@ -494,12 +477,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         for (ModelHeadState migration : migrations) {
             Class<?> modelType = migrationType(migration);
             EntityMetadata metadata = EntityMetadata.validate(modelType);
-            EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration()
+            metadata.rootConfiguration()
                     .filter(root -> root.kind() == EntityMetadata.RootKind.MODEL)
                     .orElseThrow(() -> new IllegalStateException(
                             migration.getModelType() + " is not a Model root"));
             batch = batch.thenCompose(ignored -> adoptPersistedModelMigration(
-                    migration.getModelId(), modelType, metadata, configuration));
+                    migration.getModelId(), modelType, metadata));
         }
         // Trampoline between batches so a large, immediately completed in-memory migration
         // cannot grow the caller stack once per thousand adopted Models.
@@ -1258,27 +1241,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             String modelId, Class<?> modelType, boolean migration) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         return loadDocumentUnchecked(
-                modelId, modelType, metadata,
-                metadata.rootConfiguration().orElseThrow(), migration);
+                modelId, modelType, metadata, migration);
     }
 
     @SuppressWarnings("unchecked")
     private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
-            EntityMetadata.RootConfiguration configuration,
             boolean migration) {
-        String collection = configuration.searchable()
-                ? Optional.of(configuration.collection())
-                        .filter(value -> !value.isEmpty())
-                        .map(ApplicationProperties::substituteProperties)
-                        .orElse(modelType.getSimpleName())
-                : metadata.participatesInGraphComposition()
-                        ? ModelDocumentMutation
-                                .GRAPH_COMPONENT_COLLECTION
-                        : Optional.of(configuration.collection())
-                                .filter(value -> !value.isEmpty())
-                                .map(ApplicationProperties::substituteProperties)
-                                .orElse(modelType.getSimpleName());
+        String collection = metadata.modelDocumentReadCollection();
         GetDocumentResult result = client.getSearchClient().fetchModelDocument(
                 new GetDocument(
                         modelId,
@@ -2035,18 +2005,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
         private String documentCollection(Change transition) {
             return documentCollections.computeIfAbsent(
-                    transition.metadata().type(), type -> {
-                        EntityMetadata.RootConfiguration model = transition.configuration();
-                        if (model.searchable()) {
-                            return Optional.of(model.collection())
-                                    .filter(value -> !value.isEmpty())
-                                    .map(ApplicationProperties::substituteProperties)
-                                    .or(() -> Optional.of(type.getSimpleName()));
-                        }
-                        return transition.metadata().participatesInGraphComposition()
-                                ? Optional.of(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION)
-                                : Optional.empty();
-                    }).orElse(null);
+                    transition.metadata().type(),
+                    ignored -> transition.metadata().modelDocumentCollection())
+                    .orElse(null);
         }
 
         /** The one repository-owned carrier from prepared request through authoritative accepted result. */

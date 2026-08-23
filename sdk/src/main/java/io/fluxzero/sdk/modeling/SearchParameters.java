@@ -86,16 +86,14 @@ public class SearchParameters implements Substitutable<SearchParameters> {
      * continue to use {@link Searchable}. An unspecified collection resolves to the type's simple name.</p>
      */
     public static SearchParameters forType(Class<?> type) {
-        EntityMetadata.RootConfiguration model = EntityMetadata.rootConfiguration(type)
+        EntityMetadata metadata = EntityMetadata.of(type);
+        EntityMetadata.RootConfiguration model = metadata.rootConfiguration()
                 .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
                 .orElse(null);
         if (model != null) {
-            String collection = model.collection().isEmpty()
-                    ? type.getSimpleName()
-                    : model.collection();
-            return new SearchParameters(model.searchable(), collection,
-                                        model.timestampPath(), model.endPath())
-                    .substituteProperties();
+            return new SearchParameters(
+                    model.searchable(), metadata.modelDocumentReadCollection(),
+                    model.timestampPath(), model.endPath());
         }
         return io.fluxzero.common.reflection.ReflectionUtils
                 .getAnnotationAs(type, Searchable.class, SearchParameters.class)

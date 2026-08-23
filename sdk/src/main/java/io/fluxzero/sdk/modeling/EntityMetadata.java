@@ -19,6 +19,7 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.search.ModelGraphComposition;
@@ -513,6 +514,34 @@ public final class EntityMetadata {
     public boolean participatesInGraphComposition() {
         return parentReferences.stream()
                 .anyMatch(ParentReference::automaticallyComposed);
+    }
+
+    /** Returns the application-resolved collection that owns this Model's direct document, if it has one. */
+    public Optional<String> modelDocumentCollection() {
+        if (model == null) {
+            return Optional.empty();
+        }
+        if (rootConfiguration.searchable()) {
+            return Optional.of(configuredModelDocumentCollection());
+        }
+        return participatesInGraphComposition()
+                ? Optional.of(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION)
+                : Optional.empty();
+    }
+
+    /**
+     * Returns the collection queried for a current document, including the historical empty-document fallback for a
+     * non-event-sourced Model that does not materialize one itself.
+     */
+    public String modelDocumentReadCollection() {
+        return modelDocumentCollection().orElseGet(this::configuredModelDocumentCollection);
+    }
+
+    private String configuredModelDocumentCollection() {
+        return Optional.of(rootConfiguration.collection())
+                .filter(value -> !value.isEmpty())
+                .map(ApplicationProperties::substituteProperties)
+                .orElse(type.getSimpleName());
     }
 
     /** Returns this root's application-resolved materialized graph definition, if enabled. */
