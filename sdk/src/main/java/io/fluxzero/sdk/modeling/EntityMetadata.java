@@ -487,10 +487,10 @@ public final class EntityMetadata {
             Class<?> parentType = reference.parentModelType(parentId);
             ParentRelationship relationship = new ParentRelationship(
                     repositoryId, parentType,
-                    reference.path().isEmpty() ? null : reference.path(),
+                    reference.pathInParent().isEmpty() ? null : reference.pathInParent(),
                     reference.deleteOnParentDeletion());
             RelationshipKey key = new RelationshipKey(
-                    repositoryId, parentType, relationship.path());
+                    repositoryId, parentType, relationship.pathInParent());
             result.merge(
                     key, relationship,
                     (existing, duplicate) -> existing.deleteOnParentDeletion()
@@ -498,7 +498,7 @@ public final class EntityMetadata {
                             : duplicate.deleteOnParentDeletion()
                                     ? new ParentRelationship(
                                             existing.parentId(), existing.parentType(),
-                                            existing.path(), true)
+                                            existing.pathInParent(), true)
                                     : existing);
         }
         return List.copyOf(result.values());
@@ -681,7 +681,8 @@ public final class EntityMetadata {
         for (ParentProperty parentProperty : properties.values()) {
             validateScalarId(parentProperty.property(), "@Parent");
             Parent annotation = parentProperty.annotation();
-            String path = validateParentPath(parentProperty.property(), annotation.path());
+            String pathInParent = validatePathInParent(
+                    parentProperty.property(), annotation.pathInParent());
             Class<?> inferredType = inferIdTarget(
                     parentProperty.property().type(), parentProperty.property().genericType()).orElse(null);
             Class<?> explicitType = void.class.equals(annotation.value()) ? null : annotation.value();
@@ -722,12 +723,12 @@ public final class EntityMetadata {
                 throw invalid("Polymorphic @Parent %s.%s requires an Id property so its runtime parent type is unambiguous"
                                       .formatted(type.getName(), parentProperty.property().name()));
             }
-            if (!path.isEmpty() && parentTypes.isEmpty()) {
-                throw invalid("@Parent path '%s' on %s.%s requires a typed Id<T> or an explicit parent model type"
-                                      .formatted(path, type.getName(), parentProperty.property().name()));
+            if (!pathInParent.isEmpty() && parentTypes.isEmpty()) {
+                throw invalid("@Parent.pathInParent '%s' on %s.%s requires a typed Id<T> or an explicit parent model type"
+                                      .formatted(pathInParent, type.getName(), parentProperty.property().name()));
             }
             result.add(new ParentReference(
-                    parentProperty.property(), path, List.copyOf(parentTypes), annotation.apiDoc(),
+                    parentProperty.property(), pathInParent, List.copyOf(parentTypes), annotation.apiDoc(),
                     annotation.deleteOnParentDeletion()));
         }
         return List.copyOf(result);
@@ -743,35 +744,35 @@ public final class EntityMetadata {
         };
     }
 
-    private String validateParentPath(Property property, String path) {
-        if (path.isEmpty()) {
-            return path;
+    private String validatePathInParent(Property property, String pathInParent) {
+        if (pathInParent.isEmpty()) {
+            return pathInParent;
         }
-        if (path.isBlank() || !path.equals(path.trim())) {
-            throw invalid("@Parent path on %s.%s must not be blank or have surrounding whitespace"
+        if (pathInParent.isBlank() || !pathInParent.equals(pathInParent.trim())) {
+            throw invalid("@Parent.pathInParent on %s.%s must not be blank or have surrounding whitespace"
                                   .formatted(type.getName(), property.name()));
         }
-        if (path.startsWith("/") || path.endsWith("/") || path.contains("//")) {
-            throw invalid("@Parent path '%s' on %s.%s must be a relative path without empty segments"
-                                  .formatted(path, type.getName(), property.name()));
+        if (pathInParent.startsWith("/") || pathInParent.endsWith("/") || pathInParent.contains("//")) {
+            throw invalid("@Parent.pathInParent '%s' on %s.%s must be a relative path without empty segments"
+                                  .formatted(pathInParent, type.getName(), property.name()));
         }
-        for (String segment : path.split("/")) {
+        for (String segment : pathInParent.split("/")) {
             if (".".equals(segment) || "..".equals(segment)) {
-                throw invalid("@Parent path '%s' on %s.%s must not contain '.' or '..' segments"
-                                      .formatted(path, type.getName(), property.name()));
+                throw invalid("@Parent.pathInParent '%s' on %s.%s must not contain '.' or '..' segments"
+                                      .formatted(pathInParent, type.getName(), property.name()));
             }
             if (io.fluxzero.common.SearchUtils
                     .isInteger(segment)) {
-                throw invalid("@Parent path '%s' on %s.%s must not contain numeric segments because graph children are list-valued"
-                                      .formatted(path, type.getName(), property.name()));
+                throw invalid("@Parent.pathInParent '%s' on %s.%s must not contain numeric segments because graph children are list-valued"
+                                      .formatted(pathInParent, type.getName(), property.name()));
             }
         }
         if (io.fluxzero.common.search.JacksonInverter
-                .isMetadataPath(path)) {
-            throw invalid("@Parent path '%s' on %s.%s must not use the reserved document metadata path"
-                                  .formatted(path, type.getName(), property.name()));
+                .isMetadataPath(pathInParent)) {
+            throw invalid("@Parent.pathInParent '%s' on %s.%s must not use the reserved document metadata path"
+                                  .formatted(pathInParent, type.getName(), property.name()));
         }
-        return path;
+        return pathInParent;
     }
 
     private void validateGraphProjection(Model annotation) {
@@ -1179,14 +1180,14 @@ public final class EntityMetadata {
     /**
      * One outgoing parent relationship declared by a child model.
      *
-     * @param path            optional parent-relative automatic composition path
+     * @param pathInParent    optional parent-relative automatic composition path
      * @param parentModelTypes inferred or explicitly declared possible parent model types; empty for an untyped ID
      * @param apiDoc          optional documentation for the list-valued automatic composition path
      * @param deleteOnParentDeletion whether deletion of this parent owns the child lifecycle
      */
     public record ParentReference(
             Property property,
-            String path,
+            String pathInParent,
             List<Class<?>> parentModelTypes,
             ApiDoc apiDoc,
             boolean deleteOnParentDeletion) {
@@ -1247,7 +1248,7 @@ public final class EntityMetadata {
         }
 
         public boolean automaticallyComposed() {
-            return !path.isEmpty();
+            return !pathInParent.isEmpty();
         }
     }
 
@@ -1255,7 +1256,7 @@ public final class EntityMetadata {
     public record ParentRelationship(
             String parentId,
             Class<?> parentType,
-            String path,
+            String pathInParent,
             boolean deleteOnParentDeletion) {
 
         /** Converts this structural relationship to its commit-wire value. */
@@ -1263,7 +1264,7 @@ public final class EntityMetadata {
             return ModelRelationship.builder()
                     .parentId(parentId)
                     .parentType(parentType == null ? null : parentType.getName())
-                    .path(path)
+                    .path(pathInParent)
                     .deleteOnParentDeletion(deleteOnParentDeletion)
                     .build();
         }
@@ -1273,7 +1274,7 @@ public final class EntityMetadata {
             return new ModelGraphEdge(
                     childId, parentId,
                     parentType == null ? null : parentType.getName(),
-                    path, -1L, null, deleteOnParentDeletion);
+                    pathInParent, -1L, null, deleteOnParentDeletion);
         }
     }
 

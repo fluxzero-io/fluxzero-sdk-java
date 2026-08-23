@@ -65,7 +65,7 @@ an immediate direct search can observe the changed model.
 
 <Aside type="caution">
 A document-based model needs a current document. Normally that means `searchable = true`; a non-searchable child with
-an explicit `@Parent(path = "...")` can instead load from its private graph-component document.
+an explicit `@Parent(pathInParent = "...")` can instead load from its private graph-component document.
 </Aside>
 
 ## Event storage and publication
@@ -123,7 +123,7 @@ projections may continue asynchronously unless `AWAIT` was selected.
 @Model(searchable = true, collection = "line-items")
 record LineItem(
         @EntityId LineItemId lineItemId,
-        @Parent(path = "lines") OrderId orderId,
+        @Parent(pathInParent = "lines") OrderId orderId,
         ProductId productId) {
 }
 ```
@@ -131,7 +131,7 @@ record LineItem(
 This document is authoritative for direct search and for document-based loading. It is not the asynchronously stitched
 root graph.
 
-`searchable = false` controls only this independent collection. A child with an explicit `@Parent(path = "...")`
+`searchable = false` controls only this independent collection. A child with an explicit `@Parent(pathInParent = "...")`
 still supplies a private current document to virtual and materialized graph composition. Without an explicit path,
 Fluxzero stores no graph-component document and performs no extra document write.
 

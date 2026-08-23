@@ -73,7 +73,7 @@ public record DownstreamModel(@EntityId String id, String value, @Member List<Pa
     @Model
     public record Child(
             @EntityId String id,
-            @io.fluxzero.sdk.modeling.Parent(path = "children") DownstreamParentId parentId,
-            @io.fluxzero.sdk.modeling.Parent(value = Parent.class, path = "externalChildren") String externalParentId) {
+            @io.fluxzero.sdk.modeling.Parent(pathInParent = "children") DownstreamParentId parentId,
+            @io.fluxzero.sdk.modeling.Parent(value = Parent.class, pathInParent = "externalChildren") String externalParentId) {
     }
 }

@@ -383,25 +383,25 @@ class TestFixtureModelApiTest {
     @Model
     private record FixtureLocation(
             @EntityId String locationId,
-            @Parent(value = FixtureRoot.class, path = "locations") String rootId) {
+            @Parent(value = FixtureRoot.class, pathInParent = "locations") String rootId) {
     }
 
     @Model
     private record FixtureParent(
             @EntityId String parentId,
-            @Parent(value = FixtureLocation.class, path = "parents") String locationId) {
+            @Parent(value = FixtureLocation.class, pathInParent = "parents") String locationId) {
     }
 
     @Model
     private record FixtureChild(
             @EntityId String childId,
-            @Parent(value = FixtureParent.class, path = "children") String parentId) {
+            @Parent(value = FixtureParent.class, pathInParent = "children") String parentId) {
     }
 
     @Model
     private record ScopedFixtureChild(
             @EntityId(parentScoped = true) String childId,
-            @Parent(value = FixtureRoot.class, path = "scopedChildren") String rootId) {
+            @Parent(value = FixtureRoot.class, pathInParent = "scopedChildren") String rootId) {
     }
 
     private record CreateFixtureRoot(String rootId) {

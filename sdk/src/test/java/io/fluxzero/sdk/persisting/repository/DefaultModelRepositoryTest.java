@@ -2740,7 +2740,7 @@ class DefaultModelRepositoryTest {
     @Revision(1)
     private record RevisionedProjectedChild(
             @EntityId String id,
-            @Parent(value = ProjectedRoot.class, path = "children")
+            @Parent(value = ProjectedRoot.class, pathInParent = "children")
             String rootId) {
     }
 
@@ -2776,7 +2776,7 @@ class DefaultModelRepositoryTest {
     @Model
     private record GraphChild(
             @EntityId GraphChildId graphChildId,
-            @Parent(path = "children") GraphRootId graphRootId,
+            @Parent(pathInParent = "children") GraphRootId graphRootId,
             String name) {
     }
 
@@ -2805,7 +2805,7 @@ class DefaultModelRepositoryTest {
     @Model
     private record GraphGrandchild(
             @EntityId GraphGrandchildId graphGrandchildId,
-            @Parent(path = "grandchildren") GraphChildId graphChildId,
+            @Parent(pathInParent = "grandchildren") GraphChildId graphChildId,
             String name) {
     }
 

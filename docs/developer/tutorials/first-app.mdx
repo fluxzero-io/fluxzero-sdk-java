@@ -144,7 +144,7 @@ public final class TaskId extends Id<Task> {
 
 @Model(searchable = true)
 public record Task(@EntityId TaskId taskId,
-                   @Parent(path = "tasks") ProjectId projectId,
+                   @Parent(pathInParent = "tasks") ProjectId projectId,
                    String description,
                    boolean completed) {
 }
@@ -159,7 +159,7 @@ class TaskId(value: String) : Id<Task>(value, "task-")
 @Model(searchable = true)
 data class Task(
     @EntityId val taskId: TaskId,
-    @Parent(path = "tasks") val projectId: ProjectId,
+    @Parent(pathInParent = "tasks") val projectId: ProjectId,
     val description: String,
     val completed: Boolean
 )

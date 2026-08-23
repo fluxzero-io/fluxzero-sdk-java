@@ -214,7 +214,7 @@ Use `@Parent` when independently stored models form a navigable graph:
 ```java
 @Model(searchable = true)
 public record Task(@EntityId TaskId taskId,
-                   @Parent(path = "tasks") ProjectId projectId,
+                   @Parent(pathInParent = "tasks") ProjectId projectId,
                    String description,
                    boolean completed) {
 }

@@ -68,8 +68,8 @@ public @interface ApiDocResponse {
      * <p>
      * Use this when a handler returns a {@code JsonNode} (or another untyped JSON representation) produced from a
      * model graph. The generated schema starts with this model and follows child relationships that declare both a
-     * {@link io.fluxzero.sdk.modeling.Parent#path() Parent path} and optional relationship documentation through
-     * {@link io.fluxzero.sdk.modeling.Parent#apiDoc() Parent.apiDoc}. This option is mutually exclusive with
+     * {@link io.fluxzero.sdk.modeling.Parent#pathInParent() Parent.pathInParent} and optional relationship documentation
+     * through {@link io.fluxzero.sdk.modeling.Parent#apiDoc() Parent.apiDoc}. This option is mutually exclusive with
      * {@link #type()}. When the handler returns an array or collection, the response remains an array whose items are
      * graphs rooted at this model.
      */
@@ -79,8 +79,8 @@ public @interface ApiDocResponse {
      * Optional relationship paths to include in the documented model graph.
      * <p>
      * Paths are relative to {@link #modelGraph()} and use the slash-separated values declared by
-     * {@link io.fluxzero.sdk.modeling.Parent#path() Parent.path}. Ancestors of a selected path are included
-     * automatically, so selecting {@code locations/connections/meters} includes the {@code locations} and
+     * {@link io.fluxzero.sdk.modeling.Parent#pathInParent() Parent.pathInParent}. Ancestors of a selected path are
+     * included automatically, so selecting {@code locations/connections/meters} includes the {@code locations} and
      * {@code connections} relationships as well. An empty array preserves the default of including every documented
      * relationship below the root model.
      */

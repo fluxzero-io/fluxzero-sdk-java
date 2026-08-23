@@ -1108,7 +1108,7 @@ class ModelEntityParameterResolverTest {
     @Model
     private record Department(
             @EntityId DepartmentId departmentId,
-            @Parent(path = "departments")
+            @Parent(pathInParent = "departments")
             CompanyId companyId) {
     }
 
@@ -1122,7 +1122,7 @@ class ModelEntityParameterResolverTest {
     @Model
     private record Worker(
             @EntityId WorkerId workerId,
-            @Parent(path = "workers")
+            @Parent(pathInParent = "workers")
             DepartmentId departmentId) {
     }
 

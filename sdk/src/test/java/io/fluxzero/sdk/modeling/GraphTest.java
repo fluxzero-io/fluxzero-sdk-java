@@ -877,33 +877,33 @@ class GraphTest {
     @Model
     private record Child(
             @EntityId ChildId id,
-            @Parent(path = "children") RootId rootId,
+            @Parent(pathInParent = "children") RootId rootId,
             String name) {
     }
 
     @Model
     private record Grandchild(
             @EntityId String id,
-            @Parent(value = Child.class, path = "details/grandchildren") ChildId childId) {
+            @Parent(value = Child.class, pathInParent = "details/grandchildren") ChildId childId) {
     }
 
     @Model
     private record ScopedChild(
             @EntityId(parentScoped = true) String id,
-            @Parent(value = Root.class, path = "scopedChildren") RootId rootId) {
+            @Parent(value = Root.class, pathInParent = "scopedChildren") RootId rootId) {
     }
 
     @Model
     private record ScopedLeaf(
             @EntityId(parentScoped = true) String id,
-            @Parent(value = Child.class, path = "scopedLeaves") ChildId childId) {
+            @Parent(value = Child.class, pathInParent = "scopedLeaves") ChildId childId) {
     }
 
     @Model
     private record AliasedChild(
             @EntityId String id,
             @Alias String alias,
-            @Parent(value = Root.class, path = "aliasedChildren") RootId rootId) {
+            @Parent(value = Root.class, pathInParent = "aliasedChildren") RootId rootId) {
     }
 
     @Model
@@ -913,8 +913,8 @@ class GraphTest {
     @Model
     private record MultiChild(
             @EntityId String id,
-            @Parent(path = "rootChildren") RootId rootId,
-            @Parent(value = OtherRoot.class, path = "otherChildren") String otherRootId) {
+            @Parent(pathInParent = "rootChildren") RootId rootId,
+            @Parent(value = OtherRoot.class, pathInParent = "otherChildren") String otherRootId) {
     }
 
     private static final class ChildId extends Id<Child> {

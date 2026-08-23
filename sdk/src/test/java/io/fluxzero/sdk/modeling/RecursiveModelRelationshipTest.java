@@ -141,7 +141,7 @@ class RecursiveModelRelationshipTest {
             graphProjection = @GraphProjection(collection = "recursiveFolderGraphs"))
     private record RecursiveFolder(
             @EntityId RecursiveFolderId folderId,
-            @Parent(path = "children") RecursiveFolderId parentId,
+            @Parent(pathInParent = "children") RecursiveFolderId parentId,
             String name) {
     }
 

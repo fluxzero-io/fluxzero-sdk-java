@@ -455,7 +455,7 @@ class OpenApiRendererTest {
     @Model
     record LocationModel(
             @EntityId String id,
-            @Parent(value = OrganisationModel.class, path = "locations",
+            @Parent(value = OrganisationModel.class, pathInParent = "locations",
                     apiDoc = @ApiDoc(description = "Locations belonging to the organisation", required = true,
                             type = "object"))
             String organisationId,
@@ -465,7 +465,7 @@ class OpenApiRendererTest {
     @Model
     record ConnectionModel(
             @EntityId String id,
-            @Parent(value = LocationModel.class, path = "infrastructure/connections",
+            @Parent(value = LocationModel.class, pathInParent = "infrastructure/connections",
                     apiDoc = @ApiDoc(description = "Physical connections at this location"))
             String locationId,
             String ean) {
@@ -474,7 +474,7 @@ class OpenApiRendererTest {
     @Model
     record ContractModel(
             @EntityId String id,
-            @Parent(value = OrganisationModel.class, path = "contracts",
+            @Parent(value = OrganisationModel.class, pathInParent = "contracts",
                     apiDoc = @ApiDoc(exclude = true)) String organisationId) {
     }
 
@@ -485,7 +485,7 @@ class OpenApiRendererTest {
     @Model
     record ContactModel(
             @EntityId String id,
-            @Parent(types = {OrganisationModel.class, AlternateRootModel.class}, path = "contacts")
+            @Parent(types = {OrganisationModel.class, AlternateRootModel.class}, pathInParent = "contacts")
             Id<?> parentId) {
     }
 

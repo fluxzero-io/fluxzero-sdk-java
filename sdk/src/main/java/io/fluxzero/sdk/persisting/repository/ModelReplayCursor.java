@@ -1090,7 +1090,7 @@ final class ModelReplayCursor {
                                 .formatted(
                                         dependency.modelType().getName(),
                                         dependency.association() == null ? ""
-                                                : " at @Parent path '" + dependency.association() + "'",
+                                                : " at @Parent.pathInParent '" + dependency.association() + "'",
                                         dependency.handler(), roots));
             }
             if (candidates.size() > 1 && !allowMultipleAncestors) {
@@ -1099,7 +1099,7 @@ final class ModelReplayCursor {
                                 .formatted(
                                         dependency.modelType().getName(),
                                         dependency.association() == null ? ""
-                                                : " at @Parent path '" + dependency.association() + "'",
+                                                : " at @Parent.pathInParent '" + dependency.association() + "'",
                                         dependency.handler(), candidates)
                         + "Qualify the parameter with @Association(\"parentPath\").");
             }

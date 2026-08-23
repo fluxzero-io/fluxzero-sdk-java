@@ -70,10 +70,10 @@ class DownstreamProjectTest {
         assertEquals("downstream-models", model.searchProjection().collection());
         assertNotNull(typedParent);
         assertNotNull(untypedParent);
-        assertEquals("children", typedParent.path());
+        assertEquals("children", typedParent.pathInParent());
         assertEquals(void.class, typedParent.value());
         assertEquals(DownstreamModel.Parent.class, untypedParent.value());
-        assertEquals("externalChildren", untypedParent.path());
+        assertEquals("externalChildren", untypedParent.pathInParent());
     }
 
     private static String readResource(String name) throws IOException {

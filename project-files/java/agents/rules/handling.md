@@ -85,7 +85,7 @@ Use `@Parent` on the child model. Creating or updating it does not rewrite the p
 
 [//]: # (@formatter:off)
 ```java
-// Task is @Model and has @Parent(path = "tasks") ProjectId projectId.
+// Task is @Model and has @Parent(pathInParent = "tasks") ProjectId projectId.
 public record CreateTask(ProjectId projectId, @NotNull TaskId taskId, @NotNull @Valid TaskDetails details) {
     @Apply
     Task apply() {
@@ -522,7 +522,7 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   response without repeating its body type. Use `ref = "error"` to reference `#/components/responses/error`.
 - For a composed independent-model graph returned as `JsonNode`, select its root with
   `@ApiDocResponse(status = 200, modelGraph = RootModel.class)`. Add
-  `apiDoc = @ApiDoc(...)` next to each child model's `@Parent(path = ...)`; the final path segment is documented as
+  `apiDoc = @ApiDoc(...)` next to each child model's `@Parent(pathInParent = ...)`; the final path segment is documented as
   a list of that child model and slash-separated prefixes become nested objects. Array and collection return types
   remain arrays whose items are complete model graphs. An empty `modelGraphPaths` selection includes every relation
   except those with `@Parent(apiDoc = @ApiDoc(exclude = true))`. Use

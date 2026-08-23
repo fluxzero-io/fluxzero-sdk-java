@@ -32,7 +32,7 @@ Important settings:
 
 - `eventSourced`: controls the current-state load route. Events are still stored when `false`.
 - `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
-  model's own collection; an explicit `@Parent(path = "...")` still retains a private graph-component document.
+  model's own collection; an explicit `@Parent(pathInParent = "...")` still retains a private graph-component document.
 - `searchProjection`: optional `Searchable` configuration for the direct collection and timestamp paths.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `STORE_AND_PUBLISH`, `STORE_ONLY`, `PUBLISH_ONLY` or `NEVER`.
@@ -197,7 +197,7 @@ that order is a domain requirement.
 @Model(searchable = true)
 data class Task(
     @EntityId val taskId: TaskId,
-    @Parent(path = "tasks")
+    @Parent(pathInParent = "tasks")
     val projectId: ProjectId,
     val details: TaskDetails,
     val completed: Boolean
@@ -207,13 +207,13 @@ data class Task(
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
-- `path` is a stable public graph-placement and serialization contract. A pathless relation remains available through
+- `pathInParent` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set
   `deleteOnParentDeletion = false` for deliberately detached or independently retained children.
 - Relationships are temporal; graph reconstruction can pin a `stateIndex`.
 - Same-type recursion is supported. A `Folder` may hold
-  `@Parent(path = "folders") val parentFolderId: FolderId?`; Fluxzero accepts an arbitrarily deep tree and atomically
+  `@Parent(pathInParent = "folders") val parentFolderId: FolderId?`; Fluxzero accepts an arbitrarily deep tree and atomically
   rejects a concrete cycle. This remains a relation between independent Models, not an embedded recursive object.
 
 Inject parents and further ancestors:

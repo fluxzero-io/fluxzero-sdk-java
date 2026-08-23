@@ -96,7 +96,7 @@ Use `@EntityId(parentScoped = true)` when a parent-owned child ID is intentional
 @Model
 record Line(
         @EntityId(parentScoped = true) String lineId,
-        @Parent(value = Order.class, path = "lines") OrderId orderId) {
+        @Parent(value = Order.class, pathInParent = "lines") OrderId orderId) {
 }
 ```
 
@@ -291,7 +291,7 @@ Graph loads have no caller-imposed depth or model-count limit by default. Pass e
 operation intentionally accepts only a bounded graph; use a direct model load when the command needs only one model.
 
 Returning `Graph<T>` from a message or web handler serializes the root and descendants placed through explicit
-`@Parent(path = "...")` edges. Pathless relationships remain available through typed `children(...)` and
+`@Parent(pathInParent = "...")` edges. Pathless relationships remain available through typed `children(...)` and
 `descendants(...)`, but do not invent a public JSON property name.
 
 A current graph load inside an ordered tracking batch includes pending model state produced by earlier messages in the

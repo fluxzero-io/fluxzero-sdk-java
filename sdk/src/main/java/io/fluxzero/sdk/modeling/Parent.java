@@ -37,14 +37,15 @@ import java.lang.annotation.Target;
  * A typed parent may target the declaring model type itself, for example to represent folders within folders.
  * Concrete relationship cycles are rejected atomically when the relationship change is committed.
  * <p>
- * {@link #path()} is an optional path relative to the parent document. Supplying it opts this edge into automatic
- * virtual-document stitching and CQRS graph placement. Omitting it leaves relationship navigation and graph bundles
- * available without silently deriving a durable document path from a Java class name. The path names a list-valued
- * collection: the runtime appends deterministic numeric child positions, so numeric path segments are not allowed.
+ * {@link #pathInParent()} is an optional path relative to the parent document. Supplying it opts this edge into
+ * automatic virtual-document stitching and CQRS graph placement. Omitting it leaves relationship navigation and graph
+ * bundles available without silently deriving a durable document path from a Java class name. The path names a
+ * list-valued collection: the runtime appends deterministic numeric child positions, so numeric path segments are not
+ * allowed.
  * Graph placement is independent from {@link Model#searchable()}: a non-searchable child with an explicit path is
  * retained in a private current-document collection for composition, but is not exposed through its own collection.
  * {@link #apiDoc()} optionally describes the list-valued property created at that path when the graph is used as a
- * documented web response. It has no effect unless {@link #path()} is set.
+ * documented web response. It has no effect unless {@link #pathInParent()} is set.
  * <p>
  * By default the relationship also owns the child's lifecycle: deleting the referenced parent deletes this model and
  * its likewise owned descendants in the same atomic model commit. Set {@link #deleteOnParentDeletion()} to
@@ -71,20 +72,20 @@ public @interface Parent {
     /**
      * Explicit possible parent model types for a polymorphic {@link Id} property.
      * <p>
-     * At runtime the concrete {@code Id} subtype selects exactly one of these model types through
-     * {@link Id#getType()}. This keeps graph validation, API documentation, cascade deletion and cycle detection
-     * statically knowable while allowing one domain property such as {@code Id<?> nominee} to refer to different
-     * model types. This attribute and {@link #value()} are mutually exclusive.
+     * At runtime the concrete {@link Id} subtype selects exactly one of these model types through its declared type.
+     * This keeps graph validation, API documentation, cascade deletion and cycle detection statically knowable while
+     * allowing one domain property such as {@code Id<?> nominee} to refer to different model types. This attribute and
+     * {@link #value()} are mutually exclusive.
      */
     Class<?>[] types() default {};
 
     /**
      * Optional slash-separated, non-reserved collection path relative to the parent document.
      */
-    String path() default "";
+    String pathInParent() default "";
 
     /**
-     * Optional API documentation for the list-valued graph property at {@link #path()}.
+     * Optional API documentation for the list-valued graph property at {@link #pathInParent()}.
      * <p>
      * The child item schema is inferred from the model that declares this parent reference. Nested path segments are
      * represented as objects, while the final path segment is represented as an array of child models. Structural

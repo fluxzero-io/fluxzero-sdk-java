@@ -271,7 +271,7 @@ class GraphJsonSerializerTest {
     @Model
     private record Child(
             @EntityId String id,
-            @Parent(value = Root.class, path = "children") String rootId,
+            @Parent(value = Root.class, pathInParent = "children") String rootId,
             String value) {
 
         @FilterContent
@@ -288,7 +288,7 @@ class GraphJsonSerializerTest {
     @Model
     private record Leaf(
             @EntityId String id,
-            @Parent(value = Child.class, path = "details/leaves") String childId,
+            @Parent(value = Child.class, pathInParent = "details/leaves") String childId,
             String value) {
 
         @FilterContent
@@ -315,7 +315,7 @@ class GraphJsonSerializerTest {
     @Model
     private record ViewChild(
             @EntityId String id,
-            @Parent(value = ViewRoot.class, path = "children") String rootId,
+            @Parent(value = ViewRoot.class, pathInParent = "children") String rootId,
             String value) {
 
         @FilterContent

@@ -193,7 +193,7 @@ public class OpenApiProcessor extends AbstractProcessor {
     static final String API_DOC_RESPONSES = "io.fluxzero.sdk.web.ApiDocResponses";
     static final String API_DOC_EXCLUDE = "io.fluxzero.sdk.web.ApiDocExclude";
     static final String MODEL = "io.fluxzero.sdk.modeling.Model";
-    static final String PARENT_ID = "io.fluxzero.sdk.modeling.Parent";
+    static final String PARENT = "io.fluxzero.sdk.modeling.Parent";
     static final String MODEL_ID = "io.fluxzero.sdk.modeling.Id";
     static final String SWAGGER_SCHEMA = "io.swagger.v3.oas.annotations.media.Schema";
     static final String SWAGGER_ARRAY_SCHEMA = "io.swagger.v3.oas.annotations.media.ArraySchema";
@@ -283,13 +283,13 @@ public class OpenApiProcessor extends AbstractProcessor {
             if (!(member.getKind() == ElementKind.FIELD || member.getKind() == ElementKind.METHOD)) {
                 continue;
             }
-            AnnotationMirror parentId = findAnnotation(member, PARENT_ID);
-            if (parentId == null) {
+            AnnotationMirror parent = findAnnotation(member, PARENT);
+            if (parent == null) {
                 continue;
             }
-            Map<String, AnnotationValue> values = annotationValues(parentId);
-            String path = stringValue(values.get("path"));
-            if (isBlank(path)) {
+            Map<String, AnnotationValue> values = annotationValues(parent);
+            String pathInParent = stringValue(values.get("pathInParent"));
+            if (isBlank(pathInParent)) {
                 continue;
             }
             TypeMirror explicitParent = typeValue(values.get("value"));
@@ -298,7 +298,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                 messager.printMessage(
                         Diagnostic.Kind.ERROR,
                         "@Parent may declare either value or types, but not both",
-                        member, parentId);
+                        member, parent);
                 continue;
             }
             if (!isNoResponseType(explicitParent)) {
@@ -311,7 +311,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             }
             for (TypeMirror parentType : parentTypes) {
                 modelGraphRelations.add(new ModelGraphRelation(
-                        childType, parentType, path, annotationMirror(values.get("apiDoc"))));
+                        childType, parentType, pathInParent, annotationMirror(values.get("apiDoc"))));
             }
         }
     }
@@ -999,7 +999,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                     .filter(relation -> types.isSameType(types.erasure(relation.parentType()),
                                                          types.erasure(parentType.asType())))
                     .filter(relation -> !metadata(relation.apiDoc()).hidden())
-                    .forEach(relation -> byPath.computeIfAbsent(relation.path(), ignored -> new ArrayList<>())
+                    .forEach(relation -> byPath.computeIfAbsent(relation.pathInParent(), ignored -> new ArrayList<>())
                             .add(relation));
             if (byPath.isEmpty()) {
                 return;
@@ -2225,7 +2225,7 @@ public class OpenApiProcessor extends AbstractProcessor {
     }
 
     private record ModelGraphRelation(
-            TypeElement childType, TypeMirror parentType, String path, AnnotationMirror apiDoc) {
+            TypeElement childType, TypeMirror parentType, String pathInParent, AnnotationMirror apiDoc) {
     }
 
     private record Documentation(

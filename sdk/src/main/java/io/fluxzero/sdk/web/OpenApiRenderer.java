@@ -560,7 +560,7 @@ public final class OpenApiRenderer {
                             .filter(EntityMetadata.ParentReference::automaticallyComposed)
                             .filter(parent -> parent.parentModelTypes().contains(parentType))
                             .filter(parent -> !metadata(parent.apiDoc()).hidden())
-                            .forEach(parent -> byPath.computeIfAbsent(parent.path(), ignored -> new ArrayList<>())
+                            .forEach(parent -> byPath.computeIfAbsent(parent.pathInParent(), ignored -> new ArrayList<>())
                                     .add(new ModelGraphRelation(childType, parent.apiDoc()))));
             if (byPath.isEmpty()) {
                 return;

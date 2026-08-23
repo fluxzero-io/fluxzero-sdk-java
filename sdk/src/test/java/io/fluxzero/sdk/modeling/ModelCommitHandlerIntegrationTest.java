@@ -3078,7 +3078,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record ScopedNote(
             @EntityId(parentScoped = true) String noteId,
-            @Parent(path = "notes") FamilyRootId familyRootId,
+            @Parent(pathInParent = "notes") FamilyRootId familyRootId,
             int value) {
     }
 
@@ -3105,7 +3105,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record AffixedChild(
             @EntityId(prefix = "nested-") AffixedChildId affixedChildId,
-            @Parent(path = "children") AffixedRootId affixedRootId) {
+            @Parent(pathInParent = "children") AffixedRootId affixedRootId) {
     }
 
     private static final class AffixedChildId extends Id<AffixedChild> {
@@ -3126,7 +3126,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record AffixedCompanion(
             @EntityId(prefix = "companion-")
-            @Parent(path = "companion")
+            @Parent(pathInParent = "companion")
             AffixedRootId affixedRootId,
             String status) {
     }
@@ -3143,7 +3143,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model(searchable = true)
     private record FamilyChild(
             @EntityId FamilyChildId familyChildId,
-            @Parent(path = "children")
+            @Parent(pathInParent = "children")
             FamilyRootId familyRootId,
             String name) {
     }
@@ -3169,7 +3169,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model(eventSourced = false, searchable = true)
     private record DocumentFamilyChild(
             @EntityId DocumentFamilyChildId documentFamilyChildId,
-            @Parent(path = "documentChildren")
+            @Parent(pathInParent = "documentChildren")
             FamilyRootId familyRootId,
             String name) {
     }
@@ -3195,9 +3195,9 @@ class ModelCommitHandlerIntegrationTest {
     @Model(cached = false, searchable = true)
     private record FamilyGrandchild(
             @EntityId FamilyGrandchildId familyGrandchildId,
-            @Parent(path = "primaryGrandchildren")
+            @Parent(pathInParent = "primaryGrandchildren")
             FamilyChildId primaryId,
-            @Parent(path = "secondaryGrandchildren")
+            @Parent(pathInParent = "secondaryGrandchildren")
             FamilyChildId secondaryId,
             String observations) {
     }
@@ -3367,7 +3367,7 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record ProjectionChild(
             @EntityId ProjectionChildId projectionChildId,
-            @Parent(path = "children")
+            @Parent(pathInParent = "children")
             ProjectionRootId projectionRootId) {
 
         @FilterContent

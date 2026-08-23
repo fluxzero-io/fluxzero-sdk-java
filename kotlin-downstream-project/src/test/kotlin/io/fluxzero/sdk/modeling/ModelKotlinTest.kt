@@ -54,6 +54,6 @@ class KotlinParentId(id: String) : Id<KotlinParent>(id, "kotlin-parent-")
 @Model
 data class KotlinChild(
     @EntityId val id: String,
-    @Parent(path = "children") val parentId: KotlinParentId,
-    @Parent(value = KotlinParent::class, path = "externalChildren") val externalParentId: String,
+    @Parent(pathInParent = "children") val parentId: KotlinParentId,
+    @Parent(value = KotlinParent::class, pathInParent = "externalChildren") val externalParentId: String,
 )

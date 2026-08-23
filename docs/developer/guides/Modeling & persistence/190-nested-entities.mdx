@@ -22,7 +22,7 @@ record Order(
 @Model(searchable = true)
 record LineItem(
         @EntityId LineItemId lineItemId,
-        @Parent(path = "lines") OrderId orderId,
+        @Parent(pathInParent = "lines") OrderId orderId,
         ProductId productId,
         int quantity) {
 }
@@ -33,7 +33,7 @@ and direct search document. Updating it does not load or
 rewrite the order.
 
 The child does not have to be independently searchable. With `@Model(searchable = false)`, the explicit
-`@Parent(path = "lines")` still retains a private current document for graph composition; only the child’s own public
+`@Parent(pathInParent = "lines")` still retains a private current document for graph composition; only the child’s own public
 search collection is suppressed.
 
 The relation may point to the same Model type, which makes recursive domains such as folders natural:
@@ -42,7 +42,7 @@ The relation may point to the same Model type, which makes recursive domains suc
 @Model(searchable = true)
 record Folder(
         @EntityId FolderId folderId,
-        @Parent(path = "folders") FolderId parentFolderId,
+        @Parent(pathInParent = "folders") FolderId parentFolderId,
         String name) {
 }
 ```
@@ -82,14 +82,14 @@ today.
 With `Id<Parent>`, Fluxzero infers the parent type:
 
 ```java
-@Parent(path = "lines")
+@Parent(pathInParent = "lines")
 OrderId orderId
 ```
 
 For a string or another untyped ID, declare the type when graph features need it:
 
 ```java
-@Parent(value = Order.class, path = "lines")
+@Parent(value = Order.class, pathInParent = "lines")
 String orderId
 ```
 
@@ -101,7 +101,7 @@ concatenated into the persisted key.
 `path` is an explicit durable placement contract. It is intentionally not derived from a Java class name:
 
 ```java
-@Parent(path = "shipping/lines")
+@Parent(pathInParent = "shipping/lines")
 OrderId orderId
 ```
 
@@ -264,7 +264,7 @@ whose relevant `@Parent` keeps `deleteOnParentDeletion = true`. This ownership r
 shared-DAG descendants too. Opt out for independently retained children:
 
 ```java
-@Parent(path = "auditEntries", deleteOnParentDeletion = false)
+@Parent(pathInParent = "auditEntries", deleteOnParentDeletion = false)
 OrderId orderId
 ```
 

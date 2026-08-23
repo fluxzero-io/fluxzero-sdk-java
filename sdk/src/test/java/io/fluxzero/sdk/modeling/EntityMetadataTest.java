@@ -76,7 +76,7 @@ class EntityMetadataTest {
         assertEquals(List.of("parentId", "externalParentId"),
                      metadata.parentReferences().stream().map(reference -> reference.property().name()).toList());
         assertEquals(List.of("items", "externalItems"),
-                     metadata.parentReferences().stream().map(EntityMetadata.ParentReference::path).toList());
+                     metadata.parentReferences().stream().map(EntityMetadata.ParentReference::pathInParent).toList());
         assertEquals(List.of(ParentModel.class, ParentModel.class),
                      metadata.parentReferences().stream().map(EntityMetadata.ParentReference::parentModelType).toList());
         assertEquals("parent-parent", metadata.parentReferences().getFirst().read(value).toString());
@@ -304,7 +304,7 @@ class EntityMetadataTest {
                 EntityMetadata.validate(InterfaceChildModel.class).parentReferences().getFirst();
 
         assertEquals("parentId", parent.property().name());
-        assertEquals("interfaceChildren", parent.path());
+        assertEquals("interfaceChildren", parent.pathInParent());
         assertSame(ParentModel.class, parent.parentModelType());
     }
 
@@ -499,7 +499,7 @@ class EntityMetadataTest {
                 .parentReferences().getFirst();
 
         assertEquals(RecursiveFolder.class, parent.parentModelType());
-        assertEquals("children", parent.path());
+        assertEquals("children", parent.pathInParent());
     }
 
     @Test
@@ -565,7 +565,7 @@ class EntityMetadataTest {
     @Revision(2)
     private record RevisionedProjectedChild(
             @EntityId String id,
-            @Parent(value = ProjectedModel.class, path = "children")
+            @Parent(value = ProjectedModel.class, pathInParent = "children")
             String parentId) {
     }
 
@@ -573,7 +573,7 @@ class EntityMetadataTest {
     @Revision(3)
     private record RevisionedProjectedGrandchild(
             @EntityId String id,
-            @Parent(value = RevisionedProjectedChild.class, path = "details")
+            @Parent(value = RevisionedProjectedChild.class, pathInParent = "details")
             String parentId) {
     }
 
@@ -657,22 +657,22 @@ class EntityMetadataTest {
     @Model
     private record PolymorphicChildModel(
             @EntityId String id,
-            @Parent(types = {ParentModel.class, AlternateParentModel.class}, path = "children") Id<?> parentId) {
+            @Parent(types = {ParentModel.class, AlternateParentModel.class}, pathInParent = "children") Id<?> parentId) {
     }
 
     @Model
     private record ChildModel(
             @EntityId ChildModelId childId,
-            @Parent(path = "items", apiDoc = @ApiDoc(description = "Child items")) ParentModelId parentId,
-            @Parent(value = ParentModel.class, path = "externalItems") String externalParentId) {
+            @Parent(pathInParent = "items", apiDoc = @ApiDoc(description = "Child items")) ParentModelId parentId,
+            @Parent(value = ParentModel.class, pathInParent = "externalItems") String externalParentId) {
     }
 
     @Model
     private record DuplicateParentModel(
             @EntityId String id,
-            @Parent(value = ParentModel.class, path = "items", deleteOnParentDeletion = false)
+            @Parent(value = ParentModel.class, pathInParent = "items", deleteOnParentDeletion = false)
             ParentModelId reference,
-            @Parent(value = ParentModel.class, path = "items") ParentModelId ownedReference) {
+            @Parent(value = ParentModel.class, pathInParent = "items") ParentModelId ownedReference) {
     }
 
     private static class ChildModelId extends Id<ChildModel> {
@@ -699,14 +699,14 @@ class EntityMetadataTest {
     @Model
     private record ScopedBranchModel(
             @EntityId String branchId,
-            @Parent(value = ScopedRootModel.class, path = "branches") String rootId) {
+            @Parent(value = ScopedRootModel.class, pathInParent = "branches") String rootId) {
     }
 
     @Model
     private record ScopedLeafModel(
             @EntityId(parentScoped = true) String leafId,
-            @Parent(value = ScopedRootModel.class, path = "leaves") String rootId,
-            @Parent(value = ScopedBranchModel.class, path = "leaves") String branchId) {
+            @Parent(value = ScopedRootModel.class, pathInParent = "leaves") String rootId,
+            @Parent(value = ScopedBranchModel.class, pathInParent = "leaves") String branchId) {
     }
 
     private record ScopedTargetPayload(String rootId, String branchId, String leafId) {
@@ -724,12 +724,12 @@ class EntityMetadataTest {
     @Model
     private record AmbiguousScopedModel(
             @EntityId(parentScoped = true) String leafId,
-            @Parent(value = ScopedRootModel.class, path = "leaves") String firstRootId,
-            @Parent(value = OtherScopedRootModel.class, path = "leaves") String secondRootId) {
+            @Parent(value = ScopedRootModel.class, pathInParent = "leaves") String firstRootId,
+            @Parent(value = OtherScopedRootModel.class, pathInParent = "leaves") String secondRootId) {
     }
 
     private interface ParentLink {
-        @Parent(path = "interfaceChildren")
+        @Parent(pathInParent = "interfaceChildren")
         ParentModelId parentId();
     }
 
@@ -850,35 +850,35 @@ class EntityMetadataTest {
 
     @Model
     private record PaddedPathModel(@EntityId String id,
-                                   @Parent(value = ParentModel.class, path = " items ") String parent) {
+                                   @Parent(value = ParentModel.class, pathInParent = " items ") String parent) {
     }
 
     @Model
     private record InvalidPathModel(@EntityId String id,
-                                    @Parent(value = ParentModel.class, path = "items//archived") String parent) {
+                                    @Parent(value = ParentModel.class, pathInParent = "items//archived") String parent) {
     }
 
     @Model
     private record TraversalPathModel(@EntityId String id,
-                                      @Parent(value = ParentModel.class, path = "items/../archived") String parent) {
+                                      @Parent(value = ParentModel.class, pathInParent = "items/../archived") String parent) {
     }
 
     @Model
     private record NumericPathModel(
             @EntityId String id,
-            @Parent(value = ParentModel.class, path = "items/0")
+            @Parent(value = ParentModel.class, pathInParent = "items/0")
             String parent) {
     }
 
     @Model
     private record MetadataPathModel(
             @EntityId String id,
-            @Parent(value = ParentModel.class, path = "$metadata/items")
+            @Parent(value = ParentModel.class, pathInParent = "$metadata/items")
             String parent) {
     }
 
     @Model
-    private record UntypedPathModel(@EntityId String id, @Parent(path = "items") String parent) {
+    private record UntypedPathModel(@EntityId String id, @Parent(pathInParent = "items") String parent) {
     }
 
     private static class NotAModel {
@@ -956,7 +956,7 @@ class EntityMetadataTest {
     @Model
     private record RecursiveFolder(
             @EntityId RecursiveFolderId id,
-            @Parent(path = "children") RecursiveFolderId parentId) {
+            @Parent(pathInParent = "children") RecursiveFolderId parentId) {
     }
 
     @Model

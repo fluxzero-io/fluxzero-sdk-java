@@ -467,7 +467,7 @@ public final class ModelGraphDocumentStitcher {
             String compositionPath,
             String existingPath) {
         return new IllegalArgumentException(
-                "Model graph composition path '%s' for %s collides with '%s'; use a distinct @Parent path or a registered materialized projection"
+                "Model graph composition path '%s' for %s collides with '%s'; use a distinct @Parent.pathInParent or a registered materialized projection"
                         .formatted(
                                 compositionPath,
                                 modelId, existingPath));

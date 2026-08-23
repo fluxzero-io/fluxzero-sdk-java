@@ -423,7 +423,7 @@ class MaterializedGraphFactoryTest {
     @Revision(1)
     private record RevisionedChild(
             @EntityId String id,
-            @Parent(value = RevisionedRoot.class, path = "children")
+            @Parent(value = RevisionedRoot.class, pathInParent = "children")
             String rootId,
             String value) {
     }
@@ -461,7 +461,7 @@ class MaterializedGraphFactoryTest {
     @Model
     private record CountingChild(
             @EntityId String id,
-            @Parent(value = CountingRoot.class, path = "children")
+            @Parent(value = CountingRoot.class, pathInParent = "children")
             String rootId) {
         private static final AtomicInteger constructions =
                 new AtomicInteger();
@@ -478,21 +478,21 @@ class MaterializedGraphFactoryTest {
     @Model
     private record PrimaryParent(
             @EntityId String id,
-            @Parent(value = MultiParentRoot.class, path = "primaryParents")
+            @Parent(value = MultiParentRoot.class, pathInParent = "primaryParents")
             String rootId) {
     }
 
     @Model
     private record SecondaryParent(
             @EntityId String id,
-            @Parent(value = MultiParentRoot.class, path = "secondaryParents")
+            @Parent(value = MultiParentRoot.class, pathInParent = "secondaryParents")
             String rootId) {
     }
 
     @Model
     private record MultiParentChild(
             @EntityId String id,
-            @Parent(value = PrimaryParent.class, path = "children")
+            @Parent(value = PrimaryParent.class, pathInParent = "children")
             String primaryId,
             @Parent(value = SecondaryParent.class)
             String secondaryId,

@@ -2433,7 +2433,8 @@ available when `@ApiDoc` is nested in another annotation. Use `@ApiDocInfo.secur
 security schemes when automatic inference is not enough.
 
 Independent-model graphs can be documented even when their runtime representation is a `JsonNode`. Select the graph
-root on the response and document each list-valued graph edge next to its canonical parent path:
+root on the response and document each list-valued graph edge with `pathInParent`: the place inside the parent document
+where that child collection is composed.
 
 ```java
 @ApiDoc
@@ -2450,7 +2451,7 @@ record Location(
         @EntityId String id,
         @Parent(
                 value = Organisation.class,
-                path = "locations",
+                pathInParent = "locations",
                 apiDoc = @ApiDoc(
                         description = "Locations belonging to the organisation",
                         required = true))
@@ -2462,7 +2463,7 @@ record InternalContract(
         @EntityId String id,
         @Parent(
                 value = Organisation.class,
-                path = "contracts",
+                pathInParent = "contracts",
                 apiDoc = @ApiDoc(exclude = true))
         String organisationId) {
 }
@@ -3245,7 +3246,7 @@ Related models remain independently stored:
 @Model(searchable = true)
 public record Address(
         @EntityId AddressId addressId,
-        @Parent(path = "addresses") UserId userId,
+        @Parent(pathInParent = "addresses") UserId userId,
         AddressDetails details) {
 }
 ```
@@ -3258,7 +3259,8 @@ cast or type witness. It uses a configured materialized projection and otherwise
 live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a boundary that
 explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
 `searchable = false` suppresses only the address's own search collection: an explicit
-`@Parent(path = "...")` still gives graph composition an internal current document.
+`@Parent(pathInParent = "...")` still gives graph composition an internal current document.
+`pathInParent` is always relative to the parent document; it never points from the child to its parent.
 
 Relations may be recursive. A `Folder` can, for example, point to another `Folder` through a typed parent ID; the
 relation remains an ordinary independently stored edge and does not turn the descendants into embedded state:
@@ -3267,7 +3269,7 @@ relation remains an ordinary independently stored edge and does not turn the des
 @Model(searchable = true)
 record Folder(
         @EntityId FolderId folderId,
-        @Parent(path = "folders") FolderId parentFolderId,
+        @Parent(pathInParent = "folders") FolderId parentFolderId,
         String name) {
 }
 ```
@@ -3284,7 +3286,7 @@ record Authorisation(
         @EntityId AuthorisationId id,
         @Parent(
                 types = {UserProfile.class, Organisation.class},
-                path = "receivedAuthorisations")
+                pathInParent = "receivedAuthorisations")
         Id<?> nominee) {
 }
 ```
@@ -3302,7 +3304,7 @@ child IDs. Automatic apply routing uses the deepest non-null parent relation in 
 @Model
 record Line(
         @EntityId(parentScoped = true) String lineId,
-        @Parent(value = Order.class, path = "lines") OrderId orderId) {
+        @Parent(value = Order.class, pathInParent = "lines") OrderId orderId) {
 }
 
 Graph<Line> line = Fluxzero.loadGraph(orderId, Order.class, "one", Line.class);
@@ -3430,7 +3432,7 @@ not materialize intermediate parent values. `optional()`,
 `stream()` traverses the complete graph lazily and `find(idOrAlias[, type])` resolves a primary identity or `@Alias`
 without manually enumerating model types or relationship paths. `hasChanged(...)`, `previousValue(...)` and
 `revisions()` cover common before/after and revision use cases. Returning a graph from a handler serializes the model
-tree through explicitly named `@Parent(path = "...")` edges. Pathless relations remain available for typed traversal
+tree through explicitly named `@Parent(pathInParent = "...")` edges. Pathless relations remain available for typed traversal
 and lifecycle handling but do not invent a JSON field name. The serializer emits every known named relationship as an
 array, including a stable empty `[]`. `selectPaths(...)` creates a lazy immutable response view containing only selected
 branches and their ancestors without copying model values. `filterNodes(...)` likewise creates a lazy immutable view
