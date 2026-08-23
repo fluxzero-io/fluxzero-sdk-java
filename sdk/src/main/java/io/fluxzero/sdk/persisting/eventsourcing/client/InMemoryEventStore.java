@@ -225,6 +225,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             ModelCommitValidator.validate(commit);
             CommitModelsResult previous = modelCommits.get(commit.getCommitId());
             if (previous != null) {
+                validateExistingEventDuplicate(commit, previous);
                 completeModelCommitMaterialization(
                         commit.getCommitId());
                 return new ModelCommitOutcome(
@@ -232,6 +233,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                                 .asDuplicateForRequest(
                                 commit.getRequestId()), List.of());
             }
+            Map<Long, SerializedMessage> existingEvents = existingEvents(commit);
             commit.getSubsteps().stream()
                     .flatMap(substep ->
                                      substep.getTargets()
@@ -304,13 +306,16 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         modelStateIndex =
                                 updates.get(substepNumber)
                                         .getStateIndex();
-                if (substep.isPublishEvent()
-                    && substep.getEvent().getIndex()
-                       != null) {
+                Long eventIndex = ModelCommitAssignment.eventIndex(substep);
+                if (eventIndex != null) {
                     modelStateIndicesByEventIndex.put(
-                            substep.getEvent().getIndex(),
+                            eventIndex,
                             stateIndex);
                 }
+                SerializedMessage storedEvent = eventIndex == null
+                        ? substep.getEvent()
+                        : existingEvents.getOrDefault(
+                                eventIndex, substep.getEvent());
                 for (ModelCommitTarget target : substep.getTargets()) {
                     ModelStreamHead head = assignedHeads.get(headIndex++);
                     modelHeads.put(target.getModelId(), head);
@@ -318,14 +323,14 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(head);
                     if (target.isStoreEvent()) {
                         appliedEvents.computeIfAbsent(
-                                target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(substep.getEvent());
+                                target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(storedEvent);
                         modelStreams.computeIfAbsent(
                                 target.getModelId(), ignored -> new CopyOnWriteArrayList<>()).add(
                                 new ModelStreamMembership(
                                         head.sequenceNumber(), stateIndex,
                                         commit.getReadStateIndex(),
                                         commit.getCommitId(), substepNumber,
-                                        substep.getEvent()));
+                                        storedEvent));
                     }
                 }
                 ModelCommitAssignment.RelationshipStep relationshipStep =
@@ -364,6 +369,62 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     commit.getCommitId());
             return new ModelCommitOutcome(
                     modelCommits.get(commit.getCommitId()), publishedEvents);
+    }
+
+    private Map<Long, SerializedMessage> existingEvents(
+            CommitModels commit) {
+        LinkedHashMap<Long, SerializedMessage> result =
+                new LinkedHashMap<>();
+        for (ModelCommitStep step : commit.getSubsteps()) {
+            Long eventIndex = ModelCommitAssignment.eventIndex(step);
+            if (eventIndex == null || step.isPublishEvent()) {
+                continue;
+            }
+            SerializedMessage existing = getMessage(eventIndex);
+            if (existing == null) {
+                throw new IllegalArgumentException(
+                        "Existing global event %d is not available"
+                                .formatted(eventIndex));
+            }
+            if (!Objects.equals(
+                    existing.getMessageId(),
+                    step.getEvent().getMessageId())) {
+                throw new IllegalArgumentException(
+                        "Existing global event %d has message ID %s instead of %s"
+                                .formatted(
+                                        eventIndex,
+                                        existing.getMessageId(),
+                                        step.getEvent().getMessageId()));
+            }
+            result.put(eventIndex, existing);
+        }
+        return result;
+    }
+
+    private static void validateExistingEventDuplicate(
+            CommitModels request,
+            CommitModelsResult stored) {
+        for (int substep = 0;
+             substep < request.getSubsteps().size();
+             substep++) {
+            ModelCommitStep requested =
+                    request.getSubsteps().get(substep);
+            Long eventIndex = ModelCommitAssignment.eventIndex(requested);
+            if (eventIndex != null
+                && !requested.isPublishEvent()
+                && !Objects.equals(
+                        eventIndex,
+                        stored.getUpdates().get(substep)
+                                .getEventIndex())) {
+                throw new IllegalStateException(
+                        "Duplicate model commit '%s' refers to global event %d instead of %s"
+                                .formatted(
+                                        request.getCommitId(),
+                                        eventIndex,
+                                        stored.getUpdates().get(substep)
+                                                .getEventIndex()));
+            }
+        }
     }
 
     @Override

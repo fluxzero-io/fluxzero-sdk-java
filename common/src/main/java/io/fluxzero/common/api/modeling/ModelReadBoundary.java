@@ -25,16 +25,17 @@ package io.fluxzero.common.api.modeling;
  * @param eventIndex event that defines the boundary, or {@code null}
  * @param before whether the state immediately before the selected boundary is requested
  * @param includeMessageBatch whether staged values from the active message batch are visible
+ * @param fallbackToCurrent whether an unmapped {@code eventIndex} resolves to current state instead of failing
  */
 public record ModelReadBoundary(
         Long stateIndex, String commitId, Integer substep, Long eventIndex,
-        boolean before, boolean includeMessageBatch) {
+        boolean before, boolean includeMessageBatch, boolean fallbackToCurrent) {
 
     /** Unpinned current-state boundary including active message-batch values. */
     public static final ModelReadBoundary CURRENT =
-            new ModelReadBoundary(null, null, null, null, false, true);
+            new ModelReadBoundary(null, null, null, null, false, true, false);
     private static final ModelReadBoundary REQUEST_CURRENT =
-            new ModelReadBoundary(null, null, null, null, false, false);
+            new ModelReadBoundary(null, null, null, null, false, false, false);
 
     public ModelReadBoundary {
         int opaqueSelectors = (commitId == null ? 0 : 1) + (eventIndex == null ? 0 : 1);
@@ -56,6 +57,10 @@ public record ModelReadBoundary(
             throw new IllegalArgumentException(
                     "Before, commit and event boundaries cannot include pending message-batch state");
         }
+        if (fallbackToCurrent && (eventIndex == null || before)) {
+            throw new IllegalArgumentException(
+                    "Only a non-before event boundary may fall back to current state");
+        }
     }
 
     /** Returns the shared current-state boundary. */
@@ -70,23 +75,29 @@ public record ModelReadBoundary(
 
     /** Creates an exact state boundary with optional active message-batch visibility. */
     public static ModelReadBoundary state(long stateIndex, boolean includeMessageBatch) {
-        return new ModelReadBoundary(stateIndex, null, null, null, false, includeMessageBatch);
+        return new ModelReadBoundary(
+                stateIndex, null, null, null, false, includeMessageBatch, false);
     }
 
     /** Creates a boundary at a commit substep. */
     public static ModelReadBoundary commit(String commitId, int substep) {
-        return new ModelReadBoundary(null, commitId, substep, null, false, false);
+        return new ModelReadBoundary(null, commitId, substep, null, false, false, false);
     }
 
     /** Creates a boundary at an event index. */
     public static ModelReadBoundary event(long eventIndex) {
-        return new ModelReadBoundary(null, null, null, eventIndex, false, false);
+        return new ModelReadBoundary(null, null, null, eventIndex, false, false, false);
+    }
+
+    /** Creates an event boundary that retains current-state behavior when the event has no Model mapping. */
+    public static ModelReadBoundary eventOrCurrent(long eventIndex) {
+        return new ModelReadBoundary(null, null, null, eventIndex, false, false, true);
     }
 
     /** Returns the boundary immediately before this selection. */
     public ModelReadBoundary asBefore() {
         return before ? this : new ModelReadBoundary(
-                stateIndex, commitId, substep, eventIndex, true, false);
+                stateIndex, commitId, substep, eventIndex, true, false, false);
     }
 
     /** Pins this selection to the durable state returned by storage. */
@@ -102,14 +113,15 @@ public record ModelReadBoundary(
         }
         return new ModelReadBoundary(
                 resolvedStateIndex, commitId, substep, eventIndex,
-                before, includeMessageBatch);
+                before, includeMessageBatch, fallbackToCurrent);
     }
 
     /** Returns this boundary without active message-batch visibility. */
     public ModelReadBoundary withoutMessageBatch() {
         return includeMessageBatch
                 ? new ModelReadBoundary(
-                        stateIndex, commitId, substep, eventIndex, before, false)
+                        stateIndex, commitId, substep, eventIndex,
+                        before, false, fallbackToCurrent)
                 : this;
     }
 
@@ -129,7 +141,7 @@ public record ModelReadBoundary(
         }
         return new ModelReadBoundary(
                 requestedState, commitId, substep, eventIndex,
-                false, false);
+                false, false, fallbackToCurrent);
     }
 
 }

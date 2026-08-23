@@ -17,6 +17,7 @@
 package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.MessageType;
 
 /**
  * Reserved metadata keys identifying events emitted by an independent-model commit.
@@ -48,6 +49,22 @@ public final class ModelEventMetadata {
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid model commit substep " + value, e);
         }
+    }
+
+    /**
+     * Returns the Model boundary carried by a Model event, or falls back to an existing global event index.
+     *
+     * <p>The fallback lets events that predate Model metadata address state reconstructed from that same published
+     * event. An event without a Model mapping retains ordinary current-state behavior; an event index is never
+     * interpreted as a Model state index.</p>
+     */
+    public static ModelReadBoundary readBoundary(
+            Metadata metadata, MessageType messageType, Long messageIndex) {
+        ModelReadBoundary boundary = readBoundary(metadata);
+        return boundary != null
+               || messageType != MessageType.EVENT
+               || messageIndex == null
+                ? boundary : ModelReadBoundary.eventOrCurrent(messageIndex);
     }
 
     private ModelEventMetadata() {

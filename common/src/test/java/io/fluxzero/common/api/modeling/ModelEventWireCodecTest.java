@@ -49,6 +49,7 @@ class ModelEventWireCodecTest {
         byte[] encoded =
                 ModelEventWireCodec.tryEncode(
                         new RequestBatch<>(List.of(request)));
+        assertEquals(7, encoded[Integer.BYTES] & 0xff);
         RequestBatch<?> decodedBatch =
                 assertInstanceOf(
                         RequestBatch.class,
@@ -69,6 +70,20 @@ class ModelEventWireCodecTest {
                                 ModelEventWireCodec.tryEncode(request)));
         assertEquals(request.getRequestId(), direct.getRequestId());
         assertEquals(request.getRequests(), direct.getRequests());
+    }
+
+    @Test
+    void roundTripsEventFallbackRequestsWithoutChangingTheRegularWireVersion() throws Exception {
+        GetModelEvents request = new GetModelEvents(
+                List.of(new ModelEventStreamRequest("order-1", -1L, 10)),
+                ModelReadBoundary.eventOrCurrent(123L), 1_024L);
+
+        byte[] direct = ModelEventWireCodec.tryEncode(request);
+        assertEquals(8, direct[Integer.BYTES] & 0xff);
+        assertEquals(request, ModelEventWireCodec.tryDecode(direct));
+        var batch = new RequestBatch<>(List.of(request));
+        assertEquals(batch, ModelEventWireCodec.tryDecode(
+                ModelEventWireCodec.tryEncode(batch)));
     }
 
     @Test

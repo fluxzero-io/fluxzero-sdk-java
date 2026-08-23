@@ -645,7 +645,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         PinnedBoundary.class,
                         message -> {
                             ModelReadBoundary boundary = ModelEventMetadata.readBoundary(
-                                    message.getMetadata());
+                                    message.getMetadata(), message.getMessageType(), message.getIndex());
                             return boundary == null ? null : new PinnedBoundary(boundary);
                         });
     }
@@ -1373,10 +1373,21 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     protocolSteps.add(new ModelCommitStep(
                             publication, true, List.of(publicationTarget)));
                 }
+                Long existingEventIndex = existingEventIndex(message);
+                if (existingEventIndex != null
+                    && committedTransitions.stream().anyMatch(
+                            transition -> transition.updateState()
+                                          && !transition.configuration().eventSourced())) {
+                    throw new UnsupportedOperationException(
+                            "Published-event migration currently supports only event-sourced Models; "
+                            + "document-backed Models require staging and an explicit fence cutover");
+                }
                 boolean publishEvent = !direct
+                                       && existingEventIndex == null
                                        && (transitions.stream().anyMatch(Change::publishEvent)
                                            || !graphPublished.isEmpty());
-                boolean eventRequired = publishEvent
+                boolean eventRequired = existingEventIndex != null
+                                        || publishEvent
                                         || committedTransitions.stream().anyMatch(Change::storeEvent);
                 SerializedMessage event = !eventRequired ? null
                         : direct ? serializeDirectModelUpdate(
@@ -1489,6 +1500,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 long nextSequence,
                 boolean cascadeDelete) {
             ModelDocumentMutation document = transition.updateState()
+                    && existingEventIndex(message) == null
                     ? directDocument(
                             transition,
                             message.getTimestamp(), message.getMetadata())
@@ -1541,6 +1553,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     logicalMessage.getMetadata(),
                     logicalMessage.getMessageId(),
                     logicalMessage.getTimestamp().toEpochMilli());
+            Long existingEventIndex = existingEventIndex(message);
+            if (existingEventIndex != null) {
+                candidate.setIndex(existingEventIndex);
+                return candidate;
+            }
             SerializedMessage serialized = internalLifecycleEvent
                     ? candidate
                     : dispatchInterceptor.modifySerializedMessage(
@@ -1554,6 +1571,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     ModelEventMetadata.COMMIT_ID, commitId,
                     ModelEventMetadata.SUBSTEP, substep));
             return serialized;
+        }
+
+        private static Long existingEventIndex(
+                DeserializingMessage message) {
+            return message.getMessageType() == EVENT
+                   ? message.getIndex() : null;
         }
 
         private SerializedMessage serializeDirectModelUpdate(

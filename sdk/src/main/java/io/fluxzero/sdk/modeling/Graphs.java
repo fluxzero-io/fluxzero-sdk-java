@@ -93,7 +93,8 @@ public final class Graphs {
         DeserializingMessage message = DeserializingMessage.getCurrent();
         if (message != null && (message.getMessageType() == MessageType.EVENT
                                 || message.getMessageType() == MessageType.NOTIFICATION)) {
-            ModelReadBoundary boundary = ModelEventMetadata.readBoundary(message.getMetadata());
+            ModelReadBoundary boundary = ModelEventMetadata.readBoundary(
+                    message.getMetadata(), message.getMessageType(), message.getIndex());
             if (boundary != null) {
                 return boundary.resolved(stateIndex);
             }

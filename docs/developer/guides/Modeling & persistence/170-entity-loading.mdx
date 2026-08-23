@@ -177,6 +177,11 @@ Parameter injection uses the ID properties in the event:
 Both `T` and `Graph<T>` are supported. A deleted target can be injected as an empty graph; a non-null bare `T` matches
 only when the model exists. `@Association` first checks metadata unless `excludeMetadata = true`.
 
+An ordinary indexed event resolves directly addressed Models at one current pinned boundary. When an
+Aggregate-to-Model migration has linked that original global event to a Model commit, the same parameters instead
+resolve the exact Model state after that event. Complete graph-change subscriptions still require durable Model commit
+metadata because they discover every affected root rather than only IDs addressed by the event.
+
 Parents, grandparents and further ancestors can be injected without repeating their IDs:
 
 ```java
@@ -192,6 +197,28 @@ ancestors of the requested type are reachable.
 
 Later cache entries never leak into historical event handling. Earlier `STORE_ONLY` model transitions are included
 because exactness is based on the committed model commit, not only on the globally published event stream.
+
+### Backfilling event-sourced Models from legacy events
+
+In a dedicated migration application, track the original published events from the global event log and call
+`Fluxzero.migratePublishedEvent()` while handling each applicable event:
+
+```java
+@HandleEvent
+void migrate(LegacyOrderEvent event) {
+    Fluxzero.migratePublishedEvent();
+}
+```
+
+Fluxzero reuses the Model replay phase: payload `@Apply` methods run before Model `@Apply` methods, while
+`@InterceptApply` and command `@AssertLegal` methods are not rerun. The original message ID is the idempotent commit ID,
+the original global index becomes the historical Model boundary, and the event is not published again. One event may
+update several Models atomically at one state index.
+
+The handler must receive an indexed event that is still available in the co-located global event log. This primitive
+currently supports event-sourced Models only. Legacy `STORE_ONLY` Aggregate events have no global index and cannot be
+recovered through this route. Keep normal side-effect handlers out of the migration application and qualify document
+adoption, catch-up, cutover and rollback separately before switching write ownership.
 
 Commands, queries, schedules, results, errors, metrics, documents, custom messages and web handlers use the same
 parameter rules. They share one current handler load context: event-sourced targets use its pinned repository boundary,

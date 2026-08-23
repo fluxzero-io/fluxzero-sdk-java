@@ -83,6 +83,23 @@ class ModelCommitAssignmentTest {
     }
 
     @Test
+    void retainsTheIndexOfAnExistingUnpublishedGlobalEvent() {
+        SerializedMessage existing = event("commit");
+        existing.setIndex(73L);
+        ModelCommitStep step = ModelCommitStep.builder()
+                .event(existing)
+                .publishEvent(false)
+                .targets(List.of(target("model", true, false, false)))
+                .build();
+
+        ModelCommitAssignment.Commit<TestHead> result = assign(
+                ModelCommitAssignment.session(id -> null, HEAD_FACTORY, 100L),
+                commit(step), IGNORE);
+
+        assertEquals(73L, result.result().getUpdates().getFirst().getEventIndex());
+    }
+
+    @Test
     void deletionClearsDocumentCollection() {
         var previous = new TestHead(
                 "model", "type", 7, 4L, 80L, null, false, "documents");

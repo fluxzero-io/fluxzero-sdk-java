@@ -17,6 +17,8 @@
 package io.fluxzero.common.api.modeling;
 
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.MessageType;
+import io.fluxzero.common.modeling.ModelRelationshipQueries;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,6 +41,38 @@ class ModelReadBoundaryTest {
         assertThrows(IllegalArgumentException.class, () -> ModelEventMetadata.readBoundary(Metadata.of(
                 ModelEventMetadata.COMMIT_ID, "commit-1",
                 ModelEventMetadata.SUBSTEP, "invalid")));
+    }
+
+    @Test
+    void fallsBackToTheGlobalEventBoundaryForLegacyEvents() {
+        assertEquals(
+                ModelReadBoundary.eventOrCurrent(42L),
+                ModelEventMetadata.readBoundary(
+                        Metadata.empty(), MessageType.EVENT, 42L));
+        assertEquals(
+                ModelReadBoundary.commit("commit-1", 2),
+                ModelEventMetadata.readBoundary(Metadata.of(
+                        ModelEventMetadata.COMMIT_ID, "commit-1",
+                        ModelEventMetadata.SUBSTEP, 2), MessageType.EVENT, 42L));
+        assertNull(ModelEventMetadata.readBoundary(
+                Metadata.empty(), MessageType.EVENT, null));
+        assertNull(ModelEventMetadata.readBoundary(
+                Metadata.empty(), MessageType.NOTIFICATION, 42L));
+    }
+
+    @Test
+    void eventOrCurrentRetainsOrdinaryEventsAndResolvesMigratedEventsExactly() {
+        ModelReadBoundary fallback = ModelReadBoundary.eventOrCurrent(42L);
+
+        assertEquals(7L, ModelRelationshipQueries.resolveBoundary(
+                fallback, true, () -> 7L, (commit, substep) -> null, event -> null));
+        assertEquals(3L, ModelRelationshipQueries.resolveBoundary(
+                fallback, true, () -> 7L, (commit, substep) -> null,
+                event -> event == 42L ? 3L : null));
+        assertThrows(IllegalArgumentException.class, () ->
+                ModelRelationshipQueries.resolveBoundary(
+                        ModelReadBoundary.event(42L), true,
+                        () -> 7L, (commit, substep) -> null, event -> null));
     }
 
     @Test

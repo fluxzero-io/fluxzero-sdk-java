@@ -706,6 +706,35 @@ public interface Fluxzero extends AutoCloseable {
         return result;
     }
 
+    /**
+     * Applies the currently handled, already published global event to independent Models without publishing it
+     * again. Payload {@code @Apply} methods run before Model {@code @Apply} methods, while command assertions and apply
+     * interceptors remain skipped. The original message ID is the idempotent Model commit ID and its global event index
+     * becomes the historical Model boundary.
+     *
+     * <p>This operation is intended for controlled Aggregate-to-Model migrations and must be invoked while handling an
+     * indexed {@link MessageType#EVENT EVENT} message.</p>
+     */
+    static void migratePublishedEvent() {
+        awaitModelCommit(migratePublishedEventAsync());
+    }
+
+    /**
+     * Asynchronously applies the currently handled, already published global event to independent Models without
+     * publishing it again.
+     *
+     * @return completion of the durable idempotent Model commit
+     * @see #migratePublishedEvent()
+     */
+    static CompletableFuture<Void> migratePublishedEventAsync() {
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        if (current == null || current.getMessageType() != EVENT || current.getIndex() == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Published-event Model migration requires a currently handled indexed event"));
+        }
+        return get().executePublishedModelEvent(current.toMessage(), current.getIndex());
+    }
+
     private static CompletableFuture<Void> startModelCommit(Fluxzero fluxzero, Message message) {
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -1880,6 +1909,18 @@ public interface Fluxzero extends AutoCloseable {
     default CompletableFuture<Void> executeStoredModelEvent(Message event) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
                 "This Fluxzero implementation does not support stored model event application"));
+    }
+
+    /**
+     * Applies an event which already exists at {@code eventIndex} in the global event log to independent Models,
+     * without publishing it again.
+     *
+     * <p>This infrastructure extension point backs {@link #migratePublishedEvent()}.</p>
+     */
+    default CompletableFuture<Void> executePublishedModelEvent(
+            Message event, long eventIndex) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support published model event migration"));
     }
 
     /**

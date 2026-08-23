@@ -67,7 +67,7 @@ public final class ModelRelationshipQueries {
             throw new IllegalArgumentException(
                     "Model commit boundary %s[%d] is not visible".formatted(commitId, substep));
         }
-        if (eventIndex != null && event == null) {
+        if (eventIndex != null && event == null && !boundary.fallbackToCurrent()) {
             throw new IllegalArgumentException(
                     "Model event boundary %d is not visible".formatted(eventIndex));
         }

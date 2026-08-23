@@ -342,8 +342,10 @@ void on(RenameProject event,
 ```
 
 Directly affected event/notification models support `T` and `Graph<T>`. Use `Graph<T>` to observe an absent model after
-logical deletion or to compare `get()` with `previous()`. Ordinary events without model-commit metadata do not receive
-model injection.
+logical deletion or to compare `get()` with `previous()`. An ordinary indexed event without model-commit metadata may
+inject directly addressed Models at one current pinned boundary. If a migration has linked that global event to a
+Model commit, the same injection resolves its exact historical state instead. Such an event is not implicitly a
+complete graph-change subscription; that requires the durable Model commit metadata.
 
 ## Search and graph composition
 
@@ -424,4 +426,8 @@ event-boundary injection and a real runtime integration flow.
 
 Do not migrate an existing `@Aggregate` by changing only its annotation: streams, documents, lifecycle and identity
 boundaries change. Keep old persisted aggregate code on the 1.x compatibility API until a deliberate data migration.
+For an event-sourced backfill, a dedicated side-effect-free global-event consumer may call
+`Fluxzero.migratePublishedEvent()` while handling each original indexed event. This replays payload then Model
+`@Apply`, retains the original event index and message ID, does not republish, and is idempotent. It does not recover
+legacy `STORE_ONLY` events and does not by itself solve document adoption, live cutover or rollback.
 All new examples and implementations should use `@Model`.

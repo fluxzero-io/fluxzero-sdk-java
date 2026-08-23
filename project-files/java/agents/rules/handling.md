@@ -215,8 +215,9 @@ Directly addressed models and their parents, grandparents or further ancestors c
 For events and notifications carrying a model-commit boundary, Fluxzero loads the exact historical model state and
 relations for that event. Use `@Association("property")` to select another payload or metadata ID or to qualify an
 ancestor path; add `excludeMetadata = true` to require the payload. `Graph<T>` can be empty after logical deletion;
-bare non-null `T` only matches a present model. Ordinary events without a model-commit boundary do not receive an
-arbitrary current model.
+bare non-null `T` only matches a present model. Ordinary indexed events without a model-commit boundary resolve
+directly addressed Models at one current pinned boundary. If an Aggregate-to-Model migration linked that global event,
+the same parameters resolve its exact historical Model boundary.
 
 The same parameters work in command, query, schedule, result, error, metrics, document, custom and web handlers when
 their payload or metadata addresses at least one model. Those non-event handlers use one current handler load context.

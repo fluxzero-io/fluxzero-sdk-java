@@ -105,6 +105,27 @@ class TestFixtureModelApiTest {
     }
 
     @Test
+    @Timeout(2)
+    void publishedLegacyEventsBuildModelsWithoutRepublishingAndExposeTheirExactState() {
+        List<Integer> observed = new java.util.concurrent.CopyOnWriteArrayList<>();
+        LegacyIncrement first = new LegacyIncrement("legacy-model", 1);
+        LegacyIncrement second = new LegacyIncrement("legacy-model", 2);
+
+        TestFixture.createAsync(new LegacyModelMigrationHandler(observed))
+                .whenEvent(first)
+                .expectNoEvents()
+                .expectNoErrors()
+                .andThen()
+                .whenEvent(second)
+                .expectNoEvents()
+                .expectNoErrors()
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.<LegacyModel>loadModel("legacy-model").get())
+                .expectResult(new LegacyModel("legacy-model", 3))
+                .expectTrue(ignored -> observed.equals(List.of(1, 3)));
+    }
+
+    @Test
     void givenEventsApplyIndependentModelsAndDispatchTheStoredEventOnce() {
         AtomicInteger handled = new AtomicInteger();
         StoredModelEvent event = new StoredModelEvent("model-1");
@@ -400,6 +421,25 @@ class TestFixtureModelApiTest {
         @HandleEvent
         void handle(OrdinaryEvent event, Entity<FixtureModel> model) {
             observed.set(model.get());
+        }
+    }
+
+    @Model
+    private record LegacyModel(@EntityId String id, int value) {
+    }
+
+    private record LegacyIncrement(String id, int delta) {
+        @Apply
+        LegacyModel apply(@Nullable LegacyModel model) {
+            return new LegacyModel(id, (model == null ? 0 : model.value()) + delta);
+        }
+    }
+
+    private record LegacyModelMigrationHandler(List<Integer> observed) {
+        @HandleEvent
+        void handle(LegacyIncrement event) {
+            Fluxzero.migratePublishedEvent();
+            observed.add(Fluxzero.<LegacyModel>loadModel(event.id()).get().value());
         }
     }
 

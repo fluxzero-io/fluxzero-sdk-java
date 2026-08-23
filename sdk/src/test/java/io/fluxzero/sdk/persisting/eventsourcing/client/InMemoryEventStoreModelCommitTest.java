@@ -447,6 +447,72 @@ class InMemoryEventStoreModelCommitTest {
     }
 
     @Test
+    void linksAnExistingGlobalEventWithoutRepublishingOrCopyingIt() {
+        InMemoryEventStore store = denseStore();
+        SerializedMessage source = event("legacy-event");
+        store.append(List.of(source)).join();
+        ModelCommitStep migration = ModelCommitStep.builder()
+                .event(source)
+                .publishEvent(false)
+                .targets(List.of(
+                        storedTarget("model-1"),
+                        storedTarget("model-2")))
+                .build();
+
+        CommitModelsResult result = store.commitModels(
+                commit(source.getMessageId(), migration)).join();
+
+        assertEquals(1, store.getBatch(null, 10, true).size());
+        assertEquals(source.getIndex(), result.getUpdates().getFirst().getEventIndex());
+        assertSame(source, store.getEvents("model-1").findFirst().orElseThrow());
+        assertSame(source, store.getEvents("model-2").findFirst().orElseThrow());
+        var atSource = store.getModelEvents(new GetModelEvents(
+                List.of(
+                        new ModelEventStreamRequest("model-1", -1L, 10),
+                        new ModelEventStreamRequest("model-2", -1L, 10)),
+                ModelReadBoundary.event(source.getIndex()), 0L));
+        assertEquals(result.getUpdates().getFirst().getStateIndex(), atSource.getStateIndex());
+        assertEquals(1, atSource.getStreams().getFirst().getMemberships().size());
+        assertEquals(1, atSource.getStreams().get(1).getMemberships().size());
+
+        CommitModelsResult duplicate = store.commitModels(
+                commit(source.getMessageId(), migration)).join();
+        assertTrue(duplicate.isDuplicate());
+        assertEquals(result.getUpdates(), duplicate.getUpdates());
+        assertEquals(1, store.getBatch(null, 10, true).size());
+        assertEquals(1, store.getEvents("model-1").count());
+        assertEquals(1, store.getEvents("model-2").count());
+    }
+
+    @Test
+    void rejectsMissingOrMismatchedExistingGlobalEventsBeforeWritingModels() {
+        InMemoryEventStore store = denseStore();
+        SerializedMessage global = event("global-event");
+        store.append(List.of(global)).join();
+        SerializedMessage mismatched = event("migration-event");
+        mismatched.setIndex(global.getIndex());
+        SerializedMessage missing = event("missing-event");
+        missing.setIndex(global.getIndex() + 1L);
+
+        assertThrows(CompletionException.class, () -> store.commitModels(commit(
+                mismatched.getMessageId(),
+                ModelCommitStep.builder()
+                        .event(mismatched)
+                        .targets(List.of(storedTarget("mismatched")))
+                        .build())).join());
+        assertThrows(CompletionException.class, () -> store.commitModels(commit(
+                missing.getMessageId(),
+                ModelCommitStep.builder()
+                        .event(missing)
+                        .targets(List.of(storedTarget("missing")))
+                        .build())).join());
+
+        assertEquals(null, modelStream(store, "mismatched").getHead());
+        assertEquals(null, modelStream(store, "missing").getHead());
+        assertEquals(1, store.getBatch(null, 10, true).size());
+    }
+
+    @Test
     void duplicateCommitReturnsDurableResultWithoutWritingAgain() {
         InMemoryEventStore store = denseStore();
         CommitModels first = commit(
@@ -1413,7 +1479,7 @@ class InMemoryEventStoreModelCommitTest {
                                 List.of(),
                                 new ModelReadBoundary(
                                         null, "commit", null, null,
-                                        false, false),
+                                        false, false, false),
                                 0L)));
     }
 

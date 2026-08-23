@@ -50,7 +50,7 @@ public class ModelUpdate {
     long stateIndex;
 
     /**
-     * Global event-log index when this substep published an event, otherwise {@code null}.
+     * Global event-log index linked to this substep, either newly published or pre-existing, otherwise {@code null}.
      */
     Long eventIndex;
 

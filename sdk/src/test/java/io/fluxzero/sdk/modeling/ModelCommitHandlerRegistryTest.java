@@ -540,6 +540,67 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void publishedEventMigrationRetainsItsIdentityWithoutRepublishing() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> captured = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            captured.complete(commit);
+            String modelId = commit.getSubsteps().getFirst()
+                    .getTargets().getFirst().getModelId();
+            return CompletableFuture.completedFuture(
+                    CommitModelsResult.acceptedSingleTarget(
+                            commit.getRequestId(), commit.getCommitId(),
+                            91L, 42L, modelId, 0L, true));
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        Message event = new Message(new TimingCreateCommand("migrated"));
+
+        try {
+            subject.migratePublishedEvent(event, 42L).join();
+
+            CommitModels commit = captured.join();
+            assertEquals(event.getMessageId(), commit.getCommitId());
+            assertEquals(1, commit.getSubsteps().size());
+            assertFalse(commit.getSubsteps().getFirst().isPublishEvent());
+            assertEquals(42L, commit.getSubsteps().getFirst().getEvent().getIndex());
+            assertEquals(event.getMessageId(),
+                         commit.getSubsteps().getFirst().getEvent().getMessageId());
+            assertTrue(commit.getSubsteps().getFirst().getTargets().getFirst().isStoreEvent());
+            assertEquals(null,
+                         commit.getSubsteps().getFirst().getTargets().getFirst().getDocument());
+            verify(eventStoreClient, times(1)).commitModels(any());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void publishedEventMigrationRejectsDocumentBackedModelsBeforeCommit() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        RetryBoundaryCommand.observations.clear();
+
+        try {
+            CompletionException failure = assertThrows(
+                    CompletionException.class,
+                    () -> subject.migratePublishedEvent(
+                            new Message(new RetryBoundaryCommand("document-backed")), 42L).join());
+
+            assertTrue(failure.getCause() instanceof UnsupportedOperationException);
+            assertTrue(failure.getCause().getMessage().contains("document-backed Models"));
+            assertTrue(RetryBoundaryCommand.observations.isEmpty());
+            verify(eventStoreClient, never()).commitModels(any());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void explicitBulkAssertAndApplyFlushesValidCommitsWhenAnotherUpdateFails() throws Exception {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
         stubModelLoads(repository);

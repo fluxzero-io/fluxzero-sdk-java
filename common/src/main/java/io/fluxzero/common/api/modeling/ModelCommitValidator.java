@@ -54,6 +54,7 @@ public final class ModelCommitValidator {
             return;
         }
         Set<String> readIds = uniqueIds(commit.getReadModelIds(), "read model");
+        Long existingEventIndex = null;
         for (int i = 0; i < commit.getSubsteps().size(); i++) {
             ModelCommitStep substep = commit.getSubsteps().get(i);
             if (substep == null) {
@@ -79,8 +80,27 @@ public final class ModelCommitValidator {
                         "Model commit substep %d requires an event".formatted(i));
             }
             if (substep.getEvent() != null && substep.getEvent().getIndex() != null) {
-                throw new IllegalArgumentException(
-                        "Model commit substep %d event already has an event index".formatted(i));
+                long eventIndex = substep.getEvent().getIndex();
+                if (substep.isPublishEvent()) {
+                    throw new IllegalArgumentException(
+                            "Model commit substep %d cannot republish existing event %d"
+                                    .formatted(i, eventIndex));
+                }
+                if (eventIndex < 0L) {
+                    throw new IllegalArgumentException(
+                            "Model commit substep %d has an invalid existing event index %d"
+                                    .formatted(i, eventIndex));
+                }
+                if (!commit.getCommitId().equals(substep.getEvent().getMessageId())) {
+                    throw new IllegalArgumentException(
+                            "Model commit %s must use the existing event message ID as commit ID"
+                                    .formatted(commit.getCommitId()));
+                }
+                if (existingEventIndex != null) {
+                    throw new IllegalArgumentException(
+                            "Model commit may reference only one existing global event");
+                }
+                existingEventIndex = eventIndex;
             }
             Set<String> targetIds =
                     substep.getTargets().size() > 1 ? new HashSet<>() : null;

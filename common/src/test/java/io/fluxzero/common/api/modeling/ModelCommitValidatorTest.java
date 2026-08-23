@@ -49,6 +49,52 @@ class ModelCommitValidatorTest {
     }
 
     @Test
+    void acceptsOneExistingGlobalEventWithoutRepublishingIt() {
+        assertDoesNotThrow(() -> ModelCommitValidator.validate(
+                existingEventCommit("event-1", "event-1", 42L)));
+    }
+
+    @Test
+    void validatesExistingGlobalEventIdentityAndShape() {
+        CommitModels republished = existingEventCommit("event-1", "event-1", 42L);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(new CommitModels(
+                        republished.getCommitId(), republished.getReadStateIndex(),
+                        republished.getReadModelIds(),
+                        List.of(republished.getSubsteps().getFirst().toBuilder()
+                                        .publishEvent(true)
+                                        .build()),
+                        republished.getConflictPolicy(), republished.getGuarantee(), true)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(
+                        existingEventCommit("other", "event-1", 42L)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(
+                        existingEventCommit("event-1", "event-1", -1L)));
+
+        CommitModels multiple = existingEventCommit("event-1", "event-1", 42L);
+        SerializedMessage second = new SerializedMessage(
+                new Data<>(new byte[]{2}, "event", 0), Metadata.empty(), "event-1", 1L);
+        second.setIndex(43L);
+        CommitModels multipleSteps = new CommitModels(
+                multiple.getCommitId(), multiple.getReadStateIndex(),
+                multiple.getReadModelIds(),
+                List.of(
+                        multiple.getSubsteps().getFirst(),
+                        ModelCommitStep.builder()
+                                .event(second)
+                                .targets(List.of(target("order-1")))
+                                .build()),
+                multiple.getConflictPolicy(), multiple.getGuarantee(), true);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> ModelCommitValidator.validate(multipleSteps));
+    }
+
+    @Test
     void acceptsOneCompleteStateOnlyTransition() {
         assertDoesNotThrow(() -> ModelCommitValidator.validate(commit(
                 List.of("order-1"),
@@ -272,5 +318,22 @@ class ModelCommitValidatorTest {
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
                 Guarantee.STORED, true);
+    }
+
+    private static CommitModels existingEventCommit(
+            String commitId, String messageId, long eventIndex) {
+        SerializedMessage event = new SerializedMessage(
+                new Data<>(new byte[]{1}, "event", 0), Metadata.empty(), messageId, 1L);
+        event.setIndex(eventIndex);
+        return new CommitModels(
+                commitId, -1L, List.of("order-1"),
+                List.of(ModelCommitStep.builder()
+                                .event(event)
+                                .targets(List.of(target("order-1").toBuilder()
+                                                         .modelType("order")
+                                                         .storeEvent(true)
+                                                         .build()))
+                                .build()),
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
     }
 }

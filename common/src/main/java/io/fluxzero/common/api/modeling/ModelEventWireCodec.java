@@ -44,6 +44,7 @@ public final class ModelEventWireCodec {
     private static final int DIRECT_REQUEST_MAGIC = 0x465A4571; // FZEq
     private static final int DIRECT_RESULT_MAGIC = 0x465A4572; // FZEr
     private static final int VERSION = 7;
+    private static final int FALLBACK_REQUEST_VERSION = 8;
     private static final int MAX_BATCH_SIZE = 1_000_000;
     private static final int MAX_COLLECTION_SIZE = 2_000_000;
     private static final int MAX_VALUE_BYTES = 512 * 1024 * 1024;
@@ -91,12 +92,14 @@ public final class ModelEventWireCodec {
             Reader input = new Reader(bytes, MAX_VALUE_BYTES);
             input.readInt();
             int version = input.readUnsignedByte();
-            if (version != VERSION) {
+            boolean request = magic == REQUEST_MAGIC || magic == DIRECT_REQUEST_MAGIC;
+            if (version != VERSION
+                && !(request && version == FALLBACK_REQUEST_VERSION)) {
                 throw new IOException("Unsupported compact model-event wire version " + version);
             }
             JsonType result;
-            if (magic == REQUEST_MAGIC || magic == DIRECT_REQUEST_MAGIC) {
-                RequestBatch<GetModelEvents> decoded = decodeRequests(input);
+            if (request) {
+                RequestBatch<GetModelEvents> decoded = decodeRequests(input, version);
                 result = magic == DIRECT_REQUEST_MAGIC
                         ? decoded.getRequests().getFirst()
                         : decoded;
@@ -143,7 +146,11 @@ public final class ModelEventWireCodec {
             RequestBatch<?> batch, int magic) {
         Writer output = new Writer(Math.max(256, batch.getRequests().size() * 128), MAX_VALUE_BYTES);
         output.writeInt(magic);
-        output.writeByte(VERSION);
+        int version = batch.getRequests().stream()
+                .map(GetModelEvents.class::cast)
+                .anyMatch(request -> request.getBoundary().fallbackToCurrent())
+                ? FALLBACK_REQUEST_VERSION : VERSION;
+        output.writeByte(version);
         output.writeInt(batch.getRequests().size());
         for (JsonType value : batch.getRequests()) {
             GetModelEvents request = (GetModelEvents) value;
@@ -159,13 +166,16 @@ public final class ModelEventWireCodec {
             output.writeString(boundary.commitId());
             output.writeNullableInt(boundary.substep());
             output.writeNullableLong(boundary.eventIndex());
+            if (version == FALLBACK_REQUEST_VERSION) {
+                output.writeBoolean(boundary.fallbackToCurrent());
+            }
             output.writeLong(request.getMaxBytes());
         }
         return output.toByteArray();
     }
 
     private static RequestBatch<GetModelEvents> decodeRequests(
-            Reader input) throws IOException {
+            Reader input, int version) throws IOException {
         int size = input.readSize(MAX_BATCH_SIZE, "batch");
         List<GetModelEvents> requests = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -179,16 +189,19 @@ public final class ModelEventWireCodec {
                                 input.readLong(),
                                 input.readInt()));
             }
+            Long stateIndex = input.readNullableLong();
+            String commitId = input.readString();
+            Integer substep = input.readNullableInt();
+            Long eventIndex = input.readNullableLong();
+            boolean fallbackToCurrent = version == FALLBACK_REQUEST_VERSION
+                    && input.readBoolean();
             requests.add(
                     new GetModelEvents(
                             requestId,
                             streams,
                             new ModelReadBoundary(
-                                    input.readNullableLong(),
-                                    input.readString(),
-                                    input.readNullableInt(),
-                                    input.readNullableLong(),
-                                    false, false),
+                                    stateIndex, commitId, substep, eventIndex,
+                                    false, false, fallbackToCurrent),
                             input.readLong()));
         }
         return new RequestBatch<>(requests);

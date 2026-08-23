@@ -3505,6 +3505,19 @@ successful command result without claiming a distributed transaction.
 See the model-first [developer guides](docs/developer/guides/Modeling%20&%20persistence/170-entity-loading.mdx) for
 multi-model commits, temporal relationships, graph projections, conflict policies and hard deletion.
 
+### Rebuilding Models from published legacy events
+
+A controlled Aggregate-to-Model backfill can handle each original event from the global event log and call
+`Fluxzero.migratePublishedEvent()`. Fluxzero runs the normal replay phase (`@Apply` on the payload before `@Apply` on
+the Model), commits with the original message ID, links the resulting Model state to the original global event index
+and does not publish the event again. Retrying the same event is idempotent. A later handler for that old event can
+therefore inject the exact event-sourced Model state after the event instead of an unrelated latest value.
+
+Run this only in a dedicated migration consumer with external side-effect handlers disabled. The primitive requires a
+currently handled indexed event and currently supports event-sourced Models only. Legacy `STORE_ONLY` Aggregate events
+have no global index and are outside this backfill source. Document-backed adoption, live cutover and rollback require
+an application-specific migration plan; changing `@Aggregate` to `@Model` remains insufficient.
+
 ## Legacy aggregate API (existing Fluxzero 1.x applications only)
 
 The following section documents the shared-root API for applications that already persist aggregate streams. Do not

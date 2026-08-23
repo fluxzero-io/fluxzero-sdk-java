@@ -38,6 +38,11 @@ import java.util.function.Function;
 
 /** Owns storage-neutral Model commit description, head assignment and accepted-result construction. */
 public final class ModelCommitAssignment {
+    /** Returns the existing or newly assigned global event index carried by a commit step. */
+    public static Long eventIndex(ModelCommitStep step) {
+        return step.getEvent() == null ? null : step.getEvent().getIndex();
+    }
+
     /** Describes target scope and optional work before positions are assigned. */
     public static Description describe(CommitModels source) {
         ModelCommitTarget singleTarget = source.singleTarget();
@@ -342,7 +347,7 @@ public final class ModelCommitAssignment {
                 ModelCommitTarget target = step.getTargets().getFirst();
                 return CommitModelsResult.acceptedSingleTarget(
                         source.getRequestId(), source.getCommitId(), firstStateIndex,
-                        step.isPublishEvent() ? step.getEvent().getIndex() : null,
+                        eventIndex(step),
                         target.getModelId(), singleHead.sequenceNumber(), singleHead.historyComplete());
             }
             List<ModelUpdate> updates = new ArrayList<>(source.getSubsteps().size());
@@ -351,7 +356,7 @@ public final class ModelCommitAssignment {
                 updates.add(new ModelUpdate(
                         ModelUpdateKind.COMMIT, source.getCommitId(), step,
                         firstStateIndex + step,
-                        sourceStep.isPublishEvent() ? sourceStep.getEvent().getIndex() : null,
+                        eventIndex(sourceStep),
                         assignedTargets.get(step)));
             }
             return CommitModelsResult.accepted(

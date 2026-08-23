@@ -236,6 +236,26 @@ final class ModelPipeline {
         }
     }
 
+    /** Applies one existing global event through the replay phase and retains its durable event index. */
+    public CompletableFuture<Void> migratePublishedEvent(
+            Message event, long eventIndex) {
+        try {
+            Objects.requireNonNull(event, "event");
+            if (eventIndex < 0L) {
+                throw new IllegalArgumentException(
+                        "Published event index must not be negative");
+            }
+            io.fluxzero.common.api.SerializedMessage serialized = event.serialize(serializer);
+            serialized.setIndex(eventIndex);
+            DeserializingMessage message = serializer.deserializeMessage(
+                    serialized, MessageType.EVENT);
+            return execute(new ExecutionRequest(message, null, -1, Mode.REPLAY), null)
+                    .thenApply(ignored -> null);
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
     private CompletableFuture<Object> execute(
             ExecutionRequest request,
             ModelCommitPolicy policy) {

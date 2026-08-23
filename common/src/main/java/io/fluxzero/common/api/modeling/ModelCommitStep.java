@@ -37,11 +37,15 @@ public class ModelCommitStep {
 
     /**
      * Serialized original event, stored only once in this request even when several models are targeted.
+     *
+     * <p>An event which already has an index refers to that exact existing event in the global event log and must not
+     * be published again.</p>
      */
     SerializedMessage event;
 
     /**
-     * Whether the original event should be appended once to the global event log.
+     * Whether the original event should be appended once to the global event log. This is always {@code false} when
+     * {@link #event} already carries its durable global index.
      */
     boolean publishEvent;
 
