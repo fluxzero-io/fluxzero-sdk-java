@@ -3510,30 +3510,47 @@ multi-model commits, temporal relationships, graph projections, conflict policie
 
 ### Rebuilding Models from published legacy events
 
-A controlled Aggregate-to-Model backfill can handle each original event from the global event log and call
-`Fluxzero.migratePublishedEvent()`. Fluxzero runs the normal replay phase (`@Apply` on the payload before `@Apply` on
-the Model), commits with the original message ID, links the resulting Model state to the original global event index
-and does not publish the event again. Retrying the same event is idempotent. A later handler for that old event can
-therefore inject the exact event-sourced Model state after the event instead of an unrelated latest value.
+A controlled Aggregate-to-Model backfill uses one isolated migration application:
 
-Run this only in a dedicated migration consumer with external side-effect handlers disabled. The primitive requires a
-currently handled indexed event. Legacy `STORE_ONLY` Aggregate events have no global index and are outside this
-backfill source.
+```java
+PublishedEventModelMigration.builder()
+        .name("orders-model-migration-v1")
+        .client(client)
+        .serializer(serializerWithLegacyUpcasters)
+        .modelsInPackage("com.example.orders")
+        .build()
+        .run(args);
+```
+
+Run it without arguments to replay, or as `adopt <cutover-event-index>` for the checked cutover operation. The SDK owns
+the catch-all handler and fixes it to `minIndex = 0`, one synchronous thread, `singleTracker = true` and hard failure.
+Multiple instances with the same stable migration name are therefore safe: one receives the complete globally ordered
+log and the others provide failover. Do not give replicas different migration names.
+
+Fluxzero runs the normal replay phase (`@Apply` on the payload before `@Apply` on the Model), commits with the original
+message ID, links the resulting Model state to the original global event index and does not publish the event again.
+Retrying the same event is idempotent. A later handler for that old event can therefore inject the exact event-sourced
+Model state after the event instead of an unrelated latest value. Legacy `STORE_ONLY` Aggregate events have no global
+index and are outside this backfill source.
+
+The runner builds its own minimal Fluxzero context and registers no ordinary application handlers, automatic Model
+commands or materialized Graph projections during replay. It may share a process with code that already contains the
+new Models, but an old entity and replacement Model with the same fully qualified class name require separate
+classloaders and should normally run as separate applications during backfill.
 
 For a document-backed Model, replayed direct documents remain in an internal staging collection and are invisible to
-ordinary loads, searches, graph composition and monitors. Register the complete application Model catalog with
-`fluxzero.registerModelMigrationTypes(modelTypes)`; after the migration consumer has caught up, call
-`Fluxzero.adoptModelMigrations()`. Fluxzero drains staging in bounded
-batches, deserializes and upcasts each staged value and any existing production document to the current Model type,
-and adopts only equal values while the observed production document version and staged Model state are unchanged. An
-existing document is left untouched and receives its Model write fence atomically; when no document exists, the staged
-document is copied into its normal collection in that transaction. Fluxzero keeps the accepted normalized value in a
-separate invisible Graph-composition source. New replay staging cannot alter that accepted source: if legacy traffic is
-resumed before the first ordinary Model write, catch up and adopt the newer boundary explicitly. The first ordinary
-Model write atomically removes the source and closes this rollback window. After all documents are adopted, the plural
-operation rebuilds every application-declared materialized Graph projection. Repeating it returns zero adopted
-documents and safely resumes those rebuilds. A mismatch or concurrent legacy write fails without discarding staging,
-so the consumer can catch up and retry.
+ordinary loads, searches, graph composition and monitors. During `adopt`, the runner verifies its durable consumer
+position and delegates the complete catalog to `ModelRepository.adoptModelMigrations()`. The repository drains staging
+in bounded batches, deserializes and upcasts each staged value and any existing production document to the current
+Model type, and adopts only equal values while the observed production document version and staged Model state are
+unchanged. An existing document is left untouched and receives its Model write fence atomically; when no document
+exists, the staged document is copied into its normal collection in that transaction. Fluxzero keeps the accepted
+normalized value in a separate invisible Graph-composition source. New replay staging cannot alter that accepted
+source: if legacy traffic is resumed before the first ordinary Model write, catch up and adopt the newer boundary
+explicitly. The first ordinary Model write atomically removes the source and closes this rollback window. After all
+documents are adopted, the repository rebuilds every application-declared materialized Graph projection. Repeating
+adoption returns zero adopted documents and safely resumes those rebuilds. A mismatch or concurrent legacy write fails
+without discarding staging, so the consumer can catch up and retry.
 
 The replay commits are durable Model history and can be read by direct Model/Graph loads. Staging isolation applies to
 direct search documents and the accepted source used for materialized Graph composition. Do not start the ordinary

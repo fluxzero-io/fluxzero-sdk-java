@@ -706,36 +706,6 @@ public interface Fluxzero extends AutoCloseable {
         return result;
     }
 
-    /**
-     * Applies the currently handled, already published global event to independent Models without publishing it
-     * again. Payload {@code @Apply} methods run before Model {@code @Apply} methods, while command assertions and apply
-     * interceptors remain skipped. The original message ID is the idempotent Model commit ID and its global event index
-     * becomes the historical Model boundary.
-     *
-     * <p>This operation is intended for controlled Aggregate-to-Model migrations and must be invoked while handling an
-     * indexed {@link MessageType#EVENT EVENT} message. Direct documents are kept in invisible migration staging until
-     * {@link #adoptModelMigrations()} verifies and adopts them after the complete Model catalog has been registered.</p>
-     */
-    static void migratePublishedEvent() {
-        awaitModelCommit(migratePublishedEventAsync());
-    }
-
-    /**
-     * Asynchronously applies the currently handled, already published global event to independent Models without
-     * publishing it again.
-     *
-     * @return completion of the durable idempotent Model commit
-     * @see #migratePublishedEvent()
-     */
-    static CompletableFuture<Void> migratePublishedEventAsync() {
-        DeserializingMessage current = DeserializingMessage.getCurrent();
-        if (current == null || current.getMessageType() != EVENT || current.getIndex() == null) {
-            return CompletableFuture.failedFuture(new IllegalStateException(
-                    "Published-event Model migration requires a currently handled indexed event"));
-        }
-        return get().executePublishedModelEvent(current.toMessage(), current.getIndex());
-    }
-
     private static CompletableFuture<Void> startModelCommit(Fluxzero fluxzero, Message message) {
         ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         CompletableFuture<Void> result = new CompletableFuture<>();
@@ -1180,22 +1150,6 @@ public interface Fluxzero extends AutoCloseable {
     static <T> List<Entity<T>> loadModels(
             List<?> modelIds, Class<T> modelType) {
         return currentModelRepository().loadAll(modelIds, modelType);
-    }
-
-    /**
-     * Verifies and atomically adopts every staged direct Model migration whose type is registered in this
-     * application. Staging is drained in bounded batches and a failed item remains staged, so the operation can be
-     * resumed after the underlying mismatch or configuration problem has been resolved. After document adoption,
-     * every application-declared materialized Graph projection is rebuilt from the adopted Model sources. An adopted
-     * normalized source remains invisible and isolated from later staging until the first ordinary Model write. This
-     * permits a newer legacy boundary to be staged and re-adopted during the pre-write rollback window without using
-     * unadopted document content in materialized Graph composition. Repeating this operation safely resumes projection
-     * rebuilds even when no staged document remains.
-     *
-     * @return the number of staged Model documents adopted by this invocation
-     */
-    static CompletableFuture<Integer> adoptModelMigrations() {
-        return currentModelRepository().adoptModelMigrations();
     }
 
     private static ModelRepository currentModelRepository() {
@@ -1709,30 +1663,6 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Registers only the supplied Model definitions for published-event migration.
-     * <p>
-     * Unlike ordinary handler registration this starts no command consumer and deliberately does not register
-     * materialized Graph projections. Payload {@code @Apply} methods are still discovered from each replayed event.
-     * This keeps a shadow backfill free of application handlers and visible derived documents; the actual Model
-     * plural adoption operation owns Graph projection registration and rebuild at cutover.
-     */
-    default Registration registerModelMigrationTypes(
-            Class<?>... modelTypes) {
-        return registerModelMigrationTypes(Arrays.asList(modelTypes));
-    }
-
-    /**
-     * Registers only the supplied Model definitions for published-event migration.
-     *
-     * @see #registerModelMigrationTypes(Class[])
-     */
-    default Registration registerModelMigrationTypes(
-            Collection<Class<?>> modelTypes) {
-        throw new UnsupportedOperationException(
-                "Model migration type registration is not supported by this Fluxzero implementation");
-    }
-
-    /**
      * Registers given handlers and initiates message tracking.
      *
      * @see #registerHandlers(Object...) for more info
@@ -1966,18 +1896,6 @@ public interface Fluxzero extends AutoCloseable {
     default CompletableFuture<Void> executeStoredModelEvent(Message event) {
         return CompletableFuture.failedFuture(new UnsupportedOperationException(
                 "This Fluxzero implementation does not support stored model event application"));
-    }
-
-    /**
-     * Applies an event which already exists at {@code eventIndex} in the global event log to independent Models,
-     * without publishing it again.
-     *
-     * <p>This infrastructure extension point backs {@link #migratePublishedEvent()}.</p>
-     */
-    default CompletableFuture<Void> executePublishedModelEvent(
-            Message event, long eventIndex) {
-        return CompletableFuture.failedFuture(new UnsupportedOperationException(
-                "This Fluxzero implementation does not support published model event migration"));
     }
 
     /**

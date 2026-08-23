@@ -291,22 +291,26 @@ public class DefaultFluxzero implements Fluxzero {
         return executor.applyStoredEvent(event);
     }
 
-    @Override
-    public CompletableFuture<Void> executePublishedModelEvent(
-            Message event, long eventIndex) {
+    CompletableFuture<Void> migratePublishedEvent(
+            DeserializingMessage event) {
+        if (event == null || event.getMessageType() != EVENT || event.getIndex() == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Published-event Model migration requires an indexed EVENT message"));
+        }
         ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
         if (executor == null) {
-            return Fluxzero.super.executePublishedModelEvent(event, eventIndex);
+            return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                    "Published-event Model migration is not initialized"));
         }
-        return executor.migratePublishedEvent(event, eventIndex);
+        return executor.migratePublishedEvent(event.toMessage(), event.getIndex());
     }
 
-    @Override
-    public Registration registerModelMigrationTypes(
+    Registration registerMigrationTypes(
             Collection<Class<?>> modelTypes) {
         ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
         if (executor == null) {
-            return Fluxzero.super.registerModelMigrationTypes(modelTypes);
+            throw new UnsupportedOperationException(
+                    "Published-event Model migration is not initialized");
         }
         return executor.registerMigrationTypes(modelTypes);
     }

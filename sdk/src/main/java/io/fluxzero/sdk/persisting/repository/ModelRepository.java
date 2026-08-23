@@ -209,6 +209,7 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * safe way to resume projection rebuilds after a failure.
      *
      * @return the number of staged Model documents adopted by this invocation
+     * @see io.fluxzero.sdk.configuration.PublishedEventModelMigration
      */
     default CompletableFuture<Integer> adoptModelMigrations() {
         return CompletableFuture.failedFuture(

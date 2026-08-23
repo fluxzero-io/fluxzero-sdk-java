@@ -200,15 +200,22 @@ because exactness is based on the committed model commit, not only on the global
 
 ### Backfilling Models from legacy events
 
-In a dedicated migration application, track the original published events from the global event log and call
-`Fluxzero.migratePublishedEvent()` while handling each applicable event:
+Configure the SDK-owned migration runner in a dedicated application:
 
 ```java
-@HandleEvent
-void migrate(LegacyOrderEvent event) {
-    Fluxzero.migratePublishedEvent();
-}
+PublishedEventModelMigration.builder()
+        .name("orders-model-migration-v1")
+        .client(client)
+        .serializer(serializerWithLegacyUpcasters)
+        .modelsInPackage("com.example.orders")
+        .build()
+        .run(args);
 ```
+
+No arguments starts replay; `adopt <cutover-event-index>` verifies catch-up and performs the cutover operation. The
+runner owns the catch-all handler and always uses the complete global log, one synchronous thread, a single tracker and
+hard failure. Multiple application instances with the same stable migration name provide failover without processing
+events concurrently.
 
 Fluxzero reuses the Model replay phase: payload `@Apply` methods run before Model `@Apply` methods, while
 `@InterceptApply` and command `@AssertLegal` methods are not rerun. The original message ID is the idempotent commit ID,
@@ -216,24 +223,20 @@ the original global index becomes the historical Model boundary, and the event i
 update several Models atomically at one state index.
 
 The handler must receive an indexed event that is still available in the co-located global event log. Legacy
-`STORE_ONLY` Aggregate events have no global index and cannot be recovered through this route. Keep normal side-effect
-handlers out of the migration application.
+`STORE_ONLY` Aggregate events have no global index and cannot be recovered through this route. The isolated runner
+registers no ordinary handlers or automatic Model commands. It can run in an existing process that already contains
+the replacement Models, but an old entity and new Model with the same fully qualified class name cannot share one
+classloader; use a separate migration application while the legacy application remains live.
 
-For document-backed Models, replayed direct documents remain in invisible staging. Register the complete application
-Model catalog in the migration process and adopt the staged set after catch-up:
-
-```java
-Registration migrationModels = fluxzero.registerModelMigrationTypes(modelTypes);
-int adopted = Fluxzero.adoptModelMigrations().join();
-```
-
+For document-backed Models, replayed direct documents remain in invisible staging. The runner discovers or receives
+the complete Model catalog, verifies its durable consumer position and delegates adoption to `ModelRepository`.
 Fluxzero resolves each durable staged type from that catalog, deserializes and upcasts the staged value and any existing
 production document, and requires equal current values and unchanged staged state. If a production document exists,
 adoption also uses its observed document index as a compare-and-set condition, leaves the document itself untouched,
 and atomically adds only the Model write fence. If it does not exist, the staged document is copied into its normal
-collection in the same transaction. The plural operation drains bounded batches and then rebuilds all materialized
-Graph projections declared by the catalog; repeat the same call to resume an interrupted cutover. A value difference,
-unknown staged type or concurrent legacy write retains staging and fails adoption.
+collection in the same transaction. Adoption drains bounded batches and then rebuilds all materialized Graph
+projections declared by the catalog; repeat the command to resume an interrupted cutover. A value difference, unknown
+staged type or concurrent legacy write retains staging and fails adoption.
 
 Qualify catch-up, an explicit final event boundary, handler cutover and rollback before switching write ownership.
 

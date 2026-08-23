@@ -261,12 +261,6 @@ public class SpyingFluxzero implements Fluxzero {
     }
 
     @Override
-    public CompletableFuture<Void> executePublishedModelEvent(
-            Message event, long eventIndex) {
-        return delegate.executePublishedModelEvent(event, eventIndex);
-    }
-
-    @Override
     public CompletableFuture<Void> executeModelAssertions(Message update) {
         return delegate.executeModelAssertions(update);
     }
