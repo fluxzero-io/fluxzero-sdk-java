@@ -334,6 +334,6 @@ class ModelCommitValidatorTest {
                                                          .storeEvent(true)
                                                          .build()))
                                 .build()),
-                ModelConflictPolicy.ACCEPT, Guarantee.STORED, true);
+                ModelConflictPolicy.ACCEPT, Guarantee.STORED, true, true);
     }
 }

@@ -576,6 +576,19 @@ final class ModelReplayCursor {
             Function<String, Entity<?>> pendingAncestor,
             ModelCacheTracker cacheTracker,
             boolean requireBoundary) {
+        return context(
+                resolution, boundary, stagedValues, pendingAncestor,
+                cacheTracker, requireBoundary, false);
+    }
+
+    CommitAttempt context(
+            MutationPlan.Resolution resolution,
+            ModelReadBoundary boundary,
+            Map<String, Object> stagedValues,
+            Function<String, Entity<?>> pendingAncestor,
+            ModelCacheTracker cacheTracker,
+            boolean requireBoundary,
+            boolean migration) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(stagedValues, "stagedValues");
@@ -646,7 +659,7 @@ final class ModelReplayCursor {
             EntityMetadata metadata = EntityMetadata.validate(
                     target.modelType());
             DocumentVersion document = documentReader.load(
-                    target.modelId(), target.modelType());
+                    target.modelId(), target.modelType(), migration);
             Entity<?> entity = document.entity();
             if (entity.isEmpty() && metadata.hasAliases()) {
                 LoadResult alias = loadHeads(
@@ -661,7 +674,7 @@ final class ModelReplayCursor {
                         ? target.modelId() : head.getModelId();
                 if (!resolvedId.equals(target.modelId())) {
                     document = documentReader.load(
-                            resolvedId, target.modelType());
+                            resolvedId, target.modelType(), migration);
                     entity = document.entity();
                 }
             }
@@ -772,7 +785,7 @@ final class ModelReplayCursor {
         }
         documentTargets.forEach(target -> modelCache.put(
                 target.modelId(), documentReader.load(
-                        target.modelId(), target.modelType()).entity()));
+                        target.modelId(), target.modelType(), false).entity()));
         return new ModelCacheTracker.RefreshedBatch(safeStateIndex);
     }
 
@@ -879,7 +892,7 @@ final class ModelReplayCursor {
         }
         for (MutationPlan.ResolvedModel target : documentTargets) {
             DocumentVersion document = documentReader.load(
-                    target.modelId(), target.modelType());
+                    target.modelId(), target.modelType(), false);
             Entity<?> entity = document.entity();
             ModelHeadState expected = heads.get(target.modelId());
             if (!Objects.equals(expected, document.head())) {
@@ -2153,7 +2166,8 @@ final class ModelReplayCursor {
 
     @FunctionalInterface
     interface DocumentReader {
-        DocumentVersion load(String modelId, Class<?> modelType);
+        DocumentVersion load(
+                String modelId, Class<?> modelType, boolean migration);
     }
 
     record DocumentVersion(Entity<?> entity, ModelHeadState head) {

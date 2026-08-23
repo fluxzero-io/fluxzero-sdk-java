@@ -36,6 +36,13 @@ public class ModelDocumentMutation {
             "$modelGraphComponents";
 
     /**
+     * Internal collection containing crash-safe direct-document state while published legacy
+     * events are being rebuilt. Ordinary Model loads and searches never use this collection.
+     */
+    public static final String MIGRATION_COLLECTION =
+            "$modelMigrationDocuments";
+
+    /**
      * Current-document collection. This is either the independently searchable model collection or the internal graph
      * component collection.
      */

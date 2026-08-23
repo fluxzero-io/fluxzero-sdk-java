@@ -578,23 +578,35 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
-    void publishedEventMigrationRejectsDocumentBackedModelsBeforeCommit() {
+    void publishedEventMigrationStagesDocumentBackedModelsThroughTheSameCommit() {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
         stubModelLoads(repository);
         EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        CompletableFuture<CommitModels> captured = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels commit = invocation.getArgument(0);
+            captured.complete(commit);
+            return CompletableFuture.completedFuture(
+                    acceptedResult(commit));
+        });
         ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
         RetryBoundaryCommand.observations.clear();
 
         try {
-            CompletionException failure = assertThrows(
-                    CompletionException.class,
-                    () -> subject.migratePublishedEvent(
-                            new Message(new RetryBoundaryCommand("document-backed")), 42L).join());
+            subject.migratePublishedEvent(
+                    new Message(new RetryBoundaryCommand("document-backed")), 42L).join();
 
-            assertTrue(failure.getCause() instanceof UnsupportedOperationException);
-            assertTrue(failure.getCause().getMessage().contains("document-backed Models"));
+            CommitModels commit = captured.join();
+            assertTrue(commit.isMigration());
+            assertFalse(commit.getSubsteps().getFirst().isPublishEvent());
+            assertEquals(
+                    42L,
+                    commit.getSubsteps().getFirst().getEvent().getIndex());
+            assertTrue(commit.getSubsteps().getFirst()
+                               .getTargets().getFirst()
+                               .getDocument() != null);
             assertTrue(RetryBoundaryCommand.observations.isEmpty());
-            verify(eventStoreClient, never()).commitModels(any());
+            verify(eventStoreClient).commitModels(any());
         } finally {
             subject.close();
         }
@@ -1818,6 +1830,10 @@ class ModelCommitHandlerRegistryTest {
                 any(MutationPlan.Resolution.class),
                 nullable(Long.class), anyMap(), anyBoolean()))
                 .thenAnswer(answer);
+        when(repository.loadContext(
+                any(MutationPlan.Resolution.class),
+                nullable(Long.class), anyMap(), anyBoolean(), anyBoolean()))
+                .thenAnswer(answer);
         when(repository.beginLocalCommit(any())).thenReturn(() -> {
         });
     }
@@ -1995,7 +2011,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(eventSourced = false)
+    @Model(eventSourced = false, searchable = true)
     private record RetryBoundaryModel(
             @EntityId String id,
             String value) {

@@ -16,6 +16,7 @@
 
 package io.fluxzero.common.api.modeling;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.RetryAwareRequest;
@@ -78,9 +79,13 @@ public class CommitModels extends Command implements RetryAwareRequest {
     @NonFinal
     volatile boolean possibleDuplicate;
 
-    @ConstructorProperties({
-            "commitId", "readStateIndex", "readModelIds", "substeps",
-            "conflictPolicy", "guarantee", "possibleDuplicate"})
+    /**
+     * Whether direct documents produced by this commit belong to a published-event migration and
+     * must remain in migration staging until explicit adoption.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean migration;
+
     public CommitModels(
             String commitId,
             long readStateIndex,
@@ -89,6 +94,22 @@ public class CommitModels extends Command implements RetryAwareRequest {
             ModelConflictPolicy conflictPolicy,
             Guarantee guarantee,
             boolean possibleDuplicate) {
+        this(commitId, readStateIndex, readModelIds, substeps, conflictPolicy,
+             guarantee, possibleDuplicate, false);
+    }
+
+    @ConstructorProperties({
+            "commitId", "readStateIndex", "readModelIds", "substeps",
+            "conflictPolicy", "guarantee", "possibleDuplicate", "migration"})
+    public CommitModels(
+            String commitId,
+            long readStateIndex,
+            List<String> readModelIds,
+            List<ModelCommitStep> substeps,
+            ModelConflictPolicy conflictPolicy,
+            Guarantee guarantee,
+            boolean possibleDuplicate,
+            boolean migration) {
         this.commitId = commitId;
         this.readStateIndex = readStateIndex;
         this.readModelIds = readModelIds;
@@ -96,6 +117,7 @@ public class CommitModels extends Command implements RetryAwareRequest {
         this.conflictPolicy = conflictPolicy;
         this.guarantee = guarantee;
         this.possibleDuplicate = possibleDuplicate;
+        this.migration = migration;
     }
 
     CommitModels(
@@ -106,7 +128,8 @@ public class CommitModels extends Command implements RetryAwareRequest {
             List<ModelCommitStep> substeps,
             ModelConflictPolicy conflictPolicy,
             Guarantee guarantee,
-            boolean possibleDuplicate) {
+            boolean possibleDuplicate,
+            boolean migration) {
         super(requestId);
         this.commitId = commitId;
         this.readStateIndex = readStateIndex;
@@ -115,6 +138,7 @@ public class CommitModels extends Command implements RetryAwareRequest {
         this.conflictPolicy = conflictPolicy;
         this.guarantee = guarantee;
         this.possibleDuplicate = possibleDuplicate;
+        this.migration = migration;
     }
 
     @Override

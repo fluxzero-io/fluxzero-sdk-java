@@ -16,6 +16,7 @@
 package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.search.AdoptModelMigration;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
@@ -23,6 +24,8 @@ import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.GetModelMigrationResult;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
@@ -177,6 +180,21 @@ public interface SearchClient extends AutoCloseable {
     default GetDocumentResult fetchModelDocument(GetDocument request) {
         throw new UnsupportedOperationException(
                 "Versioned Model document loading is not supported by this search client");
+    }
+
+    /** Retrieves the production and staged direct documents used to verify one Model migration. */
+    default GetModelMigrationResult getModelMigration(
+            GetModelMigration request) {
+        throw new UnsupportedOperationException(
+                "Model migration inspection is not supported by this search client");
+    }
+
+    /** Atomically adopts a previously inspected and application-verified staged Model document. */
+    default CompletableFuture<Void> adoptModelMigration(
+            AdoptModelMigration request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Model migration adoption is not supported by this search client"));
     }
 
     /**

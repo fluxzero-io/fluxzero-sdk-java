@@ -196,6 +196,12 @@ public final class ModelCommitValidator {
                 }
             }
         }
+        if (commit.isMigration() != (existingEventIndex != null)) {
+            throw new IllegalArgumentException(
+                    commit.isMigration()
+                            ? "Model migration commits must reference one existing global event"
+                            : "Existing global events require an explicit Model migration commit");
+        }
     }
 
     private static void validateDocument(ModelCommitTarget target) {

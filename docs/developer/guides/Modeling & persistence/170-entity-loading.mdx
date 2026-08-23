@@ -198,7 +198,7 @@ ancestors of the requested type are reachable.
 Later cache entries never leak into historical event handling. Earlier `STORE_ONLY` model transitions are included
 because exactness is based on the committed model commit, not only on the globally published event stream.
 
-### Backfilling event-sourced Models from legacy events
+### Backfilling Models from legacy events
 
 In a dedicated migration application, track the original published events from the global event log and call
 `Fluxzero.migratePublishedEvent()` while handling each applicable event:
@@ -215,10 +215,24 @@ Fluxzero reuses the Model replay phase: payload `@Apply` methods run before Mode
 the original global index becomes the historical Model boundary, and the event is not published again. One event may
 update several Models atomically at one state index.
 
-The handler must receive an indexed event that is still available in the co-located global event log. This primitive
-currently supports event-sourced Models only. Legacy `STORE_ONLY` Aggregate events have no global index and cannot be
-recovered through this route. Keep normal side-effect handlers out of the migration application and qualify document
-adoption, catch-up, cutover and rollback separately before switching write ownership.
+The handler must receive an indexed event that is still available in the co-located global event log. Legacy
+`STORE_ONLY` Aggregate events have no global index and cannot be recovered through this route. Keep normal side-effect
+handlers out of the migration application.
+
+For document-backed Models, replayed direct documents remain in invisible staging. After catch-up, adopt each such
+Model explicitly:
+
+```java
+Fluxzero.adoptModelMigration(orderId, Order.class).join();
+```
+
+Fluxzero deserializes and upcasts the staged value and any existing production document to the supplied Model type. It
+then requires equal current values and unchanged staged state. If a production document exists, adoption also uses its
+observed document index as a compare-and-set condition, leaves the document itself untouched, and atomically adds only
+the Model write fence. If it does not exist, the staged document is copied into its normal collection in the same
+transaction. A value difference or concurrent legacy write retains staging and fails adoption.
+
+Qualify catch-up, an explicit final event boundary, handler cutover and rollback before switching write ownership.
 
 Commands, queries, schedules, results, errors, metrics, documents, custom messages and web handlers use the same
 parameter rules. They share one current handler load context: event-sourced targets use its pinned repository boundary,

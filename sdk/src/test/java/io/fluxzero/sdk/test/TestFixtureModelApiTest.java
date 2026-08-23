@@ -126,6 +126,61 @@ class TestFixtureModelApiTest {
     }
 
     @Test
+    @Timeout(2)
+    void documentBackedMigrationContinuesFromStagingAndAdoptsWithoutRewritingLegacyState() {
+        String modelId = "legacy-document";
+        LegacyDocumentModel legacy = new LegacyDocumentModel(modelId, 3);
+
+        TestFixture.createAsync(new LegacyDocumentMigrationHandler())
+                .givenDocument(
+                        legacy, modelId,
+                        LegacyDocumentModel.class)
+                .whenEvent(new LegacyDocumentIncrement(modelId, 1))
+                .expectNoEvents()
+                .expectNoErrors()
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.getDocument(
+                        modelId, LegacyDocumentModel.class).orElseThrow())
+                .expectResult(legacy)
+                .andThen()
+                .whenEvent(new LegacyDocumentIncrement(modelId, 2))
+                .expectNoEvents()
+                .expectNoErrors()
+                .andThen()
+                .whenApplying(ignored -> {
+                    Fluxzero.adoptModelMigration(
+                            modelId, LegacyDocumentModel.class).join();
+                    return Fluxzero.<LegacyDocumentModel>loadModel(
+                            modelId).get();
+                })
+                .expectResult(legacy);
+    }
+
+    @Test
+    @Timeout(2)
+    void documentBackedMigrationRejectsAValueThatDiffersFromLegacyState() {
+        String modelId = "different-legacy-document";
+        LegacyDocumentModel legacy = new LegacyDocumentModel(modelId, 3);
+
+        TestFixture.createAsync(new LegacyDocumentMigrationHandler())
+                .givenDocument(
+                        legacy, modelId,
+                        LegacyDocumentModel.class)
+                .whenEvent(new LegacyDocumentIncrement(modelId, 4))
+                .expectNoEvents()
+                .expectNoErrors()
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.adoptModelMigration(
+                        modelId, LegacyDocumentModel.class).join())
+                .expectExceptionalResult(
+                        java.util.concurrent.CompletionException.class)
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.getDocument(
+                        modelId, LegacyDocumentModel.class).orElseThrow())
+                .expectResult(legacy);
+    }
+
+    @Test
     void givenEventsApplyIndependentModelsAndDispatchTheStoredEventOnce() {
         AtomicInteger handled = new AtomicInteger();
         StoredModelEvent event = new StoredModelEvent("model-1");
@@ -440,6 +495,32 @@ class TestFixtureModelApiTest {
         void handle(LegacyIncrement event) {
             Fluxzero.migratePublishedEvent();
             observed.add(Fluxzero.<LegacyModel>loadModel(event.id()).get().value());
+        }
+    }
+
+    @Model(eventSourced = false, cached = false, searchable = true)
+    private record LegacyDocumentModel(
+            @EntityId String id,
+            int value) {
+    }
+
+    private record LegacyDocumentIncrement(
+            String id,
+            int delta) {
+        @Apply
+        LegacyDocumentModel apply(
+                @Nullable LegacyDocumentModel model) {
+            return new LegacyDocumentModel(
+                    id,
+                    (model == null ? 0 : model.value())
+                    + delta);
+        }
+    }
+
+    private static class LegacyDocumentMigrationHandler {
+        @HandleEvent
+        void handle(LegacyDocumentIncrement ignored) {
+            Fluxzero.migratePublishedEvent();
         }
     }
 

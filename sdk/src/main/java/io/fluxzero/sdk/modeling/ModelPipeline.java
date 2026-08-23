@@ -249,7 +249,7 @@ final class ModelPipeline {
             serialized.setIndex(eventIndex);
             DeserializingMessage message = serializer.deserializeMessage(
                     serialized, MessageType.EVENT);
-            return execute(new ExecutionRequest(message, null, -1, Mode.REPLAY), null)
+            return execute(new ExecutionRequest(message, null, -1, Mode.MIGRATE), null)
                     .thenApply(ignored -> null);
         } catch (Throwable failure) {
             return CompletableFuture.failedFuture(failure);
@@ -304,7 +304,8 @@ final class ModelPipeline {
                     return executeEvaluation(
                             request.message(), evaluation,
                             batch == null ? request.transport() : batch,
-                            batch == null ? request.transportSlot() : entry.slot);
+                            batch == null ? request.transportSlot() : entry.slot,
+                            request.mode() == Mode.MIGRATE);
                 }));
             });
         } catch (Throwable failure) {
@@ -321,8 +322,9 @@ final class ModelPipeline {
         return switch (request.mode()) {
             case ASSERT -> ModelReducer.assertLegal(
                     attempt, request.message(), new CommitLoader(null));
-            case REPLAY -> ModelReducer.reapply(
-                    attempt, List.of(request.message()), new CommitLoader(null, true));
+            case REPLAY, MIGRATE -> ModelReducer.reapply(
+                    attempt, List.of(request.message()),
+                    new CommitLoader(null, true, request.mode() == Mode.MIGRATE));
             case LIVE, AUTOMATIC -> {
                 boolean direct = request.mode() == Mode.AUTOMATIC
                         ? !retry || batched
@@ -355,7 +357,8 @@ final class ModelPipeline {
     }
 
     private enum Mode {
-        LIVE(true, true), ASSERT(true, false), REPLAY(false, false), AUTOMATIC(false, false);
+        LIVE(true, true), ASSERT(true, false), REPLAY(false, false),
+        MIGRATE(false, false), AUTOMATIC(false, false);
 
         private final boolean skipEmpty;
         private final boolean warnMissingApply;
@@ -406,14 +409,15 @@ final class ModelPipeline {
             DeserializingMessage message,
             CommitAttempt evaluation,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
-            int transportSlot) {
+            int transportSlot,
+            boolean migration) {
         ModelConflictPolicy effectiveConflictPolicy =
                 evaluation.conflictPolicy(conflictPolicy);
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                 ? Retry.accepting((result, current) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(current.steps(), result.getRebaseStateIndex()));
+                                rebase(current.steps(), result.getRebaseStateIndex(), migration));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
@@ -428,7 +432,7 @@ final class ModelPipeline {
                         () -> commit(
                                 repositoryCommit, message.getMessageId(), evaluation,
                                 effectiveConflictPolicy, retry,
-                                transportBatch, transportSlot));
+                                migration, transportBatch, transportSlot));
         return committed.handle((commitResult, failure) ->
                 finishEvaluation(evaluation, effectiveConflictPolicy, failure));
     }
@@ -441,9 +445,23 @@ final class ModelPipeline {
             Retry retry,
             ModelCommitBatchingClient.ModelCommitBatch batch,
             int batchSlot) {
+        return commit(
+                repositoryCommit, commitId, evaluation, conflictPolicy,
+                retry, false, batch, batchSlot);
+    }
+
+    private static CompletableFuture<Optional<CommitModelsResult>> commit(
+            Commit repositoryCommit,
+            String commitId,
+            CommitAttempt evaluation,
+            ModelConflictPolicy conflictPolicy,
+            Retry retry,
+            boolean migration,
+            ModelCommitBatchingClient.ModelCommitBatch batch,
+            int batchSlot) {
         Objects.requireNonNull(retry, "retry");
         Commit.Outcome original = repositoryCommit.prepare(
-                commitId, evaluation, conflictPolicy);
+                commitId, evaluation, conflictPolicy, migration);
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
@@ -499,7 +517,9 @@ final class ModelPipeline {
                                         retry.accepting()
                                         && !original.hasCascadedDeletion()
                                                 ? repositoryCommit.prepareRebased(commitId, original, next)
-                                                : repositoryCommit.prepare(commitId, next, conflictPolicy);
+                                                : repositoryCommit.prepare(
+                                                        commitId, next, conflictPolicy,
+                                                        original.commit().isMigration());
                                 return commit(
                                         repositoryCommit, commitId, next, conflictPolicy,
                                         original, nextPrepared, retry,
@@ -620,12 +640,13 @@ final class ModelPipeline {
         return expandCascadeDeletes(
                 ModelReducer.apply(
                         attempt, List.of(initialMessage),
-                        new CommitLoader(null, false, initialMessage, prefetched)));
+                        new CommitLoader(null, false, false, initialMessage, prefetched)));
     }
 
     private CommitAttempt rebase(
             List<CommitAttempt.Step> steps,
-            long stateIndex) {
+            long stateIndex,
+            boolean migration) {
         return ModelBatchScope.withMessageDependency(
                 steps.getFirst().message(),
                 () -> expandCascadeDeletes(ModelReducer.reapplySteps(
@@ -634,7 +655,7 @@ final class ModelPipeline {
                                 .filter(step -> !(step.message().getPayload()
                                         instanceof CascadedModelDeletion))
                                 .toList(),
-                        new CommitLoader(stateIndex, true))));
+                        new CommitLoader(stateIndex, true, migration))));
     }
 
     /**
@@ -803,6 +824,7 @@ final class ModelPipeline {
     private final class CommitLoader implements ModelReducer.SubstepResolver {
         private final Long pinnedStateIndex;
         private final boolean applyOnly;
+        private final boolean migration;
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
@@ -810,20 +832,29 @@ final class ModelPipeline {
                 new LinkedHashMap<>();
 
         private CommitLoader(Long pinnedStateIndex) {
-            this(pinnedStateIndex, false, null, null);
+            this(pinnedStateIndex, false, false, null, null);
         }
 
         private CommitLoader(Long pinnedStateIndex, boolean applyOnly) {
-            this(pinnedStateIndex, applyOnly, null, null);
+            this(pinnedStateIndex, applyOnly, false, null, null);
         }
 
         private CommitLoader(
                 Long pinnedStateIndex,
                 boolean applyOnly,
+                boolean migration) {
+            this(pinnedStateIndex, applyOnly, migration, null, null);
+        }
+
+        private CommitLoader(
+                Long pinnedStateIndex,
+                boolean applyOnly,
+                boolean migration,
                 DeserializingMessage directMessage,
                 PrefetchSlot prefetched) {
             this.pinnedStateIndex = pinnedStateIndex;
             this.applyOnly = applyOnly;
+            this.migration = migration;
             this.directMessage = directMessage;
             this.prefetched = prefetched;
         }
@@ -954,8 +985,13 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            CommitAttempt loaded = repository.loadContext(
-                    resolution, boundary, stagedValues, true);
+            CommitAttempt loaded = migration
+                    ? repository.loadContext(
+                            resolution, boundary, stagedValues,
+                            true, true)
+                    : repository.loadContext(
+                            resolution, boundary, stagedValues,
+                            true);
             if (boundary != null && loaded.readStateIndex() != boundary) {
                 throw new IllegalStateException(
                         "Model commit requested state index %d but loaded %d"

@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.test;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.search.AdoptModelMigration;
 import io.fluxzero.common.api.search.BulkUpdate;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
@@ -23,6 +24,8 @@ import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.GetModelMigrationResult;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
@@ -159,6 +162,18 @@ class DocumentTrackingSearchClient implements SearchClient {
     @Override
     public GetDocumentResult fetchModelDocument(GetDocument request) {
         return delegate.fetchModelDocument(request);
+    }
+
+    @Override
+    public GetModelMigrationResult getModelMigration(
+            GetModelMigration request) {
+        return delegate.getModelMigration(request);
+    }
+
+    @Override
+    public CompletableFuture<Void> adoptModelMigration(
+            AdoptModelMigration request) {
+        return delegate.adoptModelMigration(request);
     }
 
     @Override

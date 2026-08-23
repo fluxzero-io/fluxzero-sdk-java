@@ -215,6 +215,18 @@ public class WebSocketSearchClient extends AbstractWebsocketClient implements Se
     }
 
     @Override
+    public GetModelMigrationResult getModelMigration(
+            GetModelMigration request) {
+        return sendAndWait(request);
+    }
+
+    @Override
+    public CompletableFuture<Void> adoptModelMigration(
+            AdoptModelMigration request) {
+        return sendCommand(request);
+    }
+
+    @Override
     public Collection<SerializedDocument> fetch(GetDocuments request) {
         return this.<GetDocumentsResult>sendAndWait(request).getDocuments();
     }

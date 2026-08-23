@@ -713,7 +713,8 @@ public interface Fluxzero extends AutoCloseable {
      * becomes the historical Model boundary.
      *
      * <p>This operation is intended for controlled Aggregate-to-Model migrations and must be invoked while handling an
-     * indexed {@link MessageType#EVENT EVENT} message.</p>
+     * indexed {@link MessageType#EVENT EVENT} message. Direct documents are kept in invisible migration staging until
+     * {@link #adoptModelMigration(Object, Class)} verifies and adopts them.</p>
      */
     static void migratePublishedEvent() {
         awaitModelCommit(migratePublishedEventAsync());
@@ -1179,6 +1180,21 @@ public interface Fluxzero extends AutoCloseable {
     static <T> List<Entity<T>> loadModels(
             List<?> modelIds, Class<T> modelType) {
         return currentModelRepository().loadAll(modelIds, modelType);
+    }
+
+    /**
+     * Verifies and atomically adopts one direct Model document reconstructed by published-event migration.
+     * Existing and staged documents are upcast to the supplied current Model type before their values are compared.
+     * An existing equal document is not rewritten; its Model fence is added only while the inspected document version
+     * and staged state remain unchanged. If no production document exists, the staged document is copied atomically.
+     *
+     * @return completion after the staged document has been durably adopted
+     */
+    static CompletableFuture<Void> adoptModelMigration(
+            Object modelId,
+            Class<?> modelType) {
+        return currentModelRepository().adoptModelMigration(
+                modelId, modelType);
     }
 
     private static ModelRepository currentModelRepository() {

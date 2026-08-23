@@ -22,6 +22,7 @@ import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.serialization.JsonUtils;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -36,6 +37,29 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ModelCommitWireCodecTest {
+
+    @Test
+    void migrationFlagUsesJsonFallbackWithoutChangingOrdinaryCompactRequests()
+            throws Exception {
+        CommitModels ordinary = commit("ordinary", false);
+        CommitModels migration = new CommitModels(
+                ordinary.getCommitId(), ordinary.getReadStateIndex(),
+                ordinary.getReadModelIds(), ordinary.getSubsteps(),
+                ordinary.getConflictPolicy(), ordinary.getGuarantee(),
+                ordinary.isPossibleDuplicate(), true);
+
+        var ordinaryJson = JsonUtils.valueToTree(ordinary);
+        var migrationJson = JsonUtils.valueToTree(migration);
+
+        assertFalse(ordinaryJson.has("migration"));
+        assertTrue(migrationJson.get("migration").asBoolean());
+        assertTrue(JsonUtils.convertValue(
+                migrationJson, CommitModels.class).isMigration());
+        assertNull(ModelCommitWireCodec.tryEncode(
+                new RequestBatch<>(List.of(migration))));
+        assertTrue(ModelCommitWireCodec.tryEncode(
+                new RequestBatch<>(List.of(ordinary))).length > 0);
+    }
 
     @Test
     void binaryCodecRetainsSelfContainedEventsAndRejectsPreviewVersions() throws Exception {

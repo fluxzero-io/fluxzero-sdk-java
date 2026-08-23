@@ -202,6 +202,20 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
+     * Verifies and atomically adopts the staged direct document produced by published-event migration.
+     * <p>
+     * Existing production documents are deserialized and upcast to {@code modelType} before comparison. A differing
+     * value or a concurrent legacy document write fails adoption without changing production state.
+     */
+    default CompletableFuture<Void> adoptModelMigration(
+            @NonNull Object modelId,
+            @NonNull Class<?> modelType) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Model migration adoption is not supported by this repository"));
+    }
+
+    /**
      * Registers the graph projection declared by the supplied model type.
      *
      * @param modelType model carrying an enabled graph projection

@@ -3514,9 +3514,20 @@ and does not publish the event again. Retrying the same event is idempotent. A l
 therefore inject the exact event-sourced Model state after the event instead of an unrelated latest value.
 
 Run this only in a dedicated migration consumer with external side-effect handlers disabled. The primitive requires a
-currently handled indexed event and currently supports event-sourced Models only. Legacy `STORE_ONLY` Aggregate events
-have no global index and are outside this backfill source. Document-backed adoption, live cutover and rollback require
-an application-specific migration plan; changing `@Aggregate` to `@Model` remains insufficient.
+currently handled indexed event. Legacy `STORE_ONLY` Aggregate events have no global index and are outside this
+backfill source.
+
+For a document-backed Model, replayed direct documents remain in an internal staging collection and are invisible to
+ordinary loads, searches, graph composition and monitors. After the migration consumer has caught up, call
+`Fluxzero.adoptModelMigration(modelId, ModelType.class)` for each reconstructed Model. Fluxzero deserializes and upcasts
+both the staged value and any existing production document to the supplied current Model type. It adopts only equal
+values and only while the observed production document version and staged Model state are unchanged. An existing
+document is left untouched and receives its Model write fence atomically; when no document exists, the staged document
+is copied into its normal collection in that transaction. A mismatch or concurrent legacy write fails without
+discarding staging, so the consumer can catch up and retry.
+
+Live handler cutover and rollback remain application-specific: stop legacy business writes at an explicit event
+boundary before adoption, and do not treat changing `@Aggregate` to `@Model` as a persistence migration.
 
 ## Legacy aggregate API (existing Fluxzero 1.x applications only)
 

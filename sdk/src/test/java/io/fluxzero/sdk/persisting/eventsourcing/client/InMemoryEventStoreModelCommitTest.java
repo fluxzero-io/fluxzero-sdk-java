@@ -460,7 +460,7 @@ class InMemoryEventStoreModelCommitTest {
                 .build();
 
         CommitModelsResult result = store.commitModels(
-                commit(source.getMessageId(), migration)).join();
+                migrationCommit(source.getMessageId(), migration)).join();
 
         assertEquals(1, store.getBatch(null, 10, true).size());
         assertEquals(source.getIndex(), result.getUpdates().getFirst().getEventIndex());
@@ -476,7 +476,7 @@ class InMemoryEventStoreModelCommitTest {
         assertEquals(1, atSource.getStreams().get(1).getMemberships().size());
 
         CommitModelsResult duplicate = store.commitModels(
-                commit(source.getMessageId(), migration)).join();
+                migrationCommit(source.getMessageId(), migration)).join();
         assertTrue(duplicate.isDuplicate());
         assertEquals(result.getUpdates(), duplicate.getUpdates());
         assertEquals(1, store.getBatch(null, 10, true).size());
@@ -1485,6 +1485,17 @@ class InMemoryEventStoreModelCommitTest {
 
     private static CommitModels commit(String commitId, ModelCommitStep... substeps) {
         return commit(commitId, -1L, ModelConflictPolicy.ACCEPT, substeps);
+    }
+
+    private static CommitModels migrationCommit(
+            String commitId,
+            ModelCommitStep... substeps) {
+        CommitModels commit = commit(commitId, substeps);
+        return new CommitModels(
+                commit.getCommitId(), commit.getReadStateIndex(),
+                commit.getReadModelIds(), commit.getSubsteps(),
+                commit.getConflictPolicy(), commit.getGuarantee(),
+                commit.isPossibleDuplicate(), true);
     }
 
     private static InMemoryEventStore denseStore() {

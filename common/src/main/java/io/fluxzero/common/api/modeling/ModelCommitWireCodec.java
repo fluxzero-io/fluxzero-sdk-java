@@ -173,6 +173,9 @@ public final class ModelCommitWireCodec {
             if (!(request instanceof CommitModels commit)) {
                 return false;
             }
+            if (commit.isMigration()) {
+                return false;
+            }
             ModelCommitTarget target = commit.singleTarget();
             if (target == null) {
                 return false;
@@ -297,7 +300,8 @@ public final class ModelCommitWireCodec {
                                             .build()),
                             conflictPolicy,
                             guarantee,
-                            possibleDuplicate));
+                            possibleDuplicate,
+                            false));
         }
         return new RequestBatch<>(commits);
     }

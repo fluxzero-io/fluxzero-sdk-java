@@ -16,7 +16,6 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
-import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -41,10 +40,15 @@ import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.search.AdoptModelMigration;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocumentResult;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
 import io.fluxzero.common.handling.ParameterResolver;
@@ -293,6 +297,87 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return modelId instanceof Id<?> id
                 ? EntityMetadata.of(id.getType()).repositoryId(id)
                 : modelId.toString();
+    }
+
+    @Override
+    public CompletableFuture<Void> adoptModelMigration(
+            @NonNull Object modelId,
+            @NonNull Class<?> modelType) {
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration()
+                .filter(root -> root.kind() == EntityMetadata.RootKind.MODEL)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        modelType.getName() + " is not a Model root"));
+        String collection;
+        if (configuration.searchable()) {
+            collection = Optional.of(configuration.collection())
+                    .filter(value -> !value.isEmpty())
+                    .map(ApplicationProperties::substituteProperties)
+                    .orElse(modelType.getSimpleName());
+        } else if (metadata.participatesInGraphComposition()) {
+            collection = ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION;
+        } else {
+            throw new IllegalArgumentException(
+                    modelType.getName() + " has no direct document to adopt");
+        }
+        String persistedId = metadata.repositoryId(modelId);
+        GetModelMigrationResult migration = client.getSearchClient()
+                .getModelMigration(new GetModelMigration(
+                        persistedId, collection));
+        ModelHeadState migratedHead = migration.getMigratedHead();
+        if (migratedHead == null) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException(
+                            "No staged Model migration exists for " + persistedId));
+        }
+        if (!modelType.getName().equals(migratedHead.getModelType())) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException(
+                            "Staged Model type %s does not match requested type %s for %s"
+                                    .formatted(
+                                            migratedHead.getModelType(),
+                                            modelType.getName(), persistedId)));
+        }
+        SerializedDocument production = migration.getProductionDocument();
+        SerializedDocument staged = migration.getMigratedDocument();
+        if (production != null
+            && (staged == null
+                || !sameCurrentValue(
+                        production, staged, modelType))) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException(
+                            "Migrated Model value differs from the production document for "
+                            + persistedId));
+        }
+        return client.getSearchClient().adoptModelMigration(
+                new AdoptModelMigration(
+                        persistedId, collection,
+                        migration.getProductionDocumentIndex(),
+                        migratedHead.getStateIndex(), STORED));
+    }
+
+    private boolean sameCurrentValue(
+            SerializedDocument left,
+            SerializedDocument right,
+            Class<?> modelType) {
+        DocumentSerializer documentSerializer = documentStore.getSerializer();
+        SerializedDocument normalizedLeft = documentSerializer.toDocument(
+                documentSerializer.fromDocument(left, modelType),
+                "$migration", "$migration", null, null, Metadata.empty());
+        SerializedDocument normalizedRight = documentSerializer.toDocument(
+                documentSerializer.fromDocument(right, modelType),
+                "$migration", "$migration", null, null, Metadata.empty());
+        return normalizedLeft.getDocument().equals(
+                        normalizedRight.getDocument())
+               && Objects.equals(
+                       normalizedLeft.getSummary(),
+                       normalizedRight.getSummary())
+               && Objects.equals(
+                       normalizedLeft.getFacets(),
+                       normalizedRight.getFacets())
+               && Objects.equals(
+                       normalizedLeft.getIndexes(),
+                       normalizedRight.getIndexes());
     }
 
     @Override
@@ -723,7 +808,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return loadContext(
                 resolution,
                 ModelReadBoundary.at(maxStateIndex),
-                stagedValues, includeMessageBatch);
+                stagedValues, includeMessageBatch, false);
+    }
+
+    public CommitAttempt loadContext(
+            MutationPlan.Resolution resolution,
+            Long maxStateIndex,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch,
+            boolean migration) {
+        return loadContext(
+                resolution,
+                ModelReadBoundary.at(maxStateIndex),
+                stagedValues, includeMessageBatch, migration);
     }
 
     private String messageBatchNamespace() {
@@ -758,6 +855,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch) {
+        return loadContext(
+                resolution, boundary, stagedValues,
+                includeMessageBatch, false);
+    }
+
+    private CommitAttempt loadContext(
+            MutationPlan.Resolution resolution,
+            ModelReadBoundary boundary,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch,
+            boolean migration) {
         String namespace = includeMessageBatch ? messageBatchNamespace() : null;
         Map<String, Object> effectiveStagedValues = stagedValues;
         if (includeMessageBatch) {
@@ -778,7 +886,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 includeMessageBatch
                         ? modelId -> ModelBatchScope.currentValue(namespace, modelId)
                         : null,
-                modelCacheTracker, true);
+                migration ? null : modelCacheTracker, true,
+                migration);
         return includeMessageBatch
                 ? ModelBatchScope.overlayCurrent(namespace, context)
                 : context;
@@ -971,16 +1080,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     private ModelReplayCursor.DocumentVersion loadDocumentProjection(
-            String modelId, Class<?> modelType) {
+            String modelId, Class<?> modelType, boolean migration) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         return loadDocumentUnchecked(
-                modelId, modelType, metadata, metadata.rootConfiguration().orElseThrow());
+                modelId, modelType, metadata,
+                metadata.rootConfiguration().orElseThrow(), migration);
     }
 
     @SuppressWarnings("unchecked")
     private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
-            EntityMetadata.RootConfiguration configuration) {
+            EntityMetadata.RootConfiguration configuration,
+            boolean migration) {
         String collection = configuration.searchable()
                 ? Optional.of(configuration.collection())
                         .filter(value -> !value.isEmpty())
@@ -994,7 +1105,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 .map(ApplicationProperties::substituteProperties)
                                 .orElse(modelType.getSimpleName());
         GetDocumentResult result = client.getSearchClient().fetchModelDocument(
-                new GetDocument(modelId, collection));
+                new GetDocument(
+                        modelId,
+                        migration
+                                ? ModelDocumentMutation.MIGRATION_COLLECTION
+                                : collection));
         ModelHeadState head = result.getModelHead();
         if (head != null) {
             if (!modelId.equals(head.getModelId())) {
@@ -1300,13 +1415,22 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 String commitId,
                 CommitAttempt evaluation,
                 ModelConflictPolicy conflictPolicy) {
-            return doPrepare(commitId, evaluation, conflictPolicy);
+            return prepare(commitId, evaluation, conflictPolicy, false);
+        }
+
+        public Outcome prepare(
+                String commitId,
+                CommitAttempt evaluation,
+                ModelConflictPolicy conflictPolicy,
+                boolean migration) {
+            return doPrepare(commitId, evaluation, conflictPolicy, migration);
         }
 
         private Outcome doPrepare(
                 String commitId,
                 CommitAttempt evaluation,
-                ModelConflictPolicy conflictPolicy) {
+                ModelConflictPolicy conflictPolicy,
+                boolean migration) {
             Objects.requireNonNull(commitId, "commitId");
             if (commitId.isBlank()) {
                 throw new IllegalArgumentException("Model commit ID must not be blank");
@@ -1368,20 +1492,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     Change anchor = graphPublished.getFirst();
                     ModelCommitTarget publicationTarget = target(
                             anchor.withEffects(false, true, false), message,
-                            anchor.beforeSequenceNumber(), false)
+                            anchor.beforeSequenceNumber(), false, migration)
                             .toBuilder().expectedSequenceNumber(null).build();
                     protocolSteps.add(new ModelCommitStep(
                             publication, true, List.of(publicationTarget)));
                 }
                 Long existingEventIndex = existingEventIndex(message);
-                if (existingEventIndex != null
-                    && committedTransitions.stream().anyMatch(
-                            transition -> transition.updateState()
-                                          && !transition.configuration().eventSourced())) {
-                    throw new UnsupportedOperationException(
-                            "Published-event migration currently supports only event-sourced Models; "
-                            + "document-backed Models require staging and an explicit fence cutover");
-                }
                 boolean publishEvent = !direct
                                        && existingEventIndex == null
                                        && (transitions.stream().anyMatch(Change::publishEvent)
@@ -1410,7 +1526,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 for (Change transition : committedTransitions) {
                     ModelCommitTarget target = target(
                             transition, message, nextSequences,
-                            cascadeRoots.contains(transition.modelId()));
+                            cascadeRoots.contains(transition.modelId()),
+                            migration);
                     targets.add(target);
                     preparedChanges.put(target, transition);
                 }
@@ -1423,7 +1540,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             CommitModels commit = new CommitModels(
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
-                    possibleDuplicate);
+                    possibleDuplicate, migration);
             return new Outcome(commit, preparedChanges);
         }
 
@@ -1436,14 +1553,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         "Cannot rebase an empty model commit");
             }
             Outcome rebased = doPrepare(
-                    commitId, evaluation, ModelConflictPolicy.ACCEPT);
+                    commitId, evaluation, ModelConflictPolicy.ACCEPT,
+                    original.commit().isMigration());
             requireSameShape(original, rebased);
             CommitModels candidate = rebased.commit();
             CommitModels commit = new CommitModels(
                     candidate.getCommitId(), candidate.getReadStateIndex(),
                     candidate.getReadModelIds(), candidate.getSubsteps(),
                     candidate.getConflictPolicy(), original.commit().getGuarantee(),
-                    original.commit().isPossibleDuplicate());
+                    original.commit().isPossibleDuplicate(),
+                    original.commit().isMigration());
             return new Outcome(commit, rebased.changes);
         }
 
@@ -1486,21 +1605,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 Change transition,
                 DeserializingMessage message,
                 Map<String, Long> nextSequences,
-                boolean cascadeDelete) {
+                boolean cascadeDelete,
+                boolean migration) {
             return target(
                     transition,
                     message,
                     nextSequence(transition, nextSequences),
-                    cascadeDelete);
+                    cascadeDelete, migration);
         }
 
         private ModelCommitTarget target(
                 Change transition,
                 DeserializingMessage message,
                 long nextSequence,
-                boolean cascadeDelete) {
+                boolean cascadeDelete,
+                boolean migration) {
             ModelDocumentMutation document = transition.updateState()
-                    && existingEventIndex(message) == null
+                    && (existingEventIndex(message) == null
+                        || migration)
                     ? directDocument(
                             transition,
                             message.getTimestamp(), message.getMetadata())
