@@ -218,12 +218,12 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
 
     @Override
-    public Search search(SearchQuery.Builder searchBuilder) {
-        return new DefaultSearch(searchBuilder);
+    public <T> Search<T> search(SearchQuery.Builder searchBuilder) {
+        return new DefaultSearch<>(searchBuilder);
     }
 
     @Override
-    public <T> Search searchGraph(
+    public <T> Search<Graph<T>> searchGraph(
             Class<T> rootModelType,
             boolean forceAdHoc) {
         EntityMetadata.RootConfiguration root =
@@ -400,7 +400,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     }
 
     @RequiredArgsConstructor
-    protected class DefaultSearch implements Search {
+    protected class DefaultSearch<R> implements Search<R> {
 
         private final SearchQuery.Builder queryBuilder;
         private final List<String> sorting = new ArrayList<>();
@@ -417,25 +417,25 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
-        public Search since(Instant start, boolean inclusive) {
+        public Search<R> since(Instant start, boolean inclusive) {
             queryBuilder.since(start).sinceExclusive(!inclusive);
             return this;
         }
 
         @Override
-        public Search before(Instant end, boolean inclusive) {
+        public Search<R> before(Instant end, boolean inclusive) {
             queryBuilder.before(end).beforeInclusive(inclusive);
             return this;
         }
 
         @Override
-        public Search inPeriod(Instant start, boolean startInclusive, Instant end, boolean endInclusive) {
+        public Search<R> inPeriod(Instant start, boolean startInclusive, Instant end, boolean endInclusive) {
             queryBuilder.since(start).sinceExclusive(!startInclusive).before(end).beforeInclusive(endInclusive);
             return this;
         }
 
         @Override
-        public Search constraint(Constraint... constraints) {
+        public Search<R> constraint(Constraint... constraints) {
             switch (constraints.length) {
                 case 0:
                     break;
@@ -450,7 +450,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
-        public Search relation(
+        public Search<R> relation(
                 ModelRelationConstraint... constraints) {
             for (ModelRelationConstraint constraint :
                     constraints) {
@@ -463,36 +463,36 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
-        public Search sortByTimestamp(boolean descending) {
+        public Search<R> sortByTimestamp(boolean descending) {
             return sortBy("timestamp", descending);
         }
 
         @Override
-        public Search sortByScore() {
+        public Search<R> sortByScore() {
             sorting.add("-score");
             return this;
         }
 
         @Override
-        public Search sortBy(String path, boolean descending) {
+        public Search<R> sortBy(String path, boolean descending) {
             sorting.add((descending ? "-" : "") + path);
             return this;
         }
 
         @Override
-        public Search exclude(String... paths) {
+        public Search<R> exclude(String... paths) {
             pathFilters.addAll(Arrays.stream(paths).map(p -> "-" + p).toList());
             return this;
         }
 
         @Override
-        public Search includeOnly(String... paths) {
+        public Search<R> includeOnly(String... paths) {
             pathFilters.addAll(Arrays.asList(paths));
             return this;
         }
 
         @Override
-        public Search skip(Integer n) {
+        public Search<R> skip(Integer n) {
             if (n != null) {
                 this.skip = n;
             }
@@ -500,12 +500,12 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
-        public <T> Stream<SearchHit<T>> streamHits() {
+        public Stream<SearchHit<R>> streamHits() {
             return fetchHitStream(null, null);
         }
 
         @Override
-        public <T> Stream<SearchHit<T>> streamHits(int fetchSize) {
+        public Stream<SearchHit<R>> streamHits(int fetchSize) {
             return fetchHitStream(null, null, fetchSize);
         }
 
@@ -520,8 +520,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
-        public <T> List<T> fetch(int maxSize) {
-            return this.<T>fetchHitStream(maxSize, null).map(SearchHit::getValue).collect(toList());
+        public List<R> fetch(int maxSize) {
+            return this.<R>fetchHitStream(maxSize, null).map(SearchHit::getValue).collect(toList());
         }
 
         @Override
@@ -530,7 +530,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
 
         @Override
-        public <T> CompletableFuture<List<T>> fetchAsync(int maxSize) {
+        public CompletableFuture<List<R>> fetchAsync(int maxSize) {
             return fetchAsync(maxSize, null);
         }
 
@@ -715,7 +715,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         }
     }
 
-    protected class DefaultGraphSearch<T> extends DefaultSearch {
+    protected class DefaultGraphSearch<T> extends DefaultSearch<Graph<T>> {
 
         private final Class<T> rootModelType;
         private final Map<String, String> pathOverrides;

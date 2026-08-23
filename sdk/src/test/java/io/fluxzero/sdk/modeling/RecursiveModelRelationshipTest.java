@@ -70,7 +70,7 @@ class RecursiveModelRelationshipTest {
                             folderIds(bounded.descendantModels(RecursiveFolder.class)));
 
                     Graph<RecursiveFolder> projected = Fluxzero.searchGraph(RecursiveFolder.class)
-                            .<Graph<RecursiveFolder>>fetchAll().stream()
+                            .stream()
                             .filter(graph -> graph.get() != null
                                              && secondRoot.equals(graph.get().folderId()))
                             .findFirst().orElseThrow();

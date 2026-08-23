@@ -1604,7 +1604,7 @@ class ModelCommitHandlerIntegrationTest {
                 .expectThat(fluxzero -> {
                     Graph<ProjectionRoot> graph =
                             Fluxzero.searchGraph(ProjectionRoot.class)
-                                    .<Graph<ProjectionRoot>>fetchAll().stream()
+                                    .stream()
                                     .filter(candidate -> emptyRoot.equals(
                                             candidate.get().projectionRootId()))
                                     .findFirst().orElseThrow();
@@ -1641,7 +1641,7 @@ class ModelCommitHandlerIntegrationTest {
                 .expectTrue(fluxzero -> {
                     Graph<ProjectionRoot> graph = Fluxzero.searchGraph(
                                     ProjectionRoot.class)
-                            .<Graph<ProjectionRoot>>fetchAll().getFirst();
+                            .fetchAll().getFirst();
                     Graph<ProjectionRoot> filtered =
                             fluxzero.serializer().filterContent(graph, null);
                     return filtered.childModels(

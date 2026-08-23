@@ -1,5 +1,6 @@
 package io.fluxzero.sdk.modeling
 
+import io.fluxzero.sdk.Fluxzero
 import io.fluxzero.sdk.persisting.eventsourcing.Apply
 import io.fluxzero.sdk.persisting.search.Searchable
 import org.junit.jupiter.api.Test
@@ -18,6 +19,11 @@ class ModelKotlinTest {
         assertTrue(annotation.searchable)
         assertEquals("kotlin-models", annotation.searchProjection.collection)
         assertEquals(1, KotlinModel("model", emptyList()).rename(RenameKotlinModel("new")).parts.size)
+    }
+
+    @Suppress("unused")
+    private fun typedGraphSearch(): List<Graph<KotlinModel>> {
+        return Fluxzero.searchGraph(KotlinModel::class.java).fetchAll()
     }
 }
 

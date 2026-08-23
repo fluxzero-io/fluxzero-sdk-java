@@ -327,7 +327,7 @@ event is not implicitly a complete graph-change subscription; that requires the 
 ```kotlin
 val open = Fluxzero.search(Task::class.java)
     .match(false, "completed")
-    .fetchAll(Task::class.java)
+    .fetchAll()
 
 val related = Fluxzero.search(Task::class.java)
     .whereAncestor(
@@ -338,9 +338,9 @@ val related = Fluxzero.search(Task::class.java)
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
-`searchGraph(Root::class.java).fetch(...)` for complete typed lazy `Graph<Root>` results. It reads a configured
-`@GraphProjection` by default and otherwise stitches current direct documents live; pass `true` as the second argument
-to force live composition. Use `fetch(..., ObjectNode::class.java)` for explicit raw JSON. Enable materialization with
+`searchGraph(Root::class.java).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness.
+It reads a configured `@GraphProjection` by default and otherwise stitches current direct documents live; pass `true`
+as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` for explicit raw JSON. Enable materialization with
 `@Model(searchable = true, materializeGraph = true)`. A blank projection collection derives
 `<resolved model collection>-graphs`; explicit lower-level composition limits fail rather than returning a partial
 graph.

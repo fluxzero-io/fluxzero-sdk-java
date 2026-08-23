@@ -124,11 +124,11 @@ val results = Fluxzero.search(Task::class.java)
         Project::class.java,
         MatchConstraint.match("ACTIVE", "status")
     )
-    .fetchAll(Task::class.java)
+    .fetchAll()
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
-and further traversal. `searchGraph(Root::class.java).fetch(...)` returns typed lazy `Graph<Root>` values through
+and further traversal. `searchGraph(Root::class.java).stream()` returns typed lazy `Graph<Root>` values through
 explicit `@Parent(path = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches
 live; pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` only for
 an explicit raw JSON boundary. Full-graph constraints mean the same on both routes.

@@ -1502,22 +1502,38 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * For all other inputs, the collection name will be obtained by calling {@link Object#toString()} on the input.
      * <p>
-     * Example usage: Fluxzero.search("myCollection").query("foo !bar").fetch(100);
+     * Example usage: {@code Fluxzero.<MyDocument>search("myCollection").query("foo !bar").fetch(100)}.
      */
-    static Search search(Object collection) {
+    static <T> Search<T> search(Object collection) {
         return get().documentStore().search(collection);
+    }
+
+    /**
+     * Search the collection represented by the given document class and retain that class as the default result type.
+     */
+    static <T> Search<T> search(Class<T> collection) {
+        return get().documentStore().search(collection);
+    }
+
+    /**
+     * Search the collections represented by the given document class and additional collection identifiers while
+     * retaining the document class as the default result type.
+     */
+    static <T> Search<T> search(Class<T> collection, Object... additionalCollections) {
+        return get().documentStore()
+                .search(Stream.concat(Stream.of(collection), stream(additionalCollections)).toList());
     }
 
     /**
      * Search the given collections for documents.
      * <p>
-     * If collection is of type {@link Class} it is expected that the class is annotated with * {@link Searchable}. It
+     * If collection is of type {@link Class} it is expected that the class is annotated with {@link Searchable}. It
      * will then use the collection configured there. For all other inputs, the collection name will be obtained by
      * calling {@link Object#toString()} on the input.
      * <p>
      * Example usage: Fluxzero.search("myCollection", "myOtherCollection).query("foo !bar").fetch(100);
      */
-    static Search search(Object collection, Object... additionalCollections) {
+    static <T> Search<T> search(Object collection, Object... additionalCollections) {
         return get().documentStore()
                 .search(Stream.concat(Stream.of(collection), stream(additionalCollections)).toList());
     }
@@ -1527,7 +1543,7 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * Example usage: Fluxzero.search(SearchQuery.builder().search("myCollection").query("foo !bar")).fetch(100);
      */
-    static Search search(SearchQuery.Builder queryBuilder) {
+    static <T> Search<T> search(SearchQuery.Builder queryBuilder) {
         return get().documentStore().search(queryBuilder);
     }
 
@@ -1535,7 +1551,7 @@ public interface Fluxzero extends AutoCloseable {
      * Searches complete graph views for an independent model root. A configured materialized view is preferred;
      * otherwise the graph is composed live.
      */
-    static <T> Search searchGraph(
+    static <T> Search<Graph<T>> searchGraph(
             Class<T> rootModelType) {
         return get().documentStore()
                 .searchGraph(rootModelType);
@@ -1546,7 +1562,7 @@ public interface Fluxzero extends AutoCloseable {
      *
      * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
      */
-    static <T> Search searchGraph(
+    static <T> Search<Graph<T>> searchGraph(
             Class<T> rootModelType,
             boolean forceAdHoc) {
         return get().documentStore()

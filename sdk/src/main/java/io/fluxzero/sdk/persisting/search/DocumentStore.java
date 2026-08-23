@@ -25,6 +25,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import jakarta.validation.constraints.NotNull;
 import lombok.NonNull;
@@ -362,16 +363,23 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * {@link Collection list} of collections. Collection names are resolved using
      * {@link #determineCollection(Object)}.
      */
-    default Search search(@NonNull Object collection) {
+    default <T> Search<T> search(@NonNull Object collection) {
         List<String> collections = (collection instanceof Collection<?> list ? list.stream() : Stream.of(collection))
                 .map(this::determineCollection).toList();
         return search(SearchQuery.builder().collections(collections));
     }
 
     /**
+     * Prepares a typed search for the collection represented by the given document class.
+     */
+    default <T> Search<T> search(@NonNull Class<T> collection) {
+        return this.<T>search((Object) collection);
+    }
+
+    /**
      * Prepares a search query based on the specified {@link SearchQuery.Builder}.
      */
-    Search search(SearchQuery.Builder queryBuilder);
+    <T> Search<T> search(SearchQuery.Builder queryBuilder);
 
     /**
      * Searches complete graph views for an independent model root.
@@ -379,7 +387,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * A configured materialized graph collection is used by default. If the root has no materialized projection, the
      * current graph is composed live from direct documents and explicit parent paths.
      */
-    default <T> Search searchGraph(
+    default <T> Search<Graph<T>> searchGraph(
             @NonNull Class<T> rootModelType) {
         return searchGraph(
                 rootModelType, false);
@@ -391,7 +399,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * @param rootModelType root model class
      * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
      */
-    default <T> Search searchGraph(
+    default <T> Search<Graph<T>> searchGraph(
             @NonNull Class<T> rootModelType,
             boolean forceAdHoc) {
         throw new UnsupportedOperationException(

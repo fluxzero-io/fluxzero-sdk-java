@@ -248,7 +248,7 @@ public class HandleDocumentTest {
                     }
                 }).whenExecuting(fc -> Fluxzero.index(new MyDocument("foo")).get())
                 .expectEvents("got here")
-                .expectFalse(fc -> Fluxzero.search(MyDocument.class).<MyDocument>fetchFirst().orElseThrow()
+                .expectFalse(fc -> Fluxzero.search(MyDocument.class).fetchFirst().orElseThrow()
                         .getValue().equals("bar"));
     }
 

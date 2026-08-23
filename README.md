@@ -3252,10 +3252,11 @@ public record Address(
 
 Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
 injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
-`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. `searchGraph(User.class)` returns complete typed,
-lazy `Graph<User>` results: it uses a configured materialized projection and otherwise stitches current direct
-documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a
-boundary that explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. `searchGraph(User.class)` returns a
+`Search<Graph<User>>`, so `stream()`, `fetchAll()`, `fetchFirst()` and other terminal operations remain typed without a
+cast or type witness. It uses a configured materialized projection and otherwise stitches current direct documents
+live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a boundary that
+explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
 `searchable = false` suppresses only the address's own search collection: an explicit
 `@Parent(path = "...")` still gives graph composition an internal current document.
 
@@ -4620,6 +4621,11 @@ List<UserAccount> users = Fluxzero
         .match("Netherlands", "profile.country")
         .fetchAll();
 ```
+
+Class-based searches retain their result type throughout the fluent chain. For a dynamic collection name, either let
+the assignment provide that type as in the first example or make it explicit at the entry point with
+`Fluxzero.<UserAccount>search("users")`. Explicit `Class<T>` terminal overloads remain available when one search can
+contain heterogeneous document types.
 
 > **Note:** You can choose to split path segments using either a dot (`.`) or a slash (`/`).  
 > For example, `profile.name` and `profile/name` are treated identically.  
