@@ -538,10 +538,7 @@ public final class EntityMetadata {
     }
 
     private String configuredModelDocumentCollection() {
-        return Optional.of(rootConfiguration.collection())
-                .filter(value -> !value.isEmpty())
-                .map(ApplicationProperties::substituteProperties)
-                .orElse(type.getSimpleName());
+        return rootConfiguration.resolvedCollection(type);
     }
 
     /** Returns this root's application-resolved materialized graph definition, if enabled. */
@@ -1435,6 +1432,13 @@ public final class EntityMetadata {
             String collection,
             String timestampPath,
             String endPath) {
+
+        String resolvedCollection(Class<?> type) {
+            return Optional.of(collection)
+                    .filter(value -> !value.isEmpty())
+                    .map(ApplicationProperties::substituteProperties)
+                    .orElse(type.getSimpleName());
+        }
 
         static RootConfiguration model(Model annotation) {
             return new RootConfiguration(
