@@ -186,6 +186,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = GetDocumentsResult.class, name = "getDocumentsResult"),
         @JsonSubTypes.Type(value = GetModelMigration.class, name = "getModelMigration"),
         @JsonSubTypes.Type(value = GetModelMigrationResult.class, name = "getModelMigrationResult"),
+        @JsonSubTypes.Type(value = GetModelMigrations.class, name = "getModelMigrations"),
+        @JsonSubTypes.Type(value = GetModelMigrationsResult.class, name = "getModelMigrationsResult"),
         @JsonSubTypes.Type(value = AdoptModelMigration.class, name = "adoptModelMigration"),
         @JsonSubTypes.Type(value = DeleteCollection.class, name = "deleteCollection"),
         @JsonSubTypes.Type(value = DeleteDocuments.class, name = "deleteDocuments"),

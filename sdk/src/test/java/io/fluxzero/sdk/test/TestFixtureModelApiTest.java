@@ -148,8 +148,7 @@ class TestFixtureModelApiTest {
                 .expectNoErrors()
                 .andThen()
                 .whenApplying(ignored -> {
-                    Fluxzero.adoptModelMigration(
-                            modelId, LegacyDocumentModel.class).join();
+                    Fluxzero.adoptModelMigrations().join();
                     return Fluxzero.<LegacyDocumentModel>loadModel(
                             modelId).get();
                 })
@@ -170,14 +169,43 @@ class TestFixtureModelApiTest {
                 .expectNoEvents()
                 .expectNoErrors()
                 .andThen()
-                .whenApplying(ignored -> Fluxzero.adoptModelMigration(
-                        modelId, LegacyDocumentModel.class).join())
+                .whenApplying(ignored -> Fluxzero.adoptModelMigrations().join())
                 .expectExceptionalResult(
                         java.util.concurrent.CompletionException.class)
                 .andThen()
                 .whenApplying(ignored -> Fluxzero.getDocument(
                         modelId, LegacyDocumentModel.class).orElseThrow())
                 .expectResult(legacy);
+    }
+
+    @Test
+    @Timeout(2)
+    void adoptsEveryStagedDocumentIncludingModelsWithoutLegacyState() {
+        String existingId = "existing-legacy-document";
+        String newId = "new-migrated-document";
+
+        TestFixture.createAsync(new LegacyDocumentMigrationHandler())
+                .givenDocument(
+                        new LegacyDocumentModel(existingId, 1), existingId,
+                        LegacyDocumentModel.class)
+                .whenEvent(new LegacyDocumentIncrement(existingId, 1))
+                .expectNoErrors()
+                .andThen()
+                .whenEvent(new LegacyDocumentIncrement(newId, 2))
+                .expectNoErrors()
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.adoptModelMigrations().join())
+                .expectResult(2)
+                .andThen()
+                .whenApplying(ignored -> List.of(
+                        Fluxzero.<LegacyDocumentModel>loadModel(existingId).get(),
+                        Fluxzero.<LegacyDocumentModel>loadModel(newId).get()))
+                .expectResult(List.of(
+                        new LegacyDocumentModel(existingId, 1),
+                        new LegacyDocumentModel(newId, 2)))
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.adoptModelMigrations().join())
+                .expectResult(0);
     }
 
     @Test

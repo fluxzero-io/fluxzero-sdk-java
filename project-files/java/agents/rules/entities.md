@@ -429,8 +429,9 @@ boundaries change. Keep old persisted aggregate code on the 1.x compatibility AP
 For an event-sourced backfill, a dedicated side-effect-free global-event consumer may call
 `Fluxzero.migratePublishedEvent()` while handling each original indexed event. This replays payload then Model
 `@Apply`, retains the original event index and message ID, does not republish, and is idempotent. It does not recover
-legacy `STORE_ONLY` events. Document-backed Models are rebuilt in invisible staging; after catch-up,
-`Fluxzero.adoptModelMigration(modelId, ModelType.class)` upcasts and compares staged and production values and
-atomically adopts only an unchanged, equal result without rewriting an existing document. Live cutover and rollback
-still require an application-specific boundary and proof.
+legacy `STORE_ONLY` events. Document-backed Models are rebuilt in invisible staging; after registering the complete
+Model catalog, `Fluxzero.adoptModelMigrations()` upcasts and compares every staged and production value, atomically
+adopts only unchanged equal results without rewriting existing documents, and rebuilds declared materialized Graphs.
+Repeat the plural operation to resume a partial cutover. Live cutover and rollback still require an
+application-specific boundary and proof.
 All new examples and implementations should use `@Model`.

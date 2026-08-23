@@ -3518,13 +3518,18 @@ currently handled indexed event. Legacy `STORE_ONLY` Aggregate events have no gl
 backfill source.
 
 For a document-backed Model, replayed direct documents remain in an internal staging collection and are invisible to
-ordinary loads, searches, graph composition and monitors. After the migration consumer has caught up, call
-`Fluxzero.adoptModelMigration(modelId, ModelType.class)` for each reconstructed Model. Fluxzero deserializes and upcasts
-both the staged value and any existing production document to the supplied current Model type. It adopts only equal
-values and only while the observed production document version and staged Model state are unchanged. An existing
-document is left untouched and receives its Model write fence atomically; when no document exists, the staged document
-is copied into its normal collection in that transaction. A mismatch or concurrent legacy write fails without
-discarding staging, so the consumer can catch up and retry.
+ordinary loads, searches, graph composition and monitors. Register the complete application Model catalog with
+`fluxzero.registerModelMigrationTypes(modelTypes)`; after the migration consumer has caught up, call
+`Fluxzero.adoptModelMigrations()`. Fluxzero drains staging in bounded
+batches, deserializes and upcasts each staged value and any existing production document to the current Model type,
+and adopts only equal values while the observed production document version and staged Model state are unchanged. An
+existing document is left untouched and receives its Model write fence atomically; when no document exists, the staged
+document is copied into its normal collection in that transaction. If an unchanged legacy document still contains
+embedded Aggregate children, Fluxzero retains the normalized staged value as an invisible Graph-composition source
+until the first ordinary Model write replaces it. After all documents are adopted, the plural operation rebuilds every
+application-declared materialized Graph projection. Repeating it returns zero adopted documents and safely resumes
+those rebuilds. A mismatch or concurrent legacy write fails without discarding staging, so the consumer can catch up
+and retry.
 
 Live handler cutover and rollback remain application-specific: stop legacy business writes at an explicit event
 boundary before adoption, and do not treat changing `@Aggregate` to `@Model` as a persistence migration.

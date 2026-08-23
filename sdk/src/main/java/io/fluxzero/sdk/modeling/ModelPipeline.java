@@ -429,6 +429,7 @@ final class ModelPipeline {
                 repositoryCommit.trackLocalCommit(
                         evaluation,
                         message,
+                        migration,
                         () -> commit(
                                 repositoryCommit, message.getMessageId(), evaluation,
                                 effectiveConflictPolicy, retry,

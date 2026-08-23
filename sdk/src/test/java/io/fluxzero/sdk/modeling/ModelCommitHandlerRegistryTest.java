@@ -613,6 +613,29 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Test
+    void publishedEventMigrationDoesNotStartMaterializedGraphProjection() {
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        stubModelLoads(repository);
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation ->
+                CompletableFuture.completedFuture(
+                        acceptedResult(invocation.getArgument(0))));
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+
+        try {
+            subject.migratePublishedEvent(
+                    new Message(new RetryRootMigration("migrated-graph")),
+                    42L).join();
+
+            verify(repository, never()).registerGraphProjection(
+                    any(), anyBoolean());
+            verify(eventStoreClient).commitModels(any());
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
     void explicitBulkAssertAndApplyFlushesValidCommitsWhenAnotherUpdateFails() throws Exception {
         DefaultModelRepository repository = mock(DefaultModelRepository.class);
         stubModelLoads(repository);
@@ -1748,6 +1771,26 @@ class ModelCommitHandlerRegistryTest {
                 .registerModelGraphProjection(any());
     }
 
+    @Test
+    void migrationRegistrationAddsOnlyModelDefinitions() {
+        DefaultModelRepository repository =
+                mock(DefaultModelRepository.class);
+        ModelCommitHandlerRegistry subject = subject(
+                repository, mock(EventStoreClient.class));
+
+        Registration registration = subject.registerMigrationTypes(
+                List.of(RetryRoot.class));
+
+        assertTrue(subject.registeredModelTypes().contains(
+                RetryRoot.class));
+        verify(repository, never()).registerGraphProjection(
+                any(), anyBoolean());
+
+        registration.cancel();
+        assertFalse(subject.registeredModelTypes().contains(
+                RetryRoot.class));
+    }
+
     private static ModelCommitHandlerRegistry subject(
             AutomaticModelHandling automaticHandling) {
         return subject(
@@ -2000,6 +2043,13 @@ class ModelCommitHandlerRegistryTest {
                     collection = "retryRoots"))
     private record RetryRoot(
             @EntityId String id) {
+    }
+
+    private record RetryRootMigration(String id) {
+        @Apply
+        RetryRoot apply() {
+            return new RetryRoot(id);
+        }
     }
 
     @Model

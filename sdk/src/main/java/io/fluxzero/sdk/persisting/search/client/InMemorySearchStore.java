@@ -39,6 +39,8 @@ import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.GetModelMigrations;
+import io.fluxzero.common.api.search.GetModelMigrationsResult;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.ModelGraphComposition;
@@ -110,6 +112,8 @@ public class InMemorySearchStore implements SearchClient {
 
     private final Map<String, SerializedDocument> documents = new ConcurrentHashMap<>();
     private final Map<String, DirectDocumentVersion> modelDocumentVersions =
+            new ConcurrentHashMap<>();
+    private final Map<String, SerializedDocument> adoptedModelSources =
             new ConcurrentHashMap<>();
     private final Map<String, Long> documentIndices =
             new ConcurrentHashMap<>();
@@ -328,6 +332,7 @@ public class InMemorySearchStore implements SearchClient {
         if (roots.isEmpty()) {
             return Stream.empty();
         }
+        roots = roots.stream().map(this::effectiveModelSource).toList();
         List<ModelGraphEdge> edges =
                 ModelGraphDocumentStitcher
                         .applyPathOverrides(
@@ -420,6 +425,20 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     @Override
+    public synchronized GetModelMigrationsResult getModelMigrations(
+            GetModelMigrations request) {
+        List<ModelHeadState> migrations = modelDocumentVersions.values().stream()
+                .filter(version -> io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION.equals(
+                        version.collection()))
+                .map(DirectDocumentVersion::head)
+                .sorted(comparing(ModelHeadState::getModelId))
+                .limit(request.getMaxSize())
+                .toList();
+        return new GetModelMigrationsResult(
+                request.getRequestId(), migrations);
+    }
+
+    @Override
     public synchronized CompletableFuture<Void> adoptModelMigration(
             AdoptModelMigration request) {
         String productionKey = asIdentifier(
@@ -474,6 +493,10 @@ public class InMemorySearchStore implements SearchClient {
             documentIndices.put(
                     productionKey, nextDocumentIndex.incrementAndGet());
             collections.add(request.getCollection());
+        } else if (staged != null) {
+            adoptedModelSources.put(
+                    request.getModelId(),
+                    staged.withCollection(request.getCollection()));
         }
         modelDocumentVersions.put(
                 productionKey,
@@ -526,7 +549,7 @@ public class InMemorySearchStore implements SearchClient {
         roots.forEach(document ->
                               result.put(
                                       document.getId(),
-                                      document));
+                                      effectiveModelSource(document)));
         if (modelDocumentCollectionResolver
             != null) {
             modelDocumentCollectionResolver.resolve(
@@ -540,7 +563,7 @@ public class InMemorySearchStore implements SearchClient {
                         if (document != null) {
                             result.put(
                                     modelId,
-                                    document);
+                                    effectiveModelSource(document));
                         }
                     });
             return result;
@@ -551,6 +574,7 @@ public class InMemorySearchStore implements SearchClient {
                                 && !io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION.equals(
                                         document.getCollection()))
                 .forEach(document -> {
+                    document = effectiveModelSource(document);
                     SerializedDocument existing =
                             result.putIfAbsent(
                                     document.getId(),
@@ -780,6 +804,9 @@ public class InMemorySearchStore implements SearchClient {
                                                 target.getModelId(), modelType,
                                                 position.getSequenceNumber(), stateIndex,
                                                 position.isHistoryComplete(), target.isDelete())));
+                        if (!commit.isMigration()) {
+                            adoptedModelSources.remove(target.getModelId());
+                        }
                         if (document == null) {
                             documents.remove(documentKey);
                             documentIndices.remove(documentKey);
@@ -896,6 +923,9 @@ public class InMemorySearchStore implements SearchClient {
                                     configuration
                                             .getRootCollection(),
                                     rootId));
+            if (root != null) {
+                root = effectiveModelSource(root);
+            }
             if (root == null) {
                 SerializedDocument previous = documents.remove(projectionKey);
                 modelGraphProjectionStateIndices.put(
@@ -991,6 +1021,14 @@ public class InMemorySearchStore implements SearchClient {
         }
         storeMessages(indexed);
         storeMessages(configuration.getCollection(), tombstones);
+    }
+
+    private SerializedDocument effectiveModelSource(
+            SerializedDocument document) {
+        return Optional.ofNullable(
+                        adoptedModelSources.get(document.getId()))
+                .map(source -> source.withCollection(document.getCollection()))
+                .orElse(document);
     }
 
     private void trimModelSnapshots(

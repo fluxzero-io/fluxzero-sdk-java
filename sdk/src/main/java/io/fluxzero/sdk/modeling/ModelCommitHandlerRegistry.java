@@ -38,6 +38,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 
 import java.lang.reflect.Parameter;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -104,6 +105,21 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     /** Returns registered or structurally referenced concrete model types. */
     public List<Class<?>> knownModelTypes() {
         return definitions.knownModelTypes();
+    }
+
+    /** Registers Model definitions for migration without enabling command tracking or Graph projections. */
+    public Registration registerMigrationTypes(
+            Collection<Class<?>> modelTypes) {
+        List<Class<?>> validated = List.copyOf(new LinkedHashSet<>(
+                Objects.requireNonNull(modelTypes, "Model types")));
+        validated.forEach(type -> {
+            if (!EntityMetadata.of(type).isModel()) {
+                throw new IllegalArgumentException(
+                        type.getName() + " is not a Model root");
+            }
+        });
+        validated.forEach(definitions::register);
+        return () -> validated.forEach(definitions::unregister);
     }
 
     /** Executes one explicit update through the model pipeline. */

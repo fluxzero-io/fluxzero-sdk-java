@@ -26,6 +26,8 @@ import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.GetModelMigrations;
+import io.fluxzero.common.api.search.GetModelMigrationsResult;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
@@ -187,6 +189,13 @@ public interface SearchClient extends AutoCloseable {
             GetModelMigration request) {
         throw new UnsupportedOperationException(
                 "Model migration inspection is not supported by this search client");
+    }
+
+    /** Retrieves a bounded batch of staged direct Model migrations. */
+    default GetModelMigrationsResult getModelMigrations(
+            GetModelMigrations request) {
+        throw new UnsupportedOperationException(
+                "Model migration enumeration is not supported by this search client");
     }
 
     /** Atomically adopts a previously inspected and application-verified staged Model document. */

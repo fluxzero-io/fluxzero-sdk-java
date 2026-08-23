@@ -26,6 +26,8 @@ import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
 import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.GetModelMigrations;
+import io.fluxzero.common.api.search.GetModelMigrationsResult;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
@@ -168,6 +170,12 @@ class DocumentTrackingSearchClient implements SearchClient {
     public GetModelMigrationResult getModelMigration(
             GetModelMigration request) {
         return delegate.getModelMigration(request);
+    }
+
+    @Override
+    public GetModelMigrationsResult getModelMigrations(
+            GetModelMigrations request) {
+        return delegate.getModelMigrations(request);
     }
 
     @Override

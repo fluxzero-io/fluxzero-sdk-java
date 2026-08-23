@@ -219,18 +219,21 @@ The handler must receive an indexed event that is still available in the co-loca
 `STORE_ONLY` Aggregate events have no global index and cannot be recovered through this route. Keep normal side-effect
 handlers out of the migration application.
 
-For document-backed Models, replayed direct documents remain in invisible staging. After catch-up, adopt each such
-Model explicitly:
+For document-backed Models, replayed direct documents remain in invisible staging. Register the complete application
+Model catalog in the migration process and adopt the staged set after catch-up:
 
 ```java
-Fluxzero.adoptModelMigration(orderId, Order.class).join();
+Registration migrationModels = fluxzero.registerModelMigrationTypes(modelTypes);
+int adopted = Fluxzero.adoptModelMigrations().join();
 ```
 
-Fluxzero deserializes and upcasts the staged value and any existing production document to the supplied Model type. It
-then requires equal current values and unchanged staged state. If a production document exists, adoption also uses its
-observed document index as a compare-and-set condition, leaves the document itself untouched, and atomically adds only
-the Model write fence. If it does not exist, the staged document is copied into its normal collection in the same
-transaction. A value difference or concurrent legacy write retains staging and fails adoption.
+Fluxzero resolves each durable staged type from that catalog, deserializes and upcasts the staged value and any existing
+production document, and requires equal current values and unchanged staged state. If a production document exists,
+adoption also uses its observed document index as a compare-and-set condition, leaves the document itself untouched,
+and atomically adds only the Model write fence. If it does not exist, the staged document is copied into its normal
+collection in the same transaction. The plural operation drains bounded batches and then rebuilds all materialized
+Graph projections declared by the catalog; repeat the same call to resume an interrupted cutover. A value difference,
+unknown staged type or concurrent legacy write retains staging and fails adoption.
 
 Qualify catch-up, an explicit final event boundary, handler cutover and rollback before switching write ownership.
 

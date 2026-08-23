@@ -202,14 +202,13 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
-     * Verifies and atomically adopts the staged direct document produced by published-event migration.
-     * <p>
-     * Existing production documents are deserialized and upcast to {@code modelType} before comparison. A differing
-     * value or a concurrent legacy document write fails adoption without changing production state.
+     * Verifies and adopts every staged direct Model migration known to this application.
+     * Materialized Graph projections declared by the application are rebuilt after every staged document has been
+     * adopted. Repeating the operation is therefore also a safe way to resume projection rebuilds after a failure.
+     *
+     * @return the number of staged Model documents adopted by this invocation
      */
-    default CompletableFuture<Void> adoptModelMigration(
-            @NonNull Object modelId,
-            @NonNull Class<?> modelType) {
+    default CompletableFuture<Integer> adoptModelMigrations() {
         return CompletableFuture.failedFuture(
                 new UnsupportedOperationException(
                         "Model migration adoption is not supported by this repository"));

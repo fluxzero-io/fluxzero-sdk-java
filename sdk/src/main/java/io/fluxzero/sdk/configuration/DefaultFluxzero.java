@@ -302,6 +302,16 @@ public class DefaultFluxzero implements Fluxzero {
     }
 
     @Override
+    public Registration registerModelMigrationTypes(
+            Collection<Class<?>> modelTypes) {
+        ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
+        if (executor == null) {
+            return Fluxzero.super.registerModelMigrationTypes(modelTypes);
+        }
+        return executor.registerMigrationTypes(modelTypes);
+    }
+
+    @Override
     public CompletableFuture<Void> executeModelAssertions(Message update) {
         ModelCommitHandlerRegistry executor = modelCommitExecutor.get();
         if (executor == null) {
@@ -1132,7 +1142,7 @@ public class DefaultFluxzero implements Fluxzero {
                     configuredMaxModelConflictRetries(),
                     configuredAutomaticModelHandling(),
                     configuredGraphProjectionCompletion());
-            commandModelRepository.configureGraphProjectionModelTypes(
+            commandModelRepository.configureModelTypes(
                     modelCommitHandlerRegistry::knownModelTypes);
             if (runtimeDocumentStore instanceof DefaultDocumentStore defaultDocumentStore) {
                 defaultDocumentStore.configureModelGraphSupport(

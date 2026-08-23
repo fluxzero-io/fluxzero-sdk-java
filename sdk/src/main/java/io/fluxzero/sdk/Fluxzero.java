@@ -714,7 +714,7 @@ public interface Fluxzero extends AutoCloseable {
      *
      * <p>This operation is intended for controlled Aggregate-to-Model migrations and must be invoked while handling an
      * indexed {@link MessageType#EVENT EVENT} message. Direct documents are kept in invisible migration staging until
-     * {@link #adoptModelMigration(Object, Class)} verifies and adopts them.</p>
+     * {@link #adoptModelMigrations()} verifies and adopts them after the complete Model catalog has been registered.</p>
      */
     static void migratePublishedEvent() {
         awaitModelCommit(migratePublishedEventAsync());
@@ -1183,18 +1183,16 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Verifies and atomically adopts one direct Model document reconstructed by published-event migration.
-     * Existing and staged documents are upcast to the supplied current Model type before their values are compared.
-     * An existing equal document is not rewritten; its Model fence is added only while the inspected document version
-     * and staged state remain unchanged. If no production document exists, the staged document is copied atomically.
+     * Verifies and atomically adopts every staged direct Model migration whose type is registered in this
+     * application. Staging is drained in bounded batches and a failed item remains staged, so the operation can be
+     * resumed after the underlying mismatch or configuration problem has been resolved. After document adoption,
+     * every application-declared materialized Graph projection is rebuilt from the adopted Model sources. Repeating
+     * this operation safely resumes those rebuilds even when no staged document remains.
      *
-     * @return completion after the staged document has been durably adopted
+     * @return the number of staged Model documents adopted by this invocation
      */
-    static CompletableFuture<Void> adoptModelMigration(
-            Object modelId,
-            Class<?> modelType) {
-        return currentModelRepository().adoptModelMigration(
-                modelId, modelType);
+    static CompletableFuture<Integer> adoptModelMigrations() {
+        return currentModelRepository().adoptModelMigrations();
     }
 
     private static ModelRepository currentModelRepository() {
@@ -1689,6 +1687,30 @@ public interface Fluxzero extends AutoCloseable {
      */
     default Registration registerHandlers(Object... handlers) {
         return registerHandlers(Arrays.asList(handlers));
+    }
+
+    /**
+     * Registers only the supplied Model definitions for published-event migration.
+     * <p>
+     * Unlike ordinary handler registration this starts no command consumer and deliberately does not register
+     * materialized Graph projections. Payload {@code @Apply} methods are still discovered from each replayed event.
+     * This keeps a shadow backfill free of application handlers and visible derived documents; the actual Model
+     * plural adoption operation owns Graph projection registration and rebuild at cutover.
+     */
+    default Registration registerModelMigrationTypes(
+            Class<?>... modelTypes) {
+        return registerModelMigrationTypes(Arrays.asList(modelTypes));
+    }
+
+    /**
+     * Registers only the supplied Model definitions for published-event migration.
+     *
+     * @see #registerModelMigrationTypes(Class[])
+     */
+    default Registration registerModelMigrationTypes(
+            Collection<Class<?>> modelTypes) {
+        throw new UnsupportedOperationException(
+                "Model migration type registration is not supported by this Fluxzero implementation");
     }
 
     /**

@@ -48,6 +48,7 @@ import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.GetModelMigrations;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.NoOpCache;
@@ -85,6 +86,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -129,7 +131,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final ModelCacheTracker modelCacheTracker;
     private final ConcurrentHashMap<Class<?>, GraphProjectionRegistration>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
-    private volatile Supplier<List<Class<?>>> graphProjectionModelTypes = List::of;
+    private volatile Supplier<List<Class<?>>> modelTypes = List::of;
 
     public DefaultModelRepository(
             Client client,
@@ -186,9 +188,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     protected ModelRepository createForNamespace(String namespace) {
         Client namespacedClient = client.forNamespace(namespace);
         DocumentStore namespacedDocumentStore = documentStore.forNamespace(namespace);
-        return new DefaultModelRepository(
+        DefaultModelRepository result = new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
                 snapshotSerializer, cacheSource, modelDefinitionCompiler);
+        result.configureModelTypes(modelTypes);
+        return result;
     }
 
     /** Returns the model-definition compiler shared by live commits and stored-event replay. */
@@ -299,28 +303,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 : modelId.toString();
     }
 
-    @Override
-    public CompletableFuture<Void> adoptModelMigration(
-            @NonNull Object modelId,
-            @NonNull Class<?> modelType) {
-        EntityMetadata metadata = EntityMetadata.validate(modelType);
-        EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration()
-                .filter(root -> root.kind() == EntityMetadata.RootKind.MODEL)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        modelType.getName() + " is not a Model root"));
-        String collection;
-        if (configuration.searchable()) {
-            collection = Optional.of(configuration.collection())
-                    .filter(value -> !value.isEmpty())
-                    .map(ApplicationProperties::substituteProperties)
-                    .orElse(modelType.getSimpleName());
-        } else if (metadata.participatesInGraphComposition()) {
-            collection = ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION;
-        } else {
-            throw new IllegalArgumentException(
-                    modelType.getName() + " has no direct document to adopt");
-        }
-        String persistedId = metadata.repositoryId(modelId);
+    private CompletableFuture<Void> adoptPersistedModelMigration(
+            String persistedId,
+            Class<?> modelType,
+            EntityMetadata metadata,
+            EntityMetadata.RootConfiguration configuration) {
+        String collection = modelDocumentCollection(
+                modelType, metadata, configuration);
         GetModelMigrationResult migration = client.getSearchClient()
                 .getModelMigration(new GetModelMigration(
                         persistedId, collection));
@@ -354,6 +343,79 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         persistedId, collection,
                         migration.getProductionDocumentIndex(),
                         migratedHead.getStateIndex(), STORED));
+    }
+
+    private static String modelDocumentCollection(
+            Class<?> modelType,
+            EntityMetadata metadata,
+            EntityMetadata.RootConfiguration configuration) {
+        if (configuration.searchable()) {
+            return Optional.of(configuration.collection())
+                    .filter(value -> !value.isEmpty())
+                    .map(ApplicationProperties::substituteProperties)
+                    .orElse(modelType.getSimpleName());
+        }
+        if (metadata.participatesInGraphComposition()) {
+            return ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION;
+        }
+        throw new IllegalArgumentException(
+                modelType.getName() + " has no direct document to adopt");
+    }
+
+    @Override
+    public CompletableFuture<Integer> adoptModelMigrations() {
+        return adoptModelMigrationBatch(0)
+                .thenCompose(adopted -> rebuildApplicationGraphProjections()
+                        .thenApply(ignored -> adopted));
+    }
+
+    private CompletableFuture<Integer> adoptModelMigrationBatch(
+            int adopted) {
+        List<ModelHeadState> migrations = client.getSearchClient()
+                .getModelMigrations(new GetModelMigrations(1_000))
+                .getMigrations();
+        if (migrations.isEmpty()) {
+            return CompletableFuture.completedFuture(adopted);
+        }
+        CompletableFuture<Void> batch = CompletableFuture.completedFuture(null);
+        for (ModelHeadState migration : migrations) {
+            Class<?> modelType = migrationType(migration);
+            EntityMetadata metadata = EntityMetadata.validate(modelType);
+            EntityMetadata.RootConfiguration configuration = metadata.rootConfiguration()
+                    .filter(root -> root.kind() == EntityMetadata.RootKind.MODEL)
+                    .orElseThrow(() -> new IllegalStateException(
+                            migration.getModelType() + " is not a Model root"));
+            batch = batch.thenCompose(ignored -> adoptPersistedModelMigration(
+                    migration.getModelId(), modelType, metadata, configuration));
+        }
+        // Trampoline between batches so a large, immediately completed in-memory migration
+        // cannot grow the caller stack once per thousand adopted Models.
+        return batch.thenComposeAsync(ignored ->
+                adoptModelMigrationBatch(adopted + migrations.size()));
+    }
+
+    private CompletableFuture<Void> rebuildApplicationGraphProjections() {
+        return CompletableFuture.allOf(
+                modelTypes.get().stream()
+                        .flatMap(type -> EntityMetadata.graphProjectionRoots(type).stream())
+                        .map(EntityMetadata.GraphProjectionRoot::modelType)
+                        .distinct()
+                        .sorted(Comparator.comparing(Class::getName))
+                        .map(type -> registerGraphProjection(type, true))
+                        .toArray(CompletableFuture[]::new));
+    }
+
+    private Class<?> migrationType(
+            ModelHeadState migration) {
+        return modelTypes.get().stream()
+                .filter(type -> type.getName().equals(
+                        migration.getModelType()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Staged Model type %s for %s is not registered in this application"
+                                .formatted(
+                                        migration.getModelType(),
+                                        migration.getModelId())));
     }
 
     private boolean sameCurrentValue(
@@ -407,10 +469,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     /** Configures the application-bound model catalog used to version materialized Graph schemas. */
-    public void configureGraphProjectionModelTypes(
+    public void configureModelTypes(
             Supplier<List<Class<?>>> modelTypes) {
-        this.graphProjectionModelTypes = Objects.requireNonNull(
-                modelTypes, "Graph projection model types");
+        this.modelTypes = Objects.requireNonNull(
+                modelTypes, "Model types");
     }
 
     /** Returns the application-resolved durable definition owned by this repository. */
@@ -418,7 +480,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             @NonNull Class<?> modelType) {
         return EntityMetadata.validate(modelType)
                 .graphProjectionConfiguration(
-                        graphProjectionModelTypes.get())
+                        modelTypes.get())
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 modelType.getName()
@@ -1303,8 +1365,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         public CompletableFuture<Optional<CommitModelsResult>> trackLocalCommit(
                 CommitAttempt attempt,
                 DeserializingMessage message,
+                boolean migration,
                 Supplier<CompletableFuture<Optional<CommitModelsResult>>> operation) {
-            GraphProjectionCommit projections = graphProjections(attempt);
+            GraphProjectionCommit projections = migration
+                    ? GraphProjectionCommit.EMPTY
+                    : graphProjections(attempt);
             CompletableFuture<Void> registrations = projections.roots().isEmpty()
                     ? COMPLETED_VOID
                     : CompletableFuture.allOf(

@@ -41,6 +41,8 @@ import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelSnapshotMutation;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocumentResult;
+import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.GetModelMigrationsResult;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
@@ -221,6 +223,40 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
+    void pluralMigrationAdoptionRebuildsApplicationGraphProjectionsEvenWhenResumed() {
+        ModelHeadState migratedHead = new ModelHeadState(
+                "root-1", ProjectedRoot.class.getName(),
+                0L, 5L, true, false);
+        SerializedDocument migratedDocument = serializer.toDocument(
+                new ProjectedRoot("root-1"), "root-1", "ProjectedRoot",
+                null, null, Metadata.empty());
+        ModelGraphProjectionStatus status = new ModelGraphProjectionStatus(
+                0L, "repository-graphs", 5L, 5L, 0L, 0L, false);
+        repository.configureModelTypes(() -> List.of(ProjectedRoot.class));
+        when(searchClient.getModelMigrations(any())).thenReturn(
+                new GetModelMigrationsResult(0L, List.of(migratedHead)),
+                new GetModelMigrationsResult(0L, List.of()));
+        when(searchClient.getModelMigration(any())).thenReturn(
+                new GetModelMigrationResult(
+                        0L, null, null, migratedDocument, migratedHead));
+        when(searchClient.adoptModelMigration(any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(eventStoreClient.registerModelGraphProjection(any()))
+                .thenReturn(CompletableFuture.completedFuture(status));
+
+        assertEquals(1, repository.adoptModelMigrations().join());
+        assertEquals(0, repository.adoptModelMigrations().join());
+
+        verify(searchClient).adoptModelMigration(any());
+        var registrations = org.mockito.ArgumentCaptor.forClass(
+                io.fluxzero.common.api.modeling.RegisterModelGraphProjection.class);
+        verify(eventStoreClient, times(2))
+                .registerModelGraphProjection(registrations.capture());
+        assertTrue(registrations.getAllValues().stream()
+                           .allMatch(io.fluxzero.common.api.modeling.RegisterModelGraphProjection::isRebuild));
+    }
+
+    @Test
     void registersAChangedChildSchemaThroughTheExistingProjectionFence() {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ModelGraphProjectionStatus status = new ModelGraphProjectionStatus(
@@ -234,7 +270,7 @@ class DefaultModelRepositoryTest {
         java.util.concurrent.atomic.AtomicReference<List<Class<?>>> modelTypes =
                 new java.util.concurrent.atomic.AtomicReference<>(
                         List.of(ProjectedRoot.class));
-        repository.configureGraphProjectionModelTypes(modelTypes::get);
+        repository.configureModelTypes(modelTypes::get);
 
         CompletableFuture<ModelGraphProjectionStatus> rootRegistration =
                 repository.registerGraphProjection(ProjectedRoot.class, false);

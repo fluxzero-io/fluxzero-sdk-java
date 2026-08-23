@@ -28,6 +28,8 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.AdoptModelMigration;
+import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.search.Document;
@@ -215,6 +217,86 @@ class InMemorySearchStoreModelMaterializationTest {
     }
 
     @Test
+    void adoptedLegacyDocumentUsesNormalizedModelSourceForGraphComposition() {
+        String rootId = "legacy-root";
+        String childId = "model-child";
+        Map<String, String> collections = Map.of(
+                rootId, "roots", childId,
+                ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION);
+        InMemorySearchStore graphStore = new InMemorySearchStore(
+                Duration.ofDays(1), null,
+                (ignored, composition) -> List.of(new ModelGraphEdge(
+                        childId, rootId, "Root", "children",
+                        1L, null, false)),
+                modelIds -> collections.entrySet().stream()
+                        .filter(entry -> modelIds.contains(entry.getKey()))
+                        .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                                Map.Entry::getKey, Map.Entry::getValue)));
+        SerializedDocument legacy = new SerializedDocument(
+                Document.builder()
+                        .id(rootId).type("Root").revision(0)
+                        .collection("roots")
+                        .entries(Map.of(
+                                new Document.Entry(TEXT, "legacy child"),
+                                List.of(new Document.Path("children/0/name"))))
+                        .summary(() -> "legacy root")
+                        .build());
+        graphStore.index(List.of(legacy), STORED, false).join();
+        SerializedDocument normalized = structuredDocument(
+                rootId, "roots", "normalized root");
+        materialize(graphStore, rootId, 10L,
+                    new ModelDocumentMutation("roots", normalized), true);
+        materialize(graphStore, childId, 11L,
+                    new ModelDocumentMutation(
+                            ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION,
+                            structuredDocument(
+                                    childId,
+                                    ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION,
+                                    "current child")));
+        var inspection = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        graphStore.adoptModelMigration(new AdoptModelMigration(
+                rootId, "roots", inspection.getProductionDocumentIndex(),
+                10L, STORED)).join();
+
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "Root", "roots", "rootGraphs",
+                        ModelGraphComposition.builder().build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "Root", 0)), List.of());
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, true);
+
+        SerializedDocument graph = graphStore.fetch(
+                new GetDocument(rootId, "rootGraphs")).orElseThrow();
+        assertEquals("normalized root", graph.deserializeDocument()
+                .getEntryAtPath("name").orElseThrow().getValue());
+        assertEquals("current child", graph.deserializeDocument()
+                .getEntryAtPath("children/0/name").orElseThrow().getValue());
+        assertEquals("legacy child", graphStore.fetch(
+                        new GetDocument(rootId, "roots")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("children/0/name")
+                .orElseThrow().getValue());
+
+        SerializedDocument current = structuredDocument(
+                rootId, "roots", "current root");
+        materialize(graphStore, rootId, 12L,
+                    new ModelDocumentMutation("roots", current));
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 12L, false);
+
+        assertEquals("current root", graphStore.fetch(
+                        new GetDocument(rootId, "roots")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("name")
+                .orElseThrow().getValue());
+        assertEquals("current root", graphStore.fetch(
+                        new GetDocument(rootId, "rootGraphs")).orElseThrow()
+                .deserializeDocument().getEntryAtPath("name")
+                .orElseThrow().getValue());
+    }
+
+    @Test
     void localGraphMigrationUsesTheHandledManifestAsCompareAndSetBoundary() {
         String rootId = "root-cas";
         InMemorySearchStore graphStore = new InMemorySearchStore(
@@ -275,6 +357,15 @@ class InMemorySearchStoreModelMaterializationTest {
             String modelId,
             long stateIndex,
             ModelDocumentMutation mutation) {
+        materialize(store, modelId, stateIndex, mutation, false);
+    }
+
+    private static void materialize(
+            InMemorySearchStore store,
+            String modelId,
+            long stateIndex,
+            ModelDocumentMutation mutation,
+            boolean migration) {
         ModelCommitTarget target =
                 ModelCommitTarget.builder()
                         .modelId(modelId)
@@ -295,7 +386,7 @@ class InMemorySearchStoreModelMaterializationTest {
                                                 List.of(target))
                                         .build()),
                         ModelConflictPolicy.ACCEPT,
-                        STORED, true);
+                        STORED, true, migration);
         store.materializeModelCommit(
                 commit,
                 List.of(
