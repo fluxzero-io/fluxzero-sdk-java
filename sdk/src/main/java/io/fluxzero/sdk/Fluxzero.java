@@ -1186,8 +1186,11 @@ public interface Fluxzero extends AutoCloseable {
      * Verifies and atomically adopts every staged direct Model migration whose type is registered in this
      * application. Staging is drained in bounded batches and a failed item remains staged, so the operation can be
      * resumed after the underlying mismatch or configuration problem has been resolved. After document adoption,
-     * every application-declared materialized Graph projection is rebuilt from the adopted Model sources. Repeating
-     * this operation safely resumes those rebuilds even when no staged document remains.
+     * every application-declared materialized Graph projection is rebuilt from the adopted Model sources. An adopted
+     * normalized source remains invisible and isolated from later staging until the first ordinary Model write. This
+     * permits a newer legacy boundary to be staged and re-adopted during the pre-write rollback window without using
+     * unadopted document content in materialized Graph composition. Repeating this operation safely resumes projection
+     * rebuilds even when no staged document remains.
      *
      * @return the number of staged Model documents adopted by this invocation
      */

@@ -27,8 +27,8 @@ import io.fluxzero.common.api.modeling.ModelGraphPathOverride;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
-import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.AdoptModelMigration;
+import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetModelMigration;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SerializedDocument;
@@ -41,12 +41,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemorySearchStoreModelMaterializationTest {
@@ -294,6 +296,76 @@ class InMemorySearchStoreModelMaterializationTest {
                         new GetDocument(rootId, "rootGraphs")).orElseThrow()
                 .deserializeDocument().getEntryAtPath("name")
                 .orElseThrow().getValue());
+    }
+
+    @Test
+    void rollbackMigrationCanBeReadoptedWithoutExposingNewStaging() {
+        String rootId = "rollback-root";
+        InMemorySearchStore graphStore = new InMemorySearchStore(
+                Duration.ofDays(1), null,
+                (ignored, composition) -> List.of(),
+                ignored -> Map.of(rootId, "roots"));
+        graphStore.index(List.of(structuredDocument(
+                rootId, "roots", "legacy one")), STORED, false).join();
+        materialize(graphStore, rootId, 10L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "normalized one")), true);
+        var first = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        graphStore.adoptModelMigration(new AdoptModelMigration(
+                rootId, "roots", first.getProductionDocumentIndex(),
+                10L, STORED)).join();
+
+        materialize(graphStore, rootId, 11L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "normalized two")), true);
+        ModelGraphProjectionConfiguration configuration =
+                new ModelGraphProjectionConfiguration(
+                        "Root", "roots", "rollbackGraphs",
+                        ModelGraphComposition.builder().build(),
+                        List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                "Root", 0)), List.of());
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, true);
+        assertEquals("normalized one", graphStore.fetch(
+                        new GetDocument(rootId, "rollbackGraphs"))
+                .orElseThrow().deserializeDocument()
+                .getEntryAtPath("name").orElseThrow().getValue());
+
+        graphStore.index(List.of(structuredDocument(
+                rootId, "roots", "legacy two")), STORED, false).join();
+        var second = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        graphStore.adoptModelMigration(new AdoptModelMigration(
+                rootId, "roots", second.getProductionDocumentIndex(),
+                11L, STORED)).join();
+        graphStore.materializeModelGraphProjection(
+                configuration, Set.of(rootId), 11L, true);
+        assertEquals("normalized two", graphStore.fetch(
+                        new GetDocument(rootId, "rollbackGraphs"))
+                .orElseThrow().deserializeDocument()
+                .getEntryAtPath("name").orElseThrow().getValue());
+
+        materialize(graphStore, rootId, 12L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "ordinary Model write")));
+        materialize(graphStore, rootId, 13L,
+                    new ModelDocumentMutation(
+                            "roots", structuredDocument(
+                            rootId, "roots", "unsupported rollback")), true);
+        var unsupported = graphStore.getModelMigration(
+                new GetModelMigration(rootId, "roots"));
+        CompletionException failure = assertThrows(CompletionException.class, () ->
+                graphStore.adoptModelMigration(new AdoptModelMigration(
+                        rootId, "roots",
+                        unsupported.getProductionDocumentIndex(),
+                        13L, STORED)).join());
+        assertEquals(IllegalStateException.class, failure.getCause().getClass());
+        assertEquals("Production Model head has ordinary writes for " + rootId,
+                     failure.getCause().getMessage());
     }
 
     @Test

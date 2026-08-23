@@ -198,7 +198,10 @@ public interface SearchClient extends AutoCloseable {
                 "Model migration enumeration is not supported by this search client");
     }
 
-    /** Atomically adopts a previously inspected and application-verified staged Model document. */
+    /**
+     * Atomically adopts a previously inspected and application-verified staged Model document while retaining the
+     * accepted normalized source until an ordinary Model write closes the migration rollback window.
+     */
     default CompletableFuture<Void> adoptModelMigration(
             AdoptModelMigration request) {
         return CompletableFuture.failedFuture(

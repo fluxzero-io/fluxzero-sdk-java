@@ -3524,15 +3524,22 @@ ordinary loads, searches, graph composition and monitors. Register the complete 
 batches, deserializes and upcasts each staged value and any existing production document to the current Model type,
 and adopts only equal values while the observed production document version and staged Model state are unchanged. An
 existing document is left untouched and receives its Model write fence atomically; when no document exists, the staged
-document is copied into its normal collection in that transaction. If an unchanged legacy document still contains
-embedded Aggregate children, Fluxzero retains the normalized staged value as an invisible Graph-composition source
-until the first ordinary Model write replaces it. After all documents are adopted, the plural operation rebuilds every
-application-declared materialized Graph projection. Repeating it returns zero adopted documents and safely resumes
-those rebuilds. A mismatch or concurrent legacy write fails without discarding staging, so the consumer can catch up
-and retry.
+document is copied into its normal collection in that transaction. Fluxzero keeps the accepted normalized value in a
+separate invisible Graph-composition source. New replay staging cannot alter that accepted source: if legacy traffic is
+resumed before the first ordinary Model write, catch up and adopt the newer boundary explicitly. The first ordinary
+Model write atomically removes the source and closes this rollback window. After all documents are adopted, the plural
+operation rebuilds every application-declared materialized Graph projection. Repeating it returns zero adopted
+documents and safely resumes those rebuilds. A mismatch or concurrent legacy write fails without discarding staging,
+so the consumer can catch up and retry.
 
-Live handler cutover and rollback remain application-specific: stop legacy business writes at an explicit event
-boundary before adoption, and do not treat changing `@Aggregate` to `@Model` as a persistence migration.
+The replay commits are durable Model history and can be read by direct Model/Graph loads. Staging isolation applies to
+direct search documents and the accepted source used for materialized Graph composition. Do not start the ordinary
+Model application before replay, adoption and cutover verification have completed.
+
+Live handler cutover remains application-specific: stop legacy business writes at an explicit event boundary before
+adoption. Before the first ordinary Model write, traffic may return to the unchanged legacy application and a newer
+legacy boundary can be re-adopted. After such a Model write, rollback requires an application-proven reverse migration.
+Do not treat changing `@Aggregate` to `@Model` as a persistence migration.
 
 ## Legacy aggregate API (existing Fluxzero 1.x applications only)
 

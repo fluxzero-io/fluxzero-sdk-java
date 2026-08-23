@@ -26,9 +26,10 @@ import java.beans.ConstructorProperties;
  * Atomically adopts an application-verified staged Model document.
  * <p>
  * A {@code null} expected document index means that the production document was observed to be absent. Otherwise the
- * Runtime only adds the direct Model head while that exact production document version still exists. When adoption
- * leaves an existing legacy document untouched, the staged document may remain as an internal normalized source for
- * Graph composition until the first ordinary Model write replaces it.
+ * Runtime only adds the direct Model head while that exact production document version still exists. Adoption retains
+ * the accepted normalized document in an invisible source collection until the first ordinary Model write. A later
+ * migration pass can therefore stage and adopt a newer legacy boundary without exposing unadopted state to Graph
+ * composition. The first ordinary Model write atomically removes that source and closes this rollback window.
  */
 @EqualsAndHashCode(callSuper = true)
 @Value

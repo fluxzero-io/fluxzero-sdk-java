@@ -204,7 +204,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     /**
      * Verifies and adopts every staged direct Model migration known to this application.
      * Materialized Graph projections declared by the application are rebuilt after every staged document has been
-     * adopted. Repeating the operation is therefore also a safe way to resume projection rebuilds after a failure.
+     * adopted. The accepted normalized source remains isolated from later staging until the first ordinary Model write,
+     * so another legacy boundary can be re-adopted without exposing unverified state. Repeating the operation is also a
+     * safe way to resume projection rebuilds after a failure.
      *
      * @return the number of staged Model documents adopted by this invocation
      */

@@ -115,6 +115,8 @@ public class InMemorySearchStore implements SearchClient {
             new ConcurrentHashMap<>();
     private final Map<String, SerializedDocument> adoptedModelSources =
             new ConcurrentHashMap<>();
+    private final Set<String> adoptedModelIds =
+            ConcurrentHashMap.newKeySet();
     private final Map<String, Long> documentIndices =
             new ConcurrentHashMap<>();
     private final AtomicLong nextDocumentIndex = new AtomicLong();
@@ -473,10 +475,20 @@ public class InMemorySearchStore implements SearchClient {
                             "Production document changed after migration inspection: "
                             + request.getModelId()));
         }
-        if (adopted != null) {
+        if (adopted != null
+            && !adoptedModelIds.contains(request.getModelId())) {
             return CompletableFuture.failedFuture(
                     new IllegalStateException(
-                            "Production Model head already exists for " + request.getModelId()));
+                            "Production Model head has ordinary writes for "
+                            + request.getModelId()));
+        }
+        if (adopted != null
+            && adopted.head().getStateIndex()
+               >= migration.head().getStateIndex()) {
+            return CompletableFuture.failedFuture(
+                    new IllegalStateException(
+                            "Staged Model migration does not advance production state for "
+                            + request.getModelId()));
         }
         SerializedDocument staged = documents.get(migrationKey);
         if (documents.containsKey(productionKey) && staged == null) {
@@ -493,10 +505,14 @@ public class InMemorySearchStore implements SearchClient {
             documentIndices.put(
                     productionKey, nextDocumentIndex.incrementAndGet());
             collections.add(request.getCollection());
-        } else if (staged != null) {
+        }
+        adoptedModelIds.add(request.getModelId());
+        if (staged != null) {
             adoptedModelSources.put(
                     request.getModelId(),
                     staged.withCollection(request.getCollection()));
+        } else {
+            adoptedModelSources.remove(request.getModelId());
         }
         modelDocumentVersions.put(
                 productionKey,
@@ -805,6 +821,7 @@ public class InMemorySearchStore implements SearchClient {
                                                 position.getSequenceNumber(), stateIndex,
                                                 position.isHistoryComplete(), target.isDelete())));
                         if (!commit.isMigration()) {
+                            adoptedModelIds.remove(target.getModelId());
                             adoptedModelSources.remove(target.getModelId());
                         }
                         if (document == null) {

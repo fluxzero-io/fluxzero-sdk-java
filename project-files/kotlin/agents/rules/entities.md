@@ -394,6 +394,8 @@ For an event-sourced backfill, a dedicated side-effect-free global-event consume
 legacy `STORE_ONLY` events. Document-backed Models are rebuilt in invisible staging; after registering the complete
 Model catalog, `Fluxzero.adoptModelMigrations()` upcasts and compares every staged and production value, atomically
 adopts only unchanged equal results without rewriting existing documents, and rebuilds declared materialized Graphs.
-Repeat the plural operation to resume a partial cutover. Live cutover and rollback still require an
-application-specific boundary and proof.
+The accepted normalized source remains isolated from later staging until the first ordinary Model write, so resumed
+legacy traffic can be caught up and re-adopted without using unverified document content in materialized Graph
+composition. Repeat the plural operation to resume a partial cutover. Live cutover and any post-Model-write rollback
+still require an application-specific boundary and proof.
 All new examples and implementations should use `@Model`.
