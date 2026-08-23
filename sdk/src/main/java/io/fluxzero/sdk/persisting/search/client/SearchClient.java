@@ -200,7 +200,7 @@ public interface SearchClient extends AutoCloseable {
 
     /**
      * Atomically adopts a previously inspected and application-verified staged Model document while retaining the
-     * accepted normalized source until an ordinary Model write closes the migration rollback window.
+     * accepted normalized source until an ordinary Model write ends legacy-write coexistence.
      */
     default CompletableFuture<Void> adoptModelMigration(
             AdoptModelMigration request) {

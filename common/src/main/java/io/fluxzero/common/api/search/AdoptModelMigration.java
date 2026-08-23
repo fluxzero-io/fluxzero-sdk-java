@@ -29,7 +29,8 @@ import java.beans.ConstructorProperties;
  * Runtime only adds the direct Model head while that exact production document version still exists. Adoption retains
  * the accepted normalized document in an invisible source collection until the first ordinary Model write. A later
  * migration pass can therefore stage and adopt a newer legacy boundary without exposing unadopted state to Graph
- * composition. The first ordinary Model write atomically removes that source and closes this rollback window.
+ * composition. The first ordinary Model write atomically removes that source, ends legacy-write coexistence and makes
+ * the cutover forward-only.
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
