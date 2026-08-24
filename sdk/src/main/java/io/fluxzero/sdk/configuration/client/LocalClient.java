@@ -187,10 +187,10 @@ public class LocalClient extends AbstractClient {
                                 ::resolveModelDocumentCollections);
         eventStore.getMessageStore()
                 .setModelCommitMaterializer(
-                        result::materializeModelCommit);
+                        result::prepareModelCommit);
         eventStore.getMessageStore()
                 .setModelGraphProjectionMaterializer(
-                        result::materializeModelGraphProjection);
+                        result::prepareModelGraphProjection);
         return result;
     }
 

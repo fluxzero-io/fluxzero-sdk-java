@@ -41,6 +41,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -49,12 +50,23 @@ import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemorySearchStoreModelMaterializationTest {
 
     private final InMemorySearchStore subject =
             new InMemorySearchStore(Duration.ofDays(1));
+
+    @Test
+    void documentMonitorCallbacksRunOutsideTheStoreLock() {
+        subject.registerMonitor((collection, messages) ->
+                CompletableFuture.runAsync(() -> subject.fetchModelDocument(
+                        new GetDocument("model-1", "models"))).join());
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () ->
+                materialize(10, document("first")));
+    }
 
     @Test
     void modelDocumentFenceRejectsOlderAndEqualWritesIncludingAfterDelete() {

@@ -758,112 +758,127 @@ public class InMemorySearchStore implements SearchClient {
         return CompletableFuture.completedFuture(null);
     }
 
-    public synchronized void
+    public void
             materializeModelCommit(
                     CommitModels commit,
                     List<ModelUpdate> assignedUpdates,
                     Set<String> excludedModelIds) {
+        prepareModelCommit(
+                commit, assignedUpdates, excludedModelIds).run();
+    }
+
+    /**
+     * Materializes direct Model documents and returns their deferred local-monitor publication.
+     *
+     * @return publication to invoke after the owning commit fence has advanced
+     */
+    public Runnable prepareModelCommit(
+            CommitModels commit,
+            List<ModelUpdate> assignedUpdates,
+            Set<String> excludedModelIds) {
         Map<String, SerializedDocument> indexed =
                 new LinkedHashMap<>();
-        for (int substep = 0;
-             substep < commit.getSubsteps().size();
-             substep++) {
-            List<ModelCommitTarget> targets =
-                    commit.getSubsteps().get(substep)
-                            .getTargets();
-            ModelUpdate assigned = assignedUpdates.get(substep);
-            modelStateIndex = Math.max(
-                    modelStateIndex, assigned.getStateIndex());
-            for (int targetIndex = 0;
-                 targetIndex < targets.size();
-                 targetIndex++) {
-                ModelCommitTarget target =
-                        targets.get(targetIndex);
-                if (excludedModelIds.contains(
-                        target.getModelId())) {
-                    continue;
-                }
-                long stateIndex =
-                        assigned.getStateIndex();
-                ModelCommitTargetResult position =
-                        assigned.getTargets().get(targetIndex);
-                if (target.getDocument() != null) {
-                    var mutation = target.getDocument();
-                    String collection = commit.isMigration()
-                            ? io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION
-                            : mutation.getCollection();
-                    String documentKey = asIdentifier(
-                            collection, target.getModelId());
-                    DirectDocumentVersion currentVersion =
-                            modelDocumentVersions.get(documentKey);
-                    long current = currentVersion == null ? -1L
-                            : currentVersion.head().getStateIndex();
-                    if (current < stateIndex) {
-                        SerializedDocument document =
-                                mutation.getDocument();
-                        if (document != null
-                            && !collection.equals(document.getCollection())) {
-                            document = document.withCollection(collection);
-                        }
-                        String modelType = target.getModelType() != null
-                                ? target.getModelType()
-                                : currentVersion == null ? null
-                                        : currentVersion.head().getModelType();
-                        if (modelType == null) {
-                            throw new IllegalArgumentException(
-                                    "A direct Model document's first commit must provide its model type");
-                        }
-                        modelDocumentVersions.put(
-                                documentKey,
-                                new DirectDocumentVersion(
-                                        collection, new ModelHeadState(
-                                                target.getModelId(), modelType,
-                                                position.getSequenceNumber(), stateIndex,
-                                                position.isHistoryComplete(), target.isDelete())));
-                        if (!commit.isMigration()) {
-                            adoptedModelIds.remove(target.getModelId());
-                            adoptedModelSources.remove(target.getModelId());
-                        }
-                        if (document == null) {
-                            documents.remove(documentKey);
-                            documentIndices.remove(documentKey);
-                        } else {
-                            documents.put(
-                                    identifier.apply(document),
-                                    document);
-                            documentIndices.put(
+        synchronized (this) {
+            for (int substep = 0;
+                 substep < commit.getSubsteps().size();
+                 substep++) {
+                List<ModelCommitTarget> targets =
+                        commit.getSubsteps().get(substep)
+                                .getTargets();
+                ModelUpdate assigned = assignedUpdates.get(substep);
+                modelStateIndex = Math.max(
+                        modelStateIndex, assigned.getStateIndex());
+                for (int targetIndex = 0;
+                     targetIndex < targets.size();
+                     targetIndex++) {
+                    ModelCommitTarget target =
+                            targets.get(targetIndex);
+                    if (excludedModelIds.contains(
+                            target.getModelId())) {
+                        continue;
+                    }
+                    long stateIndex =
+                            assigned.getStateIndex();
+                    ModelCommitTargetResult position =
+                            assigned.getTargets().get(targetIndex);
+                    if (target.getDocument() != null) {
+                        var mutation = target.getDocument();
+                        String collection = commit.isMigration()
+                                ? io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION
+                                : mutation.getCollection();
+                        String documentKey = asIdentifier(
+                                collection, target.getModelId());
+                        DirectDocumentVersion currentVersion =
+                                modelDocumentVersions.get(documentKey);
+                        long current = currentVersion == null ? -1L
+                                : currentVersion.head().getStateIndex();
+                        if (current < stateIndex) {
+                            SerializedDocument document =
+                                    mutation.getDocument();
+                            if (document != null
+                                && !collection.equals(document.getCollection())) {
+                                document = document.withCollection(collection);
+                            }
+                            String modelType = target.getModelType() != null
+                                    ? target.getModelType()
+                                    : currentVersion == null ? null
+                                            : currentVersion.head().getModelType();
+                            if (modelType == null) {
+                                throw new IllegalArgumentException(
+                                        "A direct Model document's first commit must provide its model type");
+                            }
+                            modelDocumentVersions.put(
                                     documentKey,
-                                    nextDocumentIndex.incrementAndGet());
-                            indexed.put(
-                                    identifier.apply(document),
-                                    document);
-                            collections.add(
-                                    document.getCollection());
+                                    new DirectDocumentVersion(
+                                            collection, new ModelHeadState(
+                                                    target.getModelId(), modelType,
+                                                    position.getSequenceNumber(), stateIndex,
+                                                    position.isHistoryComplete(), target.isDelete())));
+                            if (!commit.isMigration()) {
+                                adoptedModelIds.remove(target.getModelId());
+                                adoptedModelSources.remove(target.getModelId());
+                            }
+                            if (document == null) {
+                                documents.remove(documentKey);
+                                documentIndices.remove(documentKey);
+                            } else {
+                                documents.put(
+                                        identifier.apply(document),
+                                        document);
+                                documentIndices.put(
+                                        documentKey,
+                                        nextDocumentIndex.incrementAndGet());
+                                indexed.put(
+                                        identifier.apply(document),
+                                        document);
+                                collections.add(
+                                        document.getCollection());
+                            }
                         }
                     }
-                }
-                if (target.getSnapshot() != null
-                    && position.isHistoryComplete()) {
-                    SerializedDocument document =
-                            target.getSnapshot()
-                                    .toDocument(
-                                            target.getModelId(),
-                                            position.getSequenceNumber(),
-                                            stateIndex);
-                    documents.putIfAbsent(
-                            identifier.apply(document),
-                            document);
-                    collections.add(
-                            document.getCollection());
-                    trimModelSnapshots(
-                            target.getModelId(),
-                            target.getSnapshot()
-                                    .getMaxSnapshotCount());
+                    if (target.getSnapshot() != null
+                        && position.isHistoryComplete()) {
+                        SerializedDocument document =
+                                target.getSnapshot()
+                                        .toDocument(
+                                                target.getModelId(),
+                                                position.getSequenceNumber(),
+                                                stateIndex);
+                        documents.putIfAbsent(
+                                identifier.apply(document),
+                                document);
+                        collections.add(
+                                document.getCollection());
+                        trimModelSnapshots(
+                                target.getModelId(),
+                                target.getSnapshot()
+                                        .getMaxSnapshotCount());
+                    }
                 }
             }
-        }
-        if (!commit.isMigration()) {
-            storeMessages(indexed);
+            return commit.isMigration()
+                    ? () -> { }
+                    : prepareMessages(indexed);
         }
     }
 
@@ -873,7 +888,34 @@ public class InMemorySearchStore implements SearchClient {
     /**
      * Synchronously materializes affected roots for the SDK-only graph-projection worker.
      */
-    public synchronized void materializeModelGraphProjection(
+    public void materializeModelGraphProjection(
+            ModelGraphProjectionConfiguration
+                    configuration,
+            Set<String> rootIds,
+            long stateIndex,
+            boolean rebuild) {
+        prepareModelGraphProjection(
+                configuration, rootIds, stateIndex, rebuild).run();
+    }
+
+    /**
+     * Materializes graph documents and returns their deferred local-monitor publication.
+     *
+     * @return publication to invoke after the graph-projection fence has advanced
+     */
+    public Runnable prepareModelGraphProjection(
+            ModelGraphProjectionConfiguration
+                    configuration,
+            Set<String> rootIds,
+            long stateIndex,
+            boolean rebuild) {
+        synchronized (this) {
+            return prepareModelGraphProjectionSynchronized(
+                    configuration, rootIds, stateIndex, rebuild);
+        }
+    }
+
+    private Runnable prepareModelGraphProjectionSynchronized(
             ModelGraphProjectionConfiguration
                     configuration,
             Set<String> rootIds,
@@ -905,7 +947,7 @@ public class InMemorySearchStore implements SearchClient {
                                                       prefix.length())));
         }
         if (rootIds.isEmpty()) {
-            return;
+            return () -> { };
         }
         Map<String, String> pathOverrides =
                 configuration.getPathOverrides()
@@ -1036,8 +1078,13 @@ public class InMemorySearchStore implements SearchClient {
                     projectionKey,
                     stateIndex);
         }
-        storeMessages(indexed);
-        storeMessages(configuration.getCollection(), tombstones);
+        Runnable indexedPublication = prepareMessages(indexed);
+        Runnable tombstonePublication = prepareMessages(
+                configuration.getCollection(), tombstones);
+        return () -> {
+            indexedPublication.run();
+            tombstonePublication.run();
+        };
     }
 
     private SerializedDocument effectiveModelSource(
@@ -1115,50 +1162,66 @@ public class InMemorySearchStore implements SearchClient {
                 .limit(maxSize);
     }
 
-    public synchronized void truncateCollection(String collection) {
-        documents.entrySet().removeIf(entry -> {
-            if (!Objects.equals(
-                    collection,
-                    entry.getValue().getCollection())) {
-                return false;
-            }
-            documentIndices.remove(entry.getKey());
-            return true;
-        });
-        messageLogs.remove(collection);
-        collections.remove(collection);
-        auditTrails.remove(collection);
+    public void truncateCollection(String collection) {
+        synchronized (this) {
+            documents.entrySet().removeIf(entry -> {
+                if (!Objects.equals(
+                        collection,
+                        entry.getValue().getCollection())) {
+                    return false;
+                }
+                documentIndices.remove(entry.getKey());
+                return true;
+            });
+            messageLogs.remove(collection);
+            collections.remove(collection);
+            auditTrails.remove(collection);
+        }
         notifyMonitors(collection, List.of());
     }
 
-    protected synchronized void storeMessages(Map<String, SerializedDocument> updates) {
-        if (!monitors.isEmpty()) {
-            Map<String, List<SerializedMessage>> byCollection
-                    = updates.values().stream().collect(groupingBy(SerializedDocument::getCollection, mapping(
-                    this::asSerializedMessage, toList())));
-            try {
-                byCollection.forEach(this::storeMessagesInLog);
-                if (retentionTime != null) {
-                    purgeExpiredMessages(retentionTime);
-                }
-            } finally {
-                byCollection.forEach(this::notifyMonitors);
-            }
+    protected void storeMessages(Map<String, SerializedDocument> updates) {
+        Runnable publication;
+        synchronized (this) {
+            publication = prepareMessages(updates);
         }
+        publication.run();
     }
 
-    private synchronized void storeMessages(String collection, List<SerializedMessage> messages) {
+    private void storeMessages(String collection, List<SerializedMessage> messages) {
+        Runnable publication;
+        synchronized (this) {
+            publication = prepareMessages(collection, messages);
+        }
+        publication.run();
+    }
+
+    private Runnable prepareMessages(
+            Map<String, SerializedDocument> updates) {
+        if (monitors.isEmpty()) {
+            return () -> { };
+        }
+        Map<String, List<SerializedMessage>> byCollection =
+                updates.values().stream().collect(groupingBy(
+                        SerializedDocument::getCollection,
+                        mapping(this::asSerializedMessage, toList())));
+        byCollection.forEach(this::storeMessagesInLog);
+        if (retentionTime != null) {
+            purgeExpiredMessages(retentionTime);
+        }
+        return () -> byCollection.forEach(this::notifyMonitors);
+    }
+
+    private Runnable prepareMessages(
+            String collection, List<SerializedMessage> messages) {
         if (messages.isEmpty() || monitors.isEmpty()) {
-            return;
+            return () -> { };
         }
-        try {
-            storeMessagesInLog(collection, messages);
-            if (retentionTime != null) {
-                purgeExpiredMessages(retentionTime);
-            }
-        } finally {
-            notifyMonitors(collection, messages);
+        storeMessagesInLog(collection, messages);
+        if (retentionTime != null) {
+            purgeExpiredMessages(retentionTime);
         }
+        return () -> notifyMonitors(collection, messages);
     }
 
     private void storeMessagesInLog(String collection, List<SerializedMessage> messages) {
@@ -1224,8 +1287,15 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     protected void notifyMonitors(String collection, List<SerializedMessage> messages) {
-        this.notifyAll();
-        monitors.forEach(m -> m.accept(collection, messages));
+        try {
+            monitors.forEach(m -> m.accept(collection, messages));
+        } finally {
+            signalMonitors();
+        }
+    }
+
+    private synchronized void signalMonitors() {
+        notifyAll();
     }
 
     public synchronized Registration registerMonitor(BiConsumer<String, List<SerializedMessage>> monitor) {

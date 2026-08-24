@@ -66,6 +66,7 @@ import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -134,6 +135,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final List<ModelGraphProjectionWaiter>
             modelGraphProjectionWaiters =
             new ArrayList<>();
+    private final ArrayDeque<Runnable>
+            modelMaterializationPublications =
+            new ArrayDeque<>();
+    private boolean modelGraphProjectionDrainActive;
+    private boolean modelMaterializationPublicationActive;
     private ModelGraphProjectionMaterializer
             modelGraphProjectionMaterializer;
     private ModelCommitMaterializer modelCommitMaterializer;
@@ -172,23 +178,30 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     /**
      * Links the SDK-only event store to its in-memory search materializer.
      */
-    public synchronized void setModelGraphProjectionMaterializer(
+    public void setModelGraphProjectionMaterializer(
             ModelGraphProjectionMaterializer
                     materializer) {
-        this.modelGraphProjectionMaterializer =
-                Objects.requireNonNull(
-                        materializer);
+        synchronized (this) {
+            this.modelGraphProjectionMaterializer =
+                    Objects.requireNonNull(
+                            materializer);
+        }
         drainModelGraphProjections();
     }
 
     /**
      * Links the SDK-only event store to the direct in-memory model materializer.
      */
-    public synchronized void setModelCommitMaterializer(
+    public void setModelCommitMaterializer(
             ModelCommitMaterializer materializer) {
-        this.modelCommitMaterializer =
-                Objects.requireNonNull(materializer);
-        List.copyOf(modelCommitMaterializations.keySet())
+        List<String> pending;
+        synchronized (this) {
+            this.modelCommitMaterializer =
+                    Objects.requireNonNull(materializer);
+            pending = List.copyOf(
+                    modelCommitMaterializations.keySet());
+        }
+        pending
                 .forEach(commitId -> {
                     try {
                         completeModelCommitMaterialization(commitId);
@@ -212,6 +225,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         try {
             ModelCommitOutcome outcome = commitModelsSynchronized(commit);
+            completeModelCommitMaterialization(
+                    commit.getCommitId());
             if (!outcome.publishedEvents().isEmpty()) {
                 notifyMonitors(outcome.publishedEvents());
             }
@@ -226,8 +241,6 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             CommitModelsResult previous = modelCommits.get(commit.getCommitId());
             if (previous != null) {
                 validateExistingEventDuplicate(commit, previous);
-                completeModelCommitMaterialization(
-                        commit.getCommitId());
                 return new ModelCommitOutcome(
                         modelCommits.get(commit.getCommitId())
                                 .asDuplicateForRequest(
@@ -359,14 +372,11 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                             updates.getLast()
                                     .getStateIndex(),
                             description.targetIds()));
-            drainModelGraphProjections();
             modelUpdates.addAll(updates);
             modelUpdateGeneration.incrementAndGet();
             synchronized (modelUpdateMonitor) {
                 modelUpdateMonitor.notifyAll();
             }
-            completeModelCommitMaterialization(
-                    commit.getCommitId());
             return new ModelCommitOutcome(
                     modelCommits.get(commit.getCommitId()), publishedEvents);
     }
@@ -515,11 +525,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             throw new IllegalStateException(
                     "No direct model materializer is connected to the in-memory event store");
         }
-        modelCommitMaterializer.materialize(
+        Runnable publication = modelCommitMaterializer.materialize(
                 pending.commit(), pending.assignedUpdates(),
                 pending.excludedModelIds());
-        modelCommitMaterializations.remove(commitId);
-        drainModelGraphProjections();
+        if (!modelCommitMaterializations.remove(commitId, pending)) {
+            return;
+        }
+        synchronized (this) {
+            if (publication != null) {
+                modelMaterializationPublications.add(publication);
+            }
+        }
+        drainModelGraphProjections(false);
+        publishModelMaterializationNotifications();
     }
 
     private synchronized TrackModelUpdatesResult modelUpdates(
@@ -578,44 +596,48 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     @Override
-    public synchronized CompletableFuture<ModelGraphProjectionStatus>
+    public CompletableFuture<ModelGraphProjectionStatus>
             registerModelGraphProjection(
                     RegisterModelGraphProjection request) {
         ModelGraphProjectionConfiguration configuration =
                 request.getConfiguration();
-        ModelGraphProjectionConfiguration previous =
-                modelGraphProjections.get(
-                        configuration.getCollection());
-        if (previous != null
-            && (!previous.getRootModelType()
-                    .equals(
-                            configuration
-                                    .getRootModelType())
-                || !previous.getRootCollection()
+        synchronized (this) {
+            ModelGraphProjectionConfiguration previous =
+                    modelGraphProjections.get(
+                            configuration.getCollection());
+            if (previous != null
+                && (!previous.getRootModelType()
                         .equals(
                                 configuration
-                                        .getRootCollection()))) {
-            return CompletableFuture.failedFuture(
-                    new IllegalArgumentException(
-                            "Graph projection collection '%s' is already registered for a different root"
-                                    .formatted(
-                                            configuration
-                                                    .getCollection())));
-        }
-        modelGraphProjections.put(
-                configuration.getCollection(),
-                configuration);
-        if (previous == null
-            || request.isRebuild()
-            || !previous.equals(configuration)) {
-            modelGraphProjectionRebuilds.add(
-                    configuration.getCollection());
+                                        .getRootModelType())
+                    || !previous.getRootCollection()
+                            .equals(
+                                    configuration
+                                            .getRootCollection()))) {
+                return CompletableFuture.failedFuture(
+                        new IllegalArgumentException(
+                                "Graph projection collection '%s' is already registered for a different root"
+                                        .formatted(
+                                                configuration
+                                                        .getCollection())));
+            }
+            modelGraphProjections.put(
+                    configuration.getCollection(),
+                    configuration);
+            if (previous == null
+                || request.isRebuild()
+                || !previous.equals(configuration)) {
+                modelGraphProjectionRebuilds.add(
+                        configuration.getCollection());
+            }
         }
         drainModelGraphProjections();
-        return CompletableFuture.completedFuture(
-                modelGraphProjectionStatus(
-                        request.getRequestId(),
-                        configuration.getCollection()));
+        synchronized (this) {
+            return CompletableFuture.completedFuture(
+                    modelGraphProjectionStatus(
+                            request.getRequestId(),
+                            configuration.getCollection()));
+        }
     }
 
     @Override
@@ -628,51 +650,55 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     @Override
-    public synchronized CompletableFuture<ModelGraphProjectionStatus>
+    public CompletableFuture<ModelGraphProjectionStatus>
             awaitModelGraphProjection(
                     AwaitModelGraphProjection request) {
-        if (!modelGraphProjections.containsKey(
-                request.getCollection())) {
-            return CompletableFuture.failedFuture(
-                    new IllegalArgumentException(
-                            "Unknown model graph projection collection "
-                            + request.getCollection()));
+        synchronized (this) {
+            if (!modelGraphProjections.containsKey(
+                    request.getCollection())) {
+                return CompletableFuture.failedFuture(
+                        new IllegalArgumentException(
+                                "Unknown model graph projection collection "
+                                + request.getCollection()));
+            }
         }
         drainModelGraphProjections();
-        Throwable failure =
-                modelGraphProjectionFailures.get(
-                        request.getCollection());
-        if (failure != null) {
-            return CompletableFuture.failedFuture(
-                    failure);
-        }
-        if (modelGraphProjectionPositions
-                    .getOrDefault(
-                            request.getCollection(),
-                            -1L)
-            >= request.getStateIndex()) {
-            return CompletableFuture.completedFuture(
-                    modelGraphProjectionStatus(
-                            request.getRequestId(),
-                            request.getCollection()));
-        }
-        CompletableFuture<ModelGraphProjectionStatus>
-                result = new CompletableFuture<>();
-        ModelGraphProjectionWaiter waiter =
-                new ModelGraphProjectionWaiter(
-                        request, result);
-        modelGraphProjectionWaiters.add(
-                waiter);
-        result.whenComplete(
-                (ignored, ignoredFailure) -> {
-                    if (result.isCancelled()) {
-                        synchronized (this) {
-                            modelGraphProjectionWaiters
-                                    .remove(waiter);
+        synchronized (this) {
+            Throwable failure =
+                    modelGraphProjectionFailures.get(
+                            request.getCollection());
+            if (failure != null) {
+                return CompletableFuture.failedFuture(
+                        failure);
+            }
+            if (modelGraphProjectionPositions
+                        .getOrDefault(
+                                request.getCollection(),
+                                -1L)
+                >= request.getStateIndex()) {
+                return CompletableFuture.completedFuture(
+                        modelGraphProjectionStatus(
+                                request.getRequestId(),
+                                request.getCollection()));
+            }
+            CompletableFuture<ModelGraphProjectionStatus>
+                    result = new CompletableFuture<>();
+            ModelGraphProjectionWaiter waiter =
+                    new ModelGraphProjectionWaiter(
+                            request, result);
+            modelGraphProjectionWaiters.add(
+                    waiter);
+            result.whenComplete(
+                    (ignored, ignoredFailure) -> {
+                        if (result.isCancelled()) {
+                            synchronized (this) {
+                                modelGraphProjectionWaiters
+                                        .remove(waiter);
+                            }
                         }
-                    }
-                });
-        return result;
+                    });
+            return result;
+        }
     }
 
     @Override
@@ -1018,74 +1044,174 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     private void drainModelGraphProjections() {
-        if (modelGraphProjectionMaterializer
-            == null
-            || !modelCommitMaterializations
-                    .isEmpty()) {
-            return;
-        }
-        if (modelGraphProjections.isEmpty()) {
-            modelGraphProjectionSignals.clear();
-            return;
-        }
-        List<ModelGraphProjectionSignal> signals =
-                List.copyOf(
+        drainModelGraphProjections(true);
+    }
+
+    private void drainModelGraphProjections(
+            boolean publishNotifications) {
+        while (true) {
+            List<ModelGraphProjectionSignal> signals;
+            List<ModelGraphProjectionWork> work =
+                    new ArrayList<>();
+            ModelGraphProjectionMaterializer materializer;
+            long boundary;
+            synchronized (this) {
+                if (modelGraphProjectionDrainActive
+                    || modelGraphProjectionMaterializer == null
+                    || !modelCommitMaterializations.isEmpty()) {
+                    return;
+                }
+                if (modelGraphProjections.isEmpty()) {
+                    modelGraphProjectionSignals.clear();
+                    return;
+                }
+                modelGraphProjectionDrainActive = true;
+                materializer = modelGraphProjectionMaterializer;
+                signals = List.copyOf(
                         modelGraphProjectionSignals);
-        boolean failed = false;
-        for (ModelGraphProjectionConfiguration
-                     configuration :
-                modelGraphProjections.values()) {
-            String collection =
-                    configuration.getCollection();
-            boolean rebuild =
-                    modelGraphProjectionRebuilds
-                            .contains(collection);
-            if (!rebuild
-                && signals.isEmpty()
-                && modelGraphProjectionPositions
-                           .getOrDefault(
-                                   collection, -1L)
-                   >= modelStateIndex) {
-                continue;
+                boundary = modelStateIndex;
+                for (ModelGraphProjectionConfiguration configuration :
+                        modelGraphProjections.values()) {
+                    String collection =
+                            configuration.getCollection();
+                    boolean rebuild =
+                            modelGraphProjectionRebuilds
+                                    .contains(collection);
+                    if (!rebuild
+                        && signals.isEmpty()
+                        && modelGraphProjectionPositions
+                                   .getOrDefault(
+                                           collection, -1L)
+                           >= boundary) {
+                        continue;
+                    }
+                    LinkedHashSet<String> roots =
+                            rebuild
+                                    ? new LinkedHashSet<>(
+                                            currentProjectionRoots(
+                                                    configuration))
+                                    : new LinkedHashSet<>();
+                    if (!rebuild) {
+                        signals.forEach(signal ->
+                                                roots.addAll(
+                                                        affectedProjectionRoots(
+                                                                configuration,
+                                                                signal)));
+                    }
+                    work.add(new ModelGraphProjectionWork(
+                            configuration, Set.copyOf(roots), rebuild));
+                }
             }
-            LinkedHashSet<String> roots =
-                    rebuild
-                            ? new LinkedHashSet<>(
-                                    currentProjectionRoots(
-                                            configuration))
-                            : new LinkedHashSet<>();
-            if (!rebuild) {
-                signals.forEach(signal ->
-                                        roots.addAll(
-                                                affectedProjectionRoots(
-                                                        configuration,
-                                                        signal)));
+
+            Map<String, Throwable> failures =
+                    new LinkedHashMap<>();
+            Map<String, Runnable> publications =
+                    new LinkedHashMap<>();
+            for (ModelGraphProjectionWork projection : work) {
+                try {
+                    publications.put(
+                            projection.configuration()
+                                    .getCollection(),
+                            materializer.materialize(
+                                    projection.configuration(),
+                                    projection.roots(), boundary,
+                                    projection.rebuild()));
+                } catch (Throwable failure) {
+                    failures.put(
+                            projection.configuration()
+                                    .getCollection(),
+                            failure);
+                }
+            }
+
+            boolean repeat;
+            List<ModelGraphProjectionWaiterCompletion>
+                    completed;
+            synchronized (this) {
+                for (ModelGraphProjectionWork projection : work) {
+                    String collection = projection.configuration()
+                            .getCollection();
+                    Throwable failure = failures.get(collection);
+                    if (failure == null) {
+                        modelGraphProjectionPositions.put(
+                                collection, boundary);
+                        modelGraphProjectionFailures.remove(
+                                collection);
+                        modelGraphProjectionRebuilds.remove(
+                                collection);
+                        Runnable publication =
+                                publications.get(collection);
+                        if (publication != null) {
+                            modelMaterializationPublications.add(
+                                    publication);
+                        }
+                    } else {
+                        modelGraphProjectionFailures.put(
+                                collection, failure);
+                    }
+                }
+                if (failures.isEmpty()) {
+                    modelGraphProjectionSignals.removeAll(
+                            signals);
+                }
+                modelGraphProjectionDrainActive = false;
+                completed = takeCompletedModelGraphProjectionWaiters();
+                repeat = failures.isEmpty()
+                         && modelCommitMaterializations.isEmpty()
+                         && !modelGraphProjectionSignals.isEmpty();
+            }
+            completeModelGraphProjectionWaiters(completed);
+            if (publishNotifications) {
+                publishModelMaterializationNotifications();
+            }
+            if (!repeat) {
+                return;
+            }
+        }
+    }
+
+    private void publishModelMaterializationNotifications() {
+        synchronized (this) {
+            if (modelMaterializationPublicationActive
+                || modelMaterializationPublications.isEmpty()) {
+                return;
+            }
+            modelMaterializationPublicationActive = true;
+        }
+        Throwable firstFailure = null;
+        while (true) {
+            Runnable publication;
+            synchronized (this) {
+                publication = modelMaterializationPublications.poll();
+                if (publication == null) {
+                    modelMaterializationPublicationActive = false;
+                    break;
+                }
             }
             try {
-                modelGraphProjectionMaterializer
-                        .materialize(
-                                configuration,
-                                Set.copyOf(roots),
-                                modelStateIndex,
-                                rebuild);
-                modelGraphProjectionPositions.put(
-                        collection,
-                        modelStateIndex);
-                modelGraphProjectionFailures.remove(
-                        collection);
-                modelGraphProjectionRebuilds.remove(
-                        collection);
+                publication.run();
             } catch (Throwable failure) {
-                failed = true;
-                modelGraphProjectionFailures.put(
-                        collection,
-                        failure);
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                }
             }
         }
-        if (!failed) {
-            modelGraphProjectionSignals.clear();
+        if (firstFailure instanceof RuntimeException runtimeException) {
+            throw runtimeException;
         }
-        completeModelGraphProjectionWaiters();
+        if (firstFailure instanceof Error error) {
+            throw error;
+        }
+        if (firstFailure != null) {
+            throw new IllegalStateException(
+                    "Failed to publish a materialized Model graph",
+                    firstFailure);
+        }
+    }
+
+    private record ModelGraphProjectionWork(
+            ModelGraphProjectionConfiguration configuration,
+            Set<String> roots, boolean rebuild) {
     }
 
     private Set<String> currentProjectionRoots(
@@ -1173,7 +1299,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 .orElse(null);
     }
 
-    private void completeModelGraphProjectionWaiters() {
+    private List<ModelGraphProjectionWaiterCompletion>
+            takeCompletedModelGraphProjectionWaiters() {
         List<ModelGraphProjectionWaiter> completed =
                 modelGraphProjectionWaiters.stream()
                         .filter(waiter ->
@@ -1191,25 +1318,39 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         .toList();
         modelGraphProjectionWaiters.removeAll(
                 completed);
-        completed.forEach(waiter -> {
+        return completed.stream().map(waiter -> {
             Throwable failure =
                     modelGraphProjectionFailures.get(
                             waiter.request()
                                     .getCollection());
-            if (failure == null) {
-                waiter.result()
-                        .complete(
-                                modelGraphProjectionStatus(
-                                        waiter.request()
-                                                .getRequestId(),
-                                        waiter.request()
-                                                .getCollection()));
+            ModelGraphProjectionStatus status = failure == null
+                    ? modelGraphProjectionStatus(
+                            waiter.request().getRequestId(),
+                            waiter.request().getCollection())
+                    : null;
+            return new ModelGraphProjectionWaiterCompletion(
+                    waiter, status, failure);
+        }).toList();
+    }
+
+    private static void completeModelGraphProjectionWaiters(
+            List<ModelGraphProjectionWaiterCompletion> completed) {
+        completed.forEach(completion -> {
+            if (completion.failure() == null) {
+                completion.waiter().result()
+                        .complete(completion.status());
             } else {
-                waiter.result()
+                completion.waiter().result()
                         .completeExceptionally(
-                                failure);
+                                completion.failure());
             }
         });
+    }
+
+    private record ModelGraphProjectionWaiterCompletion(
+            ModelGraphProjectionWaiter waiter,
+            ModelGraphProjectionStatus status,
+            Throwable failure) {
     }
 
     private void validateCommitRelationships(
@@ -1692,22 +1833,24 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     }
 
     /**
-     * Applies direct model documents and due snapshots before a local model commit reports success.
+     * Applies direct model documents and due snapshots, returning their local-handler publication for execution after
+     * the materialized state and graph-projection fences have advanced.
      */
     @FunctionalInterface
     public interface ModelCommitMaterializer {
-        void materialize(
+        Runnable materialize(
                 CommitModels commit,
                 List<ModelUpdate> assignedUpdates,
                 Set<String> excludedModelIds);
     }
 
     /**
-     * Writes current materialized graph documents for the SDK-only event store.
+     * Writes current materialized graph documents, returning their local-handler publication for execution after the
+     * graph-projection fence has advanced.
      */
     @FunctionalInterface
     public interface ModelGraphProjectionMaterializer {
-        void materialize(
+        Runnable materialize(
                 ModelGraphProjectionConfiguration
                         configuration,
                 Set<String> rootIds,

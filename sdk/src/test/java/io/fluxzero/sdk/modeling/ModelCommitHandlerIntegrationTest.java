@@ -47,6 +47,7 @@ import lombok.experimental.SuperBuilder;
 import lombok.extern.jackson.Jacksonized;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.util.Collections;
@@ -54,6 +55,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -1567,6 +1569,77 @@ class ModelCommitHandlerIntegrationTest {
                                         ProjectionChild.class)
                                 .getFirst()
                                 .projectionChildId().getId()));
+    }
+
+    @Test
+    @Timeout(5)
+    void materializedGraphHandlerCanSynchronouslyCommitAnAffectedChild() {
+        ProjectionRootId rootId = new ProjectionRootId("nested-handler");
+        ProjectionChildId childId = new ProjectionChildId("nested-handler");
+        AtomicBoolean created = new AtomicBoolean();
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .registerHandlers(new Object() {
+                    @HandleDocument(modelGraph = ProjectionRoot.class)
+                    void handle(Graph<ProjectionRoot> graph) {
+                        if (graph.isEmpty()
+                            || !graph.childModels(
+                                        "projectedChildren",
+                                        ProjectionChild.class)
+                                    .isEmpty()
+                            || !created.compareAndSet(false, true)) {
+                            return;
+                        }
+                        Fluxzero.sendCommandAndWait(
+                                new CreateProjectionChild(
+                                        childId, rootId));
+                    }
+                })
+                .whenCommand(new CreateProjectionRoot(rootId))
+                .expectThat(ignored -> assertEquals(
+                        childId,
+                        Fluxzero.loadGraph(rootId)
+                                .childModels(
+                                        "children",
+                                        ProjectionChild.class)
+                                .getFirst()
+                                .projectionChildId()));
+    }
+
+    @Test
+    @Timeout(5)
+    void directModelDocumentHandlerCanSynchronouslyCommitAnAffectedChild() {
+        ProjectionRootId rootId = new ProjectionRootId("nested-direct-handler");
+        ProjectionChildId childId = new ProjectionChildId("nested-direct-handler");
+        AtomicBoolean created = new AtomicBoolean();
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(
+                                        GraphProjectionCompletion.AWAIT))
+                .registerHandlers(new Object() {
+                    @HandleDocument(documentClass = ProjectionRoot.class)
+                    void handle(ProjectionRoot root) {
+                        if (created.compareAndSet(false, true)) {
+                            Fluxzero.sendCommandAndWait(
+                                    new CreateProjectionChild(
+                                            childId,
+                                            root.projectionRootId()));
+                        }
+                    }
+                })
+                .whenCommand(new CreateProjectionRoot(rootId))
+                .expectThat(ignored -> assertEquals(
+                        childId,
+                        Fluxzero.loadGraph(rootId)
+                                .childModels(
+                                        "children",
+                                        ProjectionChild.class)
+                                .getFirst()
+                                .projectionChildId()));
     }
 
     @Test

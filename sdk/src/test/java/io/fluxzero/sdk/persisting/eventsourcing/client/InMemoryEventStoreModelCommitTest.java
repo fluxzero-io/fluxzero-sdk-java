@@ -572,6 +572,7 @@ class InMemoryEventStoreModelCommitTest {
                         throw new IllegalStateException(
                                 "search unavailable");
                     }
+                    return () -> { };
                 });
         CommitModels commit =
                 commit(
@@ -618,6 +619,41 @@ class InMemoryEventStoreModelCommitTest {
                 1,
                 store.getEvents("order-1")
                         .count());
+    }
+
+    @Test
+    void directMaterializerCanSynchronouslyStartAnotherModelCommit() {
+        InMemoryEventStore store = denseStore();
+        AtomicBoolean nested = new AtomicBoolean();
+        store.setModelCommitMaterializer(
+                (commit, assigned, excluded) -> {
+                    if (nested.compareAndSet(false, true)) {
+                        CompletableFuture.runAsync(() -> store.commitModels(
+                                commit(
+                                        "nested-commit",
+                                        ModelCommitStep.builder()
+                                                .event(event("nested-event"))
+                                                .targets(List.of(storedTarget("nested-model")))
+                                        .build())).join()).join();
+                    }
+                    return () -> { };
+                });
+        CommitModels outer = commit(
+                "outer-commit",
+                ModelCommitStep.builder()
+                        .event(event("outer-event"))
+                        .targets(List.of(storedTarget("outer-model")
+                                                 .toBuilder()
+                                                 .document(new ModelDocumentMutation(
+                                                         "models", null))
+                                                 .build()))
+                        .build());
+
+        assertTimeoutPreemptively(
+                Duration.ofSeconds(2),
+                () -> store.commitModels(outer).join());
+        assertNotNull(modelStream(store, "outer-model").getHead());
+        assertNotNull(modelStream(store, "nested-model").getHead());
     }
 
     @Test
