@@ -170,6 +170,9 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
     private static boolean canResolveModel(
             Parameter parameter, EntityMetadata.ModelParameter model, Object input,
             EntityMetadata.ExecutableParameters plan) {
+        if (GraphChangeHandlerDecorator.resolvingGraphChange()) {
+            return GraphChangeHandlerDecorator.suppliesGraph(parameter);
+        }
         if (GraphChangeHandlerDecorator.suppliesGraph(parameter)) {
             return true;
         }

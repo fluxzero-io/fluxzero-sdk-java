@@ -358,6 +358,61 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void oneHandlerObjectRoutesDifferentTypedGraphChangesToTheirOwnMethods() {
+        FamilyRootId rootId = new FamilyRootId("typed-graph-handler");
+        AccountId accountId = new AccountId("typed-graph-handler");
+        List<Graph<FamilyRoot>> familyGraphs = new CopyOnWriteArrayList<>();
+        List<Graph<Account>> accountGraphs = new CopyOnWriteArrayList<>();
+
+        TestFixture.create()
+                .registerHandlers(new Object() {
+                    @HandleNotification
+                    void handleFamily(Graph<FamilyRoot> graph) {
+                        familyGraphs.add(graph);
+                    }
+
+                    @HandleNotification
+                    void handleAccount(Graph<Account> graph) {
+                        accountGraphs.add(graph);
+                    }
+                })
+                .whenExecuting(fluxzero -> {
+                    fluxzero.commandGateway().sendAndWait(
+                            new CreateFamilyRoot(rootId, "family"));
+                    fluxzero.commandGateway().sendAndWait(
+                            new CreateAccount(accountId, 42));
+                })
+                .expectThat(ignored -> {
+                    assertEquals(List.of(rootId), familyGraphs.stream()
+                            .map(graph -> graph.get().familyRootId())
+                            .toList());
+                    assertEquals(List.of(accountId), accountGraphs.stream()
+                            .map(graph -> graph.get().accountId())
+                            .toList());
+                });
+    }
+
+    @Test
+    void oneHandlerObjectRoutesInheritedGraphChangesToTheMostSpecificMethod() {
+        List<String> handled = new CopyOnWriteArrayList<>();
+
+        TestFixture.create(BaseCounter.class)
+                .registerHandlers(new Object() {
+                    @HandleNotification
+                    void handleBase(Graph<BaseCounter> graph) {
+                        handled.add("base");
+                    }
+
+                    @HandleNotification
+                    void handleSpecial(Graph<SpecialCounter> graph) {
+                        handled.add("special");
+                    }
+                })
+                .whenCommand(new CreateSpecialCounter("specific-graph-handler", 1))
+                .expectThat(ignored -> assertEquals(List.of("special"), handled));
+    }
+
+    @Test
     void graphOnlyHandlerDeduplicatesCascadeTargetsAndRetainsDeletedGraphHistory() {
         FamilyRootId rootId = new FamilyRootId("change-delete");
         FamilyChildId firstChild = new FamilyChildId("change-delete-first");

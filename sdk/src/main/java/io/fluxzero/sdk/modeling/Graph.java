@@ -55,7 +55,9 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * <p>
  * As the sole parameter of an event or notification handler, a graph subscribes to durable changes of that root and
  * any descendant. The handler runs once per affected root. {@link #previous()} then returns the complete graph directly
- * before the change; a child move therefore invokes the handler once for the old root and once for the new root.
+ * before the change; a child move therefore invokes the handler once for the old root and once for the new root. One
+ * handler object may declare separate sole-parameter methods for different {@code Graph<T>} root types; each changed
+ * root is routed to its matching typed method.
  * <p>
  * A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary
  * serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or

@@ -289,6 +289,9 @@ cache depth.
 - `@HandleNotification void changed(Graph<Organisation> graph)` has the same graph semantics without regular consumer
   segmentation.
 
+One handler object may contain multiple such methods for distinct root types. Fluxzero routes each affected root to
+the matching typed `Graph<T>` method, so no per-type adapter objects are needed.
+
 A handler that also declares the explicit event payload remains an ordinary payload handler. Its `Graph<T>` parameter
 keeps the direct or ancestor-injection semantics described above.
 
