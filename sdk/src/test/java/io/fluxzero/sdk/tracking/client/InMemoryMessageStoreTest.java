@@ -27,15 +27,31 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.MessageType.EVENT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryMessageStoreTest {
+
+    @Test
+    void invokesMonitorsAfterReleasingStoreLock() {
+        InMemoryMessageStore store = new InMemoryMessageStore(EVENT, Duration.ofMinutes(5));
+        AtomicBoolean invoked = new AtomicBoolean();
+        store.registerMonitor(messages -> {
+            assertFalse(Thread.holdsLock(store));
+            invoked.set(true);
+        });
+
+        store.append(List.of(message(1L))).join();
+
+        assertTrue(invoked.get());
+    }
 
     @Test
     void getBatchDoesNotReadPastMaxSize() {

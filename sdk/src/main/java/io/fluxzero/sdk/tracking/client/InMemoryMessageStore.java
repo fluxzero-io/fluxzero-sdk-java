@@ -84,6 +84,7 @@ import java.util.function.Predicate;
 public class InMemoryMessageStore implements MessageStore {
 
     private final Set<Consumer<List<SerializedMessage>>> monitors = new CopyOnWriteArraySet<>();
+    private final Object monitorNotificationLock = new Object();
     private final AtomicLong nextIndex = new AtomicLong();
     private final ConcurrentSkipListMap<Long, SerializedMessage> messageLog = new ConcurrentSkipListMap<>();
     @Getter
@@ -97,20 +98,33 @@ public class InMemoryMessageStore implements MessageStore {
     }
 
     @Override
-    public synchronized CompletableFuture<Void> append(List<SerializedMessage> messages) {
-        try {
-            messages.forEach(m -> {
-                if (m.getIndex() == null) {
-                    m.setIndex(nextIndex.updateAndGet(IndexUtils::nextIndex));
+    public CompletableFuture<Void> append(List<SerializedMessage> messages) {
+        synchronized (monitorNotificationLock) {
+            try {
+                synchronized (this) {
+                    appendMessages(messages);
                 }
-                messageLog.put(m.getIndex(), m);
-            });
-            if (retentionTime != null) {
-                purgeExpiredMessages(retentionTime);
+                return CompletableFuture.completedFuture(null);
+            } finally {
+                notifyMonitors(messages);
             }
-            return CompletableFuture.completedFuture(null);
-        } finally {
-            notifyMonitors(messages);
+        }
+    }
+
+    /**
+     * Stores messages while the caller owns this store's monitor. Subclasses can use this to update their secondary
+     * indexes and the message log atomically without invoking external monitors under the store lock.
+     */
+    protected void appendMessages(List<SerializedMessage> messages) {
+        assert Thread.holdsLock(this);
+        messages.forEach(m -> {
+            if (m.getIndex() == null) {
+                m.setIndex(nextIndex.updateAndGet(IndexUtils::nextIndex));
+            }
+            messageLog.put(m.getIndex(), m);
+        });
+        if (retentionTime != null) {
+            purgeExpiredMessages(retentionTime);
         }
     }
 
@@ -169,10 +183,28 @@ public class InMemoryMessageStore implements MessageStore {
     }
 
     @Override
-    public synchronized void truncate() {
+    public void truncate() {
+        synchronized (monitorNotificationLock) {
+            synchronized (this) {
+                truncateMessages();
+            }
+            notifyMonitors(Collections.emptyList());
+        }
+    }
+
+    /** Clears the message log while the caller owns this store's monitor. */
+    protected void truncateMessages() {
+        assert Thread.holdsLock(this);
         messageLog.clear();
         nextIndex.set(0L);
-        notifyMonitors(Collections.emptyList());
+    }
+
+    /**
+     * Serializes a store mutation with its subsequent monitor notification while allowing callbacks to re-enter the
+     * store itself. Subclasses must acquire this lock before the store monitor whenever both are needed.
+     */
+    protected final Object monitorNotificationLock() {
+        return monitorNotificationLock;
     }
 
     @Override
