@@ -117,6 +117,23 @@ class GraphTest {
     }
 
     @Test
+    void functionalIdOmitsRepositoryAffixesAndSurvivesDeletion() {
+        ModelRepository repository = mock(ModelRepository.class);
+        Root value = new Root(new RootId("identity"), "current");
+        Entity<Root> current = entity(value.id().toString(), Root.class, value);
+        Entity<Root> deleted = entity(value.id().toString(), Root.class, null);
+        when(deleted.previous()).thenReturn(current);
+
+        Graph<Root> currentGraph = Graphs.lazy(current, 42L, repository);
+        Graph<Root> deletedGraph = Graphs.lazy(deleted, 43L, repository);
+
+        assertEquals("graph-root-identity", currentGraph.id());
+        assertEquals("identity", currentGraph.functionalId());
+        assertEquals("identity", deletedGraph.functionalId());
+        verifyNoInteractions(repository);
+    }
+
+    @Test
     void emptyGraphConveniencesPreserveWrapperSemanticsWithoutLoadingRelationships() {
         ModelRepository repository = mock(ModelRepository.class);
         Entity<Root> missing = entity("graph-root-missing", Root.class, null);

@@ -160,8 +160,30 @@ public interface Graph<T> {
         return isPresent() ? operation.apply(this) : this;
     }
 
-    /** Returns the functional identifier object carried by the model wrapper. */
+    /** Returns the exact collision-safe repository identity of this model. */
     Object id();
+
+    /**
+     * Returns the public functional identity from the current model value or, for a deleted model, its latest
+     * available historical value.
+     * <p>
+     * This deliberately differs from {@link #id()}, which can contain an {@link EntityId} prefix, postfix or
+     * parent scope used only for durable repository identity. A model that has never existed has no functional
+     * identity and returns {@code null}.
+     */
+    @Nullable
+    default String functionalId() {
+        for (Graph<?> version = this; version != null; version = version.previous()) {
+            Object value = version.get();
+            if (value == null) {
+                continue;
+            }
+            Object functionalId = EntityMetadata.of(version.type()).functionalIdOf(value);
+            return functionalId instanceof Id<?> typedId
+                    ? typedId.getFunctionalId() : String.valueOf(functionalId);
+        }
+        return null;
+    }
 
     /** Returns the concrete model type. */
     Class<T> type();
