@@ -318,7 +318,7 @@ public final class ModelCommitValidator {
                 throw new IllegalArgumentException("Duplicate model graph root " + modelId);
             }
         }
-        boolean ancestors = request.getDirection() == GetModelGraph.Direction.ANCESTORS;
+        boolean ancestors = request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS;
         if (ancestors && request.getBoundary().before()) {
             throw new IllegalArgumentException("Model ancestor graphs do not support before-boundaries");
         }

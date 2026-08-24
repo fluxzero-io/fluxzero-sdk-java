@@ -108,7 +108,7 @@ public final class ModelRelationshipQueries {
             boolean exactBoundary,
             Function<Collection<String>, List<R>> relationships,
             Function<GetModelEvents, GetModelEventsResult> events) {
-        boolean ancestors = request.getDirection() == GetModelGraph.Direction.ANCESTORS;
+        boolean ancestors = request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS;
         ModelRelationshipTraversal.Result graph = ModelRelationshipTraversal.traverse(
                 request.getModelIds(),
                 new ModelRelationshipTraversal.Policy(
@@ -166,7 +166,7 @@ public final class ModelRelationshipQueries {
                     "Related model IDs exceed maxRelatedModels " + constraint.getMaxRelatedModels());
         }
         LinkedHashSet<String> result = new LinkedHashSet<>();
-        boolean ancestors = constraint.getDirection() == ModelRelationConstraint.Direction.ANCESTOR;
+        boolean ancestors = constraint.getDirection() == ModelRelationConstraint.RelationDirection.ANCESTOR;
         ModelRelationshipTraversal.traverse(
                 relatedModelIds,
                 new ModelRelationshipTraversal.Policy(

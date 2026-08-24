@@ -126,7 +126,7 @@ class WebSocketSearchClientPaginationTest {
 
     private static ModelRelationConstraint relation() {
         return ModelRelationConstraint.builder()
-                .direction(ModelRelationConstraint.Direction.ANCESTOR)
+                .direction(ModelRelationConstraint.RelationDirection.ANCESTOR)
                 .query(SearchQuery.builder().collection("parents").build())
                 .build();
     }

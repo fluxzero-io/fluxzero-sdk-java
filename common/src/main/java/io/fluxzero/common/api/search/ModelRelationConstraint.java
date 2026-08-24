@@ -40,7 +40,7 @@ public class ModelRelationConstraint {
     /**
      * Relationship direction as observed from each returned target document.
      */
-    Direction direction;
+    RelationDirection direction;
 
     /**
      * Query that selects the related ancestor or descendant documents.
@@ -78,7 +78,7 @@ public class ModelRelationConstraint {
     int maxTraversedModels = 100_000;
 
     public ModelRelationConstraint(
-            Direction direction,
+            RelationDirection direction,
             SearchQuery query,
             int minDepth,
             int maxDepth,
@@ -124,7 +124,7 @@ public class ModelRelationConstraint {
     /**
      * Relationship direction as observed from returned target documents.
      */
-    public enum Direction {
+    public enum RelationDirection {
         ANCESTOR,
         DESCENDANT
     }

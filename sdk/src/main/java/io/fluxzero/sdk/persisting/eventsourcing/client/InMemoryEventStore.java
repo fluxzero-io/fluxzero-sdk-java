@@ -1426,7 +1426,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             boolean before) {
         return ModelRelationshipQueries.graph(
                 request, boundary, exactBoundary,
-                frontier -> request.getDirection() == GetModelGraph.Direction.ANCESTORS
+                frontier -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS
                         ? relationshipsByChildren(frontier, boundary)
                         : relationshipsByParents(frontier, boundary, before),
                 this::getModelEvents);

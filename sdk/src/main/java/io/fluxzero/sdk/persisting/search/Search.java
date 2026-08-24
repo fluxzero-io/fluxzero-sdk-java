@@ -332,7 +332,7 @@ public interface Search<R> {
             int maxDepth,
             Constraint... constraints) {
         return relation(ModelRelationConstraint.builder()
-                                .direction(ModelRelationConstraint.Direction.ANCESTOR)
+                                .direction(ModelRelationConstraint.RelationDirection.ANCESTOR)
                                 .query(SearchQuery.builder()
                                                .collection(ClientUtils.determineSearchCollection(collection))
                                                .constraints(List.of(constraints))
@@ -369,7 +369,7 @@ public interface Search<R> {
             int maxDepth,
             Constraint... constraints) {
         return relation(ModelRelationConstraint.builder()
-                                .direction(ModelRelationConstraint.Direction.DESCENDANT)
+                                .direction(ModelRelationConstraint.RelationDirection.DESCENDANT)
                                 .query(SearchQuery.builder()
                                                .collection(ClientUtils.determineSearchCollection(collection))
                                                .constraints(List.of(constraints))

@@ -1807,7 +1807,7 @@ class DefaultModelRepositoryTest {
             verify(eventStoreClient, times(2)).getModelGraph(
                     graphRequests.capture());
             GetModelGraph ancestors = graphRequests.getAllValues().stream()
-                    .filter(request -> request.getDirection() == GetModelGraph.Direction.ANCESTORS)
+                    .filter(request -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS)
                     .findFirst().orElseThrow();
             assertEquals(
                     List.of(grandchildId.toString()),
@@ -1822,7 +1822,7 @@ class DefaultModelRepositoryTest {
                          ancestors.getMaxModels());
 
             GetModelGraph loaded = graphRequests.getAllValues().stream()
-                    .filter(request -> request.getDirection() == GetModelGraph.Direction.DESCENDANTS)
+                    .filter(request -> request.getDirection() == GetModelGraph.TraversalDirection.DESCENDANTS)
                     .findFirst().orElseThrow();
             assertEquals(List.of(rootId.toString()),
                          loaded.getModelIds());

@@ -63,7 +63,7 @@ public class GetModelGraph extends Request {
     long maxBytes;
 
     /** Relationship direction followed from the supplied roots. */
-    Direction direction;
+    TraversalDirection direction;
 
     /**
      * Whether traversal is limited to relationships with an explicit graph-composition path.
@@ -80,7 +80,7 @@ public class GetModelGraph extends Request {
             int maxModels,
             int maxEventsPerModel,
             long maxBytes,
-            Direction direction,
+            TraversalDirection direction,
             boolean composableOnly) {
         this.modelIds = modelIds == null ? null : List.copyOf(modelIds);
         ModelReadBoundary selectedBoundary = Objects.requireNonNull(boundary, "boundary");
@@ -105,7 +105,7 @@ public class GetModelGraph extends Request {
             long maxBytes,
             boolean composableOnly) {
         this(List.of(rootId), boundary, maxDepth, maxModels,
-             maxEventsPerModel, maxBytes, Direction.DESCENDANTS, composableOnly);
+             maxEventsPerModel, maxBytes, TraversalDirection.DESCENDANTS, composableOnly);
     }
 
     /** Creates a multi-root ancestor query through the same graph capability. */
@@ -118,7 +118,7 @@ public class GetModelGraph extends Request {
             long maxBytes) {
         return new GetModelGraph(
                 modelIds, Objects.requireNonNull(boundary, "boundary").forRequest(), maxDepth, maxModels,
-                maxEventsPerModel, maxBytes, Direction.ANCESTORS, false);
+                maxEventsPerModel, maxBytes, TraversalDirection.ANCESTORS, false);
     }
 
     @Override
@@ -128,7 +128,7 @@ public class GetModelGraph extends Request {
                 maxEventsPerModel, maxBytes, direction, composableOnly);
     }
 
-    public enum Direction { DESCENDANTS, ANCESTORS }
+    public enum TraversalDirection { DESCENDANTS, ANCESTORS }
 
     @Value
     public static class Metric {
@@ -138,7 +138,7 @@ public class GetModelGraph extends Request {
         int maxModels;
         int maxEventsPerModel;
         long maxBytes;
-        Direction direction;
+        TraversalDirection direction;
         boolean composableOnly;
     }
 }

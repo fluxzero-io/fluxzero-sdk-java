@@ -855,7 +855,7 @@ class WebSocketTransportCodecsTest {
                     decoded.getBoundary());
             assertEquals(12, decoded.getMaxDepth());
             assertEquals(1_000, decoded.getMaxModels());
-            assertEquals(GetModelGraph.Direction.ANCESTORS, decoded.getDirection());
+            assertEquals(GetModelGraph.TraversalDirection.ANCESTORS, decoded.getDirection());
             assertEquals(
                     2, decoded.toMetric().getRootCount());
         }
@@ -913,7 +913,7 @@ class WebSocketTransportCodecsTest {
                         List.of(ModelRelationConstraint.builder()
                                         .direction(
                                                 ModelRelationConstraint
-                                                        .Direction.ANCESTOR)
+                                                        .RelationDirection.ANCESTOR)
                                         .query(SearchQuery.builder()
                                                        .collection("orders")
                                                        .constraint(
@@ -947,7 +947,7 @@ class WebSocketTransportCodecsTest {
                     List.of("lines", "orders"),
                     relation.getPaths());
             assertEquals(
-                    ModelRelationConstraint.Direction.ANCESTOR,
+                    ModelRelationConstraint.RelationDirection.ANCESTOR,
                     relation.getDirection());
             assertEquals(
                     1,
