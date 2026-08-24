@@ -38,6 +38,7 @@ import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
+import jakarta.annotation.Nullable;
 import io.fluxzero.sdk.tracking.root.RootConsumerModelCommand;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
@@ -61,6 +62,7 @@ import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -1313,6 +1315,14 @@ class ModelCommitHandlerIntegrationTest {
                                         .anyMatch(event -> event.getPayload()
                                                 instanceof CascadedModelDeletion));
                 });
+    }
+
+    @Test
+    void missingModelMaySupplyNullForNullableAncestorDependency() {
+        TestFixture.create(PathlessFamilyChild.class)
+                .whenCommand(new InspectMissingFamilyChild("missing-child"))
+                .expectSuccessfulResult()
+                .expectNoEvents();
     }
 
     @Test
@@ -3092,6 +3102,23 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         PathlessFamilyChild apply() {
             return new PathlessFamilyChild(id, familyRootId);
+        }
+    }
+
+    private record InspectMissingFamilyChild(String id) {
+        @AssertLegal
+        void inspectChild(@Nullable PathlessFamilyChild child) {
+            assertNull(child);
+        }
+
+        @AssertLegal
+        void inspectParent(@Nullable FamilyRoot parent) {
+            assertNull(parent);
+        }
+
+        @Apply
+        PathlessFamilyChild apply(@Nullable PathlessFamilyChild child) {
+            return child;
         }
     }
 

@@ -430,7 +430,8 @@ public final class MutationPlan {
             } else if (!direct.present()) {
                 ancestors.add(new AncestorDependency(
                         parameter.modelType(), parameter.associationProperty(),
-                        plan.executable().toGenericString()));
+                        plan.executable().toGenericString(),
+                        !ReflectionUtils.isNullable(parameter.parameter())));
             } else if (direct.modelId() != null) {
                 String source = parameter.associationProperty() == null
                         ? EntityMetadata.of(parameter.modelType()).entityIdName()
@@ -667,7 +668,8 @@ public final class MutationPlan {
                         true, Access.READ_ONLY, signature, false, apply, parameter));
             } else {
                 ancestors.add(new PlannedAncestor(new AncestorDependency(
-                        parameter.modelType(), parameter.associationProperty(), signature), apply));
+                        parameter.modelType(), parameter.associationProperty(), signature,
+                        !ReflectionUtils.isNullable(parameter.parameter())), apply));
             }
         }
         if (handler.kind() == EntityMetadata.HandlerKind.APPLY) {
@@ -989,7 +991,12 @@ public final class MutationPlan {
     }
 
     /** Read-only dependency resolved through temporal parent relations. */
-    public record AncestorDependency(Class<?> modelType, String association, String handler) {
+    public record AncestorDependency(
+            Class<?> modelType, String association, String handler, boolean required) {
+        public AncestorDependency(Class<?> modelType, String association, String handler) {
+            this(modelType, association, handler, true);
+        }
+
         public AncestorDependency {
             Objects.requireNonNull(modelType, "modelType");
             Objects.requireNonNull(handler, "handler");

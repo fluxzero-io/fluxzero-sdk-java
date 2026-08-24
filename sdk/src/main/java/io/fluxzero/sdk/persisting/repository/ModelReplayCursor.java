@@ -1160,7 +1160,7 @@ final class ModelReplayCursor {
                         .filter(candidate -> reachableById.get(candidate).depth() == closestDepth).toList();
             }
             if (candidates.isEmpty()) {
-                if (!requireAncestors) {
+                if (!requireAncestors || !dependency.required()) {
                     continue;
                 }
                 throw new IllegalStateException(

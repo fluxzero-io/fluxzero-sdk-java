@@ -22,6 +22,7 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.tracking.handling.PayloadParameterResolver;
 import io.fluxzero.sdk.tracking.handling.Association;
+import jakarta.annotation.Nullable;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -30,6 +31,7 @@ import static io.fluxzero.sdk.modeling.MutationPlan.Access.READ_ONLY;
 import static io.fluxzero.sdk.modeling.MutationPlan.Access.READ_WRITE;
 import static io.fluxzero.sdk.modeling.MutationPlan.Access.WRITE_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -276,6 +278,15 @@ class MutationPlanTest {
     }
 
     @Test
+    void nullableAncestorDependencyIsOptional() {
+        MutationPlan.Resolution resolution = resolve(
+                new CheckOptionalParent(new ChildId("1")),
+                EntityMetadata.of(CheckOptionalParent.class).handlerMethods());
+
+        assertFalse(resolution.ancestorDependencies().getFirst().required());
+    }
+
+    @Test
     void defersWriteSelectionWhenReturnTypeHasMultipleQualifiedCandidates() {
         Transfer command = new Transfer(new AccountId("source"), new AccountId("destination"));
 
@@ -457,6 +468,12 @@ class MutationPlanTest {
     private record CheckOrder(OrderId orderId, OrderId selectedOrder) {
         @AssertLegal
         void check(@Association("selectedOrder") Order order) {
+        }
+    }
+
+    private record CheckOptionalParent(ChildId childId) {
+        @AssertLegal
+        void check(@Nullable Parent parent) {
         }
     }
 
