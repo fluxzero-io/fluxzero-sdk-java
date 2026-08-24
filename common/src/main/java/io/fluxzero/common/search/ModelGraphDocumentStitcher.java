@@ -274,12 +274,15 @@ public final class ModelGraphDocumentStitcher {
 
             Map<Document.Entry, List<Document.Path>>
                     entries = new LinkedHashMap<>();
-            direct.getEntries().forEach(
-                    (entry, paths) ->
-                            entries.put(
-                                    entry,
-                                    new ArrayList<>(
-                                            paths)));
+            direct.getEntries().forEach((entry, paths) -> {
+                List<Document.Path> retained = new ArrayList<>(paths);
+                if (entry.getType() == Document.EntryType.EMPTY_ARRAY) {
+                    retained.removeIf(path -> byPath.containsKey(path.getValue()));
+                }
+                if (!retained.isEmpty()) {
+                    entries.put(entry, retained);
+                }
+            });
             LinkedHashSet<FacetEntry> facets =
                     new LinkedHashSet<>(
                             direct.getFacets());
@@ -421,15 +424,14 @@ public final class ModelGraphDocumentStitcher {
                             modelId, path, other);
                 }
             }
-            for (List<Document.Path> paths :
-                    direct.getEntries().values()) {
-                for (Document.Path directPath :
-                        paths) {
+            for (Map.Entry<Document.Entry, List<Document.Path>> entry : direct.getEntries().entrySet()) {
+                for (Document.Path directPath : entry.getValue()) {
                     if (!isMetadataPath(
                             directPath.getValue())
                         && overlaps(
-                                path,
-                                directPath.getValue())) {
+                                path, directPath.getValue())
+                        && !(entry.getKey().getType() == Document.EntryType.EMPTY_ARRAY
+                             && path.equals(directPath.getValue()))) {
                         throw collision(
                                 modelId, path,
                                 directPath.getValue());

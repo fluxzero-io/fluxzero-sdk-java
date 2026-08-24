@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static io.fluxzero.common.search.Document.EntryType.EMPTY_ARRAY;
 import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -120,6 +121,29 @@ class ModelGraphDocumentStitcherTest {
         assertEquals(
                 "root A detail B",
                 result.getSummary());
+    }
+
+    @Test
+    void fillsAnEmptyArrayReservedForComposedChildren() {
+        SerializedDocument plainRoot = document("root", "roots", "name", "root");
+        Document rootValue = plainRoot.deserializeDocument();
+        Map<Document.Entry, List<Document.Path>> entries = new LinkedHashMap<>(rootValue.getEntries());
+        entries.put(new Document.Entry(EMPTY_ARRAY, "[]"),
+                    List.of(new Document.Path("children")));
+        SerializedDocument root = new SerializedDocument(rootValue.toBuilder().entries(entries).build());
+        SerializedDocument child = document("child", "children", "name", "child");
+
+        Document result = ModelGraphDocumentStitcher.stitch(
+                        List.of(root), List.of(edge("child", "root", "children")),
+                        Map.of("root", root, "child", child),
+                        ModelGraphComposition.builder().build())
+                .getFirst().deserializeDocument();
+
+        assertEquals("child", result.getEntryAtPath("children/0/name").orElseThrow().getValue());
+        assertFalse(result.getEntries().entrySet().stream()
+                            .filter(entry -> entry.getKey().getType() == EMPTY_ARRAY)
+                            .flatMap(entry -> entry.getValue().stream())
+                            .anyMatch(path -> path.getValue().equals("children")));
     }
 
     @Test
