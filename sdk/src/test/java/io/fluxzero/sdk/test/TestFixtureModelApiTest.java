@@ -119,6 +119,16 @@ class TestFixtureModelApiTest {
     }
 
     @Test
+    void givenEventsPublishPayloadsWithLegacyApplyInterceptors() {
+        AtomicInteger handled = new AtomicInteger();
+
+        TestFixture.create(new LegacyInterceptedEventHandler(handled))
+                .givenEvents(new LegacyInterceptedEvent())
+                .whenApplying(ignored -> handled.get())
+                .expectResult(1);
+    }
+
+    @Test
     void givenEventsUpdateTheSameUncachedDocumentModelSynchronously() {
         TestFixture.create()
                 .givenEvents(new UpdateUncachedDocument("document-1", 1),
@@ -254,6 +264,13 @@ class TestFixtureModelApiTest {
         }
     }
 
+    private record LegacyInterceptedEvent() {
+        @InterceptApply
+        Object intercept() {
+            return this;
+        }
+    }
+
     @Model(eventSourced = false, cached = false, searchable = true)
     private record UncachedDocument(@EntityId String id, int value) {
     }
@@ -375,6 +392,13 @@ class TestFixtureModelApiTest {
 
         @HandleEvent
         void handle(StoredModelEvent ignored) {
+            handled.incrementAndGet();
+        }
+    }
+
+    private record LegacyInterceptedEventHandler(AtomicInteger handled) {
+        @HandleEvent
+        void handle(LegacyInterceptedEvent ignored) {
             handled.incrementAndGet();
         }
     }

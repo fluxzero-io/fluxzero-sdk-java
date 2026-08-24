@@ -2052,9 +2052,8 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private static boolean hasModelHandlerMethods(Class<?> payloadClass) {
         return EntityMetadata.of(payloadClass).handlerMethods().stream()
-                .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
-                                     || handler.kind() == EntityMetadata.HandlerKind.APPLY
-                                        && !handler.targetModelTypes().isEmpty());
+                .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY
+                                     && !handler.targetModelTypes().isEmpty());
     }
 
     private boolean matchesTrackSelfConditions(Class<?> payloadClass) {
