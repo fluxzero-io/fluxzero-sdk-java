@@ -1063,9 +1063,8 @@ public class TestFixture implements Given<TestFixture>, When {
     private void publishGivenEvent(Message event) {
         if (hasModelHandlerMethods(event.getPayloadClass())) {
             getDispatchResult(getFluxzero().executeStoredModelEvent(event));
-        } else {
-            getFluxzero().eventGateway().publish(event);
         }
+        getFluxzero().eventGateway().publish(event);
     }
 
     @Override

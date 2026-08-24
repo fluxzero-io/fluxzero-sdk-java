@@ -1909,8 +1909,9 @@ public interface Fluxzero extends AutoCloseable {
 
     /**
      * Applies an event that was already accepted by its original command flow to independent models.
-     * Assertions and apply interceptors are skipped, while regular {@code @Apply} methods and durable event
-     * publication are preserved. This infrastructure hook is primarily used by replay and test fixtures.
+     * Assertions and apply interceptors are skipped, while regular {@code @Apply} methods and durable Model-event
+     * storage are preserved. The accepted event is not published again. This infrastructure hook is primarily used by
+     * replay and test fixtures.
      *
      * @param event previously accepted event to apply
      * @return completion of the durable model commit

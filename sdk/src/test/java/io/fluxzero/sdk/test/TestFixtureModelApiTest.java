@@ -119,6 +119,20 @@ class TestFixtureModelApiTest {
     }
 
     @Test
+    void givenStoreOnlyEventsApplyIndependentModelsAndDispatchTheOriginalEventOnce() {
+        AtomicInteger handled = new AtomicInteger();
+        StoreOnlyStoredModelEvent event = new StoreOnlyStoredModelEvent("model-1");
+
+        TestFixture.create(new StoreOnlyModelEventHandler(handled))
+                .givenEvents(event)
+                .whenApplying(ignored -> Fluxzero.<FixtureModel>loadModel("model-1").get())
+                .expectResult(new FixtureModel("model-1"))
+                .andThen()
+                .whenApplying(ignored -> handled.get())
+                .expectResult(1);
+    }
+
+    @Test
     void givenEventsPublishPayloadsWithLegacyApplyInterceptors() {
         AtomicInteger handled = new AtomicInteger();
 
@@ -264,6 +278,13 @@ class TestFixtureModelApiTest {
         }
     }
 
+    private record StoreOnlyStoredModelEvent(String id) {
+        @Apply(publicationStrategy = io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_ONLY)
+        FixtureModel apply() {
+            return new FixtureModel(id);
+        }
+    }
+
     private record LegacyInterceptedEvent() {
         @InterceptApply
         Object intercept() {
@@ -392,6 +413,13 @@ class TestFixtureModelApiTest {
 
         @HandleEvent
         void handle(StoredModelEvent ignored) {
+            handled.incrementAndGet();
+        }
+    }
+
+    private record StoreOnlyModelEventHandler(AtomicInteger handled) {
+        @HandleEvent
+        void handle(StoreOnlyStoredModelEvent ignored) {
             handled.incrementAndGet();
         }
     }

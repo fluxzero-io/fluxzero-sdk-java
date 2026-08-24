@@ -1587,14 +1587,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 CommitAttempt evaluation,
                 ModelConflictPolicy conflictPolicy,
                 boolean migration) {
-            return doPrepare(commitId, evaluation, conflictPolicy, migration);
+            return prepare(commitId, evaluation, conflictPolicy, migration, false);
+        }
+
+        public Outcome prepare(
+                String commitId,
+                CommitAttempt evaluation,
+                ModelConflictPolicy conflictPolicy,
+                boolean migration,
+                boolean existingEvent) {
+            return doPrepare(commitId, evaluation, conflictPolicy, migration, existingEvent);
         }
 
         private Outcome doPrepare(
                 String commitId,
                 CommitAttempt evaluation,
                 ModelConflictPolicy conflictPolicy,
-                boolean migration) {
+                boolean migration,
+                boolean existingEvent) {
             Objects.requireNonNull(commitId, "commitId");
             if (commitId.isBlank()) {
                 throw new IllegalArgumentException("Model commit ID must not be blank");
@@ -1616,7 +1626,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 boolean direct = step.directMutation();
                 String messageId = message.getMessageId();
                 if (direct) {
-                    List<Change> published = message.getPayload() instanceof Graph<?>
+                    List<Change> published = (message.getPayload() instanceof Graph<?> || existingEvent)
                             ? List.of()
                             : transitions.stream().filter(Change::publishEvent).toList();
                     if (!published.isEmpty()) {
@@ -1663,6 +1673,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 }
                 Long existingEventIndex = existingEventIndex(message);
                 boolean publishEvent = !direct
+                                       && !existingEvent
                                        && existingEventIndex == null
                                        && (transitions.stream().anyMatch(Change::publishEvent)
                                            || !graphPublished.isEmpty());
@@ -1699,13 +1710,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             boolean possibleDuplicate = possibleDuplicate(evaluation, preparedChanges.values());
             if (protocolSteps.isEmpty()) {
-                return new Outcome(null, preparedChanges);
+                return new Outcome(null, preparedChanges, existingEvent);
             }
             CommitModels commit = new CommitModels(
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
                     possibleDuplicate, migration);
-            return new Outcome(commit, preparedChanges);
+            return new Outcome(commit, preparedChanges, existingEvent);
         }
 
         public Outcome prepareRebased(
@@ -1718,7 +1729,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             Outcome rebased = doPrepare(
                     commitId, evaluation, ModelConflictPolicy.ACCEPT,
-                    original.commit().isMigration());
+                    original.commit().isMigration(), original.existingEvent);
             requireSameShape(original, rebased);
             CommitModels candidate = rebased.commit();
             CommitModels commit = new CommitModels(
@@ -1727,7 +1738,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     candidate.getConflictPolicy(), original.commit().getGuarantee(),
                     original.commit().isPossibleDuplicate(),
                     original.commit().isMigration());
-            return new Outcome(commit, rebased.changes);
+            return new Outcome(commit, rebased.changes, original.existingEvent);
         }
 
         private static void requireSameShape(
@@ -2032,22 +2043,26 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             private final Map<ModelCommitTarget, Change> changes;
             private final CommitModelsResult result;
             private final List<CommittedRevision> revisions;
+            private final boolean existingEvent;
 
             private Outcome(
                     CommitModels commit,
-                    Map<ModelCommitTarget, Change> changes) {
-                this(commit, changes, null, List.of());
+                    Map<ModelCommitTarget, Change> changes,
+                    boolean existingEvent) {
+                this(commit, changes, null, List.of(), existingEvent);
             }
 
             private Outcome(
                     CommitModels commit,
                     Map<ModelCommitTarget, Change> changes,
                     CommitModelsResult result,
-                    List<CommittedRevision> revisions) {
+                    List<CommittedRevision> revisions,
+                    boolean existingEvent) {
                 this.commit = commit;
                 this.changes = new IdentityHashMap<>(Objects.requireNonNull(changes));
                 this.result = result;
                 this.revisions = revisions;
+                this.existingEvent = existingEvent;
             }
 
             public CommitModels commit() {
@@ -2096,7 +2111,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     }
                 }
                 return new Outcome(
-                        commit, changes, accepted, List.copyOf(revisions));
+                        commit, changes, accepted, List.copyOf(revisions), existingEvent);
             }
 
             List<CommittedRevision> revisions() {

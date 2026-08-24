@@ -305,7 +305,8 @@ final class ModelPipeline {
                             request.message(), evaluation,
                             batch == null ? request.transport() : batch,
                             batch == null ? request.transportSlot() : entry.slot,
-                            request.mode() == Mode.MIGRATE);
+                            request.mode() == Mode.MIGRATE,
+                            request.mode() == Mode.REPLAY || request.mode() == Mode.MIGRATE);
                 }));
             });
         } catch (Throwable failure) {
@@ -410,7 +411,8 @@ final class ModelPipeline {
             CommitAttempt evaluation,
             ModelCommitBatchingClient.ModelCommitBatch transportBatch,
             int transportSlot,
-            boolean migration) {
+            boolean migration,
+            boolean existingEvent) {
         ModelConflictPolicy effectiveConflictPolicy =
                 evaluation.conflictPolicy(conflictPolicy);
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
@@ -433,7 +435,7 @@ final class ModelPipeline {
                         () -> commit(
                                 repositoryCommit, message.getMessageId(), evaluation,
                                 effectiveConflictPolicy, retry,
-                                migration, transportBatch, transportSlot));
+                                migration, existingEvent, transportBatch, transportSlot));
         return committed.handle((commitResult, failure) ->
                 finishEvaluation(evaluation, effectiveConflictPolicy, failure));
     }
@@ -448,7 +450,7 @@ final class ModelPipeline {
             int batchSlot) {
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
-                retry, false, batch, batchSlot);
+                retry, false, false, batch, batchSlot);
     }
 
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
@@ -458,11 +460,12 @@ final class ModelPipeline {
             ModelConflictPolicy conflictPolicy,
             Retry retry,
             boolean migration,
+            boolean existingEvent,
             ModelCommitBatchingClient.ModelCommitBatch batch,
             int batchSlot) {
         Objects.requireNonNull(retry, "retry");
         Commit.Outcome original = repositoryCommit.prepare(
-                commitId, evaluation, conflictPolicy, migration);
+                commitId, evaluation, conflictPolicy, migration, existingEvent);
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
