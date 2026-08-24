@@ -890,16 +890,54 @@ public final class MutationPlan {
                 merge(result, new ResolvedModel(
                         explicitId, explicitType, Access.READ_WRITE, sources));
             }
+            if (!ancestors.isEmpty()) {
+                addProspectiveParents(payload, result);
+            }
+            List<AncestorDependency> unresolvedAncestors = ancestors.stream()
+                    .filter(dependency -> !appliesOnly || dependency.apply)
+                    .filter(dependency -> acceptsExplicitTarget(
+                            dependency.dependency.handler(), explicitType))
+                    .map(PlannedAncestor::dependency)
+                    .filter(dependency -> !compatibleExplicit(
+                            dependency.modelType(), explicitType)).toList();
             return new Resolution(
                     List.copyOf(result.values()), unresolved,
-                    ancestors.stream()
-                            .filter(dependency -> !appliesOnly || dependency.apply)
-                            .filter(dependency -> acceptsExplicitTarget(
-                                    dependency.dependency.handler(), explicitType))
-                            .map(PlannedAncestor::dependency)
-                            .filter(dependency -> !compatibleExplicit(
-                                    dependency.modelType(), explicitType)).toList(),
+                    unresolvedAncestors,
                     references);
+        }
+
+        private void addProspectiveParents(
+                Object payload,
+                Map<String, ResolvedModel> result) {
+            Payload payloadMetadata = Payload.of(payloadType);
+            List<ResolvedModel> writeTargets = result.values().stream()
+                    .filter(target -> target.access().writes()).toList();
+            for (ResolvedModel target : writeTargets) {
+                for (EntityMetadata.ParentReference parent :
+                        EntityMetadata.of(target.modelType()).parentReferences()) {
+                    Property payloadProperty = payloadMetadata.properties.get(
+                            parent.property().name());
+                    if (payloadProperty == null) {
+                        continue;
+                    }
+                    Object parentId = payloadProperty.read(payload);
+                    Class<?> parentType = parentId == null
+                            ? null : parent.parentModelType(parentId);
+                    if (parentType == null) {
+                        continue;
+                    }
+                    LinkedHashSet<String> sources = new LinkedHashSet<>();
+                    sources.add(payloadProperty.name());
+                    sources.add(EntityMetadata.of(parentType).entityIdName());
+                    if (!parent.pathInParent().isEmpty()) {
+                        sources.add(parent.pathInParent());
+                    }
+                    merge(result, new ResolvedModel(
+                            parent.repositoryId(parentId), parentType,
+                            Access.READ_ONLY,
+                            sources.stream().filter(Objects::nonNull).toList()));
+                }
+            }
         }
 
         private List<String> resolveIds(Object input, Object payload, Slot slot) {
@@ -1140,7 +1178,9 @@ public final class MutationPlan {
 
     private static final class Payload {
         private final Class<?> type;
+        private final ReflectionUtils.TypeMetadata metadata;
         private final Map<String, Property> properties;
+        private final ConcurrentHashMap<String, Property> nestedProperties = new ConcurrentHashMap<>();
 
         private static Payload of(Class<?> type) {
             return ReflectionUtils.getTypeMetadata(type).specializedMetadata(Payload.class, Payload::new);
@@ -1148,7 +1188,7 @@ public final class MutationPlan {
 
         private Payload(Class<?> type) {
             this.type = type;
-            ReflectionUtils.TypeMetadata metadata = ReflectionUtils.getTypeMetadata(type);
+            metadata = ReflectionUtils.getTypeMetadata(type);
             Map<String, AccessibleObject> members = new LinkedHashMap<>();
             metadata.fields().stream().filter(field -> !field.isSynthetic())
                     .filter(field -> !Modifier.isStatic(field.getModifiers()))
@@ -1183,7 +1223,7 @@ public final class MutationPlan {
         private Property direct(Class<?> modelType, String association) {
             EntityMetadata model = validated(modelType);
             if (association != null) {
-                return scalar(properties.get(association));
+                return scalar(property(association));
             }
             Property exact = properties.get(model.entityIdName());
             if (exact != null) {
@@ -1215,6 +1255,19 @@ public final class MutationPlan {
                                 type.getName(), association, result.type.getTypeName()));
             }
             return result;
+        }
+
+        private Property property(String name) {
+            Property result = properties.get(name);
+            if (result != null || name.indexOf('/') < 0 && name.indexOf('.') < 0) {
+                return result;
+            }
+            return nestedProperties.computeIfAbsent(name, path -> {
+                ReflectionUtils.TypeMetadata.PropertyPathMetadata pathMetadata = metadata.propertyPath(path);
+                Class<?> leafType = pathMetadata.exists() ? pathMetadata.getLeafType() : null;
+                return leafType == null ? null : new Property(
+                        path, leafType, leafType, metadata.getter(path), null);
+            });
         }
 
         private Property scalar(Property property) {

@@ -1344,6 +1344,17 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void childCreationMayAssertAnAncestorThroughAnUntypedParentId() {
+        TestFixture.create()
+                .givenCommands(
+                        new CreateStringGrandparent("grandparent"),
+                        new CreateStringParent("parent", "grandparent"))
+                .whenCommand(new CreateStringChild("child", "parent"))
+                .expectSuccessfulResult()
+                .expectTrue(fluxzero -> Fluxzero.loadGraph("child", StringChild.class).isPresent());
+    }
+
+    @Test
     void searchesModelsByCurrentGrandparentDocument() {
         FamilyRootId wantedRoot =
                 new FamilyRootId("search-wanted");
@@ -3208,6 +3219,48 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         PathlessFamilyChild apply(@Nullable PathlessFamilyChild child) {
             return child;
+        }
+    }
+
+    @Model
+    private record StringGrandparent(@EntityId String grandparentId) {
+    }
+
+    private record CreateStringGrandparent(String grandparentId) {
+        @Apply
+        StringGrandparent apply() {
+            return new StringGrandparent(grandparentId);
+        }
+    }
+
+    @Model
+    private record StringParent(
+            @EntityId String parentId,
+            @Parent(value = StringGrandparent.class, pathInParent = "parents") String grandparentId) {
+    }
+
+    private record CreateStringParent(String parentId, String grandparentId) {
+        @Apply
+        StringParent apply() {
+            return new StringParent(parentId, grandparentId);
+        }
+    }
+
+    @Model
+    private record StringChild(
+            @EntityId String childId,
+            @Parent(value = StringParent.class, pathInParent = "children") String parentId) {
+    }
+
+    private record CreateStringChild(String childId, String parentId) {
+        @AssertLegal
+        void assertGrandparent(StringGrandparent grandparent) {
+            assertEquals("grandparent", grandparent.grandparentId());
+        }
+
+        @Apply
+        StringChild apply() {
+            return new StringChild(childId, parentId);
         }
     }
 

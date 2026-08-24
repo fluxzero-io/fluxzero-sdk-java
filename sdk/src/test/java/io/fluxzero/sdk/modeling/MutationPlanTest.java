@@ -146,6 +146,21 @@ class MutationPlanTest {
     }
 
     @Test
+    void resolvesNestedAssociationPathAsDirectModelReference() {
+        MutationPlan.Resolution resolution = resolve(
+                new Message(new CheckNestedOrder(new OrderDetails(new OrderId("selected")))),
+                EntityMetadata.of(CheckNestedOrder.class).handlerMethods());
+
+        assertEquals(List.of(new MutationPlan.ResolvedModel(
+                             "order-selected", Order.class, READ_ONLY,
+                             List.of("details/orderId"))),
+                     resolution.models());
+        assertTrue(resolution.ancestorDependencies().isEmpty());
+        assertEquals("order-selected",
+                     resolution.references().values().iterator().next().modelId());
+    }
+
+    @Test
     void targetAndParameterResolutionShareAssociationMetadataPrecedence() {
         MutationPlan.Resolution resolution = MutationPlan.compile(
                         CheckOrder.class, EntityMetadata.of(CheckOrder.class).handlerMethods())
@@ -468,6 +483,15 @@ class MutationPlanTest {
     private record CheckOrder(OrderId orderId, OrderId selectedOrder) {
         @AssertLegal
         void check(@Association("selectedOrder") Order order) {
+        }
+    }
+
+    private record OrderDetails(OrderId orderId) {
+    }
+
+    private record CheckNestedOrder(OrderDetails details) {
+        @AssertLegal
+        void check(@Association("details/orderId") Graph<Order> order) {
         }
     }
 
