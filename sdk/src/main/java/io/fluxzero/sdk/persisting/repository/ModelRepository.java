@@ -87,8 +87,11 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
         String primaryId = metadata.entityId().isEmpty()
                 ? functionalId : metadata.repositoryId(modelId);
         Entity<T> result = load(primaryId, modelType);
-        return result.isPresent() || primaryId.equals(functionalId) || !metadata.hasAliases()
-                ? result : load(functionalId, modelType);
+        if (result.isPresent() || primaryId.equals(functionalId) || !metadata.hasAliases()) {
+            return result;
+        }
+        Entity<T> alias = load(functionalId, modelType);
+        return alias.isPresent() ? alias : result;
     }
 
     /**

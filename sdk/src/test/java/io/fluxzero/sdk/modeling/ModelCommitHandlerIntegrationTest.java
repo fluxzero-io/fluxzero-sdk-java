@@ -253,6 +253,22 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void graphAssertAndApplyCreatesAnAffixedRepositoryIdentity() {
+        OuterAffixedRootId rootId = new OuterAffixedRootId("new-targeted-affixed");
+
+        TestFixture.create(OuterAffixedRoot.class)
+                .whenExecuting(ignored -> {
+                    Graph<OuterAffixedRoot> graph = Fluxzero.loadGraph(rootId, OuterAffixedRoot.class);
+                    assertTrue(graph.isEmpty());
+                    assertEquals("outer-" + rootId, graph.id().toString());
+                    graph.assertAndApply(new CreateOuterAffixedRoot(rootId));
+                })
+                .expectThat(ignored -> assertEquals(
+                        new OuterAffixedRoot(rootId, null),
+                        Fluxzero.loadGraph(rootId).get()));
+    }
+
+    @Test
     void graphAssertAndApplyReloadsAParentScopedRepositoryIdentityWithoutParentContext() {
         FamilyRootId rootId = new FamilyRootId("targeted-scoped");
 
@@ -3226,6 +3242,30 @@ class ModelCommitHandlerIntegrationTest {
         @Apply
         AffixedRoot apply() {
             return new AffixedRoot(affixedRootId);
+        }
+    }
+
+    @Model
+    private record OuterAffixedRoot(
+            @EntityId(prefix = "outer-") OuterAffixedRootId id,
+            @Alias String alias) {
+    }
+
+    private static final class OuterAffixedRootId extends Id<OuterAffixedRoot> {
+        private OuterAffixedRootId(String id) {
+            super(id);
+        }
+    }
+
+    private record CreateOuterAffixedRoot(OuterAffixedRootId id) {
+        @InterceptApply
+        Object intercept(@Nullable OuterAffixedRoot root) {
+            return root == null ? this : null;
+        }
+
+        @Apply
+        OuterAffixedRoot apply() {
+            return new OuterAffixedRoot(id, null);
         }
     }
 

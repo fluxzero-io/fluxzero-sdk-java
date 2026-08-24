@@ -106,6 +106,29 @@ class ModelRepositoryTest {
     }
 
     @Test
+    void missingAliasRetainsTheAffixedPrimaryIdentity() {
+        java.util.ArrayList<String> actualIds = new java.util.ArrayList<>();
+        Entity<AffixedModel> primary = entity();
+        Entity<AffixedModel> missingAlias = entity();
+        when(primary.isPresent()).thenReturn(false);
+        when(missingAlias.isPresent()).thenReturn(false);
+        ModelRepository repository = new ModelRepository() {
+            @Override
+            public <T> Entity<T> load(String modelId, Class<T> modelType) {
+                actualIds.add(modelId);
+                @SuppressWarnings("unchecked")
+                Entity<T> result = (Entity<T>) (modelId.startsWith("move-") ? primary : missingAlias);
+                return result;
+            }
+        };
+
+        Entity<AffixedModel> result = repository.load((Object) "unknown-code", AffixedModel.class);
+
+        assertSame(primary, result);
+        assertEquals(java.util.List.of("move-model-unknown-code-state", "unknown-code"), actualIds);
+    }
+
+    @Test
     void untypedLoadUsesExactIdStringAndLetsStorageResolveType() {
         AtomicReference<String> actualId = new AtomicReference<>();
         AtomicReference<Class<?>> actualType = new AtomicReference<>();
