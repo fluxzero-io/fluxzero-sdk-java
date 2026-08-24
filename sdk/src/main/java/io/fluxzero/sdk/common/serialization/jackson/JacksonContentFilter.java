@@ -206,7 +206,7 @@ public class JacksonContentFilter implements ContentFilter {
         if (!(result instanceof Graph<?> filtered)
             || !Objects.equals(graph.id(), filtered.id())
             || graph.type() != filtered.type()
-            || graph.stateIndex() != filtered.stateIndex()) {
+            || graph.stateIndex() >= 0 && graph.stateIndex() != filtered.stateIndex()) {
             throw new IllegalStateException(
                     "A graph content filter must return a view of the graph it filters");
         }

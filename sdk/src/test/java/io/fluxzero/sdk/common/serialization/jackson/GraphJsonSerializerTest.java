@@ -18,6 +18,7 @@ package io.fluxzero.sdk.common.serialization.jackson;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.common.serialization.FilterContent;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
@@ -100,6 +101,25 @@ class GraphJsonSerializerTest {
 
         assertSame(graph.get(), filtered.get());
         assertEquals(1, ViewRoot.filterInvocations.get());
+        assertEquals(List.of("visible/filtered"), filtered.childModels(ViewChild.class).stream()
+                .map(ViewChild::value).toList());
+    }
+
+    @Test
+    void rootFilterCanMaterializeALazyGraphView() {
+        Graph<ViewRoot> complete = graphView();
+        ModelRepository repository = mock(ModelRepository.class);
+        ViewRoot value = complete.get();
+        Entity<ViewRoot> entity = entity(value.id(), ViewRoot.class, value);
+        Graph<ViewRoot> lazy = Graphs.lazy(value.id(), ViewRoot.class, repository);
+        when(repository.load((Object) value.id(), ViewRoot.class)).thenReturn(entity);
+        when(repository.loadGraph(
+                value.id(), ViewRoot.class, ModelReadBoundary.current(), Graph.Options.DEFAULT))
+                .thenReturn(complete);
+
+        Graph<ViewRoot> filtered = serializer.filterContent(lazy, new MockUser("limited"));
+
+        assertEquals(7L, filtered.stateIndex());
         assertEquals(List.of("visible/filtered"), filtered.childModels(ViewChild.class).stream()
                 .map(ViewChild::value).toList());
     }
