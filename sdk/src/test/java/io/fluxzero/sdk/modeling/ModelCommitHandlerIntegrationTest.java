@@ -129,6 +129,25 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void graphAssertAndApplySelectsOnlyHandlersForTheExplicitModelType() {
+        AccountId accountId = new AccountId("explicit-account");
+        ExplicitAlternativeId alternativeId = new ExplicitAlternativeId("explicit-alternative");
+
+        TestFixture.create(Account.class, ExplicitAlternative.class)
+                .givenCommands(
+                        new CreateAccount(accountId, 10),
+                        new CreateExplicitAlternative(alternativeId, 20))
+                .whenExecuting(ignored -> Fluxzero.loadGraph(accountId)
+                        .assertAndApply(new SetExplicitValue(3)))
+                .expectThat(fluxzero -> {
+                    assertEquals(new Account(accountId, 13),
+                                 fluxzero.modelRepository().load(accountId).get());
+                    assertEquals(new ExplicitAlternative(alternativeId, 20),
+                                 fluxzero.modelRepository().load(alternativeId).get());
+                });
+    }
+
+    @Test
     void graphAssertAndApplyPrefetchRetainsTheSelectedIdentityForAnIdlessInterceptorOutput() {
         AccountId selectedId = new AccountId("targeted-idless-selected");
         ApplyTargetedCreditWithoutId event = new ApplyTargetedCreditWithoutId(2);
@@ -2290,6 +2309,10 @@ class ModelCommitHandlerIntegrationTest {
 
     @Model(searchable = true)
     private record Account(@EntityId AccountId accountId, int balance) {
+        @Apply
+        Account apply(SetExplicitValue command) {
+            return new Account(accountId, balance + command.amount());
+        }
     }
 
     private static final class AccountId extends Id<Account> {
@@ -2303,6 +2326,44 @@ class ModelCommitHandlerIntegrationTest {
         Account apply() {
             return new Account(accountId, balance);
         }
+    }
+
+    @Model
+    private record ExplicitAlternative(
+            @EntityId ExplicitAlternativeId alternativeId,
+            int value) {
+        @AssertLegal
+        void assertNotSelected(SetExplicitValue command) {
+            throw new AssertionError("Assertion for an unselected model type was invoked");
+        }
+
+        @InterceptApply
+        SetExplicitValue interceptNotSelected(SetExplicitValue command) {
+            throw new AssertionError("Interceptor for an unselected model type was invoked");
+        }
+
+        @Apply
+        ExplicitAlternative apply(SetExplicitValue command) {
+            return new ExplicitAlternative(alternativeId, value + command.amount());
+        }
+    }
+
+    private static final class ExplicitAlternativeId extends Id<ExplicitAlternative> {
+        private ExplicitAlternativeId(String id) {
+            super(id, "alternative-");
+        }
+    }
+
+    private record CreateExplicitAlternative(
+            ExplicitAlternativeId alternativeId,
+            int value) {
+        @Apply
+        ExplicitAlternative apply() {
+            return new ExplicitAlternative(alternativeId, value);
+        }
+    }
+
+    private record SetExplicitValue(int amount) {
     }
 
     private record UpdateAccounts(

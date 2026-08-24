@@ -323,6 +323,12 @@ public final class ModelReducer {
             CommitAttempt context) {
         context.attachTo(message);
         EntityMetadata.HandlerMethod handler = compiledHandler.method();
+        ModelPipeline.ExplicitModelTarget explicitTarget = message.getContext(
+                ModelPipeline.ExplicitModelTarget.class).orElse(null);
+        if (explicitTarget != null && !MutationPlan.acceptsExplicitTarget(
+                handler, explicitTarget.modelType())) {
+            return null;
+        }
         Object target = invocationTarget(handler, message, context);
         return target == MissingTarget.INSTANCE
                 ? null : compiledHandler.matcher().getInvokerOrNull(target, message);

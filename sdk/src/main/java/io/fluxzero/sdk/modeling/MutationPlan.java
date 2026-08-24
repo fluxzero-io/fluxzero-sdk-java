@@ -627,20 +627,14 @@ public final class MutationPlan {
         List<Slot> slots = new ArrayList<>();
         List<Deferred> deferred = new ArrayList<>();
         Set<PlannedAncestor> ancestors = new LinkedHashSet<>();
-        Set<Class<?>> explicitTypes = new LinkedHashSet<>();
-        boolean[] dynamic = {false};
+        Map<String, EntityMetadata.HandlerMethod> handlerMethods = new LinkedHashMap<>();
         Objects.requireNonNull(handlers, "handlerMethods").forEach(handler -> {
             compile(payload, handler, slots, deferred, ancestors);
-            if (handler.receiverModelType() != null) {
-                explicitTypes.add(handler.receiverModelType());
-            }
-            handler.modelParameters().forEach(parameter -> explicitTypes.add(parameter.modelType()));
-            explicitTypes.addAll(handler.targetModelTypes());
-            dynamic[0] |= handler.dynamicApplyResult();
+            handlerMethods.put(handler.executable().toGenericString(), handler);
         });
         return new TargetPlan(
                 payloadType, List.copyOf(slots), List.copyOf(deferred), List.copyOf(ancestors),
-                Set.copyOf(explicitTypes), dynamic[0]);
+                Map.copyOf(handlerMethods));
     }
 
     private static void compile(
@@ -803,22 +797,19 @@ public final class MutationPlan {
         private final List<Slot> slots;
         private final List<Deferred> deferred;
         private final List<PlannedAncestor> ancestors;
-        private final Set<Class<?>> explicitTypes;
-        private final boolean dynamic;
+        private final Map<String, EntityMetadata.HandlerMethod> handlerMethods;
 
         private TargetPlan(
                 Class<?> payloadType,
                 List<Slot> slots,
                 List<Deferred> deferred,
                 List<PlannedAncestor> ancestors,
-                Set<Class<?>> explicitTypes,
-                boolean dynamic) {
+                Map<String, EntityMetadata.HandlerMethod> handlerMethods) {
             this.payloadType = payloadType;
             this.slots = slots;
             this.deferred = deferred;
             this.ancestors = ancestors;
-            this.explicitTypes = explicitTypes;
-            this.dynamic = dynamic;
+            this.handlerMethods = handlerMethods;
         }
 
         boolean isDirectSingleTarget() {
@@ -853,7 +844,9 @@ public final class MutationPlan {
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
             for (Slot slot : slots) {
-                if (appliesOnly && !slot.apply || compatibleExplicit(slot.modelType, explicitType)) {
+                if (!acceptsExplicitTarget(slot.handler, explicitType)
+                    || appliesOnly && !slot.apply
+                    || compatibleExplicit(slot.modelType, explicitType)) {
                     continue;
                 }
                 List<String> ids = resolveIds(input, payload, slot);
@@ -870,7 +863,8 @@ public final class MutationPlan {
             }
             List<DeferredWriteTarget> unresolved = new ArrayList<>();
             for (Deferred target : deferred) {
-                if (appliesOnly && !target.apply
+                if (!acceptsExplicitTarget(target.handler, explicitType)
+                    || appliesOnly && !target.apply
                     || compatibleExplicit(target.modelType, explicitType)) {
                     continue;
                 }
@@ -884,10 +878,11 @@ public final class MutationPlan {
                             target.modelType, List.copyOf(candidates), target.handler));
                 }
             }
-            if (explicitId != null && (dynamic || explicitTypes.stream()
-                    .anyMatch(type -> compatibleExplicit(type, explicitType)))) {
+            if (explicitId != null && handlerMethods.values().stream()
+                    .anyMatch(handler -> bindsExplicitTarget(handler, explicitType))) {
                 List<String> sources = slots.stream()
-                        .filter(slot -> !slot.receiver
+                        .filter(slot -> acceptsExplicitTarget(slot.handler, explicitType)
+                                && !slot.receiver
                                 && compatibleExplicit(slot.modelType, explicitType))
                         .map(slot -> slot.property.name()).filter(Objects::nonNull).distinct().toList();
                 merge(result, new ResolvedModel(
@@ -897,6 +892,8 @@ public final class MutationPlan {
                     List.copyOf(result.values()), unresolved,
                     ancestors.stream()
                             .filter(dependency -> !appliesOnly || dependency.apply)
+                            .filter(dependency -> acceptsExplicitTarget(
+                                    dependency.dependency.handler(), explicitType))
                             .map(PlannedAncestor::dependency)
                             .filter(dependency -> !compatibleExplicit(
                                     dependency.modelType(), explicitType)).toList(),
@@ -932,11 +929,17 @@ public final class MutationPlan {
 
         private TargetPlan validate(Class<?> explicitType, boolean appliesOnly) {
             slots.stream().filter(slot -> !appliesOnly || slot.apply)
+                    .filter(slot -> acceptsExplicitTarget(slot.handler, explicitType))
                     .filter(slot -> !compatibleExplicit(slot.modelType, explicitType))
                     .map(slot -> slot.property).filter(Property::missing).findFirst().ifPresent(property -> {
                         throw new IllegalStateException(property.error);
                     });
             return this;
+        }
+
+        private boolean acceptsExplicitTarget(String handler, Class<?> explicitType) {
+            return explicitType == null || MutationPlan.acceptsExplicitTarget(
+                    handlerMethods.get(handler), explicitType);
         }
     }
 
@@ -1235,6 +1238,41 @@ public final class MutationPlan {
     private static boolean compatibleExplicit(Class<?> candidate, Class<?> explicit) {
         return explicit != null
                && EntityMetadata.compatibleTypes(candidate, explicit);
+    }
+
+    static boolean acceptsExplicitTarget(
+            EntityMetadata.HandlerMethod handler,
+            Class<?> explicitType) {
+        if (explicitType == null || handler == null) {
+            return true;
+        }
+        if (handler.kind() == EntityMetadata.HandlerKind.APPLY
+            && !handler.targetModelTypes().isEmpty()) {
+            return handler.targetModelTypes().stream()
+                    .anyMatch(type -> compatibleExplicit(type, explicitType));
+        }
+        if (handler.receiverModelType() != null) {
+            return compatibleExplicit(handler.receiverModelType(), explicitType);
+        }
+        return handler.modelParameters().isEmpty()
+               || handler.modelParameters().stream()
+                       .anyMatch(parameter -> compatibleExplicit(
+                               parameter.modelType(), explicitType));
+    }
+
+    private static boolean bindsExplicitTarget(
+            EntityMetadata.HandlerMethod handler,
+            Class<?> explicitType) {
+        if (!acceptsExplicitTarget(handler, explicitType)) {
+            return false;
+        }
+        return handler.dynamicApplyResult()
+               || handler.receiverModelType() != null
+                  && compatibleExplicit(handler.receiverModelType(), explicitType)
+               || handler.modelParameters().stream().anyMatch(parameter ->
+                       compatibleExplicit(parameter.modelType(), explicitType))
+               || handler.targetModelTypes().stream().anyMatch(type ->
+                       compatibleExplicit(type, explicitType));
     }
 
     private static IllegalArgumentException nullId(Slot slot) {
