@@ -638,20 +638,37 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 loadDurable(modelId, modelType));
     }
 
+    @Override
+    public <T> Entity<T> loadCurrent(@NonNull String modelId, @NonNull Class<T> modelType) {
+        return ModelBatchScope.overlayCurrent(
+                messageBatchNamespace(), modelId, modelType,
+                loadDurable(modelId, modelType, ModelReadBoundary.current(), null));
+    }
+
     private <T> Entity<T> loadDurable(
             String modelId,
             Class<T> modelType) {
         PinnedBoundary handlerBoundary =
                 handlerBoundary();
+        return loadDurable(
+                modelId, modelType,
+                boundary(handlerBoundary), handlerBoundary);
+    }
+
+    private <T> Entity<T> loadDurable(
+            String modelId,
+            Class<T> modelType,
+            ModelReadBoundary boundary,
+            PinnedBoundary handlerBoundary) {
         if (Object.class.equals(modelType)) {
             Class<?> resolvedType = resolveStoredType(
-                    modelId, handlerBoundary);
+                    modelId, boundary, handlerBoundary);
             if (resolvedType == null) {
                 return cast(emptyUntyped(modelId));
             }
             return cast(loadDurable(
-                    modelId,
-                    resolvedType));
+                    modelId, resolvedType,
+                    boundary, handlerBoundary));
         }
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         metadata.rootConfiguration()
@@ -663,7 +680,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 List.of(metadata.entityId().orElseThrow().name()));
         CommitAttempt context = replayCursor.context(
                 new MutationPlan.Resolution(List.of(target), List.of()),
-                boundary(handlerBoundary), Map.of(), null,
+                boundary, Map.of(), null,
                 modelCacheTracker, handlerBoundary != null);
         pin(handlerBoundary, context.readStateIndex());
         return cast(context.entity(context.targets().getFirst().modelId()));
@@ -855,13 +872,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private Class<?> resolveStoredType(
             String modelId,
+            ModelReadBoundary boundary,
             PinnedBoundary handlerBoundary) {
         if (client.getEventStoreClient() == null) {
             throw new EventSourcingException(
                     "Loading an independent model by untyped ID requires model-head type metadata");
         }
-        ModelReadBoundary boundary =
-                boundary(handlerBoundary);
         ModelReplayCursor.LoadResult result = replayCursor.loadHeads(List.of(modelId), boundary);
         pin(handlerBoundary, result.stateIndex());
         ModelHeadState head = result.heads().get(modelId);

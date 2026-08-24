@@ -83,6 +83,28 @@ class ModelEntityParameterResolverTest {
     }
 
     @Test
+    void explicitCurrentGraphBypassesTheHandledEventBoundary() {
+        AccountId accountId = new AccountId("explicit-current");
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateAccount(accountId, 10),
+                        new ChangeAccount(accountId, 20))
+                .whenApplying(fluxzero -> {
+                    DeserializingMessage firstEvent =
+                            fluxzero.eventStore()
+                                    .getEvents(accountId)
+                                    .findFirst().orElseThrow();
+                    return firstEvent.apply(message -> List.of(
+                            Fluxzero.loadGraph(accountId).get(),
+                            Fluxzero.loadCurrentGraph(accountId).get()));
+                })
+                .expectResult(List.of(
+                        new Account(accountId, 10),
+                        new Account(accountId, 20)));
+    }
+
+    @Test
     void storedOnlySuffixCannotLeakIntoPublishedEventBoundary()
             throws Exception {
         AccountId accountId =

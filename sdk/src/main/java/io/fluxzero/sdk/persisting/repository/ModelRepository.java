@@ -95,6 +95,34 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
     }
 
     /**
+     * Loads the latest model state without inheriting an event or notification handler's historical read boundary.
+     * <p>
+     * This is intended for flows that synchronously perform another Model write and then deliberately need its updated
+     * state. Ordinary handler reads should use {@link #load(Object, Class)} so they remain coherent with the message
+     * being handled.
+     */
+    default <T> Entity<T> loadCurrent(@NonNull Object modelId, @NonNull Class<T> modelType) {
+        String functionalId = modelId.toString();
+        EntityMetadata metadata = EntityMetadata.of(modelType);
+        String primaryId = metadata.entityId().isEmpty()
+                ? functionalId : metadata.repositoryId(modelId);
+        Entity<T> result = loadCurrent(primaryId, modelType);
+        if (result.isPresent() || primaryId.equals(functionalId) || !metadata.hasAliases()) {
+            return result;
+        }
+        Entity<T> alias = loadCurrent(functionalId, modelType);
+        return alias.isPresent() ? alias : result;
+    }
+
+    /**
+     * Loads the latest model state by exact persisted identity. Custom repositories without contextual historical
+     * reads retain their normal behavior by delegating to {@link #load(String, Class)}.
+     */
+    default <T> Entity<T> loadCurrent(@NonNull String modelId, @NonNull Class<T> modelType) {
+        return load(modelId, modelType);
+    }
+
+    /**
      * Loads a parent-scoped model by its functional child ID and explicit parent type.
      * <p>
      * Ordinary model types ignore the parent and retain their normal identity. A parent-scoped model uses the same

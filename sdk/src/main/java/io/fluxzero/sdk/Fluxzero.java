@@ -1126,6 +1126,28 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or
+     * notification handler's historical read boundary.
+     * <p>
+     * Use this after a synchronous nested command when the remainder of the handler deliberately needs that command's
+     * updated Model state. Ordinary {@link #loadGraph(Object, Class)} reads remain coherent with the message being
+     * handled and are therefore preferred everywhere else.
+     */
+    static <T> Graph<T> loadCurrentGraph(Object modelId, Class<T> modelType) {
+        return io.fluxzero.sdk.modeling.Graphs.lazyCurrent(
+                modelId, modelType, currentModelRepository());
+    }
+
+    /**
+     * Loads the latest state of the independently stored model identified by the typed ID as a relationship graph.
+     *
+     * @see #loadCurrentGraph(Object, Class)
+     */
+    static <T> Graph<T> loadCurrentGraph(Id<T> modelId) {
+        return loadCurrentGraph(modelId, modelId.getType());
+    }
+
+    /**
      * Lazily loads a parent-scoped model by functional child ID and explicit parent type as a relationship graph.
      */
     static <T> Graph<T> loadGraph(

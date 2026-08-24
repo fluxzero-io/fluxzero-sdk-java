@@ -70,6 +70,13 @@ public final class Graphs {
         return GraphState.identity(modelId, metadata.repositoryId(modelId), false, modelType, repository).root();
     }
 
+    /** Creates a graph whose root deliberately resolves to the latest state instead of a handler boundary. */
+    public static <T> Graph<T> lazyCurrent(Object modelId, Class<T> modelType, ModelRepository repository) {
+        Entity<T> entity = repository.loadCurrent(modelId, modelType);
+        long stateIndex = entity instanceof ModelRoot<?> root ? root.stateIndex() : -1L;
+        return lazy(entity, stateIndex, repository);
+    }
+
     /** Creates a detached graph for an exact persisted identity. */
     public static <T> Graph<T> lazyRepositoryId(
             String repositoryId, Class<T> modelType, ModelRepository repository) {
