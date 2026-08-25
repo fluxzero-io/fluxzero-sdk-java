@@ -37,10 +37,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -57,7 +64,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @Slf4j
@@ -196,5 +205,67 @@ class ForwardProxyConsumerTest {
                 BatchProcessingException.class, () -> consumer.accept(List.of(request)));
 
         assertEquals(42L, error.getMessageIndex());
+    }
+
+    @Test
+    void retriesTransportFailuresWithinRequestTimeout() throws Exception {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> httpResponse = mock(HttpResponse.class);
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(httpResponse.statusCode()).thenReturn(200);
+        when(httpResponse.body()).thenReturn("ok".getBytes());
+        when(httpResponse.headers()).thenReturn(HttpHeaders.of(Map.of(), (name, value) -> true));
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenThrow(new IOException("first"))
+                .thenThrow(new IOException("second"))
+                .thenReturn(httpResponse);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean());
+        WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .timeout(Duration.ofSeconds(5)).maxRetries(2).build();
+        WebRequest request = WebRequest.get("https://example.com").metadata(
+                Metadata.of("settings", settings)).build();
+        SerializedMessage serializedRequest = request.serialize(ForwardProxyConsumer.serializer);
+        serializedRequest.setIndex(IndexUtils.indexForCurrentTime());
+        serializedRequest.setRequestId(42);
+        serializedRequest.setSource("requester");
+        WebRequestSettings deserializedSettings = consumer.getSettings(serializedRequest);
+
+        consumer.handle(serializedRequest, URI.create(request.getPath()), deserializedSettings);
+
+        assertEquals(2, deserializedSettings.getMaxRetries());
+        verify(httpClient, times(3)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+    }
+
+    @Test
+    void expiredRequestIsNotSentAfterTimeoutResponse() {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean());
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], Object.class.getName(), 0), Metadata.empty(), "request", 0L);
+        request.setIndex(0L);
+        request.setRequestId(42);
+        request.setSource("requester");
+
+        consumer.handle(request, URI.create("https://example.com"),
+                        WebRequestSettings.builder().timeout(Duration.ofMillis(1)).build());
+
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+        verifyNoInteractions(httpClient);
     }
 }

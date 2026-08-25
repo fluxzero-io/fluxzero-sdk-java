@@ -730,7 +730,7 @@ public interface Fluxzero extends AutoCloseable {
      * Sends the given web request using default request settings and returns a future that completes with the
      * response.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
      */
     static CompletableFuture<WebResponse> sendWebRequest(WebRequest request) {
         return get().webRequestGateway().send(request);
@@ -740,7 +740,7 @@ public interface Fluxzero extends AutoCloseable {
      * Sends the given web request using the given request settings and returns a future that completes with the
      * response.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
      */
     static CompletableFuture<WebResponse> sendWebRequest(WebRequest request, WebRequestSettings settings) {
         return get().webRequestGateway().send(request, settings);
@@ -751,7 +751,7 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * This method blocks the calling thread until the request is completed or times out.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
      */
     static WebResponse sendWebRequestAndWait(WebRequest request) {
         return get().webRequestGateway().sendAndWait(request);
@@ -762,7 +762,7 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * This method blocks the calling thread until the request is completed or times out.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
      */
     static WebResponse sendWebRequestAndWait(WebRequest request, WebRequestSettings settings) {
         return get().webRequestGateway().sendAndWait(request, settings);

@@ -982,7 +982,7 @@ public class DefaultFluxzero implements Fluxzero {
                     new DefaultWebRequestGateway(createRequestGateway(client, WEBREQUEST, null, webRequestHandler,
                                                                       dispatchChains, handlerChains,
                                                                       runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                      repositorySupplier, webResponseMapper));
+                                                                      repositorySupplier, webResponseMapper), serializer);
             Function<String, GenericGateway> customGateways = memoize(topic -> createRequestGateway(
                     client, CUSTOM, topic, defaultRequestHandler, dispatchChains, handlerChains,
                     runtimeParameterResolvers, handlerRepositorySupplier, repositorySupplier, defaultResponseMapper));

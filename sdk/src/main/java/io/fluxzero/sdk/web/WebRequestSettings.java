@@ -24,9 +24,9 @@ import java.time.Duration;
 /**
  * Configuration settings for a {@link WebRequest} sent via the {@link WebRequestGateway}.
  * <p>
- * These settings influence how the request is processed and forwarded by the Fluxzero proxy. While currently limited to
- * a few essential fields, this class is designed for extensibility and may be expanded over time to support headers,
- * retry policies, authentication strategies, and more.
+ * By default, requests are published as Fluxzero messages and forwarded by the Fluxzero proxy. Applications can opt
+ * into execution by the SDK's native HTTP client instead. Transport retries apply within the configured overall
+ * timeout; HTTP error responses are returned without retrying.
  *
  * <p><strong>Example usage:</strong></p>
  * <pre>{@code
@@ -34,6 +34,7 @@ import java.time.Duration;
  *     .httpVersion(HttpVersion.HTTP_2)
  *     .timeout(Duration.ofSeconds(30))
  *     .consumer("google-traffic")
+ *     .maxRetries(2)
  *     .build();
  * }</pre>
  *
@@ -60,4 +61,21 @@ public class WebRequestSettings {
      */
     @Default
     String consumer = "forward-proxy";
+
+    /**
+     * Whether the SDK should execute the request directly with its native HTTP client instead of publishing it for the
+     * Fluxzero proxy. Native execution requires an absolute HTTP(S) URL and bypasses Fluxzero message logging, local
+     * web handlers, dispatch interceptors, and consumer isolation.
+     */
+    @Default
+    boolean useNativeHttpClient = false;
+
+    /**
+     * Maximum number of additional attempts after a transport failure. Retries share the configured {@link #timeout}
+     * and do not apply to completed HTTP responses, including 4xx and 5xx status codes. Values below zero are treated
+     * as zero. A transport failure can occur after the remote server accepted a request, so retry non-idempotent calls
+     * only when the destination provides suitable deduplication.
+     */
+    @Default
+    int maxRetries = 0;
 }

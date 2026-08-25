@@ -1674,7 +1674,7 @@ Fluxzero.schedulePeriodic(new PollExternalApi());
 
 ### Web Requests
 
-Send an outbound HTTP call via the proxy mechanism in Fluxzero Runtime:
+Send an outbound HTTP call via the default proxy mechanism in Fluxzero Runtime:
 
 [//]: # (@formatter:off)
 ```java
@@ -2881,7 +2881,7 @@ This keeps tests expressive and avoids boilerplate, especially for flows that in
 
 Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
 
-Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
+By default, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
 
 - A **local handler** that tracks requests if the URL is **relative**, or
 - A **connected remote client or proxy**, if the URL is **absolute**.
@@ -2899,7 +2899,8 @@ WebResponse response = Fluxzero.get()
 String body = response.getBodyString();
 ```
 
-> ✅ All outbound traffic is logged and traceable in the Fluxzero Runtime.
+> ✅ Proxy-routed outbound traffic is logged and traceable in the Fluxzero Runtime. Opt-in native HTTP calls bypass
+> Fluxzero message logging.
 
 ### Asynchronous and Fire-and-Forget
 
@@ -2927,7 +2928,8 @@ Fluxzero.get().webRequestGateway()
 
 Flux supports both local and remote handling:
 
-- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Flux **Web Proxy** and executed externally.
+- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Flux **Web Proxy** by default, or executed
+  directly when native HTTP execution is enabled.
 - **Relative URLs** (e.g., `/internal/doSomething`): The request is routed to a handler within another connected Flux
   application.
 
@@ -2949,6 +2951,27 @@ When set, the Flux Web Proxy will isolate this request in its own internal proce
 - Want to isolate third-party integrations (e.g., API rate limits)
 - Need different retry or error handling strategies per destination
 - Want fault isolation between outgoing endpoints
+
+### Native HTTP execution and retries
+
+For calls that should leave the application directly instead of passing through the Fluxzero proxy, opt into the SDK's
+native HTTP client. You can independently configure transport retries for both native and proxy execution:
+
+```java
+WebRequestSettings settings = WebRequestSettings.builder()
+        .useNativeHttpClient(true)
+        .maxRetries(2)
+        .timeout(Duration.ofSeconds(10))
+        .build();
+
+WebResponse response = Fluxzero.get().webRequestGateway().sendAndWait(request, settings);
+```
+
+`maxRetries` is the number of additional attempts after the first transport failure. All attempts share the configured
+`timeout`; completed HTTP responses, including 4xx and 5xx statuses, are returned without retrying. Native execution
+requires an absolute HTTP(S) URL and bypasses Fluxzero message logging, local web handlers, dispatch interceptors, and
+consumer isolation. A transport failure may occur after the destination accepted a request, so only retry
+non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain the defaults.
 
 ### Mocking External Endpoints in Tests
 
@@ -2980,14 +3003,15 @@ You can match requests by:
 - Headers, body, or any other property
 
 > ✅ This gives you **full end-to-end test coverage**, even when integrating with external APIs.
+> Native HTTP execution bypasses local handlers, so keep the default proxy route in tests that use these mocks.
 
 ---
 
 ### Summary
 
 - ✅ Use `WebRequest` for centralized, traceable outbound HTTP calls.
-- ✅ Automatically routes to a proxy or local handler depending on URL.
-- ✅ Supports timeouts, consumers, and structured request settings.
+- ✅ Routes through the proxy or a local handler by default, with opt-in native HTTP execution.
+- ✅ Supports timeouts, consumers, and bounded transport retries.
 - ✅ Easily mock remote endpoints for testing full business flows.
 
 ---

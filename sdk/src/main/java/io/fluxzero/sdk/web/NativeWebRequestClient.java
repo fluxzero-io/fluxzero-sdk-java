@@ -1,0 +1,139 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.sdk.web;
+
+import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.sdk.common.serialization.Serializer;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpTimeoutException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Function;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+final class NativeWebRequestClient implements AutoCloseable {
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
+
+    private final HttpClient httpClient;
+    private final Serializer serializer;
+
+    NativeWebRequestClient(Serializer serializer) {
+        this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
+                     .connectTimeout(CONNECT_TIMEOUT).build(), serializer);
+    }
+
+    NativeWebRequestClient(HttpClient httpClient, Serializer serializer) {
+        this.httpClient = Objects.requireNonNull(httpClient);
+        this.serializer = Objects.requireNonNull(serializer);
+    }
+
+    CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
+        SerializedMessage serializedRequest = request.serialize(serializer);
+        Instant deadline = Instant.now().plus(settings.getTimeout());
+        return send(request, serializedRequest, settings, Math.max(0, settings.getMaxRetries()), deadline);
+    }
+
+    private CompletableFuture<WebResponse> send(WebRequest request, SerializedMessage serializedRequest,
+                                                WebRequestSettings settings, int retriesRemaining, Instant deadline) {
+        Duration remaining = Duration.between(Instant.now(), deadline);
+        if (remaining.isNegative() || remaining.isZero()) {
+            return CompletableFuture.completedFuture(asWebResponse(
+                    new HttpTimeoutException("Timeout in native HTTP client")));
+        }
+
+        HttpRequest httpRequest;
+        try {
+            httpRequest = asHttpRequest(request, serializedRequest, settings, remaining);
+        } catch (Throwable e) {
+            return CompletableFuture.completedFuture(asWebResponse(e));
+        }
+
+        CompletableFuture<HttpResponse<byte[]>> attempt;
+        try {
+            attempt = httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (Throwable e) {
+            return CompletableFuture.completedFuture(asWebResponse(e));
+        }
+
+        CompletableFuture<CompletableFuture<WebResponse>> result = attempt.handle((response, error) -> {
+            if (error == null) {
+                return CompletableFuture.completedFuture(asWebResponse(response));
+            }
+            Throwable failure = unwrap(error);
+            if (retriesRemaining > 0 && failure instanceof IOException && Instant.now().isBefore(deadline)) {
+                return send(request, serializedRequest, settings, retriesRemaining - 1, deadline);
+            }
+            return CompletableFuture.completedFuture(asWebResponse(failure));
+        });
+        return result.thenCompose(Function.identity());
+    }
+
+    private HttpRequest asHttpRequest(WebRequest request, SerializedMessage serializedRequest,
+                                      WebRequestSettings settings, Duration timeout) {
+        URI uri = URI.create(request.getPath());
+        if (!uri.isAbsolute() || !("http".equalsIgnoreCase(uri.getScheme())
+                || "https".equalsIgnoreCase(uri.getScheme()))) {
+            throw new IllegalArgumentException("Native HTTP requests require an absolute HTTP(S) URL");
+        }
+        HttpRequest.Builder builder = HttpRequest.newBuilder(uri)
+                .version(HttpClient.Version.valueOf(settings.getHttpVersion().name()))
+                .timeout(timeout);
+        request.getHeaders().forEach((name, values) -> values.forEach(value -> builder.header(name, value)));
+        return builder.method(request.getMethod(), bodyPublisher(serializedRequest)).build();
+    }
+
+    private HttpRequest.BodyPublisher bodyPublisher(SerializedMessage request) {
+        byte[] value = request.data().getValue();
+        String type = request.data().getType();
+        return type == null || Void.class.getName().equals(type) || value.length == 0
+                ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(value);
+    }
+
+    private WebResponse asWebResponse(HttpResponse<byte[]> response) {
+        WebResponse.Builder builder = WebResponse.builder();
+        response.headers().map().forEach((name, values) -> values.forEach(value -> builder.header(name, value)));
+        return builder.status(response.statusCode()).payload(response.body()).build();
+    }
+
+    private WebResponse asWebResponse(Throwable error) {
+        String message = error.getMessage() == null ? "Exception while handling native HTTP request"
+                : error.getMessage();
+        return WebResponse.builder().status(502).payload(message.getBytes(UTF_8)).build();
+    }
+
+    private Throwable unwrap(Throwable error) {
+        Throwable result = error;
+        while (result instanceof CompletionException && result.getCause() != null) {
+            result = result.getCause();
+        }
+        return result;
+    }
+
+    @Override
+    public void close() {
+        httpClient.close();
+    }
+}
