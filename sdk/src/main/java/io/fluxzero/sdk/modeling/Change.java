@@ -33,7 +33,7 @@ public record Change(
         Object before, Object after, Executable handler,
         UnaryOperator<Entity<?>> directReplay, boolean cascadedDeletion,
         EntityMetadata metadata,
-        AggregateEventRouting eventRouting, ModelConflictPolicy conflictPolicy,
+        ModelConflictPolicy conflictPolicy,
         GraphProjectionCompletion graphProjectionCompletion,
         boolean active, boolean storeEvent, boolean publishEvent,
         boolean updateState) {
@@ -110,7 +110,7 @@ public record Change(
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, directReplay, cascadedDeletion,
                 metadata,
-                eventRouting, conflictPolicy, graphProjectionCompletion, active,
+                conflictPolicy, graphProjectionCompletion, active,
                 storeEvent, publishEvent, updateState);
     }
 
@@ -144,7 +144,7 @@ public record Change(
                                 effectiveType.getName() + " is not an independent model"))
                         .transitionSettings(
                         overrides.publication(), overrides.strategy(),
-                        overrides.routing(), overrides.conflict());
+                        overrides.conflict());
         EntityMetadata.TransitionDecision decision = settings.decide(
                 settings.forceModified() || !Objects.equals(before, after),
                 cascadedDeletion, true);
@@ -152,7 +152,7 @@ public record Change(
                 modelId, declaredType,
                 beforeSequenceNumber, beforeLastEventIndex,
                 before, after, handler, directReplay, cascadedDeletion,
-                metadata, settings.routing(), settings.conflict(),
+                metadata, settings.conflict(),
                 overrides.graphProjectionCompletion(),
                 decision.active(), decision.storeEvent(),
                 decision.publishEvent(), decision.updateState());

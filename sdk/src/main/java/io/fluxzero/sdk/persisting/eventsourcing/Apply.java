@@ -207,7 +207,9 @@ public @interface Apply {
     /**
      * Controls how an update event published by this apply method is assigned to a message segment.
      * <p>
-     * The default inherits the setting from the enclosing aggregate.
+     * This setting applies to aggregates and defaults to the enclosing aggregate configuration. Events produced by
+     * independent {@link Model Models} use ordinary message routing; annotate their payload with
+     * {@link io.fluxzero.sdk.publishing.routing.RoutingKey @RoutingKey} when related events should share a segment.
      *
      * @return routing behavior for the applied update event
      */

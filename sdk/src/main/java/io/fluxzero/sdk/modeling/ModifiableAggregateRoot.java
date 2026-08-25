@@ -175,15 +175,15 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     }
 
     /**
-     * Loads an aggregate using the shared root persistence configuration.
+     * Loads an aggregate using shared persistence settings and its Aggregate-specific event routing.
      */
     public static <T> Entity<T> load(
             @NonNull AggregateRepository repository,
             Object aggregateId, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
-            EntityMetadata.RootConfiguration configuration,
+            EntityMetadata.RootConfiguration configuration, AggregateEventRouting eventRouting,
             EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
             CommitHandler commitHandler) {
-        return load((Object) repository, aggregateId, loader, commitPolicy, configuration,
+        return load((Object) repository, aggregateId, loader, commitPolicy, configuration, eventRouting,
                     entityHelper, serializer, dispatchInterceptor, commitHandler);
     }
 
@@ -201,11 +201,11 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
 
     private static <T> Entity<T> load(
             Object context, Object aggregateId, Supplier<Entity<T>> loader, AggregateCommitPolicy commitPolicy,
-            EntityMetadata.RootConfiguration configuration,
+            EntityMetadata.RootConfiguration configuration, AggregateEventRouting eventRouting,
             EntityHelper entityHelper, Serializer serializer, DispatchInterceptor dispatchInterceptor,
             CommitHandler commitHandler) {
         return ModifiableAggregateRoot.<T>getIfActive(context, aggregateId).orElseGet(
-                () -> new ModifiableAggregateRoot<>(context, loader.get(), commitPolicy, configuration,
+                () -> new ModifiableAggregateRoot<>(context, loader.get(), commitPolicy, configuration, eventRouting,
                                                     entityHelper, serializer, dispatchInterceptor, commitHandler));
     }
 
@@ -215,6 +215,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
     private final AggregateCommitPolicy commitPolicy;
 
     private final EntityMetadata.RootConfiguration configuration;
+    private final AggregateEventRouting eventRouting;
     private final EntityHelper entityHelper;
     private final Serializer serializer;
     private final DispatchInterceptor dispatchInterceptor;
@@ -233,7 +234,7 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                                       EntityHelper entityHelper, Serializer serializer,
                                       DispatchInterceptor dispatchInterceptor, CommitHandler commitHandler) {
         this(defaultActiveAggregateContext, delegate, commitPolicy,
-             transitionConfiguration(delegate, eventPublication, publicationStrategy, eventRouting, eventSourced),
+             transitionConfiguration(delegate, eventPublication, publicationStrategy, eventSourced), eventRouting,
              entityHelper, serializer, dispatchInterceptor, commitHandler);
     }
 
@@ -244,13 +245,14 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                                     EntityHelper entityHelper, Serializer serializer,
                                     DispatchInterceptor dispatchInterceptor, CommitHandler commitHandler) {
         this(activeAggregateContext, delegate, commitPolicy,
-             transitionConfiguration(delegate, eventPublication, publicationStrategy, eventRouting, eventSourced),
+             transitionConfiguration(delegate, eventPublication, publicationStrategy, eventSourced), eventRouting,
              entityHelper, serializer, dispatchInterceptor, commitHandler);
     }
 
     private ModifiableAggregateRoot(Object activeAggregateContext, Entity<T> delegate,
                                     AggregateCommitPolicy commitPolicy,
                                     EntityMetadata.RootConfiguration configuration,
+                                    AggregateEventRouting eventRouting,
                                     EntityHelper entityHelper, Serializer serializer,
                                     DispatchInterceptor dispatchInterceptor, CommitHandler commitHandler) {
         super(delegate);
@@ -260,6 +262,8 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
         this.lastStable = delegate;
         this.commitPolicy = commitPolicy;
         this.configuration = configuration;
+        this.eventRouting = eventRouting == AggregateEventRouting.DEFAULT
+                ? AggregateEventRouting.MESSAGE_ROUTING_KEY : eventRouting;
         this.serializer = serializer;
         this.dispatchInterceptor = dispatchInterceptor;
         this.commitHandler = commitHandler;
@@ -271,10 +275,9 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             Entity<?> delegate,
             EventPublication eventPublication,
             EventPublicationStrategy publicationStrategy,
-            AggregateEventRouting eventRouting,
             boolean eventSourced) {
         return DefaultEntityHelper.getAggregateRootConfiguration(delegate.type())
-                .withTransitionDefaults(eventSourced, eventPublication, publicationStrategy, eventRouting);
+                .withTransitionDefaults(eventSourced, eventPublication, publicationStrategy);
     }
 
     @Override
@@ -342,7 +345,8 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
                     dispatchMessage = addAggregateMetadata(dispatchMessage, settings.eventStrategy());
                 }
                 var serializedEvent = dispatchInterceptor.modifySerializedMessage(
-                        serializeAggregateEvent(dispatchMessage, settings.routing()), dispatchMessage, EVENT, null);
+                        serializeAggregateEvent(dispatchMessage, eventRouting(applyAnnotation.orElse(null))),
+                        dispatchMessage, EVENT, null);
                 if (serializedEvent == null) {
                     return interceptBeforeApply || !decision.updateState() ? a : result;
                 }
@@ -383,6 +387,12 @@ public class ModifiableAggregateRoot<T> extends DelegatingEntity<T> implements A
             result.setSegment(ConsistentHashing.computeSegment(id().toString()));
         }
         return result;
+    }
+
+    private AggregateEventRouting eventRouting(Apply apply) {
+        AggregateEventRouting override = apply == null
+                ? AggregateEventRouting.DEFAULT : apply.eventRouting();
+        return override == AggregateEventRouting.DEFAULT ? eventRouting : override;
     }
 
     private Message addAggregateMetadata(Message message, EventPublicationStrategy publicationStrategy) {

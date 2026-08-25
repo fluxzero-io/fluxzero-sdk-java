@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static io.fluxzero.sdk.modeling.ModelCommitPolicy.ASYNC_AFTER_BATCH;
-import static io.fluxzero.sdk.modeling.AggregateEventRouting.AGGREGATE_ID;
 import static io.fluxzero.sdk.modeling.EventPublication.IF_MODIFIED;
 import static io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_ONLY;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -54,7 +53,6 @@ class ModelTest {
         assertEquals(ModelCommitPolicy.DEFAULT, model.commitPolicy());
         assertEquals(IF_MODIFIED, model.eventPublication());
         assertEquals(EventPublicationStrategy.DEFAULT, model.publicationStrategy());
-        assertEquals(AggregateEventRouting.MESSAGE_ROUTING_KEY, model.eventRouting());
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
         assertFalse(model.searchable());
@@ -90,7 +88,6 @@ class ModelTest {
         assertEquals(ASYNC_AFTER_BATCH, model.commitPolicy());
         assertEquals(IF_MODIFIED, model.eventPublication());
         assertEquals(STORE_ONLY, model.publicationStrategy());
-        assertEquals(AGGREGATE_ID, model.eventRouting());
         assertEquals(ModelConflictPolicy.FAIL, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DISABLED, model.automaticHandling());
         assertTrue(model.searchable());
@@ -119,7 +116,7 @@ class ModelTest {
                                                 .contains(setting))
                         .collect(
                                 Collectors.toSet()));
-        assertEquals(Set.of("collection", "timestampPath", "endPath"),
+        assertEquals(Set.of("collection", "timestampPath", "endPath", "eventRouting"),
                      aggregateSettings.stream()
                              .filter(setting -> !modelSettings.contains(setting))
                              .collect(Collectors.toSet()));
@@ -202,7 +199,6 @@ class ModelTest {
             commitPolicy = ASYNC_AFTER_BATCH,
             eventPublication = IF_MODIFIED,
             publicationStrategy = STORE_ONLY,
-            eventRouting = AGGREGATE_ID,
             conflictPolicy = ModelConflictPolicy.FAIL,
             automaticHandling = AutomaticModelHandling.DISABLED,
             searchable = true,

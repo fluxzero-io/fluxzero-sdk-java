@@ -58,19 +58,16 @@ class MutationPlanTest {
     void modelApplyEffectsOverridePayloadEffectsFieldByField() {
         MutationPlan.EffectOverrides payload = new MutationPlan.EffectOverrides(
                 EventPublication.NEVER, EventPublicationStrategy.STORE_ONLY,
-                AggregateEventRouting.DEFAULT,
                 ModelConflictPolicy.FAIL,
                 GraphProjectionCompletion.DEFAULT);
         MutationPlan.EffectOverrides model = new MutationPlan.EffectOverrides(
                 EventPublication.DEFAULT, EventPublicationStrategy.STORE_AND_PUBLISH,
-                AggregateEventRouting.AGGREGATE_ID,
                 ModelConflictPolicy.DEFAULT,
                 GraphProjectionCompletion.AWAIT);
 
         assertEquals(new MutationPlan.EffectOverrides(
                              EventPublication.NEVER,
                              EventPublicationStrategy.STORE_AND_PUBLISH,
-                             AggregateEventRouting.AGGREGATE_ID,
                              ModelConflictPolicy.FAIL,
                              GraphProjectionCompletion.AWAIT),
                      payload.then(model));

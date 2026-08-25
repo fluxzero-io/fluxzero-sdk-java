@@ -1426,7 +1426,6 @@ public final class EntityMetadata {
             CommitPolicy commitPolicy,
             EventPublication eventPublication,
             EventPublicationStrategy publicationStrategy,
-            AggregateEventRouting eventRouting,
             boolean searchable,
             boolean materializeGraph,
             GraphProjection graphProjection,
@@ -1447,7 +1446,7 @@ public final class EntityMetadata {
                     annotation.eventSourced(), annotation.ignoreUnknownEvents(),
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
-                    annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
+                    annotation.eventPublication(), annotation.publicationStrategy(),
                     annotation.searchable(), annotation.materializeGraph(), annotation.graphProjection(),
                     annotation.searchProjection().collection(), annotation.searchProjection().timestampPath(),
                     annotation.searchProjection().endPath());
@@ -1459,7 +1458,7 @@ public final class EntityMetadata {
                     annotation.eventSourced(), annotation.ignoreUnknownEvents(),
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
-                    annotation.eventPublication(), annotation.publicationStrategy(), annotation.eventRouting(),
+                    annotation.eventPublication(), annotation.publicationStrategy(),
                     annotation.searchable(), false, null, annotation.collection(), annotation.timestampPath(),
                     annotation.endPath());
         }
@@ -1469,14 +1468,12 @@ public final class EntityMetadata {
             return transitionSettings(
                     apply == null ? EventPublication.DEFAULT : apply.eventPublication(),
                     apply == null ? EventPublicationStrategy.DEFAULT : apply.publicationStrategy(),
-                    apply == null ? AggregateEventRouting.DEFAULT : apply.eventRouting(),
                     apply == null ? ModelConflictPolicy.DEFAULT : apply.conflictPolicy());
         }
 
         TransitionSettings transitionSettings(
                 EventPublication publicationOverride,
                 EventPublicationStrategy strategyOverride,
-                AggregateEventRouting routingOverride,
                 ModelConflictPolicy conflictOverride) {
             EventPublication publication = publicationOverride == EventPublication.DEFAULT
                     ? eventPublication : publicationOverride;
@@ -1489,25 +1486,19 @@ public final class EntityMetadata {
             if (strategy == EventPublicationStrategy.DEFAULT) {
                 strategy = EventPublicationStrategy.STORE_AND_PUBLISH;
             }
-            AggregateEventRouting routing = routingOverride == AggregateEventRouting.DEFAULT
-                    ? eventRouting : routingOverride;
-            if (routing == AggregateEventRouting.DEFAULT) {
-                routing = AggregateEventRouting.MESSAGE_ROUTING_KEY;
-            }
             ModelConflictPolicy conflict = conflictOverride == ModelConflictPolicy.DEFAULT
                     ? conflictPolicy : conflictOverride;
-            return new TransitionSettings(this, publication, eventStrategy, strategy, routing, conflict);
+            return new TransitionSettings(this, publication, eventStrategy, strategy, conflict);
         }
 
         RootConfiguration withTransitionDefaults(
                 boolean eventSourced,
                 EventPublication eventPublication,
-                EventPublicationStrategy publicationStrategy,
-                AggregateEventRouting eventRouting) {
+                EventPublicationStrategy publicationStrategy) {
             return new RootConfiguration(
                     kind, conflictPolicy, automaticHandling, eventSourced, ignoreUnknownEvents,
                     snapshotPeriod, maxSnapshotCount, cached, cachingDepth, checkpointPeriod, commitPolicy,
-                    eventPublication, publicationStrategy, eventRouting, searchable, materializeGraph,
+                    eventPublication, publicationStrategy, searchable, materializeGraph,
                     graphProjection, collection, timestampPath, endPath);
         }
 
@@ -1540,7 +1531,6 @@ public final class EntityMetadata {
             EventPublication publication,
             EventPublicationStrategy eventStrategy,
             EventPublicationStrategy strategy,
-            AggregateEventRouting routing,
             ModelConflictPolicy conflict) {
 
         public boolean forceModified() {

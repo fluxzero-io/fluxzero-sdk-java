@@ -378,6 +378,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
         private final Cache aggregateCache;
         private final RelationshipsCache relationshipsCache;
         private final EntityMetadata.RootConfiguration configuration;
+        private final AggregateEventRouting eventRouting;
         private final AggregateCommitPolicy commitPolicy;
         private final EntityMetadata.SnapshotSettings snapshotSettings;
         private final SnapshotStore snapshotStore;
@@ -390,6 +391,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
             this.type = type;
 
             this.configuration = DefaultEntityHelper.getAggregateRootConfiguration(type);
+            this.eventRouting = DefaultEntityHelper.getRootAnnotation(type).eventRouting();
             this.aggregateCache = configuration.cached()
                     ? DefaultAggregateRepository.this.aggregateCache : NoOpCache.INSTANCE;
             this.relationshipsCache = configuration.cached()
@@ -457,7 +459,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                             }
                         }
                         return eventSourceModel(loadSnapshot(id));
-                    }), commitPolicy, configuration,
+                    }), commitPolicy, configuration, eventRouting,
                     entityHelper, serializer, dispatchInterceptor, this::commit);
         }
 

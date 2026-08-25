@@ -16,7 +16,6 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
-import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
@@ -62,7 +61,6 @@ import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
-import io.fluxzero.sdk.modeling.AggregateEventRouting;
 import io.fluxzero.sdk.modeling.Change;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Graph;
@@ -1661,7 +1659,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     SerializedMessage publication = serialize(
                             message, commitId, protocolSteps.size(), false);
                     publication.setSource(source);
-                    applyEventRouting(publication, graphPublished);
                     publication = BinaryWire.prepareEnvelope(publication);
                     Change anchor = graphPublished.getFirst();
                     ModelCommitTarget publicationTarget = target(
@@ -1688,13 +1685,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 transitions.stream().anyMatch(Change::cascadedDeletion));
                 if (event != null) {
                     event.setSource(source);
-                    if (!direct) {
-                        List<Change> routingTransitions =
-                                new ArrayList<>(transitions.size() + graphPublished.size());
-                        routingTransitions.addAll(transitions);
-                        routingTransitions.addAll(graphPublished);
-                        applyEventRouting(event, routingTransitions);
-                    }
                     event = BinaryWire.prepareEnvelope(event);
                 }
                 List<ModelCommitTarget> targets = new ArrayList<>(committedTransitions.size());
@@ -1919,30 +1909,6 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .map(Change::beforeLastEventIndex)
                     .filter(Objects::nonNull)
                     .anyMatch(index -> index >= sourceIndex);
-        }
-
-        private static void applyEventRouting(
-                SerializedMessage event,
-                List<Change> transitions) {
-            List<Change> published = transitions.stream()
-                    .filter(transition -> transition.publishEvent()).toList();
-            if (published.isEmpty()) {
-                return;
-            }
-            boolean aggregateIdRouting = published.stream()
-                    .anyMatch(transition -> transition.eventRouting()
-                            == AggregateEventRouting.AGGREGATE_ID);
-            boolean messageRouting = published.stream()
-                    .anyMatch(transition -> transition.eventRouting()
-                            == AggregateEventRouting.MESSAGE_ROUTING_KEY);
-            if (aggregateIdRouting && (messageRouting || published.size() != 1)) {
-                throw new IllegalStateException(
-                        "One model event cannot use conflicting aggregate-ID routing for multiple published targets");
-            }
-            if (aggregateIdRouting) {
-                event.setSegment(ConsistentHashing.computeSegment(
-                        published.getFirst().modelId()));
-            }
         }
 
         private static RelationshipUpdate relationshipUpdate(

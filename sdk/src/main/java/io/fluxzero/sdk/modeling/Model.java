@@ -179,11 +179,6 @@ public @interface Model {
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
 
     /**
-     * Controls how globally published events from this model are assigned to a message segment.
-     */
-    AggregateEventRouting eventRouting() default AggregateEventRouting.MESSAGE_ROUTING_KEY;
-
-    /**
      * Whether the model should be synchronously indexed in Fluxzero's document store.
      * <p>
      * Successful commit completion makes the directly changed model searchable in its own collection. This setting

@@ -294,20 +294,17 @@ public final class MutationPlan {
     record EffectOverrides(
             EventPublication publication,
             EventPublicationStrategy strategy,
-            AggregateEventRouting routing,
             ModelConflictPolicy conflict,
             GraphProjectionCompletion graphProjectionCompletion) {
         private static final EffectOverrides NONE = new EffectOverrides(
                 EventPublication.DEFAULT, EventPublicationStrategy.DEFAULT,
-                AggregateEventRouting.DEFAULT, ModelConflictPolicy.DEFAULT,
-                GraphProjectionCompletion.DEFAULT);
+                ModelConflictPolicy.DEFAULT, GraphProjectionCompletion.DEFAULT);
 
         static EffectOverrides of(Executable handler) {
             Apply apply = handler == null ? null : handler.getAnnotation(Apply.class);
             return apply == null ? NONE : new EffectOverrides(
                     apply.eventPublication(), apply.publicationStrategy(),
-                    apply.eventRouting(), apply.conflictPolicy(),
-                    apply.graphProjectionCompletion());
+                    apply.conflictPolicy(), apply.graphProjectionCompletion());
         }
 
         EffectOverrides then(EffectOverrides override) {
@@ -316,8 +313,6 @@ public final class MutationPlan {
                             ? override.publication : publication,
                     override.strategy != EventPublicationStrategy.DEFAULT
                             ? override.strategy : strategy,
-                    override.routing != AggregateEventRouting.DEFAULT
-                            ? override.routing : routing,
                     override.conflict != ModelConflictPolicy.DEFAULT
                             ? override.conflict : conflict,
                     override.graphProjectionCompletion != GraphProjectionCompletion.DEFAULT

@@ -280,7 +280,7 @@ class EntityMetadataTest {
                 .collect(toSet());
 
         Set<String> expectedSharedSettings = new java.util.HashSet<>(aggregateSettings);
-        expectedSharedSettings.removeAll(Set.of("collection", "timestampPath", "endPath"));
+        expectedSharedSettings.removeAll(Set.of("collection", "timestampPath", "endPath", "eventRouting"));
         assertEquals(expectedSharedSettings,
                      modelSettings.stream()
                              .filter(name ->
