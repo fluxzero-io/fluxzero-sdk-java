@@ -3196,6 +3196,18 @@ public record UpdateProfile(
 Sending `UpdateProfile` is sufficient; Fluxzero resolves `UserId`, runs assertions and applies, and commits the model
 action without a boilerplate command handler. One payload may read or update multiple models.
 
+Choose a Model boundary from domain lifecycle first. State that can be created, changed, retained, deleted, or whose
+history matters independently is a separate `@Model`, even if users normally see it in a parent's list. Give it a
+`@Parent` relation for graph placement and ownership. A meaningful domain identity is strong evidence for a separate
+Model, not an additional gate: a child may use a globally unique ID or `@EntityId(parentScoped = true)` when its
+functional ID is unique only below its parent.
+
+Conversely, use `@Member` only when the nested value deliberately shares creation, every change, history, retention,
+and deletion with the root. Collection shape, convenient embedding, searchability, update frequency, and the chosen
+load strategy do not decide this boundary. Choose `eventSourced`, snapshots, caching, and document indexing only after
+the lifecycle boundary is correct. Splitting independently living children often turns one enormous legacy stream into
+many very small streams that are ideal for event sourcing.
+
 ### Combining payload and Model handlers
 
 Action-specific logic normally belongs on the payload. A Model may additionally own cross-cutting state logic that
@@ -3355,11 +3367,12 @@ This rewrites only the derived projection, and only when one or more node schema
 state boundary, nodes and placements must remain identical. Direct Models, their histories and relationships remain
 authoritative and unchanged; a delayed handler cannot overwrite a newer projection.
 
-Use `@Member` inside a model only for values that intentionally share the model's stream, document, cache and
-lifecycle. Set `eventSourced = false` when current state should load from the direct document; model events are still
-stored and published. `@Model` defaults `eventPublication` to `IF_MODIFIED`, so returning unchanged state does not
-produce an event; use `ALWAYS` explicitly for intentional no-op domain notifications. Direct searchable documents are
-synchronous with model-commit completion.
+Use `@Member` inside a model only for values that intentionally share the model's creation, changes, history, stream,
+document, cache, retention and deletion lifecycle. If any of those can diverge, use a separate `@Model` plus `@Parent`,
+including when the child is normally displayed as one item in a parent collection. Set `eventSourced = false` when
+current state should load from the direct document; model events are still stored and published. `@Model` defaults
+`eventPublication` to `IF_MODIFIED`, so returning unchanged state does not produce an event; use `ALWAYS` explicitly for
+intentional no-op domain notifications. Direct searchable documents are synchronous with model-commit completion.
 
 Keep deletion explicit in the update by returning `null` from an ordinary `@Apply` method with the model as its
 declared return type:
@@ -3587,7 +3600,8 @@ to `@Model` as a persistence migration.
 The following section documents the shared-root API for applications that already persist aggregate streams. Do not
 introduce it in new code. `@Model` plus `@Member` covers the intentional single-stream case; the aggregate API is
 scheduled for Java deprecation in Fluxzero 2.0. Migrating an existing aggregate requires a deliberate persistence
-migration and is not an annotation-only refactor.
+migration and is not an annotation-only refactor. Do not copy an old aggregate's embedded shape into new Models: first
+re-evaluate every nested value by lifecycle and promote independently living children to `@Model` plus `@Parent`.
 
 ### Defining a legacy aggregate
 
@@ -3926,6 +3940,10 @@ public record Authorization(@EntityId AuthorizationId authorizationId,
                             Grant grant) {
 }
 ```
+
+This describes an existing legacy persistence boundary. For new state, an authorization or other child that can be
+created, changed, retained, audited, or deleted independently should be a separate `@Model` with `@Parent`; its
+convenient placement in a collection is not a reason to embed it.
 
 #### Adding a Child Entity
 

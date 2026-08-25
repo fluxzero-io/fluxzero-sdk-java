@@ -35,6 +35,13 @@ import java.lang.annotation.Target;
  * entities declared with {@link Member @Member}; those members share the model's stream, cache, search document,
  * snapshots, and lifecycle.
  * <p>
+ * Choose this boundary from domain lifecycle first: state that can be created, changed, retained, deleted, or whose
+ * history matters independently is a separate model, even when it is normally displayed in a parent's collection.
+ * Connect such a child with {@link Parent @Parent}. A meaningful domain identity is strong evidence for that boundary,
+ * not an additional gate: an independently living child may use a globally unique ID or a
+ * {@link EntityId#parentScoped() parent-scoped} ID. Collection shape, searchability, storage format, update frequency,
+ * and convenient embedding do not make independently living state a {@link Member}.
+ * <p>
  * Model identity is the repository representation of its {@link EntityId @EntityId}. Applications can use a typed
  * {@link Id}, annotation-level prefix/postfix affixes, or both to isolate otherwise equal functional identifiers.
  * <p>
@@ -47,7 +54,10 @@ import java.lang.annotation.Target;
  * {@link #eventSourced()} selects the normal load path, not whether applied events are stored or published. An
  * event-sourced model is reconstructed from its model stream, optionally from a snapshot. A document-based model is
  * loaded directly from its current document. In both cases, event storage and publication are controlled independently
- * by {@link #eventPublication()}, {@link #publicationStrategy()}, and per-apply overrides.
+ * by {@link #eventPublication()}, {@link #publicationStrategy()}, and per-apply overrides. Choose this persistence
+ * strategy after choosing the lifecycle boundary. Splitting independently living children into their own models often
+ * makes their individual streams small enough for straightforward event sourcing even when the former shared root had
+ * a very large event history.
  *
  * <h2>Example</h2>
  * <pre>{@code

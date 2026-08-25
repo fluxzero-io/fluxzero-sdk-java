@@ -29,9 +29,10 @@ import java.lang.annotation.Target;
  * Marks a class as the root of a legacy aggregate in the domain model.
  * <p>
  * New applications should use {@link Model @Model}. A model can own embedded {@link Member @Member} entities when one
- * stream, document, cache and lifecycle are desired, while independently stored models can be connected through
- * {@link Parent @Parent}. This aggregate annotation remains supported throughout Fluxzero 1.x so existing streams
- * and applications do not require a forced persistence migration; it is scheduled for deprecation in Fluxzero 2.0.
+ * stream, document, cache and inseparable lifecycle are deliberately desired, while independently living models are
+ * connected through {@link Parent @Parent}. This aggregate annotation remains supported throughout Fluxzero 1.x so
+ * existing streams and applications do not require a forced persistence migration; it is scheduled for deprecation in
+ * Fluxzero 2.0.
  * <p>
  * Legacy aggregates consist of a root entity (the annotated class) and any number of nested child entities registered
  * using {@link Member @Member}.

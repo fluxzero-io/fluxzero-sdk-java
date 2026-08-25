@@ -47,8 +47,16 @@ import java.lang.annotation.Target;
  * identifier. The model property keeps the functional value and graph-local {@link Graph#find(Object, Class)} lookup
  * therefore remains natural. Parent-scoped identity is intended for parent-owned values: moving such a model to a
  * different parent changes its persisted identity.
+ * <p>
+ * Domain lifecycle determines whether a value should be an independent model; identity is supporting evidence rather
+ * than a separate modeling gate. If a child can be created, changed, retained, or deleted independently but has no
+ * globally unique functional ID, keep it as a model and use a typed or parent-scoped identifier instead of embedding it
+ * as a {@link Member} merely for storage convenience.
  *
- * @see Aggregate for how to define aggregates and their structure.
+ * @see Model
+ * @see Parent
+ * @see Member
+ * @see Aggregate
  */
 @Documented
 @Target({ElementType.FIELD, ElementType.METHOD})

@@ -9,10 +9,14 @@ Fluxzero 1.x compatibility surfaces and are scheduled for deprecation in 2.0.
 2. Put action-specific `@AssertLegal`, `@InterceptApply` and `@Apply` methods on the command/update payload by default.
 3. Keep `@Apply` pure and deterministic. It is reused during event sourcing.
 4. Do not load, search, publish or perform I/O from `@Apply`.
-5. Prefer a separate model for state with an independent identity, update frequency, search need, retention rule or
-   lifecycle.
-6. Use `@Member` only for values that deliberately share one modelstream, document, cache entry and lifecycle.
-7. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
+5. Choose every model boundary by lifecycle first. State that can be created, changed, retained, deleted, or whose
+   history matters independently is a separate `@Model`, even when it is normally placed in a parent's collection.
+6. Treat a meaningful identity, separate retention, or independent updates as evidence for that boundary, not as
+   competing criteria. A child without a globally unique functional ID can use `@EntityId(parentScoped = true)`.
+7. Use `@Member` only when creation, every change, history, stream, document, cache, retention, and deletion all
+   deliberately belong to the root. Collection shape, searchability, storage choice, and update frequency never make
+   independently living state a member.
+8. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
 
 ## Define a model
 
@@ -204,6 +208,9 @@ data class Task(
 )
 ```
 
+The child remains an independent Model because its lifecycle is independent; `@Parent` expresses graph placement and
+default cascade ownership. Being displayed below or deleted with the parent does not make it a `@Member`.
+
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
@@ -252,7 +259,10 @@ data class InvoiceLine(
 )
 ```
 
-Choose this only if members always load, search, move, retain and disappear with the root model.
+Choose this only if each line has no meaningful lifecycle outside its invoice: creation, every change, history,
+retention and deletion all belong to the root. If any of those concerns can diverge, use a separate `@Model` plus
+`@Parent`. A list-shaped field, frequent updates, or convenient whole-document storage is never sufficient reason to
+use `@Member`.
 
 ## Loading and event parameters
 

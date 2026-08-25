@@ -16,7 +16,8 @@ Execution cadence and backlog workflow are defined in `AGENTS.md` in the root of
 Fluxzero encourages an **inside-out** development order to ensure logic is correct and testable.
 Prefer model/DDD fidelity over fast breadth. Do not begin with endpoints; begin with domain commands and model.
 
-1. **Commands + Domain Model**: Define command intent, model boundaries, relationships, value objects, and invariants.
+1. **Commands + Domain Model**: Define command intent, choose model boundaries by independent lifecycle, then define
+   relationships, value objects, and invariants.
 2. **State Transitions + Handlers**: Implement model `@Apply`/`@AssertLegal`; add message handlers only for orchestration,
    queries and side effects.
 3. **Tests**: Verify domain behavior and invariants using `TestFixture`.

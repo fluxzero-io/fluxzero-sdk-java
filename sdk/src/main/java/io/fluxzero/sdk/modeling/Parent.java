@@ -27,6 +27,11 @@ import java.lang.annotation.Target;
 /**
  * Declares that a model property contains the ID of a parent model.
  * <p>
+ * Both sides remain independent model and persistence boundaries. Use a parent relationship when the child has its own
+ * creation, update history, retention, or deletion lifecycle but belongs in the parent's domain graph. Being rendered
+ * below the parent, or being deleted with it by default, does not turn the child into an embedded {@link Member}.
+ * A child identifier that is meaningful only below this parent can use {@link EntityId#parentScoped()}.
+ * <p>
  * A parent reference is stored independently from both model values so changing this property can attach, detach, or
  * move the child without loading or rewriting either parent. A {@code null} value means that the property currently has no
  * parent. Non-null values use their {@link Object#toString()} representation as the referenced model identity.
@@ -57,6 +62,7 @@ import java.lang.annotation.Target;
  * the companion's repository identity and do not alter the parent reference value.
  *
  * @see Model
+ * @see Member
  * @see EntityId
  */
 @Documented
