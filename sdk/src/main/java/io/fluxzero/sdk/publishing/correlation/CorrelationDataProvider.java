@@ -56,6 +56,7 @@ import static java.util.Optional.ofNullable;
  * The correlation data map may include the following keys:
  * <ul>
  *   <li><b>{@code $applicationId}</b> – ID of the application this client belongs to (optional)</li>
+ *   <li><b>{@code $applicationVersion}</b> – Deployed version configured for the application (optional)</li>
  *   <li><b>{@code $clientId}</b> – Unique identifier for this Fluxzero client instance</li>
  *   <li><b>{@code $clientName}</b> – Logical name of the client (e.g. "service-A")</li>
  *   <li><b>{@code $consumer}</b> – Consumer name of the current {@link Tracker}, if active</li>
@@ -178,6 +179,15 @@ public interface CorrelationDataProvider {
      */
     default String getApplicationIdKey() {
         return "$applicationId";
+    }
+
+    /**
+     * Retrieves the key used to identify the deployed application version in correlation metadata.
+     *
+     * @return a string representing the application version key
+     */
+    default String getApplicationVersionKey() {
+        return "$applicationVersion";
     }
 
     /**

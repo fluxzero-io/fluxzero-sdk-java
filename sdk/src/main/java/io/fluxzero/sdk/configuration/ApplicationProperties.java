@@ -68,6 +68,14 @@ import java.util.function.Supplier;
  * @see DecryptingPropertySource
  */
 public class ApplicationProperties {
+
+    /**
+     * Optional version of the deployed application. When configured, Fluxzero adds the value to the correlation
+     * metadata of every outgoing message under {@code $applicationVersion}. The default environment-variable alias is
+     * {@code FLUXZERO_APPLICATION_VERSION}.
+     */
+    public static final String APPLICATION_VERSION_PROPERTY = "fluxzero.application.version";
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**

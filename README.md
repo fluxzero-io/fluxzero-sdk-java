@@ -5049,6 +5049,21 @@ example, `FLUXZERO_AUTH_OIDC_LOGIN_STATE_SECRET` can be resolved with
 `ApplicationProperties.getProperty("fluxzero.auth.oidc.login-state-secret")`. When both forms occur in the same source,
 the exact property name takes priority.
 
+### Application Version Correlation
+
+Set `fluxzero.application.version` to identify the deployed application version. Its conventional environment-variable
+alias is `FLUXZERO_APPLICATION_VERSION`:
+
+```bash
+export FLUXZERO_APPLICATION_VERSION=1.2.3
+```
+
+When the value is present and non-blank, Fluxzero adds authoritative `$applicationVersion` correlation metadata to
+every outgoing message. The configured value replaces any caller-supplied entry with the same key and is also retained
+when a custom `CorrelationDataProvider` is configured. Applications that omit the property keep their existing
+correlation behavior without the extra entry. Calling `disableMessageCorrelation()` disables this metadata together
+with the other automatic correlation fields.
+
 ### Example Usage
 
 ```java
@@ -5480,7 +5495,7 @@ These methods disable internal features as needed:
 |--------------------------------------|--------------------------------------------------------------------|
 | `disableErrorReporting()`            | Suppresses error publishing to `ErrorGateway`                      |
 | `disableShutdownHook()`              | Prevents the JVM shutdown hook                                     |
-| `disableMessageCorrelation()`        | Skips automatic correlation ID injection                           |
+| `disableMessageCorrelation()`        | Skips automatic correlation metadata, including application version |
 | `disablePayloadValidation()`         | Turns off payload type validation                                  |
 | `disableDataProtection()`            | Disables `@ProtectData` and `@DropProtectedData` filtering         |
 | `disableAutomaticAggregateCaching()` | Skips aggregate cache setup                                        |

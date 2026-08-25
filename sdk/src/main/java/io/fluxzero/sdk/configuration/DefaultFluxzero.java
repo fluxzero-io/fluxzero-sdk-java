@@ -62,6 +62,7 @@ import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.client.InMemorySearchStore;
 import io.fluxzero.sdk.persisting.search.client.LocalDocumentHandlerRegistry;
 import io.fluxzero.sdk.publishing.*;
+import io.fluxzero.sdk.publishing.correlation.ApplicationVersionCorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
@@ -346,6 +347,11 @@ public class DefaultFluxzero implements Fluxzero {
                 @NonNull UnaryOperator<CorrelationDataProvider> replaceFunction) {
             correlationDataProvider = replaceFunction.apply(correlationDataProvider);
             return this;
+        }
+
+        @Override
+        public CorrelationDataProvider correlationDataProvider() {
+            return ApplicationVersionCorrelationDataProvider.decorate(correlationDataProvider, propertySource);
         }
 
         @Override
@@ -1038,12 +1044,13 @@ public class DefaultFluxzero implements Fluxzero {
             };
 
             //and finally...
+            CorrelationDataProvider resolvedCorrelationDataProvider = correlationDataProvider();
             Fluxzero fluxzero =
                     doBuild(trackingMap, customGateways, commandGateway, queryGateway, eventGateway,
                             resultGateway, errorGateway, metricsGateway, webRequestGateway,
                             aggregateRepository, snapshotStore,
                             eventStore, keyValueStore, documentStore.get(), messageScheduler, userProvider,
-                            cache, serializer, correlationDataProvider, identityProvider,
+                            cache, serializer, resolvedCorrelationDataProvider, identityProvider,
                             propertySource instanceof DecryptingPropertySource dps
                                     ? dps : new DecryptingPropertySource(propertySource),
                             clock, taskScheduler, client, shutdownHandler);
