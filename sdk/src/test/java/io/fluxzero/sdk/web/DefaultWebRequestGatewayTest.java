@@ -31,12 +31,16 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -106,14 +110,107 @@ class DefaultWebRequestGatewayTest {
 
         WebResponse result = gateway.sendAndWait(WebRequest.get("https://example.com").build(),
                                                  WebRequestSettings.builder().useNativeHttpClient(true)
-                                                         .maxRetries(2).timeout(Duration.ofSeconds(5)).build());
+                                                         .maxRetries(2).retryDelay(Duration.ZERO)
+                                                         .timeout(Duration.ofSeconds(5)).build());
 
         assertEquals(200, result.getStatus());
         verify(httpClient, org.mockito.Mockito.times(3)).sendAsync(any(), anyByteArrayBodyHandler());
     }
 
     @Test
-    void doesNotRetryCompletedHttpErrorResponse() {
+    void retriesDefaultTransientServerErrorResponse() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> errorResponse = response(503, "unavailable");
+        HttpResponse<byte[]> successResponse = response(200, "ok");
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(CompletableFuture.completedFuture(errorResponse),
+                            CompletableFuture.completedFuture(successResponse));
+        DefaultWebRequestGateway gateway = gateway(delegate, httpClient);
+
+        WebResponse result = gateway.sendAndWait(WebRequest.get("https://example.com").build(),
+                                                 WebRequestSettings.builder().useNativeHttpClient(true)
+                                                         .maxRetries(1).retryDelay(Duration.ZERO)
+                                                         .timeout(Duration.ofSeconds(5)).build());
+
+        assertEquals(200, result.getStatus());
+        verify(httpClient, org.mockito.Mockito.times(2)).sendAsync(any(), anyByteArrayBodyHandler());
+    }
+
+    @Test
+    void doesNotRetryResponseStatusWhenRetriesAreDisabled() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> errorResponse = response(503, "unavailable");
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(CompletableFuture.completedFuture(errorResponse));
+        DefaultWebRequestGateway gateway = gateway(delegate, httpClient);
+
+        WebResponse result = gateway.sendAndWait(WebRequest.get("https://example.com").build(),
+                                                 WebRequestSettings.builder().useNativeHttpClient(true).build());
+
+        assertEquals(503, result.getStatus());
+        verify(httpClient).sendAsync(any(), anyByteArrayBodyHandler());
+    }
+
+    @Test
+    void waitsAsynchronouslyBeforeNativeRetry() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> errorResponse = response(503, "unavailable");
+        HttpResponse<byte[]> successResponse = response(200, "ok");
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(CompletableFuture.completedFuture(errorResponse),
+                            CompletableFuture.completedFuture(successResponse));
+        CompletableFuture<Void> retryPermit = new CompletableFuture<>();
+        AtomicReference<Duration> scheduledDelay = new AtomicReference<>();
+        DefaultWebRequestGateway gateway = gateway(
+                delegate, httpClient, delay -> {
+                    scheduledDelay.set(delay);
+                    return retryPermit;
+                });
+
+        CompletableFuture<WebResponse> result = gateway.send(
+                WebRequest.get("https://example.com").build(),
+                WebRequestSettings.builder().useNativeHttpClient(true).maxRetries(1)
+                        .retryDelay(Duration.ofMillis(250)).timeout(Duration.ofSeconds(5)).build());
+
+        assertEquals(Duration.ofMillis(250), scheduledDelay.get());
+        assertFalse(result.isDone());
+        verify(httpClient).sendAsync(any(), anyByteArrayBodyHandler());
+
+        retryPermit.complete(null);
+
+        assertEquals(200, result.join().getStatus());
+        verify(httpClient, org.mockito.Mockito.times(2)).sendAsync(any(), anyByteArrayBodyHandler());
+    }
+
+    @Test
+    void skipsNativeRetryWhoseDelayDoesNotFitDeadline() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> errorResponse = response(503, "unavailable");
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(CompletableFuture.completedFuture(errorResponse));
+        AtomicReference<Duration> scheduledDelay = new AtomicReference<>();
+        DefaultWebRequestGateway gateway = gateway(
+                delegate, httpClient, delay -> {
+                    scheduledDelay.set(delay);
+                    return CompletableFuture.completedFuture(null);
+                });
+
+        WebResponse result = gateway.sendAndWait(
+                WebRequest.get("https://example.com").build(),
+                WebRequestSettings.builder().useNativeHttpClient(true).maxRetries(1)
+                        .retryDelay(Duration.ofSeconds(2)).timeout(Duration.ofSeconds(1)).build());
+
+        assertEquals(503, result.getStatus());
+        assertNull(scheduledDelay.get());
+        verify(httpClient).sendAsync(any(), anyByteArrayBodyHandler());
+    }
+
+    @Test
+    void doesNotRetryResponseStatusExcludedBySettings() {
         GenericGateway delegate = mock(GenericGateway.class);
         HttpClient httpClient = mock(HttpClient.class);
         HttpResponse<byte[]> errorResponse = response(503, "unavailable");
@@ -123,7 +220,8 @@ class DefaultWebRequestGatewayTest {
 
         WebResponse result = gateway.sendAndWait(WebRequest.get("https://example.com").build(),
                                                  WebRequestSettings.builder().useNativeHttpClient(true)
-                                                         .maxRetries(3).timeout(Duration.ofSeconds(5)).build());
+                                                         .maxRetries(3).retryableStatusCodes(Set.of())
+                                                         .timeout(Duration.ofSeconds(5)).build());
 
         assertEquals(503, result.getStatus());
         verify(httpClient).sendAsync(any(), anyByteArrayBodyHandler());
@@ -134,17 +232,27 @@ class DefaultWebRequestGatewayTest {
         ObjectNode oldSettings = Metadata.objectMapper.valueToTree(WebRequestSettings.builder().build());
         oldSettings.remove("useNativeHttpClient");
         oldSettings.remove("maxRetries");
+        oldSettings.remove("retryDelay");
+        oldSettings.remove("retryableStatusCodes");
 
         WebRequestSettings result = Metadata.of("settings", oldSettings.toString())
                 .get("settings", WebRequestSettings.class);
 
         assertFalse(result.isUseNativeHttpClient());
         assertEquals(0, result.getMaxRetries());
+        assertEquals(Duration.ofSeconds(1), result.getRetryDelay());
+        assertEquals(Set.of(500, 502, 503, 504), result.getRetryableStatusCodes());
     }
 
     private DefaultWebRequestGateway gateway(GenericGateway delegate, HttpClient httpClient) {
         return new DefaultWebRequestGateway(delegate,
                                             new NativeWebRequestClient(httpClient, new JacksonSerializer()));
+    }
+
+    private DefaultWebRequestGateway gateway(GenericGateway delegate, HttpClient httpClient,
+                                             Function<Duration, CompletableFuture<Void>> retryDelay) {
+        return new DefaultWebRequestGateway(
+                delegate, new NativeWebRequestClient(httpClient, new JacksonSerializer(), retryDelay));
     }
 
     @SuppressWarnings("unchecked")

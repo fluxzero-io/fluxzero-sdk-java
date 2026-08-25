@@ -33,12 +33,14 @@ import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 final class NativeWebRequestClient implements AutoCloseable {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
 
     private final HttpClient httpClient;
     private final Serializer serializer;
+    private final Function<Duration, CompletableFuture<Void>> retryDelay;
 
     NativeWebRequestClient(Serializer serializer) {
         this(HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
@@ -46,8 +48,14 @@ final class NativeWebRequestClient implements AutoCloseable {
     }
 
     NativeWebRequestClient(HttpClient httpClient, Serializer serializer) {
+        this(httpClient, serializer, NativeWebRequestClient::delay);
+    }
+
+    NativeWebRequestClient(HttpClient httpClient, Serializer serializer,
+                           Function<Duration, CompletableFuture<Void>> retryDelay) {
         this.httpClient = Objects.requireNonNull(httpClient);
         this.serializer = Objects.requireNonNull(serializer);
+        this.retryDelay = Objects.requireNonNull(retryDelay);
     }
 
     CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
@@ -80,15 +88,51 @@ final class NativeWebRequestClient implements AutoCloseable {
 
         CompletableFuture<CompletableFuture<WebResponse>> result = attempt.handle((response, error) -> {
             if (error == null) {
+                if (shouldRetry(response.statusCode(), settings, retriesRemaining, deadline)) {
+                    return retry(request, serializedRequest, settings, retriesRemaining, deadline,
+                                 asWebResponse(response));
+                }
                 return CompletableFuture.completedFuture(asWebResponse(response));
             }
             Throwable failure = unwrap(error);
             if (retriesRemaining > 0 && failure instanceof IOException && Instant.now().isBefore(deadline)) {
-                return send(request, serializedRequest, settings, retriesRemaining - 1, deadline);
+                return retry(request, serializedRequest, settings, retriesRemaining, deadline,
+                             asWebResponse(failure));
             }
             return CompletableFuture.completedFuture(asWebResponse(failure));
         });
         return result.thenCompose(Function.identity());
+    }
+
+    private boolean shouldRetry(int status, WebRequestSettings settings, int retriesRemaining, Instant deadline) {
+        return retriesRemaining > 0 && settings.getRetryableStatusCodes().contains(status)
+                && Instant.now().isBefore(deadline);
+    }
+
+    private CompletableFuture<WebResponse> retry(WebRequest request, SerializedMessage serializedRequest,
+                                                 WebRequestSettings settings, int retriesRemaining, Instant deadline,
+                                                 WebResponse exhaustedResult) {
+        Duration delay = normalizedRetryDelay(settings);
+        Duration remaining = Duration.between(Instant.now(), deadline);
+        if (remaining.isNegative() || remaining.isZero() || delay.compareTo(remaining) >= 0) {
+            return CompletableFuture.completedFuture(exhaustedResult);
+        }
+        return retryDelay.apply(delay).thenCompose(ignored -> Instant.now().isBefore(deadline)
+                ? send(request, serializedRequest, settings, retriesRemaining - 1, deadline)
+                : CompletableFuture.completedFuture(exhaustedResult));
+    }
+
+    private Duration normalizedRetryDelay(WebRequestSettings settings) {
+        Duration delay = settings.getRetryDelay();
+        return delay.isNegative() ? Duration.ZERO : delay;
+    }
+
+    private static CompletableFuture<Void> delay(Duration duration) {
+        if (duration.isZero()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return CompletableFuture.runAsync(
+                () -> {}, CompletableFuture.delayedExecutor(duration.toNanos(), NANOSECONDS));
     }
 
     private HttpRequest asHttpRequest(WebRequest request, SerializedMessage serializedRequest,

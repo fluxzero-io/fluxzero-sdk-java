@@ -235,14 +235,30 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             try {
                 HttpRequest httpRequest = asHttpRequest(
                         request, uri, settings.toBuilder().timeout(remaining).build());
-                return asWebResponse(httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofByteArray()));
+                HttpResponse<byte[]> response = httpClient.send(
+                        httpRequest, HttpResponse.BodyHandlers.ofByteArray());
+                if (retriesRemaining > 0 && settings.getRetryableStatusCodes().contains(response.statusCode())
+                        && awaitRetryDelay(settings, deadline)) {
+                    retriesRemaining--;
+                    continue;
+                }
+                return asWebResponse(response);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 log.error("Interrupted while handling external request. Returning error.. ", e);
                 return asWebResponse(e);
             } catch (IOException e) {
-                if (retriesRemaining-- > 0 && Instant.now().isBefore(deadline)) {
-                    continue;
+                if (retriesRemaining > 0) {
+                    try {
+                        if (awaitRetryDelay(settings, deadline)) {
+                            retriesRemaining--;
+                            continue;
+                        }
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted before retrying external request. Returning error.. ", interrupted);
+                        return asWebResponse(interrupted);
+                    }
                 }
                 log.error("Failed to handle external request after retries. Returning error.. ", e);
                 return asWebResponse(e);
@@ -251,6 +267,18 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 return asWebResponse(e);
             }
         }
+    }
+
+    private boolean awaitRetryDelay(WebRequestSettings settings, Instant deadline) throws InterruptedException {
+        Duration delay = settings.getRetryDelay().isNegative() ? Duration.ZERO : settings.getRetryDelay();
+        Duration remaining = Duration.between(Instant.now(), deadline);
+        if (remaining.isNegative() || remaining.isZero() || delay.compareTo(remaining) >= 0) {
+            return false;
+        }
+        if (!delay.isZero()) {
+            Thread.sleep(delay);
+        }
+        return Instant.now().isBefore(deadline);
     }
 
     protected void sendResponse(WebResponse response, SerializedMessage request) {

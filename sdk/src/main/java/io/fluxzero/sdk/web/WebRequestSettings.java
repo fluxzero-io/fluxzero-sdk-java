@@ -17,16 +17,19 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.sdk.publishing.WebRequestGateway;
 import lombok.Builder;
 import lombok.Builder.Default;
+import lombok.NonNull;
 import lombok.Value;
+import lombok.extern.jackson.Jacksonized;
 
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Configuration settings for a {@link WebRequest} sent via the {@link WebRequestGateway}.
  * <p>
  * By default, requests are published as Fluxzero messages and forwarded by the Fluxzero proxy. Applications can opt
- * into execution by the SDK's native HTTP client instead. Transport retries apply within the configured overall
- * timeout; HTTP error responses are returned without retrying.
+ * into execution by the SDK's native HTTP client instead. Retries after transport failures or configured HTTP response
+ * statuses apply within the configured overall timeout.
  *
  * <p><strong>Example usage:</strong></p>
  * <pre>{@code
@@ -35,6 +38,8 @@ import java.time.Duration;
  *     .timeout(Duration.ofSeconds(30))
  *     .consumer("google-traffic")
  *     .maxRetries(2)
+ *     .retryDelay(Duration.ofMillis(250))
+ *     .retryableStatusCodes(Set.of(502, 503, 504))
  *     .build();
  * }</pre>
  *
@@ -42,6 +47,7 @@ import java.time.Duration;
  */
 @Value
 @Builder(toBuilder = true)
+@Jacksonized
 public class WebRequestSettings {
 
     /**
@@ -71,11 +77,28 @@ public class WebRequestSettings {
     boolean useNativeHttpClient = false;
 
     /**
-     * Maximum number of additional attempts after a transport failure. Retries share the configured {@link #timeout}
-     * and do not apply to completed HTTP responses, including 4xx and 5xx status codes. Values below zero are treated
-     * as zero. A transport failure can occur after the remote server accepted a request, so retry non-idempotent calls
+     * Maximum number of additional attempts after a transport failure or a response whose status occurs in
+     * {@link #retryableStatusCodes}. Retries share the configured {@link #timeout}. Values below zero are treated as
+     * zero. A failure or response can occur after the remote server accepted a request, so retry non-idempotent calls
      * only when the destination provides suitable deduplication.
      */
     @Default
     int maxRetries = 0;
+
+    /**
+     * Fixed delay before each retry. Defaults to one second. The delay counts toward {@link #timeout}; no new attempt
+     * starts when the delay no longer fits before the request deadline. Negative values are treated as zero.
+     */
+    @Default
+    @NonNull
+    Duration retryDelay = Duration.ofSeconds(1);
+
+    /**
+     * HTTP response statuses that may trigger a retry when {@link #maxRetries} is positive. Defaults to common
+     * transient server failures: 500, 502, 503, and 504. Configure an empty set to retry transport failures only, or
+     * provide a custom set for destination-specific response statuses. Other responses are returned immediately.
+     */
+    @Default
+    @NonNull
+    Set<Integer> retryableStatusCodes = Set.of(500, 502, 503, 504);
 }

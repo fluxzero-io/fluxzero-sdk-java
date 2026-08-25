@@ -2955,23 +2955,29 @@ When set, the Flux Web Proxy will isolate this request in its own internal proce
 ### Native HTTP execution and retries
 
 For calls that should leave the application directly instead of passing through the Fluxzero proxy, opt into the SDK's
-native HTTP client. You can independently configure transport retries for both native and proxy execution:
+native HTTP client. You can independently configure retry behavior for both native and proxy execution:
 
 ```java
 WebRequestSettings settings = WebRequestSettings.builder()
         .useNativeHttpClient(true)
         .maxRetries(2)
+        .retryDelay(Duration.ofMillis(250))
+        .retryableStatusCodes(Set.of(502, 503, 504))
         .timeout(Duration.ofSeconds(10))
         .build();
 
 WebResponse response = Fluxzero.get().webRequestGateway().sendAndWait(request, settings);
 ```
 
-`maxRetries` is the number of additional attempts after the first transport failure. All attempts share the configured
-`timeout`; completed HTTP responses, including 4xx and 5xx statuses, are returned without retrying. Native execution
-requires an absolute HTTP(S) URL and bypasses Fluxzero message logging, local web handlers, dispatch interceptors, and
-consumer isolation. A transport failure may occur after the destination accepted a request, so only retry
-non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain the defaults.
+`maxRetries` is the number of additional attempts after a transport failure or a configured response status. Transport
+failures include problems such as a failed connection, reset connection, or request timeout. The default retryable
+statuses are 500, 502, 503, and 504; override `retryableStatusCodes` for a destination-specific selection, or use an
+empty set to retry transport failures only. `retryDelay` adds a fixed wait before each additional attempt. The delay and
+all attempts share the configured `timeout`; a retry is skipped when its delay no longer fits before the deadline.
+Native execution requires an absolute HTTP(S) URL and bypasses Fluxzero message logging, local web handlers, dispatch
+interceptors, and consumer isolation. A failure or response may occur after the destination accepted a request, so only
+retry non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain the
+defaults; when retries are enabled, `retryDelay` defaults to one second.
 
 ### Mocking External Endpoints in Tests
 

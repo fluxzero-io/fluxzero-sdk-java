@@ -28,8 +28,9 @@ import java.util.concurrent.CompletableFuture;
  * Gateway for sending outbound web requests via Fluxzero's proxy mechanism or the SDK's native HTTP client.
  * <p>
  * By default, this gateway logs the request as a {@link WebRequest} message, which is then picked up by the Fluxzero
- * Runtime's proxy. {@link WebRequestSettings#isUseNativeHttpClient()} can instead execute an absolute HTTP(S) request
- * directly from the application. Native execution deliberately bypasses message logging and local handlers.
+ * Runtime's proxy. Enabling {@code useNativeHttpClient} in {@link WebRequestSettings} instead executes an absolute
+ * HTTP(S) request directly from the application. Native execution deliberately bypasses message logging and local
+ * handlers.
  * <p>
  * <strong>Benefits of this approach include:</strong>
  * <ul>

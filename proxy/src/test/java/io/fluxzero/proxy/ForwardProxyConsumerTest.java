@@ -48,6 +48,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -228,7 +229,7 @@ class ForwardProxyConsumerTest {
         ForwardProxyConsumer consumer = new ForwardProxyConsumer(
                 client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean());
         WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
-                .timeout(Duration.ofSeconds(5)).maxRetries(2).build();
+                .timeout(Duration.ofSeconds(5)).maxRetries(2).retryDelay(Duration.ZERO).build();
         WebRequest request = WebRequest.get("https://example.com").metadata(
                 Metadata.of("settings", settings)).build();
         SerializedMessage serializedRequest = request.serialize(ForwardProxyConsumer.serializer);
@@ -241,6 +242,47 @@ class ForwardProxyConsumerTest {
 
         assertEquals(2, deserializedSettings.getMaxRetries());
         verify(httpClient, times(3)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+    }
+
+    @Test
+    void retriesConfiguredResponseStatusWithinRequestTimeout() throws Exception {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> retryResponse = mock(HttpResponse.class);
+        HttpResponse<byte[]> successResponse = mock(HttpResponse.class);
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(retryResponse.statusCode()).thenReturn(429);
+        when(retryResponse.body()).thenReturn("retry".getBytes());
+        when(retryResponse.headers()).thenReturn(HttpHeaders.of(Map.of(), (name, value) -> true));
+        when(successResponse.statusCode()).thenReturn(200);
+        when(successResponse.body()).thenReturn("ok".getBytes());
+        when(successResponse.headers()).thenReturn(HttpHeaders.of(Map.of(), (name, value) -> true));
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(retryResponse, successResponse);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean());
+        WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .timeout(Duration.ofSeconds(5)).maxRetries(1).retryDelay(Duration.ofMillis(1))
+                .retryableStatusCodes(Set.of(429)).build();
+        WebRequest request = WebRequest.get("https://example.com").metadata(
+                Metadata.of("settings", settings)).build();
+        SerializedMessage serializedRequest = request.serialize(ForwardProxyConsumer.serializer);
+        serializedRequest.setIndex(IndexUtils.indexForCurrentTime());
+        serializedRequest.setRequestId(42);
+        serializedRequest.setSource("requester");
+        WebRequestSettings deserializedSettings = consumer.getSettings(serializedRequest);
+
+        consumer.handle(serializedRequest, URI.create(request.getPath()), deserializedSettings);
+
+        assertEquals(Set.of(429), deserializedSettings.getRetryableStatusCodes());
+        assertEquals(Duration.ofMillis(1), deserializedSettings.getRetryDelay());
+        verify(httpClient, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
     }
 
