@@ -5,6 +5,11 @@
     "documentation" : null
   },
   "files" : [ {
+    "file" : "ApplicationVersionCorrelationDataProvider.json",
+    "name" : "ApplicationVersionCorrelationDataProvider",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.ApplicationVersionCorrelationDataProvider",
+    "kind" : "class"
+  }, {
     "file" : "CorrelatingInterceptor.json",
     "name" : "CorrelatingInterceptor",
     "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor",

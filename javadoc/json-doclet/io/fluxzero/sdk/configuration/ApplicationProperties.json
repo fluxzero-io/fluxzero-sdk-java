@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "APPLICATION_VERSION_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.APPLICATION_VERSION_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Optional version of the deployed application. When configured, Fluxzero adds the value to the correlation\n metadata of every outgoing message under {@code $applicationVersion}. The default environment-variable alias is\n {@code FLUXZERO_APPLICATION_VERSION}.\n",
+    "constantValue" : "fluxzero.application.version"
+  }, {
     "name" : "DEFAULTS_VERSION_FORMAT",
     "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULTS_VERSION_FORMAT",
     "type" : "java.time.format.DateTimeFormatter",

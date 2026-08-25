@@ -720,6 +720,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "correlationDataProvider",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#correlationDataProvider",
+    "returnType" : "io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "createRequestGateway",
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder#createRequestGateway",
     "returnType" : "io.fluxzero.sdk.publishing.GenericGateway",
