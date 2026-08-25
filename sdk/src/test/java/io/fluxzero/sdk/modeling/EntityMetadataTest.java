@@ -171,10 +171,16 @@ class EntityMetadataTest {
                 configuration.getPathOverrides()
                         .getFirst()
                         .getProjectionPath());
-        assertThrows(
-                IllegalStateException.class,
-                () -> EntityMetadata.validate(
-                        UnsearchableProjectedModel.class));
+        var privateConfiguration =
+                EntityMetadata.validate(UnsearchableProjectedModel.class)
+                        .graphProjectionConfiguration()
+                        .orElseThrow();
+        assertEquals(
+                graphComponentCollection(UnsearchableProjectedModel.class.getName()),
+                privateConfiguration.getRootCollection());
+        assertEquals(
+                "UnsearchableProjectedModel-graphs",
+                privateConfiguration.getCollection());
         assertEquals(
                 "default-projected-models-graphs",
                 EntityMetadata.validate(DefaultProjectedModel.class)
@@ -615,10 +621,7 @@ class EntityMetadataTest {
             @EntityId String id) {
     }
 
-    @Model(
-            materializeGraph = true,
-            graphProjection = @GraphProjection(
-                    collection = "invalid-graphs"))
+    @Model(materializeGraph = true)
     private record UnsearchableProjectedModel(
             @EntityId String id) {
     }

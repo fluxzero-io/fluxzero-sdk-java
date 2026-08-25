@@ -28,8 +28,8 @@ import java.util.Objects;
 /**
  * Durable definition of one asynchronous materialized model-graph document.
  * <p>
- * The target collection is the projection identity within a namespace. It is intentionally distinct from the direct
- * root collection so asynchronous graph writes cannot weaken direct-model search consistency.
+ * The target collection is the projection identity within a namespace. It is intentionally distinct from the root's
+ * current-document source so asynchronous graph writes cannot weaken synchronous current-state consistency.
  */
 @Value
 public class ModelGraphProjectionConfiguration {
@@ -40,7 +40,8 @@ public class ModelGraphProjectionConfiguration {
     String rootModelType;
 
     /**
-     * Collection containing the synchronously maintained direct root document.
+     * Collection containing the synchronously maintained root document. This can be either a public direct-model
+     * collection or a private type-isolated graph-component collection.
      */
     String rootCollection;
 
@@ -89,7 +90,7 @@ public class ModelGraphProjectionConfiguration {
                 collection, "Graph projection collection");
         if (this.rootCollection.equals(this.collection)) {
             throw new IllegalArgumentException(
-                    "Graph projection collection must differ from the direct root collection");
+                    "Graph projection collection must differ from the current root collection");
         }
         this.composition = Objects.requireNonNull(
                 composition, "Model graph composition");

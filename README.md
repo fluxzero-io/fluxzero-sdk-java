@@ -3271,11 +3271,11 @@ components use a private collection per Model type, so they remain available for
 being mixed with other component types or exposed by `Fluxzero.search(Component.class)`.
 `searchGraph(User.class)` returns a
 `Search<Graph<User>>`, so `stream()`, `fetchAll()`, `fetchFirst()` and other terminal operations remain typed without a
-cast or type witness. It uses a configured materialized projection and otherwise stitches current direct documents
-live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a boundary that
+cast or type witness. It uses a configured materialized projection and otherwise stitches current public or private
+documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a boundary that
 explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
-`searchable = false` suppresses only the address's own search collection: an explicit
-`@Parent(pathInParent = "...")` still gives graph composition an internal current document.
+`searchable = false` suppresses only the Model's own search collection: an explicit
+`@Parent(pathInParent = "...")` or `materializeGraph = true` still gives graph composition an internal current document.
 `pathInParent` is always relative to the parent document; it never points from the child to its parent.
 
 For a selective live Graph query based on children, express the child predicate as a relationship constraint so
@@ -3348,23 +3348,22 @@ returns the revision with the highest `revisionStateIndex()`, matching ordinary 
 Use parent-scoped identity only for parent-owned models. Changing that parent changes the persisted model identity;
 ordinary movable children should retain a globally stable model ID.
 
-Enable the durable materialized form directly on its searchable root:
+Enable the durable materialized form directly on its root:
 
 ```java
-@Model(
-        searchable = true,
-        searchProjection = @Searchable(collection = "users"),
-        materializeGraph = true)
+@Model(materializeGraph = true)
 public record User(@EntityId UserId userId, String name) {
 }
 ```
 
-`searchable` and `materializeGraph` are the simple activation switches. Use `searchProjection = @Searchable(...)` or
-`graphProjection = @GraphProjection(...)` only for advanced configuration. The graph collection is `users-graphs` by
-default. Set `GraphProjection.collection` only when a custom durable name is needed. Projection is asynchronous unless
-completion is explicitly configured otherwise. Both live and materialized composition follow the complete finite graph
-by default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use `UNBOUNDED` (`-1`) when
-absent. An explicit guardrail fails instead of publishing a partial graph.
+`materializeGraph` is sufficient: Fluxzero keeps the private root document needed for composition without exposing a
+direct Model collection. Enable `searchable` separately only when callers should also be able to search the root Model
+itself. Use `searchProjection = @Searchable(...)` or `graphProjection = @GraphProjection(...)` only for advanced
+configuration. The graph collection is `User-graphs` by default; for a searchable root it derives from the resolved
+direct collection instead. Set `GraphProjection.collection` only when a custom durable name is needed. Projection is
+asynchronous unless completion is explicitly configured otherwise. Both live and materialized composition follow the
+complete finite graph by default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use
+`UNBOUNDED` (`-1`) when absent. An explicit guardrail fails instead of publishing a partial graph.
 
 Every node in a materialized graph keeps its own serialized type and revision. On read, the normal serializer applies
 the registered `@Upcast` chain lazily to each root or descendant when that node is accessed; there is no separate

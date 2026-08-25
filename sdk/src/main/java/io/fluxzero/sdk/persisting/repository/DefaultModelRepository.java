@@ -420,7 +420,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             EntityMetadata metadata) {
         String collection = metadata.modelDocumentCollection()
                 .orElseThrow(() -> new IllegalArgumentException(
-                        modelType.getName() + " has no direct document to adopt"));
+                        modelType.getName() + " has no current document to adopt"));
         GetModelMigrationResult migration = client.getSearchClient()
                 .getModelMigration(new GetModelMigration(
                         persistedId, collection));

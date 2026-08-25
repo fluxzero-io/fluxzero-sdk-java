@@ -36,7 +36,8 @@ Important settings:
 
 - `eventSourced`: controls the current-state load route. Events are still stored when `false`.
 - `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
-  model's own collection; an explicit `@Parent(pathInParent = "...")` still retains a private graph-component document.
+  model's own collection; an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true` still retains the
+  private graph-component document needed for composition.
 - `searchProjection`: optional `Searchable` configuration for the direct collection and timestamp paths.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `STORE_AND_PUBLISH`, `STORE_ONLY`, `PUBLISH_ONLY` or `NEVER`.
@@ -44,8 +45,9 @@ Important settings:
 - `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
 - `materializeGraph`: enables the optional durable whole-tree read model.
-- `graphProjection`: optional advanced `GraphProjection` configuration; its collection defaults to
-  `<resolved model collection>-graphs` and materializes the complete finite graph without implicit size limits.
+- `graphProjection`: optional advanced `GraphProjection` configuration; its collection defaults to the resolved direct
+  Model collection plus `-graphs` when searchable, or `<simple model name>-graphs` otherwise, and materializes the
+  complete finite graph without implicit size limits.
 
 `eventSourced = false` does not disable event storage or publication. It means current state loads from the direct
 document. Historical event-boundary loads still use stored model events.
@@ -353,11 +355,12 @@ type-isolated private Graph component; Fluxzero searches matching child IDs befo
 composing targets. Prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` over a broad
 forced-live nested-path filter when the child type is known. Use
 `searchGraph(Root::class.java).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness.
-It reads a configured `@GraphProjection` by default and otherwise stitches current direct documents live; pass `true`
-as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` for explicit raw JSON. Enable materialization with
-`@Model(searchable = true, materializeGraph = true)`. A blank projection collection derives
-`<resolved model collection>-graphs`; explicit lower-level composition limits fail rather than returning a partial
-graph.
+It reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;
+pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` for explicit raw
+JSON. Enable materialization with
+`@Model(materializeGraph = true)`. Enable `searchable` separately only for direct public Modelsearch. A blank projection
+collection derives from the direct Model collection when searchable, or from the simple root-model name otherwise;
+explicit lower-level composition limits fail rather than returning a partial graph.
 
 ## Conflict and deletion
 

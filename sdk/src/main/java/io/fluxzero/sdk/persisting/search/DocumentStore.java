@@ -385,7 +385,7 @@ public interface DocumentStore extends Namespaced<DocumentStore> {
      * Searches complete graph views for an independent model root.
      * <p>
      * A configured materialized graph collection is used by default. If the root has no materialized projection, the
-     * current graph is composed live from direct documents and explicit parent paths.
+     * current graph is composed live from its public or private current document and explicit parent paths.
      */
     default <T> Search<Graph<T>> searchGraph(
             @NonNull Class<T> rootModelType) {

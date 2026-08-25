@@ -226,9 +226,9 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     public <T> Search<Graph<T>> searchGraph(
             Class<T> rootModelType,
             boolean forceAdHoc) {
+        EntityMetadata metadata = EntityMetadata.validate(rootModelType);
         EntityMetadata.RootConfiguration root =
-                EntityMetadata.validate(rootModelType)
-                        .rootConfiguration()
+                metadata.rootConfiguration()
                         .orElseThrow(() ->
                                              new IllegalArgumentException(
                                                      rootModelType.getName()
@@ -239,23 +239,22 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                     rootModelType.getName()
                     + " is not an independent model");
         }
-        if (!root.searchable()) {
-            throw new IllegalArgumentException(
-                    "Graph search root %s must be searchable"
-                            .formatted(
-                                    rootModelType.getName()));
-        }
+        String rootCollection = metadata.modelDocumentCollection()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Graph search root %s has no current document"
+                                .formatted(rootModelType.getName())));
         Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>
                 projection =
-                EntityMetadata.validate(rootModelType)
-                        .graphProjectionConfiguration();
+                metadata.graphProjectionConfiguration();
         boolean live =
                 forceAdHoc
                 || projection.isEmpty();
         String collection =
                 live
-                        ? determineCollection(
-                                rootModelType)
+                        ? projection.map(
+                                        io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration
+                                                ::getRootCollection)
+                                .orElse(rootCollection)
                         : projection.orElseThrow()
                                 .getCollection();
         ModelGraphComposition composition =

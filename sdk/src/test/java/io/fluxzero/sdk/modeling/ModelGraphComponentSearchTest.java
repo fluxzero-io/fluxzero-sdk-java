@@ -30,6 +30,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelGraphComponentSearchTest {
 
     @Test
+    void materializesNonSearchableRootFromPrivateComponents() {
+        String rootId = "private-projection-root";
+        String childId = "private-projection-child";
+
+        TestFixture.create(
+                        DefaultFluxzero.builder()
+                                .configureGraphProjectionCompletion(GraphProjectionCompletion.AWAIT))
+                .givenCommands(
+                        new CreatePrivateProjectionRoot(rootId),
+                        new CreatePrivateProjectionChild(childId, rootId))
+                .whenApplying(ignored -> List.of(
+                        Fluxzero.search(PrivateProjectionRoot.class).fetchAll().isEmpty(),
+                        privateProjectionChildIds(Fluxzero.searchGraph(PrivateProjectionRoot.class)
+                                                          .fetchAll()),
+                        privateProjectionChildIds(Fluxzero.searchGraph(PrivateProjectionRoot.class, true)
+                                                          .fetchAll())))
+                .expectResult(List.of(
+                        true, List.of(childId), List.of(childId)));
+    }
+
+    @Test
     void selectsParentsAndGraphsThroughTypeIsolatedPrivateComponents() {
         SearchRootId selectedRoot = new SearchRootId("selected");
         SearchRootId otherRoot = new SearchRootId("other");
@@ -129,6 +150,12 @@ class ModelGraphComponentSearchTest {
         return graphs.stream().map(graph -> graph.get().searchRootId()).toList();
     }
 
+    private static List<String> privateProjectionChildIds(
+            List<Graph<PrivateProjectionRoot>> graphs) {
+        return graphs.getFirst().childModels("children", PrivateProjectionChild.class)
+                .stream().map(PrivateProjectionChild::id).toList();
+    }
+
     private static List<List<SearchRootId>> selectedRootIds() {
         return List.of(
                 Fluxzero.search(SearchRoot.class)
@@ -156,6 +183,31 @@ class ModelGraphComponentSearchTest {
         @Apply
         SearchRoot apply() {
             return new SearchRoot(searchRootId);
+        }
+    }
+
+    @Model(materializeGraph = true)
+    private record PrivateProjectionRoot(@EntityId String id) {
+    }
+
+    private record CreatePrivateProjectionRoot(String id) {
+        @Apply
+        PrivateProjectionRoot apply() {
+            return new PrivateProjectionRoot(id);
+        }
+    }
+
+    @Model
+    private record PrivateProjectionChild(
+            @EntityId String id,
+            @Parent(value = PrivateProjectionRoot.class, pathInParent = "children")
+            String rootId) {
+    }
+
+    private record CreatePrivateProjectionChild(String id, String rootId) {
+        @Apply
+        PrivateProjectionChild apply() {
+            return new PrivateProjectionChild(id, rootId);
         }
     }
 

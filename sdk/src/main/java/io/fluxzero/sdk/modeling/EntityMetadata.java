@@ -516,7 +516,7 @@ public final class EntityMetadata {
                 .anyMatch(ParentReference::automaticallyComposed);
     }
 
-    /** Returns the application-resolved collection that owns this Model's direct document, if it has one. */
+    /** Returns the application-resolved collection that owns this Model's current document, if it has one. */
     public Optional<String> modelDocumentCollection() {
         if (model == null) {
             return Optional.empty();
@@ -524,7 +524,7 @@ public final class EntityMetadata {
         if (rootConfiguration.searchable()) {
             return Optional.of(configuredModelDocumentCollection());
         }
-        return participatesInGraphComposition()
+        return participatesInGraphComposition() || rootConfiguration.materializeGraph()
                 ? Optional.of(ModelDocumentMutation.graphComponentCollection(
                         type.getName()))
                 : Optional.empty();
@@ -556,16 +556,18 @@ public final class EntityMetadata {
             return Optional.empty();
         }
         GraphProjection projection = model.graphProjection();
-        String rootCollection = rootConfiguration.collection().isEmpty()
-                ? type.getSimpleName()
-                : ApplicationProperties.substituteProperties(
-                        rootConfiguration.collection());
+        String rootCollection = modelDocumentCollection().orElseThrow(
+                () -> new IllegalStateException(
+                        "Graph projection root %s has no current-document collection"
+                                .formatted(type.getName())));
+        String publicCollectionBase = rootConfiguration.searchable()
+                ? rootCollection : type.getSimpleName();
         String collection = projection.collection().isEmpty()
-                ? rootCollection + "-graphs"
+                ? publicCollectionBase + "-graphs"
                 : ApplicationProperties.substituteProperties(projection.collection());
         if (rootCollection.equals(collection)) {
             throw new IllegalStateException(
-                    "Graph projection collection on %s must differ from its direct-model collection '%s'"
+                    "Graph projection collection on %s must differ from its current-document collection '%s'"
                             .formatted(type.getName(), rootCollection));
         }
         return Optional.of(new ModelGraphProjectionConfiguration(
@@ -807,10 +809,6 @@ public final class EntityMetadata {
                 annotation.graphProjection();
         if (!annotation.materializeGraph()) {
             return;
-        }
-        if (!annotation.searchable()) {
-            throw invalid("%s enables a graph projection but is not searchable"
-                                  .formatted(type.getName()));
         }
         if (!projection.collection().isEmpty()
             && (projection.collection().isBlank()

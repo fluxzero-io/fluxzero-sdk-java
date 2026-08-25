@@ -23,8 +23,9 @@ import java.lang.annotation.Target;
  * Configures an asynchronous materialized search document containing a complete model graph.
  * <p>
  * Configure this through {@link Model#graphProjection()} and enable it with {@link Model#materializeGraph()}. Without
- * an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model collection. An
- * explicit collection remains available when that durable public search contract needs a custom name.
+ * an explicit {@link #collection()}, Fluxzero appends {@code -graphs} to the resolved direct-model collection when the
+ * root is searchable, or to the simple model name otherwise. An explicit collection remains available when that
+ * durable public search contract needs a custom name.
  */
 @Documented
 @Target({})
@@ -37,8 +38,8 @@ public @interface GraphProjection {
     GraphProjectionCompletion completion() default GraphProjectionCompletion.DEFAULT;
 
     /**
-     * Distinct collection receiving materialized graph documents. Blank derives
-     * {@code <resolved direct-model collection>-graphs}.
+     * Distinct collection receiving materialized graph documents. Blank derives from the public direct-model collection
+     * when enabled, or from the simple root-model name otherwise.
      */
     String collection() default "";
 

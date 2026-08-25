@@ -179,7 +179,8 @@ public @interface Model {
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
 
     /**
-     * Whether the model should be synchronously indexed in Fluxzero's document store.
+     * Whether the model should expose a synchronous current document through its ordinary class-based search
+     * collection.
      * <p>
      * Successful commit completion makes the directly changed model searchable in its own collection. This setting
      * does not control graph participation: a model connected through an explicit {@link Parent#pathInParent()} still
@@ -202,9 +203,11 @@ public @interface Model {
     /**
      * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
      * <p>
-     * Materialization requires {@link #searchable()} so the root keeps its synchronous direct document. Only the
+     * Fluxzero retains the root's current document in its direct collection when {@link #searchable()} is enabled and
+     * otherwise in the same type-isolated private component storage used by non-searchable children. Only the
      * separately named graph collection is allowed to lag; its high-watermark is exposed through the model repository.
-     * The collection defaults to {@code <resolved direct-model collection>-graphs}.
+     * The collection defaults to the resolved direct-model collection plus {@code -graphs} when searchable, or to
+     * {@code <simple model name>-graphs} otherwise.
      */
     boolean materializeGraph() default false;
 
