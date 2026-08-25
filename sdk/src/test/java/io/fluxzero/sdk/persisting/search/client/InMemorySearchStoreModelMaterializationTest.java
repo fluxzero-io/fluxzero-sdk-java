@@ -121,12 +121,13 @@ class InMemorySearchStoreModelMaterializationTest {
     void localGraphProjectionHonorsPathOverridesAndStateFence() {
         String rootId = "root-1";
         String childId = "child-1";
+        String childCollection =
+                ModelDocumentMutation.graphComponentCollection(
+                        "Child");
         Map<String, String> collections =
                 Map.of(
                         rootId, "roots",
-                        childId,
-                        ModelDocumentMutation
-                                .GRAPH_COMPONENT_COLLECTION);
+                        childId, childCollection);
         InMemorySearchStore graphStore =
                 new InMemorySearchStore(
                         Duration.ofDays(1), null,
@@ -153,8 +154,7 @@ class InMemorySearchStoreModelMaterializationTest {
                                         "root"),
                                 structuredDocument(
                                         childId,
-                                        ModelDocumentMutation
-                                                .GRAPH_COMPONENT_COLLECTION,
+                                        childCollection,
                                         "first")),
                         STORED, false)
                 .join();
@@ -190,12 +190,10 @@ class InMemorySearchStoreModelMaterializationTest {
         materialize(
                 graphStore, childId, 11L,
                 new ModelDocumentMutation(
-                        ModelDocumentMutation
-                                .GRAPH_COMPONENT_COLLECTION,
+                        childCollection,
                         structuredDocument(
                                 childId,
-                                ModelDocumentMutation
-                                        .GRAPH_COMPONENT_COLLECTION,
+                                childCollection,
                                 "second")));
         graphStore.materializeModelGraphProjection(
                 configuration,
@@ -234,9 +232,12 @@ class InMemorySearchStoreModelMaterializationTest {
     void adoptedLegacyDocumentUsesNormalizedModelSourceForGraphComposition() {
         String rootId = "legacy-root";
         String childId = "model-child";
+        String childCollection =
+                ModelDocumentMutation.graphComponentCollection(
+                        "Child");
         Map<String, String> collections = Map.of(
                 rootId, "roots", childId,
-                ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION);
+                childCollection);
         InMemorySearchStore graphStore = new InMemorySearchStore(
                 Duration.ofDays(1), null,
                 (ignored, composition) -> List.of(new ModelGraphEdge(
@@ -262,10 +263,10 @@ class InMemorySearchStoreModelMaterializationTest {
                     new ModelDocumentMutation("roots", normalized), true);
         materialize(graphStore, childId, 11L,
                     new ModelDocumentMutation(
-                            ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION,
+                            childCollection,
                             structuredDocument(
                                     childId,
-                                    ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION,
+                                    childCollection,
                                     "current child")));
         var inspection = graphStore.getModelMigration(
                 new GetModelMigration(rootId, "roots"));

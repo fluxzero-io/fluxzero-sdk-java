@@ -2007,8 +2007,9 @@ class ModelCommitHandlerIntegrationTest {
                                    .isEmpty()
                            && fluxzero.documentStore()
                                    .search(
-                                           io.fluxzero.common.api.modeling.ModelDocumentMutation
-                                                   .GRAPH_COMPONENT_COLLECTION)
+                                           EntityMetadata.validate(ProjectionChild.class)
+                                                   .modelDocumentCollection()
+                                                   .orElseThrow())
                                    .fetchAll()
                                    .isEmpty();
                 });

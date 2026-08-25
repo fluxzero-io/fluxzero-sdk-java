@@ -3265,7 +3265,11 @@ public record Address(
 
 Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
 injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
-`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. `searchGraph(User.class)` returns a
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. These selectors first search the related Model's
+own indexed current-document collection and only then traverse the matching IDs to their targets. Non-public Graph
+components use a private collection per Model type, so they remain available for efficient parent selection without
+being mixed with other component types or exposed by `Fluxzero.search(Component.class)`.
+`searchGraph(User.class)` returns a
 `Search<Graph<User>>`, so `stream()`, `fetchAll()`, `fetchFirst()` and other terminal operations remain typed without a
 cast or type witness. It uses a configured materialized projection and otherwise stitches current direct documents
 live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a boundary that
@@ -3273,6 +3277,21 @@ explicitly needs raw documents. Graph constraints have the same full-document me
 `searchable = false` suppresses only the address's own search collection: an explicit
 `@Parent(pathInParent = "...")` still gives graph composition an internal current document.
 `pathInParent` is always relative to the parent document; it never points from the child to its parent.
+
+For a selective live Graph query based on children, express the child predicate as a relationship constraint so
+Fluxzero can narrow the roots before composition:
+
+```java
+List<Graph<User>> users = Fluxzero.searchGraph(User.class, true)
+        .whereDescendant(
+                Address.class,
+                MatchConstraint.match("NL", "country"))
+        .fetchAll();
+```
+
+An arbitrary nested full-Graph constraint is still applied identically to live and materialized Graphs. Without the
+related Model type it cannot always be pushed down safely, so broad free-form search, sorting or pagination over child
+content should use a materialized Graph projection.
 
 Relations may be recursive. A `Folder` can, for example, point to another `Folder` through a typed parent ID; the
 relation remains an ordinary independently stored edge and does not turn the descendants into embedded state:

@@ -128,10 +128,14 @@ val results = Fluxzero.search(Task::class.java)
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
-and further traversal. `searchGraph(Root::class.java).stream()` returns typed lazy `Graph<Root>` values through
+and further traversal. Class-based constraints use the related Model's actual current-document collection, including
+the type-isolated private collection of a non-searchable Graph component. They select matching related IDs before
+relationship traversal, so prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` for
+selective live Graph search based on children. `searchGraph(Root::class.java).stream()` returns typed lazy `Graph<Root>` values through
 explicit `@Parent(pathInParent = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches
 live; pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` only for
-an explicit raw JSON boundary. Full-graph constraints mean the same on both routes.
+an explicit raw JSON boundary. Full-graph constraints mean the same on both routes, but broad free-form child filtering,
+sorting or pagination should use a materialized projection when it cannot be narrowed through a relationship selector.
 
 <a name="temporal-filters"></a>
 

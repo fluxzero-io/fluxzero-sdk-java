@@ -188,8 +188,11 @@ public @interface Model {
      * <p>
      * Successful commit completion makes the directly changed model searchable in its own collection. This setting
      * does not control graph participation: a model connected through an explicit {@link Parent#pathInParent()} still
-     * supplies an internal current document for virtual and materialized graph composition. Composed root documents
-     * are separate projections.
+     * supplies an internal current document for virtual and materialized graph composition. Private component
+     * documents are isolated per model type and can be selected through relationship constraints such as
+     * {@link io.fluxzero.sdk.persisting.search.Search#whereDescendant(Object,
+     * io.fluxzero.common.api.search.Constraint...)}, without exposing the model through its ordinary class-based
+     * search collection. Composed root documents are separate projections.
      */
     boolean searchable() default false;
 

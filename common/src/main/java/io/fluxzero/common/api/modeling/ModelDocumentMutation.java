@@ -19,6 +19,8 @@ package io.fluxzero.common.api.modeling;
 import io.fluxzero.common.api.search.SerializedDocument;
 import lombok.Value;
 
+import java.util.Objects;
+
 /**
  * Optional direct current-document consequence of one model target transition.
  * <p>
@@ -28,12 +30,25 @@ import lombok.Value;
 @Value
 public class ModelDocumentMutation {
 
+    /** Prefix for type-isolated internal graph-component collections. */
+    public static final String GRAPH_COMPONENT_COLLECTION_PREFIX =
+            "$modelGraphComponents/";
+
     /**
-     * Internal collection containing current documents for models that opt into graph placement through an explicit
-     * parent path without being independently searchable.
+     * Returns the private search collection for current graph-component documents of one model type.
+     * <p>
+     * Type isolation lets relationship search use the component's ordinary document indexes without scanning or
+     * mixing unrelated model types. The complete model type name is already part of the persisted model contract and
+     * keeps the collection deterministic across SDK instances.
      */
-    public static final String GRAPH_COMPONENT_COLLECTION =
-            "$modelGraphComponents";
+    public static String graphComponentCollection(String modelType) {
+        Objects.requireNonNull(modelType, "Model type");
+        if (modelType.isBlank() || !modelType.equals(modelType.trim())) {
+            throw new IllegalArgumentException(
+                    "Model type must not be blank or have surrounding whitespace");
+        }
+        return GRAPH_COMPONENT_COLLECTION_PREFIX + modelType;
+    }
 
     /**
      * Internal collection containing crash-safe direct-document state while published legacy
@@ -43,8 +58,8 @@ public class ModelDocumentMutation {
             "$modelMigrationDocuments";
 
     /**
-     * Current-document collection. This is either the independently searchable model collection or the internal graph
-     * component collection.
+     * Current-document collection. This is either the independently searchable model collection or an internal,
+     * type-isolated graph-component collection.
      */
     String collection;
 

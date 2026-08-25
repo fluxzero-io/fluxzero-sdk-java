@@ -36,7 +36,7 @@ import java.util.Set;
 import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toSet;
 
-import static io.fluxzero.common.api.modeling.ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION;
+import static io.fluxzero.common.api.modeling.ModelDocumentMutation.graphComponentCollection;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.APPLY;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.ASSERT_LEGAL;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.INTERCEPT_APPLY;
@@ -139,7 +139,7 @@ class EntityMetadataTest {
     void ownsDirectModelDocumentCollectionResolution() {
         assertEquals("models", EntityMetadata.validate(ConfiguredModel.class)
                 .modelDocumentCollection().orElseThrow());
-        assertEquals(GRAPH_COMPONENT_COLLECTION, EntityMetadata.validate(ChildModel.class)
+        assertEquals(graphComponentCollection(ChildModel.class.getName()), EntityMetadata.validate(ChildModel.class)
                 .modelDocumentCollection().orElseThrow());
         assertTrue(EntityMetadata.validate(ParentModel.class)
                            .modelDocumentCollection().isEmpty());

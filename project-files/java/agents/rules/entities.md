@@ -378,6 +378,10 @@ List<Task> tasks = Fluxzero.search(Task.class)
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
+class-based relationship constraints for selective parent or Graph search through either a searchable child or a
+type-isolated private Graph component; Fluxzero searches matching child IDs before traversing relationships and
+composing targets. Prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` over a broad forced-live
+nested-path filter when the child type is known. Use
 `searchGraph(Root.class).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness. It
 reads a configured `@GraphProjection` by default and otherwise stitches current direct documents live;
 `searchGraph(Root.class, true)`

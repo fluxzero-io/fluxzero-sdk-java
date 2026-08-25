@@ -465,12 +465,12 @@ class TestServerWebsocketContractTest {
                             childId,
                             "ContractChild",
                             new ModelDocumentMutation(
-                                    ModelDocumentMutation
-                                            .GRAPH_COMPONENT_COLLECTION,
+                                    ModelDocumentMutation.graphComponentCollection(
+                                            "ContractChild"),
                                     structuredDocument(
                                             childId,
-                                            ModelDocumentMutation
-                                                    .GRAPH_COMPONENT_COLLECTION,
+                                            ModelDocumentMutation.graphComponentCollection(
+                                                    "ContractChild"),
                                             "name",
                                             "child")),
                             List.of(

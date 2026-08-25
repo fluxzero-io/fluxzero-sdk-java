@@ -48,7 +48,9 @@ import java.lang.annotation.Target;
  * list-valued collection: the runtime appends deterministic numeric child positions, so numeric path segments are not
  * allowed.
  * Graph placement is independent from {@link Model#searchable()}: a non-searchable child with an explicit path is
- * retained in a private current-document collection for composition, but is not exposed through its own collection.
+ * retained in a type-isolated private current-document collection for composition and indexed relationship
+ * selection, but is not exposed through its own collection. Parent and graph searches can therefore select matching
+ * children first and traverse their current relationship edges without composing unrelated roots.
  * {@link #apiDoc()} optionally describes the list-valued property created at that path when the graph is used as a
  * documented web response. It has no effect unless {@link #pathInParent()} is set.
  * <p>

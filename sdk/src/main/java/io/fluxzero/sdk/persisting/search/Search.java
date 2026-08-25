@@ -334,7 +334,7 @@ public interface Search<R> {
         return relation(ModelRelationConstraint.builder()
                                 .direction(ModelRelationConstraint.RelationDirection.ANCESTOR)
                                 .query(SearchQuery.builder()
-                                               .collection(ClientUtils.determineSearchCollection(collection))
+                                               .collection(ClientUtils.determineRelationSearchCollection(collection))
                                                .constraints(List.of(constraints))
                                                .build())
                                 .minDepth(minDepth)
@@ -371,7 +371,7 @@ public interface Search<R> {
         return relation(ModelRelationConstraint.builder()
                                 .direction(ModelRelationConstraint.RelationDirection.DESCENDANT)
                                 .query(SearchQuery.builder()
-                                               .collection(ClientUtils.determineSearchCollection(collection))
+                                               .collection(ClientUtils.determineRelationSearchCollection(collection))
                                                .constraints(List.of(constraints))
                                                .build())
                                 .minDepth(minDepth)
@@ -381,6 +381,11 @@ public interface Search<R> {
 
     /**
      * Adds advanced current-state model relationship constraints using logical AND.
+     * <p>
+     * Class-based related queries use the model's actual current-document collection. This includes the private,
+     * type-isolated collection of a model that participates in graph composition without being independently
+     * searchable. Related documents are selected before relationship traversal and target search, so a selective
+     * child constraint does not require live composition of unrelated roots.
      * <p>
      * Implementations that do not support independent-model graph search fail when this method is called.
      */

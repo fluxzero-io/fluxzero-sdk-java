@@ -348,6 +348,10 @@ val related = Fluxzero.search(Task::class.java)
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
+class-based relationship constraints for selective parent or Graph search through either a searchable child or a
+type-isolated private Graph component; Fluxzero searches matching child IDs before traversing relationships and
+composing targets. Prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` over a broad
+forced-live nested-path filter when the child type is known. Use
 `searchGraph(Root::class.java).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness.
 It reads a configured `@GraphProjection` by default and otherwise stitches current direct documents live; pass `true`
 as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` for explicit raw JSON. Enable materialization with

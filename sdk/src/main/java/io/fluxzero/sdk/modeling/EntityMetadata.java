@@ -525,7 +525,8 @@ public final class EntityMetadata {
             return Optional.of(configuredModelDocumentCollection());
         }
         return participatesInGraphComposition()
-                ? Optional.of(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION)
+                ? Optional.of(ModelDocumentMutation.graphComponentCollection(
+                        type.getName()))
                 : Optional.empty();
     }
 
