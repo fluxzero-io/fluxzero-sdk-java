@@ -2952,6 +2952,12 @@ When set, the Flux Web Proxy will isolate this request in its own internal proce
 - Need different retry or error handling strategies per destination
 - Want fault isolation between outgoing endpoints
 
+The proxy executes outgoing HTTP calls asynchronously and admits at most four active logical requests per consumer by
+default. A logical request keeps its capacity slot throughout its retry attempts and retry delays. Once a consumer
+reaches its limit, its tracker stops fetching further requests until capacity becomes available; a slow consumer does
+not consume another consumer's slots. Set `FLUXZERO_PROXY_FORWARD_MAX_CONCURRENT_REQUESTS` to a positive integer to
+change this per-consumer limit. Higher values may increase outbound connection, memory, and destination load.
+
 ### Native HTTP execution and retries
 
 For calls that should leave the application directly instead of passing through the Fluxzero proxy, opt into the SDK's
