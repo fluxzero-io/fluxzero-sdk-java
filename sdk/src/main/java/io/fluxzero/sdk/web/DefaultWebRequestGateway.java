@@ -58,7 +58,7 @@ import static java.lang.Thread.currentThread;
 @Slf4j
 public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGateway>
         implements WebRequestGateway {
-    static final String DEFAULT_REDIRECT_POLICY_PROPERTY = "fluxzero.web.native.defaultRedirectPolicy";
+    static final String DEFAULT_REDIRECT_POLICY_PROPERTY = "fluxzero.web.defaultRedirectPolicy";
     static final LocalDate SAME_ORIGIN_DEFAULTS_VERSION = LocalDate.of(2026, 8, 26);
 
     @Delegate(excludes = Namespaced.class)
@@ -258,7 +258,9 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
     }
 
     private WebRequest addSettings(WebRequest request, WebRequestSettings settings) {
-        return request.withMetadata(request.getMetadata().with("settings", settings));
+        WebRequestSettings publishedSettings = settings.getRedirectPolicy() == RedirectPolicy.DEFAULT
+                ? settings.toBuilder().redirectPolicy(defaultRedirectPolicy).build() : settings;
+        return request.withMetadata(request.getMetadata().with("settings", publishedSettings));
     }
 
     private Duration responseTimeout(WebRequestSettings settings) {

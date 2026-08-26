@@ -80,8 +80,8 @@ public class WebRequestSettings {
      * Redirect policy for native HTTP execution. {@link RedirectPolicy#DEFAULT} preserves normal JDK redirects in
      * compatibility mode and resolves to {@link RedirectPolicy#SAME_ORIGIN} for applications that opt into the
      * corresponding versioned default. Same-origin execution verifies scheme, host, and effective port before reusing
-     * a request body or authorization header and follows at most five redirects. Proxy-routed and fixture-handled
-     * requests ignore this setting.
+     * a request body or authorization header and follows at most five redirects. The same policy is enforced for
+     * direct native and proxy-routed requests; fixture-handled requests ignore it.
      */
     @Default
     @NonNull

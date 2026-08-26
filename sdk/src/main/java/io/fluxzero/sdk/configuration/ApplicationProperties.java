@@ -138,10 +138,10 @@ public class ApplicationProperties {
      *     </tr>
      *     <tr>
      *         <td>{@code >= 2026.08.26}</td>
-     *         <td>{@code fluxzero.web.native.defaultRedirectPolicy = SAME_ORIGIN}</td>
-     *         <td>Native outbound web requests using {@link io.fluxzero.sdk.web.RedirectPolicy#DEFAULT} only follow
+     *         <td>{@code fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN}</td>
+     *         <td>Outbound web requests using {@link io.fluxzero.sdk.web.RedirectPolicy#DEFAULT} only follow
      *         redirects within the original scheme, host, and effective port. Existing applications can retain normal
-     *         JDK redirects with {@code fluxzero.web.native.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables
+     *         JDK redirects with {@code fluxzero.web.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables
      *         redirects explicitly.</td>
      *     </tr>
      * </table>

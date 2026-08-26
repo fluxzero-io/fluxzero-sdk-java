@@ -81,6 +81,31 @@ class DefaultWebRequestGatewayTest {
     }
 
     @Test
+    void resolvesDefaultRedirectPolicyBeforePublishingToProxy() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        when(delegate.sendForMessage(any(WebRequest.class), any(Duration.class)))
+                .thenReturn(CompletableFuture.completedFuture(WebResponse.builder().status(200).build()));
+        DefaultWebRequestGateway gateway = new DefaultWebRequestGateway(
+                delegate, new JacksonSerializer(),
+                new SimplePropertySource(Map.of("fluxzero.defaults.version", "2026.08.26")), null);
+
+        gateway.sendAndWait(WebRequest.get("https://example.com/default").build(),
+                            WebRequestSettings.builder().build());
+        gateway.sendAndWait(WebRequest.get("https://example.com/explicit").build(),
+                            WebRequestSettings.builder().redirectPolicy(RedirectPolicy.NEVER).build());
+        gateway.close();
+
+        ArgumentCaptor<WebRequest> requestCaptor = ArgumentCaptor.forClass(WebRequest.class);
+        verify(delegate, org.mockito.Mockito.times(2))
+                .sendForMessage(requestCaptor.capture(), any(Duration.class));
+        List<WebRequest> requests = requestCaptor.getAllValues();
+        assertEquals(RedirectPolicy.SAME_ORIGIN, requests.get(0).getMetadata()
+                .get("settings", WebRequestSettings.class).getRedirectPolicy());
+        assertEquals(RedirectPolicy.NEVER, requests.get(1).getMetadata()
+                .get("settings", WebRequestSettings.class).getRedirectPolicy());
+    }
+
+    @Test
     void nativeHttpClientBypassesProxy() {
         GenericGateway delegate = mock(GenericGateway.class);
         HttpClient httpClient = mock(HttpClient.class);
@@ -354,17 +379,17 @@ class DefaultWebRequestGatewayTest {
                         "fluxzero.defaults.version", "2027.01.01"))),
                 () -> assertEquals(RedirectPolicy.SAME_ORIGIN, resolveRedirectPolicy(Map.of(
                         "fluxzero.defaults.version", "2026.08.25",
-                        "fluxzero.web.native.defaultRedirectPolicy", "same_origin"))),
+                        "fluxzero.web.defaultRedirectPolicy", "same_origin"))),
                 () -> assertEquals(RedirectPolicy.ALLOW, resolveRedirectPolicy(Map.of(
                         "fluxzero.defaults.version", "2027.01.01",
-                        "fluxzero.web.native.defaultRedirectPolicy", "allow"))));
+                        "fluxzero.web.defaultRedirectPolicy", "allow"))));
     }
 
     @Test
     void explicitRedirectDefaultTakesPrecedenceOverInvalidDefaultsVersion() {
         assertEquals(RedirectPolicy.NEVER, resolveRedirectPolicy(Map.of(
                 "fluxzero.defaults.version", "invalid",
-                "fluxzero.web.native.defaultRedirectPolicy", "never")));
+                "fluxzero.web.defaultRedirectPolicy", "never")));
     }
 
     @Test
@@ -373,9 +398,9 @@ class DefaultWebRequestGatewayTest {
                 () -> assertThrows(IllegalArgumentException.class, () -> resolveRedirectPolicy(Map.of(
                         "fluxzero.defaults.version", "invalid"))),
                 () -> assertThrows(IllegalArgumentException.class, () -> resolveRedirectPolicy(Map.of(
-                        "fluxzero.web.native.defaultRedirectPolicy", "DEFAULT"))),
+                        "fluxzero.web.defaultRedirectPolicy", "DEFAULT"))),
                 () -> assertThrows(IllegalArgumentException.class, () -> resolveRedirectPolicy(Map.of(
-                        "fluxzero.web.native.defaultRedirectPolicy", "sometimes"))));
+                        "fluxzero.web.defaultRedirectPolicy", "sometimes"))));
     }
 
     @Test

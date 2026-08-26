@@ -29,6 +29,7 @@ import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.web.RedirectPolicy;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
@@ -38,6 +39,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -60,12 +63,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -150,6 +155,18 @@ class ForwardProxyConsumerTest {
     }
 
     @Test
+    void handlerMetricTypeDoesNotContainTheDestination() {
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), new AtomicBoolean());
+        SerializedMessage request = WebRequest.post(
+                        "https://provider.example/api/v1/deliveries/account-123?recipient=user@example.invalid")
+                .body("secret".getBytes()).build().serialize(ForwardProxyConsumer.serializer);
+
+        assertEquals("POST", consumer.formatType(request));
+    }
+
+    @Test
     void getRequestZipped() {
         serverContext.setHandler(exchange -> {
             try (OutputStream outputStream = exchange.getResponseBody()) {
@@ -174,6 +191,176 @@ class ForwardProxyConsumerTest {
                         .metadata(requestSettingsMetadata).payload("test").build())
                 .<WebResponse>expectResult(r -> r.getStatus() == 204 && r.<byte[]>getPayload().length == 0)
                 .expectWebResponse(r -> r.getStatus() == 204 && r.getMetadata().containsKey("$correlationId"));
+    }
+
+    @Test
+    void sameOriginRedirectIsFollowedByProxy() {
+        AtomicReference<byte[]> receivedBody = new AtomicReference<>();
+        AtomicReference<String> receivedAuthorization = new AtomicReference<>();
+        serverContext.setHandler(exchange -> {
+            if ("/start".equals(exchange.getRequestURI().getPath())) {
+                exchange.getRequestBody().readAllBytes();
+                exchange.getResponseHeaders().set("Location", "/target");
+                exchange.sendResponseHeaders(307, -1);
+                exchange.close();
+                return;
+            }
+            receivedBody.set(exchange.getRequestBody().readAllBytes());
+            receivedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            exchange.sendResponseHeaders(201, -1);
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port + "/start")
+                        .header("Authorization", "Bearer same-origin")
+                        .body("redirect body").build(),
+                proxySettings(RedirectPolicy.SAME_ORIGIN));
+
+        assertEquals(201, response.getStatus());
+        assertTrue(receivedBody.get().length > 0);
+        assertEquals("Bearer same-origin", receivedAuthorization.get());
+    }
+
+    @Test
+    void neverDoesNotFollowSameOriginRedirectInProxy() {
+        AtomicInteger targetCalls = new AtomicInteger();
+        serverContext.setHandler(exchange -> {
+            if ("/start".equals(exchange.getRequestURI().getPath())) {
+                exchange.getResponseHeaders().set("Location", "/target");
+                exchange.sendResponseHeaders(302, -1);
+            } else {
+                targetCalls.incrementAndGet();
+                exchange.sendResponseHeaders(200, -1);
+            }
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.get("http://localhost:" + port + "/start").build(),
+                proxySettings(RedirectPolicy.NEVER));
+
+        assertEquals(302, response.getStatus());
+        assertEquals(0, targetCalls.get());
+    }
+
+    @Test
+    void redirectPolicySurvivesProxyMessageSerialization() {
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), new AtomicBoolean());
+        WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .redirectPolicy(RedirectPolicy.NEVER).build();
+
+        assertEquals(RedirectPolicy.NEVER,
+                     consumer.getSettings(serializedRequest("redirect-policy", settings)).getRedirectPolicy());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"NEVER, 307", "NEVER, 308", "SAME_ORIGIN, 307", "SAME_ORIGIN, 308"})
+    void restrictedProxyPoliciesDoNotLeakBodyOrAuthorization(
+            RedirectPolicy policy, int status) throws IOException {
+        HttpServer target = startAdditionalServer();
+        AtomicInteger targetCalls = new AtomicInteger();
+        AtomicReference<byte[]> receivedBody = new AtomicReference<>();
+        AtomicReference<String> receivedAuthorization = new AtomicReference<>();
+        target.createContext("/", exchange -> {
+            targetCalls.incrementAndGet();
+            receivedBody.set(exchange.getRequestBody().readAllBytes());
+            receivedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        serverContext.setHandler(exchange -> {
+            exchange.getResponseHeaders().set(
+                    "Location", "http://localhost:" + target.getAddress().getPort() + "/target");
+            exchange.sendResponseHeaders(status, -1);
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port + "/start")
+                        .header("Authorization", "Bearer must-not-leak")
+                        .body("private body").build(),
+                proxySettings(policy));
+
+        assertEquals(status, response.getStatus());
+        assertEquals(0, targetCalls.get());
+        assertNull(receivedBody.get());
+        assertNull(receivedAuthorization.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"DEFAULT", "ALLOW"})
+    void compatibilityProxyPolicyFollowsCrossOriginRedirect(RedirectPolicy policy) throws IOException {
+        HttpServer target = startAdditionalServer();
+        AtomicInteger targetCalls = new AtomicInteger();
+        target.createContext("/", exchange -> {
+            targetCalls.incrementAndGet();
+            exchange.sendResponseHeaders(202, -1);
+            exchange.close();
+        });
+        serverContext.setHandler(exchange -> {
+            exchange.getResponseHeaders().set(
+                    "Location", "http://localhost:" + target.getAddress().getPort() + "/target");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.get("http://localhost:" + port + "/start").build(), proxySettings(policy));
+
+        assertEquals(202, response.getStatus());
+        assertEquals(1, targetCalls.get());
+    }
+
+    @Test
+    void sameOriginProxyRedirectChainIsBoundedAtFive() {
+        AtomicInteger calls = new AtomicInteger();
+        serverContext.setHandler(exchange -> {
+            calls.incrementAndGet();
+            int current = Integer.parseInt(exchange.getRequestURI().getPath().substring("/chain/".length()));
+            if (current < 6) {
+                exchange.getResponseHeaders().set("Location", "/chain/" + (current + 1));
+                exchange.sendResponseHeaders(302, -1);
+            } else {
+                exchange.sendResponseHeaders(200, -1);
+            }
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.get("http://localhost:" + port + "/chain/0").build(),
+                proxySettings(RedirectPolicy.SAME_ORIGIN));
+
+        assertEquals(302, response.getStatus());
+        assertEquals(6, calls.get());
+    }
+
+    @Test
+    void proxyRetryRestartsTheOriginalSameOriginRedirectAttempt() {
+        AtomicInteger startCalls = new AtomicInteger();
+        AtomicInteger targetCalls = new AtomicInteger();
+        serverContext.setHandler(exchange -> {
+            if ("/start".equals(exchange.getRequestURI().getPath())) {
+                startCalls.incrementAndGet();
+                exchange.getResponseHeaders().set("Location", "/target");
+                exchange.sendResponseHeaders(307, -1);
+            } else {
+                int targetCall = targetCalls.incrementAndGet();
+                exchange.sendResponseHeaders(targetCall == 1 ? 503 : 200, -1);
+            }
+            exchange.close();
+        });
+        WebRequestSettings settings = proxySettings(RedirectPolicy.SAME_ORIGIN).toBuilder()
+                .maxRetries(1).retryDelay(Duration.ZERO).retryableStatusCodes(Set.of(503)).build();
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port + "/start").body("retry body").build(), settings);
+
+        assertEquals(200, response.getStatus());
+        assertEquals(2, startCalls.get());
+        assertEquals(2, targetCalls.get());
     }
 
     @Test
@@ -767,6 +954,19 @@ class ForwardProxyConsumerTest {
         request.setRequestId(id.hashCode());
         request.setSource("requester");
         return request;
+    }
+
+    private WebRequestSettings proxySettings(RedirectPolicy redirectPolicy) {
+        return WebRequestSettings.builder()
+                .consumer(CONSUMER_NAME).timeout(Duration.ofSeconds(5))
+                .redirectPolicy(redirectPolicy).build();
+    }
+
+    private HttpServer startAdditionalServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.start();
+        registration = registration.merge(() -> server.stop(0));
+        return server;
     }
 
     private static void restoreProperty(String name, String value) {

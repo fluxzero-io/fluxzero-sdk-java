@@ -15,7 +15,7 @@
 package io.fluxzero.sdk.web;
 
 /**
- * Redirect policy for native outbound {@link WebRequest} execution.
+ * Redirect policy for outbound {@link WebRequest} execution through the direct native client or proxy.
  */
 public enum RedirectPolicy {
     /**
