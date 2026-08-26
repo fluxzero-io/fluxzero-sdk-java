@@ -2952,6 +2952,27 @@ When set, the Flux Web Proxy will isolate this request in its own internal proce
 - Need different retry or error handling strategies per destination
 - Want fault isolation between outgoing endpoints
 
+The proxy keeps one tracker per named consumer, while all trackers feed one bounded asynchronous request scheduler.
+Requests with the exact same message segment are always handled serially, including response storage; ready requests
+from other segments share up to eight active logical-request slots by default. A logical request keeps its slot through
+all HTTP attempts, retry delays, and durable response publication.
+
+Each tracking batch gets a 250 ms best-case completion window. When that window expires, the tracker may checkpoint the
+batch and fetch the next default-sized batch while late requests continue in memory. The scheduler admits at most 1024
+outstanding requests in total by default, including active and segment-queued requests. Reaching that bound blocks
+further batch admission and therefore provides durable-log backpressure. These limits can be tuned with:
+
+- `FLUXZERO_PROXY_FORWARD_MAX_CONCURRENT_REQUESTS` (default `8`)
+- `FLUXZERO_PROXY_FORWARD_MAX_OUTSTANDING_REQUESTS` (default `1024`, at least the concurrent limit)
+- `FLUXZERO_PROXY_FORWARD_BATCH_COMPLETION_GRACE_MILLIS` (default `250`, non-negative)
+
+Higher values can increase outbound connection, memory, and destination load. During normal shutdown, the proxy first
+waits for outstanding requests and stored responses. If the configured proxy shutdown deadline expires, requests that
+are still queued or executing HTTP are cancelled best effort and appended at the end of the durable WebRequest log in
+their original log order. Requests whose response is already being stored are not re-executed. A hard process crash can
+still leave the outcome of already checkpointed in-memory work ambiguous, so request senders remain responsible for
+their own timeout and retry policy.
+
 ### Native HTTP execution and retries
 
 For calls that should leave the application directly instead of passing through the Fluxzero proxy, opt into the SDK's

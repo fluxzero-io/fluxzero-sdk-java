@@ -579,12 +579,12 @@ public class ProxyServer implements Registration {
                 log.warn("Failed to stop Fluxzero proxy server", e);
             } finally {
                 try {
-                    proxyHandler.close(gracefulShutdown);
-                } catch (RuntimeException e) {
-                    log.warn("Failed to close Fluxzero proxy request handling", e);
+                    awaitBackendShutdown(backendShutdown, deadline);
                 } finally {
                     try {
-                        awaitBackendShutdown(backendShutdown, deadline);
+                        proxyHandler.close(gracefulShutdown);
+                    } catch (RuntimeException e) {
+                        log.warn("Failed to close Fluxzero proxy request handling", e);
                     } finally {
                         try {
                             ownedClientShutdown.cancel();
