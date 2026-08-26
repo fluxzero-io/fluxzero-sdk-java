@@ -419,8 +419,8 @@ class DefaultWebRequestGatewayTest {
                 RedirectPolicy.ALLOW, metricsGateway);
 
         WebResponse result = gateway.sendAndWait(
-                WebRequest.post("https://secret.example/path?token=hidden")
-                        .header("Authorization", "Bearer secret").body("private body").build(),
+                WebRequest.post("https://Provider.Example/path/account-123?recipient=user@example.invalid")
+                        .header("Authorization", "Bearer request-credential").body("private body").build(),
                 WebRequestSettings.builder().useNativeHttpClient(true).maxRetries(1)
                         .retryDelay(Duration.ZERO).build());
 
@@ -432,6 +432,10 @@ class DefaultWebRequestGatewayTest {
         NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
         assertAll(
                 () -> assertEquals("POST", metric.getMethod()),
+                () -> assertEquals("https", metric.getScheme()),
+                () -> assertEquals("provider.example", metric.getHostname()),
+                () -> assertEquals(Integer.valueOf(443), metric.getPort()),
+                () -> assertEquals("/path/account-123", metric.getPath()),
                 () -> assertEquals(200, metric.getStatus()),
                 () -> assertNull(metric.getErrorCategory()),
                 () -> assertEquals(2, metric.getAttempts()),
@@ -439,10 +443,12 @@ class DefaultWebRequestGatewayTest {
                 () -> assertFalse(metric.isRedirectRejected()),
                 () -> assertTrue(metric.getNanosecondDuration() >= 0));
         String serializedMetric = Metadata.objectMapper.valueToTree(metric).toString();
-        assertFalse(serializedMetric.contains("secret"));
-        assertFalse(serializedMetric.contains("example"));
-        assertFalse(serializedMetric.contains("path"));
-        assertFalse(serializedMetric.contains("token"));
+        assertTrue(serializedMetric.contains("provider.example"));
+        assertTrue(serializedMetric.contains("/path/account-123"));
+        assertFalse(serializedMetric.contains("request-credential"));
+        assertFalse(serializedMetric.contains("private body"));
+        assertFalse(serializedMetric.contains("recipient"));
+        assertFalse(serializedMetric.contains("user@example.invalid"));
     }
 
     @Test
@@ -470,6 +476,10 @@ class DefaultWebRequestGatewayTest {
         assertTrue(metric.isCancelled());
         assertEquals(NativeWebRequestMetric.ErrorCategory.CANCELLED, metric.getErrorCategory());
         assertEquals(1, metric.getAttempts());
+        assertEquals("https", metric.getScheme());
+        assertEquals("example.com", metric.getHostname());
+        assertEquals(Integer.valueOf(443), metric.getPort());
+        assertEquals("/", metric.getPath());
         assertTrue(httpRequest.isCancelled());
     }
 
@@ -481,13 +491,13 @@ class DefaultWebRequestGatewayTest {
                 .thenReturn(completedFuture(null));
         HttpClient httpClient = mock(HttpClient.class);
         when(httpClient.sendAsync(any(), anyByteArrayBodyHandler())).thenReturn(
-                CompletableFuture.failedFuture(new IOException("secret.example/path?token=hidden")));
+                CompletableFuture.failedFuture(new IOException("hidden-secret/path?token=hidden")));
         DefaultWebRequestGateway gateway = new DefaultWebRequestGateway(
                 delegate, new NativeWebRequestClient(httpClient, new JacksonSerializer()),
                 RedirectPolicy.ALLOW, metricsGateway);
 
         WebResponse response = gateway.sendAndWait(
-                WebRequest.get("https://secret.example/path?token=hidden").build(),
+                WebRequest.get("https://provider.example/path?token=hidden").build(),
                 WebRequestSettings.builder().useNativeHttpClient(true).build());
 
         assertEquals(502, response.getStatus());
@@ -497,8 +507,12 @@ class DefaultWebRequestGatewayTest {
         NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
         assertNull(metric.getStatus());
         assertEquals(NativeWebRequestMetric.ErrorCategory.IO, metric.getErrorCategory());
+        assertEquals("https", metric.getScheme());
+        assertEquals("provider.example", metric.getHostname());
+        assertEquals(Integer.valueOf(443), metric.getPort());
+        assertEquals("/path", metric.getPath());
         String serializedMetric = Metadata.objectMapper.valueToTree(metric).toString();
-        assertFalse(serializedMetric.contains("secret"));
+        assertFalse(serializedMetric.contains("hidden-secret"));
         assertFalse(serializedMetric.contains("token"));
     }
 

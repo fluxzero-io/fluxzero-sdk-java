@@ -128,6 +128,10 @@ class NativeWebRequestRedirectTest {
             assertTrue(metricReceived.await(1, TimeUnit.SECONDS));
             assertTrue(metric.get().isRedirectRejected());
             assertEquals(302, metric.get().getStatus());
+            assertEquals("http", metric.get().getScheme());
+            assertEquals("localhost", metric.get().getHostname());
+            assertEquals(Integer.valueOf(source.getAddress().getPort()), metric.get().getPort());
+            assertEquals("/start", metric.get().getPath());
         }
     }
 

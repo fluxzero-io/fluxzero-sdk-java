@@ -111,7 +111,8 @@ final class NativeWebRequestClient implements AutoCloseable {
         if (redirectPolicy == RedirectPolicy.DEFAULT) {
             throw new IllegalArgumentException("Default redirect policy must be resolved before execution");
         }
-        MetricState metricState = metricConsumer == null ? null : new MetricState(request.getMethod(), metricConsumer);
+        MetricState metricState = metricConsumer == null ? null
+                : new MetricState(request.getMethod(), normalizedTarget(request.getPath()), metricConsumer);
         CancellableRequestFuture result = new CancellableRequestFuture(metricState);
         send(request, serializedRequest, settings, redirectPolicy, Math.max(0, settings.getMaxRetries()),
              deadline, result, metricState).whenComplete((outcome, error) -> {
@@ -331,7 +332,7 @@ final class NativeWebRequestClient implements AutoCloseable {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
-    private boolean isHttpUri(URI uri) {
+    private static boolean isHttpUri(URI uri) {
         return uri.isAbsolute() && uri.getHost() != null
                && ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()));
     }
@@ -353,6 +354,23 @@ final class NativeWebRequestClient implements AutoCloseable {
             case "https" -> 443;
             default -> -1;
         };
+    }
+
+    private static RequestTarget normalizedTarget(String url) {
+        try {
+            URI uri = URI.create(url);
+            return isHttpUri(uri)
+                    ? new RequestTarget(uri.getScheme().toLowerCase(Locale.ROOT),
+                                        uri.getHost().toLowerCase(Locale.ROOT), effectivePort(uri), rawPath(uri))
+                    : RequestTarget.unknown();
+        } catch (RuntimeException ignored) {
+            return RequestTarget.unknown();
+        }
+    }
+
+    private static String rawPath(URI uri) {
+        String path = uri.getRawPath();
+        return path == null || path.isEmpty() ? "/" : path;
     }
 
     private RequestOutcome asOutcome(RawOutcome outcome) {
@@ -430,8 +448,15 @@ final class NativeWebRequestClient implements AutoCloseable {
     private record RequestOutcome(WebResponse response, Integer status, Throwable failure) {
     }
 
+    private record RequestTarget(String scheme, String hostname, Integer port, String path) {
+        private static RequestTarget unknown() {
+            return new RequestTarget(null, null, null, null);
+        }
+    }
+
     private static final class MetricState {
         private final String method;
+        private final RequestTarget target;
         private final Consumer<NativeWebRequestMetric> consumer;
         private final long startNanos = System.nanoTime();
         private final AtomicInteger attempts = new AtomicInteger();
@@ -439,8 +464,9 @@ final class NativeWebRequestClient implements AutoCloseable {
         private final AtomicLong completedNanos = new AtomicLong();
         private final AtomicReference<RequestOutcome> terminalOutcome = new AtomicReference<>();
 
-        private MetricState(String method, Consumer<NativeWebRequestMetric> consumer) {
+        private MetricState(String method, RequestTarget target, Consumer<NativeWebRequestMetric> consumer) {
             this.method = method;
+            this.target = target;
             this.consumer = consumer;
         }
 
@@ -455,7 +481,8 @@ final class NativeWebRequestClient implements AutoCloseable {
             try {
                 long endNanos = completedNanos.get();
                 consumer.accept(new NativeWebRequestMetric(
-                        method, category == null && outcome != null ? outcome.status() : null, category,
+                        method, target.scheme(), target.hostname(), target.port(), target.path(),
+                        category == null && outcome != null ? outcome.status() : null, category,
                         (endNanos == 0L ? System.nanoTime() : endNanos) - startNanos, attempts.get(), cancelled,
                         redirectRejected.get()));
             } catch (Throwable ignored) {

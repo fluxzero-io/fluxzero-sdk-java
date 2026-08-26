@@ -155,13 +155,26 @@ class ForwardProxyConsumerTest {
     }
 
     @Test
-    void handlerMetricTypeDoesNotContainTheDestination() {
+    void handlerMetricTypeContainsOnlyMethodOriginAndPath() {
         ForwardProxyConsumer consumer = new ForwardProxyConsumer(
                 testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
                 mock(HttpClient.class), new AtomicBoolean());
         SerializedMessage request = WebRequest.post(
-                        "https://provider.example/api/v1/deliveries/account-123?recipient=user@example.invalid")
+                        "https://api-user:credential@Provider.Example:8443/api/v1/deliveries/account-123"
+                        + "?recipient=user@example.invalid#request-state")
                 .body("secret".getBytes()).build().serialize(ForwardProxyConsumer.serializer);
+
+        assertEquals("POST https://provider.example:8443/api/v1/deliveries/account-123",
+                     consumer.formatType(request));
+    }
+
+    @Test
+    void handlerMetricTypeRetainsMethodForMalformedUrl() {
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), new AtomicBoolean());
+        SerializedMessage request = WebRequest.post("://malformed")
+                .build().serialize(ForwardProxyConsumer.serializer);
 
         assertEquals("POST", consumer.formatType(request));
     }
