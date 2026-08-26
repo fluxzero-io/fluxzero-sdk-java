@@ -25,15 +25,16 @@ import io.fluxzero.sdk.web.WebResponse;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Gateway for sending outbound web requests via Fluxzero’s proxy mechanism.
+ * Gateway for sending outbound web requests via Fluxzero's proxy mechanism or the SDK's native HTTP client.
  * <p>
- * This gateway does not directly execute the request. Instead, it logs the request as a {@link WebRequest} message,
- * which is then picked up by the Fluxzero Runtime's proxy. The proxy only executes the request if the request URL is
- * <strong>absolute</strong> (e.g., starts with {@code http://} or {@code https://}).
+ * By default, this gateway logs the request as a {@link WebRequest} message, which is then picked up by the Fluxzero
+ * Runtime's proxy. Enabling {@code useNativeHttpClient} in {@link WebRequestSettings} instead executes an absolute
+ * HTTP(S) request directly from the application. Native execution deliberately bypasses message logging and local
+ * handlers.
  * <p>
  * <strong>Benefits of this approach include:</strong>
  * <ul>
- *     <li><strong>Traceability:</strong> All outbound web traffic is traceable through Fluxzero message logs.</li>
+ *     <li><strong>Traceability:</strong> Proxy-routed outbound web traffic is traceable through Fluxzero message logs.</li>
  *     <li><strong>Centralization:</strong> Outgoing requests are routed via a centralized proxy, simplifying firewalling and monitoring.</li>
  *     <li><strong>Proxy-level enhancements:</strong> The proxy can apply retries, circuit breakers, filtering, and other behaviors.</li>
  * </ul>
@@ -65,7 +66,7 @@ public interface WebRequestGateway extends Namespaced<WebRequestGateway>, HasLoc
     /**
      * Sends the given web request using default request settings and returns a future that completes with the response.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
      *
      * @param request the web request to send
      * @return a future completed with the {@link WebResponse}
@@ -77,7 +78,9 @@ public interface WebRequestGateway extends Namespaced<WebRequestGateway>, HasLoc
     /**
      * Sends the given web request using given request settings and returns a future that completes with the response.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
+     * Cancelling the returned future for a native request also cancels its active HTTP call or pending retry delay on a
+     * best-effort basis.
      *
      * @param request the web request to send
      * @return a future completed with the {@link WebResponse}
@@ -89,7 +92,7 @@ public interface WebRequestGateway extends Namespaced<WebRequestGateway>, HasLoc
      * <p>
      * This method blocks the calling thread until the request is completed or times out.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
      *
      * @param request the web request to send
      * @return the received {@link WebResponse}
@@ -103,7 +106,7 @@ public interface WebRequestGateway extends Namespaced<WebRequestGateway>, HasLoc
      * <p>
      * This method blocks the calling thread until the request is completed or times out.
      * <p>
-     * The request must have an absolute URL to be forwarded by the Fluxzero proxy.
+     * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
      *
      * @param request  the web request to send
      * @param settings configuration settings for this request (e.g., timeouts, accepted encodings)

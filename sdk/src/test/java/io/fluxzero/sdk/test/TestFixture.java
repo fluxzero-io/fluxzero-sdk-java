@@ -165,6 +165,10 @@ import static java.util.stream.Stream.empty;
  *   <li>Non-local handlers are scheduled and dispatched asynchronously</li>
  *   <li>Handlers annotated with {@code @LocalHandler} still execute locally (on the calling thread)</li>
  * </ul>
+ * Outbound web requests always use the fixture's in-memory request route, even when their
+ * {@link io.fluxzero.sdk.web.WebRequestSettings} select native HTTP execution. This keeps registered mock endpoints
+ * active. Configured retry counts and retryable response statuses still apply, without waiting for the configured
+ * retry delay between fixture attempts.
  *
  * <p>
  * Handlers may be registered by class or by instance. In general:
@@ -357,6 +361,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Getter
     private final Fluxzero fluxzero;
+    private final FixtureFluxzero handlerFluxzero;
     private final FluxzeroBuilder fluxzeroBuilder;
     private final GivenWhenThenInterceptor interceptor;
     private Duration resultTimeout = defaultResultTimeout;
@@ -428,7 +433,8 @@ public class TestFixture implements Given<TestFixture>, When {
                 .addBatchInterceptor(new HighPriorityBatchInterceptor(interceptor))
                 .addHandlerInterceptor(new HighPriorityHandlerInterceptor(interceptor));
         this.fluxzeroBuilder = fluxzeroBuilder;
-        this.fluxzero = fluxzeroBuilder.build(client);
+        this.handlerFluxzero = new FixtureFluxzero(fluxzeroBuilder.build(client));
+        this.fluxzero = handlerFluxzero;
         Fluxzero.instance.set(this.fluxzero);
         if (synchronous) {
             localHandlerRegistries(fluxzero).forEach(r -> r.setSelfHandlerFilter(HandlerFilter.ALWAYS_HANDLE));
@@ -474,9 +480,9 @@ public class TestFixture implements Given<TestFixture>, When {
                 ? LocalClient.newInstance(null) : currentClient;
         newClient = trackRemoteDocumentUpdates(newClient);
         newClient.monitorDispatch(dispatchInterceptor::interceptClientDispatch);
-        this.fluxzero = spying
-                ? new SpyingFluxzero(fluxzeroBuilder.build(new SpyingClient(newClient)))
-                : fluxzeroBuilder.build(newClient);
+        this.handlerFluxzero = new FixtureFluxzero(fluxzeroBuilder.build(
+                spying ? new SpyingClient(newClient) : newClient));
+        this.fluxzero = spying ? new SpyingFluxzero(handlerFluxzero) : handlerFluxzero;
         Fluxzero.instance.set(this.fluxzero);
         localHandlerRegistries(this.fluxzero).forEach(r -> r.setSelfHandlerFilter(
                 synchronous ? HandlerFilter.ALWAYS_HANDLE : (t, m) -> !ClientUtils.isSelfTracking(t, m)));
@@ -2220,7 +2226,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
         public Function<DeserializingMessage, Object> interceptHandling(
                 Function<DeserializingMessage, Object> function, HandlerInvoker invoker) {
-            return m -> {
+            return m -> testFixture.handlerFluxzero.apply(ignored -> {
                 ActiveHandler activeHandler = testFixture.synchronous ? testFixture.activeHandler(m, invoker) : null;
                 Deque<ActiveHandler> activeHandlers = null;
                 if (activeHandler != null) {
@@ -2269,7 +2275,7 @@ public class TestFixture implements Given<TestFixture>, When {
                         }
                     }
                 }
-            };
+            });
         }
 
         public void shutdown(Tracker tracker) {

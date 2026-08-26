@@ -41,6 +41,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -184,11 +185,13 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             //the deadline of this request is in the past. Skipping the request to prevent handling 'old' requests.
             sendResponse(WebResponse.builder().status(504).payload("Timeout in forward proxy".getBytes())
                             .build(), request);
+            return;
         }
         WebResponse webResponse;
         try {
-            HttpRequest httpRequest = asHttpRequest(request, uri, settings);
-            webResponse = executeRequest(httpRequest);
+            webResponse = settings.getMaxRetries() > 0
+                    ? executeRequestWithRetries(request, uri, settings, deadline)
+                    : executeRequest(asHttpRequest(request, uri, settings));
         } catch (Throwable e) {
             publishHandleMessageMetrics(request, true, start);
             throw e;
@@ -219,6 +222,63 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             log.error("Failed to handle external request. Returning error.. ", e);
             return asWebResponse(e);
         }
+    }
+
+    private WebResponse executeRequestWithRetries(SerializedMessage request, URI uri, WebRequestSettings settings,
+                                                  Instant deadline) {
+        int retriesRemaining = Math.max(0, settings.getMaxRetries());
+        while (true) {
+            Duration remaining = Duration.between(Instant.now(), deadline);
+            if (remaining.isNegative() || remaining.isZero()) {
+                return asWebResponse(new java.net.http.HttpTimeoutException("Timeout in forward proxy"));
+            }
+            try {
+                HttpRequest httpRequest = asHttpRequest(
+                        request, uri, settings.toBuilder().timeout(remaining).build());
+                HttpResponse<byte[]> response = httpClient.send(
+                        httpRequest, HttpResponse.BodyHandlers.ofByteArray());
+                if (retriesRemaining > 0 && settings.getRetryableStatusCodes().contains(response.statusCode())
+                        && awaitRetryDelay(settings, deadline)) {
+                    retriesRemaining--;
+                    continue;
+                }
+                return asWebResponse(response);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Interrupted while handling external request. Returning error.. ", e);
+                return asWebResponse(e);
+            } catch (IOException e) {
+                if (retriesRemaining > 0) {
+                    try {
+                        if (awaitRetryDelay(settings, deadline)) {
+                            retriesRemaining--;
+                            continue;
+                        }
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        log.error("Interrupted before retrying external request. Returning error.. ", interrupted);
+                        return asWebResponse(interrupted);
+                    }
+                }
+                log.error("Failed to handle external request after retries. Returning error.. ", e);
+                return asWebResponse(e);
+            } catch (Throwable e) {
+                log.error("Failed to handle external request. Returning error.. ", e);
+                return asWebResponse(e);
+            }
+        }
+    }
+
+    private boolean awaitRetryDelay(WebRequestSettings settings, Instant deadline) throws InterruptedException {
+        Duration delay = settings.getRetryDelay().isNegative() ? Duration.ZERO : settings.getRetryDelay();
+        Duration remaining = Duration.between(Instant.now(), deadline);
+        if (remaining.isNegative() || remaining.isZero() || delay.compareTo(remaining) >= 0) {
+            return false;
+        }
+        if (!delay.isZero()) {
+            Thread.sleep(delay);
+        }
+        return Instant.now().isBefore(deadline);
     }
 
     protected void sendResponse(WebResponse response, SerializedMessage request) {

@@ -1674,7 +1674,7 @@ Fluxzero.schedulePeriodic(new PollExternalApi());
 
 ### Web Requests
 
-Send an outbound HTTP call via the proxy mechanism in Fluxzero Runtime:
+Send an outbound HTTP call via the default proxy mechanism in Fluxzero Runtime:
 
 [//]: # (@formatter:off)
 ```java
@@ -2881,7 +2881,7 @@ This keeps tests expressive and avoids boilerplate, especially for flows that in
 
 Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
 
-Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
+By default, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
 
 - A **local handler** that tracks requests if the URL is **relative**, or
 - A **connected remote client or proxy**, if the URL is **absolute**.
@@ -2899,7 +2899,8 @@ WebResponse response = Fluxzero.get()
 String body = response.getBodyString();
 ```
 
-> ✅ All outbound traffic is logged and traceable in the Fluxzero Runtime.
+> ✅ Proxy-routed outbound traffic is logged and traceable in the Fluxzero Runtime. Opt-in native HTTP calls bypass
+> Fluxzero message logging.
 
 ### Asynchronous and Fire-and-Forget
 
@@ -2927,7 +2928,8 @@ Fluxzero.get().webRequestGateway()
 
 Flux supports both local and remote handling:
 
-- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Flux **Web Proxy** and executed externally.
+- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Flux **Web Proxy** by default, or executed
+  directly when native HTTP execution is enabled.
 - **Relative URLs** (e.g., `/internal/doSomething`): The request is routed to a handler within another connected Flux
   application.
 
@@ -2949,6 +2951,34 @@ When set, the Flux Web Proxy will isolate this request in its own internal proce
 - Want to isolate third-party integrations (e.g., API rate limits)
 - Need different retry or error handling strategies per destination
 - Want fault isolation between outgoing endpoints
+
+### Native HTTP execution and retries
+
+For calls that should leave the application directly instead of passing through the Fluxzero proxy, opt into the SDK's
+native HTTP client. You can independently configure retry behavior for both native and proxy execution:
+
+```java
+WebRequestSettings settings = WebRequestSettings.builder()
+        .useNativeHttpClient(true)
+        .maxRetries(2)
+        .retryDelay(Duration.ofMillis(250))
+        .retryableStatusCodes(Set.of(502, 503, 504))
+        .timeout(Duration.ofSeconds(10))
+        .build();
+
+WebResponse response = Fluxzero.get().webRequestGateway().sendAndWait(request, settings);
+```
+
+`maxRetries` is the number of additional attempts after a transport failure or a configured response status. Transport
+failures include problems such as a failed connection, reset connection, or request timeout. The default retryable
+statuses are 500, 502, 503, and 504; override `retryableStatusCodes` for a destination-specific selection, or use an
+empty set to retry transport failures only. `retryDelay` adds a fixed wait before each additional attempt. The delay and
+all attempts share the configured `timeout`; a retry is skipped when its delay no longer fits before the deadline.
+Native execution requires an absolute HTTP(S) URL and bypasses Fluxzero message logging, local web handlers, dispatch
+interceptors, and consumer isolation. Cancelling the future returned by `send` also cancels the active native HTTP call
+or pending retry delay on a best-effort basis. A failure or response may occur after the destination accepted a request,
+so only retry non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain
+the defaults; when retries are enabled, `retryDelay` defaults to one second.
 
 ### Mocking External Endpoints in Tests
 
@@ -2980,14 +3010,17 @@ You can match requests by:
 - Headers, body, or any other property
 
 > ✅ This gives you **full end-to-end test coverage**, even when integrating with external APIs.
+> `TestFixture` deliberately ignores native HTTP transport selection so these mocks also handle requests configured
+> with `useNativeHttpClient(true)`. Retry counts and retryable statuses still apply, but fixture retries do not wait for
+> the configured `retryDelay`.
 
 ---
 
 ### Summary
 
 - ✅ Use `WebRequest` for centralized, traceable outbound HTTP calls.
-- ✅ Automatically routes to a proxy or local handler depending on URL.
-- ✅ Supports timeouts, consumers, and structured request settings.
+- ✅ Routes through the proxy or a local handler by default, with opt-in native HTTP execution.
+- ✅ Supports timeouts, consumers, and bounded transport retries.
 - ✅ Easily mock remote endpoints for testing full business flows.
 
 ---

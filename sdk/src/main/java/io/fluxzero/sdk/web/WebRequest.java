@@ -76,8 +76,9 @@ import static io.fluxzero.common.api.Data.JSON_FORMAT;
  *     .build();
  * }</pre>
  *
- * <p>Outbound requests with an absolute URL that are dispatched using the {@link WebRequestGateway} will be forwarded
- * by the proxy in Fluxzero Runtime.
+ * <p>Outbound requests with an absolute URL that are dispatched using the {@link WebRequestGateway} are forwarded by
+ * the proxy in Fluxzero Runtime by default, or can be executed by the SDK's native HTTP client through
+ * {@link WebRequestSettings}.
  *
  * @see WebResponse
  * @see HandleWeb
