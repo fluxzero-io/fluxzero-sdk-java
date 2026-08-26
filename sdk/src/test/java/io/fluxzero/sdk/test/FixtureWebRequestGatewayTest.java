@@ -18,6 +18,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.publishing.EventGateway;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.web.HandleGet;
+import io.fluxzero.sdk.web.RedirectPolicy;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
@@ -85,6 +86,7 @@ class FixtureWebRequestGatewayTest {
     private static WebRequestSettings retrySettings() {
         return WebRequestSettings.builder()
                 .useNativeHttpClient(true)
+                .redirectPolicy(RedirectPolicy.NEVER)
                 .maxRetries(1)
                 .retryableStatusCodes(Set.of(429))
                 .retryDelay(Duration.ofDays(1))

@@ -136,6 +136,14 @@ public class ApplicationProperties {
      *         {@code $system} to the system user and other values through {@code getUserById}. Existing applications can
      *         keep serialized user objects with {@code fluxzero.auth.useUserIdMetadata = false}.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.08.26}</td>
+     *         <td>{@code fluxzero.web.native.defaultRedirectPolicy = SAME_ORIGIN}</td>
+     *         <td>Native outbound web requests using {@link io.fluxzero.sdk.web.RedirectPolicy#DEFAULT} only follow
+     *         redirects within the original scheme, host, and effective port. Existing applications can retain normal
+     *         JDK redirects with {@code fluxzero.web.native.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables
+     *         redirects explicitly.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with
