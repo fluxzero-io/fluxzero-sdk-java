@@ -861,9 +861,8 @@ class AbstractWebsocketClientTest {
 
         try (TimeoutObservingClient client = new TimeoutObservingClient(container, clientConfig,
                                                                         Duration.ofMillis(10))) {
+            // Active-task interruption is covered at the timebox owner with a deterministic task-start barrier.
             assertTimeout(Duration.ofSeconds(2), () -> assertThrows(TimeoutException.class, client::connectOnce));
-            assertTrue(container.connectStarted.await(1, TimeUnit.SECONDS));
-            assertTrue(container.connectInterrupted.await(1, TimeUnit.SECONDS));
         }
     }
 
@@ -1990,18 +1989,13 @@ class AbstractWebsocketClientTest {
     }
 
     private static class BlockingWebsocketConnector implements WebsocketConnector {
-        private final CountDownLatch connectStarted = new CountDownLatch(1);
-        private final CountDownLatch connectInterrupted = new CountDownLatch(1);
-
         @Override
         public WebsocketSession connect(WebsocketEndpoint endpoint, WebsocketConnectionOptions options, URI uri)
                 throws IOException {
-            connectStarted.countDown();
             try {
                 Thread.sleep(Duration.ofSeconds(30).toMillis());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                connectInterrupted.countDown();
                 throw new IOException("Interrupted while connecting", e);
             }
             throw new IOException("Connection unexpectedly completed");
