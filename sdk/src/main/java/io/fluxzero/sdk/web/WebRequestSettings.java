@@ -77,6 +77,17 @@ public class WebRequestSettings {
     boolean useNativeHttpClient = false;
 
     /**
+     * Redirect policy for native HTTP execution. {@link RedirectPolicy#DEFAULT} preserves normal JDK redirects in
+     * compatibility mode and resolves to {@link RedirectPolicy#SAME_ORIGIN} for applications that opt into the
+     * corresponding versioned default. Same-origin execution verifies scheme, host, and effective port before reusing
+     * a request body or authorization header and follows at most five redirects. Proxy-routed and fixture-handled
+     * requests ignore this setting.
+     */
+    @Default
+    @NonNull
+    RedirectPolicy redirectPolicy = RedirectPolicy.DEFAULT;
+
+    /**
      * Maximum number of additional attempts after a transport failure or a response whose status occurs in
      * {@link #retryableStatusCodes}. Retries share the configured {@link #timeout}. Values below zero are treated as
      * zero. A failure or response can occur after the remote server accepted a request, so retry non-idempotent calls

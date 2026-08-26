@@ -17,11 +17,15 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.publishing.MetricsGateway;
 import io.fluxzero.sdk.publishing.GenericGateway;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.net.URI;
@@ -34,15 +38,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -190,7 +198,7 @@ class DefaultWebRequestGatewayTest {
         CompletableFuture<HttpResponse<byte[]>> firstFailure = CompletableFuture.failedFuture(
                 new IOException("first"));
         CompletableFuture<HttpResponse<byte[]>> secondFailure = CompletableFuture.failedFuture(
-                new IOException("second"));
+                new CompletionException(new IOException("second")));
         HttpResponse<byte[]> successfulResponse = response(200, "ok");
         when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
                 .thenReturn(firstFailure, secondFailure, CompletableFuture.completedFuture(successfulResponse));
@@ -319,6 +327,7 @@ class DefaultWebRequestGatewayTest {
     void readsCompatibilityDefaultsWhenNewSettingsAreAbsent() {
         ObjectNode oldSettings = Metadata.objectMapper.valueToTree(WebRequestSettings.builder().build());
         oldSettings.remove("useNativeHttpClient");
+        oldSettings.remove("redirectPolicy");
         oldSettings.remove("maxRetries");
         oldSettings.remove("retryDelay");
         oldSettings.remove("retryableStatusCodes");
@@ -327,9 +336,149 @@ class DefaultWebRequestGatewayTest {
                 .get("settings", WebRequestSettings.class);
 
         assertFalse(result.isUseNativeHttpClient());
+        assertEquals(RedirectPolicy.DEFAULT, result.getRedirectPolicy());
         assertEquals(0, result.getMaxRetries());
         assertEquals(Duration.ofSeconds(1), result.getRetryDelay());
         assertEquals(Set.of(500, 502, 503, 504), result.getRetryableStatusCodes());
+    }
+
+    @Test
+    void resolvesVersionedRedirectDefaultFromExplicitPropertySource() {
+        assertAll(
+                () -> assertEquals(RedirectPolicy.ALLOW, resolveRedirectPolicy(Map.of())),
+                () -> assertEquals(RedirectPolicy.ALLOW, resolveRedirectPolicy(Map.of(
+                        "fluxzero.defaults.version", "2026.08.25"))),
+                () -> assertEquals(RedirectPolicy.SAME_ORIGIN, resolveRedirectPolicy(Map.of(
+                        "fluxzero.defaults.version", "2026.08.26"))),
+                () -> assertEquals(RedirectPolicy.SAME_ORIGIN, resolveRedirectPolicy(Map.of(
+                        "fluxzero.defaults.version", "2027.01.01"))),
+                () -> assertEquals(RedirectPolicy.SAME_ORIGIN, resolveRedirectPolicy(Map.of(
+                        "fluxzero.defaults.version", "2026.08.25",
+                        "fluxzero.web.native.defaultRedirectPolicy", "same_origin"))),
+                () -> assertEquals(RedirectPolicy.ALLOW, resolveRedirectPolicy(Map.of(
+                        "fluxzero.defaults.version", "2027.01.01",
+                        "fluxzero.web.native.defaultRedirectPolicy", "allow"))));
+    }
+
+    @Test
+    void explicitRedirectDefaultTakesPrecedenceOverInvalidDefaultsVersion() {
+        assertEquals(RedirectPolicy.NEVER, resolveRedirectPolicy(Map.of(
+                "fluxzero.defaults.version", "invalid",
+                "fluxzero.web.native.defaultRedirectPolicy", "never")));
+    }
+
+    @Test
+    void rejectsInvalidRedirectDefaultConfiguration() {
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class, () -> resolveRedirectPolicy(Map.of(
+                        "fluxzero.defaults.version", "invalid"))),
+                () -> assertThrows(IllegalArgumentException.class, () -> resolveRedirectPolicy(Map.of(
+                        "fluxzero.web.native.defaultRedirectPolicy", "DEFAULT"))),
+                () -> assertThrows(IllegalArgumentException.class, () -> resolveRedirectPolicy(Map.of(
+                        "fluxzero.web.native.defaultRedirectPolicy", "sometimes"))));
+    }
+
+    @Test
+    void publishesPrivacySafeMetricForRetriedNativeRequest() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        MetricsGateway metricsGateway = mock(MetricsGateway.class);
+        when(metricsGateway.publish(any(), any(Metadata.class), any(Guarantee.class)))
+                .thenReturn(completedFuture(null));
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> unavailable = response(503, "secret failure");
+        HttpResponse<byte[]> successful = response(200, "ok");
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(completedFuture(unavailable), completedFuture(successful));
+        DefaultWebRequestGateway gateway = new DefaultWebRequestGateway(
+                delegate, new NativeWebRequestClient(httpClient, new JacksonSerializer()),
+                RedirectPolicy.ALLOW, metricsGateway);
+
+        WebResponse result = gateway.sendAndWait(
+                WebRequest.post("https://secret.example/path?token=hidden")
+                        .header("Authorization", "Bearer secret").body("private body").build(),
+                WebRequestSettings.builder().useNativeHttpClient(true).maxRetries(1)
+                        .retryDelay(Duration.ZERO).build());
+
+        assertEquals(200, result.getStatus());
+        ArgumentCaptor<Object> metricCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(metricsGateway).publish(metricCaptor.capture(),
+                                       org.mockito.ArgumentMatchers.eq(Metadata.empty()),
+                                       org.mockito.ArgumentMatchers.eq(Guarantee.NONE));
+        NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
+        assertAll(
+                () -> assertEquals("POST", metric.getMethod()),
+                () -> assertEquals(200, metric.getStatus()),
+                () -> assertNull(metric.getErrorCategory()),
+                () -> assertEquals(2, metric.getAttempts()),
+                () -> assertFalse(metric.isCancelled()),
+                () -> assertFalse(metric.isRedirectRejected()),
+                () -> assertTrue(metric.getNanosecondDuration() >= 0));
+        String serializedMetric = Metadata.objectMapper.valueToTree(metric).toString();
+        assertFalse(serializedMetric.contains("secret"));
+        assertFalse(serializedMetric.contains("example"));
+        assertFalse(serializedMetric.contains("path"));
+        assertFalse(serializedMetric.contains("token"));
+    }
+
+    @Test
+    void publishesCancellationWithoutWaitingForNativeHttpCompletion() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        MetricsGateway metricsGateway = mock(MetricsGateway.class);
+        when(metricsGateway.publish(any(), any(Metadata.class), any(Guarantee.class)))
+                .thenReturn(completedFuture(null));
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<HttpResponse<byte[]>> httpRequest = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler())).thenReturn(httpRequest);
+        DefaultWebRequestGateway gateway = new DefaultWebRequestGateway(
+                delegate, new NativeWebRequestClient(httpClient, new JacksonSerializer()),
+                RedirectPolicy.ALLOW, metricsGateway);
+
+        CompletableFuture<WebResponse> result = gateway.send(
+                WebRequest.get("https://example.com").build(),
+                WebRequestSettings.builder().useNativeHttpClient(true).build());
+
+        assertTrue(result.cancel(true));
+        ArgumentCaptor<Object> metricCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(metricsGateway).publish(metricCaptor.capture(), any(Metadata.class),
+                                       org.mockito.ArgumentMatchers.eq(Guarantee.NONE));
+        NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
+        assertTrue(metric.isCancelled());
+        assertEquals(NativeWebRequestMetric.ErrorCategory.CANCELLED, metric.getErrorCategory());
+        assertEquals(1, metric.getAttempts());
+        assertTrue(httpRequest.isCancelled());
+    }
+
+    @Test
+    void publishesSafeErrorCategoryInsteadOfTransportFailureDetails() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        MetricsGateway metricsGateway = mock(MetricsGateway.class);
+        when(metricsGateway.publish(any(), any(Metadata.class), any(Guarantee.class)))
+                .thenReturn(completedFuture(null));
+        HttpClient httpClient = mock(HttpClient.class);
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler())).thenReturn(
+                CompletableFuture.failedFuture(new IOException("secret.example/path?token=hidden")));
+        DefaultWebRequestGateway gateway = new DefaultWebRequestGateway(
+                delegate, new NativeWebRequestClient(httpClient, new JacksonSerializer()),
+                RedirectPolicy.ALLOW, metricsGateway);
+
+        WebResponse response = gateway.sendAndWait(
+                WebRequest.get("https://secret.example/path?token=hidden").build(),
+                WebRequestSettings.builder().useNativeHttpClient(true).build());
+
+        assertEquals(502, response.getStatus());
+        ArgumentCaptor<Object> metricCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(metricsGateway).publish(metricCaptor.capture(), any(Metadata.class),
+                                       org.mockito.ArgumentMatchers.eq(Guarantee.NONE));
+        NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
+        assertNull(metric.getStatus());
+        assertEquals(NativeWebRequestMetric.ErrorCategory.IO, metric.getErrorCategory());
+        String serializedMetric = Metadata.objectMapper.valueToTree(metric).toString();
+        assertFalse(serializedMetric.contains("secret"));
+        assertFalse(serializedMetric.contains("token"));
+    }
+
+    private RedirectPolicy resolveRedirectPolicy(Map<String, String> properties) {
+        return DefaultWebRequestGateway.resolveDefaultRedirectPolicy(new SimplePropertySource(properties));
     }
 
     private DefaultWebRequestGateway gateway(GenericGateway delegate, HttpClient httpClient) {

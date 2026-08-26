@@ -982,7 +982,9 @@ public class DefaultFluxzero implements Fluxzero {
                     new DefaultWebRequestGateway(createRequestGateway(client, WEBREQUEST, null, webRequestHandler,
                                                                       dispatchChains, handlerChains,
                                                                       runtimeParameterResolvers, handlerRepositorySupplier,
-                                                                      repositorySupplier, webResponseMapper), serializer);
+                                                                      repositorySupplier, webResponseMapper), serializer,
+                                                 propertySource,
+                                                 clientMetricsEnabled(client) ? metricsGateway : null);
             Function<String, GenericGateway> customGateways = memoize(topic -> createRequestGateway(
                     client, CUSTOM, topic, defaultRequestHandler, dispatchChains, handlerChains,
                     runtimeParameterResolvers, handlerRepositorySupplier, repositorySupplier, defaultResponseMapper));
@@ -1087,7 +1089,7 @@ public class DefaultFluxzero implements Fluxzero {
                 fluxzero.beforeShutdown(thread::interrupt);
             }
 
-            if (!disableApplicationLifecycleMetrics && applicationLifecycleMetricsEnabled(client)) {
+            if (!disableApplicationLifecycleMetrics && clientMetricsEnabled(client)) {
                 ApplicationLifecycleMetrics lifecycleMetrics =
                         new ApplicationLifecycleMetrics(metricsGateway, client, clock);
                 fluxzero.beforeShutdown(lifecycleMetrics::stop);
@@ -1097,7 +1099,7 @@ public class DefaultFluxzero implements Fluxzero {
             return fluxzero;
         }
 
-        private boolean applicationLifecycleMetricsEnabled(Client client) {
+        static boolean clientMetricsEnabled(Client client) {
             return !(client.unwrap() instanceof WebSocketClient webSocketClient)
                    || !webSocketClient.getClientConfig().isDisableMetrics();
         }

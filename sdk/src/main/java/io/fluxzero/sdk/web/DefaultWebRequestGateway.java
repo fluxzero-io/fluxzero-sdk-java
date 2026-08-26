@@ -18,19 +18,26 @@ package io.fluxzero.sdk.web;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.Namespaced;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.GenericGateway;
+import io.fluxzero.sdk.publishing.MetricsGateway;
 import io.fluxzero.sdk.publishing.TimeoutException;
 import io.fluxzero.sdk.publishing.WebRequestGateway;
 import lombok.SneakyThrows;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
+import java.time.LocalDate;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
@@ -48,13 +55,19 @@ import static java.lang.Thread.currentThread;
  * @see WebRequestGateway
  * @see GenericGateway
  */
+@Slf4j
 public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGateway>
         implements WebRequestGateway {
+    static final String DEFAULT_REDIRECT_POLICY_PROPERTY = "fluxzero.web.native.defaultRedirectPolicy";
+    static final LocalDate SAME_ORIGIN_DEFAULTS_VERSION = LocalDate.of(2026, 8, 26);
+
     @Delegate(excludes = Namespaced.class)
     private final GenericGateway delegate;
     private final Supplier<NativeWebRequestClient> nativeHttpClientFactory;
     private final MemoizingSupplier<NativeWebRequestClient> nativeHttpClient;
     private final boolean nativeHttpClientOwner;
+    private final RedirectPolicy defaultRedirectPolicy;
+    private final MetricsGateway metricsGateway;
 
     /**
      * Creates a gateway using a default Jackson serializer for opt-in native HTTP request bodies.
@@ -75,22 +88,74 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
         this(delegate, () -> new NativeWebRequestClient(serializer));
     }
 
+    /**
+     * Creates a gateway with an application-scoped versioned redirect default and optional native transport metrics.
+     * Passing {@code null} as metrics gateway disables automatic native transport metrics.
+     *
+     * @param delegate       gateway used for proxy-routed requests
+     * @param serializer     serializer used to encode native HTTP request bodies
+     * @param propertySource application property source used to resolve the versioned redirect default
+     * @param metricsGateway metrics gateway, or {@code null} when automatic metrics are globally disabled
+     */
+    public DefaultWebRequestGateway(GenericGateway delegate, Serializer serializer, PropertySource propertySource,
+                                    MetricsGateway metricsGateway) {
+        this(delegate, () -> new NativeWebRequestClient(serializer),
+             resolveDefaultRedirectPolicy(propertySource), metricsGateway);
+    }
+
     DefaultWebRequestGateway(GenericGateway delegate, NativeWebRequestClient nativeHttpClient) {
         this(delegate, () -> nativeHttpClient);
     }
 
+    DefaultWebRequestGateway(GenericGateway delegate, NativeWebRequestClient nativeHttpClient,
+                             RedirectPolicy defaultRedirectPolicy, MetricsGateway metricsGateway) {
+        this(delegate, () -> nativeHttpClient, defaultRedirectPolicy, metricsGateway);
+    }
+
     DefaultWebRequestGateway(GenericGateway delegate, Supplier<NativeWebRequestClient> nativeHttpClientFactory) {
-        this(delegate, nativeHttpClientFactory, memoize(nativeHttpClientFactory), true);
+        this(delegate, nativeHttpClientFactory, RedirectPolicy.ALLOW, null);
+    }
+
+    private DefaultWebRequestGateway(GenericGateway delegate,
+                                     Supplier<NativeWebRequestClient> nativeHttpClientFactory,
+                                     RedirectPolicy defaultRedirectPolicy, MetricsGateway metricsGateway) {
+        this(delegate, nativeHttpClientFactory, memoize(nativeHttpClientFactory), true,
+             defaultRedirectPolicy, metricsGateway);
     }
 
     private DefaultWebRequestGateway(GenericGateway delegate,
                                      Supplier<NativeWebRequestClient> nativeHttpClientFactory,
                                      MemoizingSupplier<NativeWebRequestClient> nativeHttpClient,
-                                     boolean nativeHttpClientOwner) {
+                                     boolean nativeHttpClientOwner, RedirectPolicy defaultRedirectPolicy,
+                                     MetricsGateway metricsGateway) {
         this.delegate = delegate;
         this.nativeHttpClientFactory = nativeHttpClientFactory;
         this.nativeHttpClient = nativeHttpClient;
         this.nativeHttpClientOwner = nativeHttpClientOwner;
+        this.defaultRedirectPolicy = defaultRedirectPolicy;
+        this.metricsGateway = metricsGateway;
+    }
+
+    static RedirectPolicy resolveDefaultRedirectPolicy(PropertySource propertySource) {
+        String configured = propertySource.get(DEFAULT_REDIRECT_POLICY_PROPERTY);
+        if (configured != null && !configured.isBlank()) {
+            RedirectPolicy result;
+            try {
+                result = RedirectPolicy.valueOf(configured.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                        "Property `%s` must be NEVER, SAME_ORIGIN, or ALLOW, but found `%s`"
+                                .formatted(DEFAULT_REDIRECT_POLICY_PROPERTY, configured), e);
+            }
+            if (result == RedirectPolicy.DEFAULT) {
+                throw new IllegalArgumentException(
+                        "Property `%s` must be NEVER, SAME_ORIGIN, or ALLOW, but found DEFAULT"
+                                .formatted(DEFAULT_REDIRECT_POLICY_PROPERTY));
+            }
+            return result;
+        }
+        return ApplicationProperties.defaultsVersionAtLeast(propertySource, SAME_ORIGIN_DEFAULTS_VERSION)
+                ? RedirectPolicy.SAME_ORIGIN : RedirectPolicy.ALLOW;
     }
 
     @Override
@@ -149,7 +214,8 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
         GenericGateway namespacedDelegate = delegate.forNamespace(namespace);
         return namespacedDelegate == delegate ? this
                 : new DefaultWebRequestGateway(
-                        namespacedDelegate, nativeHttpClientFactory, nativeHttpClient, false);
+                        namespacedDelegate, nativeHttpClientFactory, nativeHttpClient, false,
+                        defaultRedirectPolicy, metricsGateway == null ? null : metricsGateway.forNamespace(namespace));
     }
 
     @Override
@@ -164,7 +230,9 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
      * @return this gateway if the delegate is unchanged, otherwise a gateway with an independent lifecycle
      */
     public DefaultWebRequestGateway withDelegate(GenericGateway delegate) {
-        return this.delegate == delegate ? this : new DefaultWebRequestGateway(delegate, nativeHttpClientFactory);
+        return this.delegate == delegate ? this
+                : new DefaultWebRequestGateway(
+                        delegate, nativeHttpClientFactory, defaultRedirectPolicy, metricsGateway);
     }
 
     private WebResponse stripHeadPayload(WebRequest request, WebResponse response) {
@@ -181,7 +249,9 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
     @SuppressWarnings({"unchecked", "rawtypes"})
     private CompletableFuture<WebResponse> sendRequest(WebRequest request, WebRequestSettings settings) {
         if (settings.isUseNativeHttpClient()) {
-            return nativeHttpClient.get().send(request, settings);
+            return nativeHttpClient.get().send(
+                    request, settings, defaultRedirectPolicy,
+                    metricsGateway == null ? null : this::publishNativeMetric);
         }
         WebRequest webRequest = addSettings(request, settings);
         return (CompletableFuture) sendForMessage(webRequest, responseTimeout(settings));
@@ -193,6 +263,18 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
 
     private Duration responseTimeout(WebRequestSettings settings) {
         return settings.getTimeout().plusMillis(5_000L);
+    }
+
+    private void publishNativeMetric(NativeWebRequestMetric metric) {
+        try {
+            metricsGateway.publish(metric, Metadata.empty(), Guarantee.NONE)
+                    .exceptionally(error -> {
+                        log.debug("Failed to publish native WebRequest metric", error);
+                        return null;
+                    });
+        } catch (Throwable e) {
+            log.debug("Failed to publish native WebRequest metric", e);
+        }
     }
 
     private static final class CancellableResponseFuture extends CompletableFuture<WebResponse> {

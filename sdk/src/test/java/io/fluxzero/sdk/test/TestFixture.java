@@ -167,8 +167,8 @@ import static java.util.stream.Stream.empty;
  * </ul>
  * Outbound web requests always use the fixture's in-memory request route, even when their
  * {@link io.fluxzero.sdk.web.WebRequestSettings} select native HTTP execution. This keeps registered mock endpoints
- * active. Configured retry counts and retryable response statuses still apply, without waiting for the configured
- * retry delay between fixture attempts.
+ * active. Native redirect policies are ignored rather than simulated. Configured retry counts and retryable response
+ * statuses still apply, without waiting for the configured retry delay between fixture attempts.
  *
  * <p>
  * Handlers may be registered by class or by instance. In general:

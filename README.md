@@ -2981,6 +2981,7 @@ native HTTP client. You can independently configure retry behavior for both nati
 ```java
 WebRequestSettings settings = WebRequestSettings.builder()
         .useNativeHttpClient(true)
+        .redirectPolicy(RedirectPolicy.SAME_ORIGIN)
         .maxRetries(2)
         .retryDelay(Duration.ofMillis(250))
         .retryableStatusCodes(Set.of(502, 503, 504))
@@ -3000,6 +3001,24 @@ interceptors, and consumer isolation. Cancelling the future returned by `send` a
 or pending retry delay on a best-effort basis. A failure or response may occur after the destination accepted a request,
 so only retry non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain
 the defaults; when retries are enabled, `retryDelay` defaults to one second.
+
+Native redirects are configured with `redirectPolicy`. `NEVER` returns the redirect response without following it;
+`SAME_ORIGIN` follows at most five redirects and only when scheme, host, and effective port equal the original request.
+That origin check happens before a 307/308 body or any request header, including `Authorization`, is reused. `ALLOW`
+uses `HttpClient.Redirect.NORMAL`, including its refusal to follow HTTPS-to-HTTP redirects. `DEFAULT` keeps `ALLOW` in
+compatibility mode and resolves to `SAME_ORIGIN` when `fluxzero.defaults.version >= 2026.08.26`. An explicit setting on
+the request always wins. The application-wide default can also be selected independently with
+`fluxzero.web.native.defaultRedirectPolicy=NEVER|SAME_ORIGIN|ALLOW`.
+
+When Fluxzero transport metrics are globally enabled, every native logical request emits a
+`NativeWebRequestMetric`. It contains only the HTTP method, final status or a safe error category, total duration,
+attempt count, cancellation state, and whether a redirect was rejected. It never contains a URL, authority, path,
+query, header, body, exception message, token, or recipient.
+
+The native path is a convenient SDK transport option, not a complete security-oriented HTTP client. It deliberately
+does not expose a configurable connect timeout, HTTPS enforcement or origin allowlists, streaming response limits, or
+the broader policy surface of a dedicated client. Applications with stricter transport requirements should use their
+own HTTP client directly.
 
 ### Mocking External Endpoints in Tests
 
@@ -3032,8 +3051,8 @@ You can match requests by:
 
 > ✅ This gives you **full end-to-end test coverage**, even when integrating with external APIs.
 > `TestFixture` deliberately ignores native HTTP transport selection so these mocks also handle requests configured
-> with `useNativeHttpClient(true)`. Retry counts and retryable statuses still apply, but fixture retries do not wait for
-> the configured `retryDelay`.
+> with `useNativeHttpClient(true)`. It also ignores the native redirect policy rather than simulating redirects. Retry
+> counts and retryable statuses still apply, but fixture retries do not wait for the configured `retryDelay`.
 
 ---
 
@@ -5137,6 +5156,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
+| `>= 2026.08.26` | `fluxzero.web.native.defaultRedirectPolicy = SAME_ORIGIN` | Native outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 
 For example:
 
@@ -5147,7 +5167,8 @@ fluxzero.defaults.version=2026.05.21
 This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
 explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
 `fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
-implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run.
+implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run, user metadata contains serialized users,
+and native outbound requests allow normal JDK redirects.
 
 ### Encrypted Values
 
