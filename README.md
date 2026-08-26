@@ -3014,11 +3014,17 @@ request is published, so direct native and proxy-routed requests enforce the sam
 When Fluxzero transport metrics are globally enabled, every native logical request emits a
 `NativeWebRequestMetric`. It contains the HTTP method, normalized lowercase scheme and hostname of the original logical
 request, its effective port and raw path without query or fragment, final status or a safe error category, total
-duration, attempt count, cancellation state, and whether a redirect was rejected. It never contains URI user
-information, query, fragment, header, body, or exception message. Because paths can themselves contain sensitive or
-high-cardinality values, applications should keep such values out of paths when exporting this field as a metric label.
-The proxy keeps its existing handler metric, whose request type contains only the HTTP method and that same normalized
-original request origin and path rather than the complete destination URL.
+duration, attempt count, cancellation state, and whether a redirect was rejected. The original raw query is attached
+separately as `$webRequestQuery` metadata, without a leading `?` and without decoding or reordering it. The metric
+payload never contains the query, and neither transport copies URI user information, the fragment, headers, body, or
+exception messages into its outbound transport fields. The proxy keeps its existing handler metric, whose request type
+contains only the HTTP method and that same normalized original request origin and path, with the raw query in the same
+separate metadata field.
+
+Paths and queries can contain sensitive or high-cardinality values. A native metric passes through application metric
+dispatch interceptors, which may remove or redact `$webRequestQuery`. A proxy-routed metric is created by the proxy, so
+the sending application cannot intercept it before publication; redact it in the proxy or metric consumer, or use a
+dedicated HTTP client when that boundary is unsuitable.
 
 The native path is a convenient SDK transport option, not a complete security-oriented HTTP client. It deliberately
 does not expose a configurable connect timeout, HTTPS enforcement or origin allowlists, streaming response limits, or

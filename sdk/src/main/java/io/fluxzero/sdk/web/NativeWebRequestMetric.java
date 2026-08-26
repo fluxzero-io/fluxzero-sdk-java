@@ -21,7 +21,8 @@ import lombok.Value;
  *
  * <p>The normalized request target identifies the original logical request, not a later redirect destination. This
  * value deliberately excludes URI user information, query strings, fragments, headers, bodies, and exception text.
- * The path is included and may therefore contain application-specific information.</p>
+ * The original raw query is instead available as metric metadata under {@link WebRequest#queryMetricKey}. The path
+ * and query may contain application-specific information.</p>
  */
 @Value
 public class NativeWebRequestMetric {

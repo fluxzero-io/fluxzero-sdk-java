@@ -419,15 +419,16 @@ class DefaultWebRequestGatewayTest {
                 RedirectPolicy.ALLOW, metricsGateway);
 
         WebResponse result = gateway.sendAndWait(
-                WebRequest.post("https://Provider.Example/path/account-123?recipient=user@example.invalid")
+                WebRequest.post("https://Provider.Example/path/account-123"
+                                + "?recipient=user%40example.invalid&scope=a%2Fb+value&empty=")
                         .header("Authorization", "Bearer request-credential").body("private body").build(),
                 WebRequestSettings.builder().useNativeHttpClient(true).maxRetries(1)
                         .retryDelay(Duration.ZERO).build());
 
         assertEquals(200, result.getStatus());
         ArgumentCaptor<Object> metricCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(metricsGateway).publish(metricCaptor.capture(),
-                                       org.mockito.ArgumentMatchers.eq(Metadata.empty()),
+        ArgumentCaptor<Metadata> metadataCaptor = ArgumentCaptor.forClass(Metadata.class);
+        verify(metricsGateway).publish(metricCaptor.capture(), metadataCaptor.capture(),
                                        org.mockito.ArgumentMatchers.eq(Guarantee.NONE));
         NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
         assertAll(
@@ -442,13 +443,15 @@ class DefaultWebRequestGatewayTest {
                 () -> assertFalse(metric.isCancelled()),
                 () -> assertFalse(metric.isRedirectRejected()),
                 () -> assertTrue(metric.getNanosecondDuration() >= 0));
+        assertEquals("recipient=user%40example.invalid&scope=a%2Fb+value&empty=",
+                     metadataCaptor.getValue().get(WebRequest.queryMetricKey));
         String serializedMetric = Metadata.objectMapper.valueToTree(metric).toString();
         assertTrue(serializedMetric.contains("provider.example"));
         assertTrue(serializedMetric.contains("/path/account-123"));
         assertFalse(serializedMetric.contains("request-credential"));
         assertFalse(serializedMetric.contains("private body"));
         assertFalse(serializedMetric.contains("recipient"));
-        assertFalse(serializedMetric.contains("user@example.invalid"));
+        assertFalse(serializedMetric.contains("user%40example.invalid"));
     }
 
     @Test
@@ -470,7 +473,8 @@ class DefaultWebRequestGatewayTest {
 
         assertTrue(result.cancel(true));
         ArgumentCaptor<Object> metricCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(metricsGateway).publish(metricCaptor.capture(), any(Metadata.class),
+        ArgumentCaptor<Metadata> metadataCaptor = ArgumentCaptor.forClass(Metadata.class);
+        verify(metricsGateway).publish(metricCaptor.capture(), metadataCaptor.capture(),
                                        org.mockito.ArgumentMatchers.eq(Guarantee.NONE));
         NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
         assertTrue(metric.isCancelled());
@@ -480,6 +484,7 @@ class DefaultWebRequestGatewayTest {
         assertEquals("example.com", metric.getHostname());
         assertEquals(Integer.valueOf(443), metric.getPort());
         assertEquals("/", metric.getPath());
+        assertFalse(metadataCaptor.getValue().containsKey(WebRequest.queryMetricKey));
         assertTrue(httpRequest.isCancelled());
     }
 
@@ -502,7 +507,8 @@ class DefaultWebRequestGatewayTest {
 
         assertEquals(502, response.getStatus());
         ArgumentCaptor<Object> metricCaptor = ArgumentCaptor.forClass(Object.class);
-        verify(metricsGateway).publish(metricCaptor.capture(), any(Metadata.class),
+        ArgumentCaptor<Metadata> metadataCaptor = ArgumentCaptor.forClass(Metadata.class);
+        verify(metricsGateway).publish(metricCaptor.capture(), metadataCaptor.capture(),
                                        org.mockito.ArgumentMatchers.eq(Guarantee.NONE));
         NativeWebRequestMetric metric = (NativeWebRequestMetric) metricCaptor.getValue();
         assertNull(metric.getStatus());
@@ -514,6 +520,7 @@ class DefaultWebRequestGatewayTest {
         String serializedMetric = Metadata.objectMapper.valueToTree(metric).toString();
         assertFalse(serializedMetric.contains("hidden-secret"));
         assertFalse(serializedMetric.contains("token"));
+        assertEquals("token=hidden", metadataCaptor.getValue().get(WebRequest.queryMetricKey));
     }
 
     private RedirectPolicy resolveRedirectPolicy(Map<String, String> properties) {

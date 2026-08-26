@@ -52,6 +52,7 @@ import java.net.http.HttpHeaders;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -155,17 +156,36 @@ class ForwardProxyConsumerTest {
     }
 
     @Test
-    void handlerMetricTypeContainsOnlyMethodOriginAndPath() {
+    void handlerMetricSeparatesRawQueryFromType() {
+        Client client = mock(Client.class);
+        GatewayClient metricsGateway = mock(GatewayClient.class);
+        when(client.id()).thenReturn("client-id");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.METRICS)).thenReturn(metricsGateway);
         ForwardProxyConsumer consumer = new ForwardProxyConsumer(
-                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                client, CONSUMER_NAME, 0L, false, true,
                 mock(HttpClient.class), new AtomicBoolean());
         SerializedMessage request = WebRequest.post(
                         "https://api-user:credential@Provider.Example:8443/api/v1/deliveries/account-123"
-                        + "?recipient=user@example.invalid#request-state")
+                        + "?recipient=user%40example.invalid&scope=a%2Fb+value&empty=#request-state")
                 .body("secret".getBytes()).build().serialize(ForwardProxyConsumer.serializer);
 
         assertEquals("POST https://provider.example:8443/api/v1/deliveries/account-123",
                      consumer.formatType(request));
+        consumer.publishHandleMessageMetrics(request, false, Instant.now());
+
+        ArgumentCaptor<SerializedMessage> metricCaptor = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(metricsGateway).append(eq(io.fluxzero.common.Guarantee.NONE), metricCaptor.capture());
+        SerializedMessage metric = metricCaptor.getValue();
+        assertEquals("recipient=user%40example.invalid&scope=a%2Fb+value&empty=",
+                     metric.getMetadata().get(WebRequest.queryMetricKey));
+        assertFalse(metric.getMetadata().toString().contains("api-user"));
+        assertFalse(metric.getMetadata().toString().contains("credential"));
+        assertFalse(metric.getMetadata().toString().contains("request-state"));
+        assertEquals("POST https://provider.example:8443/api/v1/deliveries/account-123",
+                     ForwardProxyConsumer.metricsSerializer.deserialize(
+                             metric.getData(), io.fluxzero.sdk.tracking.metrics.HandleMessageEvent.class)
+                             .getPayloadType());
     }
 
     @Test
@@ -177,6 +197,33 @@ class ForwardProxyConsumerTest {
                 .build().serialize(ForwardProxyConsumer.serializer);
 
         assertEquals("POST", consumer.formatType(request));
+    }
+
+    @Test
+    void metricPublicationRetainsFormatTypeExtensionPoint() {
+        Client client = mock(Client.class);
+        GatewayClient metricsGateway = mock(GatewayClient.class);
+        when(client.id()).thenReturn("client-id");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.METRICS)).thenReturn(metricsGateway);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, false, true, mock(HttpClient.class), new AtomicBoolean()) {
+            @Override
+            protected String formatType(SerializedMessage request) {
+                return "custom-request-type";
+            }
+        };
+
+        consumer.publishHandleMessageMetrics(
+                WebRequest.get("https://example.com/path?query=value").build()
+                        .serialize(ForwardProxyConsumer.serializer), false, Instant.now());
+
+        ArgumentCaptor<SerializedMessage> metricCaptor = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(metricsGateway).append(eq(io.fluxzero.common.Guarantee.NONE), metricCaptor.capture());
+        assertEquals("custom-request-type", ForwardProxyConsumer.metricsSerializer.deserialize(
+                metricCaptor.getValue().getData(), io.fluxzero.sdk.tracking.metrics.HandleMessageEvent.class)
+                .getPayloadType());
+        assertEquals("query=value", metricCaptor.getValue().getMetadata().get(WebRequest.queryMetricKey));
     }
 
     @Test
