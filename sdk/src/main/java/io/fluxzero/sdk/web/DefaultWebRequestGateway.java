@@ -28,12 +28,12 @@ import io.fluxzero.sdk.publishing.GenericGateway;
 import io.fluxzero.sdk.publishing.TimeoutException;
 import io.fluxzero.sdk.publishing.WebRequestGateway;
 import lombok.SneakyThrows;
-import lombok.With;
 import lombok.experimental.Delegate;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static java.lang.Thread.currentThread;
@@ -51,8 +51,8 @@ import static java.lang.Thread.currentThread;
 public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGateway>
         implements WebRequestGateway {
     @Delegate(excludes = Namespaced.class)
-    @With
     private final GenericGateway delegate;
+    private final Supplier<NativeWebRequestClient> nativeHttpClientFactory;
     private final MemoizingSupplier<NativeWebRequestClient> nativeHttpClient;
     private final boolean nativeHttpClientOwner;
 
@@ -62,7 +62,7 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
      * @param delegate gateway used for proxy-routed requests
      */
     public DefaultWebRequestGateway(GenericGateway delegate) {
-        this(delegate, memoize(() -> new NativeWebRequestClient(new JacksonSerializer())), true);
+        this(delegate, () -> new NativeWebRequestClient(new JacksonSerializer()));
     }
 
     /**
@@ -72,17 +72,23 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
      * @param serializer serializer used to encode native HTTP request bodies
      */
     public DefaultWebRequestGateway(GenericGateway delegate, Serializer serializer) {
-        this(delegate, memoize(() -> new NativeWebRequestClient(serializer)), true);
+        this(delegate, () -> new NativeWebRequestClient(serializer));
     }
 
     DefaultWebRequestGateway(GenericGateway delegate, NativeWebRequestClient nativeHttpClient) {
-        this(delegate, memoize(() -> nativeHttpClient), true);
+        this(delegate, () -> nativeHttpClient);
+    }
+
+    DefaultWebRequestGateway(GenericGateway delegate, Supplier<NativeWebRequestClient> nativeHttpClientFactory) {
+        this(delegate, nativeHttpClientFactory, memoize(nativeHttpClientFactory), true);
     }
 
     private DefaultWebRequestGateway(GenericGateway delegate,
+                                     Supplier<NativeWebRequestClient> nativeHttpClientFactory,
                                      MemoizingSupplier<NativeWebRequestClient> nativeHttpClient,
                                      boolean nativeHttpClientOwner) {
         this.delegate = delegate;
+        this.nativeHttpClientFactory = nativeHttpClientFactory;
         this.nativeHttpClient = nativeHttpClient;
         this.nativeHttpClientOwner = nativeHttpClientOwner;
     }
@@ -95,7 +101,23 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
     public CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
-        return sendRequest(request, settings).thenApply(response -> stripHeadPayload(request, response));
+        CompletableFuture<WebResponse> requestFuture = sendRequest(request, settings);
+        if (!settings.isUseNativeHttpClient()) {
+            return requestFuture.thenApply(response -> stripHeadPayload(request, response));
+        }
+        CancellableResponseFuture result = new CancellableResponseFuture(requestFuture);
+        requestFuture.whenComplete((response, error) -> {
+            if (error != null) {
+                result.completeExceptionally(error);
+                return;
+            }
+            try {
+                result.complete(stripHeadPayload(request, response));
+            } catch (Throwable e) {
+                result.completeExceptionally(e);
+            }
+        });
+        return result;
     }
 
     @Override
@@ -126,12 +148,23 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
     protected WebRequestGateway createForNamespace(String namespace) {
         GenericGateway namespacedDelegate = delegate.forNamespace(namespace);
         return namespacedDelegate == delegate ? this
-                : new DefaultWebRequestGateway(namespacedDelegate, nativeHttpClient, false);
+                : new DefaultWebRequestGateway(
+                        namespacedDelegate, nativeHttpClientFactory, nativeHttpClient, false);
     }
 
     @Override
     public DefaultWebRequestGateway forNamespace(String namespace) {
         return (DefaultWebRequestGateway) super.forNamespace(namespace);
+    }
+
+    /**
+     * Returns a gateway backed by the given proxy delegate and an independently owned native HTTP client.
+     *
+     * @param delegate gateway used for proxy-routed requests
+     * @return this gateway if the delegate is unchanged, otherwise a gateway with an independent lifecycle
+     */
+    public DefaultWebRequestGateway withDelegate(GenericGateway delegate) {
+        return this.delegate == delegate ? this : new DefaultWebRequestGateway(delegate, nativeHttpClientFactory);
     }
 
     private WebResponse stripHeadPayload(WebRequest request, WebResponse response) {
@@ -160,6 +193,23 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
 
     private Duration responseTimeout(WebRequestSettings settings) {
         return settings.getTimeout().plusMillis(5_000L);
+    }
+
+    private static final class CancellableResponseFuture extends CompletableFuture<WebResponse> {
+        private final CompletableFuture<WebResponse> requestFuture;
+
+        private CancellableResponseFuture(CompletableFuture<WebResponse> requestFuture) {
+            this.requestFuture = requestFuture;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (!super.cancel(mayInterruptIfRunning)) {
+                return false;
+            }
+            requestFuture.cancel(mayInterruptIfRunning);
+            return true;
+        }
     }
 
     @Override

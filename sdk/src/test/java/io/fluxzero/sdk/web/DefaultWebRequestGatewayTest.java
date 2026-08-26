@@ -18,6 +18,7 @@ package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.publishing.GenericGateway;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -41,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -93,6 +96,91 @@ class DefaultWebRequestGatewayTest {
                         && request.headers().allValues("X-Test").equals(List.of("value"))),
                 anyByteArrayBodyHandler());
         verify(httpClient).close();
+    }
+
+    @Test
+    void withDelegateUsesIndependentlyOwnedNativeHttpClient() {
+        GenericGateway firstDelegate = mock(GenericGateway.class);
+        GenericGateway secondDelegate = mock(GenericGateway.class);
+        HttpClient firstHttpClient = mock(HttpClient.class);
+        HttpClient secondHttpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> firstResponse = response(200, "first");
+        HttpResponse<byte[]> secondResponse = response(200, "second");
+        when(firstHttpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(CompletableFuture.completedFuture(firstResponse));
+        when(secondHttpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(CompletableFuture.completedFuture(secondResponse));
+        AtomicInteger clientIndex = new AtomicInteger();
+        List<NativeWebRequestClient> clients = List.of(
+                new NativeWebRequestClient(firstHttpClient, new JacksonSerializer()),
+                new NativeWebRequestClient(secondHttpClient, new JacksonSerializer()));
+        DefaultWebRequestGateway firstGateway = new DefaultWebRequestGateway(
+                firstDelegate, () -> clients.get(clientIndex.getAndIncrement()));
+        DefaultWebRequestGateway secondGateway = firstGateway.withDelegate(secondDelegate);
+        WebRequestSettings settings = WebRequestSettings.builder().useNativeHttpClient(true).build();
+
+        WebResponse first = firstGateway.sendAndWait(WebRequest.get("https://example.com/first").build(), settings);
+        WebResponse second = secondGateway.sendAndWait(WebRequest.get("https://example.com/second").build(), settings);
+        firstGateway.close();
+        secondGateway.close();
+
+        assertArrayEquals("first".getBytes(UTF_8), first.getPayload());
+        assertArrayEquals("second".getBytes(UTF_8), second.getPayload());
+        assertEquals(2, clientIndex.get());
+        verify(firstHttpClient).close();
+        verify(secondHttpClient).close();
+    }
+
+    @Test
+    void cancellingNativeSendCancelsActiveHttpRequest() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<HttpResponse<byte[]>> httpRequest = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler())).thenReturn(httpRequest);
+        DefaultWebRequestGateway gateway = gateway(delegate, httpClient);
+
+        CompletableFuture<WebResponse> result = gateway.send(
+                WebRequest.get("https://example.com").build(),
+                WebRequestSettings.builder().useNativeHttpClient(true).build());
+
+        assertTrue(result.cancel(true));
+        assertTrue(httpRequest.isCancelled());
+        gateway.close();
+    }
+
+    @Test
+    void cancellingProxySendDoesNotCancelDelegateRequest() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        CompletableFuture<Message> delegateRequest = new CompletableFuture<>();
+        when(delegate.sendForMessage(any(WebRequest.class), any(Duration.class))).thenReturn(delegateRequest);
+        DefaultWebRequestGateway gateway = new DefaultWebRequestGateway(delegate);
+
+        CompletableFuture<WebResponse> result = gateway.send(
+                WebRequest.get("https://example.com").build(), WebRequestSettings.builder().build());
+
+        assertTrue(result.cancel(true));
+        assertFalse(delegateRequest.isCancelled());
+        gateway.close();
+    }
+
+    @Test
+    void cancellingNativeSendDuringRetryDelayPreventsNextAttempt() {
+        GenericGateway delegate = mock(GenericGateway.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> unavailable = response(503, "unavailable");
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler()))
+                .thenReturn(CompletableFuture.completedFuture(unavailable));
+        CompletableFuture<Void> retryDelay = new CompletableFuture<>();
+        DefaultWebRequestGateway gateway = gateway(delegate, httpClient, ignored -> retryDelay);
+
+        CompletableFuture<WebResponse> result = gateway.send(
+                WebRequest.get("https://example.com").build(),
+                WebRequestSettings.builder().useNativeHttpClient(true).maxRetries(1).build());
+
+        assertTrue(result.cancel(true));
+        assertTrue(retryDelay.isCancelled());
+        verify(httpClient).sendAsync(any(), anyByteArrayBodyHandler());
+        gateway.close();
     }
 
     @Test

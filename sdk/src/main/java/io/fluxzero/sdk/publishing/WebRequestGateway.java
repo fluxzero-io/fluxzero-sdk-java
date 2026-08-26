@@ -79,6 +79,8 @@ public interface WebRequestGateway extends Namespaced<WebRequestGateway>, HasLoc
      * Sends the given web request using given request settings and returns a future that completes with the response.
      * <p>
      * Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.
+     * Cancelling the returned future for a native request also cancels its active HTTP call or pending retry delay on a
+     * best-effort basis.
      *
      * @param request the web request to send
      * @return a future completed with the {@link WebResponse}

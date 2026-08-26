@@ -2975,9 +2975,10 @@ statuses are 500, 502, 503, and 504; override `retryableStatusCodes` for a desti
 empty set to retry transport failures only. `retryDelay` adds a fixed wait before each additional attempt. The delay and
 all attempts share the configured `timeout`; a retry is skipped when its delay no longer fits before the deadline.
 Native execution requires an absolute HTTP(S) URL and bypasses Fluxzero message logging, local web handlers, dispatch
-interceptors, and consumer isolation. A failure or response may occur after the destination accepted a request, so only
-retry non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain the
-defaults; when retries are enabled, `retryDelay` defaults to one second.
+interceptors, and consumer isolation. Cancelling the future returned by `send` also cancels the active native HTTP call
+or pending retry delay on a best-effort basis. A failure or response may occur after the destination accepted a request,
+so only retry non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain
+the defaults; when retries are enabled, `retryDelay` defaults to one second.
 
 ### Mocking External Endpoints in Tests
 

@@ -28,8 +28,10 @@ import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -61,11 +63,24 @@ final class NativeWebRequestClient implements AutoCloseable {
     CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings) {
         SerializedMessage serializedRequest = request.serialize(serializer);
         Instant deadline = Instant.now().plus(settings.getTimeout());
-        return send(request, serializedRequest, settings, Math.max(0, settings.getMaxRetries()), deadline);
+        CancellableRequestFuture result = new CancellableRequestFuture();
+        send(request, serializedRequest, settings, Math.max(0, settings.getMaxRetries()), deadline, result)
+                .whenComplete((response, error) -> {
+                    if (error == null) {
+                        result.complete(response);
+                    } else {
+                        result.completeExceptionally(error);
+                    }
+                });
+        return result;
     }
 
     private CompletableFuture<WebResponse> send(WebRequest request, SerializedMessage serializedRequest,
-                                                WebRequestSettings settings, int retriesRemaining, Instant deadline) {
+                                                WebRequestSettings settings, int retriesRemaining, Instant deadline,
+                                                CancellableRequestFuture requestFuture) {
+        if (requestFuture.isCancelled()) {
+            return CompletableFuture.failedFuture(new CancellationException());
+        }
         Duration remaining = Duration.between(Instant.now(), deadline);
         if (remaining.isNegative() || remaining.isZero()) {
             return CompletableFuture.completedFuture(asWebResponse(
@@ -85,19 +100,20 @@ final class NativeWebRequestClient implements AutoCloseable {
         } catch (Throwable e) {
             return CompletableFuture.completedFuture(asWebResponse(e));
         }
+        requestFuture.track(attempt);
 
         CompletableFuture<CompletableFuture<WebResponse>> result = attempt.handle((response, error) -> {
             if (error == null) {
                 if (shouldRetry(response.statusCode(), settings, retriesRemaining, deadline)) {
                     return retry(request, serializedRequest, settings, retriesRemaining, deadline,
-                                 asWebResponse(response));
+                                 asWebResponse(response), requestFuture);
                 }
                 return CompletableFuture.completedFuture(asWebResponse(response));
             }
             Throwable failure = unwrap(error);
             if (retriesRemaining > 0 && failure instanceof IOException && Instant.now().isBefore(deadline)) {
                 return retry(request, serializedRequest, settings, retriesRemaining, deadline,
-                             asWebResponse(failure));
+                             asWebResponse(failure), requestFuture);
             }
             return CompletableFuture.completedFuture(asWebResponse(failure));
         });
@@ -111,14 +127,17 @@ final class NativeWebRequestClient implements AutoCloseable {
 
     private CompletableFuture<WebResponse> retry(WebRequest request, SerializedMessage serializedRequest,
                                                  WebRequestSettings settings, int retriesRemaining, Instant deadline,
-                                                 WebResponse exhaustedResult) {
+                                                 WebResponse exhaustedResult,
+                                                 CancellableRequestFuture requestFuture) {
         Duration delay = normalizedRetryDelay(settings);
         Duration remaining = Duration.between(Instant.now(), deadline);
         if (remaining.isNegative() || remaining.isZero() || delay.compareTo(remaining) >= 0) {
             return CompletableFuture.completedFuture(exhaustedResult);
         }
-        return retryDelay.apply(delay).thenCompose(ignored -> Instant.now().isBefore(deadline)
-                ? send(request, serializedRequest, settings, retriesRemaining - 1, deadline)
+        CompletableFuture<Void> delayFuture = retryDelay.apply(delay);
+        requestFuture.track(delayFuture);
+        return delayFuture.thenCompose(ignored -> Instant.now().isBefore(deadline)
+                ? send(request, serializedRequest, settings, retriesRemaining - 1, deadline, requestFuture)
                 : CompletableFuture.completedFuture(exhaustedResult));
     }
 
@@ -174,6 +193,29 @@ final class NativeWebRequestClient implements AutoCloseable {
             result = result.getCause();
         }
         return result;
+    }
+
+    private static final class CancellableRequestFuture extends CompletableFuture<WebResponse> {
+        private final AtomicReference<CompletableFuture<?>> activeOperation = new AtomicReference<>();
+
+        private void track(CompletableFuture<?> operation) {
+            activeOperation.set(operation);
+            if (isCancelled()) {
+                operation.cancel(true);
+            }
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            if (!super.cancel(mayInterruptIfRunning)) {
+                return false;
+            }
+            CompletableFuture<?> operation = activeOperation.get();
+            if (operation != null) {
+                operation.cancel(mayInterruptIfRunning);
+            }
+            return true;
+        }
     }
 
     @Override

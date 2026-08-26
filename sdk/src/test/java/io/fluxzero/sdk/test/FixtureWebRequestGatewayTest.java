@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.test;
 
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.publishing.EventGateway;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import io.fluxzero.sdk.web.HandleGet;
 import io.fluxzero.sdk.web.WebRequest;
@@ -27,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class FixtureWebRequestGatewayTest {
 
@@ -67,6 +69,19 @@ class FixtureWebRequestGatewayTest {
         assertEquals(2, endpoint.attempts.get());
     }
 
+    @Test
+    void asynchronousWorkflowDoesNotRouteUnrelatedCallsThroughFixtureSpies() {
+        RetryingEndpoint endpoint = new RetryingEndpoint();
+        TestFixture fixture = TestFixture.createAsync(endpoint, new PublishingWorkflow()).spy();
+        EventGateway eventGateway = fixture.getFluxzero().eventGateway();
+
+        fixture.whenCommand(new CallEndpoint())
+                .expectResult(200);
+
+        assertEquals(2, endpoint.attempts.get());
+        verifyNoInteractions(eventGateway);
+    }
+
     private static WebRequestSettings retrySettings() {
         return WebRequestSettings.builder()
                 .useNativeHttpClient(true)
@@ -95,6 +110,18 @@ class FixtureWebRequestGatewayTest {
         }
     }
 
+    private static class PublishingWorkflow {
+        @HandleCommand
+        int handle(CallEndpoint ignored) {
+            Fluxzero.publishEvent(new EndpointCalled());
+            return Fluxzero.get().webRequestGateway().sendAndWait(
+                    WebRequest.get(ENDPOINT).build(), retrySettings()).getStatus();
+        }
+    }
+
     private record CallEndpoint() {
+    }
+
+    private record EndpointCalled() {
     }
 }
