@@ -207,7 +207,7 @@ class LocalTrackingClientTest {
     @Test
     @Timeout(10)
     void cachedTrackerUsesDelegateWhenAnchorIsNotCachedYet() throws Exception {
-        try (CountingLocalTrackingClient delegate = new CountingLocalTrackingClient(
+        try (CacheFillerBlockingLocalTrackingClient delegate = new CacheFillerBlockingLocalTrackingClient(
                 CUSTOM, "cached-anchor-update", Duration.ofMinutes(5))) {
             try (TestCachingTrackingClient client = new TestCachingTrackingClient(delegate)) {
                 SerializedMessage anchor = message("anchor");
@@ -218,7 +218,7 @@ class LocalTrackingClientTest {
                                 .maxWaitDuration(Duration.ofSeconds(5)).build());
 
                 SerializedMessage next = message("next");
-                Thread.sleep(100L);
+                assertTrue(delegate.cachedTrackerReadStarted.await(1, TimeUnit.SECONDS));
                 delegate.append(STORED, next).join();
 
                 MessageBatch batch = waitingBatch.get(2, TimeUnit.SECONDS);
@@ -331,7 +331,8 @@ class LocalTrackingClientTest {
     }
 
     private static class CountingLocalTrackingClient extends LocalTrackingClient {
-        private final AtomicInteger cachedTrackerReadCalls = new AtomicInteger();
+        final AtomicInteger cachedTrackerReadCalls = new AtomicInteger();
+        final CountDownLatch cachedTrackerReadStarted = new CountDownLatch(1);
 
         CountingLocalTrackingClient(io.fluxzero.common.MessageType messageType, String topic,
                                     Duration messageExpiration) {
@@ -342,8 +343,32 @@ class LocalTrackingClientTest {
         public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex, ConsumerConfiguration config) {
             if ("cached-tracker".equals(trackerId)) {
                 cachedTrackerReadCalls.incrementAndGet();
+                cachedTrackerReadStarted.countDown();
             }
             return super.read(trackerId, lastIndex, config);
+        }
+    }
+
+    private static class CacheFillerBlockingLocalTrackingClient extends CountingLocalTrackingClient {
+        private final CompletableFuture<MessageBatch> cacheFillerBatch = new CompletableFuture<>();
+
+        CacheFillerBlockingLocalTrackingClient(io.fluxzero.common.MessageType messageType, String topic,
+                                               Duration messageExpiration) {
+            super(messageType, topic, messageExpiration);
+        }
+
+        @Override
+        public CompletableFuture<MessageBatch> read(String trackerId, Long lastIndex, ConsumerConfiguration config) {
+            if (!"cached-tracker".equals(trackerId)) {
+                return cacheFillerBatch;
+            }
+            return super.read(trackerId, lastIndex, config);
+        }
+
+        @Override
+        public void close() {
+            cacheFillerBatch.cancel(true);
+            super.close();
         }
     }
 }
