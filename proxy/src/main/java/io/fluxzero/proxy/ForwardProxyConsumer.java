@@ -796,7 +796,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             return;
         }
         try {
-            var metadata = Metadata.of(correlationData);
+            var metadata = Metadata.of(correlationData).with(WebRequest.queryMetricKey, rawQuery(request));
             var metricsMessage = new Message(new HandleMessageEvent(
                     consumerName, ForwardProxyConsumer.class.getSimpleName(),
                     request.getIndex(), MessageType.WEBREQUEST, null, formatType(request), exceptionalResult,
@@ -830,6 +830,15 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                     path == null || path.isEmpty() ? "/" : path);
         } catch (Exception ignored) {
             return method;
+        }
+    }
+
+    private String rawQuery(SerializedMessage request) {
+        try {
+            URI uri = URI.create(WebRequest.getUrl(request.getMetadata()));
+            return isHttpUri(uri) ? uri.getRawQuery() : null;
+        } catch (Exception ignored) {
+            return null;
         }
     }
 

@@ -118,7 +118,7 @@ class NativeWebRequestRedirectTest {
 
         try (NativeWebRequestClient client = new NativeWebRequestClient(new JacksonSerializer())) {
             WebResponse response = send(
-                    client, WebRequest.get(url(source, "/start")).build(), RedirectPolicy.SAME_ORIGIN, value -> {
+                    client, WebRequest.get(url(source, "/start")).build(), RedirectPolicy.SAME_ORIGIN, (value, query) -> {
                         metric.set(value);
                         metricReceived.countDown();
                     });
@@ -292,7 +292,7 @@ class NativeWebRequestRedirectTest {
     }
 
     private WebResponse send(NativeWebRequestClient client, WebRequest request, RedirectPolicy policy,
-                             java.util.function.Consumer<NativeWebRequestMetric> metricConsumer) {
+                             java.util.function.BiConsumer<NativeWebRequestMetric, String> metricConsumer) {
         return client.send(request,
                            WebRequestSettings.builder().useNativeHttpClient(true).redirectPolicy(policy)
                                    .timeout(Duration.ofSeconds(5)).build(),

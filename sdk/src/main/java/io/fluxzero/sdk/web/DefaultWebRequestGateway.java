@@ -267,9 +267,9 @@ public class DefaultWebRequestGateway extends AbstractNamespaced<WebRequestGatew
         return settings.getTimeout().plusMillis(5_000L);
     }
 
-    private void publishNativeMetric(NativeWebRequestMetric metric) {
+    private void publishNativeMetric(NativeWebRequestMetric metric, String rawQuery) {
         try {
-            metricsGateway.publish(metric, Metadata.empty(), Guarantee.NONE)
+            metricsGateway.publish(metric, Metadata.empty().with(WebRequest.queryMetricKey, rawQuery), Guarantee.NONE)
                     .exceptionally(error -> {
                         log.debug("Failed to publish native WebRequest metric", error);
                         return null;

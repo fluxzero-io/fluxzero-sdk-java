@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -103,7 +103,7 @@ final class NativeWebRequestClient implements AutoCloseable {
 
     CompletableFuture<WebResponse> send(WebRequest request, WebRequestSettings settings,
                                         RedirectPolicy defaultRedirectPolicy,
-                                        Consumer<NativeWebRequestMetric> metricConsumer) {
+                                        BiConsumer<NativeWebRequestMetric, String> metricConsumer) {
         SerializedMessage serializedRequest = request.serialize(serializer);
         Instant deadline = Instant.now().plus(settings.getTimeout());
         RedirectPolicy redirectPolicy = settings.getRedirectPolicy() == RedirectPolicy.DEFAULT
@@ -361,7 +361,8 @@ final class NativeWebRequestClient implements AutoCloseable {
             URI uri = URI.create(url);
             return isHttpUri(uri)
                     ? new RequestTarget(uri.getScheme().toLowerCase(Locale.ROOT),
-                                        uri.getHost().toLowerCase(Locale.ROOT), effectivePort(uri), rawPath(uri))
+                                        uri.getHost().toLowerCase(Locale.ROOT), effectivePort(uri), rawPath(uri),
+                                        uri.getRawQuery())
                     : RequestTarget.unknown();
         } catch (RuntimeException ignored) {
             return RequestTarget.unknown();
@@ -448,23 +449,24 @@ final class NativeWebRequestClient implements AutoCloseable {
     private record RequestOutcome(WebResponse response, Integer status, Throwable failure) {
     }
 
-    private record RequestTarget(String scheme, String hostname, Integer port, String path) {
+    private record RequestTarget(String scheme, String hostname, Integer port, String path, String query) {
         private static RequestTarget unknown() {
-            return new RequestTarget(null, null, null, null);
+            return new RequestTarget(null, null, null, null, null);
         }
     }
 
     private static final class MetricState {
         private final String method;
         private final RequestTarget target;
-        private final Consumer<NativeWebRequestMetric> consumer;
+        private final BiConsumer<NativeWebRequestMetric, String> consumer;
         private final long startNanos = System.nanoTime();
         private final AtomicInteger attempts = new AtomicInteger();
         private final AtomicBoolean redirectRejected = new AtomicBoolean();
         private final AtomicLong completedNanos = new AtomicLong();
         private final AtomicReference<RequestOutcome> terminalOutcome = new AtomicReference<>();
 
-        private MetricState(String method, RequestTarget target, Consumer<NativeWebRequestMetric> consumer) {
+        private MetricState(String method, RequestTarget target,
+                            BiConsumer<NativeWebRequestMetric, String> consumer) {
             this.method = method;
             this.target = target;
             this.consumer = consumer;
@@ -484,7 +486,7 @@ final class NativeWebRequestClient implements AutoCloseable {
                         method, target.scheme(), target.hostname(), target.port(), target.path(),
                         category == null && outcome != null ? outcome.status() : null, category,
                         (endNanos == 0L ? System.nanoTime() : endNanos) - startNanos, attempts.get(), cancelled,
-                        redirectRejected.get()));
+                        redirectRejected.get()), target.query());
             } catch (Throwable ignored) {
                 //Metrics must never affect request completion.
             }
