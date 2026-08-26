@@ -5,7 +5,7 @@
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " Gateway for sending outbound web requests via Fluxzero’s proxy mechanism.\n <p>\n This gateway does not directly execute the request. Instead, it logs the request as a {@link WebRequest} message,\n which is then picked up by the Fluxzero Runtime's proxy. The proxy only executes the request if the request URL is\n <strong>absolute</strong> (e.g., starts with {@code http://} or {@code https://}).\n <p>\n <strong>Benefits of this approach include:</strong>\n <ul>\n     <li><strong>Traceability:</strong> All outbound web traffic is traceable through Fluxzero message logs.</li>\n     <li><strong>Centralization:</strong> Outgoing requests are routed via a centralized proxy, simplifying firewalling and monitoring.</li>\n     <li><strong>Proxy-level enhancements:</strong> The proxy can apply retries, circuit breakers, filtering, and other behaviors.</li>\n </ul>\n <p>\n This gateway also supports local request handlers, meaning that annotated methods (e.g., {@code @HandleWebRequest}) can respond to requests directly\n within the application if desired.\n\n @see WebRequest\n @see WebResponse\n",
+  "documentation" : " Gateway for sending outbound web requests via Fluxzero's proxy mechanism or the SDK's native HTTP client.\n <p>\n By default, this gateway logs the request as a {@link WebRequest} message, which is then picked up by the Fluxzero\n Runtime's proxy. Enabling {@code useNativeHttpClient} in {@link WebRequestSettings} instead executes an absolute\n HTTP(S) request directly from the application. Native execution deliberately bypasses message logging and local\n handlers.\n <p>\n <strong>Benefits of this approach include:</strong>\n <ul>\n     <li><strong>Traceability:</strong> Proxy-routed outbound web traffic is traceable through Fluxzero message logs.</li>\n     <li><strong>Centralization:</strong> Outgoing requests are routed via a centralized proxy, simplifying firewalling and monitoring.</li>\n     <li><strong>Proxy-level enhancements:</strong> The proxy can apply retries, circuit breakers, filtering, and other behaviors.</li>\n </ul>\n <p>\n This gateway also supports local request handlers, meaning that annotated methods (e.g., {@code @HandleWebRequest}) can respond to requests directly\n within the application if desired.\n\n @see WebRequest\n @see WebResponse\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.publishing.WebRequestGateway>", "io.fluxzero.sdk.tracking.handling.HasLocalHandlers" ],
@@ -45,7 +45,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using default request settings and returns a future that completes with the response.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request the web request to send\n @return a future completed with the {@link WebResponse}\n"
+    "documentation" : " Sends the given web request using default request settings and returns a future that completes with the response.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n\n @param request the web request to send\n @return a future completed with the {@link WebResponse}\n"
   }, {
     "name" : "send",
     "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#send",
@@ -66,7 +66,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using given request settings and returns a future that completes with the response.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request the web request to send\n @return a future completed with the {@link WebResponse}\n"
+    "documentation" : " Sends the given web request using given request settings and returns a future that completes with the response.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n Cancelling the returned future for a native request also cancels its active HTTP call or pending retry delay on a\n best-effort basis.\n\n @param request the web request to send\n @return a future completed with the {@link WebResponse}\n"
   }, {
     "name" : "sendAndForget",
     "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#sendAndForget",
@@ -103,7 +103,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using default request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request the web request to send\n @return the received {@link WebResponse}\n"
+    "documentation" : " Sends the given web request using default request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n\n @param request the web request to send\n @return the received {@link WebResponse}\n"
   }, {
     "name" : "sendAndWait",
     "qualifiedName" : "io.fluxzero.sdk.publishing.WebRequestGateway#sendAndWait",
@@ -124,7 +124,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using the specified request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n\n @param request  the web request to send\n @param settings configuration settings for this request (e.g., timeouts, accepted encodings)\n @return the received {@link WebResponse}\n"
+    "documentation" : " Sends the given web request using the specified request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n\n @param request  the web request to send\n @param settings configuration settings for this request (e.g., timeouts, accepted encodings)\n @return the received {@link WebResponse}\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

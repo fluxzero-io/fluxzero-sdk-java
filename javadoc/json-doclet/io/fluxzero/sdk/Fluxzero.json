@@ -2399,7 +2399,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using default request settings and returns a future that completes with the\n response.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n"
+    "documentation" : " Sends the given web request using default request settings and returns a future that completes with the\n response.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n"
   }, {
     "name" : "sendWebRequest",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendWebRequest",
@@ -2420,7 +2420,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using the given request settings and returns a future that completes with the\n response.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n"
+    "documentation" : " Sends the given web request using the given request settings and returns a future that completes with the\n response.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n"
   }, {
     "name" : "sendWebRequestAndWait",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendWebRequestAndWait",
@@ -2436,7 +2436,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using default request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n"
+    "documentation" : " Sends the given web request using default request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n"
   }, {
     "name" : "sendWebRequestAndWait",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#sendWebRequestAndWait",
@@ -2457,7 +2457,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Sends the given web request using given request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n The request must have an absolute URL to be forwarded by the Fluxzero proxy.\n"
+    "documentation" : " Sends the given web request using given request settings and waits for the response synchronously.\n <p>\n This method blocks the calling thread until the request is completed or times out.\n <p>\n Proxy and native HTTP execution require an absolute URL; relative URLs may be handled by a local web handler.\n"
   }, {
     "name" : "serializer",
     "qualifiedName" : "io.fluxzero.sdk.Fluxzero#serializer",

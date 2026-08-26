@@ -358,6 +358,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "awaitRetryDelay",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#awaitRetryDelay",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.InterruptedException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "executeRequest",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#executeRequest",
     "returnType" : "io.fluxzero.sdk.web.WebResponse",
@@ -367,6 +388,37 @@
     "parameters" : [ {
       "name" : "httpRequest",
       "type" : "java.net.http.HttpRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeRequestWithRetries",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#executeRequestWithRetries",
+    "returnType" : "io.fluxzero.sdk.web.WebResponse",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
