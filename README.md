@@ -3009,7 +3009,9 @@ You can match requests by:
 - Headers, body, or any other property
 
 > ✅ This gives you **full end-to-end test coverage**, even when integrating with external APIs.
-> Native HTTP execution bypasses local handlers, so keep the default proxy route in tests that use these mocks.
+> `TestFixture` deliberately ignores native HTTP transport selection so these mocks also handle requests configured
+> with `useNativeHttpClient(true)`. Retry counts and retryable statuses still apply, but fixture retries do not wait for
+> the configured `retryDelay`.
 
 ---
 

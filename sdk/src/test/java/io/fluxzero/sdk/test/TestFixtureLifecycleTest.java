@@ -120,9 +120,13 @@ class TestFixtureLifecycleTest {
 
     private static boolean closed(TestFixture fixture) {
         try {
-            var closed = fixture.getFluxzero().getClass().getDeclaredField("closed");
+            Fluxzero fluxzero = fixture.getFluxzero();
+            if (fluxzero instanceof FixtureFluxzero fixtureFluxzero) {
+                fluxzero = fixtureFluxzero.delegate();
+            }
+            var closed = fluxzero.getClass().getDeclaredField("closed");
             closed.setAccessible(true);
-            return ((AtomicBoolean) closed.get(fixture.getFluxzero())).get();
+            return ((AtomicBoolean) closed.get(fluxzero)).get();
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
