@@ -18,6 +18,7 @@ package io.fluxzero.proxy;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.MemoizingSupplier;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
@@ -35,6 +36,7 @@ import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.metrics.HandleMessageEvent;
 import io.fluxzero.sdk.tracking.metrics.ProcessBatchEvent;
 import io.fluxzero.sdk.web.WebRequest;
+import io.fluxzero.sdk.web.RedirectPolicy;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
 import lombok.AccessLevel;
@@ -52,6 +54,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -64,7 +67,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
+import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
@@ -84,12 +89,14 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 1024;
     static final Duration DEFAULT_BATCH_COMPLETION_GRACE = Duration.ofMillis(250);
 
-    private static final HttpClient sharedHttpClient = newHttpClient();
+    private static final RedirectClients sharedHttpClients = new RedirectClients(
+            newHttpClient(HttpClient.Redirect.NORMAL), () -> newHttpClient(HttpClient.Redirect.NEVER));
     protected static final WebRequestSettings defaultSettings = WebRequestSettings.builder().build();
     protected static final Serializer serializer = new ProxySerializer();
     protected static final Serializer metricsSerializer = new JacksonSerializer();
 
     private static final Duration MAX_TIMEOUT = Duration.ofMinutes(10);
+    private static final int MAX_REDIRECTS = 5;
 
     protected final Map<String, Registration> runningConsumers = new ConcurrentHashMap<>();
 
@@ -99,7 +106,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     @Getter(value = AccessLevel.PROTECTED)
     private final boolean mainConsumer;
     private final boolean publishMetrics;
-    private final HttpClient httpClient;
+    private final RedirectClients httpClients;
     private final AtomicBoolean forceStopping;
     private final AtomicBoolean stopping;
     private final Set<CompletableFuture<Void>> pendingResponses;
@@ -113,27 +120,30 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     protected ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                                    boolean publishMetrics) {
-        this(client, consumerName, minIndex, mainConsumer, publishMetrics, sharedHttpClient, new AtomicBoolean(),
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, sharedHttpClients, new AtomicBoolean(),
              DEFAULT_MAX_CONCURRENT_REQUESTS, DEFAULT_MAX_OUTSTANDING_REQUESTS, DEFAULT_BATCH_COMPLETION_GRACE);
     }
 
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping) {
-        this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, RedirectClients.single(httpClient),
+             forceStopping,
              DEFAULT_MAX_CONCURRENT_REQUESTS, DEFAULT_MAX_OUTSTANDING_REQUESTS, DEFAULT_BATCH_COMPLETION_GRACE);
     }
 
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
                          int maxConcurrentRequests) {
-        this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, RedirectClients.single(httpClient),
+             forceStopping,
              maxConcurrentRequests, DEFAULT_MAX_OUTSTANDING_REQUESTS, DEFAULT_BATCH_COMPLETION_GRACE);
     }
 
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
                          int maxConcurrentRequests, Function<Duration, CompletableFuture<Void>> retryDelay) {
-        this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, RedirectClients.single(httpClient),
+             forceStopping,
              new AtomicBoolean(), ConcurrentHashMap.newKeySet(), ConcurrentHashMap.newKeySet(),
              new Object(), maxConcurrentRequests, DEFAULT_MAX_OUTSTANDING_REQUESTS,
              DEFAULT_BATCH_COMPLETION_GRACE, retryDelay, null);
@@ -142,14 +152,25 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
                          int maxConcurrentRequests, int maxOutstandingRequests, Duration batchCompletionGrace) {
-        this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, RedirectClients.single(httpClient),
+             forceStopping,
              new AtomicBoolean(), ConcurrentHashMap.newKeySet(), ConcurrentHashMap.newKeySet(),
              new Object(), maxConcurrentRequests, maxOutstandingRequests,
              batchCompletionGrace, ForwardProxyConsumer::delay, null);
     }
 
     private ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
-                                 boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
+                                 boolean publishMetrics, RedirectClients httpClients, AtomicBoolean forceStopping,
+                                 int maxConcurrentRequests, int maxOutstandingRequests,
+                                 Duration batchCompletionGrace) {
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClients, forceStopping,
+             new AtomicBoolean(), ConcurrentHashMap.newKeySet(), ConcurrentHashMap.newKeySet(),
+             new Object(), maxConcurrentRequests, maxOutstandingRequests,
+             batchCompletionGrace, ForwardProxyConsumer::delay, null);
+    }
+
+    private ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
+                                 boolean publishMetrics, RedirectClients httpClients, AtomicBoolean forceStopping,
                                  AtomicBoolean stopping, Set<CompletableFuture<Void>> pendingResponses,
                                  Set<ScheduledRequest> outstandingRequests, Object lifecycleMonitor,
                                  int maxConcurrentRequests, int maxOutstandingRequests, Duration batchCompletionGrace,
@@ -160,7 +181,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         this.minIndex = minIndex;
         this.mainConsumer = mainConsumer;
         this.publishMetrics = publishMetrics;
-        this.httpClient = httpClient;
+        this.httpClients = httpClients;
         this.forceStopping = forceStopping;
         this.stopping = stopping;
         this.pendingResponses = pendingResponses;
@@ -180,26 +201,27 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     static Lifecycle startManaged(Client client) {
-        HttpClient httpClient = newHttpClient();
+        RedirectClients httpClients = new RedirectClients(
+                newHttpClient(HttpClient.Redirect.NORMAL), () -> newHttpClient(HttpClient.Redirect.NEVER));
         int maxConcurrentRequests = configuredMaxConcurrentRequests();
         var consumer = new ForwardProxyConsumer(
                 client, defaultSettings.getConsumer(),
                 IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2)), true,
-                getBooleanProperty(METRICS_ENABLED_PROPERTY, true), httpClient, new AtomicBoolean(),
+                getBooleanProperty(METRICS_ENABLED_PROPERTY, true), httpClients, new AtomicBoolean(),
                 maxConcurrentRequests, configuredMaxOutstandingRequests(maxConcurrentRequests),
                 configuredBatchCompletionGrace());
         try {
             consumer.runningConsumers.computeIfAbsent(defaultSettings.getConsumer(), c -> consumer.start());
             return new Lifecycle(consumer);
         } catch (RuntimeException | Error e) {
-            httpClient.shutdownNow();
+            httpClients.shutdownNow();
             throw e;
         }
     }
 
-    private static HttpClient newHttpClient() {
+    private static HttpClient newHttpClient(HttpClient.Redirect redirectPolicy) {
         return HttpClient.newBuilder()
-                .followRedirects(HttpClient.Redirect.NORMAL).connectTimeout(Duration.ofSeconds(5)).build();
+                .followRedirects(redirectPolicy).connectTimeout(Duration.ofSeconds(5)).build();
     }
 
     static int configuredMaxConcurrentRequests() {
@@ -337,7 +359,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             }
             runningConsumers.computeIfAbsent(
                     name, c -> new ForwardProxyConsumer(
-                            client, c, request.getIndex(), false, publishMetrics, httpClient, forceStopping, stopping,
+                            client, c, request.getIndex(), false, publishMetrics, httpClients, forceStopping, stopping,
                             pendingResponses, outstandingRequests, lifecycleMonitor,
                             maxConcurrentRequests, maxOutstandingRequests, batchCompletionGrace, retryDelay,
                             scheduler).start());
@@ -377,7 +399,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                     .whenComplete((response, error) -> complete(execution, response, error));
         } else {
             try {
-                executeRequestAsync(asHttpRequest(request, uri, settings), execution)
+                executeRequestAsync(asHttpRequest(request, uri, settings), effectiveRedirectPolicy(settings), deadline,
+                                    execution)
                         .whenComplete((response, error) -> complete(execution, response, error));
             } catch (Throwable e) {
                 execution.complete(asWebResponse(e));
@@ -432,19 +455,18 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     private CompletableFuture<WebResponse> executeRequestAsync(HttpRequest httpRequest,
                                                                CancellableResponseFuture requestFuture) {
-        CompletableFuture<HttpResponse<byte[]>> attempt;
-        try {
-            attempt = httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofByteArray());
-        } catch (Throwable e) {
-            log.error("Failed to handle external request. Returning error.. ", e);
-            return CompletableFuture.completedFuture(asWebResponse(e));
-        }
-        requestFuture.track(attempt);
-        return attempt.handle((response, error) -> {
-            if (error == null) {
-                return asWebResponse(response);
+        Instant deadline = Instant.now().plus(httpRequest.timeout().orElse(MAX_TIMEOUT));
+        return executeRequestAsync(httpRequest, RedirectPolicy.ALLOW, deadline, requestFuture);
+    }
+
+    private CompletableFuture<WebResponse> executeRequestAsync(
+            HttpRequest httpRequest, RedirectPolicy redirectPolicy, Instant deadline,
+            CancellableResponseFuture requestFuture) {
+        return executeHttpAttempt(httpRequest, redirectPolicy, deadline, requestFuture).thenApply(outcome -> {
+            if (outcome.failure() == null) {
+                return asWebResponse(outcome.response());
             }
-            Throwable failure = unwrap(error);
+            Throwable failure = outcome.failure();
             if (!(failure instanceof CancellationException && requestFuture.isCancelled())) {
                 log.error("Failed to handle external request. Returning error.. ", failure);
             }
@@ -478,22 +500,17 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             return CompletableFuture.completedFuture(asWebResponse(e));
         }
 
-        CompletableFuture<HttpResponse<byte[]>> attempt;
-        try {
-            attempt = httpClient.sendAsync(httpRequest, HttpResponse.BodyHandlers.ofByteArray());
-        } catch (Throwable e) {
-            return CompletableFuture.completedFuture(asWebResponse(e));
-        }
-        requestFuture.track(attempt);
-        return attempt.handle((response, error) -> {
-            if (error == null) {
-                WebResponse mappedResponse = asWebResponse(response);
-                if (retriesRemaining > 0 && settings.getRetryableStatusCodes().contains(response.statusCode())) {
+        return executeHttpAttempt(httpRequest, effectiveRedirectPolicy(settings), deadline, requestFuture)
+                .thenCompose(outcome -> {
+            if (outcome.failure() == null) {
+                WebResponse mappedResponse = asWebResponse(outcome.response());
+                if (retriesRemaining > 0
+                        && settings.getRetryableStatusCodes().contains(outcome.response().statusCode())) {
                     return retry(request, uri, settings, retriesRemaining, deadline, mappedResponse, requestFuture);
                 }
                 return CompletableFuture.completedFuture(mappedResponse);
             }
-            Throwable failure = unwrap(error);
+            Throwable failure = outcome.failure();
             WebResponse mappedFailure = asWebResponse(failure);
             if (retriesRemaining > 0 && failure instanceof IOException && Instant.now().isBefore(deadline)) {
                 return retry(request, uri, settings, retriesRemaining, deadline, mappedFailure, requestFuture);
@@ -502,7 +519,117 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 log.error("Failed to handle external request after retries. Returning error.. ", failure);
             }
             return CompletableFuture.completedFuture(mappedFailure);
-        }).thenCompose(Function.identity());
+        });
+    }
+
+    private RedirectPolicy effectiveRedirectPolicy(WebRequestSettings settings) {
+        return settings.getRedirectPolicy() == RedirectPolicy.DEFAULT
+                ? RedirectPolicy.ALLOW : settings.getRedirectPolicy();
+    }
+
+    private CompletableFuture<HttpOutcome> executeHttpAttempt(
+            HttpRequest request, RedirectPolicy redirectPolicy, Instant deadline,
+            CancellableResponseFuture requestFuture) {
+        return redirectPolicy == RedirectPolicy.SAME_ORIGIN
+                ? followSameOrigin(request, request.uri(), deadline, requestFuture, 0)
+                : sendOnce(httpClients.client(redirectPolicy), request, requestFuture);
+    }
+
+    private CompletableFuture<HttpOutcome> followSameOrigin(
+            HttpRequest request, URI origin, Instant deadline, CancellableResponseFuture requestFuture,
+            int redirects) {
+        return sendOnce(httpClients.client(RedirectPolicy.NEVER), request, requestFuture).thenCompose(outcome -> {
+            if (outcome.response() == null || !hasRedirectLocation(outcome.response())) {
+                return CompletableFuture.completedFuture(outcome);
+            }
+            Optional<URI> target = redirectTarget(outcome.response(), request.uri());
+            if (target.isEmpty() || redirects >= MAX_REDIRECTS || !sameOrigin(origin, target.get())) {
+                return CompletableFuture.completedFuture(outcome);
+            }
+            if (requestFuture.isCancelled()) {
+                return CompletableFuture.completedFuture(new HttpOutcome(null, new CancellationException()));
+            }
+            Duration remaining = Duration.between(Instant.now(), deadline);
+            if (remaining.isNegative() || remaining.isZero()) {
+                return CompletableFuture.completedFuture(new HttpOutcome(
+                        null, new java.net.http.HttpTimeoutException("Timeout in forward proxy")));
+            }
+            HttpRequest redirected;
+            try {
+                redirected = redirectedRequest(request, target.get(), outcome.response().statusCode(), remaining);
+            } catch (Throwable e) {
+                return CompletableFuture.completedFuture(new HttpOutcome(null, e));
+            }
+            return followSameOrigin(redirected, origin, deadline, requestFuture, redirects + 1);
+        });
+    }
+
+    private CompletableFuture<HttpOutcome> sendOnce(
+            HttpClient client, HttpRequest request, CancellableResponseFuture requestFuture) {
+        CompletableFuture<HttpResponse<byte[]>> attempt;
+        try {
+            attempt = client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
+        } catch (Throwable e) {
+            return CompletableFuture.completedFuture(new HttpOutcome(null, e));
+        }
+        requestFuture.track(attempt);
+        return attempt.handle((response, error) -> new HttpOutcome(
+                response, error == null ? null : unwrap(error)));
+    }
+
+    private HttpRequest redirectedRequest(HttpRequest request, URI target, int status, Duration timeout) {
+        boolean switchToGet = status == 303 && !"HEAD".equalsIgnoreCase(request.method())
+                              || (status == 301 || status == 302) && "POST".equalsIgnoreCase(request.method());
+        HttpRequest.Builder builder = HttpRequest.newBuilder(target)
+                .version(request.version().orElse(HttpClient.Version.HTTP_2)).timeout(timeout);
+        request.headers().map().forEach(
+                (name, values) -> values.forEach(value -> builder.header(name, value)));
+        if (switchToGet) {
+            return builder.GET().build();
+        }
+        return builder.method(
+                request.method(), request.bodyPublisher().orElseGet(HttpRequest.BodyPublishers::noBody)).build();
+    }
+
+    private boolean hasRedirectLocation(HttpResponse<?> response) {
+        return isRedirect(response.statusCode()) && response.headers().firstValue("Location").isPresent();
+    }
+
+    private Optional<URI> redirectTarget(HttpResponse<?> response, URI source) {
+        try {
+            URI target = source.resolve(response.headers().firstValue("Location").orElseThrow());
+            return isHttpUri(target) ? Optional.of(target) : Optional.empty();
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    private boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
+    }
+
+    private boolean isHttpUri(URI uri) {
+        return uri.isAbsolute() && uri.getHost() != null
+               && ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()));
+    }
+
+    private boolean sameOrigin(URI first, URI second) {
+        return first.getScheme() != null && second.getScheme() != null
+               && first.getHost() != null && second.getHost() != null
+               && first.getScheme().equalsIgnoreCase(second.getScheme())
+               && first.getHost().equalsIgnoreCase(second.getHost())
+               && effectivePort(first) == effectivePort(second);
+    }
+
+    private int effectivePort(URI uri) {
+        if (uri.getPort() >= 0) {
+            return uri.getPort();
+        }
+        return switch (uri.getScheme().toLowerCase(Locale.ROOT)) {
+            case "http" -> 80;
+            case "https" -> 443;
+            default -> -1;
+        };
     }
 
     private CompletableFuture<WebResponse> retry(
@@ -619,7 +746,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             } catch (Throwable e) {
                 requeued.forEach(request -> request.fail(e));
                 log.error("Failed to return {} unfinished forward requests to the WebRequest log", requeued.size(), e);
-                httpClient.shutdownNow();
+                httpClients.shutdownNow();
                 return;
             }
             pendingResponses.add(handoff);
@@ -634,7 +761,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 }
             });
         }
-        httpClient.shutdownNow();
+        httpClients.shutdownNow();
     }
 
     protected WebResponse asWebResponse(HttpResponse<byte[]> response) {
@@ -683,10 +810,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     protected String formatType(SerializedMessage request) {
         try {
-            return "%s %s".formatted(WebRequest.getMethod(request.getMetadata()),
-                                     WebRequest.getUrl(request.getMetadata()));
+            return WebRequest.getMethod(request.getMetadata());
         } catch (Exception ignored) {
-            return request.getType();
+            return WebRequest.class.getSimpleName();
         }
     }
 
@@ -866,6 +992,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     private record ActiveRequest(CancellableResponseFuture execution, CompletableFuture<Void> completion) {
     }
 
+    private record HttpOutcome(HttpResponse<byte[]> response, Throwable failure) {
+    }
+
     private static final class CancellableResponseFuture extends CompletableFuture<WebResponse> {
         private final AtomicReference<CompletableFuture<?>> activeOperation = new AtomicReference<>();
 
@@ -910,13 +1039,58 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                     consumer.awaitActiveRequests();
                     consumer.awaitPendingResponses();
                 } finally {
-                    consumer.httpClient.close();
+                    consumer.httpClients.close();
                 }
             }
         }
 
         void force() {
             consumer.forceActiveRequests();
+        }
+    }
+
+    private static final class RedirectClients implements AutoCloseable {
+        private final HttpClient redirecting;
+        private final MemoizingSupplier<HttpClient> nonRedirecting;
+
+        private RedirectClients(HttpClient redirecting, Supplier<HttpClient> nonRedirecting) {
+            this.redirecting = Objects.requireNonNull(redirecting);
+            this.nonRedirecting = memoize(() -> Objects.requireNonNull(nonRedirecting.get()));
+        }
+
+        private static RedirectClients single(HttpClient httpClient) {
+            return new RedirectClients(httpClient, () -> httpClient);
+        }
+
+        private HttpClient client(RedirectPolicy policy) {
+            return policy == RedirectPolicy.ALLOW ? redirecting : nonRedirecting.get();
+        }
+
+        private void shutdownNow() {
+            try {
+                redirecting.shutdownNow();
+            } finally {
+                if (nonRedirecting.isCached()) {
+                    HttpClient client = nonRedirecting.get();
+                    if (client != redirecting) {
+                        client.shutdownNow();
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            try {
+                redirecting.close();
+            } finally {
+                if (nonRedirecting.isCached()) {
+                    HttpClient client = nonRedirecting.get();
+                    if (client != redirecting) {
+                        client.close();
+                    }
+                }
+            }
         }
     }
 }

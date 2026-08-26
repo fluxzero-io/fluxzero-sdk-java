@@ -106,9 +106,10 @@ class NativeWebRequestRedirectTest {
     }
 
     @Test
-    void crossOriginRedirectIsReturnedAndReported() {
+    void crossOriginRedirectIsReturnedAndReported() throws InterruptedException {
         AtomicInteger targetCalls = new AtomicInteger();
         AtomicReference<NativeWebRequestMetric> metric = new AtomicReference<>();
+        CountDownLatch metricReceived = new CountDownLatch(1);
         source.createContext("/start", redirect(302, url(target, "/target")));
         target.createContext("/target", exchange -> {
             targetCalls.incrementAndGet();
@@ -116,11 +117,15 @@ class NativeWebRequestRedirectTest {
         });
 
         try (NativeWebRequestClient client = new NativeWebRequestClient(new JacksonSerializer())) {
-            WebResponse response = send(client, WebRequest.get(url(source, "/start")).build(),
-                                        RedirectPolicy.SAME_ORIGIN, metric::set);
+            WebResponse response = send(
+                    client, WebRequest.get(url(source, "/start")).build(), RedirectPolicy.SAME_ORIGIN, value -> {
+                        metric.set(value);
+                        metricReceived.countDown();
+                    });
 
             assertEquals(302, response.getStatus());
             assertEquals(0, targetCalls.get());
+            assertTrue(metricReceived.await(1, TimeUnit.SECONDS));
             assertTrue(metric.get().isRedirectRejected());
             assertEquals(302, metric.get().getStatus());
         }

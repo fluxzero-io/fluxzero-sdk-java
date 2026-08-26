@@ -3002,18 +3002,20 @@ or pending retry delay on a best-effort basis. A failure or response may occur a
 so only retry non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain
 the defaults; when retries are enabled, `retryDelay` defaults to one second.
 
-Native redirects are configured with `redirectPolicy`. `NEVER` returns the redirect response without following it;
+Outbound redirects are configured with `redirectPolicy`. `NEVER` returns the redirect response without following it;
 `SAME_ORIGIN` follows at most five redirects and only when scheme, host, and effective port equal the original request.
 That origin check happens before a 307/308 body or any request header, including `Authorization`, is reused. `ALLOW`
 uses `HttpClient.Redirect.NORMAL`, including its refusal to follow HTTPS-to-HTTP redirects. `DEFAULT` keeps `ALLOW` in
 compatibility mode and resolves to `SAME_ORIGIN` when `fluxzero.defaults.version >= 2026.08.26`. An explicit setting on
 the request always wins. The application-wide default can also be selected independently with
-`fluxzero.web.native.defaultRedirectPolicy=NEVER|SAME_ORIGIN|ALLOW`.
+`fluxzero.web.defaultRedirectPolicy=NEVER|SAME_ORIGIN|ALLOW`. The SDK resolves `DEFAULT` before a proxied
+request is published, so direct native and proxy-routed requests enforce the same concrete policy.
 
 When Fluxzero transport metrics are globally enabled, every native logical request emits a
 `NativeWebRequestMetric`. It contains only the HTTP method, final status or a safe error category, total duration,
 attempt count, cancellation state, and whether a redirect was rejected. It never contains a URL, authority, path,
-query, header, body, exception message, token, or recipient.
+query, header, body, exception message, token, or recipient. The proxy keeps its existing handler metric, whose request
+type contains only the HTTP method and never the destination URL.
 
 The native path is a convenient SDK transport option, not a complete security-oriented HTTP client. It deliberately
 does not expose a configurable connect timeout, HTTPS enforcement or origin allowlists, streaming response limits, or
@@ -5156,7 +5158,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
-| `>= 2026.08.26` | `fluxzero.web.native.defaultRedirectPolicy = SAME_ORIGIN` | Native outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
+| `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 
 For example:
 
