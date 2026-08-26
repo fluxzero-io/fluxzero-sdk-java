@@ -809,10 +809,27 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     protected String formatType(SerializedMessage request) {
+        String method;
         try {
-            return WebRequest.getMethod(request.getMetadata());
+            method = WebRequest.getMethod(request.getMetadata());
         } catch (Exception ignored) {
             return WebRequest.class.getSimpleName();
+        }
+        try {
+            URI uri = URI.create(WebRequest.getUrl(request.getMetadata()));
+            if (!isHttpUri(uri)) {
+                return method;
+            }
+            String hostname = uri.getHost().toLowerCase(Locale.ROOT);
+            if (hostname.indexOf(':') >= 0 && !hostname.startsWith("[")) {
+                hostname = "[" + hostname + "]";
+            }
+            String path = uri.getRawPath();
+            return "%s %s://%s:%d%s".formatted(
+                    method, uri.getScheme().toLowerCase(Locale.ROOT), hostname, effectivePort(uri),
+                    path == null || path.isEmpty() ? "/" : path);
+        } catch (Exception ignored) {
+            return method;
         }
     }
 

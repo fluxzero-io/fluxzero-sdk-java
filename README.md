@@ -3012,10 +3012,13 @@ the request always wins. The application-wide default can also be selected indep
 request is published, so direct native and proxy-routed requests enforce the same concrete policy.
 
 When Fluxzero transport metrics are globally enabled, every native logical request emits a
-`NativeWebRequestMetric`. It contains only the HTTP method, final status or a safe error category, total duration,
-attempt count, cancellation state, and whether a redirect was rejected. It never contains a URL, authority, path,
-query, header, body, exception message, token, or recipient. The proxy keeps its existing handler metric, whose request
-type contains only the HTTP method and never the destination URL.
+`NativeWebRequestMetric`. It contains the HTTP method, normalized lowercase scheme and hostname of the original logical
+request, its effective port and raw path without query or fragment, final status or a safe error category, total
+duration, attempt count, cancellation state, and whether a redirect was rejected. It never contains URI user
+information, query, fragment, header, body, or exception message. Because paths can themselves contain sensitive or
+high-cardinality values, applications should keep such values out of paths when exporting this field as a metric label.
+The proxy keeps its existing handler metric, whose request type contains only the HTTP method and that same normalized
+original request origin and path rather than the complete destination URL.
 
 The native path is a convenient SDK transport option, not a complete security-oriented HTTP client. It deliberately
 does not expose a configurable connect timeout, HTTPS enforcement or origin allowlists, streaming response limits, or

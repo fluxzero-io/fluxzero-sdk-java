@@ -17,10 +17,11 @@ package io.fluxzero.sdk.web;
 import lombok.Value;
 
 /**
- * Low-cardinality operational outcome of one native outbound {@link WebRequest}.
+ * Operational outcome of one native outbound {@link WebRequest}.
  *
- * <p>This value deliberately excludes destinations, paths, query strings, headers, bodies, exception text, tokens,
- * and recipient information.</p>
+ * <p>The normalized request target identifies the original logical request, not a later redirect destination. This
+ * value deliberately excludes URI user information, query strings, fragments, headers, bodies, and exception text.
+ * The path is included and may therefore contain application-specific information.</p>
  */
 @Value
 public class NativeWebRequestMetric {
@@ -28,6 +29,28 @@ public class NativeWebRequestMetric {
      * HTTP method of the logical request.
      */
     String method;
+
+    /**
+     * Lowercase scheme of the original request, or {@code null} when no valid HTTP(S) origin was available.
+     */
+    String scheme;
+
+    /**
+     * Lowercase hostname of the original request, or {@code null} when no valid HTTP(S) origin was available.
+     */
+    String hostname;
+
+    /**
+     * Effective port of the original request, including {@code 80} for HTTP and {@code 443} for HTTPS when omitted,
+     * or {@code null} when no valid HTTP(S) origin was available.
+     */
+    Integer port;
+
+    /**
+     * Raw path of the original request without query or fragment, using {@code /} when the URI has no path, or
+     * {@code null} when no valid HTTP(S) request target was available.
+     */
+    String path;
 
     /**
      * Final HTTP status, or {@code null} if the request ended in a transport failure or cancellation.
