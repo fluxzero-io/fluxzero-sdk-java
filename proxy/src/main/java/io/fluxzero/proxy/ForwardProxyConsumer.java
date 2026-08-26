@@ -15,6 +15,7 @@
 
 package io.fluxzero.proxy;
 
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
@@ -49,6 +50,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,7 +60,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -66,6 +67,7 @@ import java.util.function.Function;
 
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
 import static io.fluxzero.sdk.web.WebRequest.getHeaders;
 import static java.time.temporal.ChronoUnit.NANOS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -75,7 +77,12 @@ import static java.util.Optional.ofNullable;
 public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     static final String METRICS_ENABLED_PROPERTY = "FLUXZERO_PROXY_METRICS_ENABLED";
     static final String MAX_CONCURRENT_REQUESTS_PROPERTY = "FLUXZERO_PROXY_FORWARD_MAX_CONCURRENT_REQUESTS";
-    static final int DEFAULT_MAX_CONCURRENT_REQUESTS = 4;
+    static final String MAX_OUTSTANDING_REQUESTS_PROPERTY = "FLUXZERO_PROXY_FORWARD_MAX_OUTSTANDING_REQUESTS";
+    static final String BATCH_COMPLETION_GRACE_MILLIS_PROPERTY =
+            "FLUXZERO_PROXY_FORWARD_BATCH_COMPLETION_GRACE_MILLIS";
+    static final int DEFAULT_MAX_CONCURRENT_REQUESTS = 8;
+    static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 1024;
+    static final Duration DEFAULT_BATCH_COMPLETION_GRACE = Duration.ofMillis(250);
 
     private static final HttpClient sharedHttpClient = newHttpClient();
     protected static final WebRequestSettings defaultSettings = WebRequestSettings.builder().build();
@@ -96,45 +103,58 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     private final AtomicBoolean forceStopping;
     private final AtomicBoolean stopping;
     private final Set<CompletableFuture<Void>> pendingResponses;
-    private final Set<ActiveRequest> activeRequests;
+    private final Set<ScheduledRequest> outstandingRequests;
     private final Object lifecycleMonitor;
-    private final Semaphore requestCapacity;
     private final int maxConcurrentRequests;
+    private final int maxOutstandingRequests;
+    private final Duration batchCompletionGrace;
     private final Function<Duration, CompletableFuture<Void>> retryDelay;
+    private final SegmentSerialScheduler<ScheduledRequest> scheduler;
 
     protected ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                                    boolean publishMetrics) {
         this(client, consumerName, minIndex, mainConsumer, publishMetrics, sharedHttpClient, new AtomicBoolean(),
-             DEFAULT_MAX_CONCURRENT_REQUESTS);
+             DEFAULT_MAX_CONCURRENT_REQUESTS, DEFAULT_MAX_OUTSTANDING_REQUESTS, DEFAULT_BATCH_COMPLETION_GRACE);
     }
 
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping) {
         this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
-             DEFAULT_MAX_CONCURRENT_REQUESTS);
+             DEFAULT_MAX_CONCURRENT_REQUESTS, DEFAULT_MAX_OUTSTANDING_REQUESTS, DEFAULT_BATCH_COMPLETION_GRACE);
     }
 
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
                          int maxConcurrentRequests) {
         this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
-             maxConcurrentRequests, ForwardProxyConsumer::delay);
+             maxConcurrentRequests, DEFAULT_MAX_OUTSTANDING_REQUESTS, DEFAULT_BATCH_COMPLETION_GRACE);
     }
 
     ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                          boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
                          int maxConcurrentRequests, Function<Duration, CompletableFuture<Void>> retryDelay) {
         this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
-             new AtomicBoolean(), ConcurrentHashMap.newKeySet(), ConcurrentHashMap.newKeySet(), new Object(),
-             maxConcurrentRequests, retryDelay);
+             new AtomicBoolean(), ConcurrentHashMap.newKeySet(), ConcurrentHashMap.newKeySet(),
+             new Object(), maxConcurrentRequests, DEFAULT_MAX_OUTSTANDING_REQUESTS,
+             DEFAULT_BATCH_COMPLETION_GRACE, retryDelay, null);
+    }
+
+    ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
+                         boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
+                         int maxConcurrentRequests, int maxOutstandingRequests, Duration batchCompletionGrace) {
+        this(client, consumerName, minIndex, mainConsumer, publishMetrics, httpClient, forceStopping,
+             new AtomicBoolean(), ConcurrentHashMap.newKeySet(), ConcurrentHashMap.newKeySet(),
+             new Object(), maxConcurrentRequests, maxOutstandingRequests,
+             batchCompletionGrace, ForwardProxyConsumer::delay, null);
     }
 
     private ForwardProxyConsumer(Client client, String consumerName, Long minIndex, boolean mainConsumer,
                                  boolean publishMetrics, HttpClient httpClient, AtomicBoolean forceStopping,
                                  AtomicBoolean stopping, Set<CompletableFuture<Void>> pendingResponses,
-                                 Set<ActiveRequest> activeRequests, Object lifecycleMonitor,
-                                 int maxConcurrentRequests,
-                                 Function<Duration, CompletableFuture<Void>> retryDelay) {
+                                 Set<ScheduledRequest> outstandingRequests, Object lifecycleMonitor,
+                                 int maxConcurrentRequests, int maxOutstandingRequests, Duration batchCompletionGrace,
+                                 Function<Duration, CompletableFuture<Void>> retryDelay,
+                                 SegmentSerialScheduler<ScheduledRequest> scheduler) {
         this.client = client;
         this.consumerName = consumerName;
         this.minIndex = minIndex;
@@ -144,11 +164,15 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         this.forceStopping = forceStopping;
         this.stopping = stopping;
         this.pendingResponses = pendingResponses;
-        this.activeRequests = activeRequests;
+        this.outstandingRequests = outstandingRequests;
         this.lifecycleMonitor = lifecycleMonitor;
         this.maxConcurrentRequests = requirePositiveMaxConcurrentRequests(maxConcurrentRequests);
-        this.requestCapacity = new Semaphore(maxConcurrentRequests, true);
+        this.maxOutstandingRequests = requireValidMaxOutstandingRequests(
+                maxOutstandingRequests, this.maxConcurrentRequests);
+        this.batchCompletionGrace = requireNonNegativeBatchCompletionGrace(batchCompletionGrace);
         this.retryDelay = Objects.requireNonNull(retryDelay);
+        this.scheduler = scheduler == null
+                ? new SegmentSerialScheduler<>(this.maxConcurrentRequests, this.maxOutstandingRequests) : scheduler;
     }
 
     public static Registration start(Client client) {
@@ -157,11 +181,13 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     static Lifecycle startManaged(Client client) {
         HttpClient httpClient = newHttpClient();
+        int maxConcurrentRequests = configuredMaxConcurrentRequests();
         var consumer = new ForwardProxyConsumer(
                 client, defaultSettings.getConsumer(),
                 IndexUtils.indexFromTimestamp(Fluxzero.currentTime().minusSeconds(2)), true,
                 getBooleanProperty(METRICS_ENABLED_PROPERTY, true), httpClient, new AtomicBoolean(),
-                configuredMaxConcurrentRequests());
+                maxConcurrentRequests, configuredMaxOutstandingRequests(maxConcurrentRequests),
+                configuredBatchCompletionGrace());
         try {
             consumer.runningConsumers.computeIfAbsent(defaultSettings.getConsumer(), c -> consumer.start());
             return new Lifecycle(consumer);
@@ -181,9 +207,40 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 MAX_CONCURRENT_REQUESTS_PROPERTY, DEFAULT_MAX_CONCURRENT_REQUESTS));
     }
 
+    static int configuredMaxOutstandingRequests() {
+        return configuredMaxOutstandingRequests(configuredMaxConcurrentRequests());
+    }
+
+    private static int configuredMaxOutstandingRequests(int maxConcurrentRequests) {
+        return requireValidMaxOutstandingRequests(
+                getIntegerProperty(MAX_OUTSTANDING_REQUESTS_PROPERTY, DEFAULT_MAX_OUTSTANDING_REQUESTS),
+                maxConcurrentRequests);
+    }
+
+    static Duration configuredBatchCompletionGrace() {
+        return requireNonNegativeBatchCompletionGrace(Duration.ofMillis(getLongProperty(
+                BATCH_COMPLETION_GRACE_MILLIS_PROPERTY, DEFAULT_BATCH_COMPLETION_GRACE.toMillis())));
+    }
+
     private static int requirePositiveMaxConcurrentRequests(int value) {
         if (value < 1) {
             throw new IllegalArgumentException(MAX_CONCURRENT_REQUESTS_PROPERTY + " must be >= 1");
+        }
+        return value;
+    }
+
+    private static int requireValidMaxOutstandingRequests(int value, int maxConcurrentRequests) {
+        if (value < maxConcurrentRequests) {
+            throw new IllegalArgumentException(
+                    MAX_OUTSTANDING_REQUESTS_PROPERTY + " must be >= " + MAX_CONCURRENT_REQUESTS_PROPERTY);
+        }
+        return value;
+    }
+
+    private static Duration requireNonNegativeBatchCompletionGrace(Duration value) {
+        Objects.requireNonNull(value);
+        if (value.isNegative()) {
+            throw new IllegalArgumentException(BATCH_COMPLETION_GRACE_MILLIS_PROPERTY + " must be >= 0");
         }
         return value;
     }
@@ -194,8 +251,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     ConsumerConfiguration consumerConfiguration() {
-        return ConsumerConfiguration.builder().name(consumerName).minIndex(minIndex)
-                .threads(maxConcurrentRequests).maxFetchSize(1).build();
+        return ConsumerConfiguration.builder().name(consumerName).minIndex(minIndex).threads(1).build();
     }
 
     @Override
@@ -214,7 +270,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                     if (consumerName.equals(settings.getConsumer())) {
                         URI uri = URI.create(WebRequest.getUrl(s.getMetadata()));
                         if (uri.isAbsolute()) {
-                            activeBatch.add(startRequest(s, uri, settings));
+                            activeBatch.add(scheduleRequest(s, uri, settings));
                         }
                     } else if (isMainConsumer()) {
                         startConsumer(settings.getConsumer(), s);
@@ -225,14 +281,17 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 } catch (Throwable e) {
                     log.error("Failed to handle external request {}. Continuing..", s.getMessageId(), e);
                     try {
-                        sendResponse(asWebResponse(e), s);
+                        activeBatch.add(scheduleFailedRequest(s, e));
+                    } catch (BatchProcessingException stoppingException) {
+                        stoppingFailure = stoppingException;
+                        break;
                     } catch (Throwable e2) {
                         e2.addSuppressed(e);
                         log.error("Failed to send error response. Continuing..", e2);
                     }
                 }
             }
-            await(activeBatch);
+            awaitBestEffort(activeBatch);
             if (stoppingFailure != null) {
                 throw stoppingFailure;
             }
@@ -241,34 +300,34 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         }
     }
 
-    private CompletableFuture<Void> startRequest(SerializedMessage request, URI uri, WebRequestSettings settings) {
+    private CompletableFuture<Void> scheduleRequest(SerializedMessage request, URI uri, WebRequestSettings settings) {
+        return scheduleRequest(new ScheduledRequest(request, uri, settings));
+    }
+
+    private CompletableFuture<Void> scheduleFailedRequest(SerializedMessage request, Throwable failure) {
+        return scheduleRequest(new ScheduledRequest(request, failure));
+    }
+
+    private CompletableFuture<Void> scheduleRequest(ScheduledRequest scheduledRequest) {
+        SerializedMessage request = scheduledRequest.request();
+        synchronized (lifecycleMonitor) {
+            if (stopping.get() || forceStopping.get()) {
+                throw stoppedBeforeStart(request);
+            }
+        }
         try {
-            requestCapacity.acquire();
+            if (!scheduler.schedule(scheduledRequest)) {
+                BatchProcessingException failure = stoppedBeforeStart(request);
+                scheduledRequest.fail(failure);
+                throw failure;
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            scheduledRequest.fail(e);
             throw new BatchProcessingException(
                     "Forward proxy interrupted before the request could start", e, request.getIndex());
         }
-        boolean releaseCapacity = true;
-        try {
-            synchronized (lifecycleMonitor) {
-                if (stopping.get() || forceStopping.get()) {
-                    throw stoppedBeforeStart(request);
-                }
-                ActiveRequest activeRequest = handleAsync(request, uri, settings);
-                activeRequests.add(activeRequest);
-                activeRequest.completion().whenComplete((ignored, error) -> {
-                    activeRequests.remove(activeRequest);
-                    requestCapacity.release();
-                });
-                releaseCapacity = false;
-                return activeRequest.completion();
-            }
-        } finally {
-            if (releaseCapacity) {
-                requestCapacity.release();
-            }
-        }
+        return scheduledRequest.completion();
     }
 
     private void startConsumer(String name, SerializedMessage request) {
@@ -279,8 +338,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             runningConsumers.computeIfAbsent(
                     name, c -> new ForwardProxyConsumer(
                             client, c, request.getIndex(), false, publishMetrics, httpClient, forceStopping, stopping,
-                            pendingResponses, activeRequests, lifecycleMonitor, maxConcurrentRequests,
-                            retryDelay).start());
+                            pendingResponses, outstandingRequests, lifecycleMonitor,
+                            maxConcurrentRequests, maxOutstandingRequests, batchCompletionGrace, retryDelay,
+                            scheduler).start());
         }
     }
 
@@ -289,17 +349,19 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 "Forward proxy stopped before the remaining request could start", request.getIndex());
     }
 
-    private void await(List<CompletableFuture<Void>> futures) {
+    private void awaitBestEffort(List<CompletableFuture<Void>> futures) {
         if (!futures.isEmpty()) {
-            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).join();
+            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new)).handle((ignored, error) -> null)
+                    .completeOnTimeout(null, batchCompletionGrace.toNanos(), NANOSECONDS).join();
         }
     }
 
     protected void handle(SerializedMessage request, URI uri, WebRequestSettings settings) {
-        handleAsync(request, uri, settings).completion().join();
+        handleAsync(request, uri, settings, null).completion().join();
     }
 
-    private ActiveRequest handleAsync(SerializedMessage request, URI uri, WebRequestSettings settings) {
+    private ActiveRequest handleAsync(SerializedMessage request, URI uri, WebRequestSettings settings,
+                                      ScheduledRequest scheduledRequest) {
         Instant start = Instant.now();
         Map<String, String> correlationData = DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
                 client, request, MessageType.WEBREQUEST);
@@ -325,20 +387,22 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             WebResponse result = response;
             if (error != null) {
                 Throwable failure = unwrap(error);
-                log.error("Failed to handle external request. Returning error.. ", failure);
+                if (scheduledRequest == null || !scheduledRequest.isRequeuing()) {
+                    log.error("Failed to handle external request. Returning error.. ", failure);
+                }
                 result = asWebResponse(failure);
             }
+            return result;
+        }).thenCompose(result -> {
+            if (scheduledRequest != null && !scheduledRequest.beginResponsePublication()) {
+                return CompletableFuture.completedFuture(null);
+            }
             publishHandleMessageMetrics(request, false, start, correlationData);
-            sendResponse(result, request, correlationData);
-            return (Void) null;
-        }).exceptionally(error -> {
-            Throwable failure = unwrap(error);
-            log.error("Failed to handle external request {}. Continuing..", request.getMessageId(), failure);
-            try {
-                sendResponse(asWebResponse(failure), request, correlationData);
-            } catch (Throwable responseError) {
-                responseError.addSuppressed(failure);
-                log.error("Failed to send error response. Continuing..", responseError);
+            return sendResponseAsync(result, request, correlationData);
+        }).handle((ignored, error) -> {
+            if (error != null && !forceStopping.get()) {
+                log.error("Failed to publish response for external request {}. Continuing..",
+                          request.getMessageId(), unwrap(error));
             }
             return null;
         });
@@ -381,7 +445,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 return asWebResponse(response);
             }
             Throwable failure = unwrap(error);
-            log.error("Failed to handle external request. Returning error.. ", failure);
+            if (!(failure instanceof CancellationException && requestFuture.isCancelled())) {
+                log.error("Failed to handle external request. Returning error.. ", failure);
+            }
             return asWebResponse(failure);
         });
     }
@@ -432,7 +498,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             if (retriesRemaining > 0 && failure instanceof IOException && Instant.now().isBefore(deadline)) {
                 return retry(request, uri, settings, retriesRemaining, deadline, mappedFailure, requestFuture);
             }
-            log.error("Failed to handle external request after retries. Returning error.. ", failure);
+            if (!(failure instanceof CancellationException && requestFuture.isCancelled())) {
+                log.error("Failed to handle external request after retries. Returning error.. ", failure);
+            }
             return CompletableFuture.completedFuture(mappedFailure);
         }).thenCompose(Function.identity());
     }
@@ -483,11 +551,12 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     protected void sendResponse(WebResponse response, SerializedMessage request) {
-        sendResponse(response, request, DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
+        sendResponseAsync(response, request, DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
                 client, request, MessageType.WEBREQUEST));
     }
 
-    private void sendResponse(WebResponse response, SerializedMessage request, Map<String, String> correlationData) {
+    private CompletableFuture<Void> sendResponseAsync(WebResponse response, SerializedMessage request,
+                                                      Map<String, String> correlationData) {
         Metadata responseMetadata = response.getMetadata().addIfAbsent(correlationData);
         SerializedMessage serializedResponse = new SerializedMessage(
                 serializer.serialize(response.getPayload()).withFormat("application/octet-stream"),
@@ -504,6 +573,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
                 log.warn("Failed to store forwarded response for request {}", request.getRequestId(), error);
             }
         });
+        return publication;
     }
 
     void awaitPendingResponses() {
@@ -514,9 +584,9 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     void awaitActiveRequests() {
-        while (!activeRequests.isEmpty()) {
-            CompletableFuture<?>[] snapshot = activeRequests.stream()
-                    .map(ActiveRequest::completion).toArray(CompletableFuture[]::new);
+        while (!outstandingRequests.isEmpty()) {
+            CompletableFuture<?>[] snapshot = outstandingRequests.stream()
+                    .map(ScheduledRequest::completion).toArray(CompletableFuture[]::new);
             if (snapshot.length > 0) {
                 CompletableFuture.allOf(snapshot).join();
             }
@@ -530,15 +600,41 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     void forceActiveRequests() {
-        List<ActiveRequest> snapshot;
+        List<ScheduledRequest> requeued;
         synchronized (lifecycleMonitor) {
             stopping.set(true);
             forceStopping.set(true);
-            snapshot = List.copyOf(activeRequests);
+            scheduler.stopDispatching();
+            requeued = outstandingRequests.stream().filter(ScheduledRequest::beginRequeue)
+                    .sorted(Comparator.comparingLong(r -> ofNullable(r.request().getIndex()).orElse(Long.MAX_VALUE)))
+                    .toList();
         }
-        snapshot.forEach(request -> request.execution().cancel(true));
+        requeued.forEach(ScheduledRequest::cancelExecution);
+        if (!requeued.isEmpty()) {
+            SerializedMessage[] requests = requeued.stream().map(ScheduledRequest::copyForRequeue)
+                    .toArray(SerializedMessage[]::new);
+            CompletableFuture<Void> handoff;
+            try {
+                handoff = client.getGatewayClient(MessageType.WEBREQUEST).append(Guarantee.STORED, requests);
+            } catch (Throwable e) {
+                requeued.forEach(request -> request.fail(e));
+                log.error("Failed to return {} unfinished forward requests to the WebRequest log", requeued.size(), e);
+                httpClient.shutdownNow();
+                return;
+            }
+            pendingResponses.add(handoff);
+            handoff.whenComplete((ignored, error) -> {
+                pendingResponses.remove(handoff);
+                if (error == null) {
+                    requeued.forEach(ScheduledRequest::completeRequeue);
+                } else {
+                    requeued.forEach(request -> request.fail(error));
+                    log.error("Failed to return {} unfinished forward requests to the WebRequest log",
+                              requeued.size(), error);
+                }
+            });
+        }
         httpClient.shutdownNow();
-        pendingResponses.forEach(response -> response.cancel(false));
     }
 
     protected WebResponse asWebResponse(HttpResponse<byte[]> response) {
@@ -612,6 +708,159 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         } catch (Throwable e) {
             log.error("Failed to publish HandleMessage metrics", e);
         }
+    }
+
+    private final class ScheduledRequest implements SegmentSerialScheduler.Task {
+        private final SerializedMessage request;
+        private final URI uri;
+        private final WebRequestSettings settings;
+        private final Throwable initialFailure;
+        private final int segment;
+        private final AtomicReference<RequestState> state = new AtomicReference<>(RequestState.QUEUED);
+        private final AtomicReference<CancellableResponseFuture> execution = new AtomicReference<>();
+        private final CompletableFuture<Void> completion = new CompletableFuture<>();
+
+        private ScheduledRequest(SerializedMessage request, URI uri, WebRequestSettings settings) {
+            this.request = request;
+            this.uri = uri;
+            this.settings = settings;
+            this.initialFailure = null;
+            this.segment = requestSegment(request);
+        }
+
+        private ScheduledRequest(SerializedMessage request, Throwable initialFailure) {
+            this.request = request;
+            this.uri = null;
+            this.settings = null;
+            this.initialFailure = initialFailure;
+            this.segment = requestSegment(request);
+        }
+
+        private int requestSegment(SerializedMessage request) {
+            return ofNullable(request.getSegment()).orElseGet(() -> ConsistentHashing.computeSegment(
+                    Objects.toString(request.getMessageId(), Objects.toString(request.getIndex(), "unsegmented"))));
+        }
+
+        @Override
+        public int segment() {
+            return segment;
+        }
+
+        @Override
+        public CompletableFuture<Void> completion() {
+            return completion;
+        }
+
+        @Override
+        public void admitted() {
+            outstandingRequests.add(this);
+            completion.whenComplete((ignored, error) -> outstandingRequests.remove(this));
+        }
+
+        @Override
+        public void start() {
+            if (initialFailure != null) {
+                publishInitialFailure();
+                return;
+            }
+            if (!state.compareAndSet(RequestState.QUEUED, RequestState.HTTP_ACTIVE)) {
+                return;
+            }
+            ActiveRequest activeRequest = handleAsync(request, uri, settings, this);
+            execution.set(activeRequest.execution());
+            if (state.get() == RequestState.REQUEUING) {
+                activeRequest.execution().cancel(true);
+            }
+            activeRequest.completion().whenComplete((ignored, error) -> finishNormally(error));
+        }
+
+        private void publishInitialFailure() {
+            if (!state.compareAndSet(RequestState.QUEUED, RequestState.RESPONSE_PUBLISHING)) {
+                return;
+            }
+            CompletableFuture<Void> publication;
+            try {
+                publication = sendResponseAsync(
+                        asWebResponse(initialFailure), request,
+                        DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
+                                client, request, MessageType.WEBREQUEST));
+            } catch (Throwable e) {
+                publication = CompletableFuture.failedFuture(e);
+            }
+            publication.handle((ignored, error) -> {
+                        if (error != null && !forceStopping.get()) {
+                            log.error("Failed to publish error response for external request {}. Continuing..",
+                                      request.getMessageId(), unwrap(error));
+                        }
+                        return null;
+                    })
+                    .whenComplete((ignored, error) -> finishNormally(error));
+        }
+
+        @Override
+        public void fail(Throwable error) {
+            RequestState previous = state.getAndSet(RequestState.DONE);
+            if (previous != RequestState.DONE && previous != RequestState.REQUEUED) {
+                if (!forceStopping.get()) {
+                    log.error("Failed to schedule forward request {}", request.getMessageId(), unwrap(error));
+                }
+                completion.complete(null);
+            }
+        }
+
+        private boolean beginResponsePublication() {
+            return state.compareAndSet(RequestState.HTTP_ACTIVE, RequestState.RESPONSE_PUBLISHING);
+        }
+
+        private void finishNormally(Throwable error) {
+            if (state.compareAndSet(RequestState.RESPONSE_PUBLISHING, RequestState.DONE)) {
+                if (error != null && !forceStopping.get()) {
+                    log.error("Failed to complete forward request {}", request.getMessageId(), unwrap(error));
+                }
+                completion.complete(null);
+            }
+        }
+
+        private boolean beginRequeue() {
+            while (true) {
+                RequestState current = state.get();
+                if (current != RequestState.QUEUED && current != RequestState.HTTP_ACTIVE) {
+                    return false;
+                }
+                if (state.compareAndSet(current, RequestState.REQUEUING)) {
+                    return true;
+                }
+            }
+        }
+
+        private boolean isRequeuing() {
+            return state.get() == RequestState.REQUEUING;
+        }
+
+        private void cancelExecution() {
+            ofNullable(execution.get()).ifPresent(active -> active.cancel(true));
+        }
+
+        private void completeRequeue() {
+            if (state.compareAndSet(RequestState.REQUEUING, RequestState.REQUEUED)) {
+                completion.complete(null);
+            }
+        }
+
+        private SerializedMessage copyForRequeue() {
+            return new SerializedMessage(
+                    request.getData(), request.getMetadata(), request.getSegment(), null, request.getSource(),
+                    request.getTarget(), request.getRequestId(), request.getTimestamp(), request.getMessageId(),
+                    request.getOriginalRevision());
+        }
+
+        private SerializedMessage request() {
+            return request;
+        }
+    }
+
+    private enum RequestState {
+        QUEUED, HTTP_ACTIVE, RESPONSE_PUBLISHING, REQUEUING, REQUEUED, DONE
     }
 
     private record ActiveRequest(CancellableResponseFuture execution, CompletableFuture<Void> completion) {
