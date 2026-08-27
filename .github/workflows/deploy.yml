@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version e.g. 1.0.1 (leave empty to auto-bump)"
+        description: "Explicit version for next/2.0 or 1.x; leave empty only on main"
         required: false
         default: ""
 
 concurrency:
-  group: deploy-main
+  group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -31,6 +31,9 @@ jobs:
       version: ${{ steps.tag_version.outputs.new_version }}
       version-tag: ${{ steps.tag_version.outputs.new_tag }}
       version-changelog: ${{ steps.release_notes.outputs.body }}
+      prerelease: ${{ steps.release_version.outputs.prerelease }}
+      javadoc-destination: ${{ steps.release_version.outputs.javadoc_destination }}
+      package-channel-tag: ${{ steps.release_version.outputs.package_channel_tag }}
       maven-build-outcome: ${{ steps.maven-build.outcome }}
     steps:
       - name: Check out Git repository
@@ -68,6 +71,27 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "previous_tag=$previous_tag" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve allowed release version
+        id: release_version
+        env:
+          RELEASE_BRANCH: ${{ github.ref_name }}
+          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          release_major="$(tr -d '[:space:]' < .github/release-major)"
+          version="$(bash .github/scripts/resolve-release-version.sh \
+            "$RELEASE_BRANCH" "$REQUESTED_VERSION" "$release_major")"
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "javadoc_destination=javadoc/$version" >> "$GITHUB_OUTPUT"
+            echo "package_channel_tag=2.0-prerelease" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "javadoc_destination=javadoc" >> "$GITHUB_OUTPUT"
+            echo "package_channel_tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Calculate release version
         uses: mathieudutour/github-tag-action@v6.2
         id: tag_version
@@ -75,7 +99,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           default_bump: minor
           tag_prefix: ""
-          custom_tag: ${{ steps.existing_tag.outputs.tag || github.event.inputs.version }}
+          custom_tag: ${{ steps.existing_tag.outputs.tag || steps.release_version.outputs.version }}
           fetch_all_tags: true
           custom_release_rules: "deps:patch:Dependency updates"
           dry_run: true
@@ -141,7 +165,7 @@ jobs:
         env:
           FLUXZERO_PACKAGE_VERSION: ${{ steps.tag_version.outputs.new_tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./mvnw -B fluxzero:publish-package
+        run: ./mvnw -B fluxzero:publish-package -Dfluxzero.package.channel-tag=${{ steps.release_version.outputs.package_channel_tag }}
 
       - name: Create project files zips
         run: |
@@ -258,6 +282,7 @@ jobs:
     uses: ./.github/workflows/javadoc.yml
     with:
       version: ${{ needs.build-and-test.outputs.version-tag }}
+      destination-dir: ${{ needs.build-and-test.outputs.javadoc-destination }}
 
   # Job 4: Create GitHub release (runs in parallel after tagging)
   github-release:
@@ -279,6 +304,7 @@ jobs:
           tag_name: ${{ needs.build-and-test.outputs.version-tag }}
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
+          prerelease: ${{ needs.build-and-test.outputs.prerelease }}
           files: |
             release-assets/project-java.zip
             release-assets/project-kotlin.zip
@@ -286,6 +312,7 @@ jobs:
   # Job 5: Notify fluxzero-site after the SDK release is tagged
   fluxzero-site:
     needs: build-and-test
+    if: needs.build-and-test.outputs.prerelease != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Create fluxzero-site app token
