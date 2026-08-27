@@ -19,6 +19,7 @@ import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.publishing.GenericGateway;
 import io.fluxzero.sdk.test.TestFixture;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -33,7 +34,9 @@ import java.net.InetSocketAddress;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 public class WebRequestForwardingTest {
@@ -94,6 +97,22 @@ public class WebRequestForwardingTest {
                     assertArrayEquals("get".getBytes(UTF_8), ((WebResponse) response).getPayload());
                     return true;
                 });
+    }
+
+    @Test
+    void sendsAbsoluteRequestUsingNativeHttpClient() {
+        DefaultWebRequestGateway gateway = new DefaultWebRequestGateway(
+                mock(GenericGateway.class), new JacksonSerializer());
+        try {
+            WebResponse response = gateway.sendAndWait(
+                    WebRequest.post("http://localhost:%d/object".formatted(port)).body(new Foo("bar")).build(),
+                    WebRequestSettings.builder().useNativeHttpClient(true).build());
+
+            assertEquals(200, response.getStatus());
+            assertEquals("object", new String(response.<byte[]>getPayload(), UTF_8));
+        } finally {
+            gateway.close();
+        }
     }
 
     private static void handleGet(HttpExchange exchange) throws IOException {

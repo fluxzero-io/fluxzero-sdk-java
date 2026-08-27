@@ -29,6 +29,8 @@ class EnvironmentVariablesSourceTest {
                              "fluxzero.tracking.unconfiguredHandlerConsumerMode"));
         assertEquals("FLUXZERO_DEFAULTS_VERSION", EnvironmentVariablesSource.toEnvironmentVariableName(
                 "fluxzero.defaults.version"));
+        assertEquals("FLUXZERO_APPLICATION_VERSION", EnvironmentVariablesSource.toEnvironmentVariableName(
+                "fluxzero.application.version"));
         assertEquals("FLUXZERO_ASSERT_APPLY_COMPATIBILITY", EnvironmentVariablesSource.toEnvironmentVariableName(
                 "fluxzero.assert.apply-compatibility"));
     }

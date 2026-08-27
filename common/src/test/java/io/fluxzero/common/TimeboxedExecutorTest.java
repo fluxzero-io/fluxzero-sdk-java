@@ -17,15 +17,44 @@ package io.fluxzero.common;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TimeboxedExecutorTest {
+
+    @Test
+    void callAndWaitInterruptsAnActiveTaskOnTimeout() throws Exception {
+        CountDownLatch taskStarted = new CountDownLatch(1);
+        CountDownLatch taskRelease = new CountDownLatch(1);
+        CountDownLatch taskInterrupted = new CountDownLatch(1);
+        ExecutorService executor = new StartAwaitingExecutor(taskStarted);
+        try (TimeboxedExecutor timeboxedExecutor = new TimeboxedExecutor(executor)) {
+            assertThrows(TimeoutException.class, () -> timeboxedExecutor.callAndWait(() -> {
+                taskStarted.countDown();
+                try {
+                    taskRelease.await();
+                } catch (InterruptedException e) {
+                    taskInterrupted.countDown();
+                    throw e;
+                }
+                return null;
+            }, Duration.ZERO));
+
+            assertTrue(taskInterrupted.await(1, TimeUnit.SECONDS));
+        }
+    }
 
     @Test
     void callAndWaitManagedBlocksWhenCalledFromForkJoinPool() throws Exception {
@@ -49,6 +78,54 @@ class TimeboxedExecutorTest {
         } finally {
             timeboxedExecutor.close();
             forkJoinPool.shutdownNow();
+        }
+    }
+
+    private static class StartAwaitingExecutor extends AbstractExecutorService {
+        private final CountDownLatch taskStarted;
+        private final ExecutorService delegate =
+                Executors.newSingleThreadExecutor(Thread.ofPlatform().daemon().factory());
+
+        private StartAwaitingExecutor(CountDownLatch taskStarted) {
+            this.taskStarted = taskStarted;
+        }
+
+        @Override
+        public void execute(Runnable command) {
+            delegate.execute(command);
+            try {
+                if (!taskStarted.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("Task did not start");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while awaiting task start", e);
+            }
+        }
+
+        @Override
+        public void shutdown() {
+            delegate.shutdown();
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            return delegate.shutdownNow();
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return delegate.isShutdown();
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return delegate.isTerminated();
+        }
+
+        @Override
+        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+            return delegate.awaitTermination(timeout, unit);
         }
     }
 }

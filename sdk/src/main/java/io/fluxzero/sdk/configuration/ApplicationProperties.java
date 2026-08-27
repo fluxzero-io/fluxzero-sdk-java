@@ -68,6 +68,14 @@ import java.util.function.Supplier;
  * @see DecryptingPropertySource
  */
 public class ApplicationProperties {
+
+    /**
+     * Optional version of the deployed application. When configured, Fluxzero adds the value to the correlation
+     * metadata of every outgoing message under {@code $applicationVersion}. The default environment-variable alias is
+     * {@code FLUXZERO_APPLICATION_VERSION}.
+     */
+    public static final String APPLICATION_VERSION_PROPERTY = "fluxzero.application.version";
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**
@@ -135,6 +143,14 @@ public class ApplicationProperties {
      *         for the system user and {@link java.security.Principal#getName()} for regular users. It resolves
      *         {@code $system} to the system user and other values through {@code getUserById}. Existing applications can
      *         keep serialized user objects with {@code fluxzero.auth.useUserIdMetadata = false}.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.08.26}</td>
+     *         <td>{@code fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN}</td>
+     *         <td>Outbound web requests using {@link io.fluxzero.sdk.web.RedirectPolicy#DEFAULT} only follow
+     *         redirects within the original scheme, host, and effective port. Existing applications can retain normal
+     *         JDK redirects with {@code fluxzero.web.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables
+     *         redirects explicitly.</td>
      *     </tr>
      * </table>
      * <p>

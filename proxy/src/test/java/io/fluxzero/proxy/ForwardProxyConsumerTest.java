@@ -27,7 +27,9 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.BatchProcessingException;
+import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.web.RedirectPolicy;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
 import io.fluxzero.sdk.web.WebResponse;
@@ -36,28 +38,49 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpHeaders;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.sdk.web.HttpRequestMethod.GET;
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @Slf4j
@@ -132,6 +155,18 @@ class ForwardProxyConsumerTest {
     }
 
     @Test
+    void handlerMetricTypeDoesNotContainTheDestination() {
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), new AtomicBoolean());
+        SerializedMessage request = WebRequest.post(
+                        "https://provider.example/api/v1/deliveries/account-123?recipient=user@example.invalid")
+                .body("secret".getBytes()).build().serialize(ForwardProxyConsumer.serializer);
+
+        assertEquals("POST", consumer.formatType(request));
+    }
+
+    @Test
     void getRequestZipped() {
         serverContext.setHandler(exchange -> {
             try (OutputStream outputStream = exchange.getResponseBody()) {
@@ -159,6 +194,176 @@ class ForwardProxyConsumerTest {
     }
 
     @Test
+    void sameOriginRedirectIsFollowedByProxy() {
+        AtomicReference<byte[]> receivedBody = new AtomicReference<>();
+        AtomicReference<String> receivedAuthorization = new AtomicReference<>();
+        serverContext.setHandler(exchange -> {
+            if ("/start".equals(exchange.getRequestURI().getPath())) {
+                exchange.getRequestBody().readAllBytes();
+                exchange.getResponseHeaders().set("Location", "/target");
+                exchange.sendResponseHeaders(307, -1);
+                exchange.close();
+                return;
+            }
+            receivedBody.set(exchange.getRequestBody().readAllBytes());
+            receivedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            exchange.sendResponseHeaders(201, -1);
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port + "/start")
+                        .header("Authorization", "Bearer same-origin")
+                        .body("redirect body").build(),
+                proxySettings(RedirectPolicy.SAME_ORIGIN));
+
+        assertEquals(201, response.getStatus());
+        assertTrue(receivedBody.get().length > 0);
+        assertEquals("Bearer same-origin", receivedAuthorization.get());
+    }
+
+    @Test
+    void neverDoesNotFollowSameOriginRedirectInProxy() {
+        AtomicInteger targetCalls = new AtomicInteger();
+        serverContext.setHandler(exchange -> {
+            if ("/start".equals(exchange.getRequestURI().getPath())) {
+                exchange.getResponseHeaders().set("Location", "/target");
+                exchange.sendResponseHeaders(302, -1);
+            } else {
+                targetCalls.incrementAndGet();
+                exchange.sendResponseHeaders(200, -1);
+            }
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.get("http://localhost:" + port + "/start").build(),
+                proxySettings(RedirectPolicy.NEVER));
+
+        assertEquals(302, response.getStatus());
+        assertEquals(0, targetCalls.get());
+    }
+
+    @Test
+    void redirectPolicySurvivesProxyMessageSerialization() {
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), new AtomicBoolean());
+        WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .redirectPolicy(RedirectPolicy.NEVER).build();
+
+        assertEquals(RedirectPolicy.NEVER,
+                     consumer.getSettings(serializedRequest("redirect-policy", settings)).getRedirectPolicy());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"NEVER, 307", "NEVER, 308", "SAME_ORIGIN, 307", "SAME_ORIGIN, 308"})
+    void restrictedProxyPoliciesDoNotLeakBodyOrAuthorization(
+            RedirectPolicy policy, int status) throws IOException {
+        HttpServer target = startAdditionalServer();
+        AtomicInteger targetCalls = new AtomicInteger();
+        AtomicReference<byte[]> receivedBody = new AtomicReference<>();
+        AtomicReference<String> receivedAuthorization = new AtomicReference<>();
+        target.createContext("/", exchange -> {
+            targetCalls.incrementAndGet();
+            receivedBody.set(exchange.getRequestBody().readAllBytes());
+            receivedAuthorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        serverContext.setHandler(exchange -> {
+            exchange.getResponseHeaders().set(
+                    "Location", "http://localhost:" + target.getAddress().getPort() + "/target");
+            exchange.sendResponseHeaders(status, -1);
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port + "/start")
+                        .header("Authorization", "Bearer must-not-leak")
+                        .body("private body").build(),
+                proxySettings(policy));
+
+        assertEquals(status, response.getStatus());
+        assertEquals(0, targetCalls.get());
+        assertNull(receivedBody.get());
+        assertNull(receivedAuthorization.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"DEFAULT", "ALLOW"})
+    void compatibilityProxyPolicyFollowsCrossOriginRedirect(RedirectPolicy policy) throws IOException {
+        HttpServer target = startAdditionalServer();
+        AtomicInteger targetCalls = new AtomicInteger();
+        target.createContext("/", exchange -> {
+            targetCalls.incrementAndGet();
+            exchange.sendResponseHeaders(202, -1);
+            exchange.close();
+        });
+        serverContext.setHandler(exchange -> {
+            exchange.getResponseHeaders().set(
+                    "Location", "http://localhost:" + target.getAddress().getPort() + "/target");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.get("http://localhost:" + port + "/start").build(), proxySettings(policy));
+
+        assertEquals(202, response.getStatus());
+        assertEquals(1, targetCalls.get());
+    }
+
+    @Test
+    void sameOriginProxyRedirectChainIsBoundedAtFive() {
+        AtomicInteger calls = new AtomicInteger();
+        serverContext.setHandler(exchange -> {
+            calls.incrementAndGet();
+            int current = Integer.parseInt(exchange.getRequestURI().getPath().substring("/chain/".length()));
+            if (current < 6) {
+                exchange.getResponseHeaders().set("Location", "/chain/" + (current + 1));
+                exchange.sendResponseHeaders(302, -1);
+            } else {
+                exchange.sendResponseHeaders(200, -1);
+            }
+            exchange.close();
+        });
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.get("http://localhost:" + port + "/chain/0").build(),
+                proxySettings(RedirectPolicy.SAME_ORIGIN));
+
+        assertEquals(302, response.getStatus());
+        assertEquals(6, calls.get());
+    }
+
+    @Test
+    void proxyRetryRestartsTheOriginalSameOriginRedirectAttempt() {
+        AtomicInteger startCalls = new AtomicInteger();
+        AtomicInteger targetCalls = new AtomicInteger();
+        serverContext.setHandler(exchange -> {
+            if ("/start".equals(exchange.getRequestURI().getPath())) {
+                startCalls.incrementAndGet();
+                exchange.getResponseHeaders().set("Location", "/target");
+                exchange.sendResponseHeaders(307, -1);
+            } else {
+                int targetCall = targetCalls.incrementAndGet();
+                exchange.sendResponseHeaders(targetCall == 1 ? 503 : 200, -1);
+            }
+            exchange.close();
+        });
+        WebRequestSettings settings = proxySettings(RedirectPolicy.SAME_ORIGIN).toBuilder()
+                .maxRetries(1).retryDelay(Duration.ZERO).retryableStatusCodes(Set.of(503)).build();
+
+        WebResponse response = testFixture.getFluxzero().webRequestGateway().sendAndWait(
+                WebRequest.post("http://localhost:" + port + "/start").body("retry body").build(), settings);
+
+        assertEquals(200, response.getStatus());
+        assertEquals(2, startCalls.get());
+        assertEquals(2, targetCalls.get());
+    }
+
+    @Test
     void drainsForwardedResponseOnShutdownWithoutBlockingHandler() throws Exception {
         Client client = mock(Client.class);
         GatewayClient responseGateway = mock(GatewayClient.class);
@@ -179,7 +384,10 @@ class ForwardProxyConsumerTest {
         assertFalse(drain.isDone(), "Shutdown should await runtime storage without blocking normal response handling");
         stored.complete(null);
         drain.get(1, TimeUnit.SECONDS);
-        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+        ArgumentCaptor<SerializedMessage> response = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(responseGateway).append(eq(STORED), response.capture());
+        assertEquals(42, response.getValue().getRequestId());
+        assertEquals("requester", response.getValue().getTarget());
     }
 
     @Test
@@ -196,5 +404,598 @@ class ForwardProxyConsumerTest {
                 BatchProcessingException.class, () -> consumer.accept(List.of(request)));
 
         assertEquals(42L, error.getMessageIndex());
+    }
+
+    @Test
+    void retriesTransportFailuresWithinRequestTimeout() throws Exception {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> httpResponse = mock(HttpResponse.class);
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(httpResponse.statusCode()).thenReturn(200);
+        when(httpResponse.body()).thenReturn("ok".getBytes());
+        when(httpResponse.headers()).thenReturn(HttpHeaders.of(Map.of(), (name, value) -> true));
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.failedFuture(new IOException("first")))
+                .thenReturn(CompletableFuture.failedFuture(new IOException("second")))
+                .thenReturn(CompletableFuture.completedFuture(httpResponse));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean());
+        WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .timeout(Duration.ofSeconds(5)).maxRetries(2).retryDelay(Duration.ZERO).build();
+        WebRequest request = WebRequest.get("https://example.com").metadata(
+                Metadata.of("settings", settings)).build();
+        SerializedMessage serializedRequest = request.serialize(ForwardProxyConsumer.serializer);
+        serializedRequest.setIndex(IndexUtils.indexForCurrentTime());
+        serializedRequest.setRequestId(42);
+        serializedRequest.setSource("requester");
+        WebRequestSettings deserializedSettings = consumer.getSettings(serializedRequest);
+
+        consumer.handle(serializedRequest, URI.create(request.getPath()), deserializedSettings);
+
+        assertEquals(2, deserializedSettings.getMaxRetries());
+        verify(httpClient, times(3)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+    }
+
+    @Test
+    void retriesConfiguredResponseStatusWithinRequestTimeout() throws Exception {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> retryResponse = mock(HttpResponse.class);
+        HttpResponse<byte[]> successResponse = mock(HttpResponse.class);
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(retryResponse.statusCode()).thenReturn(429);
+        when(retryResponse.body()).thenReturn("retry".getBytes());
+        when(retryResponse.headers()).thenReturn(HttpHeaders.of(Map.of(), (name, value) -> true));
+        when(successResponse.statusCode()).thenReturn(200);
+        when(successResponse.body()).thenReturn("ok".getBytes());
+        when(successResponse.headers()).thenReturn(HttpHeaders.of(Map.of(), (name, value) -> true));
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(retryResponse),
+                            CompletableFuture.completedFuture(successResponse));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean());
+        WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .timeout(Duration.ofSeconds(5)).maxRetries(1).retryDelay(Duration.ofMillis(1))
+                .retryableStatusCodes(Set.of(429)).build();
+        WebRequest request = WebRequest.get("https://example.com").metadata(
+                Metadata.of("settings", settings)).build();
+        SerializedMessage serializedRequest = request.serialize(ForwardProxyConsumer.serializer);
+        serializedRequest.setIndex(IndexUtils.indexForCurrentTime());
+        serializedRequest.setRequestId(42);
+        serializedRequest.setSource("requester");
+        WebRequestSettings deserializedSettings = consumer.getSettings(serializedRequest);
+
+        consumer.handle(serializedRequest, URI.create(request.getPath()), deserializedSettings);
+
+        assertEquals(Set.of(429), deserializedSettings.getRetryableStatusCodes());
+        assertEquals(Duration.ofMillis(1), deserializedSettings.getRetryDelay());
+        verify(httpClient, times(2)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+    }
+
+    @Test
+    void expiredRequestIsNotSentAfterTimeoutResponse() {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean());
+        SerializedMessage request = new SerializedMessage(
+                new Data<>(new byte[0], Object.class.getName(), 0), Metadata.empty(), "request", 0L);
+        request.setIndex(0L);
+        request.setRequestId(42);
+        request.setSource("requester");
+
+        consumer.handle(request, URI.create("https://example.com"),
+                        WebRequestSettings.builder().timeout(Duration.ofMillis(1)).build());
+
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+        verifyNoInteractions(httpClient);
+    }
+
+    @Test
+    void boundsConcurrentRequestsAndResumesWhenCapacityBecomesAvailable() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        CompletableFuture<HttpResponse<byte[]>> first = new CompletableFuture<>();
+        CompletableFuture<HttpResponse<byte[]>> second = new CompletableFuture<>();
+        CompletableFuture<HttpResponse<byte[]>> third = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(first, second, third);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(), 2);
+
+        CompletableFuture<Void> batch = runAsync(() -> consumer.accept(List.of(
+                serializedRequest("one", CONSUMER_NAME), serializedRequest("two", CONSUMER_NAME),
+                serializedRequest("three", CONSUMER_NAME))));
+
+        verify(httpClient, timeout(1_000).times(2))
+                .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        assertFalse(batch.isDone());
+        first.complete(response);
+        verify(httpClient, timeout(1_000).times(3))
+                .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        second.complete(response);
+        third.complete(response);
+        batch.get(1, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void serializesExactSegmentAcrossBatchesWithoutBlockingOtherSegments() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        List<String> started = new ArrayList<>();
+        List<CompletableFuture<HttpResponse<byte[]>>> attempts = List.of(
+                new CompletableFuture<>(), new CompletableFuture<>(), new CompletableFuture<>());
+        AtomicInteger attempt = new AtomicInteger();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(invocation -> {
+            synchronized (started) {
+                started.add(invocation.<HttpRequest>getArgument(0).uri().getPath());
+            }
+            return attempts.get(attempt.getAndIncrement());
+        });
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                2, 8, Duration.ZERO);
+        SerializedMessage first = serializedRequest("first", CONSUMER_NAME);
+        first.setSegment(17);
+        SerializedMessage sameSegment = serializedRequest("same-segment", CONSUMER_NAME);
+        sameSegment.setSegment(17);
+        SerializedMessage otherSegment = serializedRequest("other-segment", CONSUMER_NAME);
+        otherSegment.setSegment(23);
+
+        consumer.accept(List.of(first));
+        consumer.accept(List.of(sameSegment, otherSegment));
+
+        verify(httpClient, timeout(1_000).times(2))
+                .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        synchronized (started) {
+            assertEquals(List.of("/first", "/other-segment"), started);
+        }
+        attempts.get(1).complete(response);
+        verify(httpClient, times(2)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        attempts.getFirst().complete(response);
+        verify(httpClient, timeout(1_000).times(3))
+                .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        synchronized (started) {
+            assertEquals(List.of("/first", "/other-segment", "/same-segment"), started);
+        }
+        attempts.get(2).complete(response);
+        consumer.awaitActiveRequests();
+    }
+
+    @Test
+    void softBatchCompletionKeepsLateRequestInGlobalCapacity() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        CompletableFuture<HttpResponse<byte[]>> slow = new CompletableFuture<>();
+        CompletableFuture<HttpResponse<byte[]>> next = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(slow, next);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 4, Duration.ZERO);
+        SerializedMessage first = serializedRequest("slow", CONSUMER_NAME);
+        first.setSegment(1);
+        SerializedMessage second = serializedRequest("next", CONSUMER_NAME);
+        second.setSegment(2);
+
+        consumer.accept(List.of(first));
+        CompletableFuture<Void> nextBatch = runAsync(() -> consumer.accept(List.of(second)));
+
+        verify(httpClient, times(1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        nextBatch.get(1, TimeUnit.SECONDS);
+        verify(httpClient, times(1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        slow.complete(response);
+        verify(httpClient, timeout(1_000).times(2))
+                .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        next.complete(response);
+        consumer.awaitActiveRequests();
+    }
+
+    @Test
+    void outstandingLimitAppliesBackpressureAcrossBatches() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<HttpResponse<byte[]>> firstAttempt = new CompletableFuture<>();
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(firstAttempt, CompletableFuture.completedFuture(response),
+                            CompletableFuture.completedFuture(response));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 2, Duration.ZERO);
+        SerializedMessage first = serializedRequest("first", CONSUMER_NAME);
+        first.setSegment(1);
+        SerializedMessage queued = serializedRequest("queued", CONSUMER_NAME);
+        queued.setSegment(1);
+        SerializedMessage blocked = serializedRequest("blocked", CONSUMER_NAME);
+        blocked.setSegment(2);
+
+        consumer.accept(List.of(first, queued));
+        CompletableFuture<Void> blockedBatch = runAsync(() -> consumer.accept(List.of(blocked)));
+
+        verify(httpClient, times(1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        assertFalse(blockedBatch.isDone(), "The outstanding limit should stop the tracker from checkpointing");
+        firstAttempt.complete(response);
+        blockedBatch.get(1, TimeUnit.SECONDS);
+        consumer.awaitActiveRequests();
+        verify(httpClient, times(3)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
+
+    @Test
+    void malformedRequestResponseRemainsInsideOutstandingBound() throws Exception {
+        Client client = mockForwardingClient();
+        GatewayClient responseGateway = client.getGatewayClient(MessageType.WEBRESPONSE);
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<Void> storedError = new CompletableFuture<>();
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(storedError, CompletableFuture.completedFuture(null));
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(response));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 1, Duration.ZERO);
+        SerializedMessage malformed = serializedRequest("malformed", CONSUMER_NAME);
+        malformed.setMetadata(Metadata.of("settings", WebRequestSettings.builder()
+                .consumer(CONSUMER_NAME).timeout(Duration.ofSeconds(5)).build()));
+        SerializedMessage next = serializedRequest("next", CONSUMER_NAME);
+
+        consumer.accept(List.of(malformed));
+        CompletableFuture<Void> nextBatch = runAsync(() -> consumer.accept(List.of(next)));
+
+        assertFalse(nextBatch.isDone());
+        verifyNoInteractions(httpClient);
+        storedError.complete(null);
+        nextBatch.get(1, TimeUnit.SECONDS);
+        verify(httpClient).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        consumer.awaitActiveRequests();
+    }
+
+    @Test
+    void hardStopRequeuesUnfinishedRequestsInOriginalSegmentOrder() throws Exception {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        GatewayClient requestGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<HttpResponse<byte[]>> activeAttempt = new CompletableFuture<>();
+        CompletableFuture<Void> handoff = new CompletableFuture<>();
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(client.getGatewayClient(MessageType.WEBREQUEST)).thenReturn(requestGateway);
+        when(requestGateway.append(eq(STORED), any(SerializedMessage[].class))).thenReturn(handoff);
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(activeAttempt);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                2, 8, Duration.ZERO);
+        SerializedMessage first = serializedRequest("first", CONSUMER_NAME);
+        first.setSegment(41);
+        SerializedMessage second = serializedRequest("second", CONSUMER_NAME);
+        second.setSegment(41);
+        second.setIndex(first.getIndex() + 1);
+
+        consumer.accept(List.of(first, second));
+        consumer.forceActiveRequests();
+
+        ArgumentCaptor<SerializedMessage[]> requeued = ArgumentCaptor.forClass(SerializedMessage[].class);
+        verify(requestGateway).append(eq(STORED), requeued.capture());
+        assertEquals(List.of(first.getMessageId(), second.getMessageId()),
+                     List.of(requeued.getValue()[0].getMessageId(), requeued.getValue()[1].getMessageId()));
+        for (SerializedMessage request : requeued.getValue()) {
+            assertEquals(41, request.getSegment());
+            assertEquals(null, request.getIndex());
+            assertEquals("requester", request.getSource());
+        }
+        assertTrue(activeAttempt.isCancelled());
+        verifyNoInteractions(responseGateway);
+        handoff.complete(null);
+        consumer.awaitActiveRequests();
+        verify(httpClient).shutdownNow();
+    }
+
+    @Test
+    void hardStopDoesNotRequeueARequestWhoseResponseIsBeingStored() throws Exception {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        GatewayClient requestGateway = mock(GatewayClient.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<Void> storedResponse = new CompletableFuture<>();
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(client.getGatewayClient(MessageType.WEBREQUEST)).thenReturn(requestGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class))).thenReturn(storedResponse);
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(response));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 4, Duration.ZERO);
+
+        consumer.accept(List.of(serializedRequest("publishing", CONSUMER_NAME)));
+        verify(responseGateway).append(eq(STORED), any(SerializedMessage.class));
+        consumer.forceActiveRequests();
+
+        verifyNoInteractions(requestGateway);
+        assertFalse(storedResponse.isCancelled());
+        storedResponse.complete(null);
+        consumer.awaitActiveRequests();
+    }
+
+    @Test
+    void hardStopRejectsCapacityBlockedAdmissionForTrackerRedelivery() throws Exception {
+        Client client = mockForwardingClient();
+        GatewayClient requestGateway = client.getGatewayClient(MessageType.WEBREQUEST);
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<HttpResponse<byte[]>> activeAttempt = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(activeAttempt);
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 1, Duration.ZERO);
+        SerializedMessage admitted = serializedRequest("admitted", CONSUMER_NAME);
+        admitted.setSegment(7);
+        SerializedMessage capacityBlocked = serializedRequest("capacity-blocked", CONSUMER_NAME);
+        capacityBlocked.setSegment(8);
+
+        consumer.accept(List.of(admitted));
+        CompletableFuture<Void> blockedBatch = runAsync(() -> consumer.accept(List.of(capacityBlocked)));
+        assertFalse(blockedBatch.isDone());
+        consumer.forceActiveRequests();
+
+        CompletionException error = assertThrows(CompletionException.class, blockedBatch::join);
+        assertTrue(error.getCause() instanceof BatchProcessingException);
+        ArgumentCaptor<SerializedMessage[]> requeued = ArgumentCaptor.forClass(SerializedMessage[].class);
+        verify(requestGateway).append(eq(STORED), requeued.capture());
+        assertEquals(List.of(admitted.getMessageId()),
+                     List.of(requeued.getValue()[0].getMessageId()));
+        consumer.awaitActiveRequests();
+    }
+
+    @Test
+    void consumersHaveIndependentConcurrentRequestCapacity() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        CompletableFuture<HttpResponse<byte[]>> first = new CompletableFuture<>();
+        CompletableFuture<HttpResponse<byte[]>> second = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(first, second);
+        ForwardProxyConsumer firstConsumer = new ForwardProxyConsumer(
+                client, "first-consumer", 0L, false, false, httpClient, new AtomicBoolean(), 1);
+        ForwardProxyConsumer secondConsumer = new ForwardProxyConsumer(
+                client, "second-consumer", 0L, false, false, httpClient, new AtomicBoolean(), 1);
+
+        CompletableFuture<Void> firstBatch = runAsync(
+                () -> firstConsumer.accept(List.of(serializedRequest("one", "first-consumer"))));
+        CompletableFuture<Void> secondBatch = runAsync(
+                () -> secondConsumer.accept(List.of(serializedRequest("two", "second-consumer"))));
+
+        verify(httpClient, timeout(1_000).times(2))
+                .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        assertFalse(firstBatch.isDone());
+        assertFalse(secondBatch.isDone());
+        first.complete(response);
+        second.complete(response);
+        CompletableFuture.allOf(firstBatch, secondBatch).get(1, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void retryDelayRetainsLogicalRequestCapacityUntilNextAttempt() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        CompletableFuture<Void> retryDelay = new CompletableFuture<>();
+        CompletableFuture<Duration> observedDelay = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.failedFuture(new IOException("retry")))
+                .thenReturn(CompletableFuture.completedFuture(response))
+                .thenReturn(CompletableFuture.completedFuture(response));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(), 1, delay -> {
+            observedDelay.complete(delay);
+            return retryDelay;
+        });
+        WebRequestSettings retrySettings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .timeout(Duration.ofSeconds(5)).maxRetries(1).retryDelay(Duration.ofMillis(250)).build();
+
+        CompletableFuture<Void> batch = runAsync(() -> consumer.accept(List.of(
+                serializedRequest("retrying", retrySettings), serializedRequest("waiting", CONSUMER_NAME))));
+
+        assertEquals(Duration.ofMillis(250), observedDelay.get(1, TimeUnit.SECONDS));
+        verify(httpClient, times(1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        assertFalse(batch.isDone());
+        retryDelay.complete(null);
+        verify(httpClient, timeout(1_000).times(3))
+                .sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        batch.get(1, TimeUnit.SECONDS);
+    }
+
+    @Test
+    void forcedStopCancelsPendingRetryDelayAndDoesNotStartAnotherAttempt() throws Exception {
+        Client client = mockForwardingClient();
+        HttpClient httpClient = mock(HttpClient.class);
+        CompletableFuture<Boolean> retryDelayCancelled = new CompletableFuture<>();
+        CompletableFuture<Void> retryDelay = new CompletableFuture<>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                boolean cancelled = super.cancel(mayInterruptIfRunning);
+                retryDelayCancelled.complete(cancelled);
+                return cancelled;
+            }
+        };
+        CompletableFuture<Duration> observedDelay = new CompletableFuture<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.failedFuture(new IOException("retry")));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(), 1, delay -> {
+            observedDelay.complete(delay);
+            return retryDelay;
+        });
+        WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
+                .timeout(Duration.ofSeconds(5)).maxRetries(1).retryDelay(Duration.ofSeconds(1)).build();
+        CompletableFuture<Void> batch = runAsync(
+                () -> consumer.accept(List.of(serializedRequest("retrying", settings))));
+        assertEquals(Duration.ofSeconds(1), observedDelay.get(1, TimeUnit.SECONDS));
+
+        consumer.forceActiveRequests();
+
+        batch.get(1, TimeUnit.SECONDS);
+        assertTrue(retryDelayCancelled.get(1, TimeUnit.SECONDS));
+        assertTrue(retryDelay.isCancelled());
+        verify(httpClient, times(1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(httpClient).shutdownNow();
+    }
+
+    @Test
+    void trackerUsesOneDefaultSizedBatchIndependentlyOfHttpCapacity() {
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                testFixture.getFluxzero().client(), CONSUMER_NAME, 0L, false, false,
+                mock(HttpClient.class), new AtomicBoolean(), 3);
+
+        ConsumerConfiguration configuration = consumer.consumerConfiguration();
+
+        assertEquals(1, configuration.getThreads());
+        assertEquals(1024, configuration.getMaxFetchSize());
+    }
+
+    @Test
+    @ResourceLock(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY)
+    @ResourceLock(ForwardProxyConsumer.MAX_OUTSTANDING_REQUESTS_PROPERTY)
+    @ResourceLock(ForwardProxyConsumer.BATCH_COMPLETION_GRACE_MILLIS_PROPERTY)
+    void validatesConfiguredForwardRequestCapacityAndBatchGrace() {
+        String previousConcurrent = System.getProperty(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY);
+        String previousOutstanding = System.getProperty(ForwardProxyConsumer.MAX_OUTSTANDING_REQUESTS_PROPERTY);
+        String previousGrace = System.getProperty(ForwardProxyConsumer.BATCH_COMPLETION_GRACE_MILLIS_PROPERTY);
+        try {
+            System.clearProperty(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY);
+            System.clearProperty(ForwardProxyConsumer.MAX_OUTSTANDING_REQUESTS_PROPERTY);
+            System.clearProperty(ForwardProxyConsumer.BATCH_COMPLETION_GRACE_MILLIS_PROPERTY);
+            assertEquals(ForwardProxyConsumer.DEFAULT_MAX_CONCURRENT_REQUESTS,
+                         ForwardProxyConsumer.configuredMaxConcurrentRequests());
+            assertEquals(ForwardProxyConsumer.DEFAULT_MAX_OUTSTANDING_REQUESTS,
+                         ForwardProxyConsumer.configuredMaxOutstandingRequests());
+            assertEquals(ForwardProxyConsumer.DEFAULT_BATCH_COMPLETION_GRACE,
+                         ForwardProxyConsumer.configuredBatchCompletionGrace());
+            System.setProperty(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY, "7");
+            System.setProperty(ForwardProxyConsumer.MAX_OUTSTANDING_REQUESTS_PROPERTY, "9");
+            System.setProperty(ForwardProxyConsumer.BATCH_COMPLETION_GRACE_MILLIS_PROPERTY, "11");
+            assertEquals(7, ForwardProxyConsumer.configuredMaxConcurrentRequests());
+            assertEquals(9, ForwardProxyConsumer.configuredMaxOutstandingRequests());
+            assertEquals(Duration.ofMillis(11), ForwardProxyConsumer.configuredBatchCompletionGrace());
+            System.setProperty(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY, "0");
+            IllegalArgumentException error = assertThrows(
+                    IllegalArgumentException.class, ForwardProxyConsumer::configuredMaxConcurrentRequests);
+            assertTrue(error.getMessage().contains("must be >= 1"));
+
+            System.setProperty(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY, "10");
+            error = assertThrows(IllegalArgumentException.class,
+                                 ForwardProxyConsumer::configuredMaxOutstandingRequests);
+            assertTrue(error.getMessage().contains(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY));
+
+            System.setProperty(ForwardProxyConsumer.BATCH_COMPLETION_GRACE_MILLIS_PROPERTY, "-1");
+            error = assertThrows(IllegalArgumentException.class,
+                                 ForwardProxyConsumer::configuredBatchCompletionGrace);
+            assertTrue(error.getMessage().contains("must be >= 0"));
+        } finally {
+            restoreProperty(ForwardProxyConsumer.MAX_CONCURRENT_REQUESTS_PROPERTY, previousConcurrent);
+            restoreProperty(ForwardProxyConsumer.MAX_OUTSTANDING_REQUESTS_PROPERTY, previousOutstanding);
+            restoreProperty(ForwardProxyConsumer.BATCH_COMPLETION_GRACE_MILLIS_PROPERTY, previousGrace);
+        }
+    }
+
+    private static Client mockForwardingClient() {
+        Client client = mock(Client.class);
+        GatewayClient responseGateway = mock(GatewayClient.class);
+        GatewayClient requestGateway = mock(GatewayClient.class);
+        when(client.id()).thenReturn("client");
+        when(client.name()).thenReturn("proxy");
+        when(client.getGatewayClient(MessageType.WEBRESPONSE)).thenReturn(responseGateway);
+        when(client.getGatewayClient(MessageType.WEBREQUEST)).thenReturn(requestGateway);
+        when(responseGateway.append(eq(STORED), any(SerializedMessage.class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        when(requestGateway.append(eq(STORED), any(SerializedMessage[].class)))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        return client;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static HttpResponse<byte[]> httpResponse(int status, String body) {
+        HttpResponse<byte[]> response = mock(HttpResponse.class);
+        when(response.statusCode()).thenReturn(status);
+        when(response.body()).thenReturn(body.getBytes());
+        when(response.headers()).thenReturn(HttpHeaders.of(Map.of(), (name, value) -> true));
+        return response;
+    }
+
+    private static SerializedMessage serializedRequest(String id, String consumer) {
+        return serializedRequest(id, WebRequestSettings.builder().consumer(consumer)
+                .timeout(Duration.ofSeconds(5)).build());
+    }
+
+    private static SerializedMessage serializedRequest(String id, WebRequestSettings settings) {
+        SerializedMessage request = WebRequest.get("https://example.com/" + id)
+                .metadata(Metadata.of("settings", settings)).build().serialize(ForwardProxyConsumer.serializer);
+        request.setIndex(IndexUtils.indexForCurrentTime());
+        request.setRequestId(id.hashCode());
+        request.setSource("requester");
+        return request;
+    }
+
+    private WebRequestSettings proxySettings(RedirectPolicy redirectPolicy) {
+        return WebRequestSettings.builder()
+                .consumer(CONSUMER_NAME).timeout(Duration.ofSeconds(5))
+                .redirectPolicy(redirectPolicy).build();
+    }
+
+    private HttpServer startAdditionalServer() throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        server.start();
+        registration = registration.merge(() -> server.stop(0));
+        return server;
+    }
+
+    private static void restoreProperty(String name, String value) {
+        if (value == null) {
+            System.clearProperty(name);
+        } else {
+            System.setProperty(name, value);
+        }
+    }
+
+    private static CompletableFuture<Void> runAsync(Runnable task) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Thread.ofVirtual().start(() -> {
+            try {
+                task.run();
+                result.complete(null);
+            } catch (Throwable e) {
+                result.completeExceptionally(e);
+            }
+        });
+        return result;
     }
 }

@@ -302,7 +302,7 @@ jobs:
 
       - name: Install Java and Maven
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false'
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "25"

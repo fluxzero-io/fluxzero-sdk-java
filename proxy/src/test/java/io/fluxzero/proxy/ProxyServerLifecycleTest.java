@@ -305,7 +305,7 @@ class ProxyServerLifecycleTest {
 
     @Test
     @Timeout(20)
-    void shutdownForcesPermanentlyBlockedForwardRequestAfterDeadline() throws Exception {
+    void shutdownRequeuesPermanentlyBlockedForwardRequestAfterDeadline() throws Exception {
         CountDownLatch requestReceived = new CountDownLatch(1);
         CountDownLatch neverReleaseDuringShutdown = new CountDownLatch(1);
         ExecutorService targetExecutor = Executors.newCachedThreadPool();
@@ -317,14 +317,17 @@ class ProxyServerLifecycleTest {
                 neverReleaseDuringShutdown.await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-            } finally {
-                exchange.close();
             }
+            byte[] response = "retried".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response);
+            exchange.close();
         });
         target.start();
 
         Server runtime = null;
         ProxyServer proxyServer = null;
+        ProxyServer restartedProxy = null;
         Fluxzero requester = null;
         String previousFluxzeroProxyPort = System.getProperty("FLUXZERO_PROXY_PORT");
         String previousFluxzeroBaseUrl = System.getProperty("FLUXZERO_BASE_URL");
@@ -351,7 +354,13 @@ class ProxyServerLifecycleTest {
 
             assertTrue(Duration.ofNanos(System.nanoTime() - start).compareTo(Duration.ofSeconds(2)) < 0,
                        "Forced proxy shutdown exceeded its hard-stop allowance");
-            assertEquals(502, response.get(2, TimeUnit.SECONDS).getStatus());
+            assertFalse(response.isDone(), "Hard stop should hand off the request instead of publishing a local 502");
+            neverReleaseDuringShutdown.countDown();
+            restartedProxy = ProxyServer.start();
+            assertEventuallyReady(restartedProxy,
+                                  "http://localhost:" + restartedProxy.getPort()
+                                  + ProxyServer.DEFAULT_READINESS_ENDPOINT);
+            assertEquals(200, response.get(5, TimeUnit.SECONDS).getStatus());
         } finally {
             neverReleaseDuringShutdown.countDown();
             if (requester != null) {
@@ -359,6 +368,9 @@ class ProxyServerLifecycleTest {
             }
             if (proxyServer != null) {
                 proxyServer.cancel();
+            }
+            if (restartedProxy != null) {
+                restartedProxy.cancel();
             }
             if (runtime != null) {
                 runtime.stop();

@@ -18,12 +18,14 @@ package io.fluxzero.sdk.publishing.correlation;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
@@ -38,10 +40,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static io.fluxzero.sdk.configuration.ApplicationProperties.APPLICATION_VERSION_PROPERTY;
 import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.METADATA_KEY;
 import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.NAMESPACE_METADATA_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -93,6 +97,50 @@ class CorrelationDataProviderTest {
                 .expectEvents(command.addMetadata("foo", "bar", "msgId", command.getMessageId(),
                                                   defaultProvider.getCorrelationIdKey(), command.getMessageId()))
                 .<Message>expectEvent(m -> m.getMetadata().containsKey(defaultProvider.getDelayKey()));
+    }
+
+    @Test
+    void configuredApplicationVersionIsAvailableThroughEveryCorrelationDataPath() {
+        var builder = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        APPLICATION_VERSION_PROPERTY, " 1.2.3 ")))
+                .replaceCorrelationDataProvider(ignored -> testProvider);
+
+        try (Fluxzero fluxzero = builder.build(LocalClient.newInstance())) {
+            CorrelationDataProvider provider = fluxzero.correlationDataProvider();
+            for (MessageType messageType : MessageType.values()) {
+                Map<String, String> correlationData = provider.getCorrelationData(
+                        fluxzero.client(), null, messageType);
+                assertEquals("1.2.3", correlationData.get(provider.getApplicationVersionKey()));
+                assertEquals("bar", correlationData.get("foo"));
+            }
+            assertEquals("1.2.3", provider.getCorrelationData((DeserializingMessage) null)
+                    .get(provider.getApplicationVersionKey()));
+            assertEquals("1.2.3", fluxzero.configuration().correlationDataProvider()
+                    .getCorrelationData((DeserializingMessage) null).get(provider.getApplicationVersionKey()));
+        }
+    }
+
+    @Test
+    void configuredApplicationVersionIsAuthoritativeOnPublishedMessages() {
+        String metadataKey = defaultProvider.getApplicationVersionKey();
+        var command = new Message("bla").addMetadata(metadataKey, "caller-supplied");
+        var builder = DefaultFluxzero.builder().replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                APPLICATION_VERSION_PROPERTY, "1.2.3")));
+
+        TestFixture.create(builder, new CommandHandler())
+                .whenExecuting(fc -> fc.commandGateway().sendAndForget(command))
+                .expectCommands((Predicate<Message>) message ->
+                        "1.2.3".equals(message.getMetadata().get(metadataKey)))
+                .<Message>expectEvent(message -> "1.2.3".equals(message.getMetadata().get(metadataKey)));
+    }
+
+    @Test
+    void absentOrBlankApplicationVersionDoesNotDecorateCorrelationData() {
+        assertSame(testProvider, ApplicationVersionCorrelationDataProvider.decorate(
+                testProvider, new SimplePropertySource(Map.of())));
+        assertSame(testProvider, ApplicationVersionCorrelationDataProvider.decorate(
+                testProvider, new SimplePropertySource(Map.of(APPLICATION_VERSION_PROPERTY, " \t "))));
     }
 
     @Test

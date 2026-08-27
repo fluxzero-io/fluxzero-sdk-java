@@ -1677,7 +1677,7 @@ Fluxzero.schedulePeriodic(new PollExternalApi());
 
 ### Web Requests
 
-Send an outbound HTTP call via the proxy mechanism in Fluxzero Runtime:
+Send an outbound HTTP call via the default proxy mechanism in Fluxzero Runtime:
 
 [//]: # (@formatter:off)
 ```java
@@ -2932,7 +2932,7 @@ This keeps tests expressive and avoids boilerplate, especially for flows that in
 
 Fluxzero provides a unified API for sending HTTP requests through the `WebRequestGateway`.
 
-Unlike traditional HTTP clients, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
+By default, Flux logs outbound requests as `WebRequest` messages. These are then handled by:
 
 - A **local handler** that tracks requests if the URL is **relative**, or
 - A **connected remote client or proxy**, if the URL is **absolute**.
@@ -2950,7 +2950,8 @@ WebResponse response = Fluxzero.get()
 String body = response.getBodyString();
 ```
 
-> ✅ All outbound traffic is logged and traceable in the Fluxzero Runtime.
+> ✅ Proxy-routed outbound traffic is logged and traceable in the Fluxzero Runtime. Opt-in native HTTP calls bypass
+> Fluxzero message logging.
 
 ### Asynchronous and Fire-and-Forget
 
@@ -2978,7 +2979,8 @@ Fluxzero.get().webRequestGateway()
 
 Flux supports both local and remote handling:
 
-- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Flux **Web Proxy** and executed externally.
+- **Absolute URLs** (e.g., `https://...`): The request is forwarded via the Flux **Web Proxy** by default, or executed
+  directly when native HTTP execution is enabled.
 - **Relative URLs** (e.g., `/internal/doSomething`): The request is routed to a handler within another connected Flux
   application.
 
@@ -3000,6 +3002,84 @@ When set, the Flux Web Proxy will isolate this request in its own internal proce
 - Want to isolate third-party integrations (e.g., API rate limits)
 - Need different retry or error handling strategies per destination
 - Want fault isolation between outgoing endpoints
+
+The proxy keeps one tracker per named consumer, while all trackers feed one bounded asynchronous request scheduler.
+Requests with the exact same message segment are always handled serially, including response storage; ready requests
+from other segments share up to eight active logical-request slots by default. A logical request keeps its slot through
+all HTTP attempts, retry delays, and durable response publication.
+
+Each tracking batch gets a 250 ms best-case completion window. When that window expires, the tracker may checkpoint the
+batch and fetch the next default-sized batch while late requests continue in memory. The scheduler admits at most 1024
+outstanding requests in total by default, including active and segment-queued requests. Reaching that bound blocks
+further batch admission and therefore provides durable-log backpressure. These limits can be tuned with:
+
+- `FLUXZERO_PROXY_FORWARD_MAX_CONCURRENT_REQUESTS` (default `8`)
+- `FLUXZERO_PROXY_FORWARD_MAX_OUTSTANDING_REQUESTS` (default `1024`, at least the concurrent limit)
+- `FLUXZERO_PROXY_FORWARD_BATCH_COMPLETION_GRACE_MILLIS` (default `250`, non-negative)
+
+Higher values can increase outbound connection, memory, and destination load. During normal shutdown, the proxy first
+waits for outstanding requests and stored responses. If the configured proxy shutdown deadline expires, requests that
+are still queued or executing HTTP are cancelled best effort and appended at the end of the durable WebRequest log in
+their original log order. Requests whose response is already being stored are not re-executed. A hard process crash can
+still leave the outcome of already checkpointed in-memory work ambiguous, so request senders remain responsible for
+their own timeout and retry policy.
+
+### Native HTTP execution and retries
+
+For calls that should leave the application directly instead of passing through the Fluxzero proxy, opt into the SDK's
+native HTTP client. You can independently configure retry behavior for both native and proxy execution:
+
+```java
+WebRequestSettings settings = WebRequestSettings.builder()
+        .useNativeHttpClient(true)
+        .redirectPolicy(RedirectPolicy.SAME_ORIGIN)
+        .maxRetries(2)
+        .retryDelay(Duration.ofMillis(250))
+        .retryableStatusCodes(Set.of(502, 503, 504))
+        .timeout(Duration.ofSeconds(10))
+        .build();
+
+WebResponse response = Fluxzero.get().webRequestGateway().sendAndWait(request, settings);
+```
+
+`maxRetries` is the number of additional attempts after a transport failure or a configured response status. Transport
+failures include problems such as a failed connection, reset connection, or request timeout. The default retryable
+statuses are 500, 502, 503, and 504; override `retryableStatusCodes` for a destination-specific selection, or use an
+empty set to retry transport failures only. `retryDelay` adds a fixed wait before each additional attempt. The delay and
+all attempts share the configured `timeout`; a retry is skipped when its delay no longer fits before the deadline.
+Native execution requires an absolute HTTP(S) URL and bypasses Fluxzero message logging, local web handlers, dispatch
+interceptors, and consumer isolation. Cancelling the future returned by `send` also cancels the active native HTTP call
+or pending retry delay on a best-effort basis. A failure or response may occur after the destination accepted a request,
+so only retry non-idempotent calls when that destination provides deduplication. The proxy route and zero retries remain
+the defaults; when retries are enabled, `retryDelay` defaults to one second.
+
+Outbound redirects are configured with `redirectPolicy`. `NEVER` returns the redirect response without following it;
+`SAME_ORIGIN` follows at most five redirects and only when scheme, host, and effective port equal the original request.
+That origin check happens before a 307/308 body or any request header, including `Authorization`, is reused. `ALLOW`
+uses `HttpClient.Redirect.NORMAL`, including its refusal to follow HTTPS-to-HTTP redirects. `DEFAULT` keeps `ALLOW` in
+compatibility mode and resolves to `SAME_ORIGIN` when `fluxzero.defaults.version >= 2026.08.26`. An explicit setting on
+the request always wins. The application-wide default can also be selected independently with
+`fluxzero.web.defaultRedirectPolicy=NEVER|SAME_ORIGIN|ALLOW`. The SDK resolves `DEFAULT` before a proxied
+request is published, so direct native and proxy-routed requests enforce the same concrete policy.
+
+When Fluxzero transport metrics are globally enabled, every native logical request emits a
+`NativeWebRequestMetric`. It contains the HTTP method, normalized lowercase scheme and hostname of the original logical
+request, its effective port and raw path without query or fragment, final status or a safe error category, total
+duration, attempt count, cancellation state, and whether a redirect was rejected. The original raw query is attached
+separately as `$webRequestQuery` metadata, without a leading `?` and without decoding or reordering it. The metric
+payload never contains the query, and neither transport copies URI user information, the fragment, headers, body, or
+exception messages into its outbound transport fields. The proxy keeps its existing handler metric unchanged: its
+request type contains only the HTTP method, without destination or query metadata. Proxy-routed requests remain
+available in the WebRequest message log.
+
+Paths and queries can contain sensitive or high-cardinality values. A native metric passes through application metric
+dispatch interceptors, which may remove or redact `$webRequestQuery`. Applications that need different observability
+or transport controls can use a dedicated HTTP client.
+
+The native path is a convenient SDK transport option, not a complete security-oriented HTTP client. It deliberately
+does not expose a configurable connect timeout, HTTPS enforcement or origin allowlists, streaming response limits, or
+the broader policy surface of a dedicated client. Applications with stricter transport requirements should use their
+own HTTP client directly.
 
 ### Mocking External Endpoints in Tests
 
@@ -3031,14 +3111,17 @@ You can match requests by:
 - Headers, body, or any other property
 
 > ✅ This gives you **full end-to-end test coverage**, even when integrating with external APIs.
+> `TestFixture` deliberately ignores native HTTP transport selection so these mocks also handle requests configured
+> with `useNativeHttpClient(true)`. It also ignores the native redirect policy rather than simulating redirects. Retry
+> counts and retryable statuses still apply, but fixture retries do not wait for the configured `retryDelay`.
 
 ---
 
 ### Summary
 
 - ✅ Use `WebRequest` for centralized, traceable outbound HTTP calls.
-- ✅ Automatically routes to a proxy or local handler depending on URL.
-- ✅ Supports timeouts, consumers, and structured request settings.
+- ✅ Routes through the proxy or a local handler by default, with opt-in native HTTP execution.
+- ✅ Supports timeouts, consumers, and bounded transport retries.
 - ✅ Easily mock remote endpoints for testing full business flows.
 
 ---
@@ -5580,6 +5663,21 @@ example, `FLUXZERO_AUTH_OIDC_LOGIN_STATE_SECRET` can be resolved with
 `ApplicationProperties.getProperty("fluxzero.auth.oidc.login-state-secret")`. When both forms occur in the same source,
 the exact property name takes priority.
 
+### Application Version Correlation
+
+Set `fluxzero.application.version` to identify the deployed application version. Its conventional environment-variable
+alias is `FLUXZERO_APPLICATION_VERSION`:
+
+```bash
+export FLUXZERO_APPLICATION_VERSION=1.2.3
+```
+
+When the value is present and non-blank, Fluxzero adds authoritative `$applicationVersion` correlation metadata to
+every outgoing message. The configured value replaces any caller-supplied entry with the same key and is also retained
+when a custom `CorrelationDataProvider` is configured. Applications that omit the property keep their existing
+correlation behavior without the extra entry. Calling `disableMessageCorrelation()` disables this metadata together
+with the other automatic correlation fields.
+
 ### Example Usage
 
 ```java
@@ -5600,17 +5698,20 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
+| `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 
 For example:
 
 ```properties
-fluxzero.defaults.version=2026.08.04
+fluxzero.defaults.version=2026.08.26
 ```
 
-This enables the user-ID metadata and package-scoped consumer defaults plus all earlier versioned defaults. To choose
-one behavior explicitly without changing the defaults version, set the dedicated property directly. Existing
-applications that omit `fluxzero.defaults.version` retain the original shared application consumer, immediate implicit
-periodic start and serialized user-object metadata.
+This enables package-scoped consumer defaults, natural periodic initial delays, user-ID metadata and same-origin
+redirects plus all earlier versioned defaults. To choose one behavior explicitly without changing the defaults version,
+set the dedicated property directly. Existing applications that omit `fluxzero.defaults.version` keep compatibility
+behavior: unconfigured handlers share the application default consumer, implicit
+`@Periodic(initialDelay = -1)` is treated as an immediate first run, user metadata contains serialized users, and
+native outbound requests allow normal JDK redirects.
 
 ### Encrypted Values
 
@@ -6013,7 +6114,7 @@ These methods disable internal features as needed:
 |--------------------------------------|--------------------------------------------------------------------|
 | `disableErrorReporting()`            | Suppresses error publishing to `ErrorGateway`                      |
 | `disableShutdownHook()`              | Prevents the JVM shutdown hook                                     |
-| `disableMessageCorrelation()`        | Skips automatic correlation ID injection                           |
+| `disableMessageCorrelation()`        | Skips automatic correlation metadata, including application version |
 | `disablePayloadValidation()`         | Turns off payload type validation                                  |
 | `disableDataProtection()`            | Disables `@ProtectData` and `@DropProtectedData` filtering         |
 | `disableAutomaticAggregateCaching()` | Legacy 1.x: skips aggregate cache setup                            |

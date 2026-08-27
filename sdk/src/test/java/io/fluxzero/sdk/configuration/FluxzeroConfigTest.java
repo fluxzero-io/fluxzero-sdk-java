@@ -21,6 +21,7 @@ import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.ModelConflictResolver;
@@ -40,8 +41,10 @@ import static io.fluxzero.common.MessageType.WEBREQUEST;
 import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.ASYNC;
 import static io.fluxzero.sdk.tracking.ConsumerHandlingMode.SYNC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class FluxzeroConfigTest {
 
@@ -123,6 +126,22 @@ public class FluxzeroConfigTest {
                 GraphProjectionCompletion.ASYNC);
         assertEquals(GraphProjectionCompletion.ASYNC,
                      builder.configuredGraphProjectionCompletion());
+    }
+
+    @Test
+    void globalWebSocketMetricSettingControlsAutomaticClientMetrics() {
+        WebSocketClient enabled = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                                                                      .name("enabled")
+                                                                      .runtimeBaseUrl("ws://localhost")
+                                                                      .build());
+        WebSocketClient disabled = WebSocketClient.newInstance(WebSocketClient.ClientConfig.builder()
+                                                                       .name("disabled")
+                                                                       .runtimeBaseUrl("ws://localhost")
+                                                                       .disableMetrics(true)
+                                                                       .build());
+
+        assertTrue(DefaultFluxzero.Builder.clientMetricsEnabled(enabled));
+        assertFalse(DefaultFluxzero.Builder.clientMetricsEnabled(disabled));
     }
 
     @Test

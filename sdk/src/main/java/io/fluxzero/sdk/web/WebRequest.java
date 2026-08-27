@@ -76,8 +76,9 @@ import static io.fluxzero.common.api.Data.JSON_FORMAT;
  *     .build();
  * }</pre>
  *
- * <p>Outbound requests with an absolute URL that are dispatched using the {@link WebRequestGateway} will be forwarded
- * by the proxy in Fluxzero Runtime.
+ * <p>Outbound requests with an absolute URL that are dispatched using the {@link WebRequestGateway} are forwarded by
+ * the proxy in Fluxzero Runtime by default, or can be executed by the SDK's native HTTP client through
+ * {@link WebRequestSettings}.
  *
  * @see WebResponse
  * @see HandleWeb
@@ -88,6 +89,12 @@ import static io.fluxzero.common.api.Data.JSON_FORMAT;
 public class WebRequest extends Message {
 
     public static final String urlKey = "url", methodKey = "method", headersKey = "headers", sessionIdKey = "sessionId";
+
+    /**
+     * Metadata key containing the original raw query, without a leading {@code ?}, on outbound WebRequest metrics.
+     * The value remains encoded and ordered exactly as supplied in the request URI.
+     */
+    public static final String queryMetricKey = "$webRequestQuery";
     private static final int MAX_LOGGED_PATH_LENGTH = 512;
 
     /**

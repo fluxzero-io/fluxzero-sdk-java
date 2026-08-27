@@ -36,7 +36,7 @@ import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionIntercepto
  * from the currently handled message and runtime environment.
  * It collects metadata such as:
  * <ul>
- *   <li>Application ID and client identifiers</li>
+ *   <li>Application ID, deployed application version, and client identifiers</li>
  *   <li>Consumer/tracker information (if running inside a {@link io.fluxzero.sdk.tracking.Tracker})</li>
  *   <li>Invocation ID (if within a tracked {@link io.fluxzero.sdk.tracking.handling.Invocation})</li>
  *   <li>Correlation ID and trace ID</li>
@@ -57,6 +57,7 @@ import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionIntercepto
  * }</pre>
  * The published event will automatically contain metadata such as:
  * <ul>
+ *   <li>{@code $applicationVersion}, when configured</li>
  *   <li>{@code $correlationId}</li>
  *   <li>{@code $traceId}</li>
  *   <li>{@code $trigger}</li>
@@ -104,15 +105,17 @@ public class CorrelatingInterceptor implements DispatchInterceptor {
 
             @Override
             public boolean prepare(io.fluxzero.sdk.tracking.handling.LocalExecution execution) {
-                if (Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider)
-                        .orElse(DefaultCorrelationDataProvider.INSTANCE) != DefaultCorrelationDataProvider.INSTANCE) {
+                CorrelationDataProvider provider = Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider)
+                        .orElse(DefaultCorrelationDataProvider.INSTANCE);
+                if (provider != DefaultCorrelationDataProvider.INSTANCE
+                    && !(provider instanceof ApplicationVersionCorrelationDataProvider applicationVersionProvider
+                         && applicationVersionProvider.decoratesDefaultProvider())) {
                     return false;
                 }
                 if (correlationMetadata == null) {
                     synchronized (this) {
                         if (correlationMetadata == null) {
-                            correlationMetadata = DefaultCorrelationDataProvider.INSTANCE
-                                    .getCorrelationMetadata(null);
+                            correlationMetadata = Metadata.of(provider.getCorrelationData((DeserializingMessage) null));
                         }
                     }
                 }
