@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import {execFileSync} from 'node:child_process';
-import {appendFileSync} from 'node:fs';
+import {appendFileSync, mkdirSync, writeFileSync} from 'node:fs';
+import {dirname} from 'node:path';
 
 const defaultSections = new Map([
   ['feat', 'Features'],
@@ -64,9 +65,24 @@ const customSections = parseCustomReleaseRules(process.env.CUSTOM_RELEASE_RULES)
 
 const commits = readCommits(previousTag, currentRef);
 const releaseDate = readCommitDate(currentRef);
-const releaseNotes = renderReleaseNotes(commits, releaseVersion, releaseTag, previousTag, releaseDate);
+const maxCharacters = parsePositiveInteger(process.env.RELEASE_NOTES_MAX_CHARACTERS, 120_000);
+let releaseNotes = renderReleaseNotes(commits, releaseVersion, releaseTag, previousTag, releaseDate, true);
 
-if (process.env.GITHUB_OUTPUT) {
+if (releaseNotes.length > maxCharacters) {
+  releaseNotes = renderReleaseNotes(commits, releaseVersion, releaseTag, previousTag, releaseDate, false);
+}
+if (releaseNotes.length > maxCharacters) {
+  releaseNotes = renderReleaseSummary(commits, releaseVersion, releaseTag, previousTag, releaseDate);
+}
+if (releaseNotes.length > maxCharacters) {
+  throw new Error(`Release notes contain ${releaseNotes.length} characters; maximum is ${maxCharacters}`);
+}
+
+const releaseNotesPath = normalize(process.env.RELEASE_NOTES_PATH);
+if (releaseNotesPath) {
+  mkdirSync(dirname(releaseNotesPath), {recursive: true});
+  writeFileSync(releaseNotesPath, `${releaseNotes}\n`);
+} else if (process.env.GITHUB_OUTPUT) {
   const delimiter = `release_notes_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   appendFileSync(process.env.GITHUB_OUTPUT, `body<<${delimiter}\n${releaseNotes}\n${delimiter}\n`);
 } else {
@@ -94,6 +110,18 @@ function parseBoolean(value, defaultValue) {
     return defaultValue;
   }
   return ['1', 'true', 'yes', 'y'].includes(normalized);
+}
+
+function parsePositiveInteger(value, defaultValue) {
+  const normalized = normalize(value);
+  if (!normalized) {
+    return defaultValue;
+  }
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || String(parsed) !== normalized) {
+    throw new Error(`Expected a positive integer, got '${value}'`);
+  }
+  return parsed;
 }
 
 function parseCustomReleaseRules(rules) {
@@ -158,7 +186,7 @@ function readCommitDate(ref) {
   return git(['log', '-1', '--format=%cs', ref]).trim();
 }
 
-function renderReleaseNotes(commits, version, tag, baseTag, date) {
+function renderReleaseNotes(commits, version, tag, baseTag, date, includeCommitBodies) {
   const lines = [];
   const compareUrl = baseTag
     ? `${repositoryUrl}/compare/${encodeURIComponent(baseTag)}...${encodeURIComponent(tag)}`
@@ -172,6 +200,11 @@ function renderReleaseNotes(commits, version, tag, baseTag, date) {
     return lines.join('\n');
   }
 
+  if (!includeCommitBodies) {
+    lines.push(`This release spans ${commits.length} commits. Commit bodies are omitted to keep these notes within GitHub's release limit; the comparison link above contains the complete history.`);
+    lines.push('');
+  }
+
   const grouped = groupCommitsBySection(commits);
   for (const section of sortedSections(grouped)) {
     lines.push(`### ${section}`);
@@ -179,7 +212,7 @@ function renderReleaseNotes(commits, version, tag, baseTag, date) {
     lines.push('<ul>');
 
     for (const commit of grouped.get(section)) {
-      lines.push(renderCommit(commit));
+      lines.push(renderCommit(commit, includeCommitBodies));
     }
 
     lines.push('</ul>');
@@ -187,6 +220,23 @@ function renderReleaseNotes(commits, version, tag, baseTag, date) {
   }
 
   return lines.join('\n').trimEnd();
+}
+
+function renderReleaseSummary(commits, version, tag, baseTag, date) {
+  const compareUrl = baseTag
+    ? `${repositoryUrl}/compare/${encodeURIComponent(baseTag)}...${encodeURIComponent(tag)}`
+    : `${repositoryUrl}/releases/tag/${encodeURIComponent(tag)}`;
+  const lines = [
+    `## [${version}](${compareUrl}) (${date})`,
+    '',
+    `This release spans ${commits.length} commits. Individual commits are omitted to keep these notes within GitHub's release limit; the comparison link above contains the complete history.`,
+    '',
+  ];
+  const grouped = groupCommitsBySection(commits);
+  for (const section of sortedSections(grouped)) {
+    lines.push(`- ${section}: ${grouped.get(section).length} commits`);
+  }
+  return lines.join('\n');
 }
 
 function groupCommitsBySection(commits) {
@@ -228,12 +278,12 @@ function sortedSections(grouped) {
   });
 }
 
-function renderCommit(commit) {
+function renderCommit(commit, includeBody) {
   const shortSha = commit.sha.slice(0, 7);
   const commitUrl = `${repositoryUrl}/commit/${commit.sha}`;
   const summary = renderCommitSummary(commit.subject, commitUrl, shortSha);
 
-  if (!commit.body) {
+  if (!includeBody || !commit.body) {
     return `<li>${summary}</li>`;
   }
 

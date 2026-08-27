@@ -30,7 +30,6 @@ jobs:
     outputs:
       version: ${{ steps.tag_version.outputs.new_version }}
       version-tag: ${{ steps.tag_version.outputs.new_tag }}
-      version-changelog: ${{ steps.release_notes.outputs.body }}
       prerelease: ${{ steps.release_version.outputs.prerelease }}
       javadoc-destination: ${{ steps.release_version.outputs.javadoc_destination }}
       package-channel-tag: ${{ steps.release_version.outputs.package_channel_tag }}
@@ -113,6 +112,7 @@ jobs:
           PREVIOUS_TAG: ${{ steps.existing_tag.outputs.previous_tag || steps.tag_version.outputs.previous_tag }}
           CURRENT_REF: ${{ github.sha }}
           CUSTOM_RELEASE_RULES: "deps:patch:Dependency updates"
+          RELEASE_NOTES_PATH: target/release-notes.md
 
       - name: Set maven version
         run: |
@@ -191,6 +191,7 @@ jobs:
           path: |
             target/project-java.zip
             target/project-kotlin.zip
+            target/release-notes.md
           retention-days: 1
 
   repair-main-ci:
@@ -303,7 +304,7 @@ jobs:
         with:
           tag_name: ${{ needs.build-and-test.outputs.version-tag }}
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
-          body: ${{ needs.build-and-test.outputs.version-changelog }}
+          body_path: release-assets/release-notes.md
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
           files: |
             release-assets/project-java.zip
