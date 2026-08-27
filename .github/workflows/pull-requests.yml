@@ -14,6 +14,15 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v7
 
+      - name: Verify repository normalization
+        run: |
+          git add --renormalize .
+          if ! git diff --cached --quiet; then
+            git diff --cached --stat
+            echo "::error::Tracked files are not normalized according to .gitattributes"
+            exit 1
+          fi
+
       - name: Install Java and Maven
         uses: actions/setup-java@v6
         with:
