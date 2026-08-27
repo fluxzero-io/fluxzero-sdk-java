@@ -1067,7 +1067,7 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     private void publishGivenEvent(Message event) {
-        if (hasModelHandlerMethods(event.getPayloadClass())) {
+        if (hasDirectModelApply(event.getPayloadClass())) {
             getDispatchResult(getFluxzero().executeStoredModelEvent(event));
         }
         getFluxzero().eventGateway().publish(event);
@@ -2048,17 +2048,24 @@ public class TestFixture implements Given<TestFixture>, When {
         }
         Class<?> payloadClass = message.getPayloadClass();
         boolean automaticHandler = ClientUtils.isSelfTracking(payloadClass)
-                                   || hasModelHandlerMethods(payloadClass);
+                                   || hasAutomaticModelHandler(payloadClass);
         if (automaticHandler && matchesTrackSelfConditions(payloadClass)
             && registeredAutomaticHandlers.add(payloadClass)) {
             registration = registration.merge(fluxzero.registerHandlers(payloadClass));
         }
     }
 
-    private static boolean hasModelHandlerMethods(Class<?> payloadClass) {
+    private static boolean hasDirectModelApply(Class<?> payloadClass) {
         return EntityMetadata.of(payloadClass).handlerMethods().stream()
                 .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY
                                      && !handler.targetModelTypes().isEmpty());
+    }
+
+    private static boolean hasAutomaticModelHandler(Class<?> payloadClass) {
+        return EntityMetadata.of(payloadClass).handlerMethods().stream()
+                .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY
+                                     || handler.kind() == EntityMetadata.HandlerKind.APPLY
+                                        && !handler.targetModelTypes().isEmpty());
     }
 
     private boolean matchesTrackSelfConditions(Class<?> payloadClass) {

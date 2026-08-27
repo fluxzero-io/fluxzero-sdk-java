@@ -143,6 +143,14 @@ class TestFixtureModelApiTest {
     }
 
     @Test
+    @Timeout(2)
+    void asynchronousFixturesAutomaticallyRegisterInterceptOnlyModelCommands() {
+        TestFixture.createAsync()
+                .whenCommand(new InterceptedCreateModel("model-1"))
+                .expectOnlyEvents(new CreateModel("model-1"));
+    }
+
+    @Test
     void givenEventsUpdateTheSameUncachedDocumentModelSynchronously() {
         TestFixture.create()
                 .givenEvents(new UpdateUncachedDocument("document-1", 1),
@@ -263,6 +271,13 @@ class TestFixtureModelApiTest {
         @Apply
         FixtureModel apply() {
             return new FixtureModel(id);
+        }
+    }
+
+    private record InterceptedCreateModel(String id) {
+        @InterceptApply
+        CreateModel intercept() {
+            return new CreateModel(id);
         }
     }
 
