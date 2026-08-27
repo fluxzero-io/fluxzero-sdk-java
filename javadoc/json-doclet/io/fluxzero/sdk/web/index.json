@@ -265,6 +265,16 @@
     "qualifiedName" : "io.fluxzero.sdk.web.LocalServerConfig",
     "kind" : "class"
   }, {
+    "file" : "NativeWebRequestMetric.json",
+    "name" : "NativeWebRequestMetric",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric",
+    "kind" : "class"
+  }, {
+    "file" : "NativeWebRequestMetric.ErrorCategory.json",
+    "name" : "NativeWebRequestMetric.ErrorCategory",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory",
+    "kind" : "enum"
+  }, {
     "file" : "OpenApiDocumentEndpoint.json",
     "name" : "OpenApiDocumentEndpoint",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint",
@@ -424,6 +434,11 @@
     "name" : "QueryParam",
     "qualifiedName" : "io.fluxzero.sdk.web.QueryParam",
     "kind" : "annotation_type"
+  }, {
+    "file" : "RedirectPolicy.json",
+    "name" : "RedirectPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy",
+    "kind" : "enum"
   }, {
     "file" : "ServeStatic.json",
     "name" : "ServeStatic",

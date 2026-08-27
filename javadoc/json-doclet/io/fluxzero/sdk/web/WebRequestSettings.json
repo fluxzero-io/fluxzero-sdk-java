@@ -54,6 +54,20 @@
     "documentation" : " Maximum number of additional attempts after a transport failure or a response whose status occurs in\n {@link #retryableStatusCodes}. Retries share the configured {@link #timeout}. Values below zero are treated as\n zero. A failure or response can occur after the remote server accepted a request, so retry non-idempotent calls\n only when the destination provides suitable deduplication.\n",
     "constantValue" : null
   }, {
+    "name" : "redirectPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.redirectPolicy",
+    "type" : "io.fluxzero.sdk.web.@lombok.NonNull RedirectPolicy",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Redirect policy for native HTTP execution. {@link RedirectPolicy#DEFAULT} preserves normal JDK redirects in\n compatibility mode and resolves to {@link RedirectPolicy#SAME_ORIGIN} for applications that opt into the\n corresponding versioned default. Same-origin execution verifies scheme, host, and effective port before reusing\n a request body or authorization header and follows at most five redirects. The same policy is enforced for\n direct native and proxy-routed requests; fixture-handled requests ignore it.\n",
+    "constantValue" : null
+  }, {
     "name" : "retryDelay",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequestSettings.retryDelay",
     "type" : "java.time.@lombok.NonNull Duration",

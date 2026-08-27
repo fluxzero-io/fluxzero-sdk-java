@@ -96,6 +96,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "queryMetricKey",
+    "qualifiedName" : "io.fluxzero.sdk.web.WebRequest.queryMetricKey",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Metadata key containing the original raw query, without a leading {@code ?}, on outbound WebRequest metrics.\n The value remains encoded and ordered exactly as supplied in the request URI.\n",
+    "constantValue" : "$webRequestQuery"
+  }, {
     "name" : "sessionIdKey",
     "qualifiedName" : "io.fluxzero.sdk.web.WebRequest.sessionIdKey",
     "type" : "java.lang.String",

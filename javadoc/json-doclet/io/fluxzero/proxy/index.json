@@ -20,9 +20,19 @@
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture",
     "kind" : "class"
   }, {
+    "file" : "ForwardProxyConsumer.HttpOutcome.json",
+    "name" : "ForwardProxyConsumer.HttpOutcome",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome",
+    "kind" : "record"
+  }, {
     "file" : "ForwardProxyConsumer.Lifecycle.json",
     "name" : "ForwardProxyConsumer.Lifecycle",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$Lifecycle",
+    "kind" : "class"
+  }, {
+    "file" : "ForwardProxyConsumer.RedirectClients.json",
+    "name" : "ForwardProxyConsumer.RedirectClients",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients",
     "kind" : "class"
   }, {
     "file" : "ForwardProxyConsumer.RequestState.json",

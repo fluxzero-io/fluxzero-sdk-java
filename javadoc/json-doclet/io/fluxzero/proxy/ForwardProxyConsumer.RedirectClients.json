@@ -1,0 +1,111 @@
+{
+  "name" : "RedirectClients",
+  "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "nonRedirecting",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients.nonRedirecting",
+    "type" : "io.fluxzero.common.MemoizingSupplier<java.net.http.HttpClient>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "redirecting",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients.redirecting",
+    "type" : "java.net.http.HttpClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RedirectClients",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients#RedirectClients",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "redirecting",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nonRedirecting",
+      "type" : "java.util.function.Supplier<java.net.http.HttpClient>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients#client",
+    "returnType" : "java.net.http.HttpClient",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "policy",
+      "type" : "io.fluxzero.sdk.web.RedirectPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutdownNow",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients#shutdownNow",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "single",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients#single",
+    "returnType" : "io.fluxzero.proxy.ForwardProxyConsumer.RedirectClients",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -61,6 +61,14 @@
     "documentation" : null,
     "constantValue" : "FLUXZERO_PROXY_FORWARD_MAX_OUTSTANDING_REQUESTS"
   }, {
+    "name" : "MAX_REDIRECTS",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.MAX_REDIRECTS",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 5
+  }, {
     "name" : "MAX_TIMEOUT",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.MAX_TIMEOUT",
     "type" : "java.time.Duration",
@@ -117,9 +125,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "httpClient",
-    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.httpClient",
-    "type" : "java.net.http.HttpClient",
+    "name" : "httpClients",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.httpClients",
+    "type" : "io.fluxzero.proxy.ForwardProxyConsumer.RedirectClients",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -234,9 +242,9 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "sharedHttpClient",
-    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.sharedHttpClient",
-    "type" : "java.net.http.HttpClient",
+    "name" : "sharedHttpClients",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.sharedHttpClients",
+    "type" : "io.fluxzero.proxy.ForwardProxyConsumer.RedirectClients",
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -288,7 +296,7 @@
   }, {
     "name" : "ForwardProxyConsumer",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
-    "modifiers" : [ ],
+    "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -317,103 +325,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "httpClient",
-      "type" : "java.net.http.HttpClient",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "forceStopping",
-      "type" : "java.util.concurrent.atomic.AtomicBoolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "ForwardProxyConsumer",
-    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "client",
-      "type" : "io.fluxzero.sdk.configuration.client.Client",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "consumerName",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "minIndex",
-      "type" : "java.lang.Long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "mainConsumer",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "publishMetrics",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "httpClient",
-      "type" : "java.net.http.HttpClient",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "forceStopping",
-      "type" : "java.util.concurrent.atomic.AtomicBoolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "maxConcurrentRequests",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "ForwardProxyConsumer",
-    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "client",
-      "type" : "io.fluxzero.sdk.configuration.client.Client",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "consumerName",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "minIndex",
-      "type" : "java.lang.Long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "mainConsumer",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "publishMetrics",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "httpClient",
-      "type" : "java.net.http.HttpClient",
+      "name" : "httpClients",
+      "type" : "io.fluxzero.proxy.ForwardProxyConsumer.RedirectClients",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -434,61 +347,6 @@
     }, {
       "name" : "batchCompletionGrace",
       "type" : "java.time.Duration",
-      "varArgs" : false,
-      "annotations" : [ ]
-    } ],
-    "thrownTypes" : [ ],
-    "varArgs" : false,
-    "documentation" : null
-  }, {
-    "name" : "ForwardProxyConsumer",
-    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
-    "modifiers" : [ ],
-    "annotations" : [ ],
-    "typeParameters" : [ ],
-    "parameters" : [ {
-      "name" : "client",
-      "type" : "io.fluxzero.sdk.configuration.client.Client",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "consumerName",
-      "type" : "java.lang.String",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "minIndex",
-      "type" : "java.lang.Long",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "mainConsumer",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "publishMetrics",
-      "type" : "boolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "httpClient",
-      "type" : "java.net.http.HttpClient",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "forceStopping",
-      "type" : "java.util.concurrent.atomic.AtomicBoolean",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "maxConcurrentRequests",
-      "type" : "int",
-      "varArgs" : false,
-      "annotations" : [ ]
-    }, {
-      "name" : "retryDelay",
-      "type" : "java.util.function.Function<java.time.Duration,java.util.concurrent.CompletableFuture<java.lang.Void>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -527,8 +385,8 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
-      "name" : "httpClient",
-      "type" : "java.net.http.HttpClient",
+      "name" : "httpClients",
+      "type" : "io.fluxzero.proxy.ForwardProxyConsumer.RedirectClients",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -579,6 +437,216 @@
     }, {
       "name" : "scheduler",
       "type" : "io.fluxzero.proxy.SegmentSerialScheduler<io.fluxzero.proxy.ForwardProxyConsumer.ScheduledRequest>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ForwardProxyConsumer",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumerName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mainConsumer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publishMetrics",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceStopping",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ForwardProxyConsumer",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumerName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mainConsumer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publishMetrics",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceStopping",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxConcurrentRequests",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ForwardProxyConsumer",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumerName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mainConsumer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publishMetrics",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceStopping",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxConcurrentRequests",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxOutstandingRequests",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchCompletionGrace",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ForwardProxyConsumer",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#ForwardProxyConsumer",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumerName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mainConsumer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publishMetrics",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "httpClient",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "forceStopping",
+      "type" : "java.util.concurrent.atomic.AtomicBoolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxConcurrentRequests",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retryDelay",
+      "type" : "java.util.function.Function<java.time.Duration,java.util.concurrent.CompletableFuture<java.lang.Void>>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -804,6 +872,69 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "effectivePort",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#effectivePort",
+    "returnType" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "effectiveRedirectPolicy",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#effectiveRedirectPolicy",
+    "returnType" : "io.fluxzero.sdk.web.RedirectPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "settings",
+      "type" : "io.fluxzero.sdk.web.WebRequestSettings",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeHttpAttempt",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#executeHttpAttempt",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.proxy.ForwardProxyConsumer.HttpOutcome>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "java.net.http.HttpRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "redirectPolicy",
+      "type" : "io.fluxzero.sdk.web.RedirectPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestFuture",
+      "type" : "io.fluxzero.proxy.ForwardProxyConsumer.CancellableResponseFuture",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "executeRequest",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#executeRequest",
     "returnType" : "io.fluxzero.sdk.web.WebResponse",
@@ -829,6 +960,37 @@
     "parameters" : [ {
       "name" : "httpRequest",
       "type" : "java.net.http.HttpRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestFuture",
+      "type" : "io.fluxzero.proxy.ForwardProxyConsumer.CancellableResponseFuture",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeRequestAsync",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#executeRequestAsync",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.web.WebResponse>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "httpRequest",
+      "type" : "java.net.http.HttpRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "redirectPolicy",
+      "type" : "io.fluxzero.sdk.web.RedirectPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -911,6 +1073,42 @@
     }, {
       "name" : "requestFuture",
       "type" : "io.fluxzero.proxy.ForwardProxyConsumer.CancellableResponseFuture",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "followSameOrigin",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#followSameOrigin",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.proxy.ForwardProxyConsumer.HttpOutcome>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "java.net.http.HttpRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "origin",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestFuture",
+      "type" : "io.fluxzero.proxy.ForwardProxyConsumer.CancellableResponseFuture",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "redirects",
+      "type" : "int",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1034,13 +1232,66 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "hasRedirectLocation",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#hasRedirectLocation",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.net.http.HttpResponse<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isHttpUri",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#isHttpUri",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isRedirect",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#isRedirect",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "status",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "newHttpClient",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#newHttpClient",
     "returnType" : "java.net.http.HttpClient",
     "modifiers" : [ "private", "static" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
-    "parameters" : [ ],
+    "parameters" : [ {
+      "name" : "redirectPolicy",
+      "type" : "java.net.http.HttpClient.Redirect",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
@@ -1127,6 +1378,58 @@
     "parameters" : [ {
       "name" : "start",
       "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "redirectTarget",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#redirectTarget",
+    "returnType" : "java.util.Optional<java.net.URI>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.net.http.HttpResponse<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "redirectedRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#redirectedRequest",
+    "returnType" : "java.net.http.HttpRequest",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "java.net.http.HttpRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "status",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1233,6 +1536,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "sameOrigin",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#sameOrigin",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "first",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "second",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "scheduleFailedRequest",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#scheduleFailedRequest",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
@@ -1289,6 +1613,32 @@
     "parameters" : [ {
       "name" : "scheduledRequest",
       "type" : "io.fluxzero.proxy.ForwardProxyConsumer.ScheduledRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sendOnce",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#sendOnce",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.proxy.ForwardProxyConsumer.HttpOutcome>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "java.net.http.HttpClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "request",
+      "type" : "java.net.http.HttpRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestFuture",
+      "type" : "io.fluxzero.proxy.ForwardProxyConsumer.CancellableResponseFuture",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1465,10 +1815,22 @@
     "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {
+    "name" : "HttpOutcome",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$HttpOutcome",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "Lifecycle",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$Lifecycle",
     "kind" : "class",
     "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "RedirectClients",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RedirectClients",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
     "annotations" : [ ]
   }, {
     "name" : "RequestState",
