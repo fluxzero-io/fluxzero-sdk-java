@@ -1,0 +1,127 @@
+/*
+ * Copyright (c) Fluxzero IP B.V. or its affiliates. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.fluxzero.common.api.modeling;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Value;
+
+import java.util.List;
+
+/**
+ * Persistence and lifecycle effects of one original event on one independently stored model.
+ */
+@Value
+@Builder(toBuilder = true)
+@AllArgsConstructor
+public class ModelCommitTarget {
+
+    /**
+     * Exact persisted identity, equal to the model ID's {@code toString()} value.
+     */
+    String modelId;
+
+    /**
+     * Stable serialized model type descriptor. A model's first commit that creates its durable head must provide this
+     * value; later commits may omit it and inherit the durable type.
+     * <p>
+     * This is coordination metadata for untyped and graph loads; it is not part of model identity.
+     */
+    String modelType;
+
+    /**
+     * Sequence number observed immediately before this transition, or {@code -1} when the model
+     * did not exist.
+     * <p>
+     * A {@code null} value omits the target-level sequence assertion, for example for a target that publishes an
+     * effect without reading or changing model state. The runtime can use an explicit {@code -1} to avoid a point read
+     * for an independent create on the default single-writer path.
+     */
+    Long expectedSequenceNumber;
+
+    /**
+     * Whether the substep event receives a membership in this model's stream.
+     */
+    boolean storeEvent;
+
+    /**
+     * Whether the returned model state becomes the current logical state.
+     * <p>
+     * This may be true while {@link #storeEvent} is false for an explicitly non-stored state transition. The runtime
+     * then marks the model's event history incomplete.
+     */
+    boolean updateState;
+
+    /**
+     * Whether the updated current state is a logical deletion.
+     */
+    boolean delete;
+
+    /**
+     * Whether the runtime must verify that every current child relationship owned by this target is represented by a
+     * deletion target in the same atomic commit.
+     * <p>
+     * This remains false for older clients, preserving their existing detach-on-parent-deletion behavior.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean cascadeDelete;
+
+    /**
+     * Optional direct current-document mutation produced by this transition.
+     * <p>
+     * The runtime applies it with the same assigned state index as this target. A missing mutation means that the model
+     * is not directly searchable; a mutation with a {@code null} document means delete.
+     */
+    ModelDocumentMutation document;
+
+    /**
+     * Optional snapshot value produced when this transition is predicted to reach the model's configured snapshot
+     * period. The runtime verifies the candidate against its assigned target sequence before storing it.
+     */
+    ModelSnapshotMutation snapshot;
+
+    /**
+     * Whether {@link #relationships} intentionally replaces the model's outgoing parent relationships.
+     * <p>
+     * A regular transition whose {@code @Parent} values did not change leaves this false. This prevents such a
+     * transition from reopening relationships which the runtime closed because a parent was deleted. Logical model
+     * deletion always sets this to true.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean updateRelationships;
+
+    /**
+     * Complete desired outgoing parent relationships when {@link #updateRelationships} is true.
+     * <p>
+     * The runtime reconciles these against its actual current relationships; they are not blindly applied as
+     * client-calculated previous/current deltas. The list is empty when relationships are not updated.
+     */
+    List<ModelRelationship> relationships;
+
+    /**
+     * Complete desired aliases of the resulting model state.
+     * <p>
+     * A {@code null} value denotes a client which does not manage independent-model aliases. An empty list explicitly
+     * removes every current alias. The runtime applies this replacement atomically with the model transition.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonSetter(nulls = Nulls.SET)
+    List<String> aliases;
+}

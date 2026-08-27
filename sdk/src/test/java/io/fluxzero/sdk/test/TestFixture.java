@@ -32,6 +32,7 @@ import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
+import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
@@ -58,8 +59,10 @@ import io.fluxzero.sdk.configuration.spring.ConditionalOnMissingProperty;
 import io.fluxzero.sdk.configuration.spring.ConditionalOnProperty;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.persisting.search.DefaultDocumentStore;
 import io.fluxzero.sdk.persisting.search.Search;
+import io.fluxzero.sdk.publishing.DefaultEventGateway;
 import io.fluxzero.sdk.publishing.DefaultMetricsGateway;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.scheduling.DefaultMessageScheduler;
@@ -115,6 +118,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
@@ -142,7 +146,6 @@ import static io.fluxzero.sdk.web.HttpRequestMethod.isWebsocket;
 import static java.util.Collections.emptyList;
 import static java.util.Optional.ofNullable;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
@@ -174,7 +177,8 @@ import static java.util.stream.Stream.empty;
  * Handlers may be registered by class or by instance. In general:
  * <ul>
  *   <li>Stateless singleton handlers may be registered either by instance or class</li>
- *   <li>Handlers annotated with {@code @Stateful}, {@code @TrackSelf}, or {@code @SocketEndpoint} must be registered by <strong>class</strong> only</li>
+ *   <li>Handlers annotated with {@code @Stateful}, {@code @TrackSelf}, {@code @Model}, or {@code @SocketEndpoint}
+ *       must be registered by <strong>class</strong> only</li>
  * </ul>
  *
  * <p>
@@ -358,6 +362,7 @@ public class TestFixture implements Given<TestFixture>, When {
     public static Duration defaultResultTimeout = Duration.ofSeconds(2L);
     public static Duration defaultConsumerTimeout = Duration.ofSeconds(5L);
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
+    private static final LocalDate PER_PACKAGE_DEFAULTS_VERSION = LocalDate.of(2026, 7, 27);
 
     @Getter
     private final Fluxzero fluxzero;
@@ -374,12 +379,14 @@ public class TestFixture implements Given<TestFixture>, When {
     private final boolean productionUserProvider;
     private Registration registration = Registration.noOp();
 
-    private final Map<ActiveConsumer, List<Message>> consumers = new ConcurrentHashMap<>();
+    private final Map<ActiveConsumer, PendingConsumer> consumers = new ConcurrentHashMap<>();
     private final Map<HandlerConsumerKey, Set<ConsumerIdentity>> handlerConsumers = new ConcurrentHashMap<>();
     private final Set<String> requestDispatches = ConcurrentHashMap.newKeySet();
     private final ThreadLocal<Deque<ActiveHandler>> activeHandlers = ThreadLocal.withInitial(ArrayDeque::new);
 
     private FixtureResult fixtureResult = new FixtureResult();
+    private MessageType tracedMessageType;
+    private String tracedMessageTopic;
 
     private final BeanParameterResolver beanParameterResolver = new BeanParameterResolver();
     private final Map<String, String> testProperties = new HashMap<>();
@@ -388,7 +395,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private final String observationTestId;
 
     private final List<ThrowingConsumer<TestFixture>> modifiers = new CopyOnWriteArrayList<>();
-    private final Set<Class<?>> registeredTrackSelfHandlers = ConcurrentHashMap.newKeySet();
+    private final Set<Class<?>> registeredAutomaticHandlers = ConcurrentHashMap.newKeySet();
 
     /**
      * Closes all fixtures associated with the current execution thread.
@@ -612,8 +619,7 @@ public class TestFixture implements Given<TestFixture>, When {
             }
             warnIfDuplicateHandlers(handlers);
             handlers.stream().map(this::handlerType)
-                    .filter(ClientUtils::isSelfTracking)
-                    .forEach(registeredTrackSelfHandlers::add);
+                    .forEach(registeredAutomaticHandlers::add);
             if (fixture.synchronous) {
                 fixture.rememberConsumerAssignments(handlers);
             }
@@ -690,7 +696,8 @@ public class TestFixture implements Given<TestFixture>, When {
     private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(
             MessageType messageType, List<?> handlers) {
         List<ConsumerConfiguration> explicitConfigurations = explicitConfigurations(messageType, handlers).toList();
-        if (useSharedDefaultAppConsumerForUnconfiguredHandlers()) {
+        UnconfiguredHandlerConsumerMode mode = unconfiguredHandlerConsumerMode(fluxzero.propertySource());
+        if (mode == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER) {
             return assignHandlersToConsumers(
                     handlers, Stream.concat(explicitConfigurations.stream(),
                                             sharedDefaultConsumerConfiguration(messageType)));
@@ -698,7 +705,7 @@ public class TestFixture implements Given<TestFixture>, When {
         List<Object> fallbackHandlers = fallbackHandlers(handlers, explicitConfigurations);
         return assignHandlersToConsumers(
                 handlers, Stream.concat(explicitConfigurations.stream(),
-                                        defaultConsumerConfigurations(messageType, fallbackHandlers)));
+                                        defaultConsumerConfigurations(messageType, fallbackHandlers, mode)));
     }
 
     private Stream<ConsumerConfiguration> explicitConfigurations(MessageType messageType, List<?> handlers) {
@@ -722,16 +729,14 @@ public class TestFixture implements Given<TestFixture>, When {
         return result;
     }
 
-    private boolean useSharedDefaultAppConsumerForUnconfiguredHandlers() {
-        return unconfiguredHandlerConsumerMode(fluxzero.propertySource())
-               == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
-    }
-
     private UnconfiguredHandlerConsumerMode unconfiguredHandlerConsumerMode(PropertySource propertySource) {
         String configuredMode = propertySource.get(
                 ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY);
         if (configuredMode != null) {
             return parseUnconfiguredHandlerConsumerMode(configuredMode);
+        }
+        if (defaultsVersionAtLeast(propertySource, PER_PACKAGE_DEFAULTS_VERSION)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
         }
         return defaultsVersionUsesPerHandlerConsumers(propertySource)
                 ? UnconfiguredHandlerConsumerMode.PER_HANDLER
@@ -743,13 +748,17 @@ public class TestFixture implements Given<TestFixture>, When {
         if (ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.PER_HANDLER;
         }
+        if (ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
+        }
         if (ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
         }
         throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                 "Invalid unconfigured handler consumer mode",
-                "Property `%s` must be `%s` or `%s`, but found `%s`.".formatted(
+                "Property `%s` must be `%s`, `%s` or `%s`, but found `%s`.".formatted(
                         ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                        ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE,
                         ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE,
                         ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE, mode),
                 "Set a supported mode, or remove the property to derive the default from `%s`.".formatted(
@@ -758,8 +767,13 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     private boolean defaultsVersionUsesPerHandlerConsumers(PropertySource propertySource) {
+        return defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+    }
+
+    private boolean defaultsVersionAtLeast(
+            PropertySource propertySource, LocalDate version) {
         try {
-            return ApplicationProperties.defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+            return ApplicationProperties.defaultsVersionAtLeast(propertySource, version);
         } catch (IllegalArgumentException e) {
             throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                     "Invalid Fluxzero defaults version",
@@ -789,13 +803,19 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     private Stream<ConsumerConfiguration> defaultConsumerConfigurations(
-            MessageType messageType, List<Object> handlers) {
+            MessageType messageType,
+            List<Object> handlers,
+            UnconfiguredHandlerConsumerMode mode) {
         if (handlers.isEmpty()) {
             return Stream.empty();
         }
         ConsumerConfiguration template = fluxzero.configuration().defaultConsumerConfigurations().get(messageType);
         if (template == null) {
             return Stream.empty();
+        }
+        if (mode == UnconfiguredHandlerConsumerMode.PER_PACKAGE) {
+            return defaultPackageConsumerConfigurations(
+                    fluxzero.client().name(), template, handlers);
         }
         List<Class<?>> handlerTypes = handlers.stream().map(ReflectionUtils::asClass).distinct().collect(toList());
         Map<String, Integer> simpleNameCounts = new HashMap<>();
@@ -804,6 +824,31 @@ public class TestFixture implements Given<TestFixture>, When {
         return handlerTypes.stream().map(handlerType -> defaultConsumerConfiguration(
                 fluxzero.client().name(), template, handlerType,
                 simpleNameCounts.get(consumerSimpleName(handlerType)) > 1));
+    }
+
+    private static Stream<ConsumerConfiguration> defaultPackageConsumerConfigurations(
+            String applicationName,
+            ConsumerConfiguration template,
+            List<Object> handlers) {
+        return handlers.stream()
+                .map(ReflectionUtils::asClass)
+                .filter(Objects::nonNull)
+                .map(Class::getPackageName)
+                .distinct()
+                .map(packageName -> {
+                    Predicate<Object> handlerFilter = handler -> {
+                        Class<?> handlerType = ReflectionUtils.asClass(handler);
+                        return handlerType != null
+                               && handlerType.getPackageName().equals(packageName);
+                    };
+                    String packageKey = packageName.isBlank()
+                            ? "default" : packageName.replace('.', '_');
+                    return template.toBuilder()
+                            .name(defaultApplicationConsumerName(
+                                    applicationName, "package_" + packageKey))
+                            .handlerFilter(template.getHandlerFilter().and(handlerFilter))
+                            .build();
+                });
     }
 
     private List<ConsumerConfiguration> normalizeConfigurations(Stream<ConsumerConfiguration> configurations) {
@@ -856,6 +901,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private enum UnconfiguredHandlerConsumerMode {
         DEFAULT_APP_CONSUMER,
+        PER_PACKAGE,
         PER_HANDLER
     }
 
@@ -1002,13 +1048,29 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public TestFixture givenModelEvents(String modelId, Class<?> modelClass, Object... events) {
+        Class<?> callerClass = getCallerClass();
+        return givenModificationWithTrace(describeFixtureAction("event-sourced model", modelClass),
+                                          fixture -> fixture.applyEvents(
+                                                  modelId, modelClass, fixture.getFluxzero(),
+                                                  fixture.asEventMessages(callerClass, events).toList()));
+    }
+
+    @Override
     public TestFixture givenEvents(Object... events) {
         Class<?> callerClass = getCallerClass();
         for (Object event : events) {
             givenModification(fixture -> fixture.asEventMessages(callerClass, event)
-                    .forEach(e -> fixture.getFluxzero().eventGateway().publish(e)));
+                    .forEach(fixture::publishGivenEvent));
         }
         return this;
+    }
+
+    private void publishGivenEvent(Message event) {
+        if (hasModelHandlerMethods(event.getPayloadClass())) {
+            getDispatchResult(getFluxzero().executeStoredModelEvent(event));
+        }
+        getFluxzero().eventGateway().publish(event);
     }
 
     @Override
@@ -1245,56 +1307,56 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Override
     public Then<Object> whenCommand(Object command) {
-        Message message = trace(command);
+        Message message = trace(command, MessageType.COMMAND, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.commandGateway().send(message)));
     }
 
     @Override
     public Then<Object> whenCommandByUser(Object user, Object command) {
-        Message message = trace(command);
+        Message message = trace(command, MessageType.COMMAND, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.commandGateway().send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<Object> whenQuery(Object query) {
-        Message message = trace(query);
+        Message message = trace(query, MessageType.QUERY, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.queryGateway().send(message)));
     }
 
     @Override
     public Then<Object> whenQueryByUser(Object user, Object query) {
-        Message message = trace(query);
+        Message message = trace(query, MessageType.QUERY, null);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.queryGateway().send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<Object> whenCustom(String topic, Object request) {
-        Message message = trace(request);
+        Message message = trace(request, CUSTOM, topic);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.customGateway(topic).send(message)));
     }
 
     @Override
     public Then<Object> whenCustomByUser(Object user, String topic, Object request) {
-        Message message = trace(request);
+        Message message = trace(request, CUSTOM, topic);
         return executeWhen(fc -> message.getPayload() == null
                 ? null : getDispatchResult(fc.customGateway(topic).send(addUser(getUser(user), message))));
     }
 
     @Override
     public Then<?> whenEvent(Object event) {
-        Message message = trace(event);
+        Message message = trace(event, EVENT, null);
         return message.getPayload() == null ? whenNothingHappens()
                 : executeWhen(fc -> fc.eventGateway().publish(message, Guarantee.STORED).get());
     }
 
     @Override
     public Then<?> whenMetric(Object metric) {
-        Message message = trace(metric);
+        Message message = trace(metric, MessageType.METRICS, null);
         return message.getPayload() == null ? whenNothingHappens()
                 : executeWhen(fc -> ((DefaultMetricsGateway) fc.metricsGateway()).sendAndForget(message,
                                                                                                 Guarantee.STORED)
@@ -1313,6 +1375,17 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     @Override
+    public Then<?> whenModelEventsAreApplied(String modelId, Class<?> modelClass, Object... events) {
+        Class<?> callerClass = getCallerClass();
+        return executeWhenWithTrace(describeFixtureAction("applying events to model", modelClass),
+                                    fc -> {
+                                        applyEvents(modelId, modelClass, fc,
+                                                    asMessages(callerClass, events).collect(toList()));
+                                        return null;
+                                    });
+    }
+
+    @Override
     public <R> Then<List<R>> whenSearching(Object collection, UnaryOperator<Search> searchQuery) {
         return executeWhenWithTrace(describeFixtureAction("searching", collection),
                                     fc -> searchQuery.apply(fc.documentStore().search(collection)).fetchAll());
@@ -1320,13 +1393,13 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @Override
     public Then<Object> whenWebRequest(WebRequest request) {
-        WebRequest message = trace(request);
+        WebRequest message = trace(request, MessageType.WEBREQUEST, null);
         return doWhenWebRequest(message);
     }
 
     @Override
     public Then<Object> whenWebRequestByUser(Object user, WebRequest request) {
-        WebRequest message = addUser(getUser(user), trace(request));
+        WebRequest message = addUser(getUser(user), trace(request, MessageType.WEBREQUEST, null));
         return doWhenWebRequest(message);
     }
 
@@ -1412,7 +1485,7 @@ public class TestFixture implements Given<TestFixture>, When {
                 return whenTimeAdvancesTo(match.getDeadline());
             }
         }
-        Message message = trace(schedule);
+        Message message = trace(schedule, SCHEDULE, null);
         return executeWhen(fc -> {
             if (message instanceof Schedule s) {
                 fc.messageScheduler().schedule(s);
@@ -1555,6 +1628,13 @@ public class TestFixture implements Given<TestFixture>, When {
     }
 
     protected void applyEvents(String aggregateId, Class<?> aggregateClass, Fluxzero fc, List<Message> events) {
+        if (EntityMetadata.of(aggregateClass).isModel()) {
+            events.stream().map(e -> e.withMetadata(e.getMetadata().with(
+                            Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
+                            Entity.AGGREGATE_TYPE_METADATA_KEY, aggregateClass.getName())))
+                    .forEach(e -> getDispatchResult(fc.executeStoredModelEvent(e)));
+            return;
+        }
         fc.aggregateRepository().load(aggregateId, aggregateClass).apply(events.stream().map(
                         e -> e.withMetadata(e.getMetadata().with(
                                 Entity.AGGREGATE_ID_METADATA_KEY, aggregateId,
@@ -1574,6 +1654,7 @@ public class TestFixture implements Given<TestFixture>, When {
 
     protected void waitForConsumers() {
         if (synchronous) {
+            interceptor.dispatchStoredEvents();
             return;
         }
         synchronized (consumers) {
@@ -1589,7 +1670,7 @@ public class TestFixture implements Given<TestFixture>, When {
                          + "This may cause your test to fail. Waiting consumers: {}",
                          consumers.entrySet().stream()
                                  .filter(e -> !e.getValue().isEmpty())
-                                 .map(e -> e.getKey() + " : " + e.getValue().stream()
+                                 .map(e -> e.getKey() + " : " + e.getValue().messages()
                                          .map(m -> m.getPayload() == null
                                                  ? "Void" : m.getPayload().getClass().getSimpleName()).collect(
                                                  Collectors.joining(", "))).collect(toList()));
@@ -1601,6 +1682,8 @@ public class TestFixture implements Given<TestFixture>, When {
         resetMocks();
         var previousResult = fixtureResult;
         fixtureResult = new FixtureResult();
+        tracedMessageType = null;
+        tracedMessageTopic = null;
         fixtureResult.setPreviousResult(previousResult);
         GivenWhenThenAssertionError.useTrace(this::renderTrace);
         return this;
@@ -1945,22 +2028,37 @@ public class TestFixture implements Given<TestFixture>, When {
 
     @SuppressWarnings("unchecked")
     protected <M extends Message> M trace(Object object) {
+        return trace(object, null, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected <M extends Message> M trace(Object object, MessageType messageType, String topic) {
         Class<?> callerClass = getCallerClass();
         M result = (M) fluxzero.apply(fc -> asMessage(parseObject(object, callerClass)));
-        registerAutomaticTrackSelfHandler(result);
+        registerAutomaticHandler(result);
         fixtureResult.setTracedMessage(result);
+        tracedMessageType = messageType;
+        tracedMessageTopic = topic;
         return result;
     }
 
-    protected void registerAutomaticTrackSelfHandler(Message message) {
+    protected void registerAutomaticHandler(Message message) {
         if (synchronous || message == null || message.getPayload() == null) {
             return;
         }
         Class<?> payloadClass = message.getPayloadClass();
-        if (ClientUtils.isSelfTracking(payloadClass) && matchesTrackSelfConditions(payloadClass)
-            && registeredTrackSelfHandlers.add(payloadClass)) {
+        boolean automaticHandler = ClientUtils.isSelfTracking(payloadClass)
+                                   || hasModelHandlerMethods(payloadClass);
+        if (automaticHandler && matchesTrackSelfConditions(payloadClass)
+            && registeredAutomaticHandlers.add(payloadClass)) {
             registration = registration.merge(fluxzero.registerHandlers(payloadClass));
         }
+    }
+
+    private static boolean hasModelHandlerMethods(Class<?> payloadClass) {
+        return EntityMetadata.of(payloadClass).handlerMethods().stream()
+                .anyMatch(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY
+                                     && !handler.targetModelTypes().isEmpty());
     }
 
     private boolean matchesTrackSelfConditions(Class<?> payloadClass) {
@@ -2045,7 +2143,7 @@ public class TestFixture implements Given<TestFixture>, When {
         }
         synchronized (consumers) {
             //either all consumer messages have been processed (aka removed), or they're schedules firing in the future
-            if (consumers.values().stream().allMatch(l -> l.stream().allMatch(
+            if (consumers.values().stream().allMatch(c -> c.messages().allMatch(
                     m -> {
                         if (m instanceof Schedule s) {
                             //ensure schedule isn't canceled or expired
@@ -2067,22 +2165,48 @@ public class TestFixture implements Given<TestFixture>, When {
         private TestFixture testFixture;
 
         private final List<Schedule> publishedSchedules = new CopyOnWriteArrayList<>();
-        private final Set<String> interceptedMessageIds = new CopyOnWriteArraySet<>();
+        private final Map<InterceptedMessage, DispatchOrigin> dispatchOrigins = new ConcurrentHashMap<>();
+        private final ConcurrentLinkedQueue<Message> storedEvents = new ConcurrentLinkedQueue<>();
 
         protected void interceptClientDispatch(MessageType messageType, String topic,
                                                String namespace, List<SerializedMessage> messages) {
-            if (testFixture.fixtureResult.isCollectingResults()) {
+            boolean dispatchStoredEvent = testFixture.synchronous && messageType == EVENT
+                                          && testFixture.fluxzero.eventGateway() instanceof DefaultEventGateway;
+            for (SerializedMessage serializedMessage : messages) {
+                InterceptedMessage key = new InterceptedMessage(
+                        messageType, topic, serializedMessage.getMessageId());
+                if (dispatchOrigins.remove(key, DispatchOrigin.SDK)) {
+                    recordStoredPosition(messageType, topic, serializedMessage);
+                    continue;
+                }
                 try {
-                    testFixture.fluxzero.serializer()
-                            .deserializeMessages(messages.stream()
-                                                         .filter(m -> !interceptedMessageIds.contains(
-                                                                 m.getMessageId())),
-                                                 messageType)
-                            .map(DeserializingMessage::toMessage)
-                            .forEach(m -> monitorDispatch(m, messageType, topic, namespace, false));
+                    DeserializingMessage message = testFixture.fluxzero.serializer()
+                            .deserializeMessages(Stream.of(serializedMessage), messageType).findFirst().orElseThrow();
+                    if (dispatchStoredEvent) {
+                        storedEvents.add(message.toMessage());
+                        continue;
+                    }
+                    DispatchOrigin previous = dispatchOrigins.putIfAbsent(key, DispatchOrigin.STORED);
+                    if (previous == DispatchOrigin.SDK) {
+                        dispatchOrigins.remove(key, DispatchOrigin.SDK);
+                        recordStoredPosition(messageType, topic, serializedMessage);
+                    } else if (previous == null) {
+                        monitorStoredDispatch(message, messageType, topic, namespace);
+                    }
                 } catch (Exception ignored) {
+                    dispatchOrigins.remove(key, DispatchOrigin.STORED);
                     log.warn("Failed to intercept a published message. This may cause your test to fail.");
                 }
+            }
+        }
+
+        private void dispatchStoredEvents() {
+            if (!(testFixture.fluxzero.eventGateway() instanceof DefaultEventGateway gateway)) {
+                return;
+            }
+            Message event;
+            while ((event = storedEvents.poll()) != null) {
+                gateway.dispatchStoredLocally(event).join();
             }
         }
 
@@ -2092,15 +2216,32 @@ public class TestFixture implements Given<TestFixture>, When {
 
         public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                     boolean request) {
+            InterceptedMessage key = new InterceptedMessage(messageType, topic, message.getMessageId());
+            DispatchOrigin previous = dispatchOrigins.putIfAbsent(key, DispatchOrigin.SDK);
+            if (previous == DispatchOrigin.STORED) {
+                dispatchOrigins.remove(key, DispatchOrigin.STORED);
+                return;
+            }
+            if (previous == DispatchOrigin.SDK) {
+                return;
+            }
+            monitorDispatch(message, messageType, topic, namespace, request, null, null);
+        }
+
+        private void monitorStoredDispatch(DeserializingMessage message, MessageType messageType, String topic,
+                                           String namespace) {
+            SerializedMessage serializedMessage = message.getSerializedObject();
+            monitorDispatch(message.toMessage(), messageType, topic, namespace, false,
+                            serializedMessage.getSegment(), serializedMessage.getIndex());
+        }
+
+        private void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
+                                     boolean request, Integer segment, Long index) {
             testFixture.fixtureResult.getTrace().monitorDispatch(message, messageType, topic, namespace);
             testFixture.recordObservation(TestFixtureObservation.dispatch(message, messageType, topic, namespace));
-            testFixture.registerAutomaticTrackSelfHandler(message);
+            testFixture.registerAutomaticHandler(message);
             if (request) {
                 testFixture.requestDispatches.add(message.getMessageId());
-            }
-
-            if (testFixture.fixtureResult.isCollectingResults()) {
-                interceptedMessageIds.add(message.getMessageId());
             }
 
             if (messageType == SCHEDULE) {
@@ -2129,10 +2270,10 @@ public class TestFixture implements Given<TestFixture>, When {
                                     && Objects.equals(consumerNamespace, namespace)
 
                             );
-                        }).forEach(e -> addMessage(e.getValue(), message));
+                        }).forEach(e -> e.getValue().add(message, segment, index));
             }
 
-            if (captureMessage(message)) {
+            if (captureMessage(message, messageType, topic)) {
                 switch (messageType) {
                     case COMMAND -> testFixture.registerCommand(message);
                     case QUERY -> testFixture.registerQuery(message);
@@ -2165,10 +2306,10 @@ public class TestFixture implements Given<TestFixture>, When {
                     .computeIfAbsent(document.getCollection(), ignored -> new CopyOnWriteArraySet<>())
                     .add(document.getId()));
             synchronized (testFixture.consumers) {
-                testFixture.consumers.forEach((consumer, messages) -> {
+                testFixture.consumers.forEach((consumer, pending) -> {
                     if (consumer.getMessageType() == DOCUMENT) {
                         ofNullable(messageIdsByTopic.get(consumer.getTopic()))
-                                .ifPresent(messageIds -> messages.removeIf(
+                                .ifPresent(messageIds -> pending.removeIf(
                                         message -> messageIds.contains(message.getMessageId())));
                     }
                 });
@@ -2176,10 +2317,14 @@ public class TestFixture implements Given<TestFixture>, When {
             }
         }
 
-        protected Boolean captureMessage(Message message) {
+        protected Boolean captureMessage(Message message, MessageType messageType, String topic) {
             return testFixture.fixtureResult.isCollectingResults()
                    && ofNullable(testFixture.fixtureResult.getTracedMessage())
-                           .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())).orElse(true);
+                           .map(t -> !Objects.equals(t.getMessageId(), message.getMessageId())
+                                     || testFixture.tracedMessageType != null
+                                        && (messageType != testFixture.tracedMessageType
+                                            || !Objects.equals(topic, testFixture.tracedMessageTopic)))
+                           .orElse(true);
         }
 
         protected <T extends Message> void addMessage(List<T> messages, T message) {
@@ -2191,31 +2336,38 @@ public class TestFixture implements Given<TestFixture>, When {
         }
 
         public Consumer<MessageBatch> intercept(Consumer<MessageBatch> consumer, Tracker tracker) {
-            List<Message> messages;
+            PendingConsumer pending;
             synchronized (testFixture.consumers) {
-                messages = testFixture.consumers.computeIfAbsent(
+                pending = testFixture.consumers.computeIfAbsent(
                         new ActiveConsumer(tracker.getConfiguration(), tracker.getMessageType(), tracker.getTopic()),
-                        c -> (c.getMessageType() == SCHEDULE
+                        c -> new PendingConsumer((c.getMessageType() == SCHEDULE
                                 ? publishedSchedules : Collections.<Message>emptyList()).stream().filter(
                                         m -> ofNullable(c.getConfiguration().getTypeFilter())
                                                 .map(f -> m.getPayload().getClass()
-                                                        .getName().matches(f)).orElse(true))
-                                .collect(toCollection(CopyOnWriteArrayList::new)));
+                                                        .getName().matches(f)).orElse(true)).toList()));
             }
             return b -> {
                 consumer.accept(b);
-                Collection<String> messageIds =
-                        b.getMessages().stream().map(SerializedMessage::getMessageId).collect(toSet());
                 synchronized (testFixture.consumers) {
                     b.getMessages().forEach(m -> testFixture.consumers.entrySet().stream()
                             .filter(e -> e.getKey().getMessageType() == tracker.getMessageType()
                                          && Objects.equals(e.getKey().getTopic(), tracker.getTopic())
                                          && isOutsideBounds(e.getKey().getConfiguration(), m.getIndex()))
-                            .forEach(e -> e.getValue().removeIf(m2 -> m.getMessageId().equals(m2.getMessageId()))));
-                    messages.removeIf(m -> messageIds.contains(m.getMessageId()));
+                            .forEach(e -> e.getValue().removeMessage(m.getMessageId())));
+                    pending.complete(b);
                     testFixture.checkConsumers();
                 }
             };
+        }
+
+        private void recordStoredPosition(MessageType messageType, String topic, SerializedMessage message) {
+            synchronized (testFixture.consumers) {
+                testFixture.consumers.entrySet().stream()
+                        .filter(e -> e.getKey().getMessageType() == messageType
+                                     && Objects.equals(e.getKey().getTopic(), topic))
+                        .forEach(e -> e.getValue().recordStoredPosition(
+                                message.getMessageId(), message.getSegment(), message.getIndex()));
+            }
         }
 
         private boolean isOutsideBounds(ConsumerConfiguration configuration, Long index) {
@@ -2261,8 +2413,7 @@ public class TestFixture implements Given<TestFixture>, When {
                             synchronized (testFixture.consumers) {
                                 testFixture.consumers.entrySet().stream()
                                         .filter(t -> t.getKey().getMessageType() == m.getMessageType())
-                                        .forEach(e -> e.getValue().removeIf(
-                                                m2 -> m2.getMessageId().equals(m.getMessageId())));
+                                        .forEach(e -> e.getValue().removeMessage(m.getMessageId()));
                             }
                             testFixture.checkConsumers();
                         }
@@ -2284,6 +2435,9 @@ public class TestFixture implements Given<TestFixture>, When {
                         new ActiveConsumer(tracker.getConfiguration(), tracker.getMessageType(), tracker.getTopic()));
             }
             testFixture.checkConsumers();
+        }
+
+        private record InterceptedMessage(MessageType messageType, String topic, String messageId) {
         }
     }
 
@@ -2397,6 +2551,79 @@ public class TestFixture implements Given<TestFixture>, When {
         String messageDescription() {
             return "%s %s".formatted(messageType, simpleTypeName(payloadType));
         }
+    }
+
+    protected static class PendingConsumer {
+        private final List<PendingMessage> messages = new ArrayList<>();
+        private Position completedPosition = Position.newPosition();
+
+        PendingConsumer(Collection<? extends Message> initialMessages) {
+            initialMessages.forEach(message -> add(message, null, null));
+        }
+
+        boolean isEmpty() {
+            return messages.isEmpty();
+        }
+
+        Stream<Message> messages() {
+            return messages.stream().map(PendingMessage::message);
+        }
+
+        void add(Message message, Integer segment, Long index) {
+            if (isCompleted(segment, index)) {
+                return;
+            }
+            if (message instanceof Schedule schedule) {
+                messages.removeIf(pending -> pending.message() instanceof Schedule existing
+                                                     && existing.getScheduleId().equals(schedule.getScheduleId()));
+            }
+            messages.add(new PendingMessage(message, segment, index));
+        }
+
+        void recordStoredPosition(String messageId, Integer segment, Long index) {
+            if (segment == null || index == null) {
+                return;
+            }
+            if (isCompleted(segment, index)) {
+                removeMessage(messageId);
+                return;
+            }
+            for (int i = 0; i < messages.size(); i++) {
+                PendingMessage pending = messages.get(i);
+                if (Objects.equals(messageId, pending.message().getMessageId())) {
+                    messages.set(i, new PendingMessage(pending.message(), segment, index));
+                }
+            }
+        }
+
+        void complete(MessageBatch batch) {
+            if (batch.getLastIndex() != null) {
+                completedPosition = completedPosition.merge(new Position(batch.getSegment(), batch.getLastIndex()));
+            }
+            Set<String> messageIds = batch.getMessages().stream()
+                    .map(SerializedMessage::getMessageId).collect(toSet());
+            messages.removeIf(pending -> messageIds.contains(pending.message().getMessageId())
+                                         || isCompleted(pending.segment(), pending.index()));
+        }
+
+        void removeMessage(String messageId) {
+            messages.removeIf(pending -> Objects.equals(messageId, pending.message().getMessageId()));
+        }
+
+        void removeIf(Predicate<? super Message> predicate) {
+            messages.removeIf(pending -> predicate.test(pending.message()));
+        }
+
+        private boolean isCompleted(Integer segment, Long index) {
+            return segment != null && index != null && !completedPosition.isNewIndex(segment, index);
+        }
+
+        private record PendingMessage(Message message, Integer segment, Long index) {
+        }
+    }
+
+    private enum DispatchOrigin {
+        SDK, STORED
     }
 
     @Value

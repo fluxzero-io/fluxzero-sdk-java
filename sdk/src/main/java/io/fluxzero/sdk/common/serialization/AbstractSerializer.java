@@ -212,6 +212,32 @@ public abstract class AbstractSerializer<I> implements Serializer {
     protected abstract byte[] doSerialize(Object object) throws Exception;
 
     /**
+     * Deserializes a single value directly when the caster chain guarantees that it cannot transform, split or drop
+     * that value. All other inputs retain the stream-based path so their existing casting and format semantics remain
+     * unchanged.
+     */
+    @Override
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public <T> T deserialize(SerializedObject<byte[]> serializedObject) {
+        if (upcasterChain.canSkipCast(serializedObject, null)) {
+            Data<byte[]> data = serializedObject.data();
+            String type = data.getType();
+            String upcastedType = upcastType(type);
+            if (Objects.equals(format, data.getFormat()) && isKnownType(upcastedType)) {
+                if (!Objects.equals(type, upcastedType)) {
+                    data = (Data) data.withType(upcastedType);
+                }
+                try {
+                    return (T) doDeserialize(data, upcastedType);
+                } catch (Exception e) {
+                    throw new DeserializationException("Could not deserialize a " + upcastedType, e);
+                }
+            }
+        }
+        return Serializer.super.deserialize(serializedObject);
+    }
+
+    /**
      * Deserializes a stream of {@link SerializedObject} values into deserialized objects. Applies upcasters, format
      * detection, and lazy deserialization as needed.
      */
@@ -274,6 +300,22 @@ public abstract class AbstractSerializer<I> implements Serializer {
             return null;
         }
         return new DeserializingMessage((DeserializingObject) object, messageType, topic, this);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Class<?> serializedClassWithoutUpcasting(SerializedObject<?> serializedObject) {
+        Data<?> data = serializedObject.data();
+        if (data.byteArrayView() == null && !(data.getValue() instanceof byte[])
+            || !Objects.equals(format, data.getFormat())
+            || !upcasterChain.canSkipCast(
+                    (SerializedObject<byte[]>) serializedObject, null)) {
+            return null;
+        }
+        String type = upcastType(data.getType());
+        return isKnownType(type)
+                ? ReflectionUtils.classForName(type, null)
+                : null;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

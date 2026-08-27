@@ -35,4 +35,9 @@ public class DefaultResponseMapper implements ResponseMapper {
     public Message map(Object response, Metadata metadata) {
         return new Message(response, metadata);
     }
+
+    @Override
+    public Message map(Object response, Metadata metadata, String messageId) {
+        return new Message(response, metadata, messageId, null);
+    }
 }

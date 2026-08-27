@@ -106,7 +106,8 @@ public class WebsocketDeploymentUtils {
     private static WebSocketTransportFormat selectTransportFormat(Map<String, List<String>> requestHeaders) {
         List<WebSocketTransportFormat> supported = WebSocketCapabilities.getSupportedTransportFormats(requestHeaders);
         for (WebSocketTransportFormat transportFormat : supported) {
-            if (transportFormat == WebSocketTransportFormat.CBOR
+            if (transportFormat == WebSocketTransportFormat.BINARY
+                || transportFormat == WebSocketTransportFormat.CBOR
                 || transportFormat == WebSocketTransportFormat.JSON) {
                 return transportFormat;
             }

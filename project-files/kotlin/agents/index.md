@@ -24,7 +24,7 @@ Check the folder `{project-root}/.fluxzero/agents/rules` for:
 - **[Handling](rules/handling.md)**: Incoming messages (Commands, Queries, Events, Web), including automatic HTTP
   result and exception mapping by `DefaultWebResponseMapper`.
 - **[Sending](rules/sending.md)**: Dispatching messages and scheduling.
-- **[Entities](rules/entities.md)**: Aggregates, state transitions, and business invariants.
+- **[Entities](rules/entities.md)**: Models, state transitions, relations, and business invariants.
 - **[Sagas](rules/sagas.md)**: Stateful handlers and long-running workflows.
 - **[Tracking](rules/tracking.md)**: Async consumption, replays, and reliability.
 - **[Metrics](rules/metrics.md)**: Publishing, handling, and interpreting observability signals.

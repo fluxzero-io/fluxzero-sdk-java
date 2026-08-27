@@ -27,15 +27,31 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.fluxzero.common.MessageType.EVENT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class InMemoryMessageStoreTest {
+
+    @Test
+    void invokesMonitorsAfterReleasingStoreLock() {
+        InMemoryMessageStore store = new InMemoryMessageStore(EVENT, Duration.ofMinutes(5));
+        AtomicBoolean invoked = new AtomicBoolean();
+        store.registerMonitor(messages -> {
+            assertFalse(Thread.holdsLock(store));
+            invoked.set(true);
+        });
+
+        store.append(List.of(message(1L))).join();
+
+        assertTrue(invoked.get());
+    }
 
     @Test
     void getBatchDoesNotReadPastMaxSize() {
@@ -53,9 +69,11 @@ class InMemoryMessageStoreTest {
     void getBatchDoesNotReadPastMaxBytes() {
         CountingStore store = new CountingStore(2);
         store.setRetentionTime(null);
-        store.append(List.of(message(1L, "1234"), message(2L, "5678"), message(3L, "9012"))).join();
+        List<SerializedMessage> messages =
+                List.of(message(1L, "1234"), message(2L, "5678"), message(3L, "9012"));
+        store.append(messages).join();
 
-        List<SerializedMessage> batch = store.getBatch(null, 10, true, 5L);
+        List<SerializedMessage> batch = store.getBatch(null, 10, true, messages.getFirst().getBytes() + 1L);
 
         assertEquals(List.of(1L), batch.stream().map(SerializedMessage::getIndex).toList());
         assertEquals(2, store.iteratedCount());
@@ -70,21 +88,23 @@ class InMemoryMessageStoreTest {
         List<SerializedMessage> batch = store.getBatch(null, 10, true, 5L);
 
         assertEquals(List.of(1L), batch.stream().map(SerializedMessage::getIndex).toList());
-        assertEquals(6L, batch.getFirst().getBytes());
+        assertTrue(batch.getFirst().getBytes() > 5L);
     }
 
     @Test
     void scanBatchAppliesMaxBytesAfterPredicateWithoutReadingRest() {
         CountingStore store = new CountingStore(4);
         store.setRetentionTime(null);
-        store.append(List.of(message(1L, "ignored-large-payload"),
-                             message(2L, "1234"),
-                             message(3L, "5678"),
-                             message(4L, "9012"),
-                             message(5L, "3456"))).join();
+        List<SerializedMessage> messages = List.of(message(1L, "ignored-large-payload"),
+                                                   message(2L, "1234"),
+                                                   message(3L, "5678"),
+                                                   message(4L, "9012"),
+                                                   message(5L, "3456"));
+        store.append(messages).join();
+        long twoAcceptedMessages = messages.get(1).getBytes() + messages.get(2).getBytes();
 
         MessageStoreBatch batch = store.scanBatch(
-                null, 10, true, 8L, message -> message.getIndex() != 1L);
+                null, 10, true, twoAcceptedMessages, message -> message.getIndex() != 1L);
 
         assertEquals(List.of(2L, 3L), batch.messages().stream().map(SerializedMessage::getIndex).toList());
         assertEquals(4L, batch.lastScannedIndex());

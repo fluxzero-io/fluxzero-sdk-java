@@ -15,10 +15,14 @@
 
 package io.fluxzero.sdk.persisting.eventsourcing;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.modeling.AggregateEventRouting;
+import io.fluxzero.sdk.modeling.AutomaticModelHandling;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
+import io.fluxzero.sdk.modeling.Model;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -42,7 +46,26 @@ import java.lang.annotation.Target;
  *     <li>On a <strong>constructor</strong> or static method of the entity, if the update creates a new instance</li>
  * </ul>
  * <p>
- * For deletions, returning {@code null} signals that the entity should be removed.
+ * For deletions, returning {@code null} signals that the entity should be removed. The applied event is still stored
+ * and/or published according to the configured publication settings.
+ * <p>
+ * For independently stored {@link Model models}, the return value identifies the target model and its resulting state.
+ * An apply may also return an ordered {@link java.util.Collection} of models; every value then joins the same atomic
+ * model commit. A typed collection is validated against its declared element type. {@code Collection<Object>} is
+ * supported when heterogeneous model types are useful and validates every returned value as a model at runtime.
+ * Collection elements must be non-null and each persisted model identity may occur only once. Use
+ * {@link io.fluxzero.sdk.modeling.Graph#delete()} for deletion instead of a null collection element. A {@code void}
+ * apply is invalid for a model. Legacy mutable entities inside aggregates may continue to use {@code void}, although
+ * immutable return values are strongly preferred.
+ * <p>
+ * When an update has applicable applies on both its payload type and an independently stored model, payload applies
+ * run first. Model applies then receive the complete intermediate state produced by all payload applies, including a
+ * model that the payload has just created. The two phases produce one atomic transition per model identity. Static
+ * model applies remain supported as factories or stateless transformations; an independent static factory is a
+ * fallback when the payload phase did not already produce its target. Explicit per-apply settings compose field by
+ * field,
+ * with an explicit model-side value overriding an explicit payload-side value and {@code DEFAULT} inheriting the
+ * earlier value. Aggregates retain their existing entity-first, payload-fallback selection contract.
  * <p>
  * When the entity is part of a larger aggregate, Fluxzero automatically routes the update to the correct entity
  * instance using matching identifier fields, typically annotated with {@link EntityId}.
@@ -53,10 +76,13 @@ import java.lang.annotation.Target;
  * <ul>
  *     <li>The current entity instance (for non-static apply methods)</li>
  *     <li>Any parent, grandparent, or other ancestor entity in the aggregate hierarchy</li>
+ *     <li>Any independently stored model loaded for the current model commit, either as its value or as
+ *         {@link io.fluxzero.sdk.modeling.Entity}{@code <T>}</li>
  *     <li>The update object itself</li>
  *     <li>The full {@link io.fluxzero.sdk.common.Message} or its {@link io.fluxzero.common.api.Metadata}</li>
  *     <li>Other context such as the {@link io.fluxzero.sdk.tracking.handling.authentication.User} performing the update</li>
  * </ul>
+ * Injected models are read inputs. Only models returned by an apply are targeted by that apply.
  *
  * <p>
  * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter
@@ -129,6 +155,7 @@ import java.lang.annotation.Target;
  * Updates targeting `Product` will automatically be routed based on `@EntityId` inside `Product`.
  *
  * @see io.fluxzero.sdk.modeling.Aggregate
+ * @see Model
  * @see AggregateEventRouting
  * @see EntityId
  * @see io.fluxzero.sdk.modeling.Member
@@ -139,6 +166,22 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.CONSTRUCTOR})
 public @interface Apply {
+
+    /**
+     * Overrides conflict handling for the model produced by this apply.
+     */
+    ModelConflictPolicy conflictPolicy() default ModelConflictPolicy.DEFAULT;
+
+    /**
+     * Overrides whether this apply participates in automatic model command handling.
+     */
+    AutomaticModelHandling automaticHandling() default AutomaticModelHandling.DEFAULT;
+
+    /**
+     * Overrides command-result completion for graph projections affected by this apply.
+     */
+    GraphProjectionCompletion graphProjectionCompletion()
+            default GraphProjectionCompletion.DEFAULT;
 
     /**
      * Controls whether the update should result in a published update, depending on whether the entity was actually
@@ -153,7 +196,9 @@ public @interface Apply {
     /**
      * Controls how the applied update is stored and/or published, and whether publish-only updates advance aggregate
      * state for the owning aggregate type. This strategy takes precedence over {@link #eventPublication()} if explicitly
-     * set.
+     * set. A publish-only apply cannot change an event-sourced {@link Model}; Fluxzero rejects such a transition before
+     * commit because its stored stream could not reconstruct the new state. Publish-only no-ops and changes to
+     * document-loaded models remain supported.
      *
      * @return strategy for persisting and/or publishing the applied update
      */
@@ -162,7 +207,9 @@ public @interface Apply {
     /**
      * Controls how an update event published by this apply method is assigned to a message segment.
      * <p>
-     * The default inherits the setting from the enclosing aggregate.
+     * This setting applies to aggregates and defaults to the enclosing aggregate configuration. Events produced by
+     * independent {@link Model Models} use ordinary message routing; annotate their payload with
+     * {@link io.fluxzero.sdk.publishing.routing.RoutingKey @RoutingKey} when related events should share a segment.
      *
      * @return routing behavior for the applied update event
      */

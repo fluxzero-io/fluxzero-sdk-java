@@ -36,6 +36,9 @@ import java.util.Collection;
  * <p>
  * Interceptors are invoked <strong>before</strong> any {@link Apply @Apply} or {@link AssertLegal @AssertLegal}
  * methods. If multiple interceptors match, they are invoked recursively until the result stabilizes.
+ * For independently stored models, an interceptor declared on the payload runs before an applicable interceptor
+ * declared on the model. The model interceptor receives the payload interceptor's actual output. A replacement with
+ * a different payload type starts the same payload-then-model selection for that new type.
  *
  * <p>
  * Interceptors can return:
@@ -43,6 +46,10 @@ import java.util.Collection;
  *     <li>The original update (no change)</li>
  *     <li>{@code null} or {@code void} to suppress the update</li>
  *     <li>An {@link java.util.Optional}, {@link Collection}, or {@link java.util.stream.Stream} to emit zero or more updates</li>
+ *     <li>A staged {@link io.fluxzero.sdk.modeling.Graph} returned by
+ *         {@link io.fluxzero.sdk.modeling.Graph#update(java.util.function.UnaryOperator)} or
+ *         {@link io.fluxzero.sdk.modeling.Graph#delete()} to change that independently stored model in the same
+ *         commit</li>
  *     <li>A different object to replace the update</li>
  * </ul>
  *
@@ -51,10 +58,14 @@ import java.util.Collection;
  * <ul>
  *     <li>The current entity (if it exists)</li>
  *     <li>Any parent or ancestor entity in the aggregate</li>
+ *     <li>Any independently stored {@link io.fluxzero.sdk.modeling.Model @Model} loaded for the current model commit,
+ *         either as its value or as a lazy {@link io.fluxzero.sdk.modeling.Graph}{@code <T>}</li>
  *     <li>The update object (if defined on the entity side)</li>
  *     <li>Context like {@link io.fluxzero.common.api.Metadata}, {@link io.fluxzero.sdk.common.Message}, or
  *         {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>
  * </ul>
+ * Injected models are read inputs unless one of the emitted updates later targets and returns them from an
+ * {@link Apply @Apply}.
  *
  * <p>
  * Note that empty entities (where the value is {@code null}) are not injected unless the parameter is annotated with
@@ -96,7 +107,21 @@ import java.util.Collection;
  * }
  * }</pre>
  *
- * <h3>4. Recursive interception</h3>
+ * <h3>4. Change graph models in the same commit</h3>
+ * <pre>{@code
+ * @InterceptApply
+ * List<?> move(Graph<Order> order) {
+ *     Graph<OrderLine> line = order.find(lineId, OrderLine.class)
+ *             .orElseThrow();
+ *     return List.of(this, line.update(value -> value.withOrderId(targetOrderId)));
+ * }
+ * }</pre>
+ * The original domain update remains the stored event shared by every changed model. Direct graph updates are replayed
+ * against a fresh pinned state after an accepted conflict, so their update function must be deterministic and free of
+ * external side effects. Return ordinary domain updates when their {@link Apply @Apply} publication configuration
+ * should govern the transition; returning a graph produced by {@code apply(...)} is deliberately unsupported.
+ *
+ * <h3>5. Recursive interception</h3>
  * <p>
  * If the result of one {@code @InterceptApply} method is a new update object, Fluxzero will look for matching
  * interceptors for the new value as well — continuing recursively until no further changes occur.

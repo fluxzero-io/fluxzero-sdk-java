@@ -27,7 +27,6 @@ import io.fluxzero.common.TimingUtils;
 import io.fluxzero.common.api.BooleanResult;
 import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.ConnectEvent;
-import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.DisconnectEvent;
 import io.fluxzero.common.api.ErrorResult;
 import io.fluxzero.common.api.JsonType;
@@ -36,18 +35,15 @@ import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
-import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.StringResult;
 import io.fluxzero.common.api.VoidResult;
-import io.fluxzero.common.api.tracking.MessageBatch;
-import io.fluxzero.common.api.tracking.ReadFromIndexResult;
-import io.fluxzero.common.api.tracking.ReadResult;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerInspector;
 import io.fluxzero.common.handling.ParameterResolver;
 import io.fluxzero.common.serialization.NullCollectionsAsEmptyModule;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.common.websocket.WebSocketTransportCodec;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
@@ -117,7 +113,7 @@ public abstract class WebsocketEndpoint {
             "webSocketResultBatchSize", 1024);
     private static final int TARGET_WEBSOCKET_RESULT_BATCH_BYTES = getPositiveIntegerProperty(
             "targetWebSocketResultBatchBytes", 4 * 1024 * 1024);
-    private static final int ESTIMATED_RESULT_OVERHEAD_BYTES = 256;
+    protected static final int ESTIMATED_RESULT_OVERHEAD_BYTES = 256;
     protected static Duration webSocketSendTimeout =
             Duration.ofMillis(getPositiveIntegerProperty("webSocketSendTimeoutMs", 30_000));
 
@@ -213,8 +209,8 @@ public abstract class WebsocketEndpoint {
         activeSessionIds.add(sessionId);
         commandIdempotencyStore.registerSession(getClientId(session), sessionId);
         sessionBacklogs.put(sessionId, new SessionBacklog(
-                Backlog.forOrderedAsyncConsumer(results -> sendResultBatchAsync(session, results),
-                                                WEBSOCKET_RESULT_BATCH_SIZE), session));
+                Backlog.forAsyncConsumer(results -> sendResultBatchAsync(session, results),
+                                         WEBSOCKET_RESULT_BATCH_SIZE, 1), session));
 
         registerMetrics(new ConnectEvent(
                                 getClientName(session), getClientId(session), sessionId,
@@ -574,60 +570,21 @@ public abstract class WebsocketEndpoint {
 
     private int estimateResultBytes(RequestResult result) {
         int size = ESTIMATED_RESULT_OVERHEAD_BYTES;
-        if (result instanceof ReadResult readResult) {
-            return size + estimateMessageBatchBytes(readResult.getMessageBatch());
-        }
-        if (result instanceof ReadFromIndexResult readFromIndexResult) {
-            return size + estimateSerializedMessagesBytes(readFromIndexResult.getMessages());
-        }
         if (result instanceof StringResult stringResult) {
             return size + estimateStringBytes(stringResult.getResult());
         }
         if (result instanceof ErrorResult errorResult) {
             return size + estimateStringBytes(errorResult.getMessage());
         }
-        return size;
+        return estimateRequestResultBytes(result);
     }
 
-    private int estimateMessageBatchBytes(MessageBatch batch) {
-        return batch == null ? 0 : estimateSerializedMessagesBytes(batch.getMessages());
+    /** Estimates one endpoint-specific request result for websocket batch sizing. */
+    protected int estimateRequestResultBytes(RequestResult result) {
+        return ESTIMATED_RESULT_OVERHEAD_BYTES;
     }
 
-    private int estimateSerializedMessagesBytes(List<SerializedMessage> messages) {
-        if (messages == null || messages.isEmpty()) {
-            return 0;
-        }
-        int result = 0;
-        for (SerializedMessage message : messages) {
-            result += estimateSerializedMessageBytes(message);
-        }
-        return result;
-    }
-
-    private int estimateSerializedMessageBytes(SerializedMessage message) {
-        if (message == null) {
-            return 0;
-        }
-        int result = 128;
-        Data<byte[]> data = message.getData();
-        if (data != null) {
-            byte[] value = data.getValue();
-            result += value == null ? 0 : value.length;
-            result += estimateStringBytes(data.getType()) + estimateStringBytes(data.getFormat());
-        }
-        Metadata metadata = message.getMetadata();
-        if (metadata != null && metadata.getEntries() != null) {
-            for (Map.Entry<String, String> entry : metadata.getEntries().entrySet()) {
-                result += estimateStringBytes(entry.getKey()) + estimateStringBytes(entry.getValue());
-            }
-        }
-        result += estimateStringBytes(message.getSource());
-        result += estimateStringBytes(message.getTarget());
-        result += estimateStringBytes(message.getMessageId());
-        return result;
-    }
-
-    private int estimateStringBytes(String value) {
+    protected static int estimateStringBytes(String value) {
         return value == null ? 0 : value.length() * 2;
     }
 
@@ -919,7 +876,13 @@ public abstract class WebsocketEndpoint {
 
     protected WebSocketTransportCodec transportCodec(ServerWebsocketSession session) {
         return transportCodecs.computeIfAbsent(getTransportFormat(session),
-                                               format -> WebSocketTransportCodecs.forFormat(format, objectMapper));
+                                               format -> WebSocketTransportCodecs.forFormat(
+                                                       format, objectMapper, payloadCodecs()));
+    }
+
+    /** Returns compact payload codecs owned by this concrete endpoint protocol. */
+    protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
+        return List.of();
     }
 
     @SuppressWarnings("unchecked")

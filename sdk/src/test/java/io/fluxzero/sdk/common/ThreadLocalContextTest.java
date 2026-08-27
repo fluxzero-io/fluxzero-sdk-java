@@ -97,6 +97,42 @@ class ThreadLocalContextTest {
     }
 
     @Test
+    void repeatedActivationSwitchesExactSnapshotsAndRestoresOuterValues() {
+        first.set("first");
+        second.remove();
+        ThreadLocalContext.Snapshot firstSnapshot = ThreadLocalContext.capture();
+        first.set("second");
+        second.set(2);
+        ThreadLocalContext.Snapshot secondSnapshot = ThreadLocalContext.capture();
+        first.set("second");
+        second.set(3);
+        ThreadLocalContext.Snapshot thirdSnapshot = ThreadLocalContext.capture();
+        first.set("outer");
+        second.set(42);
+
+        try (ThreadLocalContext.Activation activation = ThreadLocalContext.openActivation()) {
+            activation.use(firstSnapshot);
+            assertEquals("first", first.get());
+            assertNull(second.get());
+
+            second.set(99);
+            activation.use(secondSnapshot);
+            assertEquals("second", first.get());
+            assertEquals(2, second.get());
+
+            activation.use(thirdSnapshot);
+            assertEquals("second", first.get());
+            assertEquals(3, second.get());
+        }
+
+        assertEquals("outer", first.get());
+        assertEquals(42, second.get());
+        first.remove();
+        second.remove();
+        assertTrue(ThreadLocalContext.capture().isEmpty());
+    }
+
+    @Test
     void wrappedFunctionRestoresOuterValues() {
         first.set("captured");
         ThreadLocalContext.Snapshot snapshot = ThreadLocalContext.capture();

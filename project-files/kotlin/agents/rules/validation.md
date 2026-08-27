@@ -215,7 +215,7 @@ class UserQueryHandler {
     @HandleQuery
     @FilterContent // Enables recursive filtering for the result
     fun handle(query: GetUserProfile): UserProfile {
-        return Fluxzero.loadAggregate(query.userId).get()
+        return Fluxzero.loadModel(query.userId).get()
     }
 }
 ```
@@ -230,6 +230,8 @@ Practical recursion behavior:
 - If a filtered list element returns `null`, it is removed from the list.
 - If a filtered map value returns `null`, the key is removed from the map.
 - Root-context injection (`filter(User, RootType)`) is useful when child visibility depends on parent state.
+- Graph values are filtered per typed node. A model filter may inject its current `Graph<T>` and a typed parent or root
+  `Graph<P>` without causing a new repository read.
 
 ```kotlin
 data class Order(val id: OrderId, val items: List<LineItem>, val isSecret: Boolean) {

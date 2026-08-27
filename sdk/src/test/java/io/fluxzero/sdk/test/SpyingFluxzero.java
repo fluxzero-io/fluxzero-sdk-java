@@ -21,6 +21,7 @@ import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.Memoization;
+import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.FluxzeroConfiguration;
@@ -29,6 +30,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.CommandGateway;
 import io.fluxzero.sdk.publishing.ErrorGateway;
@@ -46,8 +48,10 @@ import lombok.AllArgsConstructor;
 import org.mockito.Mockito;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A {@link Fluxzero} implementation that wraps another instance and spies on its major components using Mockito.
@@ -58,6 +62,7 @@ import java.util.WeakHashMap;
  * Components that are wrapped with {@link Mockito#spy(Object)} include:
  * <ul>
  *     <li>{@link AggregateRepository}</li>
+ *     <li>{@link ModelRepository}</li>
  *     <li>{@link CommandGateway}</li>
  *     <li>{@link QueryGateway}</li>
  *     <li>{@link EventGateway}</li>
@@ -108,6 +113,11 @@ public class SpyingFluxzero implements Fluxzero {
     @Override
     public AggregateRepository aggregateRepository() {
         return decorate(delegate.aggregateRepository());
+    }
+
+    @Override
+    public ModelRepository modelRepository() {
+        return decorate(delegate.modelRepository());
     }
 
     @Override
@@ -233,6 +243,26 @@ public class SpyingFluxzero implements Fluxzero {
     @Override
     public FluxzeroConfiguration configuration() {
         return delegate.configuration();
+    }
+
+    @Override
+    public CompletableFuture<Void> executeModelCommit(Message update) {
+        return delegate.executeModelCommit(update);
+    }
+
+    @Override
+    public CompletableFuture<Void> executeModelCommits(List<Message> updates) {
+        return delegate.executeModelCommits(updates);
+    }
+
+    @Override
+    public CompletableFuture<Void> executeStoredModelEvent(Message event) {
+        return delegate.executeStoredModelEvent(event);
+    }
+
+    @Override
+    public CompletableFuture<Void> executeModelAssertions(Message update) {
+        return delegate.executeModelAssertions(update);
     }
 
     @Override

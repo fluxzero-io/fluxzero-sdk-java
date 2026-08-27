@@ -108,7 +108,9 @@ class WebsocketRuntimeDispatchBenchmarkTest {
                     WebSocketTransportCodecs.json(AbstractWebsocketClient.defaultObjectMapper)
                             .decode(compression.decompress(payload.bytes())));
             assertEquals(payload.trackingMessages(), decoded.getMessageBatch().getMessages().size());
-            assertEquals(payload.valueBytes(), decoded.getMessageBatch().getBytes());
+            assertEquals(payload.valueBytes(), decoded.getMessageBatch().getMessages().stream()
+                    .mapToInt(message -> message.getData().getValue().length)
+                    .sum());
         }
     }
 }

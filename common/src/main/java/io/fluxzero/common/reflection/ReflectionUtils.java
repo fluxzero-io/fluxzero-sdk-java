@@ -147,6 +147,11 @@ public class ReflectionUtils {
     private static final Function<String, Optional<Class<?>>> classForFqnCache
             = memoize(ReflectionUtils::computeClassForFqn);
     private static final Supplier<TypeRegistry> typeRegistrySupplier = memoize(() -> new DefaultTypeRegistry());
+    private static final Supplier<List<Class<?>>> registeredTypesSupplier = memoize(() ->
+            typeRegistrySupplier.get().getTypeNames().stream()
+                    .map(classForFqnCache)
+                    .flatMap(Optional::stream)
+                    .toList());
     private static final Function<String, Optional<Class<?>>> classForNameCache
             = memoize(ReflectionUtils::computeClassForName);
     private static final BiFunction<Package, Boolean, Collection<? extends Annotation>> packageAnnotationsCache =
@@ -445,7 +450,28 @@ public class ReflectionUtils {
     }
 
     public static Optional<Object> getAnnotatedPropertyValue(Object target, Class<? extends Annotation> annotation) {
-        return getAnnotatedProperty(target, annotation).map(m -> getValue(m, target, false));
+        return Optional.ofNullable(getAnnotatedPropertyValueOrNull(target, annotation));
+    }
+
+    /**
+     * Returns the value of the first property carrying the given annotation, or {@code null} when the target,
+     * annotated property, or property value is absent.
+     *
+     * <p>This is the allocation-free counterpart of {@link #getAnnotatedPropertyValue(Object, Class)} for callers
+     * that already use {@code null} as their absence sentinel. It uses the same centrally cached
+     * {@link TypeMetadata} and compiled {@link MemberInvoker}.</p>
+     *
+     * @param target target object, or {@code null}
+     * @param annotation annotation that identifies the property
+     * @return the property value, or {@code null} when absent
+     */
+    public static Object getAnnotatedPropertyValueOrNull(
+            Object target, Class<? extends Annotation> annotation) {
+        if (target == null) {
+            return null;
+        }
+        Optional<MemberInvoker> invoker = getAnnotatedPropertyInvoker(asClass(target), annotation);
+        return invoker.isEmpty() ? null : invoker.get().invoke(target);
     }
 
     public static Collection<Object> getAnnotatedPropertyValues(Object target, Class<? extends Annotation> annotation) {
@@ -997,6 +1023,7 @@ public class ReflectionUtils {
         private final ConcurrentHashMap<String, BiConsumer<Object, Object>> setters = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, PropertyPathMetadata> propertyPaths = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<MemberInvokerKey, MemberInvoker> invokers = new ConcurrentHashMap<>();
+        private volatile ConcurrentHashMap<Class<?>, Object> specializedMetadata;
 
         @SneakyThrows
         private TypeMetadata(Class<?> type) {
@@ -1087,8 +1114,27 @@ public class ReflectionUtils {
             return annotatedMethods.computeIfAbsent(annotation, this::computeAnnotatedMethods);
         }
 
+        /**
+         * Returns annotated methods, including inherited methods, followed by annotated constructors declared by this
+         * type.
+         */
+        public List<Executable> annotatedExecutables(Class<? extends Annotation> annotation) {
+            return Stream.concat(
+                    annotatedMethods(annotation).stream(),
+                    Stream.of(type.getDeclaredConstructors())
+                            .filter(constructor -> methodAnnotation(constructor, annotation).isPresent()))
+                    .map(Executable.class::cast)
+                    .toList();
+        }
+
         public List<? extends AccessibleObject> annotatedProperties(Class<? extends Annotation> annotation) {
-            return annotatedProperties.computeIfAbsent(annotation, this::computeAnnotatedProperties);
+            List<? extends AccessibleObject> cached = annotatedProperties.get(annotation);
+            if (cached != null) {
+                return cached;
+            }
+            List<? extends AccessibleObject> computed = computeAnnotatedProperties(annotation);
+            List<? extends AccessibleObject> existing = annotatedProperties.putIfAbsent(annotation, computed);
+            return existing == null ? computed : existing;
         }
 
         public Optional<? extends AccessibleObject> annotatedProperty(Class<? extends Annotation> annotation) {
@@ -1096,10 +1142,16 @@ public class ReflectionUtils {
         }
 
         public Optional<MemberInvoker> annotatedPropertyInvoker(Class<? extends Annotation> annotation) {
-            return annotatedPropertyInvokers.computeIfAbsent(annotation, a -> annotatedProperty(a)
+            Optional<MemberInvoker> cached = annotatedPropertyInvokers.get(annotation);
+            if (cached != null) {
+                return cached;
+            }
+            Optional<MemberInvoker> computed = annotatedProperty(annotation)
                     .filter(Member.class::isInstance)
                     .map(Member.class::cast)
-                    .map(DefaultMemberInvoker::asInvoker));
+                    .map(DefaultMemberInvoker::asInvoker);
+            Optional<MemberInvoker> existing = annotatedPropertyInvokers.putIfAbsent(annotation, computed);
+            return existing == null ? computed : existing;
         }
 
         public Function<Object, Object> getter(String propertyPath) {
@@ -1124,6 +1176,36 @@ public class ReflectionUtils {
         public MemberInvoker invoker(Member member, boolean forceAccess) {
             return invokers.computeIfAbsent(new MemberInvokerKey(member, forceAccess),
                                             ignored -> new DefaultMemberInvoker(member, forceAccess));
+        }
+
+        /**
+         * Returns type-specific structural metadata owned by this central type cache.
+         * <p>
+         * SDK features can use this extension point for immutable metadata that is derived only from {@link #type()}.
+         * Runtime or instance state must not be captured by the factory or the returned value.
+         *
+         * @param metadataType unique metadata kind and expected result type
+         * @param factory      computes the metadata from this Java type on first access
+         * @param <M>          metadata type
+         * @return the cached metadata instance
+         */
+        public <M> M specializedMetadata(Class<M> metadataType, Function<Class<?>, ? extends M> factory) {
+            ConcurrentHashMap<Class<?>, Object> metadata = specializedMetadata;
+            if (metadata == null) {
+                synchronized (this) {
+                    metadata = specializedMetadata;
+                    if (metadata == null) {
+                        specializedMetadata = metadata = new ConcurrentHashMap<>();
+                    }
+                }
+            }
+            Object result = metadata.get(metadataType);
+            if (result == null) {
+                M computed = Objects.requireNonNull(factory.apply(type), "Specialized metadata must not be null");
+                Object existing = metadata.putIfAbsent(metadataType, computed);
+                result = existing == null ? computed : existing;
+            }
+            return metadataType.cast(result);
         }
 
         @SuppressWarnings("unchecked")
@@ -1767,6 +1849,15 @@ public class ReflectionUtils {
         }
         int lastSeparatorIndex = Math.max(fullyQualifiedName.lastIndexOf('.'), fullyQualifiedName.lastIndexOf('$'));
         return (lastSeparatorIndex == -1) ? fullyQualifiedName : fullyQualifiedName.substring(lastSeparatorIndex + 1);
+    }
+
+    /**
+     * Returns the loadable types from the generated application type registry.
+     * <p>
+     * The result is resolved once and uses the same class cache as {@link #getClass(String)}.
+     */
+    public static List<Class<?>> getRegisteredTypes() {
+        return registeredTypesSupplier.get();
     }
 
     @SneakyThrows

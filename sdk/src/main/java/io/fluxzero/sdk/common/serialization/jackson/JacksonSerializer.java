@@ -38,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Type;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.function.Function;
@@ -65,6 +66,7 @@ import static java.lang.String.format;
  */
 @Slf4j
 public class JacksonSerializer extends AbstractSerializer<JsonNode> implements DocumentSerializer {
+    private static final byte[] NULL_BYTES = new byte[]{'n', 'u', 'l', 'l'};
     /**
      * Default {@link JsonMapper} instance used for JSON serialization and deserialization.
      * <p>
@@ -139,7 +141,7 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
      */
     @Override
     protected byte[] doSerialize(Object object) throws Exception {
-        return objectMapper.writeValueAsBytes(object);
+        return object == null ? NULL_BYTES.clone() : objectMapper.writeValueAsBytes(object);
     }
 
     /**
@@ -148,13 +150,28 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
      */
     @Override
     protected Object doDeserialize(Data<?> data, String type) throws Exception {
-        return switch (data.getValue()) {
+        Data.ByteArrayView byteArrayView = data.byteArrayView();
+        if (byteArrayView != null) {
+            byte[] bytes = byteArrayView.array();
+            int offset = byteArrayView.offset();
+            int length = byteArrayView.length();
+            if (Void.class.getName().equals(type)
+                    && length == NULL_BYTES.length
+                    && Arrays.equals(bytes, offset, offset + length,
+                                     NULL_BYTES, 0, NULL_BYTES.length)) {
+                return null;
+            }
+            return objectMapper.readValue(bytes, offset, length, typeCache.apply(type));
+        }
+        Object value = data.getValue();
+        return switch (value) {
             case JsonNode v -> objectMapper.convertValue(v, typeCache.apply(type));
+            case byte[] v when Void.class.getName().equals(type) && Arrays.equals(v, NULL_BYTES) -> null;
             case byte[] v -> objectMapper.readValue(v, typeCache.apply(type));
             case String v -> objectMapper.readValue(v, typeCache.apply(type));
             case null -> null;
             default ->
-                    throw new IllegalArgumentException("Incompatible data value type: " + data.getValue().getClass());
+                    throw new IllegalArgumentException("Incompatible data value type: " + value.getClass());
         };
     }
 

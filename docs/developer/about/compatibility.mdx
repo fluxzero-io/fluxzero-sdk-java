@@ -8,9 +8,21 @@ sidebar:
 import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 
-All minor versions are backward compatible, meaning that you can upgrade to a newer minor version without breaking your code.
+Released minor versions preserve supported SDK behavior and persisted/wire contracts so applications can upgrade
+without rewriting their domain code.
 
 However, you should always check the [changelog](/docs/changelog) for any breaking changes.
+
+## SDK and Runtime upgrades
+
+- A newer Runtime accepts released workflows from older SDK versions.
+- A newer SDK works with an older Runtime while the application uses only protocol operations that Runtime supports.
+- A new SDK capability that needs a new Runtime operation fails explicitly as unsupported at its first request. It does
+  not silently write a partial or legacy representation.
+
+Upgrade the Runtime first before enabling a newly introduced Model protocol capability. Applications that do not use
+that capability remain compatible and can upgrade the two components independently within their supported release
+ranges. Upcasting is application-side SDK behavior; the Runtime neither executes nor replaces application upcasters.
 
 ## Java Version
 

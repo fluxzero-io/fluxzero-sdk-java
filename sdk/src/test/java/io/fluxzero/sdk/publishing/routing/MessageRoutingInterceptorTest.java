@@ -36,6 +36,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.time.Clock;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -144,6 +145,17 @@ class MessageRoutingInterceptorTest {
     }
 
     @Test
+    void computesAnnotatedRoutingKeyOnceAcrossThreads() {
+        AtomicInteger invocations = new AtomicInteger();
+        Message message = new Message(new CountingRoutingKey(invocations));
+
+        IntStream.range(0, 128).parallel().forEach(
+                ignored -> assertEquals("bar", message.getRoutingKey().orElseThrow()));
+
+        assertEquals(1, invocations.get());
+    }
+
+    @Test
     void testStaticMethodAnnotation() {
         testInvocation(new AnnotationOnStaticMethod());
     }
@@ -228,6 +240,14 @@ class MessageRoutingInterceptorTest {
     private static class AnnotationOnMethod {
         @RoutingKey
         private Object foo() {
+            return "bar";
+        }
+    }
+
+    private record CountingRoutingKey(AtomicInteger invocations) {
+        @RoutingKey
+        private String routingKey() {
+            invocations.incrementAndGet();
             return "bar";
         }
     }

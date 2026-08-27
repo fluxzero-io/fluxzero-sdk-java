@@ -24,7 +24,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a property (field or getter) as the unique identifier of an entity within an aggregate structure.
+ * Marks a property (field or getter) as the unique identifier of an entity or independently stored model.
  * <p>
  * The presence of this annotation enables automatic routing of updates to the correct entity instance inside an
  * aggregate, based on identifier matching.
@@ -33,9 +33,30 @@ import java.lang.annotation.Target;
  * containing a list of {@code Task} entities. The framework uses the {@code @EntityId}-annotated property to match
  * update messages with their corresponding entity.
  * <p>
- * You can annotate either a field or its getter method.
+ * You can annotate either a field or its getter method. Optional affixes only affect the persisted identifier and
+ * repository lookups; the property itself retains its functional value. They wrap any repository prefix already
+ * supplied by an {@link Id}. For example, an ID whose repository value is {@code connection-123} combined with
+ * {@code @EntityId(prefix = "move-")} is stored as {@code move-connection-123}.
+ * <p>
+ * A one-to-one companion model may use the same property as both its {@code @EntityId} and a {@link Parent}. The
+ * functional property value then identifies the parent relationship, while these affixes still give the companion
+ * its own globally unique repository identity.
+ * <p>
+ * A model whose functional identifier is unique only below its parent can set {@link #parentScoped()} to
+ * {@code true}. Its persisted identity then combines the one non-null declared {@link Parent} with the functional
+ * identifier. The model property keeps the functional value and graph-local {@link Graph#find(Object, Class)} lookup
+ * therefore remains natural. Parent-scoped identity is intended for parent-owned values: moving such a model to a
+ * different parent changes its persisted identity.
+ * <p>
+ * Domain lifecycle determines whether a value should be an independent model; identity is supporting evidence rather
+ * than a separate modeling gate. If a child can be created, changed, retained, or deleted independently but has no
+ * globally unique functional ID, keep it as a model and use a typed or parent-scoped identifier instead of embedding it
+ * as a {@link Member} merely for storage convenience.
  *
- * @see Aggregate for how to define aggregates and their structure.
+ * @see Model
+ * @see Parent
+ * @see Member
+ * @see Aggregate
  */
 @Documented
 @Target({ElementType.FIELD, ElementType.METHOD})
@@ -43,4 +64,12 @@ import java.lang.annotation.Target;
 @Inherited
 @Association
 public @interface EntityId {
+    /** Prefix added outside the identifier's own repository representation. */
+    String prefix() default "";
+
+    /** Postfix added outside the identifier's own repository representation. */
+    String postfix() default "";
+
+    /** Whether the persisted model identity is scoped by its one non-null declared parent. */
+    boolean parentScoped() default false;
 }

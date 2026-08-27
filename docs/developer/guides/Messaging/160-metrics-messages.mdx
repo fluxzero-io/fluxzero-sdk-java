@@ -61,14 +61,29 @@ All metric messages are published by the SDK, except for `ConnectEvent` and `Dis
 
 ---
 
-### Events (Aggregates)
+### Model commits
+
+| Metric message | Description |
+|----------------|-------------|
+| **CommitModels** | Commits model events, documents, snapshots and relationship deltas as one package. |
+| **CommitModelsResult$Metric** | Reports accepted, duplicate, rebase and conflict outcomes. |
+| **GetModelEvents** | Batch-loads modelstream memberships at one state boundary. |
+| **GetModelEventsResult$Metric** | Reports stream, payload, membership and byte counts. |
+| **GetModelGraph / GetModelGraphResult$Metric** | Loads a bounded current or historical model graph. |
+| **GetModelChange / GetModelChangeResult$Metric** | Resolves the target count and exact boundary of one durable model-commit substep for a graph-change handler. |
+| **GetModelAncestors** | Resolves bounded temporal ancestor dependencies. |
+| **PlanModelDeletion / DeleteModel** | Plans or executes model hard deletion. |
+
+---
+
+### Legacy aggregate events
 
 | Metric message | Description |
 |----------------|--------------|
-| **AppendEvents** | Appends events to an aggregate. |
-| **GetEvents** | Requests events for an aggregate. |
+| **AppendEvents** | Appends events to a legacy aggregate stream. |
+| **GetEvents** | Requests events from a legacy aggregate stream. |
 | **GetEventsResult$Metric** | Reports metrics for `GetEvents`. |
-| **DeleteEvents** | Deletes events for an aggregate. |
+| **DeleteEvents** | Deletes a legacy aggregate stream. |
 
 ---
 
@@ -76,7 +91,7 @@ All metric messages are published by the SDK, except for `ConnectEvent` and `Dis
 
 | Metric message | Description |
 |----------------|--------------|
-| **UpdateRelationships** | Updates entity–aggregate relationships. |
+| **UpdateRelationships** | Updates legacy entity–root relationships. |
 | **RepairRelationships** | Repairs relationship consistency. |
 | **GetAggregateIds** | Requests aggregate IDs for a given entity. |
 | **GetAggregateIdsResult** | Returns aggregate IDs for an entity. |

@@ -31,7 +31,11 @@ import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
 import org.jetbrains.annotations.Nullable;
 import org.junit.jupiter.api.Test;
+import org.mockito.Answers;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -42,6 +46,8 @@ import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionIntercepto
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class CorrelationDataProviderTest {
     private final CorrelationDataProvider testProvider = new TestCorrelationDataProvider();
@@ -55,6 +61,29 @@ class CorrelationDataProviderTest {
                 .whenExecuting(fc -> fc.commandGateway().sendAndForget(command))
                 .expectCommands(command.addMetadata("foo", "bar"))
                 .expectEvents(command.addMetadata("foo", "bar", "msgId", command.getMessageId()));
+    }
+
+    @Test
+    void preservesCustomNoArgProviderAndNullRemovalSemantics() {
+        var command = new Message("bla", Metadata.of("remove", "old"));
+        CorrelationDataProvider provider = new CorrelationDataProvider() {
+            @Override
+            public Map<String, String> getCorrelationData() {
+                Map<String, String> result = new HashMap<>();
+                result.put("custom", "value");
+                result.put("remove", null);
+                return result;
+            }
+
+            @Override
+            public Map<String, String> getCorrelationData(@Nullable DeserializingMessage currentMessage) {
+                throw new AssertionError("The no-arg correlation provider contract should be used");
+            }
+        };
+
+        TestFixture.create(DefaultFluxzero.builder().replaceCorrelationDataProvider(ignored -> provider))
+                .whenExecuting(fc -> fc.commandGateway().sendAndForget(command))
+                .expectCommands(command.withMetadata(Metadata.of("custom", "value")));
     }
 
     @Test
@@ -129,6 +158,52 @@ class CorrelationDataProviderTest {
 
         assertEquals("tenant", tenantCorrelation.get(defaultProvider.getTriggerNamespaceKey()));
         assertFalse(applicationCorrelation.containsKey(defaultProvider.getTriggerNamespaceKey()));
+    }
+
+    @Test
+    void compactDefaultCorrelationMetadataMatchesTheMapContract() {
+        DeserializingMessage current = new DeserializingMessage(
+                new Message("trigger", Metadata.of("$trace.workflow", "test")),
+                MessageType.COMMAND, new JacksonSerializer());
+        Map<String, String> expected = new HashMap<>(defaultProvider.getCorrelationData(current));
+        Map<String, String> actual = new HashMap<>(
+                defaultProvider.getCorrelationMetadata(current).getEntries());
+
+        expected.remove(defaultProvider.getDelayKey());
+        actual.remove(defaultProvider.getDelayKey());
+
+        assertEquals(expected, actual);
+    }
+
+    @Test
+    void compactDefaultCorrelationMetadataPreservesSubMillisecondDelaySemantics() {
+        Clock clock = Clock.fixed(Instant.ofEpochSecond(11), ZoneOffset.UTC);
+        Fluxzero fluxzero = mock(Fluxzero.class, Answers.CALLS_REAL_METHODS);
+        when(fluxzero.clock()).thenReturn(clock);
+        DeserializingMessage current = new DeserializingMessage(
+                new Message("trigger", Metadata.empty(), "message-id",
+                            Instant.ofEpochSecond(10, 999_999_999)),
+                MessageType.COMMAND, new JacksonSerializer());
+
+        Metadata correlation = fluxzero.apply(
+                ignored -> defaultProvider.getCorrelationMetadata(current));
+
+        assertEquals("0", correlation.get(defaultProvider.getDelayKey()));
+    }
+
+    @Test
+    void compactDefaultCorrelationMetadataPreservesNegativeSubMillisecondDelaySemantics() {
+        Clock clock = Clock.fixed(Instant.ofEpochSecond(10, 999_999_999), ZoneOffset.UTC);
+        Fluxzero fluxzero = mock(Fluxzero.class, Answers.CALLS_REAL_METHODS);
+        when(fluxzero.clock()).thenReturn(clock);
+        DeserializingMessage current = new DeserializingMessage(
+                new Message("trigger", Metadata.empty(), "message-id", Instant.ofEpochSecond(11)),
+                MessageType.COMMAND, new JacksonSerializer());
+
+        Metadata correlation = fluxzero.apply(
+                ignored -> defaultProvider.getCorrelationMetadata(current));
+
+        assertEquals("0", correlation.get(defaultProvider.getDelayKey()));
     }
 
     @Test

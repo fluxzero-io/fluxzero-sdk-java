@@ -29,11 +29,13 @@ import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.tracking.TrackSelf;
+import io.fluxzero.sdk.tracking.handling.DocumentHandlerTopics;
 import io.fluxzero.sdk.tracking.handling.HandleCustom;
 import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
@@ -44,7 +46,6 @@ import org.slf4j.MarkerFactory;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
-import java.lang.reflect.Parameter;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -55,7 +56,6 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.Temporal;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalUnit;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
@@ -75,7 +75,6 @@ import java.util.stream.Collectors;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedMethods;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
-import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAnnotation;
 import static io.fluxzero.common.reflection.ReflectionUtils.getTypeAnnotation;
 import static java.time.temporal.ChronoUnit.DAYS;
@@ -439,7 +438,18 @@ public class ClientUtils {
      * @return the revision number, or 0 if not present
      */
     public static int getRevisionNumber(Object object) {
-        return Optional.ofNullable(object).map(o -> o.getClass().getAnnotation(Revision.class))
+        return object == null ? 0 : getRevisionNumberForType(object.getClass());
+    }
+
+    /**
+     * Extracts the revision number from the {@link Revision} annotation on the given type.
+     *
+     * @return the revision number, or 0 if not present
+     */
+    public static int getRevisionNumberForType(Class<?> type) {
+        return Optional.ofNullable(type)
+                .map(ReflectionUtils::getTypeMetadata)
+                .map(metadata -> metadata.<Revision>typeAnnotation(Revision.class))
                 .map(Revision::value).orElse(0);
     }
 
@@ -453,14 +463,33 @@ public class ClientUtils {
     }
 
     /**
+     * Resolves the direct current-document collection used to select related models.
+     * <p>
+     * Ordinary document classes keep their public search collection. Models use the same collection owner as their
+     * commit and load paths, including private type-isolated collections for graph components that are not
+     * independently searchable.
+     */
+    public static String determineRelationSearchCollection(@NonNull Object collection) {
+        Class<?> type = ReflectionUtils.ifClass(collection);
+        if (type == null) {
+            return collection.toString();
+        }
+        EntityMetadata metadata = EntityMetadata.of(type);
+        if (!metadata.isModel()) {
+            return determineSearchCollection(type);
+        }
+        return metadata.modelDocumentCollection()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "%s has no current document for relationship search"
+                                .formatted(type.getName())));
+    }
+
+    /**
      * Returns the effective {@link SearchParameters} for the given type, using the {@link Searchable} annotation.
      * Defaults to a collection name matching the class’s simple name if not explicitly set.
      */
     public static SearchParameters getSearchParameters(Class<?> type) {
-        return getAnnotationAs(type, Searchable.class, SearchParameters.class)
-                .map(SearchParameters::substituteProperties)
-                .map(p -> p.getCollection() == null ? p.withCollection(type.getSimpleName()) : p)
-                .orElseGet(() -> new SearchParameters(true, type.getSimpleName(), null, null));
+        return SearchParameters.forType(type);
     }
 
     /**
@@ -513,14 +542,7 @@ public class ClientUtils {
      * @return the topic as a String, or {@code null} if no valid topic is determined.
      */
     public static String getTopic(HandleDocument handleDocument, Executable executable) {
-        return Optional.ofNullable(handleDocument)
-                .filter(h -> !h.disabled())
-                .flatMap(h -> Optional.ofNullable(h.value()).filter(s -> !s.isBlank())
-                        .or(() -> Void.class.equals(h.documentClass()) ? Optional.empty() :
-                                Optional.of(ClientUtils.determineSearchCollection(h.documentClass()))))
-                .or(() -> Arrays.stream(executable.getParameters()).findFirst().map(Parameter::getType).map(
-                        ClientUtils::determineSearchCollection))
-                .filter(s -> !s.isBlank()).orElse(null);
+        return DocumentHandlerTopics.resolve(handleDocument, executable);
     }
 
     /**

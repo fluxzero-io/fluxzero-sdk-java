@@ -85,14 +85,14 @@ public interface TrackingClient extends AutoCloseable {
     List<SerializedMessage> readFromIndex(long minIndex, int maxSize);
 
     /**
-     * Fetches messages directly from the message log while limiting both message count and serialized payload bytes.
+     * Fetches messages directly from the message log while limiting both message count and complete serialized bytes.
      * <p>
      * If the first available message is larger than {@code maxBytes}, it is still returned so consumers can make
      * progress. A {@code maxBytes} value of {@code 0} disables the byte limit.
      *
      * @param minIndex the starting index (inclusive)
      * @param maxSize  the maximum number of messages to retrieve
-     * @param maxBytes the maximum number of serialized payload bytes to retrieve
+     * @param maxBytes the maximum number of complete serialized message bytes to retrieve
      * @return a list of serialized messages starting at the given index
      */
     default List<SerializedMessage> readFromIndex(long minIndex, int maxSize, long maxBytes) {
@@ -118,12 +118,12 @@ public interface TrackingClient extends AutoCloseable {
 
     /**
      * Fetches messages in the range {@code [minIndexInclusive, maxIndexExclusive)} while limiting both message count
-     * and serialized payload bytes.
+     * and complete serialized message bytes.
      *
      * @param minIndexInclusive the starting index (inclusive)
      * @param maxIndexExclusive the maximum index (exclusive)
      * @param maxSize           the maximum number of messages to retrieve
-     * @param maxBytes          the maximum number of serialized payload bytes to retrieve
+     * @param maxBytes          the maximum number of complete serialized message bytes to retrieve
      * @return a list of serialized messages in the requested range
      */
     default List<SerializedMessage> readRange(long minIndexInclusive, long maxIndexExclusive, int maxSize,

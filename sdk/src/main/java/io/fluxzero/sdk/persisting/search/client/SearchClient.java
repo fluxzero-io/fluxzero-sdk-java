@@ -16,17 +16,25 @@
 package io.fluxzero.sdk.persisting.search.client;
 
 import io.fluxzero.common.Guarantee;
+import io.fluxzero.common.api.search.AdoptModelMigration;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentStats;
 import io.fluxzero.common.api.search.DocumentUpdate;
 import io.fluxzero.common.api.search.FacetStats;
 import io.fluxzero.common.api.search.GetDocument;
+import io.fluxzero.common.api.search.GetDocumentResult;
 import io.fluxzero.common.api.search.GetDocuments;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.GetModelMigrationResult;
+import io.fluxzero.common.api.search.GetModelMigrations;
+import io.fluxzero.common.api.search.GetModelMigrationsResult;
 import io.fluxzero.common.api.search.GetSearchHistogram;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
@@ -74,6 +82,18 @@ public interface SearchClient extends AutoCloseable {
     CompletableFuture<Void> index(List<SerializedDocument> documents, Guarantee guarantee, boolean ifNotExists);
 
     /**
+     * Conditionally replaces one materialized model-graph document while its manifest still matches the handled
+     * version. Implementations without durable model-graph projections may retain the unsupported default.
+     */
+    default CompletableFuture<Void> rewriteModelGraphDocument(
+            SerializedDocument document,
+            String expectedManifest,
+            Guarantee guarantee) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "Materialized model graph document migration is not supported by this client"));
+    }
+
+    /**
      * Executes a streaming search query using the given criteria and fetch size.
      *
      * @param searchDocuments the search parameters and query
@@ -81,6 +101,26 @@ public interface SearchClient extends AutoCloseable {
      * @return a stream of search hits matching the query
      */
     Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize);
+
+    /**
+     * Executes a bounded current-state search across independent model relationships.
+     */
+    default Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph search is not supported by this client");
+    }
+
+    /**
+     * Executes a current-state model search and composes each matching root's explicitly placed child graph.
+     */
+    default Stream<SearchHit<SerializedDocument>> searchModelGraph(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        throw new UnsupportedOperationException(
+                "Independent-model graph composition is not supported by this client");
+    }
 
     /**
      * Asynchronously executes a search query using the given criteria and fetch size and materializes the matching hits.
@@ -98,6 +138,28 @@ public interface SearchClient extends AutoCloseable {
     }
 
     /**
+     * Asynchronously executes a bounded current-state search across independent model relationships.
+     */
+    default CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelsAsync(
+            SearchModelDocuments searchDocuments,
+            int fetchSize) {
+        return SearchClientAsyncSupport.supplyAsync(
+                () -> searchModels(
+                        searchDocuments, fetchSize).toList());
+    }
+
+    /**
+     * Asynchronously searches and composes current independent-model graphs.
+     */
+    default CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelGraphAsync(
+            SearchModelGraphDocuments searchDocuments,
+            int fetchSize) {
+        return SearchClientAsyncSupport.supplyAsync(
+                () -> searchModelGraph(
+                        searchDocuments, fetchSize).toList());
+    }
+
+    /**
      * Checks whether a document with the given criteria exists.
      *
      * @param request an object describing the document (e.g., id and collection)
@@ -112,6 +174,40 @@ public interface SearchClient extends AutoCloseable {
      * @return an optional containing the document, if found
      */
     Optional<SerializedDocument> fetch(GetDocument request);
+
+    /**
+     * Fetches a direct Model document together with the durable head written by the same
+     * materialization transaction.
+     */
+    default GetDocumentResult fetchModelDocument(GetDocument request) {
+        throw new UnsupportedOperationException(
+                "Versioned Model document loading is not supported by this search client");
+    }
+
+    /** Retrieves the production and staged direct documents used to verify one Model migration. */
+    default GetModelMigrationResult getModelMigration(
+            GetModelMigration request) {
+        throw new UnsupportedOperationException(
+                "Model migration inspection is not supported by this search client");
+    }
+
+    /** Retrieves a bounded batch of staged direct Model migrations. */
+    default GetModelMigrationsResult getModelMigrations(
+            GetModelMigrations request) {
+        throw new UnsupportedOperationException(
+                "Model migration enumeration is not supported by this search client");
+    }
+
+    /**
+     * Atomically adopts a previously inspected and application-verified staged Model document while retaining the
+     * accepted normalized source until an ordinary Model write ends legacy-write coexistence.
+     */
+    default CompletableFuture<Void> adoptModelMigration(
+            AdoptModelMigration request) {
+        return CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Model migration adoption is not supported by this search client"));
+    }
 
     /**
      * Fetches a collection of serialized documents that match the given request.

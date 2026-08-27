@@ -27,11 +27,29 @@ import io.fluxzero.common.api.keyvalue.GetValue;
 import io.fluxzero.common.api.keyvalue.GetValueResult;
 import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
+import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetAggregateIds;
 import io.fluxzero.common.api.modeling.GetAggregateIdsResult;
+import io.fluxzero.common.api.modeling.GetModelChange;
+import io.fluxzero.common.api.modeling.GetModelChangeResult;
+import io.fluxzero.common.api.modeling.GetModelGraph;
+import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
+import io.fluxzero.common.api.modeling.GetModelEvents;
+import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.GetRelationshipsResult;
+import io.fluxzero.common.api.modeling.ModelDeletionPlan;
+import io.fluxzero.common.api.modeling.ModelDeletionResult;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
+import io.fluxzero.common.api.modeling.PlanModelDeletion;
 import io.fluxzero.common.api.modeling.RepairRelationships;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.publishing.Append;
 import io.fluxzero.common.api.publishing.SetRetentionTime;
@@ -116,6 +134,24 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = DeleteEvents.class, name = "deleteEvents"),
 
         //modeling
+        @JsonSubTypes.Type(value = CommitModels.class, name = "commitModels"),
+        @JsonSubTypes.Type(value = CommitModelsResult.class, name = "commitModelsResult"),
+        @JsonSubTypes.Type(value = GetModelEvents.class, name = "getModelEvents"),
+        @JsonSubTypes.Type(value = GetModelEventsResult.class, name = "getModelEventsResult"),
+        @JsonSubTypes.Type(value = TrackModelUpdates.class, name = "trackModelUpdates"),
+        @JsonSubTypes.Type(value = TrackModelUpdatesResult.class, name = "trackModelUpdatesResult"),
+        @JsonSubTypes.Type(value = GetModelGraph.class, name = "getModelGraph"),
+        @JsonSubTypes.Type(value = GetModelGraphResult.class, name = "getModelGraphResult"),
+        @JsonSubTypes.Type(value = GetModelChange.class, name = "getModelChange"),
+        @JsonSubTypes.Type(value = GetModelChangeResult.class, name = "getModelChangeResult"),
+        @JsonSubTypes.Type(value = RegisterModelGraphProjection.class, name = "registerModelGraphProjection"),
+        @JsonSubTypes.Type(value = GetModelGraphProjectionStatus.class, name = "getModelGraphProjectionStatus"),
+        @JsonSubTypes.Type(value = AwaitModelGraphProjection.class, name = "awaitModelGraphProjection"),
+        @JsonSubTypes.Type(value = ModelGraphProjectionStatus.class, name = "modelGraphProjectionStatus"),
+        @JsonSubTypes.Type(value = PlanModelDeletion.class, name = "planModelDeletion"),
+        @JsonSubTypes.Type(value = ModelDeletionPlan.class, name = "modelDeletionPlan"),
+        @JsonSubTypes.Type(value = DeleteModel.class, name = "deleteModel"),
+        @JsonSubTypes.Type(value = ModelDeletionResult.class, name = "modelDeletionResult"),
         @JsonSubTypes.Type(value = UpdateRelationships.class, name = "updateRelationships"),
         @JsonSubTypes.Type(value = RepairRelationships.class, name = "repairRelationships"),
         @JsonSubTypes.Type(value = GetAggregateIds.class, name = "getAggregateIds"),
@@ -139,6 +175,8 @@ import io.fluxzero.common.api.tracking.StorePosition;
         //search
         @JsonSubTypes.Type(value = IndexDocuments.class, name = "indexDocuments"),
         @JsonSubTypes.Type(value = SearchDocuments.class, name = "searchDocuments"),
+        @JsonSubTypes.Type(value = SearchModelDocuments.class, name = "searchModelDocuments"),
+        @JsonSubTypes.Type(value = SearchModelGraphDocuments.class, name = "searchModelGraphDocuments"),
         @JsonSubTypes.Type(value = GetSearchHistogram.class, name = "getSearchHistogram"),
         @JsonSubTypes.Type(value = GetSearchHistogramResult.class, name = "getSearchHistogramResult"),
         @JsonSubTypes.Type(value = GetDocument.class, name = "getDocument"),
@@ -146,6 +184,11 @@ import io.fluxzero.common.api.tracking.StorePosition;
         @JsonSubTypes.Type(value = HasDocument.class, name = "hasDocument"),
         @JsonSubTypes.Type(value = GetDocumentResult.class, name = "getDocumentResult"),
         @JsonSubTypes.Type(value = GetDocumentsResult.class, name = "getDocumentsResult"),
+        @JsonSubTypes.Type(value = GetModelMigration.class, name = "getModelMigration"),
+        @JsonSubTypes.Type(value = GetModelMigrationResult.class, name = "getModelMigrationResult"),
+        @JsonSubTypes.Type(value = GetModelMigrations.class, name = "getModelMigrations"),
+        @JsonSubTypes.Type(value = GetModelMigrationsResult.class, name = "getModelMigrationsResult"),
+        @JsonSubTypes.Type(value = AdoptModelMigration.class, name = "adoptModelMigration"),
         @JsonSubTypes.Type(value = DeleteCollection.class, name = "deleteCollection"),
         @JsonSubTypes.Type(value = DeleteDocuments.class, name = "deleteDocuments"),
         @JsonSubTypes.Type(value = MoveDocuments.class, name = "moveDocuments"),

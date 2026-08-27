@@ -16,12 +16,14 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.handling.PreparedParameterResolver;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
@@ -33,7 +35,10 @@ import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.WildcardType;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -82,6 +87,12 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     @Override
     public boolean mayApply(Executable method, Class<?> targetClass) {
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(method);
+        if (plan.hasModels()) {
+            return ReflectionUtils.getMethodAnnotation(method, HandleMessage.class).isPresent()
+                   || EntityMetadata.of(method.getDeclaringClass()).handlerMethods().stream()
+                           .anyMatch(handler -> handler.executable().equals(method));
+        }
         return ReflectionUtils.getMethodAnnotation(method, HandleMessage.class)
                 .map(EntityParameterResolver::supportsMessageEntityInjection)
                 .orElse(true);
@@ -104,6 +115,11 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
      */
     @Override
     public Function<Object, Object> resolve(Parameter parameter, Annotation methodAnnotation) {
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(parameter.getDeclaringExecutable());
+        EntityMetadata.ModelParameter model = plan.parameters().get(parameter);
+        if (model != null) {
+            return input -> modelArgument(parameter, model, input, plan);
+        }
         return m -> resolve(parameter, getMatchingEntity(m, parameter)).get();
     }
 
@@ -118,6 +134,11 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
      */
     @Override
     public boolean matches(Parameter parameter, Annotation methodAnnotation, Object input) {
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(parameter.getDeclaringExecutable());
+        EntityMetadata.ModelParameter model = plan.parameters().get(parameter);
+        if (model != null) {
+            return canResolveModel(parameter, model, input, plan);
+        }
         if (input instanceof DeferredMessageEntityResolution && input instanceof HasMessage message) {
             return canMatchFromMessageMetadata(parameter, message);
         }
@@ -126,6 +147,12 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
 
     @Override
     public Function<Object, Object> resolveIfPossible(Parameter parameter, Annotation methodAnnotation, Object input) {
+        EntityMetadata.ExecutableParameters plan = EntityMetadata.modelParameters(parameter.getDeclaringExecutable());
+        EntityMetadata.ModelParameter model = plan.parameters().get(parameter);
+        if (model != null) {
+            return canResolveModel(parameter, model, input, plan)
+                    ? invocation -> modelArgument(parameter, model, invocation, plan) : null;
+        }
         if (input instanceof DeferredMessageEntityResolution && input instanceof HasMessage message) {
             if (canMatchFromMessageMetadata(parameter, message)) {
                 return ignored -> null;
@@ -138,6 +165,211 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
         }
         Supplier<?> supplier = resolve(parameter, entity);
         return ignored -> supplier.get();
+    }
+
+    private static boolean canResolveModel(
+            Parameter parameter, EntityMetadata.ModelParameter model, Object input,
+            EntityMetadata.ExecutableParameters plan) {
+        if (GraphChangeHandlerDecorator.resolvingGraphChange()) {
+            return GraphChangeHandlerDecorator.suppliesGraph(parameter);
+        }
+        if (GraphChangeHandlerDecorator.suppliesGraph(parameter)) {
+            return true;
+        }
+        MutationPlan.DirectReferences references = modelReferences(input, model, plan);
+        if (model.collectionWrapped()) {
+            if (!references.present()) {
+                return false;
+            }
+            Optional<CommitAttempt> context = modelContext(input);
+            return references.modelIds().isEmpty()
+                   || context.map(value -> references.modelIds().stream()
+                                   .allMatch(id -> value.entity(id) != null))
+                           .orElseGet(() -> input instanceof DeserializingMessage message
+                                           && resolvedModelBinding(message, plan).isPresent());
+        }
+        if (references.present() && references.modelId() == null) {
+            return isNullable(parameter);
+        }
+        Optional<CommitAttempt> context = modelContext(input);
+        if (context.isEmpty()) {
+            return input instanceof DeserializingMessage message
+                   && resolvedModelBinding(message, plan).isPresent();
+        }
+        Entity<?> entity = context.get().resolve(model.modelType(), model.associationProperty());
+        return entity != null && (model.entityWrapped() || model.graphWrapped()
+                                  || entity.isPresent() || isNullable(parameter));
+    }
+
+    private static Object modelArgument(
+            Parameter parameter, EntityMetadata.ModelParameter model, Object input,
+            EntityMetadata.ExecutableParameters plan) {
+        if (GraphChangeHandlerDecorator.suppliesGraph(parameter)) {
+            return GraphChangeHandlerDecorator.suppliedGraph(parameter);
+        }
+        MutationPlan.DirectReferences references = modelReferences(input, model, plan);
+        if (model.collectionWrapped()) {
+            return modelCollection(parameter, model, input, plan, references);
+        }
+        if (references.present() && references.modelId() == null && isNullable(parameter)) {
+            return null;
+        }
+        CommitAttempt context = modelContext(input).orElseGet(() ->
+                input instanceof DeserializingMessage message ? modelContext(message, plan) : null);
+        Entity<?> entity = context == null ? null
+                : context.resolve(model.modelType(), model.associationProperty());
+        if (model.entityWrapped()) {
+            return entity;
+        }
+        if (model.graphWrapped()) {
+            if (entity == null) {
+                return null;
+            }
+            ModelRepository repository = modelRepository(input);
+            return context == null
+                    ? Graphs.lazy(entity, entity instanceof ModelRoot<?> root ? root.stateIndex() : -1L, repository)
+                    : Graphs.lazy(entity, context, repository);
+        }
+        if (entity == null || !entity.isPresent()) {
+            if (isNullable(parameter)) {
+                return null;
+            }
+            throw new IllegalStateException(
+                    "Model parameter %s in %s resolved to a missing or deleted %s model".formatted(
+                            parameter, parameter.getDeclaringExecutable().toGenericString(),
+                            model.modelType().getName()));
+        }
+        return entity.get();
+    }
+
+    private static List<Graph<?>> modelCollection(
+            Parameter parameter, EntityMetadata.ModelParameter model, Object input,
+            EntityMetadata.ExecutableParameters plan, MutationPlan.DirectReferences references) {
+        if (!references.present()) {
+            throw new IllegalStateException(
+                    "Graph collection parameter %s in %s has no payload property '%s'".formatted(
+                            parameter, parameter.getDeclaringExecutable().toGenericString(),
+                            model.associationProperty()));
+        }
+        if (references.modelIds().isEmpty()) {
+            return List.of();
+        }
+        CommitAttempt context = modelContext(input).orElseGet(() ->
+                input instanceof DeserializingMessage message ? modelContext(message, plan) : null);
+        if (context == null) {
+            throw new IllegalStateException(
+                    "No coherent model context is available for graph collection parameter " + parameter);
+        }
+        ModelRepository repository = modelRepository(input);
+        List<Graph<?>> result = new ArrayList<>(references.modelIds().size());
+        for (String modelId : references.modelIds()) {
+            Entity<?> entity = context.entity(modelId);
+            if (entity == null) {
+                throw new IllegalStateException(
+                        "Model context does not contain '%s' required by graph collection parameter %s"
+                                .formatted(modelId, parameter));
+            }
+            result.add(Graphs.lazy(entity, context, repository));
+        }
+        return List.copyOf(result);
+    }
+
+    private static MutationPlan.DirectReferences modelReferences(
+            Object input, EntityMetadata.ModelParameter parameter, EntityMetadata.ExecutableParameters plan) {
+        Optional<CommitAttempt> context = modelContext(input);
+        if (context.isPresent()) {
+            MutationPlan.DirectReferences references = context.get().references(parameter);
+            if (references != null) {
+                return references;
+            }
+        }
+        DeserializingMessage message = currentMessage(input);
+        return message == null ? MutationPlan.DirectReferences.missing()
+                : modelBinding(message, plan).resolution.references().getOrDefault(
+                        parameter, MutationPlan.DirectReferences.missing());
+    }
+
+    private static Optional<CommitAttempt> modelContext(Object input) {
+        if (input instanceof DeserializingMessage message) {
+            Optional<CommitAttempt> direct = message.getContext(CommitAttempt.class);
+            if (direct.isPresent()) {
+                return direct;
+            }
+        }
+        return DeserializingMessage.getOptionally()
+                .flatMap(message -> message.getContext(CommitAttempt.class));
+    }
+
+    private static CommitAttempt modelContext(
+            DeserializingMessage message, EntityMetadata.ExecutableParameters plan) {
+        return resolvedModelBinding(message, plan).orElseThrow().context(message);
+    }
+
+    private static Optional<ModelBinding> resolvedModelBinding(
+            DeserializingMessage message, EntityMetadata.ExecutableParameters plan) {
+        if (!supportsModelBoundary(message)) {
+            return Optional.empty();
+        }
+        ModelBinding binding = modelBinding(message, plan);
+        return binding.resolution.canLoadContext() ? Optional.of(binding) : Optional.empty();
+    }
+
+    private static ModelBinding modelBinding(
+            DeserializingMessage message, EntityMetadata.ExecutableParameters plan) {
+        return modelResolutionCache(message).bindings.computeIfAbsent(
+                plan.executable(), ignored -> new ModelBinding(MutationPlan.bind(message, plan)));
+    }
+
+    private static boolean supportsModelBoundary(DeserializingMessage message) {
+        return message.getMessageType() != MessageType.EVENT
+               && message.getMessageType() != MessageType.NOTIFICATION
+               || message.getIndex() != null
+               || ModelEventMetadata.readBoundary(message.getMetadata()) != null;
+    }
+
+    private static ModelResolutionCache modelResolutionCache(DeserializingMessage message) {
+        return message.computeContextIfAbsent(ModelResolutionCache.class, ignored -> new ModelResolutionCache());
+    }
+
+    private static ModelRepository currentModelRepository(DeserializingMessage message) {
+        return Fluxzero.get().modelRepository().forNamespace(getConsumerNamespace(message));
+    }
+
+    private static DeserializingMessage currentMessage(Object input) {
+        return input instanceof DeserializingMessage message
+                ? message : DeserializingMessage.getOptionally().orElse(null);
+    }
+
+    private static ModelRepository modelRepository(Object input) {
+        DeserializingMessage message = currentMessage(input);
+        return message == null ? Fluxzero.get().modelRepository() : currentModelRepository(message);
+    }
+
+    private static final class ModelBinding {
+        private final MutationPlan.Resolution resolution;
+        private volatile CommitAttempt context;
+
+        private ModelBinding(MutationPlan.Resolution resolution) {
+            this.resolution = resolution;
+        }
+
+        private CommitAttempt context(DeserializingMessage message) {
+            CommitAttempt result = context;
+            if (result == null) {
+                synchronized (this) {
+                    result = context;
+                    if (result == null) {
+                        context = result = currentModelRepository(message)
+                                .loadContext(resolution);
+                    }
+                }
+            }
+            return result;
+        }
+    }
+
+    private static final class ModelResolutionCache {
+        private final Map<Executable, ModelBinding> bindings = new ConcurrentHashMap<>();
     }
 
     /**
@@ -218,7 +450,7 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                                 || message.getMessageType() == MessageType.NOTIFICATION)
             && !Entity.isApplying()
             && entity.id().toString().equals(Entity.getAggregateId(message))
-            && entity.rootAnnotation().eventSourced()
+            && entity.rootConfiguration().eventSourced()
             && entity.sequenceNumber() >= 0L) {
             return entity.playBackToEvent(message.getIndex(), message.getMessageId())
                     .orElseThrow(() -> new IllegalStateException(

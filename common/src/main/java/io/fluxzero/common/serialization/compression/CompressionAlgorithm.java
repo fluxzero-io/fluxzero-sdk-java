@@ -221,6 +221,33 @@ public enum CompressionAlgorithm {
      */
     public abstract byte[] decompress(byte[] compressed);
 
+    /**
+     * Decompresses one byte range without first copying that range into a temporary array.
+     *
+     * <p>Fluxzero-framed payloads are decoded directly from the supplied backing array. Other formats retain the
+     * existing whole-array implementation as a compatibility fallback.</p>
+     */
+    public byte[] decompress(
+            byte[] compressed, int offset, int length) {
+        if (offset < 0
+            || length < 0
+            || offset > compressed.length - length) {
+            throw new IllegalArgumentException(
+                    "Invalid compressed byte range");
+        }
+        if (offset == 0 && length == compressed.length) {
+            return decompress(compressed);
+        }
+        if (hasFluxzeroCompressionHeader(
+                compressed, offset, length)) {
+            return decompressFluxzeroCompressionHeader(
+                    compressed, offset, length);
+        }
+        return decompress(
+                Arrays.copyOfRange(
+                        compressed, offset, offset + length));
+    }
+
     abstract byte[] compressPayload(byte[] uncompressed);
 
     abstract byte[] decompressPayload(byte[] compressed, int offset, int length, int originalSize);
@@ -240,11 +267,26 @@ public enum CompressionAlgorithm {
     }
 
     private static byte[] decompressFluxzeroCompressionHeader(byte[] compressed) {
-        CompressionAlgorithm algorithm = fromFluxzeroCompressionId(compressed[2] & 0xff);
-        int uncompressedLength = readInt(compressed, 3);
-        int offset = FLUXZERO_COMPRESSION_HEADER_LENGTH;
-        int length = compressed.length - offset;
-        return algorithm.decompressPayload(compressed, offset, length, uncompressedLength);
+        return decompressFluxzeroCompressionHeader(
+                compressed, 0, compressed.length);
+    }
+
+    private static byte[] decompressFluxzeroCompressionHeader(
+            byte[] compressed, int offset, int length) {
+        CompressionAlgorithm algorithm =
+                fromFluxzeroCompressionId(
+                        compressed[offset + 2] & 0xff);
+        int uncompressedLength =
+                readInt(compressed, offset + 3);
+        int payloadOffset =
+                offset + FLUXZERO_COMPRESSION_HEADER_LENGTH;
+        int payloadLength =
+                length - FLUXZERO_COMPRESSION_HEADER_LENGTH;
+        return algorithm.decompressPayload(
+                compressed,
+                payloadOffset,
+                payloadLength,
+                uncompressedLength);
     }
 
     private static CompressionAlgorithm fromFluxzeroCompressionId(int id) {
@@ -257,9 +299,15 @@ public enum CompressionAlgorithm {
     }
 
     private static boolean hasFluxzeroCompressionHeader(byte[] compressed) {
-        return compressed.length >= FLUXZERO_COMPRESSION_HEADER_LENGTH
-               && compressed[0] == FLUXZERO_COMPRESSION_MAGIC[0]
-               && compressed[1] == FLUXZERO_COMPRESSION_MAGIC[1];
+        return hasFluxzeroCompressionHeader(
+                compressed, 0, compressed.length);
+    }
+
+    private static boolean hasFluxzeroCompressionHeader(
+            byte[] compressed, int offset, int length) {
+        return length >= FLUXZERO_COMPRESSION_HEADER_LENGTH
+               && compressed[offset] == FLUXZERO_COMPRESSION_MAGIC[0]
+               && compressed[offset + 1] == FLUXZERO_COMPRESSION_MAGIC[1];
     }
 
     private static void writeInt(byte[] bytes, int offset, int value) {

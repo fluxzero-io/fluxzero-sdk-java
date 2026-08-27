@@ -32,17 +32,21 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.Request;
 import io.fluxzero.common.api.RequestBatch;
 import io.fluxzero.common.api.RequestResult;
+import io.fluxzero.common.api.RetryAwareRequest;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.application.DefaultPropertySource;
 import io.fluxzero.common.application.PropertySource;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketCapabilities;
+import io.fluxzero.common.websocket.WebSocketPayloadCodec;
 import io.fluxzero.common.websocket.WebSocketTransportCodec;
 import io.fluxzero.common.websocket.WebSocketTransportCodecs;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.SdkVersion;
 import io.fluxzero.sdk.common.exception.ServiceException;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
@@ -51,6 +55,8 @@ import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.GatewayException;
 import io.fluxzero.sdk.publishing.client.WebsocketGatewayClient;
+import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
+import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -67,8 +73,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -90,7 +98,6 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.METRICS;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.TimingUtils.retryOnFailure;
-import static io.fluxzero.sdk.Fluxzero.currentCorrelationData;
 import static io.fluxzero.sdk.Fluxzero.publishMetrics;
 import static io.fluxzero.sdk.common.ClientUtils.ignoreMarker;
 import static io.fluxzero.sdk.common.Message.asMessage;
@@ -162,7 +169,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     static final String RESULT_DIAGNOSTICS_PROPERTY = WebsocketResultDiagnostics.MODE_PROPERTY;
     static final String RESULT_TIMING_METRICS_ENABLED_PROPERTY =
             WebsocketResultDiagnostics.LEGACY_TIMING_ENABLED_PROPERTY;
-
+    private static final int GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE = 1_024;
+    private static final int WEBSOCKET_REQUEST_BATCH_SIZE =
+            Math.max(1, Integer.getInteger("fluxzero.webSocketRequestBatchSize", 16_384));
+    private static final Duration WEBSOCKET_REQUEST_COLLECTION_DELAY =
+            Duration.ofNanos(
+                    Math.max(
+                            0L,
+                            Long.getLong(
+                                    "fluxzero.webSocketRequestCollectionDelayNanos",
+                                    0L)));
     public static WebsocketConnector defaultWebsocketConnector = new JdkWebsocketConnector();
     public static ObjectMapper defaultObjectMapper = JsonMapper.builder().disable(FAIL_ON_UNKNOWN_PROPERTIES)
             .enable(READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE)
@@ -177,6 +193,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final ClientConfig clientConfig;
     private final ObjectMapper objectMapper;
     private final Map<Long, WebSocketRequest> requests = new ConcurrentHashMap<>();
+    private final ThreadLocal<ResultHandlingContext> resultHandlingContext = new ThreadLocal<>();
     private final Map<String, Backlog<Request>> sessionBacklogs = new ConcurrentHashMap<>();
     private final Map<WebSocketTransportFormat, WebSocketTransportCodec> transportCodecs = new ConcurrentHashMap<>();
     private final TaskScheduler pingScheduler;
@@ -370,9 +387,72 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected <R extends RequestResult> CompletableFuture<R> send(Request request) {
-        return new WebSocketRequest(request, currentCorrelationData(),
-                                    getAdhocInterceptor(METRICS).orElse(null),
-                                    Fluxzero.getOptionally().orElse(null)).send();
+        return send(request, null);
+    }
+
+    /** Sends a request with context retained locally until its result is decoded. */
+    protected <R extends RequestResult> CompletableFuture<R> send(
+            Request request, Object resultContext) {
+        boolean captureMetrics = metricsEnabled();
+        return new WebSocketRequest(
+                request,
+                captureMetrics
+                        ? captureCorrelationData()
+                        : null,
+                captureMetrics
+                        ? getAdhocInterceptor(METRICS)
+                                .orElse(null)
+                        : null,
+                captureMetrics
+                        ? Fluxzero.getOptionally()
+                                .orElse(null)
+                        : null,
+                resultContext)
+                .send();
+    }
+
+    /** Captures a request without releasing it to the websocket queue yet. */
+    protected <R extends RequestResult> PreparedRequest<R> prepareRequest(
+            Request request) {
+        return prepareRequest(request, null);
+    }
+
+    /** Captures a request and result context without releasing it to the websocket queue yet. */
+    protected <R extends RequestResult> PreparedRequest<R> prepareRequest(
+            Request request, Object resultContext) {
+        boolean captureMetrics = metricsEnabled();
+        return new PreparedRequest<>(new WebSocketRequest(
+                request,
+                captureMetrics ? captureCorrelationData() : null,
+                captureMetrics ? getAdhocInterceptor(METRICS).orElse(null) : null,
+                captureMetrics ? Fluxzero.getOptionally().orElse(null) : null,
+                resultContext));
+    }
+
+    /** Releases prepared requests per selected session in one queue operation. */
+    protected void sendPreparedRequests(
+            List<? extends PreparedRequest<?>> preparedRequests) {
+        Map<WebsocketSession, List<WebSocketRequest>> bySession =
+                new LinkedHashMap<>();
+        for (PreparedRequest<?> prepared : preparedRequests) {
+            WebSocketRequest request = prepared.delegate;
+            WebsocketSession session = request.prepareSend();
+            if (session != null) {
+                bySession.computeIfAbsent(session, ignored -> new ArrayList<>())
+                        .add(request);
+            }
+        }
+        bySession.forEach((session, batch) -> {
+            try {
+                String sessionId = getNegotiatedSessionId(session);
+                requestBacklog(sessionId, session).addAllUntracked(
+                        batch.stream().map(request -> request.request).toList());
+                batch.forEach(request -> publishRequestMetrics(
+                        request.request, request.correlationData, sessionId));
+            } catch (Throwable failure) {
+                batch.forEach(request -> request.failSend(failure));
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -384,7 +464,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected CompletableFuture<Void> sendCommand(Command command) {
         return switch (command.getGuarantee()) {
             case NONE -> {
-                sendAndForget(command);
+                sendUntracked(command, captureCorrelationData(), sessionPool.get(command.routingKey()));
                 yield CompletableFuture.completedFuture(null);
             }
             case SENT -> sendAndForget(command);
@@ -394,21 +474,64 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     @SneakyThrows
     private CompletableFuture<Void> sendAndForget(Command object) {
-        return send(object, Fluxzero.currentCorrelationData(), sessionPool.get(object.routingKey()));
+        return send(object, captureCorrelationData(), sessionPool.get(object.routingKey()));
     }
 
     @SneakyThrows
-    private CompletableFuture<Void> send(Request request, Map<String, String> correlationData,
+    private CompletableFuture<Void> send(Request request, Object correlationData,
                                          WebsocketSession session) {
         String sessionId = getNegotiatedSessionId(session);
         try {
-            return sessionBacklogs.computeIfAbsent(
-                    sessionId, id -> Backlog.forOrderedAsyncConsumer(
-                            batch -> sendBatchAsync(batch, session))).add(request);
+            return requestBacklog(sessionId, session).add(request);
         } finally {
-            tryPublishMetrics(request, metricsMetadata().with(correlationData)
+            publishRequestMetrics(request, correlationData, sessionId);
+        }
+    }
+
+    private void sendUntracked(
+            Request request, Object correlationData, WebsocketSession session) {
+        String sessionId = getNegotiatedSessionId(session);
+        requestBacklog(sessionId, session).addUntracked(request);
+        publishRequestMetrics(request, correlationData, sessionId);
+    }
+
+    private Backlog<Request> requestBacklog(String sessionId, WebsocketSession session) {
+        return sessionBacklogs.computeIfAbsent(
+                sessionId,
+                id -> Backlog.forAsyncConsumer(
+                        batch -> sendBatchAsync(batch, session),
+                        WEBSOCKET_REQUEST_BATCH_SIZE,
+                        ignored -> 1L,
+                        Long.MAX_VALUE,
+                        1,
+                        WEBSOCKET_REQUEST_COLLECTION_DELAY));
+    }
+
+    private void publishRequestMetrics(
+            Request request, Object correlationData, String sessionId) {
+        if (metricsEnabled()) {
+            tryPublishMetrics(request, applyCorrelationData(metricsMetadata(), correlationData)
                     .with("sessionId", sessionId).with("requestId", request.getRequestId()));
         }
+    }
+
+    private Object captureCorrelationData() {
+        CorrelationDataProvider provider = Fluxzero.getOptionally().map(Fluxzero::correlationDataProvider)
+                .orElse(DefaultCorrelationDataProvider.INSTANCE);
+        return provider == DefaultCorrelationDataProvider.INSTANCE
+                ? DefaultCorrelationDataProvider.INSTANCE.getCorrelationMetadata(DeserializingMessage.getCurrent())
+                : provider.getCorrelationData();
+    }
+
+    @SuppressWarnings("unchecked")
+    static Metadata applyCorrelationData(Metadata metadata, Object correlationData) {
+        if (correlationData instanceof Metadata correlationMetadata) {
+            return metadata.with(correlationMetadata);
+        }
+        if (correlationData instanceof Map<?, ?> correlationMap) {
+            return metadata.with((Map<String, String>) correlationMap);
+        }
+        return metadata;
     }
 
     @SneakyThrows
@@ -417,21 +540,58 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     private CompletableFuture<Void> sendBatchAsync(List<Request> requests, WebsocketSession session) {
+        int maxBatchSize = Math.max(1, maxRequestBatchSize(requests));
+        if (requests.size() > maxBatchSize) {
+            CompletableFuture<Void> result = CompletableFuture.completedFuture(null);
+            for (int offset = 0; offset < requests.size(); offset += maxBatchSize) {
+                List<Request> chunk =
+                        requests.subList(
+                                offset,
+                                Math.min(
+                                        requests.size(),
+                                        offset + maxBatchSize));
+                result = result.thenCompose(ignored -> sendBatchChunkAsync(chunk, session));
+            }
+            return result;
+        }
+        return sendBatchChunkAsync(requests, session);
+    }
+
+    private CompletableFuture<Void> sendBatchChunkAsync(
+            List<Request> requests, WebsocketSession session) {
+        FluxzeroJfr.Batch batchEvent = startRequestBatchEvent(requests);
         JsonType object = requests.size() == 1 ? requests.getFirst() : new RequestBatch<>(requests);
         try {
             byte[] bytes = getCompressionAlgorithm(session).compress(transportCodec(session).encode(object));
+            if (batchEvent != null) {
+                batchEvent.bytes = bytes.length;
+            }
             if (session.isOpen()) {
-                return sendEncodedBatch(session, object, bytes);
+                CompletableFuture<Void> result = sendEncodedBatch(session, object, bytes);
+                FluxzeroJfr.finish(batchEvent, null);
+                return result;
             } else if (!closed.get()) {
                 abort(session, "Channel closed ahead of sending");
             }
+            FluxzeroJfr.finish(batchEvent, null);
             return CompletableFuture.completedFuture(null);
         } catch (Exception e) {
+            FluxzeroJfr.finish(batchEvent, e);
             if (e instanceof InterruptedException) {
                 currentThread().interrupt();
             }
             return handleSendFailure(object, session, e);
         }
+    }
+
+    /** Returns the maximum transport chunk for the supplied requests. */
+    protected int maxRequestBatchSize(List<Request> requests) {
+        return GENERAL_WEBSOCKET_REQUEST_BATCH_SIZE;
+    }
+
+    /** Starts an optional request-batch event owned by the concrete protocol client. */
+    protected FluxzeroJfr.Batch startRequestBatchEvent(List<Request> requests) {
+        return null;
     }
 
     private CompletableFuture<Void> sendEncodedBatch(WebsocketSession session, JsonType object, byte[] bytes)
@@ -557,9 +717,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                 ? sdkRuntimeEndpoint.currentDispatchTiming() : null);
         long decodeStartedNanos = resultDiagnostics.monotonicTimestamp();
         JsonType value;
+        FluxzeroJfr.Batch decodeEvent = FluxzeroJfr.startBatch(
+                "sdk.websocket", "decode-result", "RESULT", 0, bytes.length, 0L, 0L);
+        long decodeStarted = decodeEvent == null ? 0L : System.nanoTime();
         try {
-            value = transportCodec(session).decode(getCompressionAlgorithm(session).decompress(bytes));
+            byte[] decompressed = getCompressionAlgorithm(session).decompress(bytes);
+            value = transportCodec(session).decode(decompressed);
         } catch (Exception e) {
+            FluxzeroJfr.finish(decodeEvent, e);
             log().error("Could not parse input. Expected a {} websocket message.",
                         getTransportFormat(session), e);
             RuntimeMessageDispatchCapture dispatchCapture = runtimeMessageDispatch.get();
@@ -568,34 +733,41 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             }
             return;
         }
+        List<RequestResult> decodedResults = value instanceof ResultBatch batch
+                ? batch.getResults() : List.of((RequestResult) value);
+        if (decodeEvent != null) {
+            decodeEvent.messageType = jfrResultType(decodedResults);
+            decodeEvent.itemCount = decodedResults.size();
+            decodeEvent.outputItemCount = decodedResults.size();
+            decodeEvent.preparationNanos = System.nanoTime() - decodeStarted;
+        }
+        FluxzeroJfr.finish(decodeEvent, null);
         long decodedTimestamp = resultDiagnostics.timestamp();
         long decodeDuration = decodeStartedNanos == 0L ? 0L : TimeUnit.NANOSECONDS.toMillis(
                 Math.max(0L, resultDiagnostics.monotonicTimestamp() - decodeStartedNanos));
         String sessionId = getNegotiatedSessionId(session);
+        List<RequestResult> results = restoreResultContext(decodedResults);
+        WebSocketRequest[] receivedRequests = receiveResultContext(results);
+        CompletableFuture<Void> preparation = prepareResultGroup(
+                results, receivedRequests);
+        String batchId = value instanceof ResultBatch ? Fluxzero.generateId() : null;
+        long callbackQueuedTimestamp = resultDiagnostics.timestamp();
         RuntimeIngressController.MessageDispatch submission;
-        if (value instanceof ResultBatch batch) {
-            String batchId = Fluxzero.generateId();
-            long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-            List<RequestResult> results = batch.getResults();
-            if (results.size() == 1) {
-                RequestResult result = results.getFirst();
-                submission = submitRuntimeResult(sessionId, () -> handleResult(
-                        result, batchId, sessionId,
-                        resultDiagnostics.resultTiming(
-                                frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
-                                resultDiagnostics.timestamp())));
-            } else {
-                submission = runtimeResultDispatcher.submitStaged(sessionId, results, result -> handleResult(
-                        result, batchId, sessionId,
-                        resultDiagnostics.resultTiming(
-                                frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
-                                resultDiagnostics.timestamp())));
-            }
+        if (results.size() == 1) {
+            submission = submitRuntimeResult(sessionId, () -> handlePreparedResult(
+                    results.getFirst(), receivedRequests[0], preparation, batchId, sessionId,
+                    frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp));
         } else {
-            submission = submitRuntimeResult(
-                    sessionId, resultCallback((RequestResult) value, null, sessionId,
-                                               frameTiming, decodedTimestamp, decodeDuration));
+            submission = runtimeResultDispatcher.submitStagedIndexed(
+                    sessionId, results, (index, result) -> handlePreparedResult(
+                            result, receivedRequests[index], preparation, batchId, sessionId,
+                            frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp));
         }
+        submission.completion().whenComplete((ignored, failure) -> {
+            if (failure != null) {
+                failReceivedRequests(receivedRequests, 0, receivedRequests.length, failure);
+            }
+        });
         RuntimeMessageDispatchCapture dispatchCapture = runtimeMessageDispatch.get();
         if (dispatchCapture != null && dispatchCapture.active) {
             dispatchCapture.dispatch = submission;
@@ -607,15 +779,39 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return runtimeResultDispatcher.submitStaged(sessionId, resultCallback);
     }
 
-    private Runnable resultCallback(RequestResult result, String batchId, String sessionId,
-                                    WebsocketResultDiagnostics.FrameTiming frameTiming,
-                                    long decodedTimestamp, long decodeDuration) {
-        long callbackQueuedTimestamp = resultDiagnostics.timestamp();
-        return () -> handleResult(
-                result, batchId, sessionId,
-                resultDiagnostics.resultTiming(
-                        frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
-                        resultDiagnostics.timestamp()));
+    private void handlePreparedResult(
+            RequestResult result, WebSocketRequest request, CompletableFuture<Void> preparation,
+            String batchId, String sessionId, WebsocketResultDiagnostics.FrameTiming frameTiming,
+            long decodedTimestamp, long decodeDuration, long callbackQueuedTimestamp) {
+        FluxzeroJfr.Batch callbackEvent = FluxzeroJfr.startBatch(
+                "sdk.websocket", "result-callback", "RESULT", 1, 0L, 0L, 0L);
+        long callbackStarted = callbackEvent == null ? 0L : System.nanoTime();
+        ResultHandlingContext context = resultHandlingContext.get();
+        if (context == null) {
+            context = new ResultHandlingContext();
+            resultHandlingContext.set(context);
+        }
+        context.result = result;
+        context.request = request;
+        Throwable failure = null;
+        try {
+            preparation.join();
+            handleResult(
+                    result, batchId, sessionId,
+                    resultDiagnostics.resultTiming(
+                            frameTiming, decodedTimestamp, decodeDuration, callbackQueuedTimestamp,
+                            resultDiagnostics.timestamp()));
+        } catch (RuntimeException | Error e) {
+            failure = e;
+            throw e;
+        } finally {
+            context.result = null;
+            context.request = null;
+            if (callbackEvent != null) {
+                callbackEvent.callbackNanos = System.nanoTime() - callbackStarted;
+            }
+            FluxzeroJfr.finish(callbackEvent, failure);
+        }
     }
 
     CompletionStage<Void> dispatchRuntimeMessage(Runnable messageCallback) {
@@ -806,6 +1002,58 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
+    /** Classifies decoded results for optional protocol-specific JFR diagnostics. */
+    protected String jfrResultType(List<RequestResult> results) {
+        return "RESULT";
+    }
+
+    private CompletableFuture<Void> prepareResultGroup(
+            List<RequestResult> results,
+            WebSocketRequest[] requests) {
+        List<Object> contexts = new ArrayList<>(requests.length);
+        for (WebSocketRequest request : requests) {
+            contexts.add(request == null ? null : request.resultContext);
+        }
+        try {
+            return Objects.requireNonNull(
+                    prepareResults(results, contexts),
+                    "Result preparation returned null");
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
+    }
+
+    /**
+     * Allows a specialized client to complete request-owned work for a decoded result group before individual request
+     * futures are released.
+     */
+    protected CompletableFuture<Void> prepareResults(
+            List<RequestResult> results,
+            List<Object> requestContexts) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * Restores request-owned context that a specialized compact response deliberately omits from the wire.
+     */
+    protected List<RequestResult> restoreResultContext(
+            List<RequestResult> results) {
+        return results;
+    }
+
+    /**
+     * Restores context from the request that belongs to a decoded result before grouped result preparation starts.
+     */
+    protected void restoreResultContext(
+            RequestResult result, Request request) {
+    }
+
+    /** Returns the still-outstanding request for a decoded response, or {@code null} when it is no longer pending. */
+    protected Request outstandingRequest(long requestId) {
+        WebSocketRequest request = requests.get(requestId);
+        return request == null ? null : request.request;
+    }
+
     protected void handleResult(RequestResult result, String batchId, String sessionId) {
         handleResult(result, batchId, sessionId, WebsocketResultDiagnostics.ResultTiming.none());
     }
@@ -813,29 +1061,19 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected void handleResult(RequestResult result, String batchId, String sessionId,
                                 WebsocketResultDiagnostics.ResultTiming clientResultTiming) {
         try {
-            WebSocketRequest webSocketRequest = requests.remove(result.getRequestId());
+            ResultHandlingContext context = resultHandlingContext.get();
+            WebSocketRequest webSocketRequest = context != null
+                    && context.result == result
+                    ? context.request
+                    : requests.remove(result.getRequestId());
             if (webSocketRequest == null) {
                 log().warn("Could not find outstanding read request for id {}", result.getRequestId());
             } else {
                 try {
-                    Metadata metadata = metricsMetadata()
-                            .with("requestId", webSocketRequest.request.getRequestId(),
-                                  "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
-                            .with("requestSentTimestamp", webSocketRequest.sendTimestamp)
-                            .with("resultType", result.getClass().getSimpleName(),
-                                  "requestType", webSocketRequest.request.getClass().getSimpleName())
-                            .with(resultDiagnostics.metadata(result, clientResultTiming))
-                            .with(webSocketRequest.correlationData)
-                            .with("batchId", batchId)
-                            .with("sessionId", sessionId)
-                            .with("request", webSocketRequest.request.toMetric());
-                    Fluxzero.getOptionally().or(() -> ofNullable(webSocketRequest.fluxzero))
-                            .ifPresent(fc -> fc.execute(f -> ofNullable(webSocketRequest.adhocMetricsInterceptor)
-                                    .ifPresentOrElse(
-                                            i -> AdhocDispatchInterceptor.runWithAdhocInterceptor(
-                                                    () -> tryPublishMetrics(result, metadata), i,
-                                                    METRICS),
-                                            () -> tryPublishMetrics(result, metadata))));
+                    if (metricsEnabled()) {
+                        publishResultMetrics(
+                                result, batchId, sessionId, clientResultTiming, webSocketRequest);
+                    }
                 } finally {
                     if (result instanceof ErrorResult e) {
                         webSocketRequest.result.completeExceptionally(new ServiceException(e.getMessage()));
@@ -847,6 +1085,77 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         } catch (Throwable e) {
             log().error("Failed to handle result {}", result, e);
         }
+    }
+
+    private WebSocketRequest[] receiveResultContext(
+            List<RequestResult> results) {
+        WebSocketRequest[] result = new WebSocketRequest[results.size()];
+        for (int index = 0; index < results.size(); index++) {
+            result[index] = receiveResultContext(
+                    results.get(index));
+        }
+        return result;
+    }
+
+    private WebSocketRequest receiveResultContext(
+            RequestResult result) {
+        WebSocketRequest request = requests.remove(
+                result.getRequestId());
+        restoreResultContext(
+                result,
+                request == null ? null : request.request);
+        return request;
+    }
+
+    private void failReceivedRequests(
+            WebSocketRequest[] receivedRequests,
+            int start, int end, Throwable failure) {
+        for (int index = start; index < end; index++) {
+            failReceivedRequest(
+                    receivedRequests[index], failure);
+        }
+    }
+
+    private void failReceivedRequest(
+            WebSocketRequest request,
+            Throwable failure) {
+        if (request != null) {
+            request.result.completeExceptionally(
+                    failure instanceof java.util.concurrent.CompletionException
+                    && failure.getCause() != null
+                            ? failure.getCause() : failure);
+        }
+    }
+
+    private final class ResultHandlingContext {
+        private RequestResult result;
+        private WebSocketRequest request;
+    }
+
+    private void publishResultMetrics(
+            RequestResult result,
+            String batchId,
+            String sessionId,
+            WebsocketResultDiagnostics.ResultTiming clientResultTiming,
+            WebSocketRequest webSocketRequest) {
+        Metadata baseMetadata = metricsMetadata()
+                .with("requestId", webSocketRequest.request.getRequestId(),
+                      "msDuration", currentTimeMillis() - webSocketRequest.sendTimestamp)
+                .with("requestSentTimestamp", webSocketRequest.sendTimestamp)
+                .with("resultType", result.getClass().getSimpleName(),
+                      "requestType", webSocketRequest.request.getClass().getSimpleName())
+                .with(resultDiagnostics.metadata(result, clientResultTiming));
+        Metadata metadata = applyCorrelationData(baseMetadata, webSocketRequest.correlationData)
+                .with("batchId", batchId)
+                .with("sessionId", sessionId)
+                .with("request", webSocketRequest.request.toMetric());
+        Fluxzero.getOptionally().or(() -> ofNullable(webSocketRequest.fluxzero))
+                .ifPresent(fc -> fc.execute(f -> ofNullable(webSocketRequest.adhocMetricsInterceptor)
+                        .ifPresentOrElse(
+                                i -> AdhocDispatchInterceptor.runWithAdhocInterceptor(
+                                        () -> tryPublishMetrics(result, metadata), i,
+                                        METRICS),
+                                () -> tryPublishMetrics(result, metadata))));
     }
 
     static Metadata responseTimingMetadata(RequestResult result) {
@@ -1149,7 +1458,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     }
 
     protected void tryPublishMetrics(JsonType message, Metadata metadata) {
-        if (!allowMetrics || clientConfig.isDisableMetrics() || closed.get()) {
+        if (!metricsEnabled()) {
             return;
         }
         try {
@@ -1255,6 +1564,10 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         return transportMetricsEnabled && allowMetrics && !clientConfig.isDisableMetrics() && !closed.get();
     }
 
+    private boolean metricsEnabled() {
+        return allowMetrics && !clientConfig.isDisableMetrics() && !closed.get();
+    }
+
     void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
         try {
             Fluxzero.getOptionally().ifPresentOrElse(
@@ -1281,39 +1594,74 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected class WebSocketRequest {
         private final Request request;
         private final CompletableFuture<RequestResult> result = new CompletableFuture<>();
-        private final Map<String, String> correlationData;
+        private final Object correlationData;
         private final DispatchInterceptor adhocMetricsInterceptor;
         private final Fluxzero fluxzero;
+        private final Object resultContext;
+        private final AtomicBoolean sent = new AtomicBoolean();
         private volatile String sessionId;
         private volatile long sendTimestamp;
 
         @SuppressWarnings("unchecked")
         protected <T extends RequestResult> CompletableFuture<T> send() {
+            WebsocketSession session = prepareSend();
+            if (session == null) {
+                return (CompletableFuture<T>) result;
+            }
+            try {
+                AbstractWebsocketClient.this.sendUntracked(request, correlationData, session);
+            } catch (Exception e) {
+                failSend(e);
+            }
+            return (CompletableFuture<T>) result;
+        }
+
+        private WebsocketSession prepareSend() {
+            if (sent.getAndSet(true)
+                && request instanceof RetryAwareRequest retryAware) {
+                retryAware.markPossibleDuplicate();
+            }
             WebsocketSession session;
             try {
                 session = request instanceof Command c ? sessionPool.get(c.routingKey()) : sessionPool.get();
             } catch (SessionPool.ClientClosedException e) {
                 result.completeExceptionally(e);
-                return (CompletableFuture<T>) result;
+                return null;
             } catch (Exception e) {
                 if (!closed.get()) {
                     log().error("Failed to get websocket session to send request {}", request, e);
                 }
                 result.completeExceptionally(e);
-                return (CompletableFuture<T>) result;
+                return null;
             }
             this.sessionId = getNegotiatedSessionId(session);
             requests.put(request.getRequestId(), this);
-
-            try {
-                sendTimestamp = System.currentTimeMillis();
-                AbstractWebsocketClient.this.send(request, correlationData, session);
-            } catch (Exception e) {
-                requests.remove(request.getRequestId());
-                result.completeExceptionally(e);
-            }
-            return (CompletableFuture<T>) result;
+            sendTimestamp = System.currentTimeMillis();
+            return session;
         }
+
+        private void failSend(Throwable failure) {
+            requests.remove(request.getRequestId(), this);
+            result.completeExceptionally(failure);
+        }
+    }
+
+    protected final class PreparedRequest<R extends RequestResult> {
+        private final WebSocketRequest delegate;
+
+        private PreparedRequest(WebSocketRequest delegate) {
+            this.delegate = delegate;
+        }
+
+        @SuppressWarnings("unchecked")
+        public CompletableFuture<R> result() {
+            return (CompletableFuture<R>) delegate.result;
+        }
+
+        public void fail(Throwable failure) {
+            delegate.failSend(failure);
+        }
+
     }
 
     protected static ConnectionSetup createConnectionSetup(ClientConfig clientConfig) {
@@ -1388,9 +1736,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         if (cached != null) {
             return cached;
         }
-        WebSocketTransportCodec created = WebSocketTransportCodecs.forFormat(format, objectMapper);
+        WebSocketTransportCodec created = WebSocketTransportCodecs.forFormat(format, objectMapper, payloadCodecs());
         WebSocketTransportCodec raced = transportCodecs.putIfAbsent(format, created);
         return raced == null ? created : raced;
+    }
+
+    /** Returns compact payload codecs owned by this concrete protocol client. */
+    protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
+        return List.of();
     }
 
     protected Optional<String> getRuntimeVersion(WebsocketSession session) {

@@ -38,8 +38,11 @@ import java.lang.annotation.Target;
  * <ul>
  *     <li>The command or query object itself</li>
  *     <li>Any matching entity from the aggregate tree (including parent or grandparent entities)</li>
+ *     <li>Any independently stored {@link Model @Model} loaded for the current model commit, either as its value or
+ *         as {@link Entity}{@code <T>}</li>
  *     <li>Other framework-specific types like {@link io.fluxzero.sdk.common.Message} or {@link io.fluxzero.sdk.tracking.handling.authentication.User}</li>
  * </ul>
+ * Commit-scoped models injected into an assertion are read-only inputs; injection alone does not target or store them.
  * <p>
  * Note that empty entities (i.e., those with {@code null} values) are not injected unless the parameter is annotated with {@code @Nullable}.
  *
@@ -82,9 +85,11 @@ import java.lang.annotation.Target;
  * {@code @AssertLegal} methods or properties. This allows for deep, composable validation logic.
  *
  * <h2>Ordering</h2>
- * Multiple legality methods may be invoked. Their execution order is determined by {@link #priority()},
- * with higher values taking precedence. Methods with the same priority are invoked in deterministic order by method
- * name and signature.
+ * Multiple legality methods may be invoked. For independently stored models, assertions declared on the payload run
+ * before assertions declared on the model. Within each phase their execution order is determined by
+ * {@link #priority()}, with higher values taking precedence. Methods with the same priority are invoked in
+ * deterministic order by method name and signature. Immediate assertions see the state before apply; deferred
+ * assertions use the same payload-then-model order against the fully composed state.
  *
  * <h2>Execution timing</h2>
  * By default, checks run immediately during handler execution. You can defer them until after the handler completes

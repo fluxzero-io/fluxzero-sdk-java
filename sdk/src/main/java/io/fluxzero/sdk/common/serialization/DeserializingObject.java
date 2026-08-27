@@ -48,6 +48,7 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
     private final S serializedObject;
     private final Function<Type, Object> payload;
     private volatile MemoizingFunction<Type, Object> objectFunction;
+    private volatile Class<?> payloadClass;
 
     /**
      * Returns the memoized deserialization function used to deserialize the payload. This method is protected for use
@@ -134,8 +135,17 @@ public class DeserializingObject<T, S extends SerializedObject<T>> {
     @SneakyThrows
     @SuppressWarnings("unused")
     public Class<?> getPayloadClass() {
+        Class<?> result = payloadClass;
+        if (result != null) {
+            return result;
+        }
         String type = getType();
-        return type == null ? null : ReflectionUtils.classForName(type);
+        if (type == null) {
+            return null;
+        }
+        result = ReflectionUtils.classForName(type);
+        payloadClass = result;
+        return result;
     }
 
     private static class PayloadMemoizingFunction implements MemoizingFunction<Type, Object> {

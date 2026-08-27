@@ -26,8 +26,11 @@ import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.tracking.Consumer;
 import io.fluxzero.sdk.tracking.TrackSelf;
 import io.fluxzero.sdk.tracking.Tracker;
@@ -183,6 +186,40 @@ public class FluxzeroSpringConfigTest {
     void trackSelfTypesAreRegisteredWithoutExposingSpringBeans() {
         assertThrows(NoSuchBeanDefinitionException.class, () -> beanFactory.getBean(ScannedSelfTrackedPayload.class));
         assertRegisteredAsPrototype(ScannedSelfTrackedPayload.class);
+    }
+
+    @Test
+    void modelHandlersAreDiscoveredAsAsynchronousPrototypes() {
+        assertRegisteredAsPrototype(ScannedModel.class);
+        assertRegisteredAsPrototype(ScannedModelCommand.class);
+        assertRegisteredAsPrototype(SuppressedScannedModelCommand.class);
+        assertRegisteredAsPrototype(DynamicScannedModelCommand.class);
+        assertThrows(NoSuchBeanDefinitionException.class,
+                     () -> beanFactory.getBean(ScannedModelCommand.class));
+        assertThrows(NoSuchBeanDefinitionException.class,
+                     () -> beanFactory.getBean(SuppressedScannedModelCommand.class));
+
+        assertNull(fluxzero.commandGateway().sendAndWait(
+                new ScannedModelCommand("scanned")));
+        assertEquals(
+                new ScannedModel("scanned", "created"),
+                fluxzero.modelRepository()
+                        .load("scanned", ScannedModel.class)
+                        .get());
+
+        assertNull(fluxzero.commandGateway().sendAndWait(
+                new SuppressedScannedModelCommand("suppressed")));
+        assertTrue(fluxzero.modelRepository()
+                .load("suppressed", ScannedModel.class)
+                .isEmpty());
+
+        assertNull(fluxzero.commandGateway().sendAndWait(
+                new DynamicScannedModelCommand("dynamic-scanned")));
+        assertEquals(
+                new ScannedModel("dynamic-scanned", "created"),
+                fluxzero.modelRepository()
+                        .load("dynamic-scanned", ScannedModel.class)
+                        .get());
     }
 
     @Test
@@ -487,6 +524,36 @@ public class FluxzeroSpringConfigTest {
                 throw new IllegalCommandException("User is null");
             }
             return new Object();
+        }
+    }
+
+    @Model
+    record ScannedModel(
+            @EntityId String id,
+            String value) {
+    }
+
+    @Component
+    record ScannedModelCommand(String id) {
+        @Apply
+        ScannedModel apply() {
+            return new ScannedModel(id, "created");
+        }
+    }
+
+    @Component
+    record SuppressedScannedModelCommand(String id) {
+        @InterceptApply
+        ScannedModelCommand suppress() {
+            return null;
+        }
+    }
+
+    @Component
+    record DynamicScannedModelCommand(String id) {
+        @InterceptApply
+        List<?> expand() {
+            return List.of(new ScannedModelCommand(id));
         }
     }
 

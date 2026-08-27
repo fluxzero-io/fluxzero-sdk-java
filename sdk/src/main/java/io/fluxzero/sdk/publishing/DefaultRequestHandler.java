@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,8 +43,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
@@ -90,6 +87,9 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 @RequiredArgsConstructor
 public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> implements RequestHandler {
 
+    private static final int RESPONSE_MAX_FETCH_SIZE =
+            Math.max(1, Integer.getInteger("fluxzero.requestHandlerMaxFetchSize", 65_536));
+
     private final Client client;
     private final MessageType resultType;
     private final Duration timeout;
@@ -101,6 +101,7 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     private final AtomicBoolean started = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final ScheduledThreadPoolExecutor timeoutExecutor = timeoutExecutor();
+    private CompletableFuture<Void> responseProcessing = CompletableFuture.completedFuture(null);
     private volatile Registration registration;
 
     @Override
@@ -145,18 +146,10 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     public CompletableFuture<SerializedMessage> sendRequest(SerializedMessage request,
                                                             Consumer<SerializedMessage> requestSender,
                                                             Duration timeout) {
-        List<SerializedMessage> intermediates = new CopyOnWriteArrayList<>();
-        CompletableFuture<SerializedMessage> future = sendRequest(request, requestSender, timeout, intermediates::add);
-        return future.thenApply(m -> {
-            if (intermediates.isEmpty()) {
-                return m;
-            }
-            var data = m.getData();
-            byte[] allBytes = ObjectUtils.join(Stream.concat(
-                    intermediates.stream().map(i -> i.data().getValue()),
-                    Stream.of(data.getValue())).toArray(byte[][]::new));
-            return m.withData(new Data<>(allBytes, data.getType(), data.getRevision(), data.getFormat()));
-        });
+        ensureStarted();
+        CompletableFuture<SerializedMessage> future = prepareRequest(request, timeout, null);
+        requestSender.accept(request);
+        return future;
     }
 
     @Override
@@ -181,66 +174,89 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                                                                    Consumer<List<SerializedMessage>> requestSender,
                                                                    Duration timeout) {
         ensureStarted();
-        List<CompletableFuture<SerializedMessage>> futures = new ArrayList<>();
-        requestSender.accept(requests.stream().peek(request -> futures.add(prepareRequest(request, timeout, null)))
-                                     .collect(Collectors.toList()));
+        if (requests.isEmpty()) {
+            return List.of();
+        }
+        Duration effectiveTimeout = timeout == null ? this.timeout : timeout;
+        List<CompletableFuture<SerializedMessage>> futures = new ArrayList<>(requests.size());
+        int[] requestIds = new int[requests.size()];
+        for (int i = 0; i < requests.size(); i++) {
+            PreparedRequest prepared = prepareRequest(requests.get(i), effectiveTimeout, null, false);
+            requestIds[i] = prepared.requestId();
+            futures.add(prepared.result());
+        }
+        if (!effectiveTimeout.isNegative()) {
+            scheduleBatchTimeout(requests, requestIds, futures, effectiveTimeout);
+        }
+        requestSender.accept(requests);
         return futures;
     }
 
     protected CompletableFuture<SerializedMessage> prepareRequest(SerializedMessage request, Duration timeout,
                                                                   Consumer<SerializedMessage> intermediateCallback) {
-        int requestId = nextId.getAndIncrement();
-        CompletableFuture<SerializedMessage> rawResult = new CompletableFuture<>();
-        CompletableFuture<SerializedMessage> result = rawResult;
         if (timeout == null) {
             timeout = this.timeout;
         }
-        if (intermediateCallback == null) {
-            List<SerializedMessage> intermediates = new CopyOnWriteArrayList<>();
-            intermediateCallback = intermediates::add;
-            result = result.thenApply(m -> {
-                if (intermediates.isEmpty()) {
-                    return m;
-                }
-                var data = m.getData();
-                byte[] allBytes = ObjectUtils.join(Stream.concat(
-                        intermediates.stream().map(i -> i.data().getValue()),
-                        Stream.of(data.getValue())).toArray(byte[][]::new));
-                return m.withData(new Data<>(allBytes, data.getType(), data.getRevision(), data.getFormat()));
-            });
-        }
-        callbacks.put(requestId, new ResponseCallback(intermediateCallback, rawResult));
-        ScheduledFuture<?> timeoutTask = null;
+        return prepareRequest(request, timeout, intermediateCallback, true).result();
+    }
+
+    private PreparedRequest prepareRequest(SerializedMessage request, Duration timeout,
+                                           Consumer<SerializedMessage> intermediateCallback,
+                                           boolean scheduleTimeout) {
+        int requestId = nextId.getAndIncrement();
+        CompletableFuture<SerializedMessage> result = new CompletableFuture<>();
+        ResponseCallback callback = new ResponseCallback(intermediateCallback, result);
+        callbacks.put(requestId, callback);
         Metadata metadata = ofNullable(request.getMetadata()).orElseGet(Metadata::empty);
         if (timeout.isNegative()) {
             request.setMetadata(metadata.without(REQUEST_TIMEOUT_METADATA_KEY));
         } else {
-            request.setMetadata(metadata.with(REQUEST_TIMEOUT_METADATA_KEY, timeout.toMillis()));
-            Duration effectiveTimeout = timeout;
-            String requestDataType = request.getData().getType();
-            String messageId = request.getMessageId();
-            String resultTypeName = resultType.name();
-            timeoutTask = timeoutExecutor.schedule(
-                    () -> rawResult.completeExceptionally(FluxzeroErrors.requestTimeoutException(
-                            "message", requestDataType, messageId, requestId, resultTypeName, effectiveTimeout)),
-                    effectiveTimeout.toMillis(), MILLISECONDS);
+            request.setMetadata(metadata.with(REQUEST_TIMEOUT_METADATA_KEY, Long.toString(timeout.toMillis())));
         }
-        ScheduledFuture<?> finalTimeoutTask = timeoutTask;
-        result.whenComplete((m, e) -> {
-            callbacks.remove(requestId);
-            if (finalTimeoutTask != null) {
-                finalTimeoutTask.cancel(false);
-            }
-        });
         request.setRequestId(requestId);
         request.setSource(client.id());
-        return result;
+        ScheduledFuture<?> timeoutTask = scheduleTimeout && !timeout.isNegative()
+                ? timeoutExecutor.schedule(
+                        () -> callback.completeExceptionally(timeoutException(request, requestId, timeout)),
+                        timeout.toMillis(), MILLISECONDS)
+                : null;
+        result.whenComplete((m, e) -> {
+            callbacks.remove(requestId, callback);
+            if (timeoutTask != null) {
+                timeoutTask.cancel(false);
+            }
+        });
+        return new PreparedRequest(requestId, result);
+    }
+
+    private void scheduleBatchTimeout(List<SerializedMessage> requests, int[] requestIds,
+                                      List<CompletableFuture<SerializedMessage>> results, Duration timeout) {
+        ScheduledFuture<?> timeoutTask = timeoutExecutor.schedule(() -> {
+            for (int i = 0; i < requestIds.length; i++) {
+                ResponseCallback callback = callbacks.get(requestIds[i]);
+                if (callback != null) {
+                    callback.completeExceptionally(timeoutException(requests.get(i), requestIds[i], timeout));
+                }
+            }
+        }, timeout.toMillis(), MILLISECONDS);
+        AtomicInteger remaining = new AtomicInteger(results.size());
+        results.forEach(result -> result.whenComplete((message, error) -> {
+            if (remaining.decrementAndGet() == 0) {
+                timeoutTask.cancel(false);
+            }
+        }));
+    }
+
+    private Throwable timeoutException(SerializedMessage request, int requestId, Duration timeout) {
+        return FluxzeroErrors.requestTimeoutException(
+                "message", request.getData().getType(), request.getMessageId(), requestId, resultType.name(), timeout);
     }
 
     protected void ensureStarted() {
         if (started.compareAndSet(false, true)) {
             registration = start(this::handleResults, resultType, ConsumerConfiguration.builder()
                     .name(responseConsumerName)
+                    .maxFetchSize(RESPONSE_MAX_FETCH_SIZE)
                     .ignoreSegment(true)
                     .clientControlledIndex(true)
                     .filterMessageTarget(true)
@@ -251,7 +267,12 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         }
     }
 
-    protected void handleResults(List<SerializedMessage> messages) {
+    protected synchronized void handleResults(List<SerializedMessage> messages) {
+        responseProcessing = responseProcessing.exceptionally(e -> null)
+                .thenRunAsync(() -> processResults(messages), responseExecutor);
+    }
+
+    private void processResults(List<SerializedMessage> messages) {
         messages.stream().filter(m -> m.getRequestId() != null).forEach(response -> {
             var callback = callbacks.get(response.getRequestId());
             if (callback == null) {
@@ -259,7 +280,7 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                          response.getRequestId());
                 return;
             }
-            callback.enqueue(response, responseExecutor);
+            callback.process(response, responseExecutor);
         });
     }
 
@@ -309,7 +330,8 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
     protected static class ResponseCallback {
         private final Consumer<SerializedMessage> intermediateCallback;
         private final CompletableFuture<SerializedMessage> finalCallback;
-        private CompletableFuture<Void> processingChain = CompletableFuture.completedFuture(null);
+        private List<SerializedMessage> intermediates;
+        private CompletableFuture<Void> processingChain;
 
         ResponseCallback(Consumer<SerializedMessage> intermediateCallback,
                          CompletableFuture<SerializedMessage> finalCallback) {
@@ -317,7 +339,14 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
             this.finalCallback = finalCallback;
         }
 
-        synchronized void enqueue(SerializedMessage response, Executor executor) {
+        synchronized void process(SerializedMessage response, Executor executor) {
+            if (processingChain == null && response.lastChunk()) {
+                process(response, true);
+                return;
+            }
+            if (processingChain == null) {
+                processingChain = CompletableFuture.completedFuture(null);
+            }
             processingChain = processingChain.exceptionally(e -> null)
                     .thenRunAsync(() -> process(response), executor);
         }
@@ -331,9 +360,18 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         }
 
         private void process(SerializedMessage response) {
+            process(response, response.lastChunk());
+        }
+
+        private void process(SerializedMessage response, boolean lastChunk) {
             try {
-                if (response.lastChunk()) {
-                    finalCallback.complete(response);
+                if (lastChunk) {
+                    finalCallback.complete(aggregate(response));
+                } else if (intermediateCallback == null) {
+                    if (intermediates == null) {
+                        intermediates = new ArrayList<>();
+                    }
+                    intermediates.add(response);
                 } else {
                     intermediateCallback.accept(response);
                 }
@@ -342,6 +380,23 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                 throw e;
             }
         }
+
+        private SerializedMessage aggregate(SerializedMessage last) {
+            if (intermediates == null) {
+                return last;
+            }
+            var data = last.getData();
+            byte[][] chunks = new byte[intermediates.size() + 1][];
+            for (int i = 0; i < intermediates.size(); i++) {
+                chunks[i] = intermediates.get(i).data().getValue();
+            }
+            chunks[chunks.length - 1] = data.getValue();
+            return last.withData(new Data<>(ObjectUtils.join(chunks), data.getType(), data.getRevision(),
+                                            data.getFormat()));
+        }
+    }
+
+    private record PreparedRequest(int requestId, CompletableFuture<SerializedMessage> result) {
     }
 
 }

@@ -9,7 +9,7 @@ data through a unified document store, leveraging automatic indexing and a rich 
 
 - [Core Principles](#core-rules)
 - [Configuration & Indexing](#configuration)
-    - [@Searchable & @Aggregate](#searchable)
+    - [@Searchable & @Model](#searchable)
     - [Facets & Sorting (@Facet, @Sortable)](#facets-sorting)
     - [Exclusion & Inclusion (@SearchExclude, @SearchInclude)](#exclude-include)
 - [Searching for Data](#searching)
@@ -31,7 +31,7 @@ data through a unified document store, leveraging automatic indexing and a rich 
 ## Core Rules
 
 1. **No SQL**: Data retrieval is performed exclusively via the `Fluxzero.search()` API or by loading entities.
-2. **Automatic Indexing**: Aggregates with `searchable = true` are indexed automatically upon every update.
+2. **Automatic Indexing**: Models with `searchable = true` maintain a direct current-state document.
 3. **Stateful Handlers**: `@Stateful` handlers are automatically searchable as they are backed by the document store.
 4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
 5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
@@ -49,12 +49,15 @@ data through a unified document store, leveraging automatic indexing and a rich 
 
 <a name="searchable"></a>
 
-### @Searchable & @Aggregate
+### @Searchable & @Model
 
-To enable search for an aggregate or any object, use the appropriate annotation.
+To enable search for a model or any object, use the appropriate annotation.
 
 ```kotlin
-@Aggregate(searchable = true, collection = "active_projects")
+@Model(
+    searchable = true,
+    searchProjection = Searchable(collection = "active_projects"),
+)
 data class Project(...)
 
 @Searchable(collection = "custom_docs")
@@ -112,6 +115,27 @@ val results: List<Project> = Fluxzero.search(Project::class)
     .match("ACTIVE", "status")
     .fetch(10)
 ```
+
+### Model relationship constraints
+
+```kotlin
+val results = Fluxzero.search(Task::class.java)
+    .whereAncestor(
+        Project::class.java,
+        MatchConstraint.match("ACTIVE", "status")
+    )
+    .fetchAll()
+```
+
+Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
+and further traversal. Class-based constraints use the related Model's actual current-document collection, including
+the type-isolated private collection of a non-searchable Graph component. They select matching related IDs before
+relationship traversal, so prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` for
+selective live Graph search based on children. `searchGraph(Root::class.java).stream()` returns typed lazy `Graph<Root>` values through
+explicit `@Parent(pathInParent = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches
+live; pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` only for
+an explicit raw JSON boundary. Full-graph constraints mean the same on both routes, but broad free-form child filtering,
+sorting or pagination should use a materialized projection when it cannot be narrowed through a relationship selector.
 
 <a name="temporal-filters"></a>
 
@@ -195,12 +219,13 @@ fun handle(query: ProjectFacetQuery): CompletableFuture<List<FacetStats>> =
 
 ## Consistency & The Window
 
-Fluxzero search is **eventually consistent**.
+Direct searchable-model documents are **synchronous with model-commit completion**.
 
-- **The Consistency Window**: When you send a command, aggregate state is updated first and indexing may follow
-  asynchronously. For direct searchable aggregate updates, handler results now wait for asynchronous after-handler
-  aggregate commits by default, so `sendCommandAndWait` followed by a query often sees the updated aggregate/search
+- **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
   document.
+- **Graph projection window**: a materialized whole-root graph is asynchronous by default. Use
+  `GraphProjectionCompletion.AWAIT` for an operation whose result must wait for affected roots to reach its state
+  boundary.
 - **Guarantee Boundary**: Do not assume immediate search consistency when the document is indexed as a downstream side
   effect, such as in an event handler or projection handler. In that case, wait for the projection's own completion
   signal or return the needed state from the command handler.
@@ -253,7 +278,7 @@ val stats: List<FacetStats> = Fluxzero.search(Product::class)
 
 ## Manual Indexing & Bulk Operations
 
-You can index any object manually, even if it is not an aggregate.
+You can index any object manually, even if it is not a model.
 
 ### Index Operations
 
@@ -289,6 +314,6 @@ Fluxzero.get().documentStore().bulkUpdate(updates)
 
 - **Moving & Deleting**: Use `Fluxzero.deleteCollection(name)` to wipe a collection. Documents can be moved between
   collections using bulk operations.
-- **Rebuilding**: If you change your indexing configuration (e.g., adding a new `@Facet`), you can rebuild the
-  collection by replaying the aggregate's event stream. See the [Document Rebuilding](tracking.md#document-rebuilding)
+- **Rebuilding**: If you change your indexing configuration (e.g., adding a new `@Facet`), you can rebuild a downstream
+  collection by replaying its input events. See the [Document Rebuilding](tracking.md#document-rebuilding)
   section in the Tracking manual for more details.

@@ -264,6 +264,38 @@ public class ConsumerConfigurationTest {
     }
 
     @Test
+    void unconfiguredHandlersShareConsumerPerPackageWhenConfigured() {
+        Predicate<String> packageConsumer =
+                consumerName -> consumerName.endsWith(
+                        "_package_io_fluxzero_sdk_tracking");
+
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                                                ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE)).andThen(existing)),
+                                new Handler(), new OtherHandler())
+
+                .whenExecuting(fc -> Fluxzero.sendAndForgetCommand(new Command()))
+                .expectEvents(packageConsumer, packageConsumer);
+    }
+
+    @Test
+    void unconfiguredHandlersUsePackageConsumersWithLatestDefaultsVersion() {
+        Predicate<String> packageConsumer =
+                consumerName -> consumerName.endsWith(
+                        "_package_io_fluxzero_sdk_tracking");
+
+        TestFixture.createAsync(DefaultFluxzero.builder()
+                                        .replacePropertySource(existing -> new SimplePropertySource(Map.of(
+                                                ApplicationProperties.DEFAULTS_VERSION_PROPERTY,
+                                                "2026.07.27")).andThen(existing)),
+                                new Handler(), new OtherHandler())
+
+                .whenExecuting(fc -> Fluxzero.sendAndForgetCommand(new Command()))
+                .expectEvents(packageConsumer, packageConsumer);
+    }
+
+    @Test
     void sharedDefaultConsumerIsLegacyDefaultsBehavior() {
         TestFixture.createAsync(DefaultFluxzero.builder()
                                         .replacePropertySource(existing -> new SimplePropertySource(Map.of(

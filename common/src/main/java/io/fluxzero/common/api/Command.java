@@ -37,6 +37,16 @@ import io.fluxzero.common.Guarantee;
  */
 public abstract class Command extends Request {
 
+    protected Command() {
+    }
+
+    /**
+     * Restores a request identifier while decoding an optimized transport representation.
+     */
+    protected Command(long requestId) {
+        super(requestId);
+    }
+
     /**
      * Indicates the delivery guarantee required for this command.
      *

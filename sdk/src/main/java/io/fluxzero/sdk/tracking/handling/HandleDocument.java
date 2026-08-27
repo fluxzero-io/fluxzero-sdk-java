@@ -16,6 +16,8 @@ package io.fluxzero.sdk.tracking.handling;
 
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.serialization.Revision;
+import io.fluxzero.sdk.modeling.GraphProjection;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 
@@ -30,7 +32,7 @@ import java.lang.annotation.Target;
  * <p>
  * This is a specialization of {@link HandleMessage} for {@link MessageType#DOCUMENT} messages. It allows consuming
  * updates from the document store in near real-time—similar to event tracking. Handlers can either specify a collection
- * name or a document class.
+ * name, a document class, or the materialized graph projection of an independent model.
  * </p>
  *
  * <h2>Document Tracking Semantics</h2>
@@ -107,6 +109,36 @@ public @interface HandleDocument {
      * @see Searchable
      */
     Class<?> documentClass() default Void.class;
+
+    /**
+     * Optional independent-model root whose materialized graph projection should be handled.
+     * <p>
+     * The model must enable {@link Model#materializeGraph()}. The effective collection is resolved from
+     * {@link Model#graphProjection()}, including its derived Graph-collection default and any explicit collection
+     * override. A handler may inject {@code Graph<RootModel>}; node values are materialized lazily and
+     * parent, root, child and descendant navigation stays within the projected state boundary. This is useful when a
+     * stateful document handler needs to maintain a local view over complete model graphs rather than over
+     * independently stored root documents.
+     * <p>
+     * When a materialized root graph is deleted, this handler receives a typed empty graph. The graph retains its
+     * identity, type and deletion boundary, while {@code previous()} returns the complete last materialized graph.
+     * Deletion records are exclusive to handlers using {@code modelGraph}; ordinary document handlers for the same
+     * collection do not receive them.
+     * <p>
+     * A non-passive handler may return the injected complete {@code Graph<RootModel>} to persist ordinary serializer
+     * upcasting of its root and descendants into the materialized projection. Every node retains its own serialized
+     * type and revision and uses the ordinary {@link io.fluxzero.sdk.common.serialization.casting.Upcast @Upcast}
+     * chain; there is no Graph-wide upcaster. An upcaster may return a {@code Data<T>} envelope to evolve a node's type
+     * and content together without a separate typecaster. This is a projection-only migration: the graph must retain
+     * the handled root, state boundary, nodes and placements, and direct Models, relationships and projection progress
+     * are never changed. The Runtime replaces the document only if its original manifest is still current, so a
+     * delayed handler cannot overwrite a newer projection. Returning a Graph whose node schemas are already current
+     * is a no-op; tombstones remain observational.
+     * <p>
+     * An explicit {@link #value()} takes precedence. Otherwise this attribute takes precedence over
+     * {@link #documentClass()} and inference from the first handler parameter.
+     */
+    Class<?> modelGraph() default Void.class;
 
     /**
      * If {@code true}, disables this handler during discovery.

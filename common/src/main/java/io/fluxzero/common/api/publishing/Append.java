@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Command;
 import io.fluxzero.common.api.SerializedMessage;
 import lombok.Value;
 
+import java.beans.ConstructorProperties;
 import java.util.List;
 
 import static java.util.Optional.ofNullable;
@@ -57,11 +58,31 @@ public class Append extends Command {
      */
     Guarantee guarantee;
 
+    @ConstructorProperties({"messageType", "messages", "guarantee"})
+    public Append(MessageType messageType, List<SerializedMessage> messages, Guarantee guarantee) {
+        this.messageType = messageType;
+        this.messages = messages;
+        this.guarantee = guarantee;
+    }
+
+    /**
+     * Restores an append request received through an optimized transport representation.
+     */
+    public Append(long requestId, MessageType messageType, List<SerializedMessage> messages, Guarantee guarantee) {
+        super(requestId);
+        this.messageType = messageType;
+        this.messages = messages;
+        this.guarantee = guarantee;
+    }
+
     @JsonIgnore
     public int getSize() {
         return messages.size();
     }
 
+    /**
+     * Returns the complete serialized size of all appended messages.
+     */
     @JsonIgnore
     long getBytes() {
         return messages.stream().mapToLong(SerializedMessage::getBytes).sum();

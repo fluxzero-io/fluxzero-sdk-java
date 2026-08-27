@@ -23,10 +23,15 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static io.fluxzero.common.caching.CacheEviction.Reason.expiry;
 import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
@@ -170,6 +175,86 @@ class AdaptiveObjectCacheTest {
     }
 
     @Test
+    void bulkMergeRetainsTheSelectedValues() {
+        Cache cache =
+                new AdaptiveObjectCache(
+                        10,
+                        MemoryPressureController.none());
+        cache.put("existing", "old");
+        Map<String, String> candidates =
+                new LinkedHashMap<>();
+        candidates.put("existing", "new");
+        candidates.put("added", "value");
+        candidates.put("ignored", "drop");
+
+        cache.mergeAll(
+                candidates,
+                (current, candidate) ->
+                        "drop".equals(candidate)
+                                ? null
+                                : current == null
+                                        ? candidate
+                                        : current);
+
+        assertEquals("old", cache.get("existing"));
+        assertEquals("value", cache.get("added"));
+        assertFalse(cache.containsKey("ignored"));
+    }
+
+    @Test
+    void bulkMergeAdmitsAnEmptyCacheInIterationOrder() {
+        Cache cache =
+                new AdaptiveObjectCache(
+                        2,
+                        MemoryPressureController.none());
+
+        cache.mergeAll(
+                new LinkedHashMap<>(
+                        Map.of(
+                                "a", "A",
+                                "b", "B",
+                                "c", "C")),
+                (current, candidate) ->
+                        candidate);
+
+        assertEquals(2, cache.size());
+    }
+
+    @Test
+    void bulkUpdateReplacesAddsAndRemovesValues() {
+        Cache cache = new AdaptiveObjectCache(10, MemoryPressureController.none());
+        cache.put("replace", "old");
+        cache.put("remove", "old");
+        Map<String, Function<String, String>> updates = new LinkedHashMap<>();
+        updates.put("replace", current -> current + "-new");
+        updates.put("add", current -> "added");
+        updates.put("remove", current -> null);
+
+        cache.updateAll(updates);
+
+        assertEquals("old-new", cache.get("replace"));
+        assertEquals("added", cache.get("add"));
+        assertFalse(cache.containsKey("remove"));
+    }
+
+    @Test
+    void orderedBulkUpdateSupportsRepeatedKeys() {
+        Cache cache = new AdaptiveObjectCache(10, MemoryPressureController.none());
+        List<Map.Entry<String, Function<String, String>>> updates = List.of(
+                Map.entry("same", current -> current == null ? "a" : current + "a"),
+                Map.entry("same", current -> current + "b"),
+                Map.entry("removed", current -> null));
+
+        cache.<Map.Entry<String, Function<String, String>>, String>updateAll(
+                updates,
+                Map.Entry::getKey,
+                (update, current) -> update.getValue().apply(current));
+
+        assertEquals("ab", cache.get("same"));
+        assertFalse(cache.containsKey("removed"));
+    }
+
+    @Test
     void allowsNestedComputeCallsOnSameThread() {
         Cache cache = new AdaptiveObjectCache(10, MemoryPressureController.none());
 
@@ -309,6 +394,54 @@ class AdaptiveObjectCacheTest {
 
         assertTrue(cache.trimForMemoryPressure());
         assertEquals(3, cache.size());
+    }
+
+    @Test
+    void memoryPressureEvictionListenerCanReadCacheWithoutLockOrderDeadlock() throws Exception {
+        AtomicBoolean pressure = new AtomicBoolean();
+        AdaptiveObjectCache cache = new AdaptiveObjectCache(
+                100, (currentWeight, maxWeight) -> pressure.get());
+        CountDownLatch cacheOperationStarted = new CountDownLatch(1);
+        CountDownLatch evictionListenerStarted = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicReference<Throwable> failure =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        cache.put("a", "A");
+        cache.registerEvictionListener(event -> {
+            evictionListenerStarted.countDown();
+            cache.get(event.getId());
+        });
+
+        Thread cacheOperation = Thread.ofVirtual().start(() -> {
+            try {
+                cache.compute("b", (key, current) -> {
+                    cacheOperationStarted.countDown();
+                    await(evictionListenerStarted);
+                    cache.get("a");
+                    return "B";
+                });
+            } catch (Throwable e) {
+                failure.compareAndSet(null, e);
+            }
+        });
+        assertTrue(cacheOperationStarted.await(1, TimeUnit.SECONDS));
+        pressure.set(true);
+
+        cacheOperation.join(EVENTUALLY_TIMEOUT);
+
+        assertFalse(cacheOperation.isAlive());
+        assertNull(failure.get());
+        cache.close();
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(3, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out awaiting test coordination");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while coordinating test", e);
+        }
     }
 
     private static DelegatingClock fixedClock(String instant) {

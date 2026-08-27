@@ -15,7 +15,12 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.Parent;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -58,6 +63,7 @@ class OpenApiProcessorTest {
         assertTrue(paths.has("/processor/meters/{meterId}/{readingId}"));
         assertTrue(paths.has("/processor/meters/{meterId}"));
         assertFalse(paths.has("/processor/internal"));
+        assertFalse(paths.has("/processor/api-doc-excluded"));
         assertFalse(paths.has("/processor/undocumented"));
         assertFalse(paths.has("/processor/socket"));
 
@@ -121,6 +127,7 @@ class OpenApiProcessorTest {
         assertEquals("First paragraph.\n\nSecond paragraph with String link.",
                      accessor.path("javadocParagraphs").path("description").asText());
         assertFalse(accessor.has("secret"));
+        assertFalse(accessor.has("alternateSecret"));
         assertFalse(contains(document.path("components").path("schemas").path("InputDto").path("required"),
                              "tags"));
         JsonNode required = document.path("components").path("schemas").path("AccessorDto").path("required");
@@ -141,6 +148,52 @@ class OpenApiProcessorTest {
                 .path("schema").path("properties");
         assertEquals("binary", multipart.path("file").path("format").asText());
         assertTrue(upload.path("responses").has("204"));
+
+        JsonNode graphSchema = paths.path("/processor/model-graphs/{id}").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("#/components/schemas/ProcessorOrganisation", graphSchema.path("$ref").asText());
+        JsonNode graphListSchema = paths.path("/processor/model-graphs").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", graphListSchema.path("type").asText());
+        assertFalse(graphListSchema.has("description"));
+        assertEquals("List processor model graphs",
+                     paths.path("/processor/model-graphs").path("get").path("description").asText());
+        assertEquals("#/components/schemas/ProcessorOrganisation",
+                     graphListSchema.path("items").path("$ref").asText());
+        JsonNode graphArraySchema = paths.path("/processor/model-graphs/array").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        assertEquals("array", graphArraySchema.path("type").asText());
+        assertEquals("#/components/schemas/ProcessorOrganisation",
+                     graphArraySchema.path("items").path("$ref").asText());
+        JsonNode graphSchemas = document.path("components").path("schemas");
+        assertFalse(graphSchemas.has("ObjectNode"));
+        assertFalse(graphSchemas.has("JsonNode"));
+        JsonNode locations = graphSchemas.path("ProcessorOrganisation").path("properties").path("locations");
+        assertEquals("array", locations.path("type").asText());
+        assertEquals("Organisation locations", locations.path("description").asText());
+        assertEquals("#/components/schemas/ProcessorLocation", locations.path("items").path("$ref").asText());
+        assertTrue(contains(graphSchemas.path("ProcessorOrganisation").path("required"), "locations"));
+        assertFalse(graphSchemas.path("ProcessorOrganisation").path("properties").has("hiddenChildren"));
+        assertFalse(graphSchemas.has("ProcessorHiddenChild"));
+        JsonNode connections = graphSchemas.path("ProcessorLocation").path("properties")
+                .path("assets").path("properties").path("connections");
+        assertEquals("array", connections.path("type").asText());
+        assertEquals("Location connections", connections.path("description").asText());
+        assertEquals("#/components/schemas/ProcessorConnection", connections.path("items").path("$ref").asText());
+        JsonNode contacts = graphSchemas.path("ProcessorOrganisation").path("properties").path("contacts");
+        assertEquals("array", contacts.path("type").asText());
+        assertEquals("#/components/schemas/ProcessorContact", contacts.path("items").path("$ref").asText());
+        JsonNode alternateContacts = graphSchemas.path("ProcessorAlternateRoot").path("properties").path("contacts");
+        assertEquals("array", alternateContacts.path("type").asText());
+        assertEquals("#/components/schemas/ProcessorContact",
+                     alternateContacts.path("items").path("$ref").asText());
+        assertEquals(ProcessorOrganisationInfo.class.getName(),
+                     graphSchemas.path("ProcessorOrganisationInfo")
+                             .path(OpenApiRenderer.JAVA_TYPE_EXTENSION).asText());
+        JsonNode selectedSchemas = document.path("components").path("schemas");
+        assertTrue(selectedSchemas.path("SelectedRoot").path("properties").has("children"));
+        assertTrue(selectedSchemas.path("SelectedChild").path("properties").has("leaves"));
+        assertFalse(selectedSchemas.path("SelectedRoot").path("properties").has("excludedChildren"));
     }
 
     @ApiDocInfo(
@@ -196,9 +249,51 @@ class OpenApiProcessorTest {
             return null;
         }
 
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
+        @HandleGet("/model-graphs/{id}")
+        JsonNode modelGraph(@PathParam("id") String id) {
+            return null;
+        }
+
+        @ApiDoc(description = "List processor model graphs")
+        @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
+        @HandleGet("/model-graphs")
+        List<ObjectNode> modelGraphs() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = ProcessorOrganisation.class)
+        @HandleGet("/model-graphs/array")
+        JsonNode[] modelGraphArray() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = SelectedRoot.class,
+                modelGraphPaths = "children/leaves")
+        @HandleGet("/selected-model-graph")
+        JsonNode selectedModelGraph() {
+            return null;
+        }
+
+        @ApiDoc
+        @ApiDocResponse(status = 200, modelGraph = ProcessorAlternateRoot.class)
+        @HandleGet("/alternate-model-graph")
+        JsonNode alternateModelGraph() {
+            return null;
+        }
+
         @ApiDocExclude
         @HandleGet("/internal")
         String internal() {
+            return "hidden";
+        }
+
+        @ApiDoc(exclude = true)
+        @HandleGet("/api-doc-excluded")
+        String apiDocExcluded() {
             return "hidden";
         }
 
@@ -263,6 +358,8 @@ class OpenApiProcessorTest {
         List<String> uniqueTags;
         @ApiDocExclude
         String secret;
+        @ApiDoc(exclude = true)
+        String alternateSecret;
         List<String> aliases;
         /**
          * First paragraph.
@@ -282,6 +379,77 @@ class OpenApiProcessorTest {
     static class JsonValueId {
         @com.fasterxml.jackson.annotation.JsonValue
         String value;
+    }
+
+    @Model
+    record ProcessorOrganisation(@EntityId String id, String name, ProcessorOrganisationInfo info) {
+    }
+
+    record ProcessorOrganisationInfo(String name) {
+    }
+
+    static class ProcessorOrganisationId extends Id<ProcessorOrganisation> {
+        ProcessorOrganisationId(String id) {
+            super(id);
+        }
+    }
+
+    @Model
+    record ProcessorLocation(
+            @EntityId String id,
+            @Parent(pathInParent = "locations",
+                    apiDoc = @ApiDoc(description = "Organisation locations", required = true,
+                            type = "object"))
+            ProcessorOrganisationId organisationId) {
+    }
+
+    @Model
+    record ProcessorConnection(
+            @EntityId String id,
+            @Parent(value = ProcessorLocation.class, pathInParent = "assets/connections",
+                    apiDoc = @ApiDoc(description = "Location connections"))
+            String locationId) {
+    }
+
+    @Model
+    record ProcessorAlternateRoot(@EntityId String id) {
+    }
+
+    @Model
+    record ProcessorContact(
+            @EntityId String id,
+            @Parent(types = {ProcessorOrganisation.class, ProcessorAlternateRoot.class}, pathInParent = "contacts")
+            Id<?> parentId) {
+    }
+
+    @Model
+    record ProcessorHiddenChild(
+            @EntityId String id,
+            @Parent(value = ProcessorOrganisation.class, pathInParent = "hiddenChildren",
+                    apiDoc = @ApiDoc(exclude = true))
+            String organisationId) {
+    }
+
+    @Model
+    record SelectedRoot(@EntityId String id) {
+    }
+
+    @Model
+    record SelectedChild(
+            @EntityId String id,
+            @Parent(value = SelectedRoot.class, pathInParent = "children") String rootId) {
+    }
+
+    @Model
+    record SelectedLeaf(
+            @EntityId String id,
+            @Parent(value = SelectedChild.class, pathInParent = "leaves") String childId) {
+    }
+
+    @Model
+    record ExcludedChild(
+            @EntityId String id,
+            @Parent(value = SelectedRoot.class, pathInParent = "excludedChildren") String rootId) {
     }
 
     @lombok.Value

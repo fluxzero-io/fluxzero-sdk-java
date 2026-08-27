@@ -15,7 +15,10 @@
 package io.fluxzero.common.api.search;
 
 import io.fluxzero.common.api.AbstractRequestResult;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import lombok.Value;
+
+import java.beans.ConstructorProperties;
 
 /**
  * Result returned in response to a {@link io.fluxzero.common.api.search.GetDocument} request.
@@ -40,9 +43,31 @@ public class GetDocumentResult extends AbstractRequestResult {
     SerializedDocument document;
 
     /**
+     * Durable head written atomically with a direct Model document, or {@code null} for an
+     * ordinary document read or a Model that has never existed.
+     */
+    ModelHeadState modelHead;
+
+    /**
      * The system time (in milliseconds since epoch) at which this result was generated.
      */
     long timestamp = System.currentTimeMillis();
+
+    public GetDocumentResult(long requestId, SerializedDocument document) {
+        this(requestId, document, null);
+    }
+
+    @ConstructorProperties({"requestId", "document", "modelHead"})
+    public GetDocumentResult(
+            long requestId, SerializedDocument document, ModelHeadState modelHead) {
+        if (modelHead != null && modelHead.isDeleted() != (document == null)) {
+            throw new IllegalArgumentException(
+                    "Direct Model document presence does not match its durable head");
+        }
+        this.requestId = requestId;
+        this.document = document;
+        this.modelHead = modelHead;
+    }
 
     /**
      * Converts this result to a compact representation for metrics logging.

@@ -412,8 +412,13 @@ public class ValidationUtils {
      * @throws UnauthorizedException    if the user lacks required roles
      */
     public static boolean assertAuthorized(Class<?> target, Executable method, @Nullable User user) {
-        return assertAuthorized("%s#%s".formatted(target.getSimpleName(), method.getName()),
-                                user, requiredRolesForMethodCache.apply(target, method));
+        RequiredRole[] requiredRoles = requiredRolesForMethodCache.apply(target, method);
+        if (requiredRoles == null || Arrays.asList(requiredRoles).contains(noUserRequired)) {
+            return true;
+        }
+        return assertAuthorized(
+                target.getSimpleName() + "#" + method.getName(),
+                user, requiredRoles);
     }
 
     /**

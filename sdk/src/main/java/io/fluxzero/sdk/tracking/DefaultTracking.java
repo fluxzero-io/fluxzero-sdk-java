@@ -36,13 +36,14 @@ import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
-import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.DefaultResultGateway;
 import io.fluxzero.sdk.publishing.ResultGateway;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.client.DefaultTracker;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import io.fluxzero.sdk.tracking.handling.DefaultHandlerFactory;
+import io.fluxzero.sdk.tracking.handling.HandleDocument;
 import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.Invocation;
@@ -132,6 +133,7 @@ import static java.util.stream.Collectors.toSet;
 @Slf4j
 public class DefaultTracking implements Tracking {
     private static final LocalDate PER_HANDLER_DEFAULTS_VERSION = LocalDate.of(2026, 5, 20);
+    private static final LocalDate PER_PACKAGE_DEFAULTS_VERSION = LocalDate.of(2026, 7, 27);
     private static final CompletionStage<Void> completedReport = CompletableFuture.completedFuture(null);
 
     private final HandlerFilter handlerFilter = (t, m) -> getLocalHandlerAnnotation(t, m)
@@ -192,15 +194,16 @@ public class DefaultTracking implements Tracking {
     @Synchronized
     public Registration start(Fluxzero fluxzero, List<?> handlers) {
         return fluxzero.apply(fc -> {
+            List<?> trackingTargets = expandTrackingTargets(handlers);
             if (handlerFactory instanceof DefaultHandlerFactory defaultHandlerFactory) {
                 defaultHandlerFactory.setRegisteredHandlerTypePredicate(registeredHandlerTypes::containsKey);
             }
-            Set<Class<?>> handlerTypes = handlers.stream().map(handler -> handler instanceof Handler<?> h
+            Set<Class<?>> handlerTypes = trackingTargets.stream().map(handler -> handler instanceof Handler<?> h
                             ? h.getTargetClass() : ReflectionUtils.asClass(handler))
                     .filter(Objects::nonNull).collect(toSet());
             handlerTypes.forEach(type -> registeredHandlerTypes.merge(type, 1, Integer::sum));
             try {
-                return startHandlers(fc, handlers, handlerTypes);
+                return startHandlers(fc, trackingTargets, handlerTypes);
             } catch (RuntimeException | Error e) {
                 unregisterHandlerTypes(handlerTypes);
                 throw e;
@@ -208,9 +211,23 @@ public class DefaultTracking implements Tracking {
         });
     }
 
+    private List<?> expandTrackingTargets(List<?> handlers) {
+        List<Object> result = new ArrayList<>();
+        Set<Class<?>> classTargets = new HashSet<>();
+        for (Object handler : handlers) {
+            for (Object target : handlerFactory.trackingTargets(handler, handlerFilter)) {
+                if (!(target instanceof Class<?> type) || classTargets.add(type)) {
+                    result.add(target);
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
     @SuppressWarnings("unchecked")
     private Registration startHandlers(Fluxzero fluxzero, List<?> handlers, Set<Class<?>> handlerTypes) {
         Map<ConsumerConfiguration, List<Object>> assignedHandlers = assignHandlersToConsumers(fluxzero, handlers);
+        assignedHandlers = enableDocumentTombstones(assignedHandlers);
         assignedHandlers.forEach((configuration, targets) ->
                 targets.forEach(target -> handlerInitializer.accept(target, configuration)));
         Map<Object, List<ConsumerConfiguration>> consumersByHandler = new IdentityHashMap<>();
@@ -239,6 +256,31 @@ public class DefaultTracking implements Tracking {
         Registration registration = registrationWithHandlerTypes(handlerRegistration, handlerTypes);
         shutdownFunction.updateAndGet(r -> r.merge(registration));
         return registration;
+    }
+
+    private Map<ConsumerConfiguration, List<Object>> enableDocumentTombstones(
+            Map<ConsumerConfiguration, List<Object>> assignedHandlers) {
+        if (messageType != MessageType.DOCUMENT) {
+            return assignedHandlers;
+        }
+        LinkedHashMap<ConsumerConfiguration, List<Object>> result = new LinkedHashMap<>();
+        assignedHandlers.forEach((configuration, targets) -> {
+            boolean includeTombstones = configuration.isIncludeDocumentTombstones()
+                    || targets.stream()
+                    .map(target -> target instanceof Handler<?> handler
+                            ? handler.getTargetClass() : ReflectionUtils.asClass(target))
+                    .filter(Objects::nonNull)
+                    .flatMap(type -> ReflectionUtils.getAnnotatedMethods(type, HandleDocument.class).stream())
+                    .flatMap(method -> ReflectionUtils
+                            .<HandleDocument>getMethodAnnotation(method, HandleDocument.class).stream())
+                    .anyMatch(annotation -> annotation.modelGraph() != Void.class);
+            ConsumerConfiguration effective = includeTombstones
+                    ? configuration.toBuilder().includeDocumentTombstones(true).build()
+                    : configuration;
+            result.merge(effective, targets, (left, right) ->
+                    Stream.concat(left.stream(), right.stream()).distinct().toList());
+        });
+        return result;
     }
 
     private Registration registrationWithHandlerTypes(Registration handlerRegistration, Set<Class<?>> handlerTypes) {
@@ -298,14 +340,15 @@ public class DefaultTracking implements Tracking {
      */
     private Map<ConsumerConfiguration, List<Object>> assignHandlersToConsumers(Fluxzero fluxzero, List<?> handlers) {
         List<ConsumerConfiguration> explicitConfigurations = explicitConfigurations(handlers).toList();
-        if (useSharedDefaultAppConsumerForUnconfiguredHandlers(fluxzero)) {
+        UnconfiguredHandlerConsumerMode mode = unconfiguredHandlerConsumerMode(fluxzero.propertySource());
+        if (mode == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER) {
             return assignHandlersToConsumers(
                     handlers, Stream.concat(explicitConfigurations.stream(), defaultConfigurations.stream()));
         }
         List<Object> fallbackHandlers = fallbackHandlers(handlers, explicitConfigurations);
         return assignHandlersToConsumers(
                 handlers, Stream.concat(explicitConfigurations.stream(),
-                                        defaultConsumerConfigurations(fluxzero, fallbackHandlers)));
+                                        defaultConsumerConfigurations(fluxzero, fallbackHandlers, mode)));
     }
 
     private Stream<ConsumerConfiguration> explicitConfigurations(List<?> handlers) {
@@ -349,16 +392,14 @@ public class DefaultTracking implements Tracking {
         return result;
     }
 
-    private static boolean useSharedDefaultAppConsumerForUnconfiguredHandlers(Fluxzero fluxzero) {
-        return unconfiguredHandlerConsumerMode(fluxzero.propertySource())
-               == UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
-    }
-
     private static UnconfiguredHandlerConsumerMode unconfiguredHandlerConsumerMode(PropertySource propertySource) {
         String configuredMode = propertySource.get(
                 ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY);
         if (configuredMode != null) {
             return parseUnconfiguredHandlerConsumerMode(configuredMode);
+        }
+        if (defaultsVersionAtLeast(propertySource, PER_PACKAGE_DEFAULTS_VERSION)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
         }
         return defaultsVersionUsesPerHandlerConsumers(propertySource)
                 ? UnconfiguredHandlerConsumerMode.PER_HANDLER
@@ -370,13 +411,17 @@ public class DefaultTracking implements Tracking {
         if (ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.PER_HANDLER;
         }
+        if (ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
+            return UnconfiguredHandlerConsumerMode.PER_PACKAGE;
+        }
         if (ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE.equalsIgnoreCase(normalized)) {
             return UnconfiguredHandlerConsumerMode.DEFAULT_APP_CONSUMER;
         }
         throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                 "Invalid unconfigured handler consumer mode",
-                "Property `%s` must be `%s` or `%s`, but found `%s`.".formatted(
+                "Property `%s` must be `%s`, `%s` or `%s`, but found `%s`.".formatted(
                         ConsumerConfiguration.UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY,
+                        ConsumerConfiguration.PER_PACKAGE_CONSUMER_MODE,
                         ConsumerConfiguration.PER_HANDLER_CONSUMER_MODE,
                         ConsumerConfiguration.DEFAULT_APP_CONSUMER_MODE, mode),
                 "Set a supported mode, or remove the property to derive the default from `%s`.".formatted(
@@ -385,8 +430,13 @@ public class DefaultTracking implements Tracking {
     }
 
     private static boolean defaultsVersionUsesPerHandlerConsumers(PropertySource propertySource) {
+        return defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+    }
+
+    private static boolean defaultsVersionAtLeast(
+            PropertySource propertySource, LocalDate version) {
         try {
-            return ApplicationProperties.defaultsVersionAtLeast(propertySource, PER_HANDLER_DEFAULTS_VERSION);
+            return ApplicationProperties.defaultsVersionAtLeast(propertySource, version);
         } catch (IllegalArgumentException e) {
             throw new TrackingException(FluxzeroErrors.trackingConfigurationInvalid(
                     "Invalid Fluxzero defaults version",
@@ -398,6 +448,7 @@ public class DefaultTracking implements Tracking {
 
     private enum UnconfiguredHandlerConsumerMode {
         DEFAULT_APP_CONSUMER,
+        PER_PACKAGE,
         PER_HANDLER
     }
 
@@ -435,11 +486,18 @@ public class DefaultTracking implements Tracking {
                 null, a.getName()));
     }
 
-    private Stream<ConsumerConfiguration> defaultConsumerConfigurations(Fluxzero fluxzero, List<Object> handlers) {
+    private Stream<ConsumerConfiguration> defaultConsumerConfigurations(
+            Fluxzero fluxzero,
+            List<Object> handlers,
+            UnconfiguredHandlerConsumerMode mode) {
         if (handlers.isEmpty() || defaultConfigurations.isEmpty()) {
             return Stream.empty();
         }
         ConsumerConfiguration template = defaultConfigurations.getFirst();
+        if (mode == UnconfiguredHandlerConsumerMode.PER_PACKAGE) {
+            return defaultPackageConsumerConfigurations(
+                    fluxzero.client().name(), template, handlers);
+        }
         List<Class<?>> handlerTypes = handlers.stream().map(ReflectionUtils::asClass).distinct().toList();
         Map<String, Integer> simpleNameCounts = new HashMap<>();
         handlerTypes.stream().map(DefaultTracking::consumerSimpleName)
@@ -447,6 +505,31 @@ public class DefaultTracking implements Tracking {
         return handlerTypes.stream().map(handlerType -> defaultConsumerConfiguration(
                 fluxzero.client().name(), template, handlerType,
                 simpleNameCounts.get(consumerSimpleName(handlerType)) > 1));
+    }
+
+    private static Stream<ConsumerConfiguration> defaultPackageConsumerConfigurations(
+            String applicationName,
+            ConsumerConfiguration template,
+            List<Object> handlers) {
+        return handlers.stream()
+                .map(ReflectionUtils::asClass)
+                .filter(Objects::nonNull)
+                .map(Class::getPackageName)
+                .distinct()
+                .map(packageName -> {
+                    Predicate<Object> handlerFilter = handler -> {
+                        Class<?> handlerType = ReflectionUtils.asClass(handler);
+                        return handlerType != null
+                               && handlerType.getPackageName().equals(packageName);
+                    };
+                    String packageKey = packageName.isBlank()
+                            ? "default" : packageName.replace('.', '_');
+                    return template.toBuilder()
+                            .name(defaultApplicationConsumerName(
+                                    applicationName, "package_" + packageKey))
+                            .handlerFilter(template.getHandlerFilter().and(handlerFilter))
+                            .build();
+                });
     }
 
     private static ConsumerConfiguration defaultConsumerConfiguration(
@@ -462,8 +545,14 @@ public class DefaultTracking implements Tracking {
                                               boolean includePackageName) {
         String handlerName = includePackageName ? handlerType.getName() : consumerSimpleName(handlerType);
         String sanitizedHandlerName = handlerName.replace('.', '_').replace('$', '_');
-        return applicationName == null || applicationName.isBlank() ? sanitizedHandlerName
-                : "%s_%s".formatted(applicationName, sanitizedHandlerName);
+        return defaultApplicationConsumerName(applicationName, sanitizedHandlerName);
+    }
+
+    private static String defaultApplicationConsumerName(
+            String applicationName, String consumerName) {
+        return applicationName == null || applicationName.isBlank()
+                ? consumerName
+                : "%s_%s".formatted(applicationName, consumerName);
     }
 
     private static String consumerSimpleName(Class<?> handlerType) {
@@ -774,7 +863,7 @@ public class DefaultTracking implements Tracking {
     private CompletionStage<Void> tryHandle(DeserializingMessage message, List<Handler<DeserializingMessage>> handlers,
                                             ConsumerConfiguration config, boolean reportResult) {
         if (config.getOnMissingProtectedData() != MissingProtectedDataPolicy.DEFAULT
-            && message.getMetadata().containsKey(DataProtectionInterceptor.METADATA_KEY)) {
+            && message.containsMetadata(DataProtectionInterceptor.METADATA_KEY)) {
             message.putContext(ConsumerConfiguration.class, config);
         }
         List<CompletableFuture<Void>> resultCompletions = null;
@@ -895,7 +984,26 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerInvoker h, Handler<DeserializingMessage> handler,
                             ConsumerConfiguration config) {
         if (shouldHandleOnWorker(message, config)) {
-            return handleAsync(message, () -> doHandle(message, h, handler, config));
+            Registration preparation = h.prepareAsyncInvocation();
+            if (preparation == null) {
+                return handleAsync(
+                        message, () -> doHandle(message, h, handler, config),
+                        h.requiresBatchSegmentOrder());
+            }
+            try {
+                return handleAsync(
+                        message, () -> {
+                            try {
+                                return doHandle(message, h, handler, config);
+                            } finally {
+                                preparation.cancel();
+                            }
+                        },
+                        h.requiresBatchSegmentOrder());
+            } catch (RuntimeException | Error failure) {
+                preparation.cancel();
+                throw failure;
+            }
         }
         return doHandle(message, h, handler, config);
     }
@@ -904,7 +1012,8 @@ public class DefaultTracking implements Tracking {
     protected Object handle(DeserializingMessage message, HandlerMethod<? super DeserializingMessage> h,
                             Handler<DeserializingMessage> handler, ConsumerConfiguration config) {
         if (shouldHandleOnWorker(message, config)) {
-            return handleAsync(message, () -> doHandle(message, h, handler, config));
+            return handleAsync(
+                    message, () -> doHandle(message, h, handler, config), true);
         }
         return doHandle(message, h, handler, config);
     }
@@ -913,10 +1022,11 @@ public class DefaultTracking implements Tracking {
         return message instanceof ChunkedDeserializingMessage || config.getHandlingMode() == ASYNC;
     }
 
-    private <T> CompletableFuture<T> handleAsync(DeserializingMessage message, Supplier<T> task) {
+    private <T> CompletableFuture<T> handleAsync(
+            DeserializingMessage message, Supplier<T> task, boolean retainSegmentOrder) {
         Supplier<T> contextAwareTask = message.captureContext().wrap(task);
         SegmentedBatchHandlerQueue queue = batchHandlerQueue.get();
-        return queue == null
+        return queue == null || !retainSegmentOrder
                 ? supplyAsync(contextAwareTask, messageHandlerExecutor)
                 : queue.submit(contextAwareTask, messageHandlerExecutor);
     }
@@ -1045,45 +1155,57 @@ public class DefaultTracking implements Tracking {
             outstandingRequests.add(resultFuture);
             var context = message.captureContext();
             s.whenComplete(context.wrap((r, e) -> {
+                CompletionStage<Void> publication;
                 try {
-                    reportResult(Optional.<Object>ofNullable(e).orElse(r), h, message, config)
-                            .toCompletableFuture().join();
-                    if (completion != null) {
-                        completion.complete(null);
-                    }
+                    publication = reportResult(
+                            Optional.<Object>ofNullable(e).orElse(r),
+                            h, message, config);
                 } catch (Throwable t) {
-                    if (completion != null) {
-                        completion.completeExceptionally(t);
-                    } else {
-                        close();
-                    }
-                } finally {
-                    outstandingRequests.remove(resultFuture);
-                    if (e != null) {
-                        close();
-                    }
+                    finishAsyncResult(
+                            resultFuture, completion, e, t);
+                    return;
                 }
+                publication.whenComplete(
+                        context.wrap((ignored, failure) ->
+                                             finishAsyncResult(
+                                                     resultFuture,
+                                                     completion,
+                                                     e,
+                                                     failure)));
             }));
             return completion == null ? completedReport : completion;
         } else {
             CompletableFuture<Void> postHandlerCompletion = Invocation.resultPublicationBarrier(message);
             if (postHandlerCompletion.isDone()) {
+                boolean barrierRecorded = false;
                 try {
                     postHandlerCompletion.join();
-                    sendResult(result, h, message, config);
+                    barrierRecorded = true;
+                    CompletionStage<Void> publication = sendResult(result, h, message, config);
+                    return resultPublicationCompletion(publication, config);
                 } catch (Throwable e) {
-                    sendResult(unwrapException(e), h, message, config);
+                    if (!barrierRecorded) {
+                    }
+                    CompletionStage<Void> publication =
+                            sendResult(unwrapException(e), h, message, config);
+                    return resultPublicationCompletion(publication, config);
                 }
-                return completedReport;
             }
             CompletableFuture<Void> completion = config.awaitAsyncResults() ? new CompletableFuture<>() : null;
             Object response = result;
             var context = message.captureContext();
             postHandlerCompletion.whenComplete(context.wrap((ignored, error) -> {
                 try {
-                    sendResult(error == null ? response : unwrapException(error), h, message, config);
+                    CompletionStage<Void> publication = sendResult(
+                            error == null ? response : unwrapException(error), h, message, config);
                     if (completion != null) {
-                        completion.complete(null);
+                        publication.whenComplete((published, publicationError) -> {
+                            if (publicationError == null) {
+                                completion.complete(null);
+                            } else {
+                                completion.completeExceptionally(unwrapException(publicationError));
+                            }
+                        });
                     }
                 } catch (Throwable t) {
                     if (completion != null) {
@@ -1097,10 +1219,39 @@ public class DefaultTracking implements Tracking {
         }
     }
 
-    private void sendResult(Object result, HandlerDescriptor h, DeserializingMessage message,
-                            ConsumerConfiguration config) {
+    private static CompletionStage<Void> resultPublicationCompletion(
+            CompletionStage<Void> publication, ConsumerConfiguration config) {
+        return config.awaitAsyncResults() ? publication : completedReport;
+    }
+
+    private void finishAsyncResult(
+            CompletableFuture<?> resultFuture,
+            CompletableFuture<Void> completion,
+            Throwable resultFailure,
+            Throwable publicationFailure) {
+        try {
+            if (publicationFailure == null) {
+                if (completion != null) {
+                    completion.complete(null);
+                }
+            } else if (completion != null) {
+                completion.completeExceptionally(
+                        publicationFailure);
+            } else {
+                close();
+            }
+        } finally {
+            outstandingRequests.remove(resultFuture);
+            if (resultFailure != null) {
+                close();
+            }
+        }
+    }
+
+    private CompletionStage<Void> sendResult(Object result, HandlerDescriptor h, DeserializingMessage message,
+                                             ConsumerConfiguration config) {
         if (!shouldSendResponse(h, message, result, config)) {
-            return;
+            return completedReport;
         }
         if (result instanceof Throwable) {
             result = unwrapException((Throwable) result);
@@ -1112,12 +1263,48 @@ public class DefaultTracking implements Tracking {
         SerializedMessage request = message.getSerializedObject();
         ResultGateway resultGateway = this.resultGateway.forNamespace(config.getNamespace());
         try {
-            resultGateway.respond(result, request.getSource(), request.getRequestId());
+            if (resultGateway instanceof DefaultResultGateway defaultResultGateway) {
+                if (!config.awaitAsyncResults()) {
+                    defaultResultGateway.respondBatchedAndForget(
+                            result, request.getSource(), request.getRequestId(),
+                            (failure, retry) -> handleResultPublicationFailure(
+                                    failure, retry, message, h, config));
+                    return completedReport;
+                }
+                return defaultResultGateway.respondBatched(
+                        result, request.getSource(), request.getRequestId(),
+                        (failure, retry) -> handleResultPublicationFailure(
+                                failure, retry, message, h, config));
+            }
+            return resultGateway.respond(result, request.getSource(), request.getRequestId());
         } catch (Throwable e) {
             Object response = result;
-            config.getErrorHandler().handleError(
-                    e, format("Failed to send result of a %s from handler %s", message, h.getMethod()),
-                    () -> resultGateway.respond(response, request.getSource(), request.getRequestId()));
+            Object retryResult = config.getErrorHandler().handleError(
+                e, format("Failed to send result of a %s from handler %s", message, h.getMethod()),
+                    () -> {
+                        if (resultGateway instanceof DefaultResultGateway defaultResultGateway) {
+                            return defaultResultGateway.respondBatched(
+                                    response, request.getSource(), request.getRequestId());
+                        }
+                        return resultGateway.respond(response, request.getSource(), request.getRequestId());
+                    });
+            return retryResult instanceof CompletionStage<?> stage
+                    ? stage.thenApply(ignored -> null) : completedReport;
+        }
+    }
+
+    private CompletionStage<Void> handleResultPublicationFailure(
+            Throwable failure, Supplier<CompletableFuture<Void>> retry,
+            DeserializingMessage message, HandlerDescriptor handler, ConsumerConfiguration config) {
+        try {
+            Object retryResult = config.getErrorHandler().handleError(
+                    unwrapException(failure),
+                    format("Failed to send result of a %s from handler %s", message, handler.getMethod()),
+                    retry::get);
+            return retryResult instanceof CompletionStage<?> stage
+                    ? stage.thenApply(ignored -> null) : completedReport;
+        } catch (Throwable e) {
+            return CompletableFuture.failedFuture(e);
         }
     }
 

@@ -81,7 +81,7 @@ public class MessageBatch {
     }
 
     /**
-     * Calculates the total number of bytes in the data across all messages within the batch.
+     * Calculates the complete serialized size of all messages within the batch.
      */
     @JsonIgnore
     public long getBytes() {
@@ -123,7 +123,7 @@ public class MessageBatch {
         int size;
 
         /**
-         * The total number of bytes in the data across all messages within the batch.
+         * The complete serialized size of all messages within the batch.
          */
         long bytes;
 

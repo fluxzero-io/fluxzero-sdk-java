@@ -261,8 +261,8 @@ the same tracker.
 2. **Routing Key Selection**:
     - **@RoutingKey**: You can annotate a field in your payload with `@RoutingKey`. The value of this field will be used
       to calculate the segment.
-    - **Aggregate ID**: For events applied to an aggregate that do not have an explicit `@RoutingKey`, the **Aggregate
-      ID** is used automatically.
+    - **Model commit routing**: Model events use the message routing key by default. A single-target apply may explicitly
+      choose model-ID routing.
     - **Default**: If no key is found, a random segment is assigned (no ordering guarantees).
 
 ```kotlin

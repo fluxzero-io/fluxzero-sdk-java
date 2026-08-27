@@ -63,16 +63,16 @@ You can also specify the collection in which the object should be stored directl
 
 ## Searchable domain models
 
-Many models in Fluxzero (e.g. aggregates or stateful handlers) are automatically indexable:
+Many domain models and stateful handlers in Fluxzero are automatically indexable:
 
-- `@Aggregate(searchable = true)`
+- `@Model(searchable = true)`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Aggregate(searchable = true)
+    @Model(searchable = true)
     public record UserAccount(@EntityId UserId userId,
                               UserProfile profile,
                               boolean accountClosed) {
@@ -81,7 +81,7 @@ Many models in Fluxzero (e.g. aggregates or stateful handlers) are automatically
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Aggregate(searchable = true)
+    @Model(searchable = true)
     data class UserAccount(
         @EntityId val userId: UserId,
         val profile: UserProfile,
@@ -92,18 +92,18 @@ Many models in Fluxzero (e.g. aggregates or stateful handlers) are automatically
 </Tabs>
 
 By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
-unless explicitly overridden via an annotation like `@Aggregate`, `@Stateful` or `@Searchable` or in the search/index
+unless explicitly overridden via an annotation like `@Model`, `@Stateful` or `@Searchable` or in the search/index
 call:
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Aggregate(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+    @Model(searchable = true, collection = "users", timestampPath = "profile/createdAt")
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Aggregate(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+    @Model(searchable = true, collection = "users", timestampPath = "profile/createdAt")
     ```
   </TabItem>
 </Tabs>
@@ -139,14 +139,15 @@ Use the fluent `search(...)` API:
 
 ### Consistency after commands
 
-Search is optimized for current state, but indexing still follows the commit path. When a command directly updates a
-searchable aggregate, Fluxzero waits for asynchronous after-handler aggregate commits before publishing the command
-result by default. In many cases, calling `sendCommandAndWait(...)` and then querying the aggregate's document can read
-the just-committed state.
+Search is optimized for current state, but indexing still follows the commit path. The direct document of a searchable
+model is synchronously maintained with its model commit. Calling `sendCommandAndWait(...)` and then querying that
+model's direct collection observes the committed state.
 
-This does not cover downstream projections or side-effect indexing. If a document is indexed by an event handler or
-projection handler, treat it as eventually consistent and wait for that projection's own completion signal when immediate
-read-after-write behavior matters.
+This does not automatically wait for a materialized whole-root graph projection. Select
+`GraphProjectionCompletion.AWAIT` for the operation or consumer when an immediate root query must include all affected
+children. Application-level `configureGraphProjectionCompletion(AWAIT)` is inherited by roots whose annotation keeps
+`DEFAULT`. `LocalClient`, the test server and synchronous fixtures materialize the same projection before releasing
+the result. Documents indexed by unrelated event handlers remain eventually consistent.
 
 You can also query by class:
 
@@ -661,6 +662,6 @@ To remove documents from the index:
 
 - Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
-- Use `@Aggregate(searchable = true)` or `@Stateful` for automatic indexing.
+- Use `@Model(searchable = true)` or `@Stateful` for automatic indexing.
 - Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 - Use `fetchAsync(...)`, `countAsync()`, `aggregateAsync(...)`, and `facetStatsAsync()` in asynchronous handlers.

@@ -54,7 +54,8 @@ public class Read extends Request {
     int maxSize;
 
     /**
-     * Maximum number of serialized payload bytes to return in a single batch. A value of {@code 0} disables this limit.
+     * Maximum number of complete serialized message bytes to return in a single batch. A value of {@code 0} disables
+     * this limit.
      */
     long maxBytes;
 
@@ -89,6 +90,14 @@ public class Read extends Request {
     boolean clientControlledIndex;
 
     /**
+     * If {@code true}, includes typed model-graph deletion records while tracking a document collection.
+     * <p>
+     * Ordinary document consumers leave this disabled. The Java SDK enables it only for consumers containing a
+     * {@code @HandleDocument(modelGraph = ...)} handler.
+     */
+    boolean includeDocumentTombstones;
+
+    /**
      * The last known index of the tracker, from which to start reading messages in case {@link #clientControlledIndex}
      * is {@code true} or when a new consumer is added. If {@code null}, the last known index will be queried from the
      * Fluxzero Runtime.
@@ -102,10 +111,11 @@ public class Read extends Request {
 
     @ConstructorProperties({"messageType", "consumer", "trackerId", "maxSize", "maxBytes", "maxTimeout",
             "typeFilter", "filterMessageTarget", "ignoreSegment", "singleTracker", "clientControlledIndex",
-            "lastIndex", "purgeTimeout"})
+            "includeDocumentTombstones", "lastIndex", "purgeTimeout"})
     public Read(MessageType messageType, String consumer, String trackerId, int maxSize, long maxBytes,
                 long maxTimeout, String typeFilter, boolean filterMessageTarget, boolean ignoreSegment,
-                boolean singleTracker, boolean clientControlledIndex, Long lastIndex, Long purgeTimeout) {
+                boolean singleTracker, boolean clientControlledIndex, boolean includeDocumentTombstones,
+                Long lastIndex, Long purgeTimeout) {
         this.messageType = messageType;
         this.consumer = consumer;
         this.trackerId = trackerId;
@@ -117,8 +127,44 @@ public class Read extends Request {
         this.ignoreSegment = ignoreSegment;
         this.singleTracker = singleTracker;
         this.clientControlledIndex = clientControlledIndex;
+        this.includeDocumentTombstones = includeDocumentTombstones;
         this.lastIndex = lastIndex;
         this.purgeTimeout = purgeTimeout;
+    }
+
+    public Read(MessageType messageType, String consumer, String trackerId, int maxSize, long maxBytes,
+                long maxTimeout, String typeFilter, boolean filterMessageTarget, boolean ignoreSegment,
+                boolean singleTracker, boolean clientControlledIndex, Long lastIndex, Long purgeTimeout) {
+        this(messageType, consumer, trackerId, maxSize, maxBytes, maxTimeout, typeFilter, filterMessageTarget,
+             ignoreSegment, singleTracker, clientControlledIndex, false, lastIndex, purgeTimeout);
+    }
+
+    Read(long requestId, MessageType messageType, String consumer, String trackerId, int maxSize, long maxBytes,
+         long maxTimeout, String typeFilter, boolean filterMessageTarget, boolean ignoreSegment,
+         boolean singleTracker, boolean clientControlledIndex, boolean includeDocumentTombstones,
+         Long lastIndex, Long purgeTimeout) {
+        super(requestId);
+        this.messageType = messageType;
+        this.consumer = consumer;
+        this.trackerId = trackerId;
+        this.maxSize = maxSize;
+        this.maxBytes = maxBytes;
+        this.maxTimeout = maxTimeout;
+        this.typeFilter = typeFilter;
+        this.filterMessageTarget = filterMessageTarget;
+        this.ignoreSegment = ignoreSegment;
+        this.singleTracker = singleTracker;
+        this.clientControlledIndex = clientControlledIndex;
+        this.includeDocumentTombstones = includeDocumentTombstones;
+        this.lastIndex = lastIndex;
+        this.purgeTimeout = purgeTimeout;
+    }
+
+    Read(long requestId, MessageType messageType, String consumer, String trackerId, int maxSize, long maxBytes,
+         long maxTimeout, String typeFilter, boolean filterMessageTarget, boolean ignoreSegment,
+         boolean singleTracker, boolean clientControlledIndex, Long lastIndex, Long purgeTimeout) {
+        this(requestId, messageType, consumer, trackerId, maxSize, maxBytes, maxTimeout, typeFilter,
+             filterMessageTarget, ignoreSegment, singleTracker, clientControlledIndex, false, lastIndex, purgeTimeout);
     }
 
     public Read(MessageType messageType, String consumer, String trackerId, int maxSize, long maxTimeout,

@@ -21,6 +21,7 @@ import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.Substitutable;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
@@ -68,8 +69,9 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     /**
      * Chooses how unconfigured tracking handlers are assigned to default consumers.
      * <p>
-     * Supported values are {@link #PER_HANDLER_CONSUMER_MODE} and {@link #DEFAULT_APP_CONSUMER_MODE}. When absent,
-     * Fluxzero derives the default from {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.
+     * Supported values are {@link #PER_PACKAGE_CONSUMER_MODE}, {@link #PER_HANDLER_CONSUMER_MODE} and
+     * {@link #DEFAULT_APP_CONSUMER_MODE}. When absent, Fluxzero derives the default from
+     * {@link ApplicationProperties#DEFAULTS_VERSION_PROPERTY}.
      */
     public static final String UNCONFIGURED_HANDLER_CONSUMER_MODE_PROPERTY =
             "fluxzero.tracking.unconfiguredHandlerConsumerMode";
@@ -80,13 +82,18 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     public static final String PER_HANDLER_CONSUMER_MODE = "perHandler";
 
     /**
+     * Creates one isolated default consumer per exact package containing unconfigured handler classes.
+     */
+    public static final String PER_PACKAGE_CONSUMER_MODE = "perPackage";
+
+    /**
      * Assigns unconfigured handlers to the shared default application consumer for their message type.
      */
     public static final String DEFAULT_APP_CONSUMER_MODE = "defaultAppConsumer";
 
     /**
-     * Configures the default serialized payload byte limit per tracking fetch. Consumers can override this default
-     * with {@link Builder#maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
+     * Configures the default complete serialized message byte limit per tracking fetch. Consumers can override this
+     * default with {@link Builder#maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
      */
     public static final String MAX_FETCH_BYTES_PROPERTY = "fluxzero.tracking.maxFetchBytes";
 
@@ -106,7 +113,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
             DEFAULT_HANDLING_MODE_PROPERTY + ".";
 
     /**
-     * Default serialized payload byte limit per tracking fetch.
+     * Default complete serialized message byte limit per tracking fetch.
      */
     public static final long DEFAULT_MAX_FETCH_BYTES = 100L * 1024L * 1024L;
 
@@ -175,7 +182,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
     int maxFetchSize = 1024;
 
     /**
-     * Maximum serialized payload bytes to fetch per poll from the message log.
+     * Maximum complete serialized message bytes to fetch per poll from the message log.
      * <p>
      * The default {@link #USE_DEFAULT_MAX_FETCH_BYTES} inherits {@link #MAX_FETCH_BYTES_PROPERTY} when configured,
      * otherwise {@link #DEFAULT_MAX_FETCH_BYTES}. A value of {@code 0} disables this limit. If a single message is
@@ -196,12 +203,27 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                     : maxFetchBytes);
 
     /**
+     * Internal document-tracking option enabled automatically for consumers containing typed model-graph handlers.
+     * Ordinary document consumers leave this disabled.
+     */
+    @Default
+    boolean includeDocumentTombstones = false;
+
+    /**
      * Maximum wait time for polling new messages. Use {@link Duration#ZERO} to return immediately when no messages or
      * segment claim are available.
      */
     @Default
     @NonNull
     Duration maxWaitDuration = Duration.ofSeconds(60);
+
+    /**
+     * Overrides graph-projection result completion for model commits handled by this consumer.
+     */
+    @Default
+    @NonNull
+    GraphProjectionCompletion graphProjectionCompletion =
+            GraphProjectionCompletion.DEFAULT;
 
     /**
      * Interceptors that are invoked before and after a batch of messages is processed.
@@ -501,6 +523,8 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
                 .maxFetchSize(consumer.maxFetchSize())
                 .maxFetchBytes(consumer.maxFetchBytes())
                 .maxWaitDuration(Duration.of(consumer.maxWaitDuration(), consumer.durationUnit()))
+                .graphProjectionCompletion(
+                        consumer.graphProjectionCompletion())
                 .batchInterceptors(Arrays.stream(consumer.batchInterceptors()).map(
                         ReflectionUtils::<BatchInterceptor>asInstance).collect(Collectors.toList()))
                 .handlerInterceptors(Arrays.stream(consumer.handlerInterceptors()).map(

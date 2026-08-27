@@ -45,6 +45,17 @@ public class DefaultEventGateway extends AbstractNamespaced<EventGateway> implem
         return delegate.sendAndForget(message, guarantee);
     }
 
+    /**
+     * Dispatches an event that has already been stored through the local handler path without appending it again.
+     *
+     * <p>This is used by in-memory infrastructure that observes authoritative event-store commits which bypassed the
+     * ordinary event gateway. The serialized-message interceptor suppresses a second external append when no local
+     * handler accepts the event.</p>
+     */
+    public CompletableFuture<Void> dispatchStoredLocally(Message message) {
+        return delegate.sendAndForget(Guarantee.NONE, ignored -> null, message);
+    }
+
     @Override
     public void publish(Object... messages) {
         publish(Guarantee.NONE, messages);

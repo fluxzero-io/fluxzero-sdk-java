@@ -31,6 +31,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.IdentityProvider;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.UuidFactory;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
@@ -42,13 +43,20 @@ import io.fluxzero.sdk.configuration.FluxzeroConfiguration;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.spring.FluxzeroSpringConfig;
 import io.fluxzero.sdk.modeling.Aggregate;
+import io.fluxzero.sdk.modeling.Alias;
+import io.fluxzero.sdk.modeling.DelegatingEntity;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelBatchScope;
 import io.fluxzero.sdk.persisting.eventsourcing.EventStore;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.SnapshotStore;
 import io.fluxzero.sdk.persisting.keyvalue.KeyValueStore;
 import io.fluxzero.sdk.persisting.repository.AggregateRepository;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.persisting.search.BulkUpdateBuilder;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.IndexOperation;
@@ -88,17 +96,20 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static io.fluxzero.common.reflection.ReflectionUtils.getCallerClass;
 import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.NOTIFICATION;
+import static io.fluxzero.common.ObjectUtils.rethrow;
+import static io.fluxzero.common.reflection.ReflectionUtils.getCallerClass;
 import static java.util.Arrays.stream;
 
 /**
@@ -113,7 +124,8 @@ import static java.util.Arrays.stream;
  * <ul>
  *   <li>To send or publish messages, use static methods such as {@link #sendCommand(Object)} or {@link #publishEvent(Object)}.</li>
  *   <li>To track incoming messages, register handlers using {@link #registerHandlers(Object...)}.</li>
- *   <li>To interact with aggregates, use {@link #loadAggregate(Id)} or {@link #aggregateRepository()}.</li>
+ *   <li>To interact with independent models, use {@link #loadModel(Id)} or {@link #modelRepository()}.</li>
+ *   <li>To interact with legacy aggregates, use {@link #loadAggregate(Id)} or {@link #aggregateRepository()}.</li>
  * </ul>
  *
  * <p>
@@ -173,7 +185,12 @@ public interface Fluxzero extends AutoCloseable {
      * instance the system's UTC clock is returned.
      */
     static Clock currentClock() {
-        return getOptionally().map(Fluxzero::clock).orElseGet(Clock::systemUTC);
+        Fluxzero result = instance.get();
+        if (result == null) {
+            result = applicationInstance.get();
+        }
+        Clock clock = result == null ? null : result.clock();
+        return clock == null ? Clock.systemUTC() : clock;
     }
 
     /**
@@ -519,6 +536,213 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Runs apply interceptors and immediate model assertions declared for the given update without invoking applies or
+     * committing model changes.
+     * <p>
+     * Assertions marked with {@link io.fluxzero.sdk.modeling.AssertLegal#afterHandler()} are not invoked because this
+     * validation-only operation does not produce a post-apply model state. This enters the model pipeline directly and
+     * does not dispatch the update as a command.
+     *
+     * @param update the update payload or message to validate
+     */
+    static void assertLegal(Object update) {
+        awaitModelCommit(get().executeModelAssertions(modelMessage(update)));
+    }
+
+    /**
+     * Runs apply interceptors and immediate model assertions with the supplied metadata, without invoking applies or
+     * committing model changes.
+     *
+     * @param update   the update payload to validate
+     * @param metadata metadata available to interceptors and assertions
+     */
+    static void assertLegal(Object update, Metadata metadata) {
+        Message message = modelMessage(update);
+        awaitModelCommit(get().executeModelAssertions(
+                message.withMetadata(message.getMetadata().with(metadata))));
+    }
+
+    /**
+     * Runs the model assertions, apply interceptors, and applies declared for the given update and waits until the
+     * resulting model commit has been committed. If this application has no locally reachable model apply, immediate
+     * assertions and apply interceptors still run, after which the call logs a warning and returns without committing.
+     * <p>
+     * This enters the model-commit pipeline directly. It does not dispatch the update as a command and therefore can
+     * safely be called from an explicit {@link HandleCommand} handler for the same payload type.
+     *
+     * @param update the update payload or message to assert and apply
+     */
+    static void assertAndApply(Object update) {
+        awaitModelCommit(get().executeModelCommit(modelMessage(update)));
+    }
+
+    /**
+     * Runs and commits a model commit with the supplied metadata.
+     *
+     * @param update   the update payload to assert and apply
+     * @param metadata metadata to attach to the model event
+     */
+    static void assertAndApply(Object update, Metadata metadata) {
+        Message message = modelMessage(update);
+        awaitModelCommit(get().executeModelCommit(
+                message.withMetadata(message.getMetadata().with(metadata))));
+    }
+
+    /**
+     * Commits Model changes already produced in the current handling context without waiting for its normal automatic
+     * commit boundary.
+     * <p>
+     * This is an optional early flush of the existing Model commit, not a separate mutation or commit path. The
+     * returned future is the existing durable commit completion and therefore carries the same success or failure.
+     * When the current context has no pending Model changes, the method returns an already completed future and sends
+     * nothing to the Runtime. Automatic committing remains active and observes the same completion.
+     *
+     * @return completion of the current durable Model commit, or completed completion when no changes are pending
+     */
+    static CompletableFuture<Void> commit() {
+        return get().commitModelChanges();
+    }
+
+    /**
+     * Runs and commits an update against the explicitly selected model graph, independently of any model ID carried by
+     * the update payload. Interceptors, assertions, applies, event publication, conflict handling and commit guarantees
+     * are otherwise identical to {@link #assertAndApply(Object)}.
+     * <p>
+     * Prefer {@link Graph#assertAndApply(Object)} in application code. This overload owns the direct model-pipeline
+     * bridge used by that convenience.
+     *
+     * @param target explicitly selected model graph
+     * @param update update payload or message to assert and apply
+     * @return the freshly loaded graph after the durable commit
+     */
+    static <T> Graph<T> assertAndApply(Graph<T> target, Object update) {
+        Objects.requireNonNull(target, "target");
+        String repositoryId = target.id().toString();
+        awaitModelCommit(get().executeModelCommit(
+                modelMessage(update), repositoryId, target.type()));
+        return io.fluxzero.sdk.modeling.Graphs.lazyRepositoryId(
+                repositoryId, target.type(), currentModelRepository());
+    }
+
+    /**
+     * Runs and commits an update with additional metadata against the explicitly selected model graph.
+     *
+     * @see #assertAndApply(Graph, Object)
+     */
+    static <T> Graph<T> assertAndApply(
+            Graph<T> target, Object update, Metadata metadata) {
+        Objects.requireNonNull(target, "target");
+        String repositoryId = target.id().toString();
+        Message message = modelMessage(update);
+        awaitModelCommit(get().executeModelCommit(
+                message.withMetadata(message.getMetadata().with(metadata)),
+                repositoryId, target.type()));
+        return io.fluxzero.sdk.modeling.Graphs.lazyRepositoryId(
+                repositoryId, target.type(), currentModelRepository());
+    }
+
+    /**
+     * Runs the model assertions, apply interceptors, and applies declared for the given update without blocking the
+     * caller, and completes after the resulting model commit has been durably stored.
+     * <p>
+     * The update is converted to a message before this method returns, so metadata and context inherited from the
+     * current handler remain available to the asynchronous commit pipeline.
+     *
+     * @param update the update payload or message to assert and apply
+     * @return completion of the durable model commit
+     */
+    static CompletableFuture<Void> assertAndApplyAsync(Object update) {
+        return startModelCommit(get(), modelMessage(update));
+    }
+
+    /**
+     * Runs and commits a model commit asynchronously with the supplied metadata.
+     *
+     * @param update   the update payload to assert and apply
+     * @param metadata metadata to attach to the model event
+     * @return completion of the durable model commit
+     */
+    static CompletableFuture<Void> assertAndApplyAsync(Object update, Metadata metadata) {
+        Message message = modelMessage(update);
+        return startModelCommit(
+                get(), message.withMetadata(message.getMetadata().with(metadata)));
+    }
+
+    /**
+     * Runs and commits multiple independent model updates asynchronously. Every update remains a separate model commit
+     * with its own conflict handling and durability boundary. Implementations may batch commits that become ready
+     * together for transport, without making the updates atomic or delaying already-full transport batches.
+     * <p>
+     * All updates are converted to messages before this method returns, so metadata and context inherited from the
+     * current handler remain available to every asynchronous commit pipeline.
+     *
+     * @param updates independent update payloads or messages to assert and apply
+     * @return completion after every resulting model commit has been durably stored
+     */
+    static CompletableFuture<Void> assertAndApplyAllAsync(Collection<?> updates) {
+        Objects.requireNonNull(updates, "updates");
+        List<Message> messages = updates.stream()
+                .map(update -> modelMessage(Objects.requireNonNull(update, "update")))
+                .toList();
+        if (messages.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        Fluxzero fluxzero = get();
+        ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Thread.ofVirtual().name("Fluxzero-model-commit-batch").start(context.wrap(() -> {
+            try {
+                fluxzero.executeModelCommits(messages).whenComplete(context.wrap((ignored, failure) -> {
+                    if (failure == null) {
+                        result.complete(null);
+                    } else {
+                        result.completeExceptionally(failure);
+                    }
+                }));
+            } catch (Throwable failure) {
+                result.completeExceptionally(failure);
+            }
+        }));
+        return result;
+    }
+
+    private static CompletableFuture<Void> startModelCommit(Fluxzero fluxzero, Message message) {
+        ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Thread.ofVirtual().name("Fluxzero-model-commit").start(context.wrap(() -> {
+            try {
+                fluxzero.executeModelCommit(message).whenComplete(context.wrap((ignored, failure) -> {
+                    if (failure == null) {
+                        result.complete(null);
+                    } else {
+                        result.completeExceptionally(failure);
+                    }
+                }));
+            } catch (Throwable failure) {
+                result.completeExceptionally(failure);
+            }
+        }));
+        return result;
+    }
+
+    private static Message modelMessage(Object update) {
+        if (update instanceof HasMessage) {
+            return Message.asMessage(update);
+        }
+        DeserializingMessage current = DeserializingMessage.getCurrent();
+        return current == null ? Message.asMessage(update)
+                : new Message(update, current.getMetadata(), null, current.getTimestamp());
+    }
+
+    private static void awaitModelCommit(CompletableFuture<Void> completion) {
+        try {
+            completion.join();
+        } catch (CompletionException e) {
+            throw rethrow(e);
+        }
+    }
+
+    /**
      * Sends the given query and returns a future that will be completed with the query's result. The query may be an
      * instance of a {@link Message} in which case it will be sent as is. Otherwise, the query is published using the
      * passed value as payload without additional metadata.
@@ -791,10 +1015,15 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * If the aggregate is loaded while handling an event of the aggregate, the returned Aggregate will automatically be
      * played back to the event currently being handled. Otherwise, the most recent state of the aggregate is loaded.
+     * Typed identifiers whose declared type is an independent {@link Model} are delegated to the model repository. This
+     * preserves source-compatible typed loads while migrating an aggregate root to an independent model.
      *
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Id<T> aggregateId) {
+        if (aggregateId.getType().isAnnotationPresent(Model.class)) {
+            return legacyModelEntity(loadModel(aggregateId), aggregateId, aggregateId.getType());
+        }
         return playbackToHandledMessage(get().aggregateRepository().load(aggregateId));
     }
 
@@ -820,7 +1049,138 @@ public interface Fluxzero extends AutoCloseable {
      * @see Aggregate for more info on how to define an event-sourced aggregate root
      */
     static <T> Entity<T> loadAggregate(Object aggregateId, Class<T> aggregateType) {
+        if (aggregateType.isAnnotationPresent(Model.class)) {
+            return legacyModelEntity(loadModel(aggregateId, aggregateType), aggregateId, aggregateType);
+        }
         return playbackToHandledMessage(get().aggregateRepository().load(aggregateId, aggregateType));
+    }
+
+    /**
+     * Loads the independently stored model identified by the given typed ID.
+     * <p>
+     * The typed ID's repository representation is wrapped in any prefix or postfix declared by the model's
+     * {@link EntityId @EntityId}. When no primary model has that identity, a current {@link Alias @Alias} value may
+     * resolve the model instead.
+     */
+    static <T> Entity<T> loadModel(Id<T> modelId) {
+        return currentModelRepository().load(modelId);
+    }
+
+    /**
+     * Loads an independently stored model by ID. Typed IDs provide the requested model type; untyped IDs let the
+     * repository resolve the stored type.
+     * <p>
+     * A primary model ID is tried first, followed by a current {@link Alias @Alias} value.
+     */
+    static <T> Entity<T> loadModel(Object modelId) {
+        return currentModelRepository().load(modelId);
+    }
+
+    /**
+     * Loads an independently stored model by ID and expected type.
+     * <p>
+     * A primary model ID is tried first, followed by a current {@link Alias @Alias} value.
+     */
+    static <T> Entity<T> loadModel(Object modelId, Class<T> modelType) {
+        return currentModelRepository().load(modelId, modelType);
+    }
+
+    /**
+     * Loads a parent-scoped model by functional child ID and explicit parent type.
+     */
+    static <T> Entity<T> loadModel(
+            Object parentId, Class<?> parentType,
+            Object modelId, Class<T> modelType) {
+        return currentModelRepository().load(parentId, parentType, modelId, modelType);
+    }
+
+    /**
+     * Lazily loads the independently stored model identified by the typed ID as a relationship graph.
+     * <p>
+     * The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor
+     * lookup can normally resolve directly from stored relationship identities.
+     */
+    static <T> Graph<T> loadGraph(Id<T> modelId) {
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                modelId, modelId.getType(), currentModelRepository());
+    }
+
+    /**
+     * Loads a model whose concrete type is resolved from storage as a lazy relationship graph. The source must be
+     * loaded once to discover that type; subsequent relationship navigation uses the ordinary graph API.
+     */
+    static Graph<?> loadGraph(Object modelId) {
+        Entity<?> entity = loadModel(modelId);
+        long stateIndex = entity instanceof io.fluxzero.sdk.modeling.ModelRoot<?> root
+                ? root.stateIndex() : -1L;
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                entity, stateIndex, currentModelRepository());
+    }
+
+    /**
+     * Lazily loads an independently stored model by ID and expected type as a relationship graph.
+     */
+    static <T> Graph<T> loadGraph(Object modelId, Class<T> modelType) {
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                modelId, modelType, currentModelRepository());
+    }
+
+    /**
+     * Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or
+     * notification handler's historical read boundary.
+     * <p>
+     * Use this after a synchronous nested command when the remainder of the handler deliberately needs that command's
+     * updated Model state. Ordinary {@link #loadGraph(Object, Class)} reads remain coherent with the message being
+     * handled and are therefore preferred everywhere else.
+     */
+    static <T> Graph<T> loadCurrentGraph(Object modelId, Class<T> modelType) {
+        return io.fluxzero.sdk.modeling.Graphs.lazyCurrent(
+                modelId, modelType, currentModelRepository());
+    }
+
+    /**
+     * Loads the latest state of the independently stored model identified by the typed ID as a relationship graph.
+     *
+     * @see #loadCurrentGraph(Object, Class)
+     */
+    static <T> Graph<T> loadCurrentGraph(Id<T> modelId) {
+        return loadCurrentGraph(modelId, modelId.getType());
+    }
+
+    /**
+     * Lazily loads a parent-scoped model by functional child ID and explicit parent type as a relationship graph.
+     */
+    static <T> Graph<T> loadGraph(
+            Object parentId, Class<?> parentType,
+            Object modelId, Class<T> modelType) {
+        return io.fluxzero.sdk.modeling.Graphs.lazy(
+                parentId, parentType, modelId, modelType, currentModelRepository());
+    }
+
+    /**
+     * Reconstructs a complete historical graph at the requested durable model-state boundary.
+     */
+    static <T> Graph<T> loadGraphAt(Id<T> modelId, long stateIndex) {
+        return currentModelRepository().loadGraphAt(modelId, stateIndex);
+    }
+
+    /**
+     * Loads several independently stored models at one coherent state boundary.
+     *
+     * <p>The native repository batches stream I/O and reconstruction while preserving input order.</p>
+     */
+    static <T> List<Entity<T>> loadModels(
+            List<?> modelIds, Class<T> modelType) {
+        return currentModelRepository().loadAll(modelIds, modelType);
+    }
+
+    private static ModelRepository currentModelRepository() {
+        ModelRepository repository = get().modelRepository();
+        DeserializingMessage message = DeserializingMessage.getCurrent();
+        return message == null
+                ? repository
+                : repository.forNamespace(
+                        ClientUtils.getConsumerNamespace(message));
     }
 
     /**
@@ -868,9 +1228,29 @@ public interface Fluxzero extends AutoCloseable {
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     static <T> Entity<T> loadEntity(Object entityId) {
-        return (Entity<T>) loadAggregateFor(entityId).getEntity(entityId)
-                .orElseGet(() -> entityId instanceof Id id
-                        ? loadAggregate(id) : loadAggregate(entityId.toString(), Object.class));
+        if (entityId instanceof Id<?> id) {
+            return (Entity<T>) loadEntity(id);
+        }
+        try {
+            Entity<T> aggregateEntity = (Entity<T>) loadAggregateFor(entityId).getEntity(entityId)
+                    .orElseGet(() -> entityId instanceof Id id
+                            ? loadAggregate(id) : loadAggregate(entityId.toString(), Object.class));
+            if (!aggregateEntity.isEmpty()) {
+                return aggregateEntity;
+            }
+            try {
+                return loadModel(entityId);
+            } catch (EventSourcingException ignored) {
+                return aggregateEntity;
+            }
+        } catch (EventSourcingException aggregateFailure) {
+            try {
+                return loadModel(entityId);
+            } catch (EventSourcingException modelFailure) {
+                aggregateFailure.addSuppressed(modelFailure);
+                throw aggregateFailure;
+            }
+        }
     }
 
     /**
@@ -882,7 +1262,52 @@ public interface Fluxzero extends AutoCloseable {
      * back to the event currently being handled. Otherwise, the most recent state of the entity is loaded.
      */
     static <T> Entity<T> loadEntity(Id<T> entityId) {
-        return loadAggregateFor(entityId).<T>getEntity(entityId).orElseGet(() -> loadAggregate(entityId));
+        if (entityId.getType().isAnnotationPresent(Model.class)) {
+            return loadModel(entityId);
+        }
+        return loadEntity(entityId, entityId.getType());
+    }
+
+    /**
+     * Loads an entity by functional ID and expected type. The type makes {@link EntityId} affixes available for
+     * independent models and entities embedded in legacy aggregates.
+     */
+    static <T> Entity<T> loadEntity(Object entityId, Class<T> entityType) {
+        if (entityType.isAnnotationPresent(Model.class)) {
+            return loadModel(entityId, entityType);
+        }
+        String repositoryId = io.fluxzero.sdk.modeling.EntityMetadata.of(entityType).repositoryId(entityId);
+        return loadAggregateFor(repositoryId).getEntity(entityId, entityType)
+                .orElseGet(() -> loadAggregate(entityId, entityType));
+    }
+
+    private static <T> Entity<T> legacyModelEntity(
+            Entity<T> initial, Object modelId, Class<T> modelType) {
+        return new DelegatingEntity<>(initial) {
+            @Override
+            public Entity<T> update(java.util.function.UnaryOperator<T> function) {
+                delegate = delegate.update(function);
+                return this;
+            }
+
+            @Override
+            public Entity<T> apply(Message eventMessage) {
+                Fluxzero.get().executeStoredModelEvent(eventMessage).join();
+                delegate = Fluxzero.loadModel(modelId, modelType);
+                return this;
+            }
+
+            @Override
+            public <E extends Exception> Entity<T> assertLegal(Object update) throws E {
+                Fluxzero.assertLegal(update);
+                return this;
+            }
+
+            @Override
+            public Entity<T> commit() {
+                return this;
+            }
+        };
     }
 
     /**
@@ -906,7 +1331,12 @@ public interface Fluxzero extends AutoCloseable {
      */
     @SuppressWarnings("unchecked")
     static <T> T loadEntityValue(Id<T> entityId) {
-        return (T) loadAggregateFor(entityId).getEntity(entityId).map(Entity::get).orElse(null);
+        return loadEntity(entityId).get();
+    }
+
+    /** Loads an entity value by functional ID and expected type. */
+    static <T> T loadEntityValue(Object entityId, Class<T> entityType) {
+        return loadEntity(entityId, entityType).get();
     }
 
     /**
@@ -923,7 +1353,7 @@ public interface Fluxzero extends AutoCloseable {
         if (message != null && (message.getMessageType() == EVENT || message.getMessageType() == NOTIFICATION)
             && !Entity.isApplying()
             && entity.id().toString().equals(Entity.getAggregateId(message))
-            && entity.rootAnnotation().eventSourced()
+            && entity.rootConfiguration().eventSourced()
             && entity.sequenceNumber() >= 0L) {
             return entity.playBackToEvent(message.getIndex(), message.getMessageId())
                     .orElseThrow(() -> new IllegalStateException(
@@ -1048,22 +1478,38 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * For all other inputs, the collection name will be obtained by calling {@link Object#toString()} on the input.
      * <p>
-     * Example usage: Fluxzero.search("myCollection").query("foo !bar").fetch(100);
+     * Example usage: {@code Fluxzero.<MyDocument>search("myCollection").query("foo !bar").fetch(100)}.
      */
-    static Search search(Object collection) {
+    static <T> Search<T> search(Object collection) {
         return get().documentStore().search(collection);
+    }
+
+    /**
+     * Search the collection represented by the given document class and retain that class as the default result type.
+     */
+    static <T> Search<T> search(Class<T> collection) {
+        return get().documentStore().search(collection);
+    }
+
+    /**
+     * Search the collections represented by the given document class and additional collection identifiers while
+     * retaining the document class as the default result type.
+     */
+    static <T> Search<T> search(Class<T> collection, Object... additionalCollections) {
+        return get().documentStore()
+                .search(Stream.concat(Stream.of(collection), stream(additionalCollections)).toList());
     }
 
     /**
      * Search the given collections for documents.
      * <p>
-     * If collection is of type {@link Class} it is expected that the class is annotated with * {@link Searchable}. It
+     * If collection is of type {@link Class} it is expected that the class is annotated with {@link Searchable}. It
      * will then use the collection configured there. For all other inputs, the collection name will be obtained by
      * calling {@link Object#toString()} on the input.
      * <p>
      * Example usage: Fluxzero.search("myCollection", "myOtherCollection).query("foo !bar").fetch(100);
      */
-    static Search search(Object collection, Object... additionalCollections) {
+    static <T> Search<T> search(Object collection, Object... additionalCollections) {
         return get().documentStore()
                 .search(Stream.concat(Stream.of(collection), stream(additionalCollections)).toList());
     }
@@ -1073,8 +1519,32 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * Example usage: Fluxzero.search(SearchQuery.builder().search("myCollection").query("foo !bar")).fetch(100);
      */
-    static Search search(SearchQuery.Builder queryBuilder) {
+    static <T> Search<T> search(SearchQuery.Builder queryBuilder) {
         return get().documentStore().search(queryBuilder);
+    }
+
+    /**
+     * Searches complete graph views for an independent model root. A configured materialized view is preferred;
+     * otherwise the graph is composed live.
+     */
+    static <T> Search<Graph<T>> searchGraph(
+            Class<T> rootModelType) {
+        return get().documentStore()
+                .searchGraph(rootModelType);
+    }
+
+    /**
+     * Searches complete graph views for an independent model root.
+     *
+     * @param forceAdHoc whether to bypass a configured materialized view and compose the current graph live
+     */
+    static <T> Search<Graph<T>> searchGraph(
+            Class<T> rootModelType,
+            boolean forceAdHoc) {
+        return get().documentStore()
+                .searchGraph(
+                        rootModelType,
+                        forceAdHoc);
     }
 
     /**
@@ -1254,6 +1724,17 @@ public interface Fluxzero extends AutoCloseable {
     AggregateRepository aggregateRepository();
 
     /**
+     * Returns the repository for independently stored models.
+     * <p>
+     * The default keeps existing custom {@code Fluxzero} implementations binary/source compatible while the model
+     * action transport is introduced. Standard runtime-backed configurations override this when that transport is
+     * available.
+     */
+    default ModelRepository modelRepository() {
+        throw new UnsupportedOperationException("Independent model persistence is not configured");
+    }
+
+    /**
      * Returns the store for aggregate events.
      */
     EventStore eventStore();
@@ -1377,6 +1858,82 @@ public interface Fluxzero extends AutoCloseable {
      * Returns the {@link FluxzeroConfiguration} of this Fluxzero instance.
      */
     FluxzeroConfiguration configuration();
+
+    /**
+     * Executes one model commit without routing it through command handlers.
+     * <p>
+     * This is an infrastructure extension point used by {@link #assertAndApply(Object)}. Custom Fluxzero
+     * implementations that support independent models should override it.
+     *
+     * @param update message containing the model update
+     * @return completion of the durable model commit
+     */
+    default CompletableFuture<Void> executeModelCommit(Message update) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support direct model commits"));
+    }
+
+    /**
+     * Flushes Model changes already attached to the current handling context. This extension point backs
+     * {@link #commit()} and may be overridden by custom Fluxzero implementations with a different Model pipeline.
+     */
+    default CompletableFuture<Void> commitModelChanges() {
+        return ModelBatchScope.commitCurrent();
+    }
+
+    /**
+     * Executes one model commit against an explicitly selected persisted model identity. This is the infrastructure
+     * extension used by {@link Graph#assertAndApply(Object)}; custom implementations supporting independent models may
+     * override it alongside {@link #executeModelCommit(Message)}.
+     */
+    default CompletableFuture<Void> executeModelCommit(
+            Message update, String modelId, Class<?> modelType) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support targeted model commits"));
+    }
+
+    /**
+     * Executes multiple independent model commits without routing them through command handlers. The default
+     * implementation preserves compatibility for custom implementations by invoking {@link #executeModelCommit(Message)}
+     * for every update. Implementations may override this to batch transport while retaining separate commit semantics.
+     *
+     * @param updates messages containing independent model updates
+     * @return completion after every durable model commit
+     */
+    default CompletableFuture<Void> executeModelCommits(List<Message> updates) {
+        Objects.requireNonNull(updates, "updates");
+        return CompletableFuture.allOf(updates.stream()
+                .map(update -> executeModelCommit(Objects.requireNonNull(update, "update")))
+                .toArray(CompletableFuture[]::new));
+    }
+
+    /**
+     * Applies an event that was already accepted by its original command flow to independent models.
+     * Assertions and apply interceptors are skipped, while regular {@code @Apply} methods and durable Model-event
+     * storage are preserved. The accepted event is not published again. This infrastructure hook is primarily used by
+     * replay and test fixtures.
+     *
+     * @param event previously accepted event to apply
+     * @return completion of the durable model commit
+     */
+    default CompletableFuture<Void> executeStoredModelEvent(Message event) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support stored model event application"));
+    }
+
+    /**
+     * Executes model apply interceptors and immediate assertions without applying or committing the update.
+     * <p>
+     * This is an infrastructure extension point used by {@link #assertLegal(Object)}. Custom Fluxzero implementations
+     * that support independent models should override it.
+     *
+     * @param update message containing the model update to validate
+     * @return completion of the validation-only model evaluation
+     */
+    default CompletableFuture<Void> executeModelAssertions(Message update) {
+        return CompletableFuture.failedFuture(new UnsupportedOperationException(
+                "This Fluxzero implementation does not support direct model assertions"));
+    }
 
     /**
      * Returns the low level client used by this Fluxzero instance to interface with the Fluxzero Runtime. Of course the

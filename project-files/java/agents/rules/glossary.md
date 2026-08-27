@@ -4,15 +4,22 @@ Key terms and definitions used within the Fluxzero SDK and ecosystem.
 
 ---
 
-### Aggregate
+### Model
 
-A cluster of domain objects (Entities and Value Objects) that can be treated as a single unit for data changes. Every
-aggregate has a root entity, identified by an `@EntityId`. Aggregates are typically "dumb" immutable state holders in
-Fluxzero.
+An independently persisted immutable domain object whose boundary is defined by its own creation, changes, history,
+retention or deletion lifecycle. Each `@Model` has an `@EntityId` and modelstream, plus its configured cache, snapshot
+and current-document consequences. A meaningful domain identity is strong evidence for the boundary, while a
+child-only identity can be parent-scoped. Related independent models form dynamic action boundaries and a temporal
+graph through `@Parent`.
+
+### Aggregate (legacy)
+
+The Fluxzero 1.x shared-root persistence API. Keep it for existing persisted state only. New code uses `@Model`;
+`@Model` with `@Member` covers the intentional shared-stream case.
 
 ### Apply (@Apply)
 
-The mechanism for evolving the state of an Aggregate. An `@Apply` method is a pure function that takes the current state
+The mechanism for evolving model state. An `@Apply` method is a pure function that takes the current state
 and a payload (event), and returns the new state.
 
 ### AssertLegal (@AssertLegal)
@@ -44,11 +51,12 @@ The technique Fluxzero uses to distribute messages across segments. It ensures t
 ### Event
 
 A message that represents a fact that has occurred in the past (e.g., `OrderCreated`). Events are typically the result
-of applying a Command to an Aggregate.
+of applying a command to one or more models.
 
 ### Event Sourcing
 
-A persistence strategy where the state of an aggregate is not stored as a single snapshot, but as a sequence of events.
+A persistence strategy where model state is reconstructed from its modelstream events rather than loaded only from a
+current document.
 The current state is reconstructed by replaying these events.
 
 ### Fluxzero Runtime

@@ -1915,8 +1915,9 @@ class ProxyServerTest {
         }
 
         @Test
-        void closeSocketExternally() {
+        void closeSocketExternally() throws Exception {
             CountDownLatch socketClosed = new CountDownLatch(1);
+            CompletableFuture<String> closeResult = new CompletableFuture<>();
             testFixture.registerHandlers(new Object() {
                         @HandleSocketClose("/")
                         void close(Integer reason) {
@@ -1924,13 +1925,15 @@ class ProxyServerTest {
                             socketClosed.countDown();
                         }
                     })
-                    .whenApplying(openSocketAnd(ws -> {
+                    .whenApplying(fc -> {
+                        WebSocket ws = openSocket(closeResult);
                         await(ws.sendClose(1000, "bla"));
                         assertTrue(socketClosed.await(5, TimeUnit.SECONDS),
                                    "Timed out waiting for the websocket close handler");
-                    }))
-                    .expectResult("1000")
+                        return null;
+                    })
                     .expectEvents("ws closed with 1000");
+            assertEquals("1000", closeResult.get(5, TimeUnit.SECONDS));
         }
 
         @Test

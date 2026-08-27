@@ -55,6 +55,21 @@ class CompressionAlgorithmTest {
     }
 
     @Test
+    void zstdDecompressesAFramedByteRangeWithoutIncludingAdjacentBytes() {
+        byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
+        byte[] compressed = ZSTD.compress(bytes);
+        byte[] container = new byte[compressed.length + 7];
+        System.arraycopy(compressed, 0, container, 3, compressed.length);
+
+        assertArrayEquals(
+                bytes,
+                ZSTD.decompress(
+                        container,
+                        3,
+                        compressed.length));
+    }
+
+    @Test
     void zstdHandlesConcurrentRoundTripsThroughBoundedPool() throws Exception {
         byte[] bytes = "hello ".repeat(1024).getBytes(StandardCharsets.UTF_8);
         int threadCount = 64;

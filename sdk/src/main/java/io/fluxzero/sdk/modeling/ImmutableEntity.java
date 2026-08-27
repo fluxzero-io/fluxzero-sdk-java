@@ -111,6 +111,12 @@ import static java.util.Collections.emptyList;
 @Accessors(fluent = true)
 @Slf4j
 public class ImmutableEntity<T> implements Entity<T> {
+    /** Source-visible superclass for Lombok's generated persisted-root builders. */
+    public abstract static class ImmutableEntityBuilder<
+            T, C extends ImmutableEntity<T>,
+            B extends ImmutableEntityBuilder<T, C, B>> {
+    }
+
     private static final ThreadLocal<Map<RouteCacheKey, String>> loadingRouteCache = ThreadLocal.withInitial(HashMap::new);
     private static final Map<RoutingKeyOverlapCacheKey, Boolean> routingKeyOverlapsCurrentIdCache =
             new ConcurrentHashMap<>();
@@ -147,21 +153,37 @@ public class ImmutableEntity<T> implements Entity<T> {
     @JsonIgnore
     transient Serializer serializer;
 
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @Getter(lazy = true)
-    Collection<? extends Entity<?>> entities = computeEntities();
+    private transient volatile LazyState $lazyState;
 
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @Getter(lazy = true)
-    Collection<?> aliases = computeAliases();
+    /** Returns the lazily discovered direct child entities. */
+    public Collection<? extends Entity<?>> entities() {
+        return lazyState().entities(this);
+    }
 
-    @ToString.Exclude
-    @EqualsAndHashCode.Exclude
-    @Getter(lazy = true)
+    /** Returns the lazily discovered aliases. */
+    public Collection<?> aliases() {
+        return lazyState().aliases(this);
+    }
+
+    /** Returns the lazily discovered descendant routing metadata. */
     @JsonIgnore
-    DescendantTargetMetadata descendantTargetMetadata = computeDescendantTargetMetadata();
+    public DescendantTargetMetadata descendantTargetMetadata() {
+        return lazyState().descendantTargetMetadata(this);
+    }
+
+    private LazyState lazyState() {
+        LazyState result = $lazyState;
+        if (result == null) {
+            synchronized (this) {
+                result = $lazyState;
+                if (result == null) {
+                    result = new LazyState();
+                    $lazyState = result;
+                }
+            }
+        }
+        return result;
+    }
 
     @SuppressWarnings("unchecked")
     public Class<T> type() {
@@ -258,7 +280,7 @@ public class ImmutableEntity<T> implements Entity<T> {
     @SuppressWarnings("unchecked")
     private Entity<T> applyAsSelfMemberAddition(T updatedValue) {
         if (updatedValue == null || get() == null || type() == null
-            || !Entity.selfReferentialMemberCache.get(type())) {
+            || !EntityMetadata.of(type()).hasSelfReferentialMember()) {
             return null;
         }
         Object updatedId = getAnnotatedPropertyValue(updatedValue, EntityId.class).orElse(null);
@@ -708,5 +730,89 @@ public class ImmutableEntity<T> implements Entity<T> {
             }
         }
         return results;
+    }
+
+    protected ImmutableEntity(
+            Object id,
+            Class<T> type,
+            T value,
+            String idProperty,
+            Entity<?> parent,
+            AnnotatedEntityHolder holder,
+            EntityHelper entityHelper,
+            Serializer serializer) {
+        this.id = id;
+        this.type = type;
+        this.value = value;
+        this.idProperty = idProperty;
+        this.parent = parent;
+        this.holder = holder;
+        this.entityHelper = entityHelper;
+        this.serializer = serializer;
+    }
+
+    /**
+     * Copies the persistent and runtime entity fields without copying lazily derived state.
+     */
+    protected ImmutableEntity(ImmutableEntity<T> source) {
+        this.id = source.id;
+        this.type = source.type;
+        this.value = source.value;
+        this.idProperty = source.idProperty;
+        this.parent = source.parent;
+        this.holder = source.holder;
+        this.entityHelper = source.entityHelper;
+        this.serializer = source.serializer;
+    }
+
+    private static final class LazyState {
+        private volatile Collection<? extends Entity<?>> entities;
+        private volatile Collection<?> aliases;
+        private volatile DescendantTargetMetadata descendantTargetMetadata;
+
+        private Collection<? extends Entity<?>> entities(
+                ImmutableEntity<?> owner) {
+            Collection<? extends Entity<?>> result = entities;
+            if (result == null) {
+                synchronized (this) {
+                    result = entities;
+                    if (result == null) {
+                        result = owner.computeEntities();
+                        entities = result;
+                    }
+                }
+            }
+            return result;
+        }
+
+        private Collection<?> aliases(ImmutableEntity<?> owner) {
+            Collection<?> result = aliases;
+            if (result == null) {
+                synchronized (this) {
+                    result = aliases;
+                    if (result == null) {
+                        result = owner.computeAliases();
+                        aliases = result;
+                    }
+                }
+            }
+            return result;
+        }
+
+        private DescendantTargetMetadata descendantTargetMetadata(
+                ImmutableEntity<?> owner) {
+            DescendantTargetMetadata result =
+                    descendantTargetMetadata;
+            if (result == null) {
+                synchronized (this) {
+                    result = descendantTargetMetadata;
+                    if (result == null) {
+                        result = owner.computeDescendantTargetMetadata();
+                        descendantTargetMetadata = result;
+                    }
+                }
+            }
+            return result;
+        }
     }
 }

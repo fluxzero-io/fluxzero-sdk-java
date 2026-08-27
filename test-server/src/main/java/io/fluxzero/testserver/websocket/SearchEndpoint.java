@@ -94,6 +94,46 @@ public class SearchEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    public SearchDocumentsResult handle(
+            SearchModelDocuments request) {
+        try {
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    store.searchModels(
+                                    request, -1)
+                            .map(SearchHit::getValue)
+                            .toList());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to handle {}",
+                    request, e);
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    emptyList());
+        }
+    }
+
+    @Handle
+    public SearchDocumentsResult handle(
+            SearchModelGraphDocuments request) {
+        try {
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    store.searchModelGraph(
+                                    request, -1)
+                            .map(SearchHit::getValue)
+                            .toList());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to handle {}",
+                    request, e);
+            return new SearchDocumentsResult(
+                    request.getRequestId(),
+                    emptyList());
+        }
+    }
+
+    @Handle
     BooleanResult handle(HasDocument request) {
         return new BooleanResult(request.getRequestId(), store.documentExists(request));
     }
@@ -141,6 +181,21 @@ public class SearchEndpoint extends WebsocketEndpoint {
             log.error("Failed to handle {}", request, e);
             return new GetDocumentsResult(request.getRequestId(), emptyList());
         }
+    }
+
+    @Handle
+    GetModelMigrationResult handle(GetModelMigration request) {
+        return store.getModelMigration(request);
+    }
+
+    @Handle
+    GetModelMigrationsResult handle(GetModelMigrations request) {
+        return store.getModelMigrations(request);
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(AdoptModelMigration request) {
+        return store.adoptModelMigration(request);
     }
 
     @Handle

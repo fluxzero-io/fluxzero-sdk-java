@@ -17,12 +17,14 @@ package io.fluxzero.sdk.persisting.search.client;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.tracking.MessageStore;
+import io.fluxzero.common.tracking.MessageStoreBatch;
 import lombok.AllArgsConstructor;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * A {@link MessageStore} implementation backed by a collection in an {@link InMemorySearchStore}. This class provides
@@ -41,6 +43,16 @@ public class CollectionMessageStore implements MessageStore {
         minIndex = minIndex == null ? 0L : minIndex;
         long lastIndex = inclusive ? minIndex - 1L : minIndex;
         return searchClient.openStream(collection, lastIndex, maxSize).toList();
+    }
+
+    @Override
+    public MessageStoreBatch scanBatch(Long minIndex, int maxSize, boolean inclusive, long maxBytes,
+                                       Predicate<? super SerializedMessage> filter,
+                                       boolean includeDocumentTombstones) {
+        long lastIndex = minIndex == null ? -1L : inclusive ? minIndex - 1L : minIndex;
+        Iterable<SerializedMessage> source = () -> searchClient
+                .openStream(collection, lastIndex, maxSize, includeDocumentTombstones).iterator();
+        return MessageStoreBatch.scan(source, maxSize, maxBytes, filter);
     }
 
     @Override

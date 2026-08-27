@@ -102,6 +102,15 @@ public class FluxzeroSpringConfig implements BeanPostProcessor, DisposableBean {
     }
 
     /**
+     * Registers the {@link ModelHandlerPostProcessor}, which discovers independent models and their self-applying
+     * command types within the application's component-scan scope.
+     */
+    @Bean
+    public static ModelHandlerPostProcessor modelHandlerPostProcessor() {
+        return new ModelHandlerPostProcessor();
+    }
+
+    /**
      * Registers the {@link StatefulPostProcessor}, enabling discovery of stateful handler types within the
      * application's component-scan scope.
      *

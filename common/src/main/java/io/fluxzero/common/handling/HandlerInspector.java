@@ -32,6 +32,7 @@ import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -183,8 +184,24 @@ public class HandlerInspector {
     public static <M> HandlerMatcher<Object, M> inspect(Class<?> targetClass,
                                                         List<ParameterResolver<? super M>> parameterResolvers,
                                                         HandlerConfiguration<? super M> config) {
+        return inspect(
+                targetClass,
+                concat(getAllMethods(targetClass).stream(), stream(targetClass.getDeclaredConstructors())).toList(),
+                parameterResolvers, config);
+    }
+
+    /**
+     * Builds a matcher from centrally cached structural handler metadata.
+     * <p>
+     * This variant lets domain-specific metadata owners avoid a second reflective method scan while retaining the
+     * same parameter-resolution, applicability and invocation plan used by ordinary handlers.
+     */
+    public static <M> HandlerMatcher<Object, M> inspect(
+            Class<?> targetClass, Collection<? extends Executable> executables,
+            List<ParameterResolver<? super M>> parameterResolvers,
+            HandlerConfiguration<? super M> config) {
         return new ObjectHandlerMatcher<>(
-                concat(getAllMethods(targetClass).stream(), stream(targetClass.getDeclaredConstructors()))
+                executables.stream()
                         .filter(m -> config.methodMatches(targetClass, m))
                         .flatMap(m -> Stream.of(
                                 new MethodHandlerMatcher<>(m, targetClass, parameterResolvers, config)))

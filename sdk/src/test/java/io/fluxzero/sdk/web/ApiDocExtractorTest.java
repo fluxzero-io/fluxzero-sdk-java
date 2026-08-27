@@ -23,6 +23,7 @@ import java.util.List;
 
 import static io.fluxzero.sdk.web.HttpRequestMethod.POST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ApiDocExtractorTest {
@@ -80,12 +81,25 @@ class ApiDocExtractorTest {
         assertEquals(List.of("/visible"), ApiDocExtractor.extract(PartiallyExcludedHandler.class)
                 .endpoints().stream().map(ApiDocEndpoint::path).toList());
         assertTrue(ApiDocExtractor.extract(ExcludedHandler.class).endpoints().isEmpty());
+        assertTrue(ApiDocExtractor.extract(ApiDocExcludedHandler.class).endpoints().isEmpty());
         assertTrue(ApiDocExtractor.extract(ExcludedApiDocHandler.class).endpoints().isEmpty());
     }
 
     @Test
     void onlyIncludesHandlersOptedInWithApiDoc() {
         assertTrue(ApiDocExtractor.extract(UndocumentedHandler.class).endpoints().isEmpty());
+    }
+
+    @Test
+    void rejectsAmbiguousTypedAndModelGraphResponses() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> ApiDocExtractor.extract(AmbiguousResponseHandler.class));
+    }
+
+    @Test
+    void rejectsModelGraphPathsWithoutModelGraph() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> ApiDocExtractor.extract(ModelGraphPathsWithoutRootHandler.class));
     }
 
     private static void assertParameter(ApiDocEndpoint endpoint, String name, WebParameterSource source, Type type) {
@@ -145,6 +159,12 @@ class ApiDocExtractorTest {
         String hidden() {
             return "hidden";
         }
+
+        @ApiDoc(exclude = true)
+        @HandleGet("/also-hidden")
+        String alsoHidden() {
+            return "hidden";
+        }
     }
 
     @ApiDocExclude
@@ -155,10 +175,36 @@ class ApiDocExtractorTest {
         }
     }
 
+    @ApiDoc(exclude = true)
+    static class ApiDocExcludedHandler {
+        @HandleGet("/hidden")
+        String hidden() {
+            return "hidden";
+        }
+    }
+
     static class UndocumentedHandler {
         @HandleGet("/internal")
         String internal() {
             return "internal";
+        }
+    }
+
+    @ApiDoc
+    static class AmbiguousResponseHandler {
+        @ApiDocResponse(status = 200, type = ReadingResponse.class, modelGraph = ReadingResponse.class)
+        @HandleGet("/ambiguous")
+        Object ambiguous() {
+            return null;
+        }
+    }
+
+    @ApiDoc
+    static class ModelGraphPathsWithoutRootHandler {
+        @ApiDocResponse(status = 200, modelGraphPaths = "children")
+        @HandleGet("/missing-model-graph")
+        Object missingModelGraph() {
+            return null;
         }
     }
 

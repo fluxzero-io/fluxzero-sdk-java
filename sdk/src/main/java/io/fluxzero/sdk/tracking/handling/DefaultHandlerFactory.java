@@ -30,6 +30,7 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
+import io.fluxzero.sdk.modeling.GraphChangeHandlerDecorator;
 import io.fluxzero.sdk.modeling.HandlerRepository;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.tracking.Consumer;
@@ -47,8 +48,10 @@ import lombok.NonNull;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AccessibleObject;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -125,6 +128,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
     private final boolean trackingMetricsEnabled;
     private final Serializer serializer;
     private volatile Predicate<Class<?>> registeredHandlerType = ignored -> false;
+    private HandlerFactory fallbackFactory;
+    private Supplier<? extends Collection<Class<?>>> modelGraphTypes = List::of;
 
     private final Set<StaticFileHandler> staticFileHandlers = ConcurrentHashMap.newKeySet();
     private final Set<OpenApiDocumentEndpoint> openApiDocumentEndpoints = ConcurrentHashMap.newKeySet();
@@ -157,7 +162,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         HandlerDecorator handlerDecorator =
                 ObjectUtils.concat(extraInterceptors.stream(), Stream.of(defaultDecorator))
                         .reduce(HandlerDecorator::andThen).orElseThrow();
-        return Optional.of(handlerAnnotation)
+        Optional<Handler<DeserializingMessage>> result = Optional.of(handlerAnnotation)
                 .map(a -> HandlerConfiguration.<DeserializingMessage>builder().methodAnnotation(a)
                         .handlerFilter(handlerFilter).messageFilter(messageFilter)
                         .methodInvocationValidator(methodInvocationValidator).build())
@@ -166,7 +171,46 @@ public class DefaultHandlerFactory implements HandlerFactory {
                 .map(handler -> messageType.isRequest()
                         ? new ExpiredRequestDecorator(trackingMetricsEnabled, handlerAnnotation).wrap(handler)
                         : handler)
-                .map(handlerDecorator::wrap);
+                .map(handlerDecorator::wrap)
+                .map(handler -> GraphChangeHandlerDecorator.wrapGraphChanges(
+                        handler, messageType));
+        return result.isPresent() || fallbackFactory == null
+                ? result
+                : fallbackFactory.createHandler(
+                        target, handlerFilter, extraInterceptors);
+    }
+
+    @Override
+    public List<?> trackingTargets(Object target, HandlerFilter handlerFilter) {
+        if (fallbackFactory == null) {
+            return List.of(target);
+        }
+        return Stream.concat(
+                        Stream.of(target),
+                        fallbackFactory.trackingTargets(target, handlerFilter).stream())
+                .distinct()
+                .toList();
+    }
+
+    /**
+     * Adds a fallback for handler vocabularies that are intentionally outside the standard {@code @Handle...}
+     * annotations.
+     * <p>
+     * The regular handler path always wins. This method is intended for framework composition during configuration,
+     * before the factory is shared with tracking.
+     */
+    public DefaultHandlerFactory withFallback(HandlerFactory fallbackFactory) {
+        this.fallbackFactory = Objects.requireNonNull(fallbackFactory);
+        return this;
+    }
+
+    /**
+     * Supplies the independently registered model types used to document composed model-graph web responses.
+     */
+    public DefaultHandlerFactory withModelGraphTypes(
+            Supplier<? extends Collection<Class<?>>> modelGraphTypes) {
+        this.modelGraphTypes = Objects.requireNonNull(modelGraphTypes);
+        return this;
     }
 
     /**
@@ -302,7 +346,8 @@ public class DefaultHandlerFactory implements HandlerFactory {
                           targetClass, targetSupplier, createHandlerMatcher(target, config))
                   : DefaultHandler.forTarget(targetClass, target, createHandlerMatcher(target, config));
         if (messageType == MessageType.WEBREQUEST) {
-            for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
+            for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(
+                    targetClass, target, modelGraphTypes)) {
                 if (openApiDocumentEndpoints.add(endpoint)) {
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
                 }

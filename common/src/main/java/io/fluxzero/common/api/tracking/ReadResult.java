@@ -14,6 +14,8 @@
 
 package io.fluxzero.common.api.tracking;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.fluxzero.common.api.AbstractRequestResult;
 import lombok.Value;
 
@@ -38,7 +40,20 @@ public class ReadResult extends AbstractRequestResult {
     /**
      * The time (epoch millis) when this result was created.
      */
-    long timestamp = System.currentTimeMillis();
+    long timestamp;
+
+    public ReadResult(long requestId, MessageBatch messageBatch) {
+        this(requestId, messageBatch, System.currentTimeMillis());
+    }
+
+    @JsonCreator
+    public ReadResult(@JsonProperty("requestId") long requestId,
+                      @JsonProperty("messageBatch") MessageBatch messageBatch,
+                      @JsonProperty("timestamp") long timestamp) {
+        this.requestId = requestId;
+        this.messageBatch = messageBatch;
+        this.timestamp = timestamp;
+    }
 
     /**
      * Produces a metric-friendly summary of the result for publishing to the Fluxzero metrics log.

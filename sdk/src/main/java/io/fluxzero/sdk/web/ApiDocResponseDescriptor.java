@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.web;
 
 import java.lang.reflect.Type;
+import java.util.List;
 
 /**
  * Describes an explicitly documented API response.
@@ -24,6 +25,27 @@ public record ApiDocResponseDescriptor(
         String description,
         String ref,
         Type type,
+        Type modelGraph,
+        List<String> modelGraphPaths,
         String contentType
 ) {
+    public ApiDocResponseDescriptor {
+        modelGraphPaths = modelGraphPaths == null ? List.of() : List.copyOf(modelGraphPaths);
+    }
+
+    /**
+     * Creates a regular typed response descriptor without a model-graph schema.
+     */
+    public ApiDocResponseDescriptor(
+            int status, String description, String ref, Type type, String contentType) {
+        this(status, description, ref, type, Void.class, List.of(), contentType);
+    }
+
+    /**
+     * Creates a response descriptor without an explicit model-graph path selection.
+     */
+    public ApiDocResponseDescriptor(
+            int status, String description, String ref, Type type, Type modelGraph, String contentType) {
+        this(status, description, ref, type, modelGraph, List.of(), contentType);
+    }
 }

@@ -268,6 +268,28 @@ class UpcasterChainTest {
         });
     }
 
+    @Test
+    void reportsOnlyInputsWithoutAnApplicableUpcasterAsSafeToReplayDirectly() {
+        Data<String> input =
+                new Data<>(
+                        "payload",
+                        "mapPayload",
+                        0,
+                        "application/json");
+        CasterChain<Data<String>, Data<String>> empty =
+                DefaultCasterChain.createUpcaster(
+                        List.of(),
+                        String.class);
+        CasterChain<Data<String>, Data<String>> matching =
+                DefaultCasterChain.createUpcaster(
+                        List.of(upcasterStub),
+                        String.class);
+
+        assertTrue(empty.canSkipCast(input, null));
+        assertFalse(matching.canSkipCast(input, null));
+        assertTrue(matching.canSkipCast(input, 0));
+    }
+
     /*
         Lazy upcasting
      */

@@ -71,7 +71,7 @@ class DefaultAggregateRepositoryCommitPolicyTest {
     }
 
     private static AggregateCommitPolicy resolve(Class<?> type) {
-        return DefaultAggregateRepository.resolveCommitPolicy(DefaultEntityHelper.getRootAnnotation(type));
+        return DefaultAggregateRepository.resolveCommitPolicy(DefaultEntityHelper.getAggregateRootConfiguration(type));
     }
 
     private static void expectResolved(

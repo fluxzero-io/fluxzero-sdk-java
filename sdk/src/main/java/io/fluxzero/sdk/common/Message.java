@@ -27,9 +27,11 @@ import io.fluxzero.sdk.tracking.handling.authentication.User;
 import io.fluxzero.sdk.tracking.handling.authentication.UserProvider;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebResponse;
+import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.ToString;
 import lombok.Value;
-import lombok.With;
 import lombok.experimental.NonFinal;
 import lombok.extern.slf4j.Slf4j;
 
@@ -90,19 +92,16 @@ public class Message implements HasMessage {
     /**
      * Immutable metadata attached to the message. May include routing information, context, user info, etc.
      */
-    @With
     Metadata metadata;
 
     /**
      * Unique technical identifier for the message. Auto-generated if not provided.
      */
-    @With
     String messageId;
 
     /**
      * The creation timestamp of the message, in UTC. Defaults to the current time, truncated to milliseconds.
      */
-    @With
     Instant timestamp;
 
     /**
@@ -110,8 +109,15 @@ public class Message implements HasMessage {
      */
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     @JsonIgnore
-    @Getter(lazy = true)
-    Optional<String> routingKey = computeRoutingKey();
+    @NonFinal
+    Optional<String> routingKey;
+
+    @JsonIgnore
+    @NonFinal
+    @Getter(AccessLevel.NONE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    volatile boolean routingKeyComputed;
 
     /**
      * Constructs a message with the given payload and empty metadata.
@@ -143,10 +149,10 @@ public class Message implements HasMessage {
     @ConstructorProperties({"payload", "metadata", "messageId", "timestamp"})
     public Message(Object payload, Metadata metadata, String messageId, Instant timestamp) {
         this.payload = payload;
-        this.metadata = Optional.ofNullable(metadata).orElseGet(Metadata::empty);
-        this.messageId = Optional.ofNullable(messageId).orElseGet(() -> currentIdentityProvider().nextTechnicalId());
-        this.timestamp = Optional.ofNullable(timestamp)
-                .orElseGet(() -> Fluxzero.currentTime().truncatedTo(ChronoUnit.MILLIS));
+        this.metadata = metadata == null ? Metadata.empty() : metadata;
+        this.messageId = messageId == null ? currentIdentityProvider().nextTechnicalId() : messageId;
+        this.timestamp = timestamp == null
+                ? Fluxzero.currentTime().truncatedTo(ChronoUnit.MILLIS) : timestamp;
     }
 
     /**
@@ -166,6 +172,23 @@ public class Message implements HasMessage {
     }
 
     /**
+     * Returns the lazily computed routing key. The value, including an invalid {@code null} returned by a custom
+     * {@link #computeRoutingKey()} implementation, is computed at most once per message.
+     */
+    @JsonIgnore
+    public Optional<String> getRoutingKey() {
+        if (!routingKeyComputed) {
+            synchronized (this) {
+                if (!routingKeyComputed) {
+                    routingKey = computeRoutingKey();
+                    routingKeyComputed = true;
+                }
+            }
+        }
+        return routingKey;
+    }
+
+    /**
      * Returns a new message instance with the provided payload and existing metadata, ID, and timestamp.
      */
     public Message withPayload(Object payload) {
@@ -173,6 +196,27 @@ public class Message implements HasMessage {
             return this;
         }
         return new Message(payload, metadata, messageId, timestamp);
+    }
+
+    /**
+     * Returns a new message with the supplied metadata.
+     */
+    public Message withMetadata(Metadata metadata) {
+        return this.metadata == metadata ? this : new Message(payload, metadata, messageId, timestamp);
+    }
+
+    /**
+     * Returns a new message with the supplied technical identifier.
+     */
+    public Message withMessageId(String messageId) {
+        return this.messageId == messageId ? this : new Message(payload, metadata, messageId, timestamp);
+    }
+
+    /**
+     * Returns a new message with the supplied timestamp.
+     */
+    public Message withTimestamp(Instant timestamp) {
+        return this.timestamp == timestamp ? this : new Message(payload, metadata, messageId, timestamp);
     }
 
     /**

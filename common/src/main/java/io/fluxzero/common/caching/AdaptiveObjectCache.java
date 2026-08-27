@@ -19,6 +19,8 @@ import io.fluxzero.common.Registration;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -48,6 +51,7 @@ public class AdaptiveObjectCache implements Cache {
     private final long maxEntryWeight;
     private final ToLongBiFunction<? super Object, ? super Object> weigher;
     private final MemoryPressureController memoryPressureController;
+    private final MemoryAwareCacheSupport.WeightUnit weightUnit;
     private final Duration expiry;
     private final Duration expiryCheckDelay;
     private final Clock clock;
@@ -78,7 +82,8 @@ public class AdaptiveObjectCache implements Cache {
      * Constructs a count-bounded cache with memory-pressure trimming and a maximum entry age.
      */
     public AdaptiveObjectCache(int maxSize, MemoryPressureController memoryPressureController, Duration expiry) {
-        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry);
+        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry,
+             MemoryAwareCacheSupport.WeightUnit.ENTRIES);
     }
 
     public AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
@@ -93,35 +98,67 @@ public class AdaptiveObjectCache implements Cache {
     public AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
                                ToLongBiFunction<? super Object, ? super Object> weigher,
                                MemoryPressureController memoryPressureController, Duration expiry) {
-        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, currentClock());
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry,
+             MemoryAwareCacheSupport.WeightUnit.CUSTOM);
+    }
+
+    private AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
+                                ToLongBiFunction<? super Object, ? super Object> weigher,
+                                MemoryPressureController memoryPressureController, Duration expiry,
+                                MemoryAwareCacheSupport.WeightUnit weightUnit) {
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, currentClock(), weightUnit);
     }
 
     public AdaptiveObjectCache(int maxSize, MemoryPressureController memoryPressureController, Duration expiry,
                                Clock clock) {
-        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry, clock);
+        this(maxSize, 1, (key, value) -> 1, memoryPressureController, expiry, clock,
+             MemoryAwareCacheSupport.WeightUnit.ENTRIES);
     }
 
     public AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
                                ToLongBiFunction<? super Object, ? super Object> weigher,
                                MemoryPressureController memoryPressureController, Duration expiry, Clock clock) {
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, clock,
+             MemoryAwareCacheSupport.WeightUnit.CUSTOM);
+    }
+
+    private AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
+                                ToLongBiFunction<? super Object, ? super Object> weigher,
+                                MemoryPressureController memoryPressureController, Duration expiry, Clock clock,
+                                MemoryAwareCacheSupport.WeightUnit weightUnit) {
         this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, DEFAULT_EXPIRY_CHECK_DELAY,
-             clock);
+             clock, weightUnit);
     }
 
     AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
                         ToLongBiFunction<? super Object, ? super Object> weigher,
                         MemoryPressureController memoryPressureController, Duration expiry, Duration expiryCheckDelay,
                         Clock clock) {
+        this(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry, expiryCheckDelay, clock,
+             MemoryAwareCacheSupport.WeightUnit.CUSTOM);
+    }
+
+    private AdaptiveObjectCache(long maxWeight, long maxEntryWeight,
+                                ToLongBiFunction<? super Object, ? super Object> weigher,
+                                MemoryPressureController memoryPressureController, Duration expiry,
+                                Duration expiryCheckDelay, Clock clock,
+                                MemoryAwareCacheSupport.WeightUnit weightUnit) {
         this.maxWeight = maxWeight;
         this.maxEntryWeight = maxEntryWeight;
         this.weigher = Objects.requireNonNull(weigher, "weigher");
         this.memoryPressureController = Objects.requireNonNull(memoryPressureController, "memoryPressureController");
+        this.weightUnit = Objects.requireNonNull(weightUnit, "weightUnit");
         this.expiry = expiry;
         this.expiryCheckDelay = expiryCheckDelay;
         this.clock = Objects.requireNonNull(clock, "clock");
         this.delegate = new MemoryAwareCacheSupport<>(maxWeight, maxEntryWeight, this::weigh, null,
-                                                      memoryPressureController);
-        this.delegate.registerEvictionListener(event -> deadlines.remove(event.key()));
+                                                      memoryPressureController,
+                                                      MemoryAwareCacheSupport.DEFAULT_MEMORY_PRESSURE_CHECK_INTERVAL,
+                                                      weightUnit);
+        if (expiry != null) {
+            this.delegate.registerEvictionListener(
+                    event -> deadlines.remove(event.key()));
+        }
         this.expiryPurger = startExpiryPurger();
     }
 
@@ -186,19 +223,168 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     @Override
+    public synchronized <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        Objects.requireNonNull(values, "values");
+        Objects.requireNonNull(mergeFunction, "mergeFunction");
+        if (values.isEmpty()) {
+            return;
+        }
+        if (expiry == null && delegate.size() == 0) {
+            Map<Object, CacheEntry> additions =
+                    new LinkedHashMap<>(
+                            (int) Math.min(
+                                    Integer.MAX_VALUE,
+                                    (long) values.size()
+                                    * 4L / 3L + 1L));
+            values.forEach((id, candidate) -> {
+                T next =
+                        mergeFunction.apply(
+                                null, candidate);
+                if (next != null) {
+                    additions.put(
+                            id, newEntry(next));
+                }
+            });
+            delegate.putAll(additions);
+            return;
+        }
+        values.forEach((id, candidate) ->
+                               this.<T>compute(
+                                       id,
+                                       (ignored, current) ->
+                                               mergeFunction.apply(
+                                                       current,
+                                                       candidate)));
+    }
+
+    @Override
+    public synchronized <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        Objects.requireNonNull(updates, "updates");
+        if (updates.isEmpty()) {
+            return;
+        }
+        if (expiry != null) {
+            purgeExpired();
+        }
+        delegate.updateAll(
+                updates,
+                (update, current) -> {
+                    T next = update.apply(unwrap(current));
+                    return next == null ? null : newEntry(next);
+                });
+        if (expiry == null) {
+            return;
+        }
+        Instant deadline = deadline();
+        updates.keySet().forEach(id -> {
+            if (delegate.containsKey(id)) {
+                deadlines.put(id, deadline);
+            } else {
+                deadlines.remove(id);
+            }
+        });
+    }
+
+    @Override
+    public synchronized <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> keyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        if (expiry != null) {
+            Cache.super.updateAll(
+                    updates, keyFunction, updateFunction);
+            return;
+        }
+        delegate.updateAll(
+                updates,
+                keyFunction,
+                (update, current) -> {
+                    T next = updateFunction.apply(update, unwrap(current));
+                    return next == null ? null : newEntry(next);
+                });
+    }
+
+    @Override
+    public synchronized <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> lookupKeyFunction,
+            Function<? super U, ?> retainedKeyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(lookupKeyFunction, "lookupKeyFunction");
+        Objects.requireNonNull(retainedKeyFunction, "retainedKeyFunction");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        if (expiry != null) {
+            Cache.super.updateAll(
+                    updates, retainedKeyFunction,
+                    updateFunction);
+            return;
+        }
+        delegate.updateAll(
+                updates,
+                lookupKeyFunction,
+                retainedKeyFunction,
+                (update, current) -> {
+                    T next = updateFunction.apply(update, unwrap(current));
+                    return next == null ? null : newEntry(next);
+                });
+    }
+
+    @Override
     public synchronized <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
         purgeExpired();
         delegate.keys().forEach(key -> computeIfPresent(key, modifierFunction));
     }
 
     @Override
-    public synchronized <T> T get(Object id) {
-        return unwrap(currentEntry(id));
+    public <T> T get(Object id) {
+        if (expiry == null) {
+            return unwrap(delegate.get(id));
+        }
+        synchronized (this) {
+            return unwrap(currentEntry(id));
+        }
     }
 
     @Override
-    public synchronized boolean containsKey(Object id) {
-        return !expireIfNeeded(id) && delegate.containsKey(id);
+    public <U, T> void supplyAll(
+            Iterable<? extends U> lookups,
+            Function<? super U, ?> keyFunction,
+            BiConsumer<? super U, ? super T> valueConsumer) {
+        Objects.requireNonNull(lookups, "lookups");
+        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(valueConsumer, "valueConsumer");
+        if (expiry != null) {
+            synchronized (this) {
+                Cache.super.supplyAll(
+                        lookups, keyFunction,
+                        valueConsumer);
+            }
+            return;
+        }
+        delegate.supplyAll(
+                lookups,
+                keyFunction,
+                (lookup, entry) ->
+                        valueConsumer.accept(
+                                lookup, unwrap(entry)));
+    }
+
+    @Override
+    public boolean containsKey(Object id) {
+        if (expiry == null) {
+            return delegate.containsKey(id);
+        }
+        synchronized (this) {
+            return !expireIfNeeded(id)
+                   && delegate.containsKey(id);
+        }
     }
 
     @Override
@@ -227,7 +413,7 @@ public class AdaptiveObjectCache implements Cache {
     @Override
     public Cache rebuild() {
         return new AdaptiveObjectCache(maxWeight, maxEntryWeight, weigher, memoryPressureController, expiry,
-                                       expiryCheckDelay, clock);
+                                       expiryCheckDelay, clock, weightUnit);
     }
 
     @Override
@@ -271,7 +457,7 @@ public class AdaptiveObjectCache implements Cache {
     }
 
     private CacheEntry currentEntry(Object id) {
-        if (expireIfNeeded(id)) {
+        if (expiry != null && expireIfNeeded(id)) {
             return null;
         }
         return delegate.get(id);

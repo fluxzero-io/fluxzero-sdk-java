@@ -21,17 +21,20 @@ import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.SearchParameters;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
-import lombok.AllArgsConstructor;
+import io.fluxzero.sdk.persisting.search.MaterializedGraphDocumentMigration;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
+
 /**
  * A {@link HandlerDecorator} that intercepts handler methods annotated with {@link HandleDocument} and synchronizes
  * their return values with a {@link DocumentStore}.
@@ -43,6 +46,8 @@ import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
  *     <li>Index the return value into the configured document store, if non-null and its {@link Revision} is newer than the original version (before upcasting).</li>
  *     <li>Delete the corresponding document if the return value is {@code null}.</li>
  * </ul>
+ * Materialized Model Graph handlers use a separate result contract: returning their complete typed {@link Graph}
+ * may migrate only the derived graph document and never invokes this ordinary document update path.
  * <p>
  * The collection name is derived from the {@code message topic}. Timestamps for indexing can be determined in two ways:
  * <ul>
@@ -62,28 +67,65 @@ import static io.fluxzero.sdk.common.ClientUtils.getSearchParameters;
  * @see DocumentStore
  * @see HandlerDecorator
  */
-@AllArgsConstructor
 public class DocumentHandlerDecorator implements HandlerDecorator {
     private final Supplier<DocumentStore> documentStoreSupplier;
+    private final GraphDocumentWriter graphDocumentWriter;
+
+    public DocumentHandlerDecorator(Supplier<DocumentStore> documentStoreSupplier) {
+        this(documentStoreSupplier, migration -> CompletableFuture.failedFuture(
+                new UnsupportedOperationException(
+                        "Materialized graph document migration has no configured writer")));
+    }
+
+    public DocumentHandlerDecorator(
+            Supplier<DocumentStore> documentStoreSupplier,
+            GraphDocumentWriter graphDocumentWriter) {
+        this.documentStoreSupplier = documentStoreSupplier;
+        this.graphDocumentWriter = graphDocumentWriter;
+    }
 
     @Override
     public Handler<DeserializingMessage> wrap(Handler<DeserializingMessage> handler) {
         return new DocumentHandler(handler);
     }
 
-    @AllArgsConstructor
     protected class DocumentHandler implements Handler<DeserializingMessage> {
 
         private final Handler<DeserializingMessage> delegate;
 
+        protected DocumentHandler(Handler<DeserializingMessage> delegate) {
+            this.delegate = delegate;
+        }
+
         @Override
         public Optional<HandlerInvoker> getInvoker(DeserializingMessage message) {
-            return delegate.getInvoker(message)
-                    .flatMap(i -> !i.isPassive() && i.getMethod() instanceof Method m
-                                  && m.getReturnType().isAssignableFrom(message.getPayloadClass())
-                            ? ReflectionUtils.<HandleDocument>getMethodAnnotation(i.getMethod(), HandleDocument.class)
-                                    .map(annotation -> ClientUtils.getTopic(annotation, i.getMethod()))
-                            .map(topic -> new DocumentHandlerInvoker(i, topic, message)) : Optional.of(i));
+            return delegate.getInvoker(message).map(invoker -> decorate(invoker, message));
+        }
+
+        private HandlerInvoker decorate(
+                HandlerInvoker invoker,
+                DeserializingMessage message) {
+            if (invoker.isPassive()
+                || !(invoker.getMethod() instanceof Method method)) {
+                return invoker;
+            }
+            HandleDocument annotation = ReflectionUtils
+                    .<HandleDocument>getMethodAnnotation(method, HandleDocument.class)
+                    .orElse(null);
+            if (annotation == null) {
+                return invoker;
+            }
+            if (annotation.modelGraph() != Void.class) {
+                if (!Graph.class.isAssignableFrom(method.getReturnType())) {
+                    return invoker;
+                }
+                return new ModelGraphDocumentHandlerInvoker(
+                        invoker, message);
+            }
+            String collection = DocumentHandlerTopics.resolve(annotation, method);
+            return method.getReturnType().isAssignableFrom(message.getPayloadClass())
+                    ? new DocumentHandlerInvoker(invoker, collection, message)
+                    : invoker;
         }
 
         @Override
@@ -128,5 +170,37 @@ public class DocumentHandlerDecorator implements HandlerDecorator {
                 }
             }
         }
+
+        protected class ModelGraphDocumentHandlerInvoker
+                extends HandlerInvoker.DelegatingHandlerInvoker {
+            private final DeserializingMessage message;
+
+            public ModelGraphDocumentHandlerInvoker(
+                    HandlerInvoker delegate,
+                    DeserializingMessage message) {
+                super(delegate);
+                this.message = message;
+            }
+
+            @Override
+            public Object invoke(
+                    BiFunction<Object, Object, Object> combiner) {
+                Object result = delegate.invoke(combiner);
+                if (result instanceof Graph<?> graph) {
+                    MaterializedGraphDocumentMigration.create(
+                                    graph, message,
+                                    documentStoreSupplier.get().getSerializer())
+                            .ifPresent(migration -> graphDocumentWriter
+                                    .rewrite(migration).join());
+                }
+                return result;
+            }
+        }
+    }
+
+    @FunctionalInterface
+    public interface GraphDocumentWriter {
+        CompletableFuture<Void> rewrite(
+                MaterializedGraphDocumentMigration.Migration migration);
     }
 }

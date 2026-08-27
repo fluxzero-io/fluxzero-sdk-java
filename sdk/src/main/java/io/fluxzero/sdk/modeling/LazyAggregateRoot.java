@@ -17,6 +17,7 @@ package io.fluxzero.sdk.modeling;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream;
+import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import lombok.With;
 
 import java.time.Instant;
@@ -60,7 +61,7 @@ public class LazyAggregateRoot<T> implements AggregateRoot<T> {
     protected LazyAggregateRoot(ImmutableAggregateRoot<T> delegate, Entity<T> lastCheckpoint) {
         this.delegate = delegate;
         this.lastCheckpoint = lastCheckpoint;
-        if (!rootAnnotation().eventSourced()) {
+        if (!rootConfiguration().eventSourced()) {
             throw new IllegalStateException("Cannot create lazy aggregate: event sourcing is disabled.");
         }
     }
@@ -111,22 +112,20 @@ public class LazyAggregateRoot<T> implements AggregateRoot<T> {
         String targetEventId = lastEventId();
         AggregateEventStream<DeserializingMessage> events = delegate.eventStore().getEvents(
                 id(), start.sequenceNumber(), (int) (sequenceNumber() - start.sequenceNumber()),
-                rootAnnotation().ignoreUnknownEvents());
+                rootConfiguration().ignoreUnknownEvents());
         Iterator<DeserializingMessage> iterator = events.iterator();
-        Entity<T> result = start;
-        boolean eventReached = false;
-        while (iterator.hasNext()) {
-            DeserializingMessage nextEvent = iterator.next();
-            boolean lastEventId = Objects.equals(targetEventId, nextEvent.getMessageId());
-            if (eventReached && !lastEventId) {
-                break;
-            }
-            if (lastEventId) {
-                eventReached = true;
-            }
-            result = result.apply(nextEvent);
-        }
-        return result.get();
+        boolean[] eventReached = {false};
+        return ImmutableRoot.replayUntil(
+                start, iterator,
+                (current, next) -> !eventReached[0]
+                                   || Objects.equals(targetEventId, next.getMessageId()),
+                (current, next) -> {
+                    eventReached[0] |= Objects.equals(targetEventId, next.getMessageId());
+                    return current.apply(next);
+                },
+                (current, next, error) -> error instanceof RuntimeException runtime
+                        ? runtime : new EventSourcingException(
+                        "Failed to reconstruct lazy aggregate " + id(), error)).get();
     }
 
     protected Entity<T> getLastCheckpoint() {

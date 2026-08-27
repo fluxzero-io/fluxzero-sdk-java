@@ -26,7 +26,6 @@ import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.scheduling.Schedule;
 import io.fluxzero.sdk.tracking.client.InMemoryMessageStore;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Clock;
@@ -83,23 +82,36 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         throw new UnsupportedOperationException();
     }
 
-    @SneakyThrows
     @Override
-    public synchronized CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules) {
-        List<SerializedSchedule> filtered = Arrays.stream(schedules)
-                .filter(s -> !s.isIfAbsent() || !scheduleIdsByIndex.containsValue(s.getScheduleId())).toList();
-        long now = clock.millis();
-        for (SerializedSchedule schedule : filtered) {
-            cancelSchedule(schedule.getScheduleId());
+    public CompletableFuture<Void> schedule(Guarantee guarantee, SerializedSchedule... schedules) {
+        synchronized (monitorNotificationLock()) {
+            List<SerializedMessage> storedMessages = null;
+            try {
+                synchronized (this) {
+                    List<SerializedSchedule> filtered = Arrays.stream(schedules)
+                            .filter(s -> !s.isIfAbsent() || !scheduleIdsByIndex.containsValue(s.getScheduleId()))
+                            .toList();
+                    long now = clock.millis();
+                    for (SerializedSchedule schedule : filtered) {
+                        scheduleIdsByIndex.values().removeIf(s -> s.equals(schedule.getScheduleId()));
 
-            long index = schedule.getTimestamp() > now ? indexFromMillis(schedule.getTimestamp())
-                    : minScheduleIndex.updateAndGet(i -> Math.max(indexFromMillis(now), i + 1));
-            while (scheduleIdsByIndex.putIfAbsent(index, schedule.getScheduleId()) != null) {
-                index++;
+                        long index = schedule.getTimestamp() > now ? indexFromMillis(schedule.getTimestamp())
+                                : minScheduleIndex.updateAndGet(i -> Math.max(indexFromMillis(now), i + 1));
+                        while (scheduleIdsByIndex.putIfAbsent(index, schedule.getScheduleId()) != null) {
+                            index++;
+                        }
+                        schedule.getMessage().setIndex(index);
+                    }
+                    storedMessages = filtered.stream().map(SerializedSchedule::getMessage).toList();
+                    appendMessages(storedMessages);
+                }
+                return CompletableFuture.completedFuture(null);
+            } finally {
+                if (storedMessages != null) {
+                    notifyMonitors(storedMessages);
+                }
             }
-            schedule.getMessage().setIndex(index);
         }
-        return super.append(filtered.stream().map(SerializedSchedule::getMessage).toList());
     }
 
     @Override
@@ -166,24 +178,38 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
         return MessageStoreBatch.scan(messages, maxSize, maxBytes, filter);
     }
 
-    public synchronized void setClock(@NonNull Clock clock) {
-        clockChangeRegistration.cancel();
-        this.clock.setDelegate(clock);
-        clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
-                ? delegatingClock.onChange(this::clockChanged) : Registration.noOp();
-        clockChanged();
+    public void setClock(@NonNull Clock clock) {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                clockChangeRegistration.cancel();
+                this.clock.setDelegate(clock);
+                clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
+                        ? delegatingClock.onChange(this::clockChanged) : Registration.noOp();
+                this.minScheduleIndex.set(0L);
+            }
+            notifyMonitors();
+        }
     }
 
-    protected synchronized void clockChanged() {
-        this.minScheduleIndex.set(0L);
-        notifyMonitors();
+    protected void clockChanged() {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                this.minScheduleIndex.set(0L);
+            }
+            notifyMonitors();
+        }
     }
 
     @Override
-    public synchronized void truncate() {
-        scheduleIdsByIndex.clear();
-        minScheduleIndex.set(0L);
-        super.truncate();
+    public void truncate() {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                scheduleIdsByIndex.clear();
+                minScheduleIndex.set(0L);
+                truncateMessages();
+            }
+            notifyMonitors();
+        }
     }
 
     public synchronized List<Schedule> getFutureSchedules(Serializer serializer) {
@@ -222,8 +248,12 @@ public class InMemoryScheduleStore extends InMemoryMessageStore implements Sched
     }
 
     @Override
-    public synchronized void close() {
-        clockChangeRegistration.cancel();
-        super.close();
+    public void close() {
+        synchronized (monitorNotificationLock()) {
+            synchronized (this) {
+                clockChangeRegistration.cancel();
+                super.close();
+            }
+        }
     }
 }

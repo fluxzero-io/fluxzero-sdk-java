@@ -83,6 +83,14 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         return submitStaged(new WorkGroup(sessionKey, results, resultHandler));
     }
 
+    <T> RuntimeIngressController.MessageDispatch submitStagedIndexed(
+            Object sessionKey, List<T> results, IndexedConsumer<? super T> resultHandler) {
+        if (results.isEmpty()) {
+            return RuntimeIngressController.MessageDispatch.admitted(COMPLETED);
+        }
+        return submitStaged(new WorkGroup(sessionKey, results, resultHandler));
+    }
+
     private RuntimeIngressController.MessageDispatch submitStaged(WorkGroup workGroup) {
         boolean admitted;
         synchronized (this) {
@@ -356,6 +364,11 @@ final class RuntimeResultDispatcher implements AutoCloseable {
     record State(int workGroups, int pendingAdmissions, int activeResults, int pendingResults, int maxConcurrency) {
     }
 
+    @FunctionalInterface
+    interface IndexedConsumer<T> {
+        void accept(int index, T value);
+    }
+
     private final class SessionQueue {
         private final Object sessionKey;
         private final ArrayDeque<WorkGroup> pendingAdmissions = new ArrayDeque<>();
@@ -371,7 +384,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
         private final Object sessionKey;
         private final Runnable singleCallback;
         private final List<?> items;
-        private final Consumer<Object> itemHandler;
+        private final IndexedConsumer<Object> itemHandler;
         private final AtomicInteger nextIndex = new AtomicInteger();
         private CompletableFuture<Void> admission;
         private int activeTasks;
@@ -390,7 +403,17 @@ final class RuntimeResultDispatcher implements AutoCloseable {
             this.sessionKey = Objects.requireNonNull(sessionKey, "sessionKey");
             this.singleCallback = null;
             this.items = Objects.requireNonNull(items, "items");
-            this.itemHandler = (Consumer<Object>) Objects.requireNonNull(itemHandler, "itemHandler");
+            Consumer<Object> checkedHandler =
+                    (Consumer<Object>) Objects.requireNonNull(itemHandler, "itemHandler");
+            this.itemHandler = (index, item) -> checkedHandler.accept(item);
+        }
+
+        @SuppressWarnings("unchecked")
+        private <T> WorkGroup(Object sessionKey, List<T> items, IndexedConsumer<? super T> itemHandler) {
+            this.sessionKey = Objects.requireNonNull(sessionKey, "sessionKey");
+            this.singleCallback = null;
+            this.items = Objects.requireNonNull(items, "items");
+            this.itemHandler = (IndexedConsumer<Object>) Objects.requireNonNull(itemHandler, "itemHandler");
         }
 
         @Override
@@ -426,7 +449,7 @@ final class RuntimeResultDispatcher implements AutoCloseable {
 
         private void run(int resultIndex) {
             if (singleCallback == null) {
-                itemHandler.accept(items.get(resultIndex));
+                itemHandler.accept(resultIndex, items.get(resultIndex));
             } else {
                 singleCallback.run();
             }

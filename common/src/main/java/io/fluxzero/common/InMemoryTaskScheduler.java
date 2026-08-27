@@ -110,7 +110,9 @@ public class InMemoryTaskScheduler implements TaskScheduler {
 
     public InMemoryTaskScheduler(int delay, String threadName, Clock clock, ExecutorService workerPool,
                                  boolean pollingEnabled) {
-        this.executorService = Executors.newSingleThreadScheduledExecutor(newPlatformThreadFactory(threadName));
+        this.executorService = pollingEnabled
+                ? Executors.newSingleThreadScheduledExecutor(newPlatformThreadFactory(threadName))
+                : null;
         this.workerPool = workerPool;
         this.clock = clock;
         this.clockChangeRegistration = clock instanceof DelegatingClock delegatingClock
@@ -179,7 +181,9 @@ public class InMemoryTaskScheduler implements TaskScheduler {
     @SneakyThrows
     public void shutdown() {
         clockChangeRegistration.cancel();
-        executorService.shutdownNow();
+        if (executorService != null) {
+            executorService.shutdownNow();
+        }
         workerPool.shutdown();
         if (!workerPool.awaitTermination(5, TimeUnit.SECONDS)) {
             log.warn("Failed to shutdown worker pool before finishing all tasks");

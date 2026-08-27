@@ -14,6 +14,11 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - `annotation-processor-tests`, `java-downstream-project`, and `kotlin-downstream-project`: compatibility checks that must keep working when annotations, reflection, handlers, serialization, public artifacts, or downstream project setup change.
 - `project-files`: AI-assistant files for projects that use the SDK, not for building this SDK itself.
 
+Keep durable product documentation, API guidance, and release-relevant decisions in this repository. Store feature
+plans, progress notes, experiment journals, measurements, checkpoint history, and other backlog work records in the
+owning todo dossier under `../work-backlog/docs/`; link to that dossier from commits or pull requests when useful rather
+than copying those records into this repository.
+
 ## Regression Safety
 
 Observable behavior and operational characteristics are compatibility contracts, even when Java API signatures do not
@@ -115,10 +120,17 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - When a field is added to a data or value type, let an existing all-fields constructor evolve with the fields by default, especially when Lombok annotations such as `@AllArgsConstructor` own constructor generation. Do not add a legacy constructor overload merely to preserve the previous field set. During the final review, check whether the old constructor was a documented or intentionally supported external contract; raise the compatibility question only in that case. Add an overload only when it has independent domain meaning or the user explicitly requests it.
 - Document new or changed public API surface. Prefer field/type/method Javadoc for data objects and Lombok-backed classes; constructor-level Javadoc may be omitted when Lombok or field documentation already makes the constructor contract clear.
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
+- Choose `@Model` versus `@Member` by domain lifecycle before storage or object shape. State with independent creation,
+  changes, history, retention, or deletion is a separate Model connected with `@Parent`, even when it appears in a
+  parent collection; a parent-scoped identity is sufficient. Use `@Member` only when all of those concerns deliberately
+  belong to the root. Searchability, update frequency, storage strategy, and convenient embedding are not boundaries.
 - Always use `ReflectionUtils` and its central `TypeMetadata` as the owner of class-scoped reflection caches. Extend that metadata instead of adding parallel `ClassValue` or class-keyed caches for methods, fields, annotations, or other structural reflection results. Keep computed values that capture runtime or instance state in a lifecycle-bound local cache; never place such values in the central class cache.
 - Avoid adding dependencies casually. If a dependency is needed, manage versions from the root POM or the relevant BOM/module pattern.
 - When changing message handling, tracking, scheduling, websocket, persistence, serialization, or reflection behavior, add focused tests in the owning module and consider both synchronous and asynchronous `TestFixture` paths.
 - Do not commit build outputs from `target/`, generated local artifacts, or release-only zips.
+- Keep this repository customer-neutral. Do not add customer or downstream-application names, captured production data,
+  fixtures, logs, or application-specific diagnostics. Preserve generally applicable SDK evidence here and keep
+  downstream-specific proof in the repository that owns that application.
 
 ## Commit Messages
 

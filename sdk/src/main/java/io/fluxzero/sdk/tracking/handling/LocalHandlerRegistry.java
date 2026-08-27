@@ -121,6 +121,15 @@ public class LocalHandlerRegistry implements HandlerRegistry {
         return !localHandlers.isEmpty();
     }
 
+    @Override
+    public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+        if (!localHandlers.isEmpty()) {
+            return false;
+        }
+        return (!messageType.isRequest() && messageType != MessageType.SCHEDULE)
+               || selfHandlers.apply(payloadType).isEmpty();
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public Registration registerHandler(Object target, HandlerFilter handlerFilter) {

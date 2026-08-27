@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.common;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -33,7 +34,8 @@ import java.util.function.Supplier;
  */
 public final class ThreadLocalContext {
 
-    private static volatile ThreadLocal<?>[] participants = new ThreadLocal<?>[0];
+    private static final ThreadLocal<ActiveValues> activeValues =
+            ThreadLocal.withInitial(ActiveValues::new);
 
     private ThreadLocalContext() {
     }
@@ -45,41 +47,50 @@ public final class ThreadLocalContext {
      * or activated.
      */
     public static <T> ThreadLocal<T> create() {
-        ThreadLocal<T> result = new ThreadLocal<>();
-        register(result);
-        return result;
+        return new ParticipatingThreadLocal<>();
     }
 
     /** Returns an immutable snapshot of every context value active on the current thread. */
     public static Snapshot capture() {
-        ThreadLocal<?>[] registered = participants;
-        int count = 0;
-        for (ThreadLocal<?> participant : registered) {
-            if (participant.get() != null) {
-                count++;
-            }
-        }
-        if (count == 0) {
-            return Snapshot.empty();
-        }
-        ThreadLocal<?>[] active = new ThreadLocal<?>[count];
-        Object[] values = new Object[count];
-        int index = 0;
-        for (ThreadLocal<?> participant : registered) {
-            Object value = participant.get();
-            if (value != null) {
-                active[index] = participant;
-                values[index++] = value;
-            }
-        }
-        return new Snapshot(active, values);
+        return activeValues.get().capture();
     }
 
-    private static synchronized void register(ThreadLocal<?> participant) {
-        ThreadLocal<?>[] current = participants;
-        ThreadLocal<?>[] updated = Arrays.copyOf(current, current.length + 1);
-        updated[current.length] = participant;
-        participants = updated;
+    /**
+     * Opens a scope that can switch directly between multiple snapshots and restores the original context on close.
+     *
+     * <p>This is useful for ordered batches whose items each carry their own request context. Unlike invoking
+     * {@link Snapshot#run(Runnable)} for every item, intermediate switches do not first restore an empty worker
+     * context. Context changes made while processing an item are still detected and cleared by the next switch.</p>
+     */
+    public static Activation openActivation() {
+        return new Activation(capture());
+    }
+
+    /** A reusable context-switching scope created by {@link #openActivation()}. */
+    public static final class Activation implements AutoCloseable {
+        private final Snapshot previous;
+        private boolean closed;
+
+        private Activation(Snapshot previous) {
+            this.previous = previous;
+        }
+
+        /** Replaces the currently active context with the supplied snapshot. */
+        public void use(Snapshot next) {
+            if (closed) {
+                throw new IllegalStateException("Context activation has already been closed");
+            }
+            Snapshot.activate(capture(), Objects.requireNonNull(next, "snapshot"));
+        }
+
+        /** Restores the context that was active when this scope was opened. */
+        @Override
+        public void close() {
+            if (!closed) {
+                closed = true;
+                Snapshot.activate(capture(), previous);
+            }
+        }
     }
 
     /** A reusable snapshot of the context that was active when {@link #capture()} was called. */
@@ -106,22 +117,22 @@ public final class ThreadLocalContext {
         /** Runs a task with this snapshot active and restores the previous context afterwards. */
         public void run(Runnable task) {
             Snapshot previous = capture();
-            activate();
+            activate(previous, this);
             try {
                 task.run();
             } finally {
-                previous.activate();
+                activate(capture(), previous);
             }
         }
 
         /** Supplies a value with this snapshot active and restores the previous context afterwards. */
         public <T> T supply(Supplier<T> task) {
             Snapshot previous = capture();
-            activate();
+            activate(previous, this);
             try {
                 return task.get();
             } finally {
-                previous.activate();
+                activate(capture(), previous);
             }
         }
 
@@ -139,11 +150,11 @@ public final class ThreadLocalContext {
         public <T, U> BiConsumer<T, U> wrap(BiConsumer<T, U> task) {
             return (first, second) -> {
                 Snapshot previous = capture();
-                activate();
+                activate(previous, this);
                 try {
                     task.accept(first, second);
                 } finally {
-                    previous.activate();
+                    activate(capture(), previous);
                 }
             };
         }
@@ -152,25 +163,208 @@ public final class ThreadLocalContext {
         public <T, R> Function<T, R> wrap(Function<T, R> task) {
             return input -> {
                 Snapshot previous = capture();
-                activate();
+                activate(previous, this);
                 try {
                     return task.apply(input);
                 } finally {
-                    previous.activate();
+                    activate(capture(), previous);
                 }
             };
         }
 
-        private void activate() {
-            for (ThreadLocal<?> participant : ThreadLocalContext.participants) {
-                // capture() has already created a ThreadLocalMap entry while inspecting this participant. Retaining
-                // that empty entry avoids recreating every registered entry on each async callback activation.
-                setValue(participant, null);
+        private static void activate(
+                Snapshot previous,
+                Snapshot next) {
+            if (previous == next) {
+                return;
             }
-            for (int i = 0; i < participants.length; i++) {
-                setValue(participants[i], values[i]);
+            boolean sameParticipants =
+                    previous.participants.length
+                    == next.participants.length;
+            if (sameParticipants) {
+                for (int i = 0;
+                     i < previous.participants.length;
+                     i++) {
+                    if (previous.participants[i]
+                        != next.participants[i]) {
+                        sameParticipants = false;
+                        break;
+                    }
+                }
+            }
+            if (!sameParticipants) {
+                for (ThreadLocal<?> participant :
+                        previous.participants) {
+                    setSnapshotValue(participant, null);
+                }
+                for (int i = 0;
+                     i < next.participants.length;
+                     i++) {
+                    setSnapshotValue(
+                            next.participants[i],
+                            next.values[i]);
+                }
+            } else {
+                for (int i = 0;
+                     i < next.participants.length;
+                     i++) {
+                    if (previous.values[i] != next.values[i]) {
+                        setSnapshotValue(
+                                next.participants[i],
+                                next.values[i]);
+                    }
+                }
+            }
+            activeValues.get().restore(previous, next, sameParticipants);
+        }
+    }
+
+    private static final class ParticipatingThreadLocal<T>
+            extends ThreadLocal<T> {
+
+        @Override
+        public void set(T value) {
+            super.set(value);
+            if (value == null) {
+                activeValues.get().remove(this);
+            } else {
+                activeValues.get().put(this, value);
             }
         }
+
+        @Override
+        public void remove() {
+            super.remove();
+            activeValues.get().remove(this);
+        }
+
+        private void setFromSnapshot(T value) {
+            super.set(value);
+        }
+    }
+
+    private static final class ActiveValues {
+        private ThreadLocal<?>[] participants = new ThreadLocal<?>[8];
+        private Object[] values = new Object[8];
+        private int size;
+        private Snapshot snapshot = Snapshot.empty();
+        private boolean dirty;
+
+        private Snapshot capture() {
+            if (!dirty) {
+                return snapshot;
+            }
+            int active = 0;
+            for (int i = 0; i < size; i++) {
+                if (values[i] != null) {
+                    active++;
+                }
+            }
+            if (active == 0) {
+                snapshot = Snapshot.empty();
+            } else {
+                ThreadLocal<?>[] activeParticipants =
+                        new ThreadLocal<?>[active];
+                Object[] activeValues = new Object[active];
+                int target = 0;
+                for (int i = 0; i < size; i++) {
+                    if (values[i] != null) {
+                        activeParticipants[target] = participants[i];
+                        activeValues[target++] = values[i];
+                    }
+                }
+                snapshot = new Snapshot(
+                        activeParticipants, activeValues);
+            }
+            dirty = false;
+            return snapshot;
+        }
+
+        private void put(
+                ThreadLocal<?> participant,
+                Object value) {
+            for (int i = 0; i < size; i++) {
+                if (participants[i] == participant) {
+                    if (values[i] != value) {
+                        values[i] = value;
+                        dirty = true;
+                    }
+                    return;
+                }
+            }
+            ensureCapacity(size + 1);
+            participants[size] = participant;
+            values[size++] = value;
+            dirty = true;
+        }
+
+        private void remove(
+                ThreadLocal<?> participant) {
+            for (int i = 0; i < size; i++) {
+                if (participants[i] != participant) {
+                    continue;
+                }
+                if (values[i] != null) {
+                    values[i] = null;
+                    dirty = true;
+                }
+                return;
+            }
+        }
+
+        private void restore(Snapshot previous, Snapshot next, boolean sameParticipants) {
+            if (!sameParticipants) {
+                Arrays.fill(values, 0, size, null);
+            }
+            for (int i = 0; i < next.participants.length; i++) {
+                if (!sameParticipants || previous.values[i] != next.values[i]) {
+                    putRestored(
+                            next.participants[i],
+                            next.values[i]);
+                }
+            }
+            snapshot = next;
+            dirty = false;
+        }
+
+        private void putRestored(
+                ThreadLocal<?> participant,
+                Object value) {
+            for (int i = 0; i < size; i++) {
+                if (participants[i] == participant) {
+                    values[i] = value;
+                    return;
+                }
+            }
+            ensureCapacity(size + 1);
+            participants[size] = participant;
+            values[size++] = value;
+        }
+
+        private void ensureCapacity(int required) {
+            if (required <= participants.length) {
+                return;
+            }
+            int capacity = Math.max(
+                    required,
+                    participants.length << 1);
+            participants = Arrays.copyOf(
+                    participants, capacity);
+            values = Arrays.copyOf(values, capacity);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void setSnapshotValue(
+            ThreadLocal<?> participant,
+            Object value) {
+        if (participant
+            instanceof ParticipatingThreadLocal<?> participating) {
+            ((ParticipatingThreadLocal<Object>) participating)
+                    .setFromSnapshot(value);
+            return;
+        }
+        setValue(participant, value);
     }
 
     @SuppressWarnings("unchecked")

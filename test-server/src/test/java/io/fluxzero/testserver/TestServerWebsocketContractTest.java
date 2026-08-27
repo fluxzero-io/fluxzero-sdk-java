@@ -18,16 +18,31 @@ package io.fluxzero.testserver;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsResult;
+import io.fluxzero.common.api.modeling.GetModelChange;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelDocumentMutation;
+import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
+import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.RegisterModelGraphProjection;
 import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.common.api.search.AdoptModelMigration;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentUpdate;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.GetModelMigrations;
 import io.fluxzero.common.api.search.HasDocument;
+import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchCollectionType;
 import io.fluxzero.common.api.search.SearchDocuments;
@@ -39,6 +54,7 @@ import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.tracking.Tracker;
+import io.fluxzero.common.search.Document;
 import io.fluxzero.sdk.common.websocket.JdkWebsocketConnector;
 import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
@@ -84,6 +100,7 @@ import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.delete;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.index;
 import static io.fluxzero.common.api.search.SearchCollectionType.regular;
+import static io.fluxzero.common.search.Document.EntryType.TEXT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -382,6 +399,184 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void materializedModelGraphRoundTripsOverFullServer()
+            throws Exception {
+        WebSocketClient client =
+                client(
+                        "model-graph",
+                        "model-graph-"
+                        + UUID.randomUUID());
+        try {
+            EventStoreClient eventStore =
+                    client.getEventStoreClient();
+            SearchClient search =
+                    client.getSearchClient();
+            String rootId =
+                    "root-" + UUID.randomUUID();
+            String childId =
+                    "child-" + UUID.randomUUID();
+            String roots =
+                    "roots-" + UUID.randomUUID();
+            String projection =
+                    "root-graphs-"
+                    + UUID.randomUUID();
+            String rootType =
+                    "ContractRoot";
+            await(eventStore
+                          .registerModelGraphProjection(
+                                  new RegisterModelGraphProjection(
+                                          new ModelGraphProjectionConfiguration(
+                                                  rootType,
+                                                  roots,
+                                                  projection,
+                                                  ModelGraphComposition
+                                                          .builder()
+                                                          .build(),
+                                                  List.of(new ModelGraphProjectionConfiguration.ModelRevision(
+                                                          rootType, 0)),
+                                                  List.of()),
+                                          true)));
+
+            ModelCommitTarget root =
+                    modelTarget(
+                            rootId, rootType,
+                            new ModelDocumentMutation(
+                                    roots,
+                                    structuredDocument(
+                                            rootId,
+                                            roots,
+                                            "name",
+                                            "root")),
+                            List.of());
+            CommitModelsResult rootResult =
+                    await(eventStore
+                                  .commitModels(
+                                          modelCommit(
+                                                  "create-root-"
+                                                  + UUID.randomUUID(),
+                                                  -1L,
+                                                  root)));
+            var rootChange = eventStore.getModelChange(
+                    new GetModelChange(rootResult.getCommitId(), 0));
+            assertEquals(rootResult.getCommitId(), rootChange.getCommitId());
+            assertEquals(rootResult.getUpdates().getFirst().getStateIndex(), rootChange.getStateIndex());
+            assertEquals(rootId, rootChange.getTargets().getFirst().getModelId());
+            assertEquals(rootType, rootChange.getTargets().getFirst().getModelType());
+
+            ModelCommitTarget child =
+                    modelTarget(
+                            childId,
+                            "ContractChild",
+                            new ModelDocumentMutation(
+                                    ModelDocumentMutation.graphComponentCollection(
+                                            "ContractChild"),
+                                    structuredDocument(
+                                            childId,
+                                            ModelDocumentMutation.graphComponentCollection(
+                                                    "ContractChild"),
+                                            "name",
+                                            "child")),
+                            List.of(
+                                    ModelRelationship
+                                            .builder()
+                                            .parentId(
+                                                    rootId)
+                                            .parentType(
+                                                    rootType)
+                                            .path(
+                                                    "children")
+                                            .build()));
+            CommitModelsResult childResult =
+                    await(eventStore
+                                  .commitModels(
+                                          modelCommit(
+                                                  "create-child-"
+                                                  + UUID.randomUUID(),
+                                                  rootResult
+                                                          .getUpdates()
+                                                          .getLast()
+                                                          .getStateIndex(),
+                                                  child)));
+            await(eventStore
+                          .awaitModelGraphProjection(
+                                  new AwaitModelGraphProjection(
+                                          projection,
+                                          childResult
+                                                  .getUpdates()
+                                                  .getLast()
+                                                  .getStateIndex(),
+                                          List.of(
+                                                  childId))));
+
+            SerializedDocument graph =
+                    search.search(
+                                    SearchDocuments.builder()
+                                            .query(
+                                                    SearchQuery
+                                                            .builder()
+                                                            .collection(
+                                                                    projection)
+                                                            .build())
+                                            .build(),
+                                    10)
+                            .map(SearchHit::getValue)
+                            .findFirst()
+                            .orElseThrow();
+            assertEquals(
+                    "child",
+                    graph.deserializeDocument()
+                            .getEntryAtPath(
+                                    "children/0/name")
+                            .orElseThrow()
+                            .getValue());
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
+    void modelMigrationInspectionAndAdoptionRoundTripOverFullServer() throws Exception {
+        WebSocketClient client = client("model-migration");
+        try {
+            EventStoreClient eventStore = client.getEventStoreClient();
+            SearchClient search = client.getSearchClient();
+            String modelId = "migration-" + UUID.randomUUID();
+            String collection = "migration-models-" + UUID.randomUUID();
+            await(client.getGatewayClient(EVENT).append(STORED, message("legacy-source")));
+            SerializedMessage sourceEvent = client.getTrackingClient(EVENT).readFromIndex(0L, 1).getFirst();
+            ModelCommitTarget target = modelTarget(
+                    modelId, "MigrationContractModel",
+                    new ModelDocumentMutation(
+                            collection,
+                            structuredDocument(modelId, collection, "name", "migrated")),
+                    List.of());
+            CommitModelsResult commit = await(eventStore.commitModels(
+                    modelMigrationCommit(sourceEvent, target)));
+            long stateIndex = commit.getUpdates().getFirst().getStateIndex();
+
+            var migrations = search.getModelMigrations(new GetModelMigrations(10));
+            assertEquals(List.of(modelId), migrations.getMigrations().stream()
+                    .map(head -> head.getModelId()).toList());
+            var migration = search.getModelMigration(new GetModelMigration(modelId, collection));
+            assertNull(migration.getProductionDocument());
+            assertEquals("migrated", migration.getMigratedDocument().deserializeDocument()
+                    .getEntryAtPath("name").orElseThrow().getValue());
+            assertEquals(stateIndex, migration.getMigratedHead().getStateIndex());
+
+            await(search.adoptModelMigration(new AdoptModelMigration(
+                    modelId, collection, null, stateIndex, STORED)));
+
+            assertTrue(search.getModelMigrations(new GetModelMigrations(10)).getMigrations().isEmpty());
+            var adopted = search.getModelMigration(new GetModelMigration(modelId, collection));
+            assertEquals("migrated", adopted.getProductionDocument().deserializeDocument()
+                    .getEntryAtPath("name").orElseThrow().getValue());
+            assertNull(adopted.getMigratedHead());
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
     void keyValueAndSchedulingRequestsRoundTripOverFullServer() throws Exception {
         WebSocketClient client = client("key-value-scheduling");
         try {
@@ -518,6 +713,79 @@ class TestServerWebsocketContractTest {
     private static SerializedMessage message(String id, byte[] value) {
         return new SerializedMessage(new Data<>(value, String.class.getName(), 0, "text/plain"),
                                      Metadata.empty(), id + "-" + UUID.randomUUID(), Instant.now().toEpochMilli());
+    }
+
+    private static ModelCommitTarget modelTarget(
+            String modelId,
+            String modelType,
+            ModelDocumentMutation document,
+            List<ModelRelationship> relationships) {
+        return ModelCommitTarget.builder()
+                .modelId(modelId)
+                .modelType(modelType)
+                .storeEvent(true)
+                .updateState(true)
+                .document(document)
+                .updateRelationships(true)
+                .relationships(relationships)
+                .build();
+    }
+
+    private static CommitModels modelCommit(
+            String commitId,
+            long readStateIndex,
+            ModelCommitTarget target) {
+        return new CommitModels(
+                commitId,
+                readStateIndex,
+                List.of(target.getModelId()),
+                List.of(
+                        ModelCommitStep.builder()
+                                .event(
+                                        message(commitId))
+                                .targets(
+                                        List.of(target))
+                                .build()),
+                ModelConflictPolicy.ACCEPT,
+                STORED, true);
+    }
+
+    private static CommitModels modelMigrationCommit(
+            SerializedMessage sourceEvent,
+            ModelCommitTarget target) {
+        return new CommitModels(
+                sourceEvent.getMessageId(),
+                -1L,
+                List.of(target.getModelId()),
+                List.of(ModelCommitStep.builder()
+                                .event(sourceEvent)
+                                .targets(List.of(target))
+                                .build()),
+                ModelConflictPolicy.ACCEPT,
+                STORED, true, true);
+    }
+
+    private static SerializedDocument structuredDocument(
+            String id,
+            String collection,
+            String path,
+            String value) {
+        return new SerializedDocument(
+                Document.builder()
+                        .id(id)
+                        .type("ContractDocument")
+                        .collection(collection)
+                        .timestamp(Instant.now())
+                        .entries(
+                                Map.of(
+                                        new Document.Entry(
+                                                TEXT,
+                                                value),
+                                        List.of(
+                                                new Document.Path(
+                                                        path))))
+                        .summary(() -> value)
+                        .build());
     }
 
     private static SerializedDocument document(String id, String collection, String value, Set<FacetEntry> facets) {

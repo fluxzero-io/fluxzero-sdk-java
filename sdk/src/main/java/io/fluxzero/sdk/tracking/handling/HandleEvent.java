@@ -44,6 +44,11 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  *
+ * <p>A method whose sole parameter is an unqualified
+ * {@link io.fluxzero.sdk.modeling.Graph Graph&lt;T&gt;} subscribes to every durable change of that model graph. It is
+ * invoked once per affected root and can inspect the complete before-state through
+ * {@link io.fluxzero.sdk.modeling.Graph#previous()}.</p>
+ *
  * @see HandleMessage
  * @see MessageType#EVENT
  */

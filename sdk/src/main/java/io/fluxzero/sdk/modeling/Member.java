@@ -23,28 +23,38 @@ import java.lang.annotation.Target;
 
 /**
  * Indicates that the annotated field or getter represents a nested entity or collection of entities within an
- * aggregate or stateful handler.
+ * aggregate, independently stored model, or stateful handler.
  * <p>
- * Entities marked with {@code @Member} participate in aggregate routing, event sourcing, and update application. When
- * an update targets a nested entity, Fluxzero will use this annotation to traverse the aggregate structure and locate
- * the correct entity (or entities) to apply the update to. In {@code @Stateful} handlers, member objects may also
- * declare {@code @Handle...} methods and their own {@code @Association} properties; updates are written back by
- * storing the parent stateful handler.
+ * Entities marked with {@code @Member} share the persistence boundary of their owning root. Within an
+ * {@link Aggregate @Aggregate} or {@link Model @Model}, they share the root's stream, cache, search document,
+ * snapshots, and lifecycle. When an update targets a nested entity, Fluxzero traverses the root structure to locate
+ * the correct entity (or entities). In {@code @Stateful} handlers, member objects may also declare
+ * {@code @Handle...} methods and their own {@code @Association} properties; updates are written back by storing the
+ * parent stateful handler.
  *
  * <p>
- * This annotation supports modeling complex aggregates composed of multiple entities, for example:
+ * For a {@link Model}, choose {@code @Member} only when the nested value deliberately has no independent lifecycle:
+ * creation, change history, retention, and deletion all belong to the root. State that can live or evolve
+ * independently is another {@link Model}, connected through {@link Parent}, even when it is normally rendered as an
+ * item in a root collection. A meaningful identity is strong evidence of that independent lifecycle, but the identity
+ * may be {@link EntityId#parentScoped() parent-scoped}; lack of a globally unique functional ID is not a reason to
+ * embed. Searchability, update frequency, load strategy, and convenient collection placement are persistence or query
+ * choices, not lifecycle boundaries.
+ *
+ * <p>
+ * This annotation supports modeling persistence roots with deliberately embedded values, for example:
  * <pre>{@code
- * @Aggregate
- * public class Project {
+ * @Model
+ * public class Invoice {
  *     @EntityId
- *     String projectId;
+ *     String invoiceId;
  *
  *     @Member
- *     List<Task> tasks;
+ *     List<InvoiceLine> lines;
  * }
  * }</pre>
- * Here, updates targeting {@code Task} entities will automatically be routed by matching {@code TaskId} (declared with
- * {@link io.fluxzero.sdk.modeling.EntityId}) inside the {@code Task} class.
+ * Here, a line exists only as part of its invoice and deliberately shares the invoice's entire lifecycle. Updates
+ * targeting {@code InvoiceLine} values are routed by matching the identifier declared inside that class.
  *
  * <h2>Support for new entities</h2>
  * <p>
@@ -54,11 +64,11 @@ import java.lang.annotation.Target;
  * <br>For example:
  * <pre>{@code
  * @Apply
- * Task create() {
- *     return Task.builder().taskId(taskId).details(taskDetails).build();
+ * InvoiceLine create() {
+ *     return new InvoiceLine(lineId, amount);
  * }
  * }</pre>
- * will be used to create a new {@code Task} if no matching task exists in the {@code tasks} member list.
+ * will be used to create a new {@code InvoiceLine} if no matching line exists in the {@code lines} member list.
  *
  * <h2>Immutability and parent updates</h2>
  * <p>
@@ -66,22 +76,21 @@ import java.lang.annotation.Target;
  * to create a new version of the parent entity by copying and updating the annotated container field (list, map, etc.).
  * The parent is not modified directly.
  * <br>This behavior ensures safe update propagation and accurate change tracking, especially during event sourcing.
- * <br>For example, if {@code ProductCategory} has a list of {@code Product}s:
+ * <br>For example, if {@code Invoice} has a list of {@code InvoiceLine}s:
  * <pre>{@code
  * @Member
- * List<Product> products;
+ * List<InvoiceLine> lines;
  * }</pre>
- * and one product is updated, Fluxzero will replace the {@code products} list with a new list containing the updated
- * entity.
+ * and one line is updated, Fluxzero will replace the {@code lines} list with a new list containing the updated value.
  * <p>
  * For record owners, Fluxzero rebuilds the owner through the canonical constructor when the member is a record
  * component. For Kotlin data classes, Fluxzero can use the generated {@code copy(...)} method. A type can still expose
- * an explicit wither such as {@code withProducts(...)} or configure {@link #wither()} when custom update behavior is
+ * an explicit wither such as {@code withLines(...)} or configure {@link #wither()} when custom update behavior is
  * needed.
  * <pre>{@code
- * public record Project(@EntityId String id, @Member List<Task> tasks) {
- *     public Project withTasks(List<Task> tasks) {
- *         return new Project(id, tasks);
+ * public record Invoice(@EntityId String id, @Member List<InvoiceLine> lines) {
+ *     public Invoice withLines(List<InvoiceLine> lines) {
+ *         return new Invoice(id, lines);
  *     }
  * }
  * }</pre>
@@ -111,6 +120,7 @@ import java.lang.annotation.Target;
  *
  * @see io.fluxzero.sdk.modeling.EntityId
  * @see io.fluxzero.sdk.modeling.Aggregate
+ * @see io.fluxzero.sdk.modeling.Model
  * @see io.fluxzero.sdk.persisting.eventsourcing.Apply
  * @see io.fluxzero.sdk.modeling.AssertLegal
  */

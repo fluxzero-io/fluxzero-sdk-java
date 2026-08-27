@@ -23,10 +23,12 @@ import java.io.InputStream;
 import java.lang.reflect.AnnotatedElement;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.fluxzero.common.api.Data.JSON_FORMAT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAndParentPackages;
@@ -40,33 +42,44 @@ public final class OpenApiDocumentEndpoint {
     private final String path;
     private final Class<?> handlerType;
     private final Object handler;
+    private final Supplier<? extends Collection<Class<?>>> modelTypes;
     private volatile String documentJson;
 
-    private OpenApiDocumentEndpoint(String path, Class<?> handlerType, Object handler) {
+    private OpenApiDocumentEndpoint(String path, Class<?> handlerType, Object handler,
+                                    Supplier<? extends Collection<Class<?>>> modelTypes) {
         this.path = path;
         this.handlerType = handlerType;
         this.handler = handler instanceof Class<?> ? null : handler;
+        this.modelTypes = modelTypes;
     }
 
     public static List<OpenApiDocumentEndpoint> forHandler(Class<?> handlerType, Object handler) {
+        return forHandler(handlerType, handler, List::of);
+    }
+
+    public static List<OpenApiDocumentEndpoint> forHandler(
+            Class<?> handlerType, Object handler, Supplier<? extends Collection<Class<?>>> modelTypes) {
         List<OpenApiDocumentEndpoint> endpoints = new ArrayList<>();
         Function<AnnotatedElement, java.util.stream.Stream<String>> pathValues = WebUtils.pathValues();
         String path = "";
         for (Package currentPackage : getPackageAndParentPackages(handlerType.getPackage()).reversed()) {
             path = appendPath(path, pathValues.apply(currentPackage).toList());
-            addIfEnabled(endpoints, currentPackage.getAnnotation(ApiDocInfo.class), path, handlerType, handler);
+            addIfEnabled(endpoints, currentPackage.getAnnotation(ApiDocInfo.class), path, handlerType, handler,
+                         modelTypes);
         }
         path = appendPath(path, pathValues.apply(handlerType).toList());
-        addIfEnabled(endpoints, handlerType.getAnnotation(ApiDocInfo.class), path, handlerType, handler);
+        addIfEnabled(endpoints, handlerType.getAnnotation(ApiDocInfo.class), path, handlerType, handler, modelTypes);
         return endpoints;
     }
 
     private static void addIfEnabled(List<OpenApiDocumentEndpoint> endpoints, ApiDocInfo info, String basePath,
-                                     Class<?> handlerType, Object handler) {
+                                     Class<?> handlerType, Object handler,
+                                     Supplier<? extends Collection<Class<?>>> modelTypes) {
         if (info == null || !(info.serveOpenApi() || info.serveApiReference())) {
             return;
         }
-        endpoints.add(new OpenApiDocumentEndpoint(resolvePath(basePath, info.openApiPath()), handlerType, handler));
+        endpoints.add(new OpenApiDocumentEndpoint(
+                resolvePath(basePath, info.openApiPath()), handlerType, handler, modelTypes));
     }
 
     private static String appendPath(String base, List<String> parts) {
@@ -98,7 +111,10 @@ public final class OpenApiDocumentEndpoint {
             synchronized (this) {
                 result = documentJson;
                 if (result == null) {
-                    result = readGeneratedDocument(handlerType).orElseGet(this::renderRuntimeDocument);
+                    result = readGeneratedDocument(handlerType)
+                            .map(document -> OpenApiRenderer.enrichModelGraphs(
+                                    document, modelTypes.get(), handlerType.getClassLoader()))
+                            .orElseGet(this::renderRuntimeDocument);
                     documentJson = result;
                 }
             }
@@ -121,7 +137,9 @@ public final class OpenApiDocumentEndpoint {
     }
 
     private String renderRuntimeDocument() {
-        return OpenApiRenderer.renderPrettyJson(ApiDocExtractor.extract(handlerType, handler), null);
+        ApiDocCatalog extracted = ApiDocExtractor.extract(handlerType, handler);
+        return OpenApiRenderer.renderPrettyJson(
+                new ApiDocCatalog(extracted.endpoints(), modelTypes.get()), null);
     }
 
     @Override

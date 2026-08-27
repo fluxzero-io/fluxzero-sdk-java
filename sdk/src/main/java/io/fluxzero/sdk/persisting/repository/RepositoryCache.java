@@ -19,9 +19,12 @@ import io.fluxzero.common.caching.Cache;
 import io.fluxzero.common.caching.CacheEviction;
 import lombok.NonNull;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -31,6 +34,9 @@ import java.util.function.LongSupplier;
  * A namespace-specific view of a shared cache used by aggregate repositories.
  */
 final class RepositoryCache implements Cache {
+
+    private static final ThreadLocal<LookupKeyPool> LOOKUP_KEYS =
+            ThreadLocal.withInitial(LookupKeyPool::new);
 
     private final Cache delegate;
     private final String component;
@@ -87,6 +93,93 @@ final class RepositoryCache implements Cache {
     }
 
     @Override
+    public <T> void mergeAll(
+            Map<?, ? extends T> values,
+            BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
+        if (values.isEmpty()) {
+            return;
+        }
+        markWriteStarted();
+        LinkedHashMap<CacheKey, T> namespaced =
+                new LinkedHashMap<>(
+                        (int) Math.min(
+                                Integer.MAX_VALUE,
+                                (long) values.size()
+                                * 4L / 3L + 1L));
+        values.forEach(
+                (id, value) ->
+                        namespaced.put(
+                                key(id), value));
+        delegate.mergeAll(
+                namespaced,
+                mergeFunction);
+        for (CacheKey cacheKey : namespaced.keySet()) {
+            Object retained =
+                    delegate.get(cacheKey);
+            if (retained != null) {
+                markPopulated(retained);
+                break;
+            }
+        }
+    }
+
+    @Override
+    public <T> void updateAll(
+            Map<?, ? extends Function<? super T, ? extends T>> updates) {
+        if (updates.isEmpty()) {
+            return;
+        }
+        markWriteStarted();
+        LinkedHashMap<CacheKey, Function<? super T, ? extends T>> namespaced =
+                new LinkedHashMap<>(
+                        (int) Math.min(
+                                Integer.MAX_VALUE,
+                                (long) updates.size()
+                                * 4L / 3L + 1L));
+        updates.forEach(
+                (id, update) ->
+                        namespaced.put(
+                                key(id), update));
+        delegate.updateAll(namespaced);
+        for (CacheKey cacheKey : namespaced.keySet()) {
+            Object retained = delegate.get(cacheKey);
+            if (retained != null) {
+                markPopulated(retained);
+                break;
+            }
+        }
+    }
+
+    @Override
+    public <U, T> void updateAll(
+            Iterable<? extends U> updates,
+            Function<? super U, ?> keyFunction,
+            BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(keyFunction, "keyFunction");
+        Objects.requireNonNull(updateFunction, "updateFunction");
+        markWriteStarted();
+        CacheKey lookupKey =
+                new CacheKey(
+                        component, namespace, null);
+        Object[] populatedValue = new Object[1];
+        delegate.<U, T>updateAll(
+                updates,
+                update -> lookupKey.forId(
+                        keyFunction.apply(update)),
+                update -> key(
+                        keyFunction.apply(update)),
+                (update, current) -> {
+                    T next = updateFunction.apply(update, current);
+                    if (next != null && populatedValue[0] == null) {
+                        populatedValue[0] = next;
+                    }
+                    return next;
+                });
+        markPopulated(populatedValue[0]);
+    }
+
+    @Override
     public <T> void modifyEach(BiFunction<? super Object, ? super T, ? extends T> modifierFunction) {
         delegate.<T>modifyEach((id, value) -> isOwnKey(id)
                 ? modifierFunction.apply(((CacheKey) id).id(), value) : value);
@@ -94,12 +187,42 @@ final class RepositoryCache implements Cache {
 
     @Override
     public <T> T get(Object id) {
-        return delegate.get(key(id));
+        LookupKeyPool pool = LOOKUP_KEYS.get();
+        CacheKey lookupKey = pool.acquire(component, namespace, id);
+        try {
+            return delegate.get(lookupKey);
+        } finally {
+            pool.release(lookupKey);
+        }
+    }
+
+    @Override
+    public <U, T> void supplyAll(
+            Iterable<? extends U> lookups,
+            Function<? super U, ?> keyFunction,
+            BiConsumer<? super U, ? super T> valueConsumer) {
+        LookupKeyPool pool = LOOKUP_KEYS.get();
+        CacheKey lookupKey = pool.acquire(component, namespace, null);
+        try {
+            delegate.supplyAll(
+                    lookups,
+                    lookup -> lookupKey.forId(
+                            keyFunction.apply(lookup)),
+                    valueConsumer);
+        } finally {
+            pool.release(lookupKey);
+        }
     }
 
     @Override
     public boolean containsKey(Object id) {
-        return delegate.containsKey(key(id));
+        LookupKeyPool pool = LOOKUP_KEYS.get();
+        CacheKey lookupKey = pool.acquire(component, namespace, id);
+        try {
+            return delegate.containsKey(lookupKey);
+        } finally {
+            pool.release(lookupKey);
+        }
     }
 
     @Override
@@ -209,6 +332,106 @@ final class RepositoryCache implements Cache {
         }
     }
 
-    private record CacheKey(String component, String namespace, Object id) {
+    private static final class CacheKey {
+        private String component;
+        private String namespace;
+        private Object id;
+        private int hashCode;
+
+        private CacheKey(String component, String namespace, Object id) {
+            forLookup(component, namespace, id);
+        }
+
+        private CacheKey forLookup(String component, String namespace, Object id) {
+            this.component = component;
+            this.namespace = namespace;
+            return forId(id);
+        }
+
+        private CacheKey forId(Object id) {
+            this.id = id;
+            int hash = Objects.hashCode(component);
+            hash = 31 * hash + Objects.hashCode(namespace);
+            this.hashCode = 31 * hash + Objects.hashCode(id);
+            return this;
+        }
+
+        private String component() {
+            return component;
+        }
+
+        private String namespace() {
+            return namespace;
+        }
+
+        private Object id() {
+            return id;
+        }
+
+        private void clear() {
+            component = null;
+            namespace = null;
+            id = null;
+            hashCode = 0;
+        }
+
+        @Override
+        public boolean equals(Object candidate) {
+            return candidate instanceof CacheKey other
+                   && hashCode == other.hashCode
+                   && same(component, other.component)
+                   && same(namespace, other.namespace)
+                   && same(id, other.id);
+        }
+
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+
+        private static boolean same(
+                Object first,
+                Object second) {
+            return first == second
+                   || first != null
+                      && first.equals(second);
+        }
+    }
+
+    /**
+     * Provides reusable lookup keys without retaining repository scopes or identifiers in handler threads. A small
+     * stack keeps nested cache access from mutating an outer lookup key while a custom key is computing equality.
+     */
+    private static final class LookupKeyPool {
+        private CacheKey[] keys = new CacheKey[1];
+        private int depth;
+
+        private CacheKey acquire(String component, String namespace, Object id) {
+            if (depth == keys.length) {
+                CacheKey[] expanded = new CacheKey[keys.length << 1];
+                System.arraycopy(keys, 0, expanded, 0, keys.length);
+                keys = expanded;
+            }
+            int index = depth++;
+            CacheKey result = keys[index];
+            if (result == null) {
+                result = new CacheKey(null, null, null);
+                keys[index] = result;
+            }
+            try {
+                return result.forLookup(component, namespace, id);
+            } catch (RuntimeException | Error e) {
+                release(result);
+                throw e;
+            }
+        }
+
+        private void release(CacheKey key) {
+            int index = --depth;
+            if (keys[index] != key) {
+                throw new IllegalStateException("Lookup keys must be released in reverse acquisition order");
+            }
+            key.clear();
+        }
     }
 }

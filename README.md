@@ -479,23 +479,25 @@ Handlers without an explicit `@Consumer` or matching custom `ConsumerConfigurati
 configured unconfigured-handler consumer mode. If no mode is configured explicitly, `fluxzero.defaults.version`
 selects the default behavior.
 
-For defaults versions `2026.05.20` and newer, the default behavior is `perHandler`:
+For defaults versions `2026.07.27` and newer, the default behavior is `perPackage`:
 
 ```properties
-fluxzero.defaults.version=2026.05.20
+fluxzero.defaults.version=2026.07.27
 # equivalent explicit setting:
-fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perPackage
 ```
 
-With this defaults version, Fluxzero creates an isolated default consumer per handler class. The generated consumer uses
-the default consumer configuration for the message type as its template and is named after the application and handler
-class, for example `my-app_MyHandler`.
+With this defaults version, Fluxzero creates one default consumer per exact handler package and message type. Loose
+commands in the same package can therefore share a consumer without a marker interface. The generated consumer uses the
+default configuration for the message type as its template and is named after the application and package.
 
-Existing applications without `fluxzero.defaults.version`, or with an older defaults version, keep the compatibility
-default: unconfigured handlers join the shared application default consumer for the message type. You can choose either
-behavior explicitly:
+Defaults versions from `2026.05.20` through `2026.07.26` retain the `perHandler` default. Applications without
+`fluxzero.defaults.version`, or with an older defaults version, retain the original shared application consumer. All
+three behaviors can be selected explicitly:
 
 ```properties
+fluxzero.tracking.unconfiguredHandlerConsumerMode=perPackage
+# or
 fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler
 # or
 fluxzero.tracking.unconfiguredHandlerConsumerMode=defaultAppConsumer
@@ -512,13 +514,13 @@ class MyHandler {
 }
 ```
 
-With `perHandler`, this handler gets its own generated command consumer. With `defaultAppConsumer`, it joins the shared
-default command consumer. A matching custom `ConsumerConfiguration` or explicit `@Consumer` remains more specific and
-takes precedence.
+With `perPackage`, handlers in the same exact package share a generated consumer. With `perHandler`, this handler gets
+its own generated consumer. With `defaultAppConsumer`, it joins the shared default consumer. A matching custom
+`ConsumerConfiguration` or explicit `@Consumer` remains more specific and takes precedence.
 
-The practical difference is that `perHandler` gives each unconfigured handler its own tracking position and error
-isolation. With `defaultAppConsumer`, unconfigured handlers for the same message type move together through one shared
-consumer, which preserves the original compatibility behavior for existing applications.
+The practical difference is the isolation boundary: package, handler class, or application. Automatic model command
+handling follows the same selection rules as an explicit command handler and therefore also uses a consumer configured
+for the command payload package, including a root-package `@Consumer`.
 
 ### Custom Consumers with @Consumer
 
@@ -559,8 +561,8 @@ class MyHandler {
 
 - threads = 2: Two threads per application instance will fetch commands.
 - maxFetchSize = 100: Up to 100 messages fetched per request, helping apply backpressure.
-- maxFetchBytes = 104_857_600: Up to 100 MiB of serialized payload bytes fetched per request. Set `0` to disable the
-  byte limit. Omit it, or set `-1`, to inherit the global default.
+- maxFetchBytes = 104_857_600: Up to 100 MiB of complete serialized message bytes fetched per request. Set `0` to
+  disable the byte limit. Omit it, or set `-1`, to inherit the global default.
 
 Each thread runs a **tracker**. If you deploy the app multiple times, Flux automatically load-balances messages across
 all available trackers.
@@ -1651,8 +1653,9 @@ By default:
 - ⚠️ **Exception:** If a **local handler** exists the event will not be forwarded or stored, unless
   `@LocalHandler(logMessage = true)`.
 
-> For aggregate-related domain events, use `Entity#apply(...)` instead. This ensures the event is applied to the entity
-> and conditionally published and logged, depending on the aggregate configuration.
+> For domain events that also change persisted state, prefer a model commit such as
+> `Fluxzero.assertAndApply(update)`. It applies the update, stores each affected model, and publishes the event once
+> according to the model's publication configuration.
 
 ---
 
@@ -2417,16 +2420,64 @@ schema hints that cannot be inferred. It can also be placed on fields, parameter
 arguments, for example
 `List<@ApiDoc(description = "Connection item") Connection>` to document array items without OpenAPI-specific
 annotations. Optional schema hints include `type`, `format`, `example`, `defaultValue`, `minimum`, `maximum`,
-`allowableValues`, `required`, and `implementation`. Jakarta validation annotations such as `@NotNull`, `@Min`,
+`allowableValues`, `required`, `exclude`, and `implementation`. Jakarta validation annotations such as `@NotNull`, `@Min`,
 `@Size`, `@Pattern`, and `@Email` are reflected in endpoint parameter and model schemas when present. Use repeatable
 `@ApiDocResponse` annotations for additional error/status responses, or to describe an inferred response without
 repeating its body type; `@ApiDocResponse(status = 400, ref = "error")` references
 `#/components/responses/error`. Array properties in response models are documented as required by default; input models
-only use explicit `@ApiDoc(required = true)` or validation metadata for required properties. Use `@ApiDocExclude` to
-exclude a package, class, method, parameter, field, record component, or type use from generated documentation without
-disabling the runtime endpoint or model. Use `@ApiDocInfo.security` for top-level security requirements and
+only use explicit `@ApiDoc(required = true)` or validation metadata for required properties. Use `@ApiDocExclude` or
+`@ApiDoc(exclude = true)` to exclude a package, class, method, parameter, field, record component, or type use from
+generated documentation without disabling the runtime endpoint or model. The composable `exclude` attribute is also
+available when `@ApiDoc` is nested in another annotation. Use `@ApiDocInfo.security` for top-level security requirements and
 `@ApiDocComponent` through `@ApiDocInfo.components` for shared OpenAPI components such as reusable responses or
 security schemes when automatic inference is not enough.
+
+Independent-model graphs can be documented even when their runtime representation is a `JsonNode`. Select the graph
+root on the response and document each list-valued graph edge with `pathInParent`: the place inside the parent document
+where that child collection is composed.
+
+```java
+@ApiDoc
+@HandleGet("/organisations/{id}")
+@ApiDocResponse(
+        status = 200,
+        modelGraph = Organisation.class)
+JsonNode getOrganisation(@PathParam String id) {
+    return loadOrganisationGraph(id);
+}
+
+@Model
+record Location(
+        @EntityId String id,
+        @Parent(
+                value = Organisation.class,
+                pathInParent = "locations",
+                apiDoc = @ApiDoc(
+                        description = "Locations belonging to the organisation",
+                        required = true))
+        String organisationId) {
+}
+
+@Model
+record InternalContract(
+        @EntityId String id,
+        @Parent(
+                value = Organisation.class,
+                pathInParent = "contracts",
+                apiDoc = @ApiDoc(exclude = true))
+        String organisationId) {
+}
+```
+
+The root schema is inferred from `Organisation`; the `locations` property is rendered as a list of `Location` items.
+Slash-separated paths create nested objects before the final list property, and descendants are followed recursively.
+If the handler returns an array or collection of JSON trees, the response remains an array whose items use the complete
+model-graph schema. By default all graph relationships are included except relationships whose nested
+`@Parent.apiDoc` declares `exclude = true`. Use `modelGraphPaths` only to select an endpoint-specific subgraph;
+ancestors of each selected path are included automatically, while sibling and deeper descendant paths must be selected
+explicitly. Exclusion and path selection affect documentation only, not the graph returned at runtime.
+`ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
+metadata with the model types registered in the current application, so child models may live in another Maven module.
 
 #### Request Cookies
 
@@ -3188,13 +3239,472 @@ Metrics messages provide lightweight hooks into system behavior — use them for
 
 ---
 
-## Domain Modeling
+## Domain Modeling with Models
 
-Fluxzero allows you to model the state of your domain using entities that evolve over time by applying updates.
-These entities — such as users, orders, etc. — maintain state and enforce invariants through controlled updates,
-typically driven by commands.
+Use `@Model` for all new persisted domain state:
 
-### Defining the Aggregate Entity
+```java
+@Model(searchable = true)
+public record UserAccount(
+        @EntityId UserId userId,
+        UserProfile profile,
+        boolean accountClosed) {
+}
+```
+
+Every model ID is an independent persistence and lifecycle boundary. Depending on its `@Model` settings, it has its own
+event stream, cache entry, snapshots and direct search document. Commands can own their assertions and transitions
+directly:
+
+```java
+public record UpdateProfile(
+        UserId userId,
+        UserProfile profile) {
+    @AssertLegal
+    void assertOpen(UserAccount account) {
+        if (account.accountClosed()) {
+            throw new IllegalStateException("Account is closed");
+        }
+    }
+
+    @Apply
+    UserAccount apply(UserAccount account) {
+        return new UserAccount(
+                userId, profile,
+                account.accountClosed());
+    }
+}
+```
+
+Sending `UpdateProfile` is sufficient; Fluxzero resolves `UserId`, runs assertions and applies, and commits the model
+action without a boilerplate command handler. One payload may read or update multiple models.
+
+Choose a Model boundary from domain lifecycle first. State that can be created, changed, retained, deleted, or whose
+history matters independently is a separate `@Model`, even if users normally see it in a parent's list. Give it a
+`@Parent` relation for graph placement and ownership. A meaningful domain identity is strong evidence for a separate
+Model, not an additional gate: a child may use a globally unique ID or `@EntityId(parentScoped = true)` when its
+functional ID is unique only below its parent.
+
+Conversely, use `@Member` only when the nested value deliberately shares creation, every change, history, retention,
+and deletion with the root. Collection shape, convenient embedding, searchability, update frequency, and the chosen
+load strategy do not decide this boundary. Choose `eventSourced`, snapshots, caching, and document indexing only after
+the lifecycle boundary is correct. Splitting independently living children often turns one enormous legacy stream into
+many very small streams that are ideal for event sourcing.
+
+### Combining payload and Model handlers
+
+Action-specific logic normally belongs on the payload. A Model may additionally own cross-cutting state logic that
+must run for several payload types. When both have an applicable `@InterceptApply`, `@AssertLegal` or `@Apply`, Fluxzero
+uses two deterministic phases: all applicable payload handlers run first and the corresponding Model handlers run
+second. `priority` controls order only within one phase.
+
+Payload applies are staged as one complete intermediate state before any Model apply runs. A Model instance method can
+therefore receive a Model that the payload has just created, without needing a second static creation handler:
+
+```java
+@Model
+public record UserAccount(
+        @EntityId UserId userId,
+        UserProfile profile,
+        Instant lastUpdated) {
+
+    @Apply
+    UserAccount recordUpdate(UpdateProfile update) {
+        return new UserAccount(userId, profile, update.updatedAt());
+    }
+}
+
+public record UpdateProfile(
+        UserId userId,
+        UserProfile profile,
+        Instant updatedAt) {
+
+    @Apply
+    UserAccount apply(@Nullable UserAccount current) {
+        return new UserAccount(
+                userId, profile,
+                current == null ? null : current.lastUpdated());
+    }
+}
+```
+
+The payload and Model phases still produce only one atomic transition per Model ID. Model applies see every payload
+result from a multi-Model action, but not partially finalized sibling results from the Model phase. Static Model
+applies remain supported as factories or stateless transformations; a separate static factory acts as a fallback when
+the payload did not already produce that Model. Payload `@InterceptApply` runs before Model interception. Immediate
+assertions run payload then Model before applying, while `afterHandler = true` assertions run in that order against the
+final state. Live handling, retry, rebase and event replay use this same phasing.
+
+Related models remain independently stored:
+
+```java
+@Model(searchable = true)
+public record Address(
+        @EntityId AddressId addressId,
+        @Parent(pathInParent = "addresses") UserId userId,
+        AddressDetails details) {
+}
+```
+
+Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
+injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. These selectors first search the related Model's
+own indexed current-document collection and only then traverse the matching IDs to their targets. Non-public Graph
+components use a private collection per Model type, so they remain available for efficient parent selection without
+being mixed with other component types or exposed by `Fluxzero.search(Component.class)`.
+`searchGraph(User.class)` returns a
+`Search<Graph<User>>`, so `stream()`, `fetchAll()`, `fetchFirst()` and other terminal operations remain typed without a
+cast or type witness. It uses a configured materialized projection and otherwise stitches current public or private
+documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a boundary that
+explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
+`searchable = false` suppresses only the Model's own search collection: an explicit
+`@Parent(pathInParent = "...")` or `materializeGraph = true` still gives graph composition an internal current document.
+`pathInParent` is always relative to the parent document; it never points from the child to its parent.
+
+For a selective live Graph query based on children, express the child predicate as a relationship constraint so
+Fluxzero can narrow the roots before composition:
+
+```java
+List<Graph<User>> users = Fluxzero.searchGraph(User.class, true)
+        .whereDescendant(
+                Address.class,
+                MatchConstraint.match("NL", "country"))
+        .fetchAll();
+```
+
+An arbitrary nested full-Graph constraint is still applied identically to live and materialized Graphs. Without the
+related Model type it cannot always be pushed down safely, so broad free-form search, sorting or pagination over child
+content should use a materialized Graph projection.
+
+Relations may be recursive. A `Folder` can, for example, point to another `Folder` through a typed parent ID; the
+relation remains an ordinary independently stored edge and does not turn the descendants into embedded state:
+
+```java
+@Model(searchable = true)
+record Folder(
+        @EntityId FolderId folderId,
+        @Parent(pathInParent = "folders") FolderId parentFolderId,
+        String name) {
+}
+```
+
+Fluxzero supports this direct same-type recursion without requiring a finite type graph. It rejects a concrete cycle
+atomically when a write would make a folder its own ancestor.
+
+One relationship property may deliberately accept several parent model types. Declare those possibilities statically
+and keep the domain value as a typed `Id`; the concrete `Id` subtype selects the relationship at runtime:
+
+```java
+@Model
+record Authorisation(
+        @EntityId AuthorisationId id,
+        @Parent(
+                types = {UserProfile.class, Organisation.class},
+                pathInParent = "receivedAuthorisations")
+        Id<?> nominee) {
+}
+```
+
+Fluxzero writes the concrete parent type into the relationship, validates cycles and cascade ownership against every
+declared possibility, and exposes the child path in the documented graph of either parent. `value` remains the concise
+form for one explicitly typed parent; `value` and `types` are mutually exclusive.
+
+When a child identifier is only unique within its owning parent, use `@EntityId(parentScoped = true)`. Fluxzero keeps
+the field's functional value unchanged but composes a collision-safe persisted identity from the selected parent and
+child IDs. Automatic apply routing uses the deepest non-null parent relation in the payload, graph-local
+`find(functionalId, Child.class)` remains natural, and an explicit load supplies the parent:
+
+```java
+@Model
+record Line(
+        @EntityId(parentScoped = true) String lineId,
+        @Parent(value = Order.class, pathInParent = "lines") OrderId orderId) {
+}
+
+Graph<Line> line = Fluxzero.loadGraph(orderId, Order.class, "one", Line.class);
+```
+
+If a composed graph contains the same functional child ID below multiple parents, `find(functionalId, Line.class)`
+returns the revision with the highest `revisionStateIndex()`, matching ordinary latest-entity lookup semantics. Use
+`find(functionalId, Line.class, GraphLookupPolicy.FAIL_ON_AMBIGUITY)` when the caller requires graph-wide uniqueness.
+
+Use parent-scoped identity only for parent-owned models. Changing that parent changes the persisted model identity;
+ordinary movable children should retain a globally stable model ID.
+
+Enable the durable materialized form directly on its root:
+
+```java
+@Model(materializeGraph = true)
+public record User(@EntityId UserId userId, String name) {
+}
+```
+
+`materializeGraph` is sufficient: Fluxzero keeps the private root document needed for composition without exposing a
+direct Model collection. Enable `searchable` separately only when callers should also be able to search the root Model
+itself. Use `searchProjection = @Searchable(...)` or `graphProjection = @GraphProjection(...)` only for advanced
+configuration. The graph collection is `User-graphs` by default; for a searchable root it derives from the resolved
+direct collection instead. Set `GraphProjection.collection` only when a custom durable name is needed. Projection is
+asynchronous unless completion is explicitly configured otherwise. Both live and materialized composition follow the
+complete finite graph by default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use
+`UNBOUNDED` (`-1`) when absent. An explicit guardrail fails instead of publishing a partial graph.
+
+Every node in a materialized graph keeps its own serialized type and revision. On read, the normal serializer applies
+the registered `@Upcast` chain lazily to each root or descendant when that node is accessed; there is no separate
+Graph-wide revision or Graph upcaster. Increment `@Revision` and register the same ordinary upcaster you would use for
+that Model's direct document or snapshot. When a class rename and a content change happen together, return a
+`Data<ObjectNode>` and update both through that envelope; a separate typecaster is not required.
+
+Read-time upcasting is sufficient for correctness. If the evolved JSON must also be persisted into the durable Graph
+projection for search, return the complete typed Graph from a dedicated document handler:
+
+```java
+@HandleDocument(modelGraph = User.class)
+Graph<User> rematerialize(Graph<User> graph) {
+    return graph;
+}
+```
+
+This rewrites only the derived projection, and only when one or more node schemas actually changed. The root identity,
+state boundary, nodes and placements must remain identical. Direct Models, their histories and relationships remain
+authoritative and unchanged; a delayed handler cannot overwrite a newer projection.
+
+Use `@Member` inside a model only for values that intentionally share the model's creation, changes, history, stream,
+document, cache, retention and deletion lifecycle. If any of those can diverge, use a separate `@Model` plus `@Parent`,
+including when the child is normally displayed as one item in a parent collection. Set `eventSourced = false` when
+current state should load from the direct document; model events are still stored and published. `@Model` defaults
+`eventPublication` to `IF_MODIFIED`, so returning unchanged state does not produce an event; use `ALWAYS` explicitly for
+intentional no-op domain notifications. Direct searchable documents are synchronous with model-commit completion.
+
+Keep deletion explicit in the update by returning `null` from an ordinary `@Apply` method with the model as its
+declared return type:
+
+```java
+record DeleteUser(UserId userId) {
+    @Apply
+    User delete() {
+        return null;
+    }
+}
+```
+
+Normal target resolution, assertions, interceptors, event publication and atomic multi-model handling still apply.
+
+Load current state with `Fluxzero.loadModel(id)`. Any selected message handler can inject directly addressed models and
+their parents, grandparents or further ancestors as `T` or lazy `Graph<T>`. Event and notification handlers receive the
+exact state and relations at that event's model-commit boundary; command, query, schedule, result, error, metrics,
+document, custom and web handlers use one current handler load context. Event-sourced targets share its pinned
+repository boundary; document-loaded targets remain current-only direct-document reads. Use
+`@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
+`@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
+An ordered ID collection can be loaded at that same pinned boundary without an application-side repository loop:
+
+```java
+void handle(
+        RefreshOrganisations command,
+        @Association("organisationIds") List<Graph<Organisation>> organisations) {
+    // Input order and duplicates are preserved; physical model loads are deduplicated.
+}
+```
+
+The list itself is immutable. A missing ID produces an empty typed graph at its original position, and an empty or
+`null` source collection produces an empty list. Each graph remains relationship-lazy just like singular `Graph<T>`
+injection; requesting several full descendant trees does not silently pretend that the runtime has a bulk graph
+transport.
+
+An `@Apply` may return all updated or newly created models as one ordered collection. Every element becomes one target
+of the same atomic model commit:
+
+```java
+@Apply
+List<Account> apply(
+        @Association("accountIds") List<Graph<Account>> accounts) {
+    return accounts.stream()
+            .map(Graph::get)
+            .map(this::update)
+            .toList();
+}
+```
+
+`List<Object>` is also supported for a genuinely heterogeneous result; Fluxzero validates each element's `@Model`
+type and identity at runtime. Input/result order is preserved, duplicate persisted identities and null elements fail
+the complete operation, and a collision while creating a new identity never rebases into an overwrite. Stage a
+`Graph.delete()` through the graph/interceptor flow when the same commit must delete a model.
+
+`Graph<T>` is the public context view around a model. A typed `loadGraph` is source-lazy: typed ancestor resolution
+need not load the source value or intermediate parents. A typed `Id` or explicit parent-scoped load also makes `id()`
+available immediately; an alias lookup resolves the source before reporting its true primary ID. `get()` returns the value; `parent()`, `root()`, `children(...)`
+and `descendants(...)` navigate relationships; `previous()`, `atStateIndex(...)` and `playBackToEvent(...)` expose
+history; and `apply(...)`, `assertAndApply(...)` or `delete()` stage model transitions. Graph creation itself performs
+only the same direct model load as `T` injection. Relationship state is loaded lazily when navigation is requested.
+An `@InterceptApply` method may return a graph after `delete()`—including a child found through graph traversal—to
+delete that independent model atomically with the surrounding domain update. The original update remains the one
+stored event shared by every affected model target, and conflict acceptance reapplies the deletion against the fresh
+pinned boundary. Ordinary graph changes remain domain updates rather than opaque graph values.
+Typed ancestor navigation resolves relationship identities first and loads only the selected ancestor value; it does
+not materialize intermediate parent values. `optional()`,
+`map(...)`, `mapIfPresent(...)` and `filterPresent()` provide value/wrapper conveniences without traversing relations;
+`stream()` traverses the complete graph lazily and `find(idOrAlias[, type])` resolves a primary identity or `@Alias`
+without manually enumerating model types or relationship paths. `hasChanged(...)`, `previousValue(...)` and
+`revisions()` cover common before/after and revision use cases. Returning a graph from a handler serializes the model
+tree through explicitly named `@Parent(pathInParent = "...")` edges. Pathless relations remain available for typed traversal
+and lifecycle handling but do not invent a JSON field name. The serializer emits every known named relationship as an
+array, including a stable empty `[]`. `selectPaths(...)` creates a lazy immutable response view containing only selected
+branches and their ancestors without copying model values. `filterNodes(...)` likewise creates a lazy immutable view
+that omits rejected placements while sharing every accepted model value. `filterBranches(...)` is the safer choice for
+tree selection: a matched parent retains its subtree, while a matched leaf automatically retains the ancestors needed
+to serialize its path.
+
+Use `@GraphProperty` for a value that belongs to the serialized graph rather than to one independently stored model:
+
+```java
+@GraphProperty
+BigDecimal total(Graph<Order> graph) {
+    return graph.childModels("lines", OrderLine.class).stream()
+            .map(OrderLine::amount).reduce(ZERO, BigDecimal::add);
+}
+```
+
+The method runs only when a `Graph` is serialized. Its typed `Graph<T>` parameters resolve the current node or an
+ancestor from the graph already in memory, so defining a derived property performs no repository load by itself.
+Graph properties are also added to generated response schemas for `@ApiDocResponse(modelGraph = ...)`; they are never
+added to request schemas. Annotate a graph-property method with `@ApiDoc` to describe it or with `@ApiDocExclude` (or
+`@ApiDoc(exclude = true)`) to keep it out of API documentation without changing serialized responses.
+
+An event or notification handler with only one unqualified `Graph<T>` parameter subscribes to durable changes anywhere
+below that root:
+
+```java
+@HandleEvent
+void organisationChanged(Graph<Organisation> graph) {
+    Graph<Organisation> before = graph.previous();
+}
+```
+
+The SDK resolves affected roots from the exact durable model-commit substep, rather than requiring IDs in the event
+payload. One root is delivered once even when several descendants changed atomically. Creation has no previous graph,
+deletion supplies an empty current graph plus its complete previous graph, and a child move delivers both the old and
+new roots. Ordinary handlers that also declare an event payload keep their existing direct model-injection semantics.
+
+Logical deletion follows model ownership by default. When a parent is finally deleted, every child relation whose
+`@Parent` keeps `deleteOnParentDeletion = true` recursively deletes that child, including pathless relations and
+shared-DAG descendants. Set it to `false` for independently retained children. A child moved away in the same atomic
+commit survives, and an intermediate delete followed by recreation does not trigger the cascade. Physical erasure is
+still a separately planned and confirmed operation.
+
+Annotate a model property with `@Alias` when callers need to load the same independently stored model through an
+alternative identity. `Fluxzero.loadModel(alias)` first tries a primary model ID and then a current alias. The complete
+alias set is replaced atomically with every model transition, aliases must be globally unique across independent
+models, and a primary ID always wins an equal alias.
+
+Automatic model commands in the same tracking batch and ordered routing segment have batch-local read-your-writes.
+A later command evaluates against an earlier staged model change, including changed parent and ancestor relations,
+even if the earlier commit is still in flight. Direct `loadModel`/`loadModels` calls, model injection and current
+`loadGraph` composition use that same batch view, so aliases, creations, deletions and child moves are visible without
+waiting for storage. A graph that moves into a root retains its already durable descendants. Explicit historical
+`loadGraphAt` calls remain fixed to their requested boundary and never include pending state.
+
+Explicit `assertAndApply` operations and stored-event applies started while handling that batch participate in the same
+view. They keep their own commit boundary, but expose their staged output to later messages and wait/re-evaluate when
+they consume an earlier pending value.
+
+Pending reads register a dependency on their producing command. Overlapping commands commit in order: the later
+command waits for the earlier durable outcome and is reevaluated against canonical state before it commits; an
+ordinary handler result that reads pending state is not published before that producer completes. A failed producer
+therefore cannot leave a successful result or dependent model commit based on speculative state. Unrelated model
+chains remain parallel. This is not one transaction across commands; every command retains its own atomic commit and
+result, and no ordering is implied across consumers or routing segments.
+
+For split event/search stores, Fluxzero retains the exact serialized direct-document and snapshot package with the
+authoritative model commit. A retry after SDK or runtime process loss replays that package through monotone
+`stateIndex` fences and never re-evaluates application code. Direct model search therefore remains synchronous with a
+successful command result without claiming a distributed transaction.
+
+See the model-first [developer guides](docs/developer/guides/Modeling%20&%20persistence/170-entity-loading.mdx) for
+multi-model commits, temporal relationships, graph projections, conflict policies and hard deletion.
+
+### Rebuilding Models from published legacy events
+
+A controlled Aggregate-to-Model backfill uses one isolated migration application:
+
+```java
+PublishedEventModelMigration.builder()
+        .name("orders-model-migration-v1")
+        .client(client)
+        .serializer(serializerWithLegacyUpcasters)
+        .modelsInPackage("com.example.orders")
+        .build()
+        .run(args);
+```
+
+Run it without arguments to replay, or as `adopt <cutover-event-index>` for the checked cutover operation. The SDK owns
+the catch-all handler and fixes it to `minIndex = 0`, one synchronous thread, `singleTracker = true` and hard failure.
+Multiple instances with the same stable migration name are therefore safe: one receives the complete globally ordered
+log and the others provide failover. Do not give replicas different migration names.
+
+The listener application can move to Models and Graphs before command ownership changes. Configure its owning
+repository once with the same durable consumer name before enabling handlers that inject Model or Graph state for
+legacy events:
+
+```java
+Fluxzero.get().modelRepository()
+        .followPublishedEventMigration("orders-model-migration-v1");
+```
+
+An already mapped legacy event remains one ordinary Model read without a tracking request. Only a missing mapping
+checks the durable migration position. The read waits while replay is behind, retries the exact event boundary after
+catch-up, and fails clearly if the consumer passed the event without producing the requested Model state. The default
+wait is 30 seconds; an overload accepts a bounded `Duration` so normal consumer retry can take over. The setting may
+remain enabled after catch-up because it is inactive on the mapped fast path.
+
+Fluxzero runs the normal replay phase (`@Apply` on the payload before `@Apply` on the Model), commits with the original
+message ID, links the resulting Model state to the original global event index and does not publish the event again.
+Retrying the same event is idempotent. A later handler for that old event can therefore inject the exact event-sourced
+Model state after the event instead of an unrelated latest value. Legacy `STORE_ONLY` Aggregate events have no global
+index and are outside this backfill source.
+
+The runner builds its own minimal Fluxzero context and registers no ordinary application handlers, automatic Model
+commands or materialized Graph projections during replay. It may share a process with code that already contains the
+new Models, but an old entity and replacement Model with the same fully qualified class name require separate
+classloaders and should normally run as separate applications during backfill.
+
+For a document-backed Model, replayed direct documents remain in an internal staging collection and are invisible to
+ordinary loads, searches, graph composition and monitors. During `adopt`, the runner verifies its durable consumer
+position and delegates the complete catalog to `ModelRepository.adoptModelMigrations()`. The repository drains staging
+in bounded batches, deserializes and upcasts each staged value and any existing production document to the current
+Model type, and adopts only equal values while the observed production document version and staged Model state are
+unchanged. An existing document is left untouched and receives its Model write fence atomically; when no document
+exists, the staged document is copied into its normal collection in that transaction. Fluxzero keeps the accepted
+normalized value in a separate invisible Graph-composition source. New replay staging cannot alter that accepted
+source: if legacy traffic is resumed before the first ordinary Model write, catch up and adopt the newer boundary
+explicitly. The first ordinary Model write atomically removes the source and closes this pre-cutover fallback. After all
+documents are adopted, the repository rebuilds every application-declared materialized Graph projection. Repeating
+adoption returns zero adopted documents and safely resumes those rebuilds. A mismatch or concurrent legacy write fails
+without discarding staging, so the consumer can catch up and retry.
+
+The replay commits are durable Model history and can be read by direct Model/Graph loads. Staging isolation applies to
+direct search documents and the accepted source used for materialized Graph composition. Keep the legacy application
+as the sole business-write owner while the new application first validates shadow Models and then moves read-only
+queries and listeners to Graphs. Legacy listeners moved to the new application must not write back to the old
+Aggregates.
+
+Write cutover remains application-specific and can follow later, per Model type. Stop legacy business writes for that
+ownership boundary before enabling Model commands. Before the first ordinary Model write, traffic may return to the
+unchanged legacy application and a newer legacy boundary can be caught up and re-adopted. Make the final switch only
+after catch-up, exact state and Graph comparisons, converted listener traffic and representative performance tests all
+report `GO`. From the first ordinary Model write onward the supported route is forward recovery, not rollback. Durable
+Model commit history remains available for replay, repair and an application-specific emergency projection back into
+legacy state, but such a reverse projection is not a generic migration guarantee. Do not treat changing `@Aggregate`
+to `@Model` as a persistence migration.
+
+## Legacy aggregate API (existing Fluxzero 1.x applications only)
+
+The following section documents the shared-root API for applications that already persist aggregate streams. Do not
+introduce it in new code. `@Model` plus `@Member` covers the intentional single-stream case; the aggregate API is
+scheduled for Java deprecation in Fluxzero 2.0. Migrating an existing aggregate requires a deliberate persistence
+migration and is not an annotation-only refactor. Do not copy an old aggregate's embedded shape into new Models: first
+re-evaluate every nested value by lifecycle and promote independently living children to `@Model` plus `@Parent`.
+
+### Defining a legacy aggregate
 
 To define a stateful domain object, annotate it with `@Aggregate`:
 
@@ -3372,8 +3882,8 @@ data integrity and simplifying update logic.
 - A **new update object** → rewrites the update
 - A **Collection**, `Stream`, or `Optional` → emits zero or more new updates
 
-> 📌 You typically don’t need to intercept just to avoid storing no-ops. Instead, annotate the `@Aggregate` or `@Apply`
-> method with `eventPublication = IF_MODIFIED` to avoid persisting unchanged state.
+> 📌 You typically don’t need to intercept just to avoid storing no-ops. `@Model` already defaults to
+> `eventPublication = IF_MODIFIED`. For legacy aggregates, annotate the `@Aggregate` or `@Apply` explicitly.
 
 ---
 
@@ -3467,7 +3977,7 @@ Just keep in mind: logic that lives in updates is **easier to test, extend, and 
 
 ---
 
-## Applying Updates to Entities
+### Applying updates through the legacy aggregate API
 
 To change the state of an entity, use `Fluxzero.loadAggregate(...)` to retrieve the aggregate and apply updates to
 it.
@@ -3505,7 +4015,7 @@ This style is recommended if you want to ensure validations happen before the en
 
 ---
 
-## Nested Entities
+### Nested entities in a legacy aggregate
 
 Fluxzero allows aggregates to contain nested entities — for example, users with authorizations or orders with line
 items. These nested entities can be added, updated, or removed using the same `@Apply` pattern used for root aggregates.
@@ -3532,7 +4042,11 @@ public record Authorization(@EntityId AuthorizationId authorizationId,
 }
 ```
 
-### Adding a Child Entity
+This describes an existing legacy persistence boundary. For new state, an authorization or other child that can be
+created, changed, retained, audited, or deleted independently should be a separate `@Model` with `@Parent`; its
+convenient placement in a collection is not a reason to embed it.
+
+#### Adding a Child Entity
 
 To add a nested entity like `Authorization`, simply return a new instance from the `@Apply` method:
 
@@ -3550,7 +4064,7 @@ public record AuthorizeUser(AuthorizationId authorizationId,
 
 The `UserAccount` aggregate is automatically updated to include this new child entity.
 
-### Removing a Child Entity
+#### Removing a Child Entity
 
 To remove a nested entity, return `null` from the `@Apply` method:
 
@@ -3585,7 +4099,7 @@ Flux will automatically prune the child entity with the given `authorizationId`.
 
 ---
 
-### Loading Entities and Aggregates
+#### Loading Entities and Aggregates
 
 Fluxzero supports a flexible and powerful approach to loading aggregates and their internal entities using
 `Fluxzero.loadAggregateFor(...)` and `Fluxzero.loadEntity(...)`.
@@ -3677,7 +4191,7 @@ Behavior:
 
 > Use `loadAggregateFor(entityId, Class<T>)` when you need type safety or to avoid relying on inference.
 
-### Alternative Entity Identifiers
+#### Alternative Entity Identifiers
 
 Fluxzero supports alternative ways to reference an entity using the `@Alias` annotation. This is especially useful
 when:
@@ -3747,7 +4261,7 @@ Entity<UserAccount> entity = Fluxzero
 
 ---
 
-### 💡 Tip: Use `@Alias` on Strongly-Typed `Id<T>` Identifiers
+#### 💡 Tip: Use `@Alias` on Strongly-Typed `Id<T>` Identifiers
 
 While `@Alias` can be applied to any field or property, it's often more convenient and robust to use it on a
 strongly-typed identifier that extends `Id<T>`:
@@ -3776,7 +4290,7 @@ Entity<UserAccount> account = Fluxzero
 
 This makes aliasing more explicit and reusable—particularly useful in larger applications.
 
-### Routing Behavior
+#### Routing Behavior
 
 Flux automatically routes child-targeted updates like `AuthorizeUser` and `RevokeAuthorization` to the correct nested
 entity using the `@EntityId`. You don’t need to write custom matching logic — the routing works transparently as long
@@ -3785,7 +4299,7 @@ as:
 - The root aggregate is loaded (e.g. using `loadAggregate(userId)`), and
 - The update contains enough identifying information to locate the nested entity
 
-### Summary
+#### Summary
 
 This model leads to extremely clean domain logic:
 
@@ -3795,7 +4309,7 @@ This model leads to extremely clean domain logic:
 
 ---
 
-## Model Persistence
+### Persistence through the legacy aggregate API
 
 Fluxzero supports multiple strategies for storing and reloading aggregates:
 
@@ -3808,7 +4322,7 @@ each aggregate individually.
 
 ---
 
-### Event Sourcing
+#### Event Sourcing
 
 Event-sourced aggregates are reconstructed from their event history. When you load an aggregate
 (e.g. via `loadAggregate(...)`, `loadEntity(...)`, or `loadAggregateFor(...)`), Flux uses the following strategy to
@@ -3816,7 +4330,7 @@ restore its current state:
 
 ---
 
-### 1️⃣ Loading an Aggregate
+#### 1️⃣ Loading an Aggregate
 
 Fluxzero will attempt to resolve the **current state** of the aggregate or entity as follows:
 
@@ -3835,7 +4349,7 @@ graph.
 
 ---
 
-### 2️⃣ Applying Updates and Committing Changes
+#### 2️⃣ Applying Updates and Committing Changes
 
 Once an aggregate has been loaded, you can apply updates, e.g.: using `Entity#apply(...)`. Each update follows this
 lifecycle:
@@ -3878,7 +4392,7 @@ public record UserAccount(@EntityId UserId userId,
 }
 ```
 
-### Document Storage
+#### Document Storage
 
 Fluxzero also supports storing aggregates as documents in a searchable document store. This is useful for:
 
@@ -3916,7 +4430,7 @@ with **inconsistent state** between application instances.
 
 ---
 
-### Dual Persistence
+#### Dual Persistence
 
 You can combine both strategies by enabling both `eventSourced = true` and `searchable = true`.
 
@@ -3937,7 +4451,7 @@ This hybrid approach is ideal when you need both traceability and query speed.
 
 ---
 
-### Caching and Checkpoints
+#### Caching and Checkpoints
 
 Fluxzero automatically caches aggregates after loading or applying updates (unless `cached = false`). This allows:
 
@@ -3998,7 +4512,7 @@ In this example:
 
 ## Stateful Handlers
 
-While aggregates represent domain entities, Flux also supports long-lived **stateful handlers** for modeling workflows,
+While models represent domain entities, Flux also supports long-lived **stateful handlers** for modeling workflows,
 external interactions, or background processes that span multiple messages.
 
 To declare a stateful handler, annotate a class with `@Stateful`:
@@ -4145,7 +4659,7 @@ Stateful handlers are ideal for:
 - External **API orchestrations**
 - **Process managers** (e.g., order fulfillment, payment retry, etc.)
 
-They complement aggregates without competing with them — and allow modeling temporal behavior in a clean, event-driven
+They complement models without competing with them — and allow modeling temporal behavior in a clean, event-driven
 way.
 
 ---
@@ -4214,9 +4728,9 @@ documentStore.bulkUpdate("customCollection")
 
 ### Searchable Domain Models
 
-Many models in Flux (e.g. aggregates or stateful handlers) are automatically indexable:
+Many domain objects in Flux (e.g. models or stateful handlers) are automatically indexable:
 
-- `@Aggregate(searchable = true)`
+- `@Model(searchable = true)`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
@@ -4225,7 +4739,7 @@ manually.
 
 ```java
 
-@Aggregate(searchable = true)
+@Model(searchable = true)
 public record UserAccount(@EntityId UserId userId,
                           UserProfile profile,
                           boolean accountClosed) {
@@ -4233,11 +4747,14 @@ public record UserAccount(@EntityId UserId userId,
 ```
 
 By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
-unless explicitly overridden via an annotation like `@Aggregate`, `@Stateful` or `@Searchable` or in the search/index
-call:
+unless explicitly overridden through `Model.searchProjection`, `@Stateful`, `@Searchable` or in the search/index call:
 
 ```java
-@Aggregate(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+@Model(
+        searchable = true,
+        searchProjection = @Searchable(
+                collection = "users",
+                timestampPath = "profile/createdAt"))
 ```
 
 ---
@@ -4263,6 +4780,11 @@ List<UserAccount> users = Fluxzero
         .match("Netherlands", "profile.country")
         .fetchAll();
 ```
+
+Class-based searches retain their result type throughout the fluent chain. For a dynamic collection name, either let
+the assignment provide that type as in the first example or make it explicit at the entry point with
+`Fluxzero.<UserAccount>search("users")`. Explicit `Class<T>` terminal overloads remain available when one search can
+contain heterogeneous document types.
 
 > **Note:** You can choose to split path segments using either a dot (`.`) or a slash (`/`).  
 > For example, `profile.name` and `profile/name` are treated identically.  
@@ -4590,7 +5112,7 @@ Fluxzero.search("expiredTokens")
 
 - Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
-- Use `@Aggregate(searchable = true)` or `@Stateful` for automatic indexing.
+- Use `@Model(searchable = true)` or `@Stateful` for automatic indexing.
 - Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 
 ---
@@ -4671,6 +5193,7 @@ You can subscribe to a document collection using any of the following styles:
 
 - `@HandleDocument` — infers the collection from the **first parameter** of the handler method; this is the preferred style when the document is the first parameter
 - `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the model’s `@Searchable` annotation when the document type cannot be inferred from the first parameter
+- `@HandleDocument(modelGraph = MyModel.class)` — subscribes to the model's enabled materialized graph projection and can inject a typed lazy `Graph<MyModel>`, including its derived or explicitly configured graph collection. Returning that complete Graph persists node-by-node serializer upcasting only into the derived projection, using an atomic manifest comparison so a delayed handler cannot overwrite newer state; direct Models and relationships remain authoritative and unchanged. Returning an already-current Graph is a no-op. Deleting the root delivers an observational typed empty graph that retains its identity and boundary; `previous()` returns the complete last graph. Ordinary document handlers for the same collection do not receive this deletion record.
 - `@HandleDocument("myCollection")` — binds directly to the named collection
 
 ---
@@ -4847,12 +5370,15 @@ class CreateUserUpcaster {
 This method is applied before deserialization. The object is transformed as needed so your code always receives the
 current version.
 
-To also modify the **type name**, return a `Data<ObjectNode>`:
+To modify the **type name**, or the type and JSON together, return a `Data<ObjectNode>`. The envelope is the preferred
+owner for this evolution; a separate typecaster is not required:
 
 ```java
 
 @Upcast(type = "com.example.CreateUser", revision = 0)
 Data<ObjectNode> renameType(Data<ObjectNode> data) {
+    ObjectNode json = data.getValue();
+    json.set("userId", json.remove("id"));
     return data.withType("com.example.RegisterUser");
 }
 ```
@@ -4995,7 +5521,8 @@ All casting occurs **in your application**, not in the Fluxzero Runtime. Stored 
 ### Best Practices
 
 - Use `@Revision` to version any payloads that are stored or transmitted
-- Use `ObjectNode` for simple structural changes, or `Data<ObjectNode>` to modify metadata
+- Use `ObjectNode` for structural changes, or `Data<ObjectNode>` when the serialized type, revision and content evolve
+  together; use a `Metadata` parameter/result specifically for message metadata
 - Chain upcasters one revision at a time (`v0 → v1`, `v1 → v2`, etc.)
 - Ensure upcasters are **side-effect free** and **deterministic**
 
@@ -5039,6 +5566,10 @@ If a nested object returns `null` from filtering:
 
 - It is **removed from a list**
 - It is **excluded from a map**
+
+For a `Graph<T>`, filtering is applied independently to every typed model placement. A filter method may inject the
+current `Graph<T>` and any typed parent or root graph for context; the already loaded graph is reused and accepted
+model values are not copied.
 
 ### Root Context Injection
 
@@ -5165,20 +5696,22 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
+| `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
 | `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 
 For example:
 
 ```properties
-fluxzero.defaults.version=2026.05.21
+fluxzero.defaults.version=2026.08.26
 ```
 
-This enables both the per-handler consumer default and the newer periodic initial-delay default. To choose one behavior
-explicitly without changing the defaults version, set the dedicated property directly. Existing applications that omit
-`fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the application default consumer,
-implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run, user metadata contains serialized users,
-and native outbound requests allow normal JDK redirects.
+This enables package-scoped consumer defaults, natural periodic initial delays, user-ID metadata and same-origin
+redirects plus all earlier versioned defaults. To choose one behavior explicitly without changing the defaults version,
+set the dedicated property directly. Existing applications that omit `fluxzero.defaults.version` keep compatibility
+behavior: unconfigured handlers share the application default consumer, implicit
+`@Periodic(initialDelay = -1)` is treated as an immediate first run, user metadata contains serialized users, and
+native outbound requests allow normal JDK redirects.
 
 ### Encrypted Values
 
@@ -5519,7 +6052,7 @@ public class MyCustomizer implements FluxzeroCustomizer {
 #### Consumer and Tracking Configuration
 
 - `configureDefaultConsumer(MessageType, UnaryOperator<ConsumerConfiguration>)` to adjust the default consumer template
-  per message type. In `perHandler` mode this template is copied for generated handler consumers; in
+  per message type. In `perPackage` and `perHandler` modes this template is copied for generated consumers; in
   `defaultAppConsumer` mode it is the shared fallback consumer.
 - `addConsumerConfiguration(...)` to register additional consumers for selected message types.
 - `forwardWebRequestsToLocalServer(...)` to redirect incoming `@HandleWeb` calls to an existing local HTTP
@@ -5543,7 +6076,8 @@ public class MyCustomizer implements FluxzeroCustomizer {
 
 #### Caching and Snapshotting
 
-- `replaceCache(...)` and `withAggregateCache(...)` to plug in custom caching backends.
+- `replaceCache(...)` to plug in a custom cache backend. `withAggregateCache(...)` configures only the legacy 1.x
+  aggregate cache.
 - `replaceRelationshipsCache(...)` for customizing the cache used in association-based message routing.
 - `replaceSnapshotSerializer(...)` if you want to store snapshots differently from events.
 
@@ -5583,12 +6117,16 @@ These methods disable internal features as needed:
 | `disableMessageCorrelation()`        | Skips automatic correlation metadata, including application version |
 | `disablePayloadValidation()`         | Turns off payload type validation                                  |
 | `disableDataProtection()`            | Disables `@ProtectData` and `@DropProtectedData` filtering         |
-| `disableAutomaticAggregateCaching()` | Skips aggregate cache setup                                        |
+| `disableAutomaticAggregateCaching()` | Legacy 1.x: skips aggregate cache setup                            |
+| `disableAutomaticModelCaching()`     | Disables independent-model cache storage and update tracking       |
 | `disableScheduledCommandHandler()`   | Removes default handler for scheduled commands                     |
 | `disableTrackingMetrics()`           | Prevents emitting metrics during message tracking                  |
 | `disableCacheEvictionMetrics()`      | Disables cache eviction telemetry                                  |
 | `disableWebResponseCompression()`    | Prevents gzip compression for web responses                        |
 | `disableAdhocDispatchInterceptor()`  | Disallows use of `AdhocDispatchInterceptor.runWith...()` utilities |
+
+Use `withModelCache(cache)` to configure an independent cache for model state without changing aggregate or
+relationship caching.
 
 ---
 
@@ -5649,7 +6187,7 @@ Fluxzero exposes several core components as Spring beans, making them easy to in
 | `ErrorGateway`         | Report errors manually                                        |
 | `ResultGateway`        | Manually publish results from asynchronous flows              |
 | `MessageScheduler`     | Schedule commands or other messages in the future             |
-| `AggregateRepository`  | Load and store aggregates                                     |
+| `AggregateRepository`  | Legacy 1.x aggregate persistence compatibility                |
 | `DocumentStore`        | Search, filter, and persist document models                   |
 | `KeyValueStore`        | Access key-value persisted state                              |
 
@@ -5906,6 +6444,17 @@ This simulates the entire platform in-memory without external dependencies.
 --- 
 
 ## Compatibility and Dependencies
+
+### SDK and Runtime versions
+
+A newer Runtime continues to support released workflows from older SDKs. A newer SDK also continues to work with an
+older Runtime while the application uses only requests that Runtime understands. New Model capabilities that require a
+new protocol operation do not silently fall back: an older Runtime returns an explicit unsupported failure at the first
+such request. Upgrade the Runtime before enabling those capabilities. Applications that do not use them can upgrade
+SDK and Runtime independently within their supported release ranges.
+
+Upcasting always runs in the application SDK, not in the Runtime. Runtime upgrades therefore do not execute or replace
+application upcasters.
 
 ### Java Version
 

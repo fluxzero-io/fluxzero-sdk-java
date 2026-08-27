@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.tracking.handling;
 
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -90,6 +91,20 @@ public interface HandlerRegistry extends HasLocalHandlers {
     Optional<CompletableFuture<Object>> handle(DeserializingMessage message);
 
     /**
+     * Conservatively reports whether local handling can be skipped without first materializing a message.
+     *
+     * <p>Custom registries default to {@code false}. Returning {@code true} is an explicit promise that invoking this
+     * registry cannot produce a local result for the supplied message shape.</p>
+     *
+     * @param messageType the message type
+     * @param payloadType the runtime payload type
+     * @return {@code true} only when local handling can safely be skipped
+     */
+    default boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+        return false;
+    }
+
+    /**
      * Attempts to handle the message locally while preserving a synchronously returned value as a direct value.
      *
      * <p>The default adapts {@link #handle(DeserializingMessage)} and therefore represents a handled result as a
@@ -99,7 +114,10 @@ public interface HandlerRegistry extends HasLocalHandlers {
      * @return the local handling result, including an explicit not-handled result when no handler matches
      */
     default LocalHandlerResult handleResult(DeserializingMessage message) {
-        return handle(message).map(LocalHandlerResult::asynchronous).orElseGet(LocalHandlerResult::notHandled);
+        return handle(message).map(result -> LocalHandlerResult.asynchronous(
+                        result.thenCompose(value -> Invocation.resultPublicationBarrier(message)
+                                .thenApply(ignored -> value))))
+                .orElseGet(LocalHandlerResult::notHandled);
     }
 
     /**
@@ -165,6 +183,12 @@ public interface HandlerRegistry extends HasLocalHandlers {
             public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
                 return first.handle(message).or(() -> second.handle(message));
             }
+
+            @Override
+            public boolean handleLocal(LocalExecution execution) {
+                return first.handleLocal(execution)
+                       || second.handleLocal(execution);
+            }
         };
     }
 
@@ -188,6 +212,12 @@ public interface HandlerRegistry extends HasLocalHandlers {
         @Override
         public boolean canHandle(DeserializingMessage message) {
             return first.canHandle(message) || second.canHandle(message);
+        }
+
+        @Override
+        public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+            return first.canSkipLocalHandling(messageType, payloadType)
+                   && second.canSkipLocalHandling(messageType, payloadType);
         }
 
         @Override
@@ -226,6 +256,11 @@ public interface HandlerRegistry extends HasLocalHandlers {
         @Override
         public boolean hasLocalHandlers() {
             return false;
+        }
+
+        @Override
+        public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
+            return true;
         }
 
         @Override

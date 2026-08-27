@@ -18,6 +18,7 @@ package io.fluxzero.sdk.publishing;
 import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.jfr.FluxzeroJfr;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.HasMessage;
@@ -40,7 +41,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,6 +61,11 @@ import static java.util.stream.Stream.ofNullable;
 
 @Slf4j
 public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> implements GenericGateway {
+    private static final int PARALLEL_SERIALIZATION_THRESHOLD = Math.max(
+            2, Integer.getInteger("fluxzero.parallelSerializationThreshold", 256));
+    private static final int SERIALIZATION_CHUNK_SIZE = Math.max(
+            PARALLEL_SERIALIZATION_THRESHOLD,
+            Integer.getInteger("fluxzero.serializationChunkSize", 8_192));
     @Getter(AccessLevel.PRIVATE)
     private final Client client;
     private final GatewayClient gatewayClient;
@@ -121,6 +126,9 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     @Override
     public CompletableFuture<Void> sendAndForget(Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
                                                  Message... messages) {
+        if (messages.length >= PARALLEL_SERIALIZATION_THRESHOLD) {
+            return sendAndForgetParallel(guarantee, interceptor, messages);
+        }
         List<SerializedMessage> serializedMessages = new ArrayList<>();
         for (Message message : messages) {
             message = dispatchInterceptor.interceptDispatch(message, messageType, topic, namespace);
@@ -128,7 +136,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 continue;
             }
             dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
-            Optional<CompletableFuture<Object>> localResult = localHandlerRegistry.handle(localMessage(message));
+            Optional<CompletableFuture<Object>> localResult = canSkipLocalHandling(message)
+                    ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
             if (localResult.isEmpty()) {
                 SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
                         message.serialize(serializer), message, messageType, topic);
@@ -162,13 +171,170 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return CompletableFuture.completedFuture(null);
     }
 
+    private CompletableFuture<Void> sendAndForgetParallel(
+            Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor, Message[] messages) {
+        if (messages.length > SERIALIZATION_CHUNK_SIZE) {
+            List<CompletableFuture<Void>> chunks = new ArrayList<>(
+                    Math.ceilDiv(messages.length, SERIALIZATION_CHUNK_SIZE));
+            for (int offset = 0; offset < messages.length; offset += SERIALIZATION_CHUNK_SIZE) {
+                chunks.add(sendAndForgetParallel(
+                        guarantee, interceptor,
+                        messages, offset,
+                        Math.min(messages.length, offset + SERIALIZATION_CHUNK_SIZE)));
+            }
+            return CompletableFuture.allOf(chunks.toArray(CompletableFuture[]::new));
+        }
+        return sendAndForgetParallel(guarantee, interceptor, messages, 0, messages.length);
+    }
+
+    private CompletableFuture<Void> sendAndForgetParallel(
+            Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
+            Message[] messages, int from, int until) {
+        List<Message> externalMessages = new ArrayList<>(until - from);
+        for (int index = from; index < until; index++) {
+            Message candidate = messages[index];
+            Message message = dispatchInterceptor.interceptDispatch(candidate, messageType, topic, namespace);
+            if (message == null) {
+                continue;
+            }
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
+            Optional<CompletableFuture<Object>> localResult = canSkipLocalHandling(message)
+                    ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
+            if (localResult.isEmpty()) {
+                externalMessages.add(message);
+            } else if (localResult.get().isCompletedExceptionally()) {
+                try {
+                    localResult.get().getNow(null);
+                } catch (CompletionException e) {
+                    log.error("Handler failed to handle a {}", message.getPayloadClass().getSimpleName(), e.getCause());
+                }
+            }
+        }
+        FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
+                "sdk.command-gateway", "serialize", messageType.name(),
+                externalMessages.size(), 0L, 0L, 0L);
+        List<SerializedMessage> serializedMessages;
+        try {
+            serializedMessages = serializeMessages(externalMessages);
+            FluxzeroJfr.finish(serializationEvent, null);
+        } catch (RuntimeException | Error failure) {
+            FluxzeroJfr.finish(serializationEvent, failure);
+            throw failure;
+        }
+        SerializedMessage[] finalMessages = new SerializedMessage[serializedMessages.size()];
+        int resultSize = 0;
+        for (int i = 0; i < serializedMessages.size(); i++) {
+            Message message = externalMessages.get(i);
+            SerializedMessage serialized = dispatchInterceptor.modifySerializedMessage(
+                    serializedMessages.get(i), message, messageType, topic);
+            if (serialized != null) {
+                serialized = interceptor.apply(serialized);
+                if (serialized != null) {
+                    finalMessages[resultSize++] = serialized;
+                }
+            }
+        }
+        if (resultSize == 0) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return AsyncCompletionScope.register(gatewayClient.append(
+                guarantee, resultSize == finalMessages.length
+                        ? finalMessages : java.util.Arrays.copyOf(finalMessages, resultSize)));
+    }
+
     @Override
     public List<CompletableFuture<Message>> sendForMessages(Message... messages) {
+        if (messages.length >= PARALLEL_SERIALIZATION_THRESHOLD) {
+            if (messages.length > SERIALIZATION_CHUNK_SIZE) {
+                List<CompletableFuture<Message>> results = new ArrayList<>(messages.length);
+                for (int offset = 0; offset < messages.length; offset += SERIALIZATION_CHUNK_SIZE) {
+                    Message[] chunk = java.util.Arrays.copyOfRange(
+                            messages, offset,
+                            Math.min(messages.length, offset + SERIALIZATION_CHUNK_SIZE));
+                    results.addAll(completeRequests(prepareRequests(chunk)));
+                }
+                return results;
+            }
+            return completeRequests(prepareRequests(messages));
+        }
         List<PendingRequest> requests = new ArrayList<>(messages.length);
         for (Message message : messages) {
             requests.add(prepareRequest(message, requestTimeout(message).orElse(null)));
         }
         return completeRequests(requests);
+    }
+
+    private List<PendingRequest> prepareRequests(Message[] messages) {
+        PendingRequest[] requests = new PendingRequest[messages.length];
+        List<Message> externalMessages = new ArrayList<>(messages.length);
+        int[] externalIndices = new int[messages.length];
+        Duration[] externalTimeouts = new Duration[messages.length];
+        int externalSize = 0;
+        for (int i = 0; i < messages.length; i++) {
+            Message original = messages[i];
+            Duration timeout = requestTimeout(original).orElse(null);
+            Message message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
+            if (message == null) {
+                requests[i] = PendingRequest.completed(emptyReturnMessage());
+                continue;
+            }
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+            LocalHandlerResult localResult = handleLocally(message);
+            if (localResult.isHandled()) {
+                requests[i] = prepareLocalRequest(message, localResult.asFuture(), timeout);
+            } else {
+                externalIndices[externalSize++] = i;
+                externalTimeouts[i] = timeout;
+                externalMessages.add(message);
+            }
+        }
+        FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
+                "sdk.command-gateway", "serialize", messageType.name(),
+                externalMessages.size(), 0L, 0L, 0L);
+        List<SerializedMessage> serializedMessages;
+        try {
+            serializedMessages = serializeMessages(externalMessages);
+            FluxzeroJfr.finish(serializationEvent, null);
+        } catch (RuntimeException | Error failure) {
+            FluxzeroJfr.finish(serializationEvent, failure);
+            throw failure;
+        }
+        for (int i = 0; i < externalSize; i++) {
+            int requestIndex = externalIndices[i];
+            Message message = externalMessages.get(i);
+            SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
+                    serializedMessages.get(i), message, messageType, topic);
+            requests[requestIndex] = serializedMessage == null
+                    ? PendingRequest.completed(emptyReturnMessage())
+                    : PendingRequest.external(serializedMessage, externalTimeouts[requestIndex]);
+        }
+        return java.util.Arrays.asList(requests);
+    }
+
+    private List<SerializedMessage> serializeMessages(List<Message> messages) {
+        if (messages.size() < PARALLEL_SERIALIZATION_THRESHOLD) {
+            return messages.stream().map(message -> message.serialize(serializer)).toList();
+        }
+        SerializedMessage[] result = new SerializedMessage[messages.size()];
+        int workers = Math.min(
+                Runtime.getRuntime().availableProcessors(),
+                Math.ceilDiv(messages.size(),
+                             PARALLEL_SERIALIZATION_THRESHOLD));
+        int chunkSize = Math.ceilDiv(messages.size(), workers);
+        CompletableFuture<?>[] tasks = new CompletableFuture<?>[workers];
+        for (int worker = 0; worker < workers; worker++) {
+            int from = worker * chunkSize;
+            int until = Math.min(
+                    messages.size(), from + chunkSize);
+            tasks[worker] = CompletableFuture.runAsync(() -> {
+                for (int index = from; index < until; index++) {
+                    result[index] = messages.get(index)
+                            .serialize(serializer);
+                }
+            });
+        }
+        CompletableFuture.allOf(tasks).join();
+        return java.util.Arrays.asList(result);
     }
 
     @Override
@@ -283,7 +449,12 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private LocalHandlerResult handleLocally(Message message) {
-        return localHandlerRegistry.handleResult(localMessage(message));
+        return canSkipLocalHandling(message)
+                ? LocalHandlerResult.notHandled() : localHandlerRegistry.handleResult(localMessage(message));
+    }
+
+    private boolean canSkipLocalHandling(Message message) {
+        return localHandlerRegistry.canSkipLocalHandling(messageType, message.getPayloadClass());
     }
 
     private DeserializingMessage localMessage(Message message) {
@@ -301,19 +472,24 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     private List<CompletableFuture<Message>> completeRequests(List<PendingRequest> requests) {
         List<PendingRequest> externalRequests = new ArrayList<>();
+        boolean allExternal = true;
         for (PendingRequest request : requests) {
             if (request.isExternal()) {
                 externalRequests.add(request);
+            } else {
+                allExternal = false;
             }
         }
-        Map<SerializedMessage, CompletableFuture<Message>> externalResults = new IdentityHashMap<>();
         List<CompletableFuture<Message>> sentRequests = sendRequests(externalRequests);
-        for (int i = 0; i < externalRequests.size(); i++) {
-            externalResults.put(externalRequests.get(i).serializedMessage(), sentRequests.get(i));
-        }
-        List<CompletableFuture<Message>> results = new ArrayList<>(requests.size());
-        for (PendingRequest request : requests) {
-            results.add(request.isExternal() ? externalResults.get(request.serializedMessage()) : request.result());
+        List<CompletableFuture<Message>> results;
+        if (allExternal) {
+            results = sentRequests;
+        } else {
+            results = new ArrayList<>(requests.size());
+            int externalIndex = 0;
+            for (PendingRequest request : requests) {
+                results.add(request.isExternal() ? sentRequests.get(externalIndex++) : request.result());
+            }
         }
         return results;
     }
@@ -330,13 +506,33 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (requests.isEmpty()) {
             return List.of();
         }
-        Map<SerializedMessage, Duration> requestTimeouts = new IdentityHashMap<>();
         List<SerializedMessage> serializedMessages = new ArrayList<>(requests.size());
-        for (PendingRequest request : requests) {
+        Duration firstTimeout = requests.getFirst().timeout();
+        boolean sameTimeout = true;
+        for (int i = 0; i < requests.size(); i++) {
+            PendingRequest request = requests.get(i);
             serializedMessages.add(request.serializedMessage());
-            requestTimeouts.put(request.serializedMessage(), request.timeout());
+            if (i > 0 && !Objects.equals(firstTimeout, request.timeout())) {
+                sameTimeout = false;
+            }
         }
-        List<CompletableFuture<SerializedMessage>> results = sendRequests(serializedMessages, requestTimeouts);
+        List<CompletableFuture<SerializedMessage>> results;
+        if (sameTimeout) {
+            results = firstTimeout == null ? requestHandler.sendRequests(
+                    serializedMessages, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)))
+                    : requestHandler.sendRequests(
+                            serializedMessages, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)),
+                            firstTimeout);
+        } else {
+            results = new ArrayList<>(requests.size());
+            for (PendingRequest request : requests) {
+                Duration timeout = request.timeout();
+                results.add(timeout == null ? requestHandler.sendRequest(
+                        request.serializedMessage(), m -> gatewayClient.append(SENT, m))
+                                    : requestHandler.sendRequest(
+                                            request.serializedMessage(), m -> gatewayClient.append(SENT, m), timeout));
+            }
+        }
         List<CompletableFuture<Message>> mappedResults = new ArrayList<>(results.size());
         for (int i = 0; i < results.size(); i++) {
             SerializedMessage request = serializedMessages.get(i);
@@ -344,25 +540,6 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     request.getMessageId(), results.get(i).thenCompose(this::deserializeResponse)));
         }
         return mappedResults;
-    }
-
-    private List<CompletableFuture<SerializedMessage>> sendRequests(List<SerializedMessage> requests,
-                                                                    Map<SerializedMessage, Duration> timeouts) {
-        Duration firstTimeout = timeouts.get(requests.getFirst());
-        boolean sameTimeout = requests.stream().allMatch(r -> Objects.equals(firstTimeout, timeouts.get(r)));
-        if (sameTimeout) {
-            return firstTimeout == null ? requestHandler.sendRequests(
-                    requests, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)))
-                    : requestHandler.sendRequests(
-                            requests, m -> gatewayClient.append(SENT, m.toArray(SerializedMessage[]::new)),
-                            firstTimeout);
-        }
-        return requests.stream().map(request -> {
-            Duration timeout = timeouts.get(request);
-            return timeout == null ? requestHandler.sendRequest(
-                    request, m -> gatewayClient.append(SENT, m))
-                    : requestHandler.sendRequest(request, m -> gatewayClient.append(SENT, m), timeout);
-        }).toList();
     }
 
     private Optional<Duration> requestTimeout(Message message) {
@@ -407,7 +584,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
 
     private CompletableFuture<Message> trackCallback(String messageId, CompletableFuture<Message> future) {
         callbacks.put(messageId, future);
-        return future.whenComplete((m, e) -> callbacks.remove(messageId));
+        return future.whenComplete((message, failure) -> callbacks.remove(messageId));
     }
 
     @Override

@@ -16,7 +16,23 @@ package io.fluxzero.common;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BacklogTest {
 
@@ -26,5 +42,228 @@ class BacklogTest {
         assertEquals(16, Backlog.initialBatchCapacity(512));
         assertEquals(16, Backlog.initialBatchCapacity(1024));
         assertEquals(16, Backlog.initialBatchCapacity(Integer.MAX_VALUE));
+    }
+
+    @Test
+    void boundsSequentialBatchesByCountAndWeight() {
+        List<List<String>> batches = new ArrayList<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            batches.add(List.copyOf(batch));
+            return CompletableFuture.completedFuture(null);
+        }, 3, String::length, 5L, 1);
+
+        subject.add(List.of("aa", "bbb", "123456", "c", "dd", "e")).join();
+        subject.shutDown();
+
+        assertEquals(
+                List.of(List.of("aa", "bbb"), List.of("123456"), List.of("c", "dd", "e")),
+                batches);
+    }
+
+    @Test
+    void invalidWeightFailsTheItemWithoutStoppingTheBacklog() {
+        Backlog<String> subject = Backlog.forAsyncConsumer(
+                batch -> CompletableFuture.completedFuture(null),
+                3, value -> value.equals("invalid") ? -1L : value.length(), 5L, 1);
+
+        assertThrows(Exception.class, () -> subject.add("invalid").join());
+        subject.add("valid").join();
+        subject.shutDown();
+    }
+
+    @Test
+    void collectionDelayMicroBatchesItemsThatArriveAfterAnIdleStart() {
+        List<List<String>> batches = new ArrayList<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            batches.add(List.copyOf(batch));
+            return CompletableFuture.completedFuture(null);
+        }, 10, String::length, 100L, 1, Duration.ofMillis(100));
+
+        CompletableFuture<Void> first = subject.add("first");
+        CompletableFuture<Void> second = subject.add("second");
+        CompletableFuture.allOf(first, second).join();
+        subject.shutDown();
+
+        assertEquals(List.of(List.of("first", "second")), batches);
+    }
+
+    @Test
+    void rejectsNegativeCollectionDelay() {
+        assertThrows(IllegalArgumentException.class, () ->
+                Backlog.forAsyncConsumer(
+                        batch -> CompletableFuture.completedFuture(null),
+                        10, String::length, 100L, 1, Duration.ofNanos(-1)));
+    }
+
+    @Test
+    void untrackedBatchLeavesCompletionOwnershipWithConsumerAndKeepsDraining() {
+        List<List<String>> batches = new ArrayList<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            batches.add(List.copyOf(batch));
+            return batch.contains("fail")
+                    ? CompletableFuture.failedFuture(new IllegalStateException("expected"))
+                    : CompletableFuture.completedFuture(null);
+        }, 2, String::length, 100L, 1);
+
+        subject.addAllUntracked(List.of("fail", "untracked"));
+        subject.add("tracked").join();
+        subject.shutDown();
+
+        assertEquals(
+                List.of(List.of("fail", "untracked"), List.of("tracked")),
+                batches);
+    }
+
+    @Test
+    void boundsInFlightBatchesAndRefillsEachAvailableSlot() throws Exception {
+        BlockingQueue<BatchGate> admitted = new LinkedBlockingQueue<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            BatchGate gate = new BatchGate(batch.getFirst(), new CompletableFuture<>());
+            admitted.add(gate);
+            return gate.completion();
+        }, 1, 2);
+
+        CompletableFuture<Void> result = subject.add(List.of("one", "two", "three", "four"));
+        BatchGate first = awaitBatch(admitted);
+        BatchGate second = awaitBatch(admitted);
+        assertEquals(List.of("one", "two"), List.of(first.value(), second.value()));
+        assertTrue(admitted.isEmpty(), "A third batch was admitted before a consumer slot completed");
+        assertFalse(result.isDone());
+
+        second.completion().complete(null);
+        BatchGate third = awaitBatch(admitted);
+        assertEquals("three", third.value());
+        assertTrue(admitted.isEmpty(), "The remaining occupied slot was not respected");
+
+        third.completion().complete(null);
+        BatchGate fourth = awaitBatch(admitted);
+        assertEquals("four", fourth.value());
+        assertFalse(result.isDone());
+
+        fourth.completion().complete(null);
+        assertFalse(result.isDone());
+        first.completion().complete(null);
+        result.join();
+        subject.shutDown();
+    }
+
+    @Test
+    void completesIndependentSubmissionsWhenTheirOwnBatchCompletes() {
+        Map<String, CompletableFuture<Void>> gates = new ConcurrentHashMap<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            CompletableFuture<Void> gate = new CompletableFuture<>();
+            gates.put(batch.getFirst(), gate);
+            return gate;
+        }, 1, 2);
+
+        CompletableFuture<Void> first = subject.add("first");
+        CompletableFuture<Void> second = subject.add("second");
+        await(() -> gates.size() == 2);
+
+        gates.get("second").complete(null);
+        second.join();
+        assertFalse(first.isDone());
+
+        gates.get("first").complete(null);
+        first.join();
+        subject.shutDown();
+    }
+
+    @Test
+    void waitsForEveryPartOfASplitSubmissionAndRetainsFailures() {
+        Map<String, CompletableFuture<Void>> gates = new ConcurrentHashMap<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            CompletableFuture<Void> gate = new CompletableFuture<>();
+            gates.put(batch.getFirst(), gate);
+            return gate;
+        }, 1, 2);
+
+        CompletableFuture<Void> result = subject.add(List.of("first", "second"));
+        await(() -> gates.size() == 2);
+
+        gates.get("first").completeExceptionally(new IllegalStateException("expected"));
+        assertFalse(result.isDone());
+        gates.get("second").complete(null);
+
+        assertThrows(Exception.class, result::join);
+        subject.shutDown();
+    }
+
+    @Test
+    void oneInFlightBatchPreservesSequentialAsyncDispatch() {
+        List<CompletableFuture<Void>> gates = new CopyOnWriteArrayList<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            CompletableFuture<Void> gate = new CompletableFuture<>();
+            gates.add(gate);
+            return gate;
+        }, 1, 1);
+
+        CompletableFuture<Void> result = subject.add(List.of("first", "second"));
+        await(() -> gates.size() == 1);
+        assertFalse(result.isDone());
+
+        gates.getFirst().complete(null);
+        await(() -> gates.size() == 2);
+        assertFalse(result.isDone());
+
+        gates.getLast().complete(null);
+        result.join();
+        subject.shutDown();
+    }
+
+    @Test
+    void producerCompletionCallbacksDoNotKeepConsumerSlotsOccupied() throws Exception {
+        List<CompletableFuture<Void>> gates = new CopyOnWriteArrayList<>();
+        Backlog<String> subject = Backlog.forAsyncConsumer(batch -> {
+            CompletableFuture<Void> gate = new CompletableFuture<>();
+            gates.add(gate);
+            return gate;
+        }, 1, 1);
+        CountDownLatch callbackStarted = new CountDownLatch(1);
+        CountDownLatch releaseCallback = new CountDownLatch(1);
+
+        CompletableFuture<Void> first = subject.add("first");
+        first.thenRun(() -> {
+            callbackStarted.countDown();
+            try {
+                releaseCallback.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        CompletableFuture<Void> second = subject.add("second");
+        await(() -> gates.size() == 1);
+
+        CompletableFuture.runAsync(() -> gates.getFirst().complete(null));
+        assertTrue(callbackStarted.await(2L, TimeUnit.SECONDS));
+        await(() -> gates.size() == 2);
+
+        releaseCallback.countDown();
+        gates.getLast().complete(null);
+        CompletableFuture.allOf(first, second).join();
+        subject.shutDown();
+    }
+
+    @Test
+    void rejectsNonPositiveInFlightBatchLimit() {
+        assertThrows(IllegalArgumentException.class, () ->
+                Backlog.forAsyncConsumer(batch -> CompletableFuture.completedFuture(null), 10, 0));
+    }
+
+    private static void await(BooleanSupplier condition) {
+        long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();
+        while (!condition.getAsBoolean() && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertTrue(condition.getAsBoolean(), "Condition did not become true before the deadline");
+    }
+
+    private static BatchGate awaitBatch(BlockingQueue<BatchGate> admitted) throws InterruptedException {
+        BatchGate result = admitted.poll(2L, TimeUnit.SECONDS);
+        assertTrue(result != null, "Batch was not admitted before the deadline");
+        return result;
+    }
+
+    private record BatchGate(String value, CompletableFuture<Void> completion) {
     }
 }

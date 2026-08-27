@@ -16,21 +16,23 @@ package io.fluxzero.common;
 
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
+import java.util.function.ToLongFunction;
 
 import static io.fluxzero.common.ObjectUtils.newPlatformThreadFactory;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -70,17 +72,21 @@ public class Backlog<T> implements Monitored<List<T>> {
     private static final int MAX_INITIAL_BATCH_CAPACITY = 16;
 
     private final int maxBatchSize;
-    private final Queue<T> queue = new ConcurrentLinkedQueue<>();
+    private final ToLongFunction<? super T> itemWeight;
+    private final long maxBatchWeight;
+    /*
+     * Untracked values are stored directly. Tracked adds use one Submission for the entire add call, so exact
+     * completion does not add an allocation to the fire-and-forget hot path.
+     */
+    private final Queue<Object> queue = new ConcurrentLinkedQueue<>();
     private final ThrowingFunction<List<T>, CompletableFuture<?>> consumer;
     private final ErrorHandler<List<T>> errorHandler;
     private final ExecutorService executorService;
-    private final boolean waitForAsyncConsumer;
+    private final int maxInFlightBatches;
+    private final long batchCollectionDelayNanos;
     private final AtomicBoolean flushing = new AtomicBoolean();
-
-    private final AtomicLong insertPosition = new AtomicLong();
-    private final AtomicLong flushPosition = new AtomicLong();
-
-    private final ConcurrentSkipListMap<Long, CompletableFuture<Void>> results = new ConcurrentSkipListMap<>();
+    private final AtomicInteger inFlightBatches = new AtomicInteger();
+    private final AtomicBoolean shutdownRequested = new AtomicBoolean();
 
     private final Collection<Consumer<List<T>>> monitors = new CopyOnWriteArraySet<>();
 
@@ -130,29 +136,149 @@ public class Backlog<T> implements Monitored<List<T>> {
     }
 
     /**
-     * Creates a backlog for an asynchronous consumer that starts the next batch only after the previous returned future
-     * has completed. This keeps async consumers from building an unbounded downstream write queue.
+     * @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, int)} with one in-flight batch.
      */
-    public static <T> Backlog<T> forOrderedAsyncConsumer(ThrowingFunction<List<T>, CompletableFuture<?>> consumer) {
-        return forOrderedAsyncConsumer(consumer, 1024);
+    @Deprecated(forRemoval = true)
+    public static <T> Backlog<T> forOrderedAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer) {
+        return forAsyncConsumer(consumer, 1024, 1);
     }
 
     /**
-     * Creates an ordered async backlog with custom max batch size and default logging error handler.
+     * @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, int)} with one in-flight batch.
      */
-    public static <T> Backlog<T> forOrderedAsyncConsumer(ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
-                                                         int maxBatchSize) {
-        return forOrderedAsyncConsumer(consumer, maxBatchSize,
-                                       (e, batch) -> log.error("Consumer {} failed to handle batch of size {}. Continuing with next batch.", consumer, batch.size(), e));
+    @Deprecated(forRemoval = true)
+    public static <T> Backlog<T> forOrderedAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize) {
+        return forAsyncConsumer(consumer, maxBatchSize, 1);
     }
 
     /**
-     * Creates an ordered async backlog with custom max batch size and error handler.
+     * @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, int, ErrorHandler)} with one in-flight batch.
      */
-    public static <T> Backlog<T> forOrderedAsyncConsumer(ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
-                                                         int maxBatchSize,
-                                                         ErrorHandler<List<T>> errorHandler) {
-        return new Backlog<>(consumer, maxBatchSize, errorHandler, true);
+    @Deprecated(forRemoval = true)
+    public static <T> Backlog<T> forOrderedAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ErrorHandler<List<T>> errorHandler) {
+        return forAsyncConsumer(consumer, maxBatchSize, 1, errorHandler);
+    }
+
+    /**
+     * @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, ToLongFunction, long, int)} with one
+     * in-flight batch.
+     */
+    @Deprecated(forRemoval = true)
+    public static <T> Backlog<T> forOrderedAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ToLongFunction<? super T> batchWeight,
+            long maxBatchWeight) {
+        return forAsyncConsumer(consumer, maxBatchSize, batchWeight, maxBatchWeight, 1);
+    }
+
+    /**
+     * @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, ToLongFunction, long, int, Duration)} with one
+     * in-flight batch.
+     */
+    @Deprecated(forRemoval = true)
+    public static <T> Backlog<T> forOrderedAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ToLongFunction<? super T> batchWeight,
+            long maxBatchWeight,
+            Duration batchCollectionDelay) {
+        return forAsyncConsumer(
+                consumer, maxBatchSize, batchWeight, maxBatchWeight, 1, batchCollectionDelay);
+    }
+
+    /**
+     * Creates a backlog for an asynchronous consumer with a bounded number of in-flight batches. A batch remains
+     * in flight until the future returned by the consumer completes. A new batch is dispatched as soon as capacity
+     * becomes available.
+     */
+    public static <T> Backlog<T> forAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            int maxInFlightBatches) {
+        return forAsyncConsumer(
+                consumer, maxBatchSize, maxInFlightBatches,
+                (e, batch) -> log.error(
+                        "Consumer {} failed to handle batch of size {}. Continuing with next batch.",
+                        consumer, batch.size(), e));
+    }
+
+    /**
+     * Creates a bounded asynchronous backlog with a custom error handler.
+     */
+    public static <T> Backlog<T> forAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            int maxInFlightBatches,
+            ErrorHandler<List<T>> errorHandler) {
+        return new Backlog<>(consumer, maxBatchSize, errorHandler, maxInFlightBatches);
+    }
+
+    /**
+     * Creates an asynchronous backlog bounded by item count, cumulative item weight and in-flight batches.
+     * <p>
+     * The first item is always admitted, even when it exceeds {@code maxBatchWeight}, so an oversized item can make
+     * progress as a one-item batch.
+     *
+     * @param consumer       asynchronous batch consumer
+     * @param maxBatchSize   maximum number of items in one batch
+     * @param itemWeight     function that returns the non-negative weight of an item
+     * @param maxBatchWeight maximum cumulative weight, except for one individually oversized item
+     * @param maxInFlightBatches maximum number of consumer batches whose returned future has not completed
+     */
+    public static <T> Backlog<T> forAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ToLongFunction<? super T> itemWeight,
+            long maxBatchWeight,
+            int maxInFlightBatches) {
+        return forAsyncConsumer(
+                consumer, maxBatchSize, itemWeight, maxBatchWeight, maxInFlightBatches, Duration.ZERO);
+    }
+
+    /**
+     * Creates an asynchronous backlog bounded by item count, cumulative item weight and in-flight batches, with a
+     * bounded collection delay whenever an idle backlog starts flushing.
+     * <p>
+     * The delay only applies to the first batch after the backlog was idle. Batches already queued
+     * behind an active consumer are drained immediately. This allows very short micro-batching
+     * windows without delaying a sustained backlog once it has filled.
+     *
+     * @param consumer             asynchronous batch consumer
+     * @param maxBatchSize         maximum number of items in one batch
+     * @param itemWeight           function that returns the non-negative weight of an item
+     * @param maxBatchWeight       maximum cumulative weight, except for one individually oversized item
+     * @param maxInFlightBatches   maximum number of consumer batches whose returned future has not completed
+     * @param batchCollectionDelay maximum time to collect concurrent items after an idle start
+     */
+    public static <T> Backlog<T> forAsyncConsumer(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ToLongFunction<? super T> itemWeight,
+            long maxBatchWeight,
+            int maxInFlightBatches,
+            Duration batchCollectionDelay) {
+        if (maxBatchSize <= 0) {
+            throw new IllegalArgumentException("Maximum batch size must be positive");
+        }
+        if (maxBatchWeight <= 0L) {
+            throw new IllegalArgumentException("Maximum batch weight must be positive");
+        }
+        if (batchCollectionDelay == null || batchCollectionDelay.isNegative()) {
+            throw new IllegalArgumentException("Batch collection delay must not be negative");
+        }
+        return new Backlog<>(
+                consumer, maxBatchSize,
+                (e, batch) -> log.error(
+                        "Consumer {} failed to handle batch of size {}. Continuing with next batch.",
+                        consumer, batch.size(), e),
+                maxInFlightBatches, itemWeight, maxBatchWeight, batchCollectionDelay.toNanos());
     }
 
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer) {
@@ -165,16 +291,47 @@ public class Backlog<T> implements Monitored<List<T>> {
     }
 
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer, int maxBatchSize, ErrorHandler<List<T>> errorHandler) {
-        this(consumer, maxBatchSize, errorHandler, false);
+        this(consumer, maxBatchSize, errorHandler, Integer.MAX_VALUE);
     }
 
     protected Backlog(ThrowingFunction<List<T>, CompletableFuture<?>> consumer, int maxBatchSize,
-                      ErrorHandler<List<T>> errorHandler, boolean waitForAsyncConsumer) {
+                      ErrorHandler<List<T>> errorHandler, int maxInFlightBatches) {
+        this(consumer, maxBatchSize, errorHandler, maxInFlightBatches, null, Long.MAX_VALUE);
+    }
+
+    private Backlog(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ErrorHandler<List<T>> errorHandler,
+            int maxInFlightBatches,
+            ToLongFunction<? super T> itemWeight,
+            long maxBatchWeight) {
+        this(consumer, maxBatchSize, errorHandler, maxInFlightBatches,
+             itemWeight, maxBatchWeight, 0L);
+    }
+
+    private Backlog(
+            ThrowingFunction<List<T>, CompletableFuture<?>> consumer,
+            int maxBatchSize,
+            ErrorHandler<List<T>> errorHandler,
+            int maxInFlightBatches,
+            ToLongFunction<? super T> itemWeight,
+            long maxBatchWeight,
+            long batchCollectionDelayNanos) {
+        if (maxBatchSize <= 0) {
+            throw new IllegalArgumentException("Maximum batch size must be positive");
+        }
+        if (maxInFlightBatches <= 0) {
+            throw new IllegalArgumentException("Maximum in-flight batches must be positive");
+        }
         this.maxBatchSize = maxBatchSize;
         this.consumer = consumer;
         this.executorService = Executors.newSingleThreadExecutor(newPlatformThreadFactory("Backlog"));
         this.errorHandler = errorHandler;
-        this.waitForAsyncConsumer = waitForAsyncConsumer;
+        this.maxInFlightBatches = maxInFlightBatches;
+        this.itemWeight = itemWeight;
+        this.maxBatchWeight = maxBatchWeight;
+        this.batchCollectionDelayNanos = batchCollectionDelayNanos;
     }
 
     /**
@@ -185,9 +342,14 @@ public class Backlog<T> implements Monitored<List<T>> {
      */
     @SafeVarargs
     public final CompletableFuture<Void> add(T... values) {
-        Collections.addAll(queue, values);
-        return values.length == 0 ? CompletableFuture.completedFuture(null)
-                : awaitFlush(insertPosition.updateAndGet(p -> p + values.length));
+        if (values.length == 0) {
+            return CompletableFuture.completedFuture(null);
+        }
+        Object[] snapshot = values.clone();
+        validateValues(snapshot);
+        Submission<T> submission = Submission.tracked(snapshot);
+        enqueue(submission);
+        return submission.result();
     }
 
     /**
@@ -197,74 +359,215 @@ public class Backlog<T> implements Monitored<List<T>> {
      * @return a future that completes when the values are processed by the consumer.
      */
     public CompletableFuture<Void> add(Collection<? extends T> values) {
+        if (values.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        Object[] snapshot = values.toArray();
+        validateValues(snapshot);
+        Submission<T> submission = Submission.tracked(snapshot);
+        enqueue(submission);
+        return submission.result();
+    }
+
+    /**
+     * Adds one value without allocating a separate flush future.
+     * <p>
+     * Use this only when the asynchronous consumer owns completion and failure propagation for the
+     * value itself. Consumer failures still reach the configured backlog error handler.
+     */
+    public void addUntracked(T value) {
+        Objects.requireNonNull(value, "Backlog values must not be null");
+        enqueueUntracked(value);
+    }
+
+    /**
+     * Adds multiple values without creating per-value flush futures.
+     *
+     * @see #addUntracked(Object)
+     */
+    public void addAllUntracked(Collection<? extends T> values) {
+        if (values.isEmpty()) {
+            return;
+        }
+        for (T value : values) {
+            Objects.requireNonNull(value, "Backlog values must not be null");
+        }
+        boolean collect = isIdle();
         queue.addAll(values);
-        return values.isEmpty() ? CompletableFuture.completedFuture(null)
-                : awaitFlush(insertPosition.updateAndGet(p -> p + values.size()));
+        scheduleIfCapacityAvailable(collect);
     }
 
-    private CompletableFuture<Void> awaitFlush(long untilPosition) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        results.put(untilPosition, result);
-        flushIfNotFlushing();
-        return result;
-    }
-
-    private void flushIfNotFlushing() {
-        if (flushing.compareAndSet(false, true)) {
-            executorService.execute(this::flush);
+    private void validateValues(Object[] values) {
+        for (Object value : values) {
+            Objects.requireNonNull(value, "Backlog values must not be null");
         }
     }
 
-    private void flush() {
+    private void enqueue(Submission<T> submission) {
+        boolean collect = isIdle();
+        queue.add(submission);
+        scheduleIfCapacityAvailable(collect);
+    }
+
+    private void enqueueUntracked(T value) {
+        boolean collect = isIdle();
+        queue.add(value);
+        scheduleIfCapacityAvailable(collect);
+    }
+
+    private boolean isIdle() {
+        return queue.isEmpty() && inFlightBatches.get() == 0 && !flushing.get();
+    }
+
+    private void scheduleIfCapacityAvailable(boolean collectBeforeFlush) {
+        if (inFlightBatches.get() < maxInFlightBatches) {
+            flushIfNotFlushing(collectBeforeFlush);
+        }
+    }
+
+    private void flushIfNotFlushing(boolean collectBeforeFlush) {
+        if (flushing.compareAndSet(false, true)) {
+            executorService.execute(() -> flush(collectBeforeFlush));
+        }
+    }
+
+    private void flush(boolean collectBeforeFlush) {
         try {
-            while (!queue.isEmpty()) {
-                List<T> batch = new ArrayList<>(initialBatchCapacity(maxBatchSize));
-                while (batch.size() < maxBatchSize) {
-                    T value = queue.poll();
-                    if (value == null) {
-                        break;
-                    }
-                    batch.add(value);
-                }
-                CompletableFuture<?> future;
-                try {
-                    future = consumer.apply(batch);
-                } catch (Throwable e) {
-                    future = CompletableFuture.failedFuture(e);
-                    errorHandler.handleError(e, batch);
-                }
-                long lastPosition = flushPosition.addAndGet(batch.size());
-                if (future == null) {
-                    completeResults(lastPosition, null);
-                } else if (waitForAsyncConsumer) {
-                    completeWhenConsumerFinishes(batch, lastPosition, future);
-                } else {
-                    future.whenComplete((r, e) -> completeResults(lastPosition, e));
-                }
-                monitors.forEach(m -> m.accept(batch));
+            if (collectBeforeFlush && batchCollectionDelayNanos > 0L) {
+                LockSupport.parkNanos(batchCollectionDelayNanos);
+            }
+            while (!queue.isEmpty() && inFlightBatches.get() < maxInFlightBatches) {
+                dispatch(nextBatch());
             }
             flushing.set(false);
-            if (!queue.isEmpty()) { //a value could've been added after the while loop before flushing was set to false
-                flushIfNotFlushing();
+            if (!queue.isEmpty() && inFlightBatches.get() < maxInFlightBatches) {
+                // A value or consumer completion may have raced with flushing being reset.
+                flushIfNotFlushing(false);
+            } else {
+                tryShutdownExecutor();
             }
         } catch (Throwable e) {
             log.error("Failed to flush the backlog", e);
             flushing.set(false);
+            tryShutdownExecutor();
             throw e;
         }
     }
 
-    private void completeWhenConsumerFinishes(List<T> batch, long lastPosition, CompletableFuture<?> future) {
-        try {
-            future.join();
-            completeResults(lastPosition, null);
-        } catch (CompletionException e) {
-            Throwable error = e.getCause() == null ? e : e.getCause();
-            errorHandler.handleError(error, batch);
-            completeResults(lastPosition, error);
-        } catch (Throwable e) {
-            errorHandler.handleError(e, batch);
-            completeResults(lastPosition, e);
+    private ConsumerBatch<T> nextBatch() {
+        List<T> values = new ArrayList<>(initialBatchCapacity(maxBatchSize));
+        List<SubmissionSlice<T>> slices = new ArrayList<>();
+        long weight = 0L;
+        Throwable constructionError = null;
+        while (values.size() < maxBatchSize) {
+            Object queued = queue.peek();
+            if (queued == null) {
+                break;
+            }
+            Submission<T> submission = asSubmission(queued);
+            T value = submission == null ? asValue(queued) : submission.peek();
+            long itemWeight;
+            try {
+                itemWeight = weightOf(value);
+            } catch (Throwable e) {
+                if (values.isEmpty()) {
+                    consume(queued, submission, value, values, slices);
+                    constructionError = e;
+                }
+                break;
+            }
+            if (!values.isEmpty() && itemWeight > maxBatchWeight - weight) {
+                break;
+            }
+            consume(queued, submission, value, values, slices);
+            weight = itemWeight > Long.MAX_VALUE - weight ? Long.MAX_VALUE : weight + itemWeight;
+        }
+        return new ConsumerBatch<>(values, slices, constructionError);
+    }
+
+    private void consume(Object queued, Submission<T> submission, T value, List<T> values,
+                         List<SubmissionSlice<T>> slices) {
+        values.add(value);
+        if (submission == null) {
+            Object removed = queue.poll();
+            if (removed != queued) {
+                throw new IllegalStateException("Backlog item order changed while dispatching");
+            }
+        } else {
+            submission.advance();
+            if (slices.isEmpty() || slices.getLast().submission() != submission) {
+                slices.add(new SubmissionSlice<>(submission));
+            } else {
+                slices.getLast().increment();
+            }
+            if (submission.isFullyDispatched()) {
+                Object removed = queue.poll();
+                if (removed != submission) {
+                    throw new IllegalStateException("Backlog submission order changed while dispatching");
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Submission<T> asSubmission(Object queued) {
+        return queued instanceof Submission<?> submission ? (Submission<T>) submission : null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private T asValue(Object queued) {
+        return (T) queued;
+    }
+
+    private void dispatch(ConsumerBatch<T> batch) {
+        inFlightBatches.incrementAndGet();
+        CompletableFuture<?> future;
+        if (batch.constructionError() == null) {
+            try {
+                future = consumer.apply(batch.values());
+            } catch (Throwable e) {
+                future = CompletableFuture.failedFuture(e);
+            }
+        } else {
+            future = CompletableFuture.failedFuture(batch.constructionError());
+        }
+        if (future == null) {
+            finishBatch(batch, null);
+        } else {
+            future.whenComplete((ignored, failure) -> finishBatch(batch, unwrap(failure)));
+        }
+        monitors.forEach(m -> m.accept(batch.values()));
+    }
+
+    private Throwable unwrap(Throwable failure) {
+        Throwable result = failure;
+        while (result instanceof java.util.concurrent.CompletionException && result.getCause() != null
+               && result.getCause() != result) {
+            result = result.getCause();
+        }
+        return result;
+    }
+
+    private void finishBatch(ConsumerBatch<T> batch, Throwable failure) {
+        if (failure != null) {
+            try {
+                errorHandler.handleError(failure, batch.values());
+            } catch (Throwable handlerFailure) {
+                log.error("Backlog error handler failed", handlerFailure);
+            }
+        }
+        inFlightBatches.decrementAndGet();
+        if (!queue.isEmpty()) {
+            flushIfNotFlushing(false);
+        } else {
+            tryShutdownExecutor();
+        }
+        /*
+         * Refill the newly available slot before completing producer futures. CompletableFuture dependants execute
+         * inline by default and must not turn an already completed consumer batch into accidental backpressure.
+         */
+        for (SubmissionSlice<T> slice : batch.slices()) {
+            slice.submission().complete(slice.count(), failure);
         }
     }
 
@@ -272,16 +575,15 @@ public class Backlog<T> implements Monitored<List<T>> {
         return Math.min(maxBatchSize, MAX_INITIAL_BATCH_CAPACITY);
     }
 
-    protected void completeResults(long untilPosition, Throwable e) {
-        var futures = results.headMap(untilPosition, true);
-        futures.forEach((k, v) -> {
-            if (e == null) {
-                v.complete(null);
-            } else {
-                v.completeExceptionally(e);
-            }
-        });
-        futures.clear();
+    private long weightOf(T value) {
+        if (itemWeight == null) {
+            return 0L;
+        }
+        long result = itemWeight.applyAsLong(value);
+        if (result < 0L) {
+            throw new IllegalArgumentException("Batch item weight must not be negative");
+        }
+        return result;
     }
 
     /**
@@ -301,7 +603,11 @@ public class Backlog<T> implements Monitored<List<T>> {
      */
     public void shutDown() {
         try {
-            executorService.shutdown();
+            shutdownRequested.set(true);
+            if (!queue.isEmpty()) {
+                flushIfNotFlushing(false);
+            }
+            tryShutdownExecutor();
             try {
                 executorService.awaitTermination(1L, SECONDS);
             } catch (InterruptedException e) {
@@ -311,6 +617,90 @@ public class Backlog<T> implements Monitored<List<T>> {
         } catch (Throwable e) {
             log.warn("Failed to shutdown a backlog", e);
         }
+    }
+
+    private void tryShutdownExecutor() {
+        if (shutdownRequested.get() && queue.isEmpty() && inFlightBatches.get() == 0 && !flushing.get()) {
+            executorService.shutdown();
+        }
+    }
+
+    private static final class Submission<T> {
+        private final Object[] values;
+        private final CompletableFuture<Void> result;
+        private final AtomicInteger remaining;
+        private final AtomicReference<Throwable> failure = new AtomicReference<>();
+        private int nextIndex;
+
+        private Submission(Object[] values) {
+            this.values = values;
+            this.result = new CompletableFuture<>();
+            this.remaining = new AtomicInteger(values.length);
+        }
+
+        static <T> Submission<T> tracked(Object[] values) {
+            return new Submission<>(values);
+        }
+
+        @SuppressWarnings("unchecked")
+        T peek() {
+            return (T) values[nextIndex];
+        }
+
+        void advance() {
+            nextIndex++;
+        }
+
+        boolean isFullyDispatched() {
+            return nextIndex == values.length;
+        }
+
+        CompletableFuture<Void> result() {
+            return result;
+        }
+
+        void complete(int count, Throwable batchFailure) {
+            if (batchFailure != null) {
+                failure.compareAndSet(null, batchFailure);
+            }
+            int remaining = this.remaining.addAndGet(-count);
+            if (remaining < 0) {
+                throw new IllegalStateException("Backlog submission completed more items than it contained");
+            }
+            if (remaining == 0) {
+                Throwable submissionFailure = failure.get();
+                if (submissionFailure == null) {
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(submissionFailure);
+                }
+            }
+        }
+    }
+
+    private static final class SubmissionSlice<T> {
+        private final Submission<T> submission;
+        private int count = 1;
+
+        private SubmissionSlice(Submission<T> submission) {
+            this.submission = submission;
+        }
+
+        Submission<T> submission() {
+            return submission;
+        }
+
+        int count() {
+            return count;
+        }
+
+        void increment() {
+            count++;
+        }
+    }
+
+    private record ConsumerBatch<T>(List<T> values, List<SubmissionSlice<T>> slices,
+                                    Throwable constructionError) {
     }
 
     /**

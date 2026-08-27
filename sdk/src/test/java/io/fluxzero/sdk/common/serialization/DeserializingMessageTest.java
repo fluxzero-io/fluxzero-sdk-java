@@ -23,12 +23,14 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -177,6 +179,70 @@ class DeserializingMessageTest {
                 assertSame(message, DeserializingMessage.getCurrent()));
 
         assertNull(DeserializingMessage.getCurrent());
+    }
+
+    @Test
+    void messageBatchResourcesAreSharedWithAsyncWorkersAndIsolatedBetweenBatches() {
+        Object key = new Object();
+        Object firstResource = new Object();
+        List<Integer> positions = new ArrayList<>();
+        DeserializingMessage first = message("first");
+        DeserializingMessage second = message("second");
+        first.getSerializedObject().setSegment(11);
+        second.getSerializedObject().setSegment(12);
+
+        DeserializingMessage.forEachInBatch(
+                List.of(first, second), current -> {
+                    Object resource = DeserializingMessage.computeForMessageBatchIfAbsent(
+                            key, ignored -> firstResource);
+                    assertSame(firstResource, resource);
+                    int expectedPosition = positions.size();
+                    assertEquals(expectedPosition, DeserializingMessage.getMessageBatchIndex());
+                    var context = current.captureContext();
+                    positions.add(CompletableFuture.supplyAsync(context.wrap(() -> {
+                        assertSame(firstResource,
+                                   DeserializingMessage.getMessageBatchResource(key));
+                        assertEquals(
+                                11 + expectedPosition,
+                                DeserializingMessage.getMessageBatchSegment());
+                        return DeserializingMessage.getMessageBatchIndex();
+                    })).join());
+                });
+
+        assertEquals(List.of(0, 1), positions);
+        assertEquals(-1, DeserializingMessage.getMessageBatchIndex());
+        assertEquals(-1, DeserializingMessage.getMessageBatchSegment());
+        assertNull(DeserializingMessage.getMessageBatchResource(key));
+
+        Object secondResource = new Object();
+        DeserializingMessage.forEachInBatch(
+                List.of(message("third")), ignored -> {
+                    Object resource = DeserializingMessage.computeForMessageBatchIfAbsent(
+                            key, unused -> secondResource);
+                    assertSame(secondResource, resource);
+                    assertNotSame(firstResource, resource);
+                    assertEquals(0, DeserializingMessage.getMessageBatchIndex());
+                });
+    }
+
+    @Test
+    void nestedMessageHandlingRetainsTheOuterBatchResourceAndPosition() {
+        Object key = new Object();
+        DeserializingMessage outer = message("outer");
+        outer.getSerializedObject().setSegment(27);
+
+        DeserializingMessage.forEachInBatch(List.of(outer), ignored -> {
+            Object resource = DeserializingMessage.computeForMessageBatchIfAbsent(
+                    key, unused -> new Object());
+            message("inner").apply(inner -> {
+                assertSame(resource, DeserializingMessage.getMessageBatchResource(key));
+                assertEquals(0, DeserializingMessage.getMessageBatchIndex());
+                assertEquals(27, DeserializingMessage.getMessageBatchSegment());
+                return null;
+            });
+        });
+
+        assertNull(DeserializingMessage.getMessageBatchResource(key));
     }
 
     @Test
