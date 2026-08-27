@@ -3017,14 +3017,13 @@ request, its effective port and raw path without query or fragment, final status
 duration, attempt count, cancellation state, and whether a redirect was rejected. The original raw query is attached
 separately as `$webRequestQuery` metadata, without a leading `?` and without decoding or reordering it. The metric
 payload never contains the query, and neither transport copies URI user information, the fragment, headers, body, or
-exception messages into its outbound transport fields. The proxy keeps its existing handler metric, whose request type
-contains only the HTTP method and that same normalized original request origin and path, with the raw query in the same
-separate metadata field.
+exception messages into its outbound transport fields. The proxy keeps its existing handler metric unchanged: its
+request type contains only the HTTP method, without destination or query metadata. Proxy-routed requests remain
+available in the WebRequest message log.
 
 Paths and queries can contain sensitive or high-cardinality values. A native metric passes through application metric
-dispatch interceptors, which may remove or redact `$webRequestQuery`. A proxy-routed metric is created by the proxy, so
-the sending application cannot intercept it before publication; redact it in the proxy or metric consumer, or use a
-dedicated HTTP client when that boundary is unsuitable.
+dispatch interceptors, which may remove or redact `$webRequestQuery`. Applications that need different observability
+or transport controls can use a dedicated HTTP client.
 
 The native path is a convenient SDK transport option, not a complete security-oriented HTTP client. It deliberately
 does not expose a configurable connect timeout, HTTPS enforcement or origin allowlists, streaming response limits, or
