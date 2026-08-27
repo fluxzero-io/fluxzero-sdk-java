@@ -838,7 +838,15 @@ class ForwardProxyConsumerTest {
     void forcedStopCancelsPendingRetryDelayAndDoesNotStartAnotherAttempt() throws Exception {
         Client client = mockForwardingClient();
         HttpClient httpClient = mock(HttpClient.class);
-        CompletableFuture<Void> retryDelay = new CompletableFuture<>();
+        CompletableFuture<Boolean> retryDelayCancelled = new CompletableFuture<>();
+        CompletableFuture<Void> retryDelay = new CompletableFuture<>() {
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                boolean cancelled = super.cancel(mayInterruptIfRunning);
+                retryDelayCancelled.complete(cancelled);
+                return cancelled;
+            }
+        };
         CompletableFuture<Duration> observedDelay = new CompletableFuture<>();
         when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(CompletableFuture.failedFuture(new IOException("retry")));
@@ -856,6 +864,7 @@ class ForwardProxyConsumerTest {
         consumer.forceActiveRequests();
 
         batch.get(1, TimeUnit.SECONDS);
+        assertTrue(retryDelayCancelled.get(1, TimeUnit.SECONDS));
         assertTrue(retryDelay.isCancelled());
         verify(httpClient, times(1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         verify(httpClient).shutdownNow();
