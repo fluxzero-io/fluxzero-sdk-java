@@ -90,6 +90,7 @@ final class ModelReplayCursor {
 
     private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
     private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
+    private static final int MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS = 8;
     static final Settings DEFAULT_SETTINGS =
             new Settings(32_768, 131_072, 128, 64L * 1_024L * 1_024L);
 
@@ -912,6 +913,28 @@ final class ModelReplayCursor {
             throw new EventSourcingException(
                     "Graph reconstruction requires a configured document projection and model repository");
         }
+        int attempts = 0;
+        while (true) {
+            try {
+                return graphAtBoundary(
+                        rootId, rootType, options, boundary,
+                        namespace, staged);
+            } catch (GraphBoundaryMovedException failure) {
+                if (boundary.historical()
+                    || ++attempts >= MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS) {
+                    throw failure;
+                }
+            }
+        }
+    }
+
+    private <T> Graph<T> graphAtBoundary(
+            String rootId,
+            Class<T> rootType,
+            Graph.Options options,
+            ModelReadBoundary boundary,
+            String namespace,
+            Map<String, Entity<?>> staged) {
         GetModelGraph request = new GetModelGraph(
                 rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false);
         GetModelGraphResult response = getModelGraph(request);
@@ -962,7 +985,7 @@ final class ModelReplayCursor {
             ReconstructionBatch reconstructed = session().reconstruct(
                     replayTargets, ModelReadBoundary.at(stateIndex), !historicalBoundary);
             if (reconstructed.stateIndex() != stateIndex) {
-                throw new EventSourcingException(
+                throw new GraphBoundaryMovedException(
                         "Model graph moved from state index %d to %d during reconstruction"
                                 .formatted(stateIndex, reconstructed.stateIndex()));
             }
@@ -974,13 +997,19 @@ final class ModelReplayCursor {
             Entity<?> entity = document.entity();
             ModelHeadState expected = heads.get(target.modelId());
             if (!Objects.equals(expected, document.head())) {
-                throw new EventSourcingException(
+                throw new GraphBoundaryMovedException(
                         "Document model '%s' moved while reconstructing graph boundary"
                                 .formatted(target.modelId()));
             }
             result.put(target.modelId(), entity);
         }
         return result;
+    }
+
+    private static final class GraphBoundaryMovedException extends EventSourcingException {
+        private GraphBoundaryMovedException(String message) {
+            super(message);
+        }
     }
 
     private static boolean requiresReplay(MutationPlan.ResolvedModel target, boolean historicalBoundary) {

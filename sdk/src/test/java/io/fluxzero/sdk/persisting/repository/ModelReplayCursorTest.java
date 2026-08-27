@@ -21,14 +21,21 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
+import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.ModelEventMembership;
 import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.ImmutableModelRoot;
+import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
+import io.fluxzero.sdk.persisting.search.Searchable;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -48,9 +55,99 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ModelReplayCursorTest {
+
+    @Test
+    void retriesCurrentGraphWhenADocumentAdvancesDuringReconstruction() {
+        String modelId = "current-document";
+        ModelHeadState firstHead = documentHead(modelId, 0L, 1L);
+        ModelHeadState currentHead = documentHead(modelId, 1L, 2L);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelGraph(any())).thenReturn(
+                graphResponse(modelId, firstHead, 1L),
+                graphResponse(modelId, currentHead, 2L));
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id",
+                                new CurrentDocument(modelId, "current")),
+                        currentHead));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+
+        Graph<CurrentDocument> result = loader.graph(
+                modelId, CurrentDocument.class, Graph.Options.DEFAULT,
+                ModelReadBoundary.current(), "test", Map.of());
+
+        assertEquals(new CurrentDocument(modelId, "current"), result.get());
+        assertEquals(2L, result.stateIndex());
+        verify(client, times(2)).getModelGraph(any());
+    }
+
+    @Test
+    void boundsCurrentGraphRetriesWhenADocumentKeepsAdvancing() {
+        String modelId = "moving-document";
+        ModelHeadState graphHead = documentHead(modelId, 0L, 1L);
+        ModelHeadState currentHead = documentHead(modelId, 1L, 2L);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelGraph(any())).thenReturn(
+                graphResponse(modelId, graphHead, 1L));
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id",
+                                new CurrentDocument(modelId, "current")),
+                        currentHead));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+
+        assertThrows(
+                EventSourcingException.class,
+                () -> loader.graph(
+                        modelId, CurrentDocument.class, Graph.Options.DEFAULT,
+                        ModelReadBoundary.current(), "test", Map.of()));
+        verify(client, times(8)).getModelGraph(any());
+    }
+
+    private static GetModelGraphResult graphResponse(
+            String modelId,
+            ModelHeadState head,
+            long stateIndex) {
+        return new GetModelGraphResult(
+                0L, List.of(),
+                new GetModelEventsResult(
+                        0L, stateIndex, List.of(),
+                        List.of(new ModelEventStream(
+                                modelId, head, List.of()))));
+    }
+
+    private static ModelHeadState documentHead(
+            String modelId,
+            long sequenceNumber,
+            long stateIndex) {
+        return new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                sequenceNumber, stateIndex, true, false);
+    }
+
+    @Model(
+            eventSourced = false,
+            searchable = true,
+            searchProjection = @Searchable(collection = "currentDocuments"))
+    private record CurrentDocument(
+            @EntityId String id,
+            String value) {
+    }
 
     @Test
     void chunksModelIdsAndPinsEveryLaterChunkToTheFirstResponse() {
