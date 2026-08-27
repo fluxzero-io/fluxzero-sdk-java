@@ -1,0 +1,162 @@
+{
+  "name" : "Resolution",
+  "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Cached outcome of evaluating one resolver for one handler parameter.\n\n <p>An unmatched resolution allows the next resolver to be considered. A rejected resolution claims the\n parameter but makes the handler inapplicable. A resolved outcome supplies a reusable value resolver.</p>\n\n @param matched  whether this resolver claims the parameter\n @param resolver reusable current-message value resolver; {@code null} for unmatched or rejected outcomes\n @param <M>      message type\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "matched",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution.matched",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resolver",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution.resolver",
+    "type" : "java.util.function.Function<? super M,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Resolution",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#Resolution",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "matched",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resolver",
+      "type" : "java.util.function.Function<? super M,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matched",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#matched",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rejected",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#rejected",
+    "returnType" : "io.fluxzero.common.handling.KeyedParameterResolver.Resolution<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an outcome that rejects the handler without considering later resolvers.\n"
+  }, {
+    "name" : "resolved",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#resolved",
+    "returnType" : "io.fluxzero.common.handling.KeyedParameterResolver.Resolution<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "resolver",
+      "type" : "java.util.function.Function<? super M,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an outcome backed by a reusable current-message value resolver.\n"
+  }, {
+    "name" : "resolver",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#resolver",
+    "returnType" : "java.util.function.Function<? super M,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unmatched",
+    "qualifiedName" : "io.fluxzero.common.handling.KeyedParameterResolver$Resolution#unmatched",
+    "returnType" : "io.fluxzero.common.handling.KeyedParameterResolver.Resolution<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an outcome that allows the next parameter resolver to be considered.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "matched",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "resolver",
+    "type" : "java.util.function.Function<? super M,java.lang.Object>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

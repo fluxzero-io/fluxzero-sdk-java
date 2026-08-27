@@ -1,0 +1,217 @@
+{
+  "name" : "ContainerCollector",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.collectors",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Collector for container metrics from cgroups (v1 and v2).\n <p>\n Automatically detects cgroup version and collects CPU and memory metrics\n when running in a containerized environment.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.metrics.host.collectors.MetricCollector<io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics>" ],
+  "fields" : [ {
+    "name" : "CGROUP_V1_CPU_PERIOD",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V1_CPU_PERIOD",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V1_CPU_QUOTA",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V1_CPU_QUOTA",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V1_CPU_USAGE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V1_CPU_USAGE",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V1_MEMORY_LIMIT",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V1_MEMORY_LIMIT",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V1_MEMORY_USAGE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V1_MEMORY_USAGE",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V2_BASE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V2_BASE",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V2_CPU_MAX",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V2_CPU_MAX",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V2_CPU_STAT",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V2_CPU_STAT",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V2_MEMORY_CURRENT",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V2_MEMORY_CURRENT",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "CGROUP_V2_MEMORY_MAX",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.CGROUP_V2_MEMORY_MAX",
+    "type" : "java.nio.file.Path",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cgroupVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector.cgroupVersion",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ContainerCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#ContainerCollector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collect",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#collect",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "collectCgroupV1",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#collectCgroupV1",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "collectCgroupV2",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#collectCgroupV2",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.metrics.host.events.ContainerMetrics>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "detectCgroupVersion",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#detectCgroupVersion",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isAvailable",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#isAvailable",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseLongOrDefault",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#parseLongOrDefault",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readFile",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector#readFile",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.nio.file.Path",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

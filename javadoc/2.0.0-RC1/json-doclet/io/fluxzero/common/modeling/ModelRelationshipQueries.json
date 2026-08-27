@@ -1,0 +1,504 @@
+{
+  "name" : "ModelRelationshipQueries",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Shared graph, ancestor, lineage and relationship-query policies for every Model store. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ModelRelationshipQueries",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#ModelRelationshipQueries",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "currentGraph",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#currentGraph",
+    "returnType" : "io.fluxzero.common.modeling.ModelRelationshipTraversal.Result",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "rootModelIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves the current composable descendant graph for a root page. "
+  }, {
+    "name" : "deletionFingerprint",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#deletionFingerprint",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "orderedIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Stable fingerprint for one ordered hard-deletion selection. "
+  }, {
+    "name" : "descendantLineage",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#descendantLineage",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "currentRelationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deletedRelationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "protectedDescendants",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.Collection<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves current and lifecycle-retained descendants at one boundary. "
+  }, {
+    "name" : "descendantLineage",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#descendantLineage",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "currentRelationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deletedRelationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "protectedDescendants",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.Collection<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModelsExceeded",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepthExceeded",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves descendants with caller-specific bound failures. "
+  }, {
+    "name" : "descendants",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#descendants",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "children",
+      "type" : "io.fluxzero.common.modeling.ModelRelationshipTraversal.RelationshipLoader<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Traverses an already selected child index without recreating frontier and visit semantics. "
+  }, {
+    "name" : "graph",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#graph",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exactBoundary",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.modeling.GetModelEvents,io.fluxzero.common.api.modeling.GetModelEventsResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a graph while retaining evidence about the original selector that established its boundary. "
+  }, {
+    "name" : "graph",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#graph",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.modeling.GetModelEvents,io.fluxzero.common.api.modeling.GetModelEventsResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves one bounded relationship graph and its first stream page. "
+  }, {
+    "name" : "graphAncestors",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#graphAncestors",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves composable ancestors with one shared traversal policy. "
+  }, {
+    "name" : "ownedDescendants",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#ownedDescendants",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "edges",
+      "type" : "java.util.Collection<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns descendants whose complete path from a supplied root owns the child lifecycle. "
+  }, {
+    "name" : "relatedModels",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#relatedModels",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "relatedModelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraint",
+      "type" : "io.fluxzero.common.api.search.ModelRelationConstraint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parentRelationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "childRelationships",
+      "type" : "java.util.function.Function<java.util.Collection<java.lang.String>,java.util.List<R>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves models related at the configured depths and paths. "
+  }, {
+    "name" : "resolveBoundary",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#resolveBoundary",
+    "returnType" : "long",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rejectNewer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "currentState",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitBoundary",
+      "type" : "java.util.function.BiFunction<java.lang.String,java.lang.Integer,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventBoundary",
+      "type" : "java.util.function.Function<java.lang.Long,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a current, state, commit or event selector against one visible store boundary. "
+  }, {
+    "name" : "resolveBoundaryWithEvidence",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#resolveBoundaryWithEvidence",
+    "returnType" : "io.fluxzero.common.modeling.ModelRelationshipQueries.ResolvedBoundary",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rejectNewer",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "currentState",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitBoundary",
+      "type" : "java.util.function.BiFunction<java.lang.String,java.lang.Integer,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventBoundary",
+      "type" : "java.util.function.Function<java.lang.Long,java.lang.Long>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves a boundary and records whether an event selector used its explicit current-state fallback. "
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#result",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graph",
+      "type" : "io.fluxzero.common.modeling.ModelRelationshipTraversal.Result",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEventsPerModel",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exactBoundary",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventLoader",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.modeling.GetModelEvents,io.fluxzero.common.api.modeling.GetModelEventsResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateDigest",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries#updateDigest",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "digest",
+      "type" : "java.security.MessageDigest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Relationship",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$Relationship",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ResolvedBoundary",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelRelationshipQueries$ResolvedBoundary",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

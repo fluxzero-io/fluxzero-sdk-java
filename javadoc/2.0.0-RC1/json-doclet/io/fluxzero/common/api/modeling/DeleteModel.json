@@ -1,0 +1,135 @@
+{
+  "name" : "DeleteModel",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Executes or resumes one explicit independent-model hard deletion.\n <p>\n {@link ModelDeletionCascade#DESCENDANTS} requires the fingerprint and bounds of a preceding\n {@link ModelDeletionPlan}. The independently supplied deletion ID is the durable idempotency key.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cascade",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel.cascade",
+    "type" : "io.fluxzero.common.api.modeling.ModelDeletionCascade",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Required deletion scope.\n",
+    "constantValue" : null
+  }, {
+    "name" : "deletionId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel.deletionId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Durable caller-selected idempotency key.\n",
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Requested delivery guarantee.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxDepth",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel.maxDepth",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum child-edge depth used by the dry run.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxModels",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel.maxModels",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum distinct model count used by the dry run.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Exact model ID to erase.\n",
+    "constantValue" : null
+  }, {
+    "name" : "planFingerprint",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel.planFingerprint",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Complete-selection fingerprint from the dry run, or {@code null} for {@code NONE}.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeleteModel",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel#DeleteModel",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel#toMetric",
+    "returnType" : "io.fluxzero.common.api.modeling.DeleteModel.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

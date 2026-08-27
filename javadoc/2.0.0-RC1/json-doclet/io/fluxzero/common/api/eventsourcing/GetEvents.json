@@ -1,0 +1,60 @@
+{
+  "name" : "GetEvents",
+  "qualifiedName" : "io.fluxzero.common.api.eventsourcing.GetEvents",
+  "packageName" : "io.fluxzero.common.api.eventsourcing",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " A request to fetch stored events for a specific aggregate in an event-sourced system.\n <p>\n This class is used by the Fluxzero Runtime to retrieve historical events from the event store associated with a given\n aggregate. It supports pagination via {@code lastSequenceNumber} and {@code batchSize} to efficiently load large\n event streams.\n\n <h2>Usage</h2>\n Typically used when:\n <ul>\n   <li>Reconstructing an aggregate's state from its event history</li>\n   <li>Streaming events for external use or replay</li>\n </ul>\n\n <h2>Example</h2>\n <pre>{@code\n GetEvents request = new GetEvents(\"order-123\", 50L, 100);\n }</pre>\n\n @see io.fluxzero.common.api.SerializedMessage\n @see GetEventsResult\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "aggregateId",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.GetEvents.aggregateId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The identifier of the aggregate whose events are to be retrieved.\n",
+    "constantValue" : null
+  }, {
+    "name" : "batchSize",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.GetEvents.batchSize",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The maximum number of events to return in this request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "lastSequenceNumber",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.GetEvents.lastSequenceNumber",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The (exclusive) last known sequence number of events previously read.\n <p>\n The Runtime will return events with sequence numbers strictly greater than this value. Use {@code null} to\n retrieve from the beginning.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetEvents",
+    "qualifiedName" : "io.fluxzero.common.api.eventsourcing.GetEvents#GetEvents",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

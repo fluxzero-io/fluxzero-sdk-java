@@ -1,0 +1,19 @@
+{
+  "package" : {
+    "name" : "jfr",
+    "qualifiedName" : "io.fluxzero.common.jfr",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "FluxzeroJfr.json",
+    "name" : "FluxzeroJfr",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroJfr.Batch.json",
+    "name" : "FluxzeroJfr.Batch",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

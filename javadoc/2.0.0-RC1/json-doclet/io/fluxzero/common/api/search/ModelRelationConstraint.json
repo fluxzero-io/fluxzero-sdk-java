@@ -1,0 +1,153 @@
+{
+  "name" : "ModelRelationConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.extern.jackson.Jacksonized",
+    "values" : {}
+  } ],
+  "documentation" : " Current-state relationship constraint for independent model documents.\n <p>\n The {@link #query} selects related model documents. The runtime then follows temporal model relationships from those\n matches towards the target documents of a {@link SearchModelDocuments} request. Traversal is always bounded and\n never changes the ordinary document constraint semantics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "direction",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint.direction",
+    "type" : "io.fluxzero.common.api.search.ModelRelationConstraint.RelationDirection",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Relationship direction as observed from each returned target document.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxDepth",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint.maxDepth",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of relationship edges between a returned target and a related match.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxRelatedModels",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint.maxRelatedModels",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of documents that the related query may match before graph search refuses the request.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxTraversedModels",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint.maxTraversedModels",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of distinct models and depth states visited while traversing this constraint.\n",
+    "constantValue" : null
+  }, {
+    "name" : "minDepth",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint.minDepth",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Minimum number of relationship edges between a returned target and a related match.\n",
+    "constantValue" : null
+  }, {
+    "name" : "paths",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint.paths",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Singular",
+      "values" : {
+        "value" : "path"
+      }
+    } ],
+    "documentation" : " Optional allowed {@code @Parent(pathInParent = ...)} values. When non-empty, every traversed edge must match one.\n",
+    "constantValue" : null
+  }, {
+    "name" : "query",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint.query",
+    "type" : "io.fluxzero.common.api.search.SearchQuery",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Query that selects the related ancestor or descendant documents.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelRelationConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint#ModelRelationConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "direction",
+      "type" : "io.fluxzero.common.api.search.ModelRelationConstraint.RelationDirection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "minDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "paths",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxRelatedModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxTraversedModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "RelationDirection",
+    "qualifiedName" : "io.fluxzero.common.api.search.ModelRelationConstraint$RelationDirection",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

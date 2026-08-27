@@ -1,0 +1,60 @@
+{
+  "package" : {
+    "name" : "validation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ConstraintViolation.json",
+    "name" : "ConstraintViolation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation",
+    "kind" : "record"
+  }, {
+    "file" : "DefaultValidator.json",
+    "name" : "DefaultValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.DefaultValidator",
+    "kind" : "class"
+  }, {
+    "file" : "ValidateWith.json",
+    "name" : "ValidateWith",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidateWith",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "ValidatingInterceptor.json",
+    "name" : "ValidatingInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidatingInterceptor",
+    "kind" : "class"
+  }, {
+    "file" : "ValidationException.json",
+    "name" : "ValidationException",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException",
+    "kind" : "class"
+  }, {
+    "file" : "ValidationException.ViolationSummary.json",
+    "name" : "ValidationException.ViolationSummary",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationException$ViolationSummary",
+    "kind" : "record"
+  }, {
+    "file" : "ValidationUtils.json",
+    "name" : "ValidationUtils",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils",
+    "kind" : "class"
+  }, {
+    "file" : "ValidationUtils.RequiredRole.json",
+    "name" : "ValidationUtils.RequiredRole",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidationUtils$RequiredRole",
+    "kind" : "record"
+  }, {
+    "file" : "Validator.json",
+    "name" : "Validator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.Validator",
+    "kind" : "interface"
+  } ],
+  "subdirectories" : [ {
+    "name" : "constraints",
+    "path" : "constraints"
+  }, {
+    "name" : "jakarta",
+    "path" : "jakarta"
+  } ]
+}

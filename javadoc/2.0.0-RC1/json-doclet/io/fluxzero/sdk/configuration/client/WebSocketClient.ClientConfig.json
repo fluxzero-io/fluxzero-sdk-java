@@ -1,0 +1,602 @@
+{
+  "name" : "ClientConfig",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig",
+  "packageName" : "io.fluxzero.sdk.configuration.client",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " Configuration class for creating a {@link WebSocketClient}.\n <p>\n This configuration defines identifiers, service URLs, compression settings, and session allocations for various\n message types. It is immutable and can be modified fluently via its {@code #toBuilder()} method.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 8
+  }, {
+    "name" : "DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 3
+  }, {
+    "name" : "DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 16777216
+  }, {
+    "name" : "DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES",
+    "type" : "long",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 67108864
+  }, {
+    "name" : "DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 128
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxConcurrency"
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxCompletionConcurrency"
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.websocket.runtime.maxConcurrency"
+  }, {
+    "name" : "MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_CONCURRENCY"
+  }, {
+    "name" : "MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxRetainedBytes"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.maxRetainedMessages"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.websocket.runtime.maxRetainedBytes"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.websocket.runtime.maxRetainedMessages"
+  }, {
+    "name" : "MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES"
+  }, {
+    "name" : "RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.runtime.ingress.stallCloseTimeout"
+  }, {
+    "name" : "applicationId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.applicationId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The application identifier. May be {@code null} if not explicitly configured. Defaults to property\n {@code FLUXZERO_APPLICATION_ID}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "connectionTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.connectionTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " How long a websocket connection attempt may take before it times out. Defaults to {@code 10 seconds}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "disableMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.disableMetrics",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Whether to disable sending metrics from this client.\n",
+    "constantValue" : null
+  }, {
+    "name" : "eventSourcingSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.eventSourcingSessions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Number of WebSocket sessions allocated for the event sourcing subsystem. Defaults to {@code 2}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "gatewaySessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.gatewaySessions",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,java.lang.Integer>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Map defining how many WebSocket gateway sessions to allocate per {@link MessageType}. Defaults to\n {@link #defaultGatewaySessions()}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.id",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " A unique ID for the client instance. Defaults to {@code FLUXZERO_TASK_ID} or a randomly generated UUID.\n",
+    "constantValue" : null
+  }, {
+    "name" : "keyValueSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.keyValueSessions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Number of WebSocket sessions allocated for the key-value store subsystem. Defaults to {@code 2}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxConcurrentRuntimeResultCompletions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxConcurrentRuntimeResultCompletions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of runtime request results whose SDK completion logic and synchronous customer future\n continuations may run concurrently per client. Large result batches are submitted incrementally and share\n this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer\n and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to\n {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxConcurrentRuntimeWebSocketMessages",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxConcurrentRuntimeWebSocketMessages",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of complete SDK runtime messages decoded or waiting for bounded result-dispatcher admission\n concurrently per WebSocket session.\n Defaults to {@code fluxzero.runtime.ingress.maxConcurrency}, its legacy WebSocket aliases, or {@code 3}\n when unset. This limit does not serialize result completions; configure\n {@link #maxConcurrentRuntimeResultCompletions} separately for that.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxInFlightWebSocketBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxInFlightWebSocketBytes",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of encoded websocket bytes that may be in-flight per client before senders apply backpressure.\n Defaults to {@code FLUXZERO_MAX_IN_FLIGHT_WEBSOCKET_BYTES}, or 16 MiB when unset.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxRetainedRuntimeWebSocketBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxRetainedRuntimeWebSocketBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum compressed wire bytes retained by the SDK runtime-data dispatcher per WebSocket session. A single\n larger message may proceed while it is the only retained message. Defaults to\n {@code fluxzero.runtime.ingress.maxRetainedBytes}, its legacy WebSocket aliases, or 64 MiB when unset.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxRetainedRuntimeWebSocketMessages",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxRetainedRuntimeWebSocketMessages",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum number of SDK runtime messages retained per WebSocket session across fragment assembly, compressed\n pending work, decode/admission and admitted functional processing. Defaults to\n {@code fluxzero.runtime.ingress.maxRetainedMessages}, its legacy WebSocket aliases, or {@code 128} when\n unset.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxWebSocketFragmentBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.maxWebSocketFragmentBytes",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum payload bytes per physical WebSocket binary frame. Larger logical Fluxzero messages are sent with\n native WebSocket continuation frames while preserving per-session ordering.\n",
+    "constantValue" : null
+  }, {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.name",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The name of the application. Defaults to property {@code FLUXZERO_APPLICATION_NAME}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "namespace",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.namespace",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Optional project identifier. If set, it will be included in all communication with the Runtime.\n <p>\n If not set, the namespace configured for the application will be used.\n",
+    "constantValue" : null
+  }, {
+    "name" : "pingDelay",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.pingDelay",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The delay between automatic ping messages. Defaults to {@code 10 seconds}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "pingTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.pingTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " How long to wait for a ping response before timing out. Defaults to {@code 15 seconds}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "runtimeBaseUrl",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.runtimeBaseUrl",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property\n {@code FLUXZERO_BASE_URL}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "runtimeIngressStallCloseTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.runtimeIngressStallCloseTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Optional duration without functional runtime-ingress completion after which a locally stalled session is\n closed. {@link Duration#ZERO} (the default) disables stall-triggered close; local backpressure itself never\n closes a healthy session. The property value uses ISO-8601 duration syntax, for example {@code PT30S}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "searchSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.searchSessions",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Number of WebSocket sessions allocated for the search subsystem. Defaults to {@code 2}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "supportedCompressionAlgorithms",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.supportedCompressionAlgorithms",
+    "type" : "java.util.List<io.fluxzero.common.serialization.compression.CompressionAlgorithm>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Ordered list of compression algorithms the client supports for websocket communication, with the preferred\n algorithm first. Should not be empty.\n",
+    "constantValue" : null
+  }, {
+    "name" : "supportedTransportFormats",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.supportedTransportFormats",
+    "type" : "java.util.List<io.fluxzero.common.websocket.WebSocketTransportFormat>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Ordered list of websocket transport formats the client supports, with the preferred format first.\n <p>\n {@link WebSocketTransportFormat#CBOR} keeps {@code byte[]} payloads as native binary values.\n {@link WebSocketTransportFormat#JSON} remains the compatibility fallback for older runtimes.\n",
+    "constantValue" : null
+  }, {
+    "name" : "trackingConfigs",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.trackingConfigs",
+    "type" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Configuration map for tracking clients per {@link MessageType}. Defaults to\n {@link #defaultTrackingSessions()}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "typeFilter",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.typeFilter",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional type filter that restricts the types of messages tracked by this client.\n",
+    "constantValue" : null
+  }, {
+    "name" : "webSocketSendTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.webSocketSendTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum time a websocket send operation may remain incomplete before the session is considered broken.\n A non-positive value disables send timeouts.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ClientConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#ClientConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "defaultGatewaySessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#defaultGatewaySessions",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.lang.Integer>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultTrackingSessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#defaultTrackingSessions",
+    "returnType" : "java.util.Map<io.fluxzero.common.MessageType,io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "firstDurationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstDurationProperty",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "defaultValue",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "firstIntegerProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstIntegerProperty",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "defaultValue",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "firstLongProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstLongProperty",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "defaultValue",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "getPreferredCompressionAlgorithm",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#getPreferredCompressionAlgorithm",
+    "returnType" : "io.fluxzero.common.serialization.compression.@lombok.NonNull CompressionAlgorithm",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the most preferred compression algorithm supported by the client.\n"
+  }, {
+    "name" : "validateRuntimeWebSocketCapacity",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#validateRuntimeWebSocketCapacity",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withGatewaySessions",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#withGatewaySessions",
+    "returnType" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "count",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new {@code ClientConfig} with a modified gateway session count for the specified message type.\n"
+  }, {
+    "name" : "withTrackingConfig",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#withTrackingConfig",
+    "returnType" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackingConfig",
+      "type" : "io.fluxzero.sdk.configuration.client.WebSocketClient.TrackingClientConfig",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a new {@code ClientConfig} with a modified tracking config for the specified message type.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

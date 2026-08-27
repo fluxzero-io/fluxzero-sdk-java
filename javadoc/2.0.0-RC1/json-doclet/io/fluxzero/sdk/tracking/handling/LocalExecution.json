@@ -1,0 +1,558 @@
+{
+  "name" : "LocalExecution",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Holds the state of one payload-first local handler invocation.\n\n <p>This is a Fluxzero infrastructure type. It is public so dispatch interceptors, handler registries, and parameter\n resolvers in different SDK packages can cooperate on the same lazy invocation. Applications should not construct,\n retain, or reuse an instance. An execution is confined to the invoking thread and its contents are valid only while\n that invocation is active.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.LocalHandlerInput" ],
+  "fields" : [ {
+    "name" : "active",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.active",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "batchContextUsed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.batchContextUsed",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "current",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.current",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.tracking.handling.LocalExecution>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deserializingMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.deserializingMessage",
+    "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "dispatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.dispatch",
+    "type" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.handler",
+    "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "invocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.invocation",
+    "type" : "io.fluxzero.sdk.tracking.handling.Invocation",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.message",
+    "type" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.messageType",
+    "type" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "metadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.metadata",
+    "type" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.payload",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.result",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resultFuture",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.resultFuture",
+    "type" : "java.util.concurrent.CompletableFuture<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resultMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.resultMessage",
+    "type" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "topic",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.topic",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "user",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution.user",
+    "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LocalExecution",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#LocalExecution",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "complete",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#complete",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores a synchronously completed handler value in this execution.\n\n @param value the value returned by the handler\n"
+  }, {
+    "name" : "completeAsync",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#completeAsync",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores an asynchronous handler result in this execution.\n\n @param future the handler result future\n"
+  }, {
+    "name" : "completeExceptionally",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#completeExceptionally",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores a handler failure in this execution.\n\n @param error the handling error\n"
+  }, {
+    "name" : "containsMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#containsMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "currentInvocation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#currentInvocation",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.Invocation",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#currentMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the message for the active payload-first invocation on this thread.\n\n <p>Calling this method materializes the message if necessary.</p>\n\n @return the active local message, or {@code null} outside a payload-first invocation\n"
+  }, {
+    "name" : "getIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getMessage",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getMessageIfAvailable",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getMessageIfAvailable",
+    "returnType" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getMessageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getMessageType",
+    "returnType" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getPayload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getPayload",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "getResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getResult",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the synchronously completed handler value.\n\n @return the handler value, which may be {@code null}\n"
+  }, {
+    "name" : "getResultFuture",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getResultFuture",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getResultMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getResultMessage",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "provider",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#handle",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dispatch",
+      "type" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "registry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Attempts to handle a payload through the prepared local path.\n\n <p>This infrastructure method returns {@code null} when prepared handling is unsafe in the current context or\n when the registry requests the regular message-based path. A non-null execution contains the completed local\n result and must be followed by {@link #releaseResult()} after the result has been consumed.</p>\n\n @param payload the dispatched payload\n @param messageType the type of message being dispatched\n @param topic the dispatch topic, or {@code null}\n @param serializer the serializer used if a complete message becomes necessary\n @param dispatch the prepared dispatch-interceptor policy\n @param registry the local handler registry\n @return the completed execution, or {@code null} to use regular message-based dispatch\n"
+  }, {
+    "name" : "handleInFrame",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#handleInFrame",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "nextPayload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nextMessageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nextTopic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nextSerializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "nextDispatch",
+      "type" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "registry",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasResolvedUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#hasResolvedUser",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPlan<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "{@inheritDoc} "
+  }, {
+    "name" : "isCompletedSuccessfully",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#isCompletedSuccessfully",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether handling completed synchronously without throwing.\n\n @return {@code true} when {@link #getResult()} contains the synchronous result\n"
+  }, {
+    "name" : "markBatchContextUsed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#markBatchContextUsed",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks batch-scoped message state as used by the active payload-first handler.\n\n <p>This infrastructure hook ensures that batch callbacks and resources are completed after the invocation.</p>\n"
+  }, {
+    "name" : "releaseResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#releaseResult",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#setUser",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stores the user selected during dispatch for later handler-parameter resolution.\n\n @param user the selected user, or {@code null}\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

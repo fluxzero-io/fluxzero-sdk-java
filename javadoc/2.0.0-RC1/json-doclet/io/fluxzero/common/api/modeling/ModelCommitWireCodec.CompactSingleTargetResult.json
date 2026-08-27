@@ -1,0 +1,93 @@
+{
+  "name" : "CompactSingleTargetResult",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : "Transport-only scalar state that must not cross the request-correlation boundary. ",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "eventIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult.eventIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "historyComplete",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult.historyComplete",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sequenceNumber",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult.sequenceNumber",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult.stateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CompactSingleTargetResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult#CompactSingleTargetResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult#toMetric",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

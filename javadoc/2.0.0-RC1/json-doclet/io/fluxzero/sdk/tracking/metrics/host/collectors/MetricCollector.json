@@ -1,0 +1,40 @@
+{
+  "name" : "MetricCollector",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.MetricCollector",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host.collectors",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Interface for collecting a specific type of metric.\n <p>\n Implementations should be stateless and thread-safe. The {@link #collect()} method\n may be called concurrently from multiple threads.\n\n @param <T> the type of metrics this collector produces\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "collect",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.MetricCollector#collect",
+    "returnType" : "java.util.Optional<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Collects metrics.\n\n @return an Optional containing the collected metrics, or empty if collection failed\n         or the metrics are not available on this platform\n"
+  }, {
+    "name" : "isAvailable",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.MetricCollector#isAvailable",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks if this collector is available on the current platform.\n <p>\n This method should return quickly and may cache its result.\n\n @return true if this collector can collect metrics on the current platform\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

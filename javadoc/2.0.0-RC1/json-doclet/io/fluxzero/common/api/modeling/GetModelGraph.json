@@ -1,0 +1,255 @@
+{
+  "name" : "GetModelGraph",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Resolves one bounded independent-model relationship graph and optionally includes the first page of every selected\n model stream.\n <p>\n The graph, heads, memberships, and payloads are all observed at one namespace-wide state boundary. Direction and\n roots are query options of this one capability. When {@link #composableOnly} is set, descendant relationships\n without an explicit graph path are not traversed.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "boundary",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.boundary",
+    "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Current, state, commit or event selector shared by every Model read. ",
+    "constantValue" : null
+  }, {
+    "name" : "composableOnly",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.composableOnly",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Whether traversal is limited to relationships with an explicit graph-composition path.\n",
+    "constantValue" : null
+  }, {
+    "name" : "direction",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.direction",
+    "type" : "io.fluxzero.common.api.modeling.GetModelGraph.TraversalDirection",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : "Relationship direction followed from the supplied roots. ",
+    "constantValue" : null
+  }, {
+    "name" : "maxBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.maxBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum total bytes of deduplicated event payloads. Zero disables the byte limit.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxDepth",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.maxDepth",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum number of child-edge levels below the root, or {@code -1} to follow every reachable level.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxEventsPerModel",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.maxEventsPerModel",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum first-page membership count per selected model. Zero returns heads and edges only.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxModels",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.maxModels",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum number of distinct model nodes, including the root, or {@code -1} for no caller-imposed limit.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph.modelIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Exact root model IDs.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetModelGraph",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#GetModelGraph",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEventsPerModel",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "composableOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates the ordinary single-root descendant query used by public Graph loads. "
+  }, {
+    "name" : "GetModelGraph",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#GetModelGraph",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"modelIds\",\"boundary\",\"maxDepth\",\"maxModels\",\"maxEventsPerModel\",\"maxBytes\",\"direction\",\"composableOnly\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEventsPerModel",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "direction",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph.TraversalDirection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "composableOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "ancestors",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#ancestors",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraph",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxEventsPerModel",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates a multi-root ancestor query through the same graph capability. "
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph#toMetric",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraph.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "TraversalDirection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph$TraversalDirection",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

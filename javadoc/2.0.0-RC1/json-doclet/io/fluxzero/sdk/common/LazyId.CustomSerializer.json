@@ -1,0 +1,57 @@
+{
+  "name" : "CustomSerializer",
+  "qualifiedName" : "io.fluxzero.sdk.common.LazyId$CustomSerializer",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "static" ],
+  "annotations" : [ ],
+  "documentation" : " Custom Jackson serializer for {@code LazyId}. Serializes the resolved ID as a plain string.\n",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.ser.std.StdScalarSerializer<io.fluxzero.sdk.common.LazyId>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "CustomSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId$CustomSerializer#CustomSerializer",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId$CustomSerializer#serialize",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.sdk.common.LazyId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "gen",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "provider",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

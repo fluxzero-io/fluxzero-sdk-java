@@ -1,0 +1,155 @@
+{
+  "name" : "ModelCommitTarget",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Persistence and lifecycle effects of one original event on one independently stored model.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "aliases",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.aliases",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_NULL"
+      }
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonSetter",
+      "values" : {
+        "nulls" : "SET"
+      }
+    } ],
+    "documentation" : " Complete desired aliases of the resulting model state.\n <p>\n A {@code null} value denotes a client which does not manage independent-model aliases. An empty list explicitly\n removes every current alias. The runtime applies this replacement atomically with the model transition.\n",
+    "constantValue" : null
+  }, {
+    "name" : "cascadeDelete",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.cascadeDelete",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "documentation" : " Whether the runtime must verify that every current child relationship owned by this target is represented by a\n deletion target in the same atomic commit.\n <p>\n This remains false for older clients, preserving their existing detach-on-parent-deletion behavior.\n",
+    "constantValue" : null
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.delete",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Whether the updated current state is a logical deletion.\n",
+    "constantValue" : null
+  }, {
+    "name" : "document",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.document",
+    "type" : "io.fluxzero.common.api.modeling.ModelDocumentMutation",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional direct current-document mutation produced by this transition.\n <p>\n The runtime applies it with the same assigned state index as this target. A missing mutation means that the model\n is not directly searchable; a mutation with a {@code null} document means delete.\n",
+    "constantValue" : null
+  }, {
+    "name" : "expectedSequenceNumber",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.expectedSequenceNumber",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Sequence number observed immediately before this transition, or {@code -1} when the model\n did not exist.\n <p>\n A {@code null} value omits the target-level sequence assertion, for example for a target that publishes an\n effect without reading or changing model state. The runtime can use an explicit {@code -1} to avoid a point read\n for an independent create on the default single-writer path.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Exact persisted identity, equal to the model ID's {@code toString()} value.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelType",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.modelType",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Stable serialized model type descriptor. A model's first commit that creates its durable head must provide this\n value; later commits may omit it and inherit the durable type.\n <p>\n This is coordination metadata for untyped and graph loads; it is not part of model identity.\n",
+    "constantValue" : null
+  }, {
+    "name" : "relationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.relationships",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationship>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Complete desired outgoing parent relationships when {@link #updateRelationships} is true.\n <p>\n The runtime reconciles these against its actual current relationships; they are not blindly applied as\n client-calculated previous/current deltas. The list is empty when relationships are not updated.\n",
+    "constantValue" : null
+  }, {
+    "name" : "snapshot",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.snapshot",
+    "type" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Optional snapshot value produced when this transition is predicted to reach the model's configured snapshot\n period. The runtime verifies the candidate against its assigned target sequence before storing it.\n",
+    "constantValue" : null
+  }, {
+    "name" : "storeEvent",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.storeEvent",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Whether the substep event receives a membership in this model's stream.\n",
+    "constantValue" : null
+  }, {
+    "name" : "updateRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.updateRelationships",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonInclude",
+      "values" : {
+        "value" : "NON_DEFAULT"
+      }
+    } ],
+    "documentation" : " Whether {@link #relationships} intentionally replaces the model's outgoing parent relationships.\n <p>\n A regular transition whose {@code @Parent} values did not change leaves this false. This prevents such a\n transition from reopening relationships which the runtime closed because a parent was deleted. Logical model\n deletion always sets this to true.\n",
+    "constantValue" : null
+  }, {
+    "name" : "updateState",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget.updateState",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Whether the returned model state becomes the current logical state.\n <p>\n This may be true while {@link #storeEvent} is false for an explicitly non-stored state transition. The runtime\n then marks the model's event history incomplete.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelCommitTarget",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget#ModelCommitTarget",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
