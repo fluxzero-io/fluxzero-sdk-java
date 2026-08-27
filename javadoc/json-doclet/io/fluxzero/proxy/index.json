@@ -10,9 +10,29 @@
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer",
     "kind" : "class"
   }, {
+    "file" : "ForwardProxyConsumer.ActiveRequest.json",
+    "name" : "ForwardProxyConsumer.ActiveRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ActiveRequest",
+    "kind" : "record"
+  }, {
+    "file" : "ForwardProxyConsumer.CancellableResponseFuture.json",
+    "name" : "ForwardProxyConsumer.CancellableResponseFuture",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture",
+    "kind" : "class"
+  }, {
     "file" : "ForwardProxyConsumer.Lifecycle.json",
     "name" : "ForwardProxyConsumer.Lifecycle",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$Lifecycle",
+    "kind" : "class"
+  }, {
+    "file" : "ForwardProxyConsumer.RequestState.json",
+    "name" : "ForwardProxyConsumer.RequestState",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$RequestState",
+    "kind" : "enum"
+  }, {
+    "file" : "ForwardProxyConsumer.ScheduledRequest.json",
+    "name" : "ForwardProxyConsumer.ScheduledRequest",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest",
     "kind" : "class"
   }, {
     "file" : "JettyProxyWebsocketAdapter.json",
