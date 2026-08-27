@@ -184,6 +184,21 @@ public class SearchEndpoint extends WebsocketEndpoint {
     }
 
     @Handle
+    GetModelMigrationResult handle(GetModelMigration request) {
+        return store.getModelMigration(request);
+    }
+
+    @Handle
+    GetModelMigrationsResult handle(GetModelMigrations request) {
+        return store.getModelMigrations(request);
+    }
+
+    @Handle
+    CompletableFuture<Void> handle(AdoptModelMigration request) {
+        return store.adoptModelMigration(request);
+    }
+
+    @Handle
     CompletableFuture<Void> handle(DeleteDocuments request) {
         return store.delete(request.getQuery(), request.getGuarantee());
     }

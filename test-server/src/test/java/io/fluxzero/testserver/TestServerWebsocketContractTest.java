@@ -33,11 +33,14 @@ import io.fluxzero.common.api.modeling.Relationship;
 import io.fluxzero.common.api.modeling.RepairRelationships;
 import io.fluxzero.common.api.modeling.UpdateRelationships;
 import io.fluxzero.common.api.scheduling.SerializedSchedule;
+import io.fluxzero.common.api.search.AdoptModelMigration;
 import io.fluxzero.common.api.search.CreateAuditTrail;
 import io.fluxzero.common.api.search.DocumentUpdate;
 import io.fluxzero.common.api.search.FacetEntry;
 import io.fluxzero.common.api.search.GetDocument;
 import io.fluxzero.common.api.search.GetDocuments;
+import io.fluxzero.common.api.search.GetModelMigration;
+import io.fluxzero.common.api.search.GetModelMigrations;
 import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.SearchCollection;
@@ -532,6 +535,48 @@ class TestServerWebsocketContractTest {
     }
 
     @Test
+    void modelMigrationInspectionAndAdoptionRoundTripOverFullServer() throws Exception {
+        WebSocketClient client = client("model-migration");
+        try {
+            EventStoreClient eventStore = client.getEventStoreClient();
+            SearchClient search = client.getSearchClient();
+            String modelId = "migration-" + UUID.randomUUID();
+            String collection = "migration-models-" + UUID.randomUUID();
+            await(client.getGatewayClient(EVENT).append(STORED, message("legacy-source")));
+            SerializedMessage sourceEvent = client.getTrackingClient(EVENT).readFromIndex(0L, 1).getFirst();
+            ModelCommitTarget target = modelTarget(
+                    modelId, "MigrationContractModel",
+                    new ModelDocumentMutation(
+                            collection,
+                            structuredDocument(modelId, collection, "name", "migrated")),
+                    List.of());
+            CommitModelsResult commit = await(eventStore.commitModels(
+                    modelMigrationCommit(sourceEvent, target)));
+            long stateIndex = commit.getUpdates().getFirst().getStateIndex();
+
+            var migrations = search.getModelMigrations(new GetModelMigrations(10));
+            assertEquals(List.of(modelId), migrations.getMigrations().stream()
+                    .map(head -> head.getModelId()).toList());
+            var migration = search.getModelMigration(new GetModelMigration(modelId, collection));
+            assertNull(migration.getProductionDocument());
+            assertEquals("migrated", migration.getMigratedDocument().deserializeDocument()
+                    .getEntryAtPath("name").orElseThrow().getValue());
+            assertEquals(stateIndex, migration.getMigratedHead().getStateIndex());
+
+            await(search.adoptModelMigration(new AdoptModelMigration(
+                    modelId, collection, null, stateIndex, STORED)));
+
+            assertTrue(search.getModelMigrations(new GetModelMigrations(10)).getMigrations().isEmpty());
+            var adopted = search.getModelMigration(new GetModelMigration(modelId, collection));
+            assertEquals("migrated", adopted.getProductionDocument().deserializeDocument()
+                    .getEntryAtPath("name").orElseThrow().getValue());
+            assertNull(adopted.getMigratedHead());
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
     void keyValueAndSchedulingRequestsRoundTripOverFullServer() throws Exception {
         WebSocketClient client = client("key-value-scheduling");
         try {
@@ -703,6 +748,21 @@ class TestServerWebsocketContractTest {
                                 .build()),
                 ModelConflictPolicy.ACCEPT,
                 STORED, true);
+    }
+
+    private static CommitModels modelMigrationCommit(
+            SerializedMessage sourceEvent,
+            ModelCommitTarget target) {
+        return new CommitModels(
+                sourceEvent.getMessageId(),
+                -1L,
+                List.of(target.getModelId()),
+                List.of(ModelCommitStep.builder()
+                                .event(sourceEvent)
+                                .targets(List.of(target))
+                                .build()),
+                ModelConflictPolicy.ACCEPT,
+                STORED, true, true);
     }
 
     private static SerializedDocument structuredDocument(
