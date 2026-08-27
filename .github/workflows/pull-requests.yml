@@ -2,7 +2,7 @@ name: Build PR
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, next/2.0, 1.x ]
 
 env:
   BUILD_ENVIRONMENT: github
@@ -32,6 +32,9 @@ jobs:
 
       - name: Test Maven Central publication recovery
         run: bash .github/scripts/recover-central-publication.test.sh
+
+      - name: Test release version policy
+        run: bash .github/scripts/resolve-release-version.test.sh
 
       - name: Run Maven build
         run: ./mvnw -B install
