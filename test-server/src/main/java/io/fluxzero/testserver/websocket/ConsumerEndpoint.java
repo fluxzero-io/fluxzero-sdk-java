@@ -65,6 +65,20 @@ public class ConsumerEndpoint extends WebsocketEndpoint {
     }
 
     /**
+     * Creates a consumer endpoint backed by a message store and reports registered reads.
+     *
+     * @param messageStore            the message store backing the endpoint
+     * @param messageType             the message type exposed by this endpoint
+     * @param commandIdempotencyStore the idempotency store used for command handling
+     * @param readRequestObserver     observer invoked after a read has been registered with the tracking strategy
+     */
+    public ConsumerEndpoint(MessageStore messageStore, MessageType messageType,
+                            CommandIdempotencyStore commandIdempotencyStore,
+                            Consumer<WebSocketTracker> readRequestObserver) {
+        this(newMaintenance(messageStore), messageType, null, commandIdempotencyStore, readRequestObserver);
+    }
+
+    /**
      * Creates a consumer endpoint for a topic-specific message log.
      *
      * @param messageStore            the message store backing the endpoint

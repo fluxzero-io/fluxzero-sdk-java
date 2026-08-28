@@ -55,6 +55,7 @@ import org.eclipse.jetty.util.component.LifeCycle;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -142,8 +143,22 @@ public class TestServer {
         return startServer(port, false, ignored -> {});
     }
 
-    static Server startServer(int port, Consumer<WebSocketTracker> readRequestObserver) {
-        return startServer(port, false, readRequestObserver);
+    /**
+     * Starts an embedded test server and observes consumer reads after registration with the runtime.
+     *
+     * <p>The observer is invoked for every message type and may use the tracker's client id, message type, and type
+     * filter to determine when a particular application consumer is ready. A consumer may issue repeated reads and
+     * different consumers may be observed concurrently, so implementations should be thread-safe and inexpensive.
+     * Observer failures are logged and do not affect the read request. The returned Jetty server is owned by the
+     * caller and should be stopped by the caller.</p>
+     *
+     * @param port                the port to bind, or {@code 0} to select a random available port
+     * @param readRequestObserver observer invoked after a consumer read has been registered
+     * @return the started Jetty server
+     */
+    public static Server startServer(int port, Consumer<WebSocketTracker> readRequestObserver) {
+        return startServer(port, false, Objects.requireNonNull(
+                readRequestObserver, "readRequestObserver must not be null"));
     }
 
     private static Server startServer(int port, boolean registerShutdownHook) {
@@ -164,13 +179,13 @@ public class TestServer {
                                                 runtimeLifecycleMetrics.metricsLog(namespace)),
                             format("/%s/", gatewayPath(messageType)), router);
             router = deploy(namespace -> new ConsumerEndpoint(state.getMessageLogMaintenance(namespace, messageType), messageType,
-                                                              commandIdempotencyStore)
+                                                              null, commandIdempotencyStore, readRequestObserver)
                                     .metricsLog(messageType == METRICS ? new NoOpMetricsLog() :
                                                 runtimeLifecycleMetrics.metricsLog(namespace)),
                             format("/%s/", trackingPath(messageType)), router);
         }
         router = deploy(namespace -> new ConsumerEndpoint(state.getMessageLogMaintenance(namespace, NOTIFICATION), NOTIFICATION,
-                                                          commandIdempotencyStore)
+                                                          null, commandIdempotencyStore, readRequestObserver)
                                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)),
                         format("/%s/", trackingPath(NOTIFICATION)), router);
 
@@ -211,7 +226,7 @@ public class TestServer {
                                                             commandIdempotencyStore)
                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)), format("/%s/", schedulingPath()), router);
         router = deploy(namespace -> new ConsumerEndpoint((MessageStore) state.client(namespace).getSchedulingClient(), SCHEDULE,
-                                                          commandIdempotencyStore)
+                                                          commandIdempotencyStore, readRequestObserver)
                                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)),
                         format("/%s/", trackingPath(SCHEDULE)), router);
 
