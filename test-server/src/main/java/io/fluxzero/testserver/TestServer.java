@@ -52,10 +52,10 @@ import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.util.component.LifeCycle;
 
+import java.time.Duration;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,9 +78,11 @@ import static io.fluxzero.common.ServicePathBuilder.keyValuePath;
 import static io.fluxzero.common.ServicePathBuilder.schedulingPath;
 import static io.fluxzero.common.ServicePathBuilder.searchPath;
 import static io.fluxzero.common.ServicePathBuilder.trackingPath;
-import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.common.api.RuntimeLifecycleEvent.Phase.STARTED;
 import static io.fluxzero.common.api.RuntimeLifecycleEvent.Phase.STOPPING;
+import static io.fluxzero.common.tracking.DefaultTrackingStrategy.DEFAULT_INITIAL_POSITION_LAG;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.mapProperty;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.deploy;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.deployFromSession;
 import static io.fluxzero.testserver.websocket.WebsocketDeploymentUtils.getNamespace;
@@ -95,7 +97,7 @@ public class TestServer {
     private static final String DEFAULT_NAMESPACE = "public";
     private static final String RUNTIME_NAME = "FluxzeroTestServer";
 
-    private static volatile ServerState latestState = new ServerState();
+    private static volatile ServerState latestState = new ServerState(DEFAULT_INITIAL_POSITION_LAG);
 
     /**
      * Standalone process entry point.
@@ -140,34 +142,37 @@ public class TestServer {
      * @return the started Jetty server
      */
     public static Server startServer(int port) {
-        return startServer(port, false, ignored -> {});
+        return startServer(port, DEFAULT_INITIAL_POSITION_LAG);
     }
 
     /**
-     * Starts an embedded test server and observes consumer reads after registration with the runtime.
+     * Starts an embedded test server with a configurable look-back for consumers without a stored position.
      *
-     * <p>The observer is invoked for every message type and may use the tracker's client id, message type, and type
-     * filter to determine when a particular application consumer is ready. A consumer may issue repeated reads and
-     * different consumers may be observed concurrently, so implementations should be thread-safe and inexpensive.
-     * Observer failures are logged and do not affect the read request. The returned Jetty server is owned by the
-     * caller and should be stopped by the caller.</p>
+     * <p>The default overload starts new consumers one second before the current end of their log. A larger duration
+     * can be useful in local development when a command may be appended shortly before its first matching consumer is
+     * registered. Existing stored consumer positions are unaffected. The returned Jetty server is owned by the caller
+     * and should be stopped by the caller.</p>
      *
-     * @param port                the port to bind, or {@code 0} to select a random available port
-     * @param readRequestObserver observer invoked after a consumer read has been registered
+     * @param port               the port to bind, or {@code 0} to select a random available port
+     * @param initialPositionLag duration subtracted from the current time for consumers without a stored position
      * @return the started Jetty server
      */
-    public static Server startServer(int port, Consumer<WebSocketTracker> readRequestObserver) {
-        return startServer(port, false, Objects.requireNonNull(
-                readRequestObserver, "readRequestObserver must not be null"));
+    public static Server startServer(int port, Duration initialPositionLag) {
+        return startServer(port, false, ignored -> {}, initialPositionLag);
+    }
+
+    static Server startServer(int port, Consumer<WebSocketTracker> readRequestObserver) {
+        return startServer(port, false, readRequestObserver, DEFAULT_INITIAL_POSITION_LAG);
     }
 
     private static Server startServer(int port, boolean registerShutdownHook) {
-        return startServer(port, registerShutdownHook, ignored -> {});
+        return startServer(port, registerShutdownHook, ignored -> {}, DEFAULT_INITIAL_POSITION_LAG);
     }
 
     private static Server startServer(int port, boolean registerShutdownHook,
-                                      Consumer<WebSocketTracker> readRequestObserver) {
-        ServerState state = new ServerState();
+                                      Consumer<WebSocketTracker> readRequestObserver,
+                                      Duration initialPositionLag) {
+        ServerState state = new ServerState(initialPositionLag);
         latestState = state;
         JettyWebsocketRouter router = new JettyWebsocketRouter();
         CommandIdempotencyStore commandIdempotencyStore = new CommandIdempotencyStore();
@@ -226,7 +231,7 @@ public class TestServer {
                                                             commandIdempotencyStore)
                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)), format("/%s/", schedulingPath()), router);
         router = deploy(namespace -> new ConsumerEndpoint((MessageStore) state.client(namespace).getSchedulingClient(), SCHEDULE,
-                                                          commandIdempotencyStore, readRequestObserver)
+                                                          commandIdempotencyStore)
                                 .metricsLog(runtimeLifecycleMetrics.metricsLog(namespace)),
                         format("/%s/", trackingPath(SCHEDULE)), router);
 
@@ -327,10 +332,17 @@ public class TestServer {
     }
 
     private static class ServerState {
-        private final MemoizingFunction<String, Client> clients = memoize(
-                namespace -> new TestServerProject(LocalClient.newInstance()));
-        private final MemoizingFunction<String, MetricsLog> metricsLogSupplier = memoize(
-                namespace -> new DefaultMetricsLog(getMessageStore(namespace, METRICS)));
+        private final MemoizingFunction<String, Client> clients;
+        private final MemoizingFunction<String, MetricsLog> metricsLogSupplier;
+
+        private ServerState(Duration initialPositionLag) {
+            Duration messageExpiration = mapProperty(
+                    "FLUXZERO_LOG_RETENTION", Duration::parse, () -> Duration.ofMinutes(2));
+            clients = memoize(namespace -> new TestServerProject(
+                    LocalClient.newInstance(messageExpiration, initialPositionLag)));
+            metricsLogSupplier = memoize(
+                    namespace -> new DefaultMetricsLog(getMessageStore(namespace, METRICS)));
+        }
 
         private Client client(String namespace) {
             return clients.apply(namespace);

@@ -39,7 +39,6 @@ import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.api.tracking.SegmentRange;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.tracking.Tracker;
-import io.fluxzero.common.tracking.WebSocketTracker;
 import io.fluxzero.sdk.common.websocket.JdkWebsocketConnector;
 import io.fluxzero.sdk.common.websocket.ServiceUrlBuilder;
 import io.fluxzero.sdk.common.websocket.WebsocketCloseReason;
@@ -80,7 +79,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.fluxzero.common.Guarantee.STORED;
-import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.api.search.BulkUpdate.Type.delete;
@@ -97,7 +95,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TestServerWebsocketContractTest {
     private static final int[] FULL_SEGMENT = new int[]{0, SegmentRange.MAX_SEGMENT};
     private static final long TIMEOUT_SECONDS = 5L;
-    private static final Map<String, CompletableFuture<Tracker>> pendingTrackerRequests = new ConcurrentHashMap<>();
+    private static final Map<String, CompletableFuture<Void>> pendingTrackerRequests = new ConcurrentHashMap<>();
     private static Server server;
     private static int port;
 
@@ -301,7 +299,7 @@ class TestServerWebsocketContractTest {
             String consumer = "truncate-custom-topic-waiting-consumer";
             String trackerId = "waiting-tracker";
 
-            CompletableFuture<Tracker> trackerRequestReceived = expectTrackerRequest(consumer, trackerId);
+            CompletableFuture<Void> trackerRequestReceived = expectTrackerRequest(consumer, trackerId);
             CompletableFuture<MessageBatch> waitingBatch = tracking.read(
                     trackerId, null, ConsumerConfiguration.builder()
                             .name(consumer).maxWaitDuration(Duration.ofSeconds(30)).build());
@@ -319,32 +317,6 @@ class TestServerWebsocketContractTest {
             MessageBatch afterDelete = await(tracking.read(
                     "tracker-after", null, ConsumerConfiguration.builder().name(consumer).build()));
             assertEquals(1, afterDelete.getSize());
-        } finally {
-            client.shutDown();
-        }
-    }
-
-    @Test
-    void observesCommandConsumerAfterRuntimeRegistration() throws Exception {
-        WebSocketClient client = client("observed-command-consumer");
-        try {
-            String consumer = "observed-command-consumer";
-            String trackerId = "observed-command-tracker";
-            CompletableFuture<Tracker> trackerRequestReceived = expectTrackerRequest(consumer, trackerId);
-
-            CompletableFuture<MessageBatch> waitingBatch = client.getTrackingClient(COMMAND).read(
-                    trackerId, null, ConsumerConfiguration.builder()
-                            .name(consumer).typeFilter("\\Qexample.CreateGreeting\\E")
-                            .maxWaitDuration(Duration.ofSeconds(30)).build());
-
-            Tracker tracker = await(trackerRequestReceived);
-            assertEquals(COMMAND, ((WebSocketTracker) tracker).getMessageType());
-            assertEquals(client.id(), tracker.getClientId());
-            assertTrue(((WebSocketTracker) tracker).getTypeFilter().test("example.CreateGreeting"));
-            assertFalse(((WebSocketTracker) tracker).getTypeFilter().test("example.OtherCommand"));
-
-            await(client.getGatewayClient(COMMAND).append(STORED, message("command", "example.CreateGreeting")));
-            assertEquals(1, await(waitingBatch).getSize());
         } finally {
             client.shutDown();
         }
@@ -543,12 +515,6 @@ class TestServerWebsocketContractTest {
         return message(value, value.getBytes(UTF_8));
     }
 
-    private static SerializedMessage message(String value, String type) {
-        return new SerializedMessage(new Data<>(value.getBytes(UTF_8), type, 0, "text/plain"),
-                                     Metadata.empty(), value + "-" + UUID.randomUUID(),
-                                     Instant.now().toEpochMilli());
-    }
-
     private static SerializedMessage message(String id, byte[] value) {
         return new SerializedMessage(new Data<>(value, String.class.getName(), 0, "text/plain"),
                                      Metadata.empty(), id + "-" + UUID.randomUUID(), Instant.now().toEpochMilli());
@@ -585,10 +551,9 @@ class TestServerWebsocketContractTest {
         return future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
-    private static CompletableFuture<Tracker> expectTrackerRequest(String consumer, String trackerId) {
-        CompletableFuture<Tracker> result = new CompletableFuture<>();
-        CompletableFuture<Tracker> existing = pendingTrackerRequests.putIfAbsent(
-                trackerKey(consumer, trackerId), result);
+    private static CompletableFuture<Void> expectTrackerRequest(String consumer, String trackerId) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        CompletableFuture<Void> existing = pendingTrackerRequests.putIfAbsent(trackerKey(consumer, trackerId), result);
         if (existing != null) {
             throw new IllegalStateException("Already waiting for tracker request " + consumer + "/" + trackerId);
         }
@@ -596,10 +561,10 @@ class TestServerWebsocketContractTest {
     }
 
     private static void onTrackerRequest(Tracker tracker) {
-        CompletableFuture<Tracker> request = pendingTrackerRequests.remove(
+        CompletableFuture<Void> request = pendingTrackerRequests.remove(
                 trackerKey(tracker.getConsumerName(), tracker.getTrackerId()));
         if (request != null) {
-            request.complete(tracker);
+            request.complete(null);
         }
     }
 

@@ -36,15 +36,37 @@ import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.CUSTOM;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
+import static io.fluxzero.sdk.tracking.IndexUtils.indexFromTimestamp;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LocalTrackingClientTest {
 
     private static final int[] FULL_SEGMENT = new int[]{0, MAX_SEGMENT};
+
+    @Test
+    void configuredInitialPositionLagIncludesRecentMessagesForNewConsumer() {
+        try (LocalTrackingClient client = new LocalTrackingClient(
+                CUSTOM, "lagged", Duration.ofMinutes(5), Duration.ofSeconds(10))) {
+            SerializedMessage earlierMessage = message("earlier");
+            earlierMessage.setIndex(indexFromTimestamp(Instant.now().minusSeconds(5)));
+            client.append(STORED, earlierMessage).join();
+
+            assertEquals(1, read(client, "new-consumer").getSize());
+        }
+    }
+
+    @Test
+    void rejectsInvalidInitialPositionLagImmediately() {
+        assertThrows(IllegalArgumentException.class,
+                     () -> new LocalTrackingClient(CUSTOM, null, Duration.ofMinutes(5), Duration.ofSeconds(-1)));
+        assertThrows(IllegalArgumentException.class,
+                     () -> new LocalTrackingClient(CUSTOM, null, Duration.ofMinutes(5), null));
+    }
 
     @Test
     @Timeout(10)

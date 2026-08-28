@@ -62,10 +62,14 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public class DefaultTrackingStrategy implements TrackingStrategy {
 
+    /** Default look-back applied when a consumer has no stored or client-controlled position. */
+    public static final Duration DEFAULT_INITIAL_POSITION_LAG = Duration.ofSeconds(1);
+
     private final MessageStore source;
     private final PositionStore positionStore;
     private final TaskScheduler scheduler;
     private final int segments;
+    private final long initialPositionLagMillis;
     private final ConcurrentHashMap<Tracker, WaitingTracker> waitingTrackers = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Tracker, TrackerRequest<?>> openRequests = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, TrackerCluster> clusters = new ConcurrentHashMap<>();
@@ -78,21 +82,46 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     private volatile boolean stopped;
 
     public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore) {
+        this(source, positionStore, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    /**
+     * Creates a tracking strategy with a configurable look-back for consumers without a stored position.
+     *
+     * @param source                 source message log
+     * @param positionStore          consumer position store
+     * @param initialPositionLag     duration subtracted from the current time for a new consumer
+     */
+    public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, Duration initialPositionLag) {
         this(source, positionStore, new InMemoryTaskScheduler(
                 "tracking-scheduler-%s".formatted(source),
-                newWorkerPool("tracking-worker-%s".formatted(source), 8)));
+                newWorkerPool("tracking-worker-%s".formatted(source), 8)), initialPositionLag);
     }
 
     public DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler) {
-        this(source, positionStore, scheduler, MAX_SEGMENT);
+        this(source, positionStore, scheduler, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    protected DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler,
+                                      Duration initialPositionLag) {
+        this(source, positionStore, scheduler, MAX_SEGMENT, initialPositionLag);
     }
 
     protected DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler,
                                       int segments) {
+        this(source, positionStore, scheduler, segments, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    protected DefaultTrackingStrategy(MessageStore source, PositionStore positionStore, TaskScheduler scheduler,
+                                      int segments, Duration initialPositionLag) {
         this.source = source;
         this.positionStore = positionStore;
         this.scheduler = scheduler;
         this.segments = segments;
+        if (initialPositionLag == null || initialPositionLag.isNegative()) {
+            throw new IllegalArgumentException("initialPositionLag must be non-negative");
+        }
+        this.initialPositionLagMillis = initialPositionLag.toMillis();
         sourceRegistration = source.registerMonitor(this::onUpdate);
         purgeCeasedTrackers(Duration.ofSeconds(2));
     }
@@ -262,12 +291,12 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
     protected Position position(Tracker tracker, int[] segment) {
         if (tracker.clientControlledIndex()) {
             return new Position(segment, ofNullable(tracker.getLastTrackerIndex())
-                    .orElseGet(() -> indexFromMillis(currentTimeMillis() - 1000L)));
+                    .orElseGet(() -> initialPositionIndex()));
         }
         Position position = positionStore.position(tracker.getConsumerName());
         if (position.isNew(segment)) {
             return new Position(segment, ofNullable(tracker.getLastTrackerIndex())
-                    .orElseGet(() -> indexFromMillis(currentTimeMillis() - 1000L)));
+                    .orElseGet(() -> initialPositionIndex()));
         }
         if (tracker.singleTracker()) {
             return ofNullable(tracker.getLastTrackerIndex()).map(
@@ -275,6 +304,10 @@ public class DefaultTrackingStrategy implements TrackingStrategy {
         } else {
             return position;
         }
+    }
+
+    private long initialPositionIndex() {
+        return indexFromMillis(currentTimeMillis() - initialPositionLagMillis);
     }
 
     protected List<SerializedMessage> filter(List<SerializedMessage> messages, int[] segmentRange,
