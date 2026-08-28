@@ -25,6 +25,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "LocalEventStoreClient",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient#LocalEventStoreClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageExpiration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a local event store with a configurable look-back for consumers without a stored position.\n\n @param messageExpiration  retention duration for local events\n @param initialPositionLag duration subtracted from the current time for a new consumer\n"
   } ],
   "methods" : [ {
     "name" : "close",

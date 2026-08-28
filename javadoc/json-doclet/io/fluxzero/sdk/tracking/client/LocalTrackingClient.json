@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.sdk.tracking.client",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.AllArgsConstructor",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : " In-memory implementation of the {@link TrackingClient} and {@link GatewayClient} interfaces, designed for\n local-only or test-time usage.\n <p>\n This client simulates message tracking behavior without requiring a live Fluxzero backend. It uses local\n data structures to emulate:\n <ul>\n   <li>A {@link MessageStore} to persist serialized messages</li>\n   <li>A {@link PositionStore} to track consumer offsets</li>\n   <li>A {@link TrackingStrategy} to emulate segment claims and batch fetch behavior</li>\n </ul>\n\n <h2>Use Cases</h2>\n <ul>\n   <li>Unit tests or integration tests involving command/event/query handling</li>\n   <li>Local development without using Fluxzero Runtime as a backend</li>\n   <li>Custom tooling that simulates tracking or playback behavior</li>\n </ul>\n\n <h2>Behavior</h2>\n <ul>\n   <li>Messages are stored in memory and may be optionally expired using {@code messageExpiration} if configured</li>\n   <li>Tracks per-consumer positions independently via an in-memory position store</li>\n   <li>Implements segment claiming and disconnection logic to simulate parallel consumer behavior</li>\n   <li>Supports custom topics for {@link io.fluxzero.common.MessageType#CUSTOM} or {@link io.fluxzero.common.MessageType#DOCUMENT}</li>\n </ul>\n\n <h2>Example</h2>\n <pre>{@code\n TrackingClient testClient = new LocalTrackingClient(MessageType.EVENT, \"test-topic\", Duration.ofMinutes(10));\n }</pre>\n\n @see TrackingClient\n @see GatewayClient\n @see HasMessageStore\n @see InMemoryMessageStore\n @see InMemoryPositionStore\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
@@ -17,6 +14,14 @@
     "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.LOCAL_CLIENT_ID",
     "type" : "java.lang.String",
     "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "initialPositionLag",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient.initialPositionLag",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
@@ -120,6 +125,36 @@
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageExpiration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a local tracking client with a configurable look-back for consumers without a stored position.\n\n @param messageType         message log type\n @param topic               optional message topic\n @param messageExpiration   retention duration for local messages\n @param initialPositionLag  duration subtracted from the current time for a new consumer\n"
+  }, {
+    "name" : "LocalTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#LocalTrackingClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
       "name" : "messageStore",
       "type" : "io.fluxzero.common.tracking.MessageStore",
       "varArgs" : false,
@@ -158,6 +193,101 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "LocalTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#LocalTrackingClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a local tracking client over an existing message store with a configurable initial look-back.\n\n @param messageStore        local message store\n @param messageType         message log type\n @param topic               optional message topic\n @param initialPositionLag  duration subtracted from the current time for a new consumer\n"
+  }, {
+    "name" : "LocalTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#LocalTrackingClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a local tracking client from explicit storage components using the default initial look-back.\n"
+  }, {
+    "name" : "LocalTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#LocalTrackingClient",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageStore",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a local tracking client from explicit storage components.\n\n @param messageStore       local message store\n @param positionStore      local consumer position store\n @param messageType        message log type\n @param topic              optional message topic\n @param initialPositionLag duration subtracted from the current time for a new consumer\n"
   } ],
   "methods" : [ {
     "name" : "append",
@@ -569,6 +699,22 @@
     "parameters" : [ {
       "name" : "guarantee",
       "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateInitialPositionLag",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient#validateInitialPositionLag",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

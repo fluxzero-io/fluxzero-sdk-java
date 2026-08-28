@@ -13,9 +13,25 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.tracking.TrackingStrategy" ],
   "fields" : [ {
+    "name" : "DEFAULT_INITIAL_POSITION_LAG",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.DEFAULT_INITIAL_POSITION_LAG",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Default look-back applied when a consumer has no stored or client-controlled position. ",
+    "constantValue" : null
+  }, {
     "name" : "clusters",
     "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.clusters",
     "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.String,io.fluxzero.common.tracking.TrackerCluster>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "initialPositionLagMillis",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.initialPositionLagMillis",
+    "type" : "long",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -184,6 +200,96 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "DefaultTrackingStrategy",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#DefaultTrackingStrategy",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduler",
+      "type" : "io.fluxzero.common.TaskScheduler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segments",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultTrackingStrategy",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#DefaultTrackingStrategy",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduler",
+      "type" : "io.fluxzero.common.TaskScheduler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultTrackingStrategy",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#DefaultTrackingStrategy",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "io.fluxzero.common.tracking.MessageStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "positionStore",
+      "type" : "io.fluxzero.common.tracking.PositionStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a tracking strategy with a configurable look-back for consumers without a stored position.\n\n @param source                 source message log\n @param positionStore          consumer position store\n @param initialPositionLag     duration subtracted from the current time for a new consumer\n"
   } ],
   "methods" : [ {
     "name" : "adjustMaxSize",
@@ -600,6 +706,17 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "initialPositionIndex",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy#initialPositionIndex",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

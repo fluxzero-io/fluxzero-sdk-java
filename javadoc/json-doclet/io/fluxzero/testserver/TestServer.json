@@ -350,10 +350,36 @@
       "type" : "java.util.function.Consumer<io.fluxzero.common.tracking.WebSocketTracker>",
       "varArgs" : false,
       "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "startServer",
+    "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
+    "returnType" : "org.eclipse.jetty.server.Server",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "port",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "initialPositionLag",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts an embedded test server with a configurable look-back for consumers without a stored position.\n\n <p>The default overload starts new consumers one second before the current end of their log. A larger duration\n can be useful in local development when a command may be appended shortly before its first matching consumer is\n registered. Existing stored consumer positions are unaffected. The returned Jetty server is owned by the caller\n and should be stopped by the caller.</p>\n\n @param port               the port to bind, or {@code 0} to select a random available port\n @param initialPositionLag duration subtracted from the current time for consumers without a stored position\n @return the started Jetty server\n"
   }, {
     "name" : "startServer",
     "qualifiedName" : "io.fluxzero.testserver.TestServer#startServer",
