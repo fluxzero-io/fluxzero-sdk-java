@@ -33,8 +33,29 @@ public class LocalSchedulingClient extends LocalTrackingClient implements Schedu
         super(new InMemoryScheduleStore(messageExpiration), MessageType.SCHEDULE);
     }
 
+    /**
+     * Creates a local scheduling client with a configurable look-back for consumers without a stored position.
+     *
+     * @param messageExpiration  retention duration for local schedules
+     * @param initialPositionLag duration subtracted from the current time for a new consumer
+     */
+    public LocalSchedulingClient(Duration messageExpiration, Duration initialPositionLag) {
+        super(new InMemoryScheduleStore(messageExpiration), MessageType.SCHEDULE, null, initialPositionLag);
+    }
+
     public LocalSchedulingClient(Duration messageExpiration, Clock clock) {
         super(new InMemoryScheduleStore(messageExpiration, clock), MessageType.SCHEDULE);
+    }
+
+    /**
+     * Creates a clock-controlled local scheduling client with a configurable initial look-back.
+     *
+     * @param messageExpiration  retention duration for local schedules
+     * @param clock              clock used by the schedule store
+     * @param initialPositionLag duration subtracted from the current time for a new consumer
+     */
+    public LocalSchedulingClient(Duration messageExpiration, Clock clock, Duration initialPositionLag) {
+        super(new InMemoryScheduleStore(messageExpiration, clock), MessageType.SCHEDULE, null, initialPositionLag);
     }
 
     public void setClock(Clock clock) {
