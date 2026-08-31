@@ -19,7 +19,6 @@ package io.fluxzero.sdk.benchmark;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.persisting.search.client.InMemorySearchStore;
-import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -42,7 +41,6 @@ public class InMemorySearchStoreMonitoringBenchmark {
         new InMemorySearchStoreMonitoringBenchmark().reportsScaling();
     }
 
-    @Test
     void reportsScaling() {
         List<List<SerializedDocument>> documents = Arrays.stream(SIZES)
                 .mapToObj(InMemorySearchStoreMonitoringBenchmark::documents)
