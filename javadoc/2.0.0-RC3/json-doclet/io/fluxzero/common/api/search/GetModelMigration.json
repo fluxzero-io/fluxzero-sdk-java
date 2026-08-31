@@ -1,0 +1,58 @@
+{
+  "name" : "GetModelMigration",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigration",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : "Retrieves the production and staged direct documents needed to verify one Model migration. ",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Request",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigration.collection",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigration.modelId",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GetModelMigration",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetModelMigration#GetModelMigration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

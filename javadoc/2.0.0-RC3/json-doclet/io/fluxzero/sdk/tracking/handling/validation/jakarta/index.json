@@ -1,0 +1,54 @@
+{
+  "package" : {
+    "name" : "jakarta",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "DefaultJakartaValidator.json",
+    "name" : "DefaultJakartaValidator",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.DefaultJakartaValidator",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroValidationConfiguration.json",
+    "name" : "FluxzeroValidationConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroValidationConfiguration.DefaultBootstrapConfiguration.json",
+    "name" : "FluxzeroValidationConfiguration.DefaultBootstrapConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultBootstrapConfiguration",
+    "kind" : "record"
+  }, {
+    "file" : "FluxzeroValidationConfiguration.DefaultTraversableResolver.json",
+    "name" : "FluxzeroValidationConfiguration.DefaultTraversableResolver",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationConfiguration$DefaultTraversableResolver",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroValidationProvider.json",
+    "name" : "FluxzeroValidationProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroValidationProvider.DefaultValidatorFactory.json",
+    "name" : "FluxzeroValidationProvider.DefaultValidatorFactory",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$DefaultValidatorFactory",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroValidationProvider.DefaultValidatorFactory.Context.json",
+    "name" : "FluxzeroValidationProvider.DefaultValidatorFactory.Context",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$DefaultValidatorFactory$Context",
+    "kind" : "record"
+  }, {
+    "file" : "FluxzeroValidationProvider.JakartaValidatorAdapter.json",
+    "name" : "FluxzeroValidationProvider.JakartaValidatorAdapter",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroValidationProvider.JakartaValidatorAdapter.Executables.json",
+    "name" : "FluxzeroValidationProvider.JakartaValidatorAdapter.Executables",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.jakarta.FluxzeroValidationProvider$JakartaValidatorAdapter$Executables",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

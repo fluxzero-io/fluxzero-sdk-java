@@ -1,0 +1,122 @@
+{
+  "name" : "WaitingTracker",
+  "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker",
+  "packageName" : "io.fluxzero.common.tracking",
+  "kind" : "class",
+  "modifiers" : [ "protected" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.Runnable" ],
+  "fields" : [ {
+    "name" : "followUp",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.followUp",
+    "type" : "java.lang.Runnable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "request",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.request",
+    "type" : "io.fluxzero.common.tracking.DefaultTrackingStrategy.TrackerRequest<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "scheduleToken",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.scheduleToken",
+    "type" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "tracker",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.tracker",
+    "type" : "io.fluxzero.common.tracking.Tracker",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "waitingFromUpdateNotificationVersion",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker.waitingFromUpdateNotificationVersion",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WaitingTracker",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker#WaitingTracker",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "run",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker#run",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "run",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker#run",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "notificationReadyNanos",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "runIfBehind",
+    "qualifiedName" : "io.fluxzero.common.tracking.DefaultTrackingStrategy$WaitingTracker#runIfBehind",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "currentUpdateNotificationVersion",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "notificationReadyNanos",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

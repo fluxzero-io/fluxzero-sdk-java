@@ -1,0 +1,71 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "boundary",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric.boundary",
+    "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "headOnlyCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric.headOnlyCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric.maxBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maximumEventCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric.maximumEventCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "streamCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric.streamCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

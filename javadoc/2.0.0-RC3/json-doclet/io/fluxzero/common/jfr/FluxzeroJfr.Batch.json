@@ -1,0 +1,313 @@
+{
+  "name" : "Batch",
+  "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch",
+  "packageName" : "io.fluxzero.common.jfr",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "jdk.jfr.Name",
+    "values" : {
+      "value" : "io.fluxzero.Batch"
+    }
+  }, {
+    "annotationType" : "jdk.jfr.Label",
+    "values" : {
+      "value" : "Fluxzero batch"
+    }
+  }, {
+    "annotationType" : "jdk.jfr.Category",
+    "values" : {
+      "value" : "\"Fluxzero\",\"Pipeline\""
+    }
+  }, {
+    "annotationType" : "jdk.jfr.StackTrace",
+    "values" : {
+      "value" : "false"
+    }
+  } ],
+  "documentation" : "One completed batch operation in the SDK or Runtime pipeline. ",
+  "typeParameters" : [ ],
+  "superClass" : "jdk.jfr.Event",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "activeWorkers",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.activeWorkers",
+    "type" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Active workers"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.bytes",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Bytes"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.DataAmount",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "callbackNanos",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.callbackNanos",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Callback"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.Timespan",
+      "values" : {
+        "value" : "NANOSECONDS"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "component",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.component",
+    "type" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Component"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "failed",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.failed",
+    "type" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Failed"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "failureType",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.failureType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Failure type"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "itemCount",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.itemCount",
+    "type" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Items"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "jdbcRoundTrips",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.jdbcRoundTrips",
+    "type" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "JDBC round trips"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageType",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.messageType",
+    "type" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Message type"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "operation",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.operation",
+    "type" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Operation"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "outputItemCount",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.outputItemCount",
+    "type" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Output items"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "preparationNanos",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.preparationNanos",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Preparation"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.Timespan",
+      "values" : {
+        "value" : "NANOSECONDS"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "publicationNanos",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.publicationNanos",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Publication"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.Timespan",
+      "values" : {
+        "value" : "NANOSECONDS"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "queueBytes",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.queueBytes",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Queued bytes"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.DataAmount",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "queueDepth",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.queueDepth",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Queue depth"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "queueWaitNanos",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.queueWaitNanos",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Queue wait"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.Timespan",
+      "values" : {
+        "value" : "NANOSECONDS"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "storageNanos",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.storageNanos",
+    "type" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Storage"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.Timespan",
+      "values" : {
+        "value" : "NANOSECONDS"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "subBatchCount",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch.subBatchCount",
+    "type" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Sub-batches"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Batch",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch#Batch",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

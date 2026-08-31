@@ -1,0 +1,64 @@
+{
+  "name" : "Trigger",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Trigger",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "PARAMETER,METHOD"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  } ],
+  "documentation" : " Injects the **triggering message** that caused the current message to be published or handled.\n\n <p>\n This annotation is typically used in:\n <ul>\n   <li>{@link io.fluxzero.sdk.tracking.handling.HandleResult @HandleResult} handlers to access the original request</li>\n   <li>{@link io.fluxzero.sdk.tracking.handling.HandleError @HandleError} handlers to inspect the command or query that failed</li>\n </ul>\n\n <p>\n It can be placed on:\n <ul>\n   <li>A handler <strong>method parameter</strong>: to inject the message or payload that triggered the current one</li>\n   <li>A handler <strong>method itself</strong>: to restrict invocation to certain types of trigger messages</li>\n </ul>\n\n <h2>Injection Behavior</h2>\n\n <ul>\n   <li>The triggering message is injected if its structure matches the parameter type.</li>\n   <li>Supported parameter types include:\n     <ul>\n       <li>The triggering payload type (e.g. {@code MyCommand})</li>\n       <li>{@link io.fluxzero.sdk.common.Message Message}</li>\n       <li>{@link io.fluxzero.sdk.common.serialization.DeserializingMessage DeserializingMessage}</li>\n     </ul>\n   </li>\n   <li>If no match is found, the handler is skipped.</li>\n </ul>\n\n <h2>Filtering Options</h2>\n\n You can restrict the handler’s applicability using:\n\n <ul>\n   <li>{@link #value()}: Only inject if the trigger’s payload type is assignable to one of the specified classes</li>\n   <li>{@link #messageType()}: Only allow triggers of the given {@link io.fluxzero.common.MessageType}</li>\n   <li>{@link #consumer()}: Only match triggers from the specified publishing consumers</li>\n </ul>\n\n <h2>Example: Handling a result with access to the triggering command</h2>\n\n <pre>{@code\n @HandleResult\n void handleResult(SuccessResponse result, @Trigger MyCommand originalCommand) {\n     log.info(\"Command {} completed with result: {}\", originalCommand.getId(), result);\n }\n }</pre>\n\n <h2>Example: Retrying failed commands using a consumer-specific trigger</h2>\n\n <pre>{@code\n @HandleError\n @Trigger(consumer = \"my-app\", messageType = MessageType.COMMAND)\n void retryFailedCommand(MyCommand failedCommand) {\n     Fluxzero.sendCommand(failedCommand);\n }\n }</pre>\n\n <h2>Advanced Use Case: Building a dynamic dead-letter queue</h2>\n\n <p>\n Because trigger metadata is preserved, you can replay past failures even if no handler existed when the message\n originally failed. For example, after discovering a bug days later, you can deploy a consumer that:\n <ul>\n   <li>Replays failed commands from the error log</li>\n   <li>Uses {@code @Trigger} to inject and reissue them</li>\n   <li>Recovers gracefully without needing manual inspection of logs</li>\n </ul>\n\n @see io.fluxzero.sdk.tracking.handling.HandleResult\n @see io.fluxzero.sdk.tracking.handling.HandleError\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "consumer",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Trigger#consumer",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Restricts the trigger to messages sent by specific consumer(s).\n"
+  }, {
+    "name" : "messageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Trigger#messageType",
+    "returnType" : "io.fluxzero.common.MessageType[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Restricts the trigger by its {@link io.fluxzero.common.MessageType}.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Trigger#value",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Restricts the trigger message by payload type.\n If left empty, any compatible payload will be injected.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

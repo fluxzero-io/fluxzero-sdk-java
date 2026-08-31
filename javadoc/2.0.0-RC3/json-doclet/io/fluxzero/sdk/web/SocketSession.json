@@ -1,0 +1,215 @@
+{
+  "name" : "SocketSession",
+  "qualifiedName" : "io.fluxzero.sdk.web.SocketSession",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Represents a WebSocket session that allows sending messages, requests, pings, and handling session lifecycle actions.\n This interface provides both default and customizable behaviors for interacting with a WebSocket session.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#close",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Closes the WebSocket session using the default closing behavior. This method triggers the close operation with a\n close reason code of 1000 (normal closure) and a {@link Guarantee} of {@code NONE}.\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#close",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeReason",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Closes the WebSocket session using the specified close reason and a default guarantee of {@link Guarantee#NONE}.\n\n @param closeReason the reason for closing the session, represented as an integer. Standard WebSocket close codes\n                    can be used (e.g., 1000 for normal closure).\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#close",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "closeReason",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Closes the WebSocket session with the specified close reason and delivery guarantee.\n\n @param closeReason an integer indicating the reason for closing the WebSocket session, typically based on\n                    WebSocket close codes (e.g., 1000 for normal closure).\n @param guarantee   the delivery guarantee for ensuring the closure message is sent, which can be one of the\n                    {@link Guarantee} values: NONE, SENT, or STORED.\n @return a {@code CompletableFuture<Void>} that completes when the close operation is performed successfully.\n"
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#close",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Closes the WebSocket session with the specified guarantee for handling pending operations.\n\n @param guarantee the level of guarantee to be applied for handling pending messages or pings before closing the\n                  session. This can be NONE, SENT, or STORED.\n @return a CompletableFuture that completes when the closing operation is finished.\n"
+  }, {
+    "name" : "isOpen",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#isOpen",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether the WebSocket session is currently open.\n\n @return true if the session is open; false otherwise.\n"
+  }, {
+    "name" : "sendMessage",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendMessage",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a message over the WebSocket session with the specified value, using the {@code Guarantee.NONE} policy.\n\n @param value the value of the message to be sent. The value will be serialized and transmitted as bytes.\n"
+  }, {
+    "name" : "sendMessage",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendMessage",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a message over the WebSocket session with the specified delivery guarantee.\n\n @param value     the value of the message to be sent. The value will be serialized and transmitted as bytes.\n @param guarantee the delivery guarantee for the message.\n @return a {@link CompletableFuture} that completes when the message has been sent or stored, or fails with an\n exception if that operation fails.\n"
+  }, {
+    "name" : "sendPing",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendPing",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a WebSocket ping message with the given value. The ping will be sent without any specific delivery\n guarantees.\n\n @param value the object to be sent as a ping message, which will be serialized and transmitted over the\n              WebSocket\n"
+  }, {
+    "name" : "sendPing",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendPing",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a ping message with the specified value to the WebSocket session.\n\n @param value     the value to be included in the ping message. This can be any object that is serializable or\n                  manageable according to the WebSocket session's implementation.\n @param guarantee the delivery guarantee for the ping message. It specifies how assurances (e.g., sending,\n                  storing) are handled for the message delivery.\n @return a CompletableFuture that completes once the ping message is processed or the delivery guarantee has been\n fulfilled.\n"
+  }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendRequest",
+    "returnType" : "java.util.concurrent.CompletionStage<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request and returns a {@link CompletionStage} representing the pending result. This method asynchronously\n sends * the given request and waits for the corresponding response. The request object will be wrapped by\n {@link SocketRequest} and then sent over the WebSocket session. Once the session receives a\n {@link SocketResponse} the request will be completed.\n <p>\n The timeout for the request is determined based on the {@link Timeout} annotation on the request class. If no\n {@link Timeout} annotation is present, a default timeout of 30 seconds is applied.\n\n @param <R>     the type of the expected response from the request\n @param request the request to be sent, encapsulating the type of response expected\n @return a {@link CompletionStage} representing the asynchronous result of the request\n @see SocketRequest for an explanation of how the request is wrapped.\n @see SocketResponse for a description of the expected response.\n"
+  }, {
+    "name" : "sendRequest",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sendRequest",
+    "returnType" : "java.util.concurrent.CompletionStage<R>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.sdk.tracking.handling.Request<R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Sends a request over the WebSocket session with a specified timeout duration. This method asynchronously sends\n the given request and waits for the corresponding response. The request object will be wrapped by\n {@link SocketRequest} and then sent over the WebSocket session. Once the session receives a\n {@link SocketResponse} the request will be completed.\n\n @param <R>     the type of the response expected from the request\n @param request the request object to be sent\n @param timeout the timeout duration for the request, after which it will fail if no response is received\n @return a {@code CompletionStage<R>} that completes with the response of the specified type {@code R} or\n completes exceptionally if an error occurs or the timeout is exceeded\n @see SocketRequest for an explanation of how the request is wrapped.\n @see SocketResponse for a description of the expected response.\n"
+  }, {
+    "name" : "sessionId",
+    "qualifiedName" : "io.fluxzero.sdk.web.SocketSession#sessionId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the unique identifier for the current WebSocket session.\n\n @return a string representing the unique session ID for the WebSocket session.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

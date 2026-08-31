@@ -1,0 +1,73 @@
+{
+  "name" : "PreparedRequest",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "final", "protected" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ "R" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest.delegate",
+    "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "PreparedRequest",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest#PreparedRequest",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.WebSocketRequest",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "fail",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest#fail",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$PreparedRequest#result",
+    "returnType" : "java.util.concurrent.CompletableFuture<R>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

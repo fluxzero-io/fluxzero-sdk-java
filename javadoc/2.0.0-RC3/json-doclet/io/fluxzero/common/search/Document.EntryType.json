@@ -1,0 +1,125 @@
+{
+  "name" : "EntryType",
+  "qualifiedName" : "io.fluxzero.common.search.Document$EntryType",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Enumerates the supported types of values that can appear in a {@link Document} entry.\n <p>\n These types provide a normalized internal representation of different JSON-compatible values, allowing for\n efficient indexing, filtering, and serialization within the Fluxzero document store.\n\n <h2>Supported Types</h2>\n <ul>\n     <li>{@link #TEXT} – textual content, including strings and non-numeric identifiers</li>\n     <li>{@link #NUMERIC} – numeric values such as integers, floats, or decimals</li>\n     <li>{@link #BOOLEAN} – boolean values: {@code true} or {@code false}</li>\n     <li>{@link #NULL} – explicitly null entries (i.e., JSON {@code null})</li>\n     <li>{@link #EMPTY_ARRAY} – empty arrays (e.g. {@code []})</li>\n     <li>{@link #EMPTY_OBJECT} – empty objects (e.g. {@code {}})</li>\n </ul>\n\n <p>\n Each entry type can be serialized into a compact {@code byte} identifier for efficient wire\n transfer or storage. Use {@link #serialize()} and {@link #deserialize(byte)} to convert\n between enum instances and their byte representation.\n\n @see Document.Entry\n @see Document\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.search.Document.EntryType>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType.index",
+    "type" : "byte",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "EntryType",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType#EntryType",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "deserialize",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType#deserialize",
+    "returnType" : "io.fluxzero.common.search.Document.EntryType",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "b",
+      "type" : "byte",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes a byte into an {@link EntryType} enum instance.\n\n @param b the serialized byte value\n @return corresponding {@link EntryType}\n @throws IllegalArgumentException if the byte value is unrecognized\n"
+  }, {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType#serialize",
+    "returnType" : "byte",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Serializes this entry type to a single byte.\n <p>\n Useful for compact storage or transmission over the wire.\n\n @return byte value representing this type\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType#valueOf",
+    "returnType" : "io.fluxzero.common.search.Document.EntryType",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType#values",
+    "returnType" : "io.fluxzero.common.search.Document.EntryType[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "BOOLEAN",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType.BOOLEAN",
+    "annotations" : [ ],
+    "documentation" : " Represents boolean values: {@code true} or {@code false}.\n"
+  }, {
+    "name" : "EMPTY_ARRAY",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType.EMPTY_ARRAY",
+    "annotations" : [ ],
+    "documentation" : " Represents empty arrays (e.g., {@code []}).\n"
+  }, {
+    "name" : "EMPTY_OBJECT",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType.EMPTY_OBJECT",
+    "annotations" : [ ],
+    "documentation" : " Represents empty objects (e.g., {@code {}}).\n"
+  }, {
+    "name" : "NULL",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType.NULL",
+    "annotations" : [ ],
+    "documentation" : " Represents explicitly {@code null} entries.\n"
+  }, {
+    "name" : "NUMERIC",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType.NUMERIC",
+    "annotations" : [ ],
+    "documentation" : " Represents numeric values including integers and decimals (e.g., {@code 42}, {@code 3.14}).\n"
+  }, {
+    "name" : "TEXT",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType.TEXT",
+    "annotations" : [ ],
+    "documentation" : " Represents textual values such as plain strings (e.g., {@code \"hello\"}).\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

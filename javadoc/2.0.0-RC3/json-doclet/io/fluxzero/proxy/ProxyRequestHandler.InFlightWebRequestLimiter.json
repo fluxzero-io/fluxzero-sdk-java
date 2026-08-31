@@ -1,0 +1,112 @@
+{
+  "name" : "InFlightWebRequestLimiter",
+  "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "UNTRACKED_PERMIT",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter.UNTRACKED_PERMIT",
+    "type" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter.Permit",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "inFlight",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter.inFlight",
+    "type" : "java.util.concurrent.atomic.AtomicInteger",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "max",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter.max",
+    "type" : "int",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InFlightWebRequestLimiter",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter#InFlightWebRequestLimiter",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "max",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "max",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter#max",
+    "returnType" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "release",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter#release",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setMax",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter#setMax",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "max",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryAcquire",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter#tryAcquire",
+    "returnType" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter.Permit",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Permit",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

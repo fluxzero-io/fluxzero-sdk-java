@@ -1,0 +1,63 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult$Metric",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Lightweight metric representation of a {@link ClaimSegmentResult}, used for telemetry.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "lastIndex",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult$Metric.lastIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult$Metric.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "segment",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult$Metric.segment",
+    "type" : "int[]",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult$Metric.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.ClaimSegmentResult$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

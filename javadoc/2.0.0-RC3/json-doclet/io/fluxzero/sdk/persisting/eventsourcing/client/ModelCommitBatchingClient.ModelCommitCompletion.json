@@ -1,0 +1,124 @@
+{
+  "name" : "ModelCommitCompletion",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Request-owned context for completing model commits in the transport result batch that contains them.\n\n @param value opaque context owned by the model execution pipeline\n @param processor processor shared by requests that may be completed together\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "processor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion.processor",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitResultProcessor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion.value",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelCommitCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion#ModelCommitCompletion",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "processor",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitResultProcessor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "processor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion#processor",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitResultProcessor",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion#value",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "processor",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitResultProcessor",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "value",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,39 @@
+{
+  "package" : {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CachingTrackingClient.json",
+    "name" : "CachingTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.CachingTrackingClient",
+    "kind" : "class"
+  }, {
+    "file" : "DefaultTracker.json",
+    "name" : "DefaultTracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.DefaultTracker",
+    "kind" : "class"
+  }, {
+    "file" : "InMemoryMessageStore.json",
+    "name" : "InMemoryMessageStore",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.InMemoryMessageStore",
+    "kind" : "class"
+  }, {
+    "file" : "LocalTrackingClient.json",
+    "name" : "LocalTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.LocalTrackingClient",
+    "kind" : "class"
+  }, {
+    "file" : "TrackingClient.json",
+    "name" : "TrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.TrackingClient",
+    "kind" : "interface"
+  }, {
+    "file" : "WebsocketTrackingClient.json",
+    "name" : "WebsocketTrackingClient",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.client.WebsocketTrackingClient",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

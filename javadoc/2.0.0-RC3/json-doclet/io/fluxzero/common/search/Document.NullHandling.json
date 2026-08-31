@@ -1,0 +1,70 @@
+{
+  "name" : "NullHandling",
+  "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "enum",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.search.Document.NullHandling>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "NullHandling",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling#NullHandling",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling#valueOf",
+    "returnType" : "io.fluxzero.common.search.Document.NullHandling",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling#values",
+    "returnType" : "io.fluxzero.common.search.Document.NullHandling[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "FIRST",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling.FIRST",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "LAST",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling.LAST",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

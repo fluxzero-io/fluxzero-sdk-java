@@ -1,0 +1,1398 @@
+{
+  "name" : "InMemorySearchStore",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore",
+  "packageName" : "io.fluxzero.sdk.persisting.search.client",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " In-memory implementation of the {@link SearchClient}, intended for local testing and development.\n <p>\n Stores all indexed documents in memory, with support for basic search, statistics, and deletion logic. Ideal for use\n in test scenarios where a real Fluxzero Runtime connection is not available or needed.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.search.client.SearchClient" ],
+  "fields" : [ {
+    "name" : "adoptedModelIds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.adoptedModelIds",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "adoptedModelSources",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.adoptedModelSources",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "auditTrails",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.auditTrails",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "collections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.collections",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "documentIndices",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.documentIndices",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "documents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.documents",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "identifier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.identifier",
+    "type" : "java.util.function.Function<io.fluxzero.common.api.search.SerializedDocument,java.lang.String>",
+    "modifiers" : [ "final", "protected", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageLogs",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.messageLogs",
+    "type" : "java.util.Map<java.lang.String,java.util.concurrent.ConcurrentSkipListMap<java.lang.Long,io.fluxzero.common.api.SerializedMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelDocumentCollectionResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelDocumentCollectionResolver",
+    "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelDocumentCollectionResolver",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelDocumentVersions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelDocumentVersions",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.DirectDocumentVersion>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionStateIndices",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelGraphProjectionStateIndices",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelGraphResolver",
+    "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelGraphResolver",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelRelationResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelRelationResolver",
+    "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelRelationResolver",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelStateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.modelStateIndex",
+    "type" : "long",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "monitors",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.monitors",
+    "type" : "java.util.List<java.util.function.BiConsumer<java.lang.String,java.util.List<io.fluxzero.common.api.SerializedMessage>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nextDocumentIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.nextDocumentIndex",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "nextIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.nextIndex",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "retentionTime",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.retentionTime",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Setter",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InMemorySearchStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#InMemorySearchStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "retentionTime",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemorySearchStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#InMemorySearchStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "retentionTime",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelRelationResolver",
+      "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelRelationResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemorySearchStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#InMemorySearchStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "retentionTime",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelRelationResolver",
+      "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelRelationResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelGraphResolver",
+      "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemorySearchStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#InMemorySearchStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "retentionTime",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelRelationResolver",
+      "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelRelationResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelGraphResolver",
+      "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelGraphResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelDocumentCollectionResolver",
+      "type" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore.ModelDocumentCollectionResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "adoptModelMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#adoptModelMigration",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.AdoptModelMigration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asGraphTombstone",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#asGraphTombstone",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previousStateIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asIdentifier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#asIdentifier",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asSerializedMessage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#asSerializedMessage",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "bulkUpdate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#bulkUpdate",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Collection<io.fluxzero.common.api.search.DocumentUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createAuditTrail",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#createAuditTrail",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.CreateAuditTrail",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#delete",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documentId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#deleteCollection",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "documentExists",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#documentExists",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "r",
+      "type" : "io.fluxzero.common.api.search.HasDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "effectiveModelSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#effectiveModelSource",
+    "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#fetch",
+    "returnType" : "java.util.Optional<io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "r",
+      "type" : "io.fluxzero.common.api.search.GetDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#fetch",
+    "returnType" : "java.util.Collection<io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchFacetStats",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#fetchFacetStats",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.FacetStats>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchHistogram",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#fetchHistogram",
+    "returnType" : "io.fluxzero.common.api.search.SearchHistogram",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetSearchHistogram",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchModelDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#fetchModelDocument",
+    "returnType" : "io.fluxzero.common.api.search.GetDocumentResult",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fetchStatistics",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#fetchStatistics",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.DocumentStats>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fields",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "groupBy",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#getModelMigration",
+    "returnType" : "io.fluxzero.common.api.search.GetModelMigrationResult",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetModelMigration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelMigrations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#getModelMigrations",
+    "returnType" : "io.fluxzero.common.api.search.GetModelMigrationsResult",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.GetModelMigrations",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSearchCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#getSearchCollections",
+    "returnType" : "java.util.List<io.fluxzero.common.api.search.SearchCollection>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasGraphTombstone",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#hasGraphTombstone",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "index",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#index",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documents",
+      "type" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ifNotExists",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "materializeModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#materializeModelCommit",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assignedUpdates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "excludedModelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "materializeModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#materializeModelGraphProjection",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rebuild",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Synchronously materializes affected roots for the SDK-only graph-projection worker.\n"
+  }, {
+    "name" : "move",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#move",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "query",
+      "type" : "io.fluxzero.common.api.search.SearchQuery",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetCollection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "move",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#move",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documentId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetCollection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "notifyMonitors",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#notifyMonitors",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "openStream",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#openStream",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "openStream",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#openStream",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeDocumentTombstones",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareMessages",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareMessages",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareMessages",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareMessages",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareModelCommit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareModelCommit",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "assignedUpdates",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelUpdate>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "excludedModelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Materializes direct Model documents and returns their deferred local-monitor publication.\n\n @return publication to invoke after the owning commit fence has advanced\n"
+  }, {
+    "name" : "prepareModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareModelGraphProjection",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rebuild",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Materializes graph documents and returns their deferred local-monitor publication.\n\n @return publication to invoke after the graph-projection fence has advanced\n"
+  }, {
+    "name" : "prepareModelGraphProjectionSynchronized",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#prepareModelGraphProjectionSynchronized",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rebuild",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "purgeExpiredMessages",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#purgeExpiredMessages",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageExpiration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#registerMonitor",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "monitor",
+      "type" : "java.util.function.Consumer<java.util.List<io.fluxzero.common.api.SerializedMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#registerMonitor",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "monitor",
+      "type" : "java.util.function.BiConsumer<java.lang.String,java.util.List<io.fluxzero.common.api.SerializedMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveGraphDocuments",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#resolveGraphDocuments",
+    "returnType" : "java.util.LinkedHashMap<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "roots",
+      "type" : "java.util.List<io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graphIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rewriteModelGraphDocument",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#rewriteModelGraphDocument",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replacement",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expectedManifest",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#search",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "searchDocuments",
+      "type" : "io.fluxzero.common.api.search.SearchDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "searchModelGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#searchModelGraph",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.SearchModelGraphDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "searchModels",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#searchModels",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.persisting.search.SearchHit<io.fluxzero.common.api.search.SerializedDocument>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.search.SearchModelDocuments",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "signalMonitors",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#signalMonitors",
+    "returnType" : "void",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "snapshotSequence",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#snapshotSequence",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "storeMessages",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#storeMessages",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "storeMessages",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#storeMessages",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.search.SerializedDocument>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "storeMessagesInLog",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#storeMessagesInLog",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trimModelSnapshots",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#trimModelSnapshots",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "configuredMaximum",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "truncateCollection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore#truncateCollection",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "DirectDocumentVersion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$DirectDocumentVersion",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelDocumentCollectionResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelDocumentCollectionResolver",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "ModelGraphResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelGraphResolver",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "ModelRelationResolver",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelRelationResolver",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  } ]
+}

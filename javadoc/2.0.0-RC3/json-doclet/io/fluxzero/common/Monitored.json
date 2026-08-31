@@ -1,0 +1,34 @@
+{
+  "name" : "Monitored",
+  "qualifiedName" : "io.fluxzero.common.Monitored",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Represents a resource or component that can be monitored.\n <p>\n This interface provides a mechanism to observe activity or values of type {@code T} emitted or processed by the\n implementing component. It is often used to monitor outgoing messages from gateways, lifecycle events, or diagnostic\n metrics.\n\n <h2>Example usage</h2>\n <pre>{@code\n Monitored<Message> monitoredGateway = ...;\n Registration registration = monitoredGateway.registerMonitor(message -> {\n     log.info(\"Published message: {}\", message);\n });\n\n // Later, if needed\n registration.cancel(); // Stops monitoring\n }</pre>\n\n @param <T> the type of value being monitored (e.g., a {@code List<SerializedMessage>})\n\n @see Registration for managing the monitor lifecycle\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "registerMonitor",
+    "qualifiedName" : "io.fluxzero.common.Monitored#registerMonitor",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "monitor",
+      "type" : "java.util.function.Consumer<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a monitor that will be notified when an activity of type {@code T} occurs.\n\n @param monitor the callback to invoke with each observed value\n @return a {@link Registration} that can be used to cancel the monitoring\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
