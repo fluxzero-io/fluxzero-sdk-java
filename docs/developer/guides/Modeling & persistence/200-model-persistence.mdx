@@ -38,6 +38,10 @@ record Account(@EntityId AccountId accountId, Money balance) {
 Each applied update is stored in this account's model stream. Loading reconstructs the account by replaying its
 `@Apply` methods, optionally starting at a snapshot or checkpoint.
 
+By default an event-sourced Model fails when its stream contains an event for which no applicable `@Apply` exists.
+Set `ignoreUnknownEvents = true` only when skipping such historical events is an explicit compatibility decision; it
+changes reconstructed state and is not a substitute for upcasting or retaining old handlers.
+
 Independent models prevent unrelated histories from accumulating in one enormous stream. An order line, payment
 attempt or short-lived process can keep its own small history while still participating in one multi-model commit.
 
@@ -49,7 +53,8 @@ Set `eventSourced = false` to make the current direct document the normal load s
 @Model(
     eventSourced = false,
     searchable = true,
-    collection = "countries")
+    searchProjection = @Searchable(
+        collection = "countries"))
 record Country(
         @EntityId CountryId countryId,
         String name) {
@@ -115,12 +120,20 @@ materialization until the fenced search write succeeds. A retry or the runtime's
 package; application code is never re-evaluated to repair an already committed action. Materialized whole-root graph
 projections may continue asynchronously unless `AWAIT` was selected.
 
+`commitPolicy` controls when the automatic atomic commit starts and when handler or batch completion awaits it. The
+default starts after Model apply handlers and awaits all started commits at batch completion. Keep `DEFAULT` unless an
+application has a measured ordering, latency or concurrency reason to choose another `ModelCommitPolicy`; the policy
+does not split one multi-Model action into separate commits.
+
 ## Searchable models
 
 `searchable = true` gives every model its own direct current document:
 
 ```java
-@Model(searchable = true, collection = "line-items")
+@Model(
+    searchable = true,
+    searchProjection = @Searchable(
+        collection = "line-items"))
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -138,9 +151,10 @@ Fluxzero stores no graph-component document and performs no extra document write
 You can additionally:
 
 - join current direct documents through `whereAncestor(...)` and `whereDescendant(...)`;
-- search a complete JSON graph with `searchGraph(Root.class)`, using a materialized projection when configured and
+- search typed complete graphs with `searchGraph(Root.class)`, using a materialized projection when configured and
   otherwise stitching live;
-- configure `graphProjection = @GraphProjection(...)` for a durable, materialized root document.
+- set `materializeGraph = true` for a durable whole-root document and optionally configure it with
+  `graphProjection = @GraphProjection(...)`.
 
 ## Caching
 
@@ -157,7 +171,7 @@ Use `FluxzeroBuilder.withModelCache(cache)` for a dedicated model cache, or
 `FluxzeroBuilder.disableAutomaticModelCaching()` to disable both shared model caching and its update tracker.
 
 The default `cachingDepth` retains the previous revision needed by common event-handler comparison logic. Configure a
-larger depth only when the application actively uses deeper `Entity.previous()` chains.
+larger depth only when the application actively uses deeper `Graph.previous()` chains.
 
 Disable shared caching with `cached = false`; action-local consistency remains available while evaluating one model
 action.

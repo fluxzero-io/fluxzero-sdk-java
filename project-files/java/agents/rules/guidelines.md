@@ -197,12 +197,14 @@ Use this tree to find the correct manual for your current task, ordered by the r
 17. **Domain Errors**: Use Error Interfaces like `ProjectErrors` to group domain-specific exceptions.
 18. **Present-Tense Events**: Don't invent event types. The applied command payload (e.g. `CreateOrder`) is
     automatically reused for the event.
-19. **Entity History**: Fluxzero enables viewing Entity history using `Entity.previous()`. This removes the need for
-    second-class events like `BalanceChanged` after e.g. a `DepositMoney` command to see what changed.
+19. **Model History**: View current Model history through `Graph.previous()`, `revisions()` and
+    `playBackToCondition(...)`. This removes the need for second-class events like `BalanceChanged` after a
+    `DepositMoney` command solely to see what changed. Reserve `Entity<T>` for legacy Aggregate and persistence code.
 20. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
     system that updates whenever source documents change.
-21. **The Consistency Window**: Remember that `sendCommandAndWait` only waits for the primary state change. Use
-    WebSockets or secondary queries to handle eventually consistent side-effects like search index updates.
+21. **The Consistency Window**: Direct searchable Model documents complete with the Model commit. Materialized Graph
+    projections are asynchronous unless the operation selects `GraphProjectionCompletion.AWAIT`; unrelated handler
+    side effects remain eventually consistent.
 22. **Let go of Sequentialism**: Don't try to build long sequential scripts. Let handlers respond to the results of
     messages asynchronously.
 23. **Model IDs**: Use `Fluxzero.generateId(...)` when creating new models or members. Do this in the **endpoint**

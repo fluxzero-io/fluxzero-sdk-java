@@ -27,25 +27,26 @@ public record Project(
         ProjectDetails details,
         UserId ownerId) {
 }
-
-public final class ProjectId extends Id<Project> {
-    public ProjectId(String value) {
-        super(value, "project-");
-    }
-}
 ```
+
+Assume conventional typed `ProjectId` and `ProjectDetails` value types; do not expand obvious ID or details
+definitions unless the user asks for them.
 
 Important settings:
 
 - `eventSourced`: controls the current-state load route. Events are still stored when `false`.
+- `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
 - `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
   model's own collection; an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true` still retains the
   private graph-component document needed for composition.
 - `searchProjection`: optional `@Searchable` configuration for the direct collection and timestamp paths.
 - `eventPublication`: controls whether unchanged transitions create an event.
-- `publicationStrategy`: `STORE_AND_PUBLISH`, `STORE_ONLY`, `PUBLISH_ONLY` or `NEVER`.
+- `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
+- `checkpointPeriod`: bounds repeated replay work within one reconstruction session.
 - `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
+- `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
+- `commitPolicy`: controls commit timing and completion-phase concurrency; normally keep `DEFAULT`.
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
 - `materializeGraph`: enables the optional durable whole-tree read model.
 - `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
@@ -241,6 +242,8 @@ default cascade ownership. Being displayed below or deleted with the parent does
 - Updating `projectId` moves the task.
 - The parent and siblings do not need to load for a task-only change.
 - Typed `Id<Parent>` supplies the relation type. A role is only needed for untyped/ambiguous IDs.
+- For one polymorphic typed relation, use `@Parent(types = {Project.class, Folder.class}, ...) Id<?> parentId`; the
+  concrete typed ID selects one statically declared parent type. Use separate properties for distinct relation roles.
 - `pathInParent` is a stable public graph-placement and serialization contract. A pathless relation remains available through
   typed `Graph` traversal and parent-deletion lifecycle handling, but is not emitted as a named JSON graph edge.
 - A child is logically deleted by default when any parent referenced by that `@Parent` is finally deleted. Set
@@ -299,6 +302,7 @@ Project project = Fluxzero.loadModel(projectId).get();
 
 Graph<Project> graph = Fluxzero.loadGraph(projectId);
 Project sameProject = graph.get();
+String publicId = graph.functionalId();
 List<Task> tasks = graph.childModels("tasks", Task.class);
 Graph<Project> previous = graph.previous();
 ```
@@ -308,6 +312,14 @@ children, descendants, history or staged updates. Resolving the graph itself cos
 injection; relationships are fetched only when traversed. Typed ancestor lookup follows relationship identities first
 and loads only the selected ancestor value. Every child is itself a graph, so `parent()`, `root()`,
 `previous()`, `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)` remain available at every placement.
+
+`id()` is the collision-safe repository identity; `functionalId()` is the public ID from the current or last present
+model value and omits repository affixes or parent scope. `stateIndex()` pins the complete graph read, while
+`revisionStateIndex()` reports when the selected node revision became current.
+
+Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or historical event boundary. Use
+`loadCurrentGraph(...)` only after a synchronous nested command when later handler logic deliberately needs that
+command's newer state. Do not use it as the default loading route.
 
 Use `graph.delete()` to stage logical deletion of a selected node; return or explicitly commit that resulting graph
 according to the surrounding handler contract.
@@ -324,6 +336,9 @@ Use `selectPaths(...)`, `filterNodes(...)` or ancestor-preserving `filterBranche
 accepted model values are shared.
 Annotate a model method with `@GraphProperty` when a serialized property is derived from the current graph or a typed
 ancestor graph. It is evaluated only during graph serialization and reuses the graph already in memory.
+For one response-wide lookup that several nodes consume, attach the already-batched result once with
+`graph.withContext(value)` and read it inside the property method with `graph.context(ValueType.class)`; graph context
+is immutable, shared across the view and never persisted as Model state.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 
@@ -358,6 +373,23 @@ inject directly addressed Models at one current pinned boundary. If a migration 
 Model commit, the same injection resolves its exact historical state instead. Such an event is not implicitly a
 complete graph-change subscription; that requires the durable Model commit metadata.
 
+## Complete graph-change handlers
+
+Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one
+of its descendants:
+
+```java
+@HandleEvent
+void projectChanged(Graph<Project> graph) {
+    Graph<Project> before = graph.previous();
+}
+```
+
+Creation has no previous graph; deletion supplies an empty current graph and the complete deleted graph through
+`previous()`; moving a child invokes both old and new roots. The previous graph is commit-exact and does not depend on
+cache depth. One handler object may declare several such methods for distinct root types. Adding an explicit event
+payload turns the method back into ordinary payload handling with direct/ancestor Graph injection.
+
 ## Search and graph composition
 
 Direct searchable-model documents are synchronous with successful commit completion:
@@ -376,7 +408,7 @@ List<Task> tasks = Fluxzero.search(Task.class)
                 Project.class,
                 MatchConstraint.match(
                         "active", "status"))
-        .fetchAll(Task.class);
+        .fetchAll();
 ```
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
@@ -388,8 +420,8 @@ nested-path filter when the child type is known. Use
 reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;
 `searchGraph(Root.class, true)`
 forces live composition. Use `fetch(..., ObjectNode.class)` for explicit raw JSON. Enable materialization with
-`@Model(materializeGraph = true)`. Enable `searchable` separately only for direct public Modelsearch. A blank projection
-collection derives from the direct Model collection when searchable, or from the simple root-model name otherwise;
+`@Model(materializeGraph = true)`. Enable `searchable` separately only for direct public Model search. A blank projection
+collection appends `-graphs` to the direct Model collection when searchable, or to the simple root-model name otherwise;
 explicit lower-level composition limits fail rather than returning a partial graph.
 
 ## Conflict policy

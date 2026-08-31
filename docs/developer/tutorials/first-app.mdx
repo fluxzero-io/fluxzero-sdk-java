@@ -33,21 +33,16 @@ Fluxzero does not require controller, service and repository layers around this 
 
 ## Define a project
 
-First define a strong ID and an immutable model:
+First define an immutable model with a typed ID and a details value. The ordinary `ProjectId` and `ProjectDetails`
+value types are assumed below so the example can stay focused on Model behavior:
 
 <Tabs>
   <TabItem label="Java">
 
 ```java
-public final class ProjectId extends Id<Project> {
-    public ProjectId(String value) {
-        super(value, "project-");
-    }
-}
-
 @Model(searchable = true)
 public record Project(@EntityId ProjectId projectId,
-                      String name,
+                      ProjectDetails details,
                       UserId ownerId,
                       boolean archived) {
 }
@@ -57,12 +52,10 @@ public record Project(@EntityId ProjectId projectId,
   <TabItem label="Kotlin">
 
 ```kotlin
-class ProjectId(value: String) : Id<Project>(value, "project-")
-
 @Model(searchable = true)
 data class Project(
     @EntityId val projectId: ProjectId,
-    val name: String,
+    val details: ProjectDetails,
     val ownerId: UserId,
     val archived: Boolean
 )
@@ -85,11 +78,11 @@ The creation command carries its transition:
 
 ```java
 public record CreateProject(ProjectId projectId,
-                            @NotBlank String name) {
+                            @Valid ProjectDetails details) {
     @Apply
     Project apply(Sender sender) {
         return new Project(
-                projectId, name,
+                projectId, details,
                 sender.userId(), false);
     }
 }
@@ -101,11 +94,11 @@ public record CreateProject(ProjectId projectId,
 ```kotlin
 data class CreateProject(
     val projectId: ProjectId,
-    @field:NotBlank val name: String
+    @field:Valid val details: ProjectDetails
 ) {
     @Apply
     fun apply(sender: Sender) =
-        Project(projectId, name, sender.userId(), false)
+        Project(projectId, details, sender.userId(), false)
 }
 ```
 
@@ -116,7 +109,9 @@ Send it like any command:
 
 ```java
 Project result = Fluxzero.sendCommandAndWait(
-        new CreateProject(projectId, "Website launch"));
+        new CreateProject(
+                projectId,
+                new ProjectDetails("Website launch")));
 ```
 
 Fluxzero discovers the `@Apply` method, resolves the target from `ProjectId`, checks that the project does not already
@@ -136,16 +131,10 @@ model and link it to a project:
   <TabItem label="Java">
 
 ```java
-public final class TaskId extends Id<Task> {
-    public TaskId(String value) {
-        super(value, "task-");
-    }
-}
-
 @Model(searchable = true)
 public record Task(@EntityId TaskId taskId,
                    @Parent(pathInParent = "tasks") ProjectId projectId,
-                   String description,
+                   TaskDetails details,
                    boolean completed) {
 }
 ```
@@ -154,13 +143,11 @@ public record Task(@EntityId TaskId taskId,
   <TabItem label="Kotlin">
 
 ```kotlin
-class TaskId(value: String) : Id<Task>(value, "task-")
-
 @Model(searchable = true)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
-    val description: String,
+    val details: TaskDetails,
     val completed: Boolean
 )
 ```
@@ -179,7 +166,7 @@ Now create a task while checking its unrelated parent model:
 ```java
 public record AddTask(TaskId taskId,
                       ProjectId projectId,
-                      @NotBlank String description) {
+                      @Valid TaskDetails details) {
     @AssertLegal
     void assertProjectActive(Project project) {
         if (project.archived()) {
@@ -192,7 +179,7 @@ public record AddTask(TaskId taskId,
     Task apply() {
         return new Task(
                 taskId, projectId,
-                description, false);
+                details, false);
     }
 }
 ```
@@ -204,7 +191,7 @@ public record AddTask(TaskId taskId,
 data class AddTask(
     val taskId: TaskId,
     val projectId: ProjectId,
-    @field:NotBlank val description: String
+    @field:Valid val details: TaskDetails
 ) {
     @AssertLegal
     fun assertProjectActive(project: Project) {
@@ -215,7 +202,7 @@ data class AddTask(
 
     @Apply
     fun apply() =
-        Task(taskId, projectId, description, false)
+        Task(taskId, projectId, details, false)
 }
 ```
 
@@ -247,7 +234,7 @@ public record CompleteTask(TaskId taskId) {
         return new Task(
                 task.taskId(),
                 task.projectId(),
-                task.description(),
+                task.details(),
                 true);
     }
 }
@@ -295,7 +282,7 @@ public record MoveTask(TaskId taskId,
     Task apply(Task task) {
         return new Task(
                 task.taskId(), destinationId,
-                task.description(), task.completed());
+                task.details(), task.completed());
     }
 }
 ```
@@ -319,9 +306,9 @@ public final class ProjectQueries {
     CompletableFuture<List<Task>> handle(
             FindOpenTasks query) {
         return Fluxzero.search(Task.class)
-                .lookAhead(query.term(), "description")
+                .lookAhead(query.term(), "details/description")
                 .match(false, "completed")
-                .fetchAsync(100, Task.class);
+                .fetchAsync(100);
     }
 }
 ```
@@ -337,9 +324,9 @@ class ProjectQueries {
     fun handle(query: FindOpenTasks):
             CompletableFuture<List<Task>> =
         Fluxzero.search(Task::class.java)
-            .lookAhead(query.term, "description")
+            .lookAhead(query.term, "details/description")
             .match(false, "completed")
-            .fetchAsync(100, Task::class.java)
+            .fetchAsync(100)
 }
 ```
 
@@ -361,9 +348,9 @@ import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
 List<Task> launchTasks = Fluxzero.search(Task.class)
         .whereParent(
                 Project.class,
-                match("Website launch", "name"))
+                match("Website launch", "details/name"))
         .match(false, "completed")
-        .fetchAll(Task.class);
+        .fetchAll();
 ```
 
   </TabItem>
@@ -373,10 +360,10 @@ List<Task> launchTasks = Fluxzero.search(Task.class)
 val launchTasks = Fluxzero.search(Task::class.java)
     .whereParent(
         Project::class.java,
-        MatchConstraint.match("Website launch", "name")
+        MatchConstraint.match("Website launch", "details/name")
     )
     .match(false, "completed")
-    .fetchAll(Task::class.java)
+    .fetchAll()
 ```
 
   </TabItem>
@@ -396,11 +383,11 @@ Graph<Project> graph = Fluxzero.loadGraph(projectId);
 List<Task> tasks = graph.childModels("tasks", Task.class);
 ```
 
-Search returns the complete graph as JSON. It uses a configured materialized projection and otherwise stitches direct
-documents at query time:
+Graph search returns typed lazy graphs. It uses a configured materialized projection and otherwise stitches current
+Model documents at query time:
 
 ```java
-List<ObjectNode> projects = Fluxzero.searchGraph(Project.class)
+List<Graph<Project>> projects = Fluxzero.searchGraph(Project.class)
         .fetchAll();
 ```
 
@@ -409,6 +396,7 @@ For repeatedly queried large trees, enable a graph projection on the root:
 ```java
 @Model(
     searchable = true,
+    materializeGraph = true,
     graphProjection = @GraphProjection(
         collection = "project-overviews"))
 public record Project(/* ... */) {
@@ -429,15 +417,16 @@ public final class TaskNotifications {
     @HandleEvent
     void on(CompleteTask event,
             Task task,
-            Entity<Task> entity) {
+            Graph<Task> graph) {
         // task is the state exactly after this event,
         // even if newer task events already exist.
-        assert task.equals(entity.get());
+        assert task.equals(graph.get());
     }
 }
 ```
 
-For a logical delete event, `Entity<Task>` may be empty. A bare non-null `Task` only matches while a value exists.
+For a logical delete event, `Graph<Task>` is empty and exposes the deleted value through `previous()`. A bare non-null
+`Task` only matches while a value exists.
 
 ## Test the application
 
@@ -459,10 +448,12 @@ class TaskTest {
                 .givenCommands(
                         new CreateProject(
                                 projectId,
-                                "Website launch"),
+                                new ProjectDetails(
+                                        "Website launch")),
                         new AddTask(
                                 taskId, projectId,
-                                "Write documentation"))
+                                new TaskDetails(
+                                        "Write documentation")))
                 .whenCommand(
                         new CompleteTask(taskId))
                 .expectEvents(
@@ -488,10 +479,13 @@ class TaskTest {
     fun completesTask() {
         TestFixture.create()
             .givenCommands(
-                CreateProject(projectId, "Website launch"),
+                CreateProject(
+                    projectId,
+                    ProjectDetails("Website launch")
+                ),
                 AddTask(
                     taskId, projectId,
-                    "Write documentation"
+                    TaskDetails("Write documentation")
                 )
             )
             .whenCommand(CompleteTask(taskId))

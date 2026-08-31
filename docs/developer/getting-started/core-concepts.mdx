@@ -43,7 +43,10 @@ public record RenameProject(ProjectId projectId,
 
     @Apply
     Project apply(Project project) {
-        return new Project(projectId, name, project.ownerId());
+        return new Project(
+                projectId,
+                new ProjectDetails(name),
+                project.ownerId());
     }
 }
 ```
@@ -65,7 +68,11 @@ data class RenameProject(
 
     @Apply
     fun apply(project: Project) =
-        Project(projectId, name, project.ownerId)
+        Project(
+            projectId,
+            ProjectDetails(name),
+            project.ownerId
+        )
 }
 ```
 
@@ -93,14 +100,8 @@ Use an explicit `@HandleCommand` when the action needs orchestration around the 
 ```java
 @Model(searchable = true)
 public record Project(@EntityId ProjectId projectId,
-                      String name,
+                      ProjectDetails details,
                       UserId ownerId) {
-}
-
-public final class ProjectId extends Id<Project> {
-    public ProjectId(String value) {
-        super(value, "project-");
-    }
 }
 ```
 
@@ -111,15 +112,16 @@ public final class ProjectId extends Id<Project> {
 @Model(searchable = true)
 data class Project(
     @EntityId val projectId: ProjectId,
-    val name: String,
+    val details: ProjectDetails,
     val ownerId: UserId
 )
-
-class ProjectId(value: String) : Id<Project>(value, "project-")
 ```
 
   </TabItem>
 </Tabs>
+
+`ProjectId` is the application's typed `Id<Project>` and `ProjectDetails` its immutable details value; their ordinary
+value-type definitions are omitted here so the example stays focused on Model behavior.
 
 Each model ID is its own persistence and lifecycle boundary. Its event stream, cache, snapshots and direct search
 document are enabled independently through `@Model` settings. The exact
@@ -146,10 +148,10 @@ An `@Apply` method returns the target model state:
 
 ```java
 public record CreateProject(ProjectId projectId,
-                            String name) {
+                            ProjectDetails details) {
     @Apply
     Project apply(Sender sender) {
-        return new Project(projectId, name, sender.userId());
+        return new Project(projectId, details, sender.userId());
     }
 }
 
@@ -215,14 +217,14 @@ Use `@Parent` when independently stored models form a navigable graph:
 @Model(searchable = true)
 public record Task(@EntityId TaskId taskId,
                    @Parent(pathInParent = "tasks") ProjectId projectId,
-                   String description,
+                   TaskDetails details,
                    boolean completed) {
 }
 ```
 
-Changing only `projectId` moves a task. The parent, siblings and children do not need to be loaded. The stable `path`
-is optional; without it, Fluxzero still stores the relation but does not automatically place the child in a stitched
-tree document.
+Changing only `projectId` moves a task. The parent, siblings and children do not need to be loaded. The stable
+`pathInParent` is optional; without it, Fluxzero still stores the relation but does not automatically place the child
+in a stitched tree document.
 
 Parents and further ancestors can be injected into model assertions, apply interceptors and applies. Use
 `@Association("path")` when more than one relation could match:
@@ -297,8 +299,8 @@ public final class ProjectQueries {
     @HandleQuery
     CompletableFuture<List<Project>> handle(FindProjects query) {
         return Fluxzero.search(Project.class)
-                .lookAhead(query.term(), "name")
-                .fetchAsync(50, Project.class);
+                .lookAhead(query.term(), "details/name")
+                .fetchAsync(50);
     }
 }
 ```
@@ -330,11 +332,13 @@ payload.
 
 ```java
 TestFixture.create()
-        .givenCommands(new CreateProject(projectId, "Initial"))
+        .givenCommands(new CreateProject(
+                projectId, new ProjectDetails("Initial")))
         .whenCommand(new RenameProject(projectId, "Launch"))
         .expectThat(fluxzero -> assertEquals(
                 "Launch",
-                Fluxzero.loadModel(projectId).get().name()))
+                Fluxzero.loadModel(projectId)
+                        .get().details().name()))
         .expectEvents(new RenameProject(projectId, "Launch"));
 ```
 

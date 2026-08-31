@@ -39,6 +39,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Objects;
 
+import static io.fluxzero.common.tracking.DefaultTrackingStrategy.DEFAULT_INITIAL_POSITION_LAG;
+
 /**
  * An in-memory {@link Client} implementation used for local development, testing, or isolated environments where no
  * connection to the Fluxzero Runtime is required.
@@ -75,6 +77,8 @@ public class LocalClient extends AbstractClient {
 
     @Getter
     private final Duration messageExpiration;
+    @Getter
+    private final Duration initialPositionLag;
     private final LocalEventStoreClient eventStore;
     private final LocalSchedulingClient scheduleStore;
     private Clock clock;
@@ -98,15 +102,36 @@ public class LocalClient extends AbstractClient {
         return new LocalClient(messageExpiration);
     }
 
+    /**
+     * Creates a local client with configurable message retention and initial look-back for new consumers.
+     *
+     * @param messageExpiration  retention duration for local messages
+     * @param initialPositionLag duration subtracted from the current time for consumers without a stored position
+     * @return a new local client
+     */
+    public static LocalClient newInstance(Duration messageExpiration, Duration initialPositionLag) {
+        return new LocalClient(messageExpiration, initialPositionLag);
+    }
+
     protected LocalClient(Duration messageExpiration) {
-        this(messageExpiration, "public", null, null);
+        this(messageExpiration, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    protected LocalClient(Duration messageExpiration, Duration initialPositionLag) {
+        this(messageExpiration, initialPositionLag, "public", null, null);
     }
 
     protected LocalClient(Duration messageExpiration, String namespace, LocalClient applicationClient, Clock clock) {
+        this(messageExpiration, DEFAULT_INITIAL_POSITION_LAG, namespace, applicationClient, clock);
+    }
+
+    protected LocalClient(Duration messageExpiration, Duration initialPositionLag, String namespace,
+                          LocalClient applicationClient, Clock clock) {
         this.messageExpiration = messageExpiration;
-        this.eventStore = new LocalEventStoreClient(messageExpiration);
-        this.scheduleStore = clock == null ? new LocalSchedulingClient(messageExpiration)
-                : new LocalSchedulingClient(messageExpiration, clock);
+        this.initialPositionLag = initialPositionLag;
+        this.eventStore = new LocalEventStoreClient(messageExpiration, initialPositionLag);
+        this.scheduleStore = clock == null ? new LocalSchedulingClient(messageExpiration, initialPositionLag)
+                : new LocalSchedulingClient(messageExpiration, clock, initialPositionLag);
         this.clock = clock;
         this.namespace = namespace;
         this.applicationClient = applicationClient;
@@ -144,15 +169,17 @@ public class LocalClient extends AbstractClient {
             case NOTIFICATION, EVENT -> eventStore;
             case SCHEDULE -> scheduleStore;
             case DOCUMENT -> new LocalTrackingClient(new CollectionMessageStore((InMemorySearchStore) getSearchClient(),
-                                                                                topic), MessageType.DOCUMENT, topic);
-            default -> new LocalTrackingClient(messageType, topic, messageExpiration);
+                                                                                topic), MessageType.DOCUMENT, topic,
+                                                     initialPositionLag);
+            default -> new LocalTrackingClient(messageType, topic, messageExpiration, initialPositionLag);
         };
     }
 
     @Override
     protected TrackingClient createTrackingClient(MessageType messageType, String topic) {
         if (messageType == MessageType.NOTIFICATION) {
-            return new LocalTrackingClient(eventStore.getMessageStore(), MessageType.NOTIFICATION);
+            return new LocalTrackingClient(eventStore.getMessageStore(), MessageType.NOTIFICATION, null,
+                                           initialPositionLag);
         }
         return (TrackingClient) getGatewayClient(messageType, topic);
     }
@@ -206,6 +233,7 @@ public class LocalClient extends AbstractClient {
         if (namespace == null) {
             return this;
         }
-        return registerNamespaceClient(new LocalClient(getMessageExpiration(), namespace, this, clock));
+        return registerNamespaceClient(new LocalClient(getMessageExpiration(), getInitialPositionLag(), namespace,
+                                                       this, clock));
     }
 }

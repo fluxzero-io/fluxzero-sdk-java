@@ -27,7 +27,9 @@ import java.lang.annotation.Target;
  *
  * <p>The annotated instance method must return a value and accept one or more {@code Graph<T>} parameters. A parameter
  * may select the current model graph or one of its typed ancestors. The method is not invoked when the model value is
- * serialized by itself, and resolving its parameters reuses the graph that is already being serialized.</p>
+ * serialized by itself, and resolving its parameters reuses the graph that is already being serialized. Response-wide
+ * values attached through {@link Graph#withContext(Object...)} are available through
+ * {@link Graph#context(Class)} and never become persisted model state.</p>
  */
 @Documented
 @Target(ElementType.METHOD)

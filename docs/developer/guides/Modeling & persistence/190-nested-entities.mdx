@@ -93,34 +93,45 @@ For a string or another untyped ID, declare the type when graph features need it
 String orderId
 ```
 
+For one polymorphic typed relation, enumerate the statically allowed parent types. The concrete typed ID selects one of
+them at runtime:
+
+```java
+@Parent(
+    types = {Project.class, Folder.class},
+    pathInParent = "items")
+Id<?> containerId
+```
+
+Use separate properties when the relations have different domain roles, paths or deletion ownership.
+
 Model identity is still only `id.toString()`. The model type is reconstruction and graph metadata; it is never
 concatenated into the persisted key.
 
 ## Paths and graph composition
 
-`path` is an explicit durable placement contract. It is intentionally not derived from a Java class name:
+`pathInParent` is an explicit durable placement contract. It is intentionally not derived from a Java class name:
 
 ```java
 @Parent(pathInParent = "shipping/lines")
 OrderId orderId
 ```
 
-When `path` is omitted, Fluxzero still stores and traverses the relation, but it does not automatically stitch that edge
-into a search or serialized graph document. Typed `Graph` traversal and parent-deletion lifecycle handling still follow
-it. This keeps package and class renames from silently changing public document structure.
+When `pathInParent` is omitted, Fluxzero still stores and traverses the relation, but it does not automatically stitch
+that edge into a search or serialized graph document. Typed `Graph` traversal and parent-deletion lifecycle handling
+still follow it. This keeps package and class renames from silently changing public document structure.
 
-Current graph documents can be assembled on demand:
+Current graphs can be assembled on demand:
 
 ```java
-ObjectNode order = Fluxzero.searchGraph(Order.class)
-        .fetch(1)
-        .getFirst();
+Graph<Order> order = Fluxzero.searchGraph(Order.class)
+        .fetchFirstOrNull();
 ```
 
 If `Order` configures a graph projection, the default search reads that materialized view. Without one, it stitches
 the graph live. Pass `true` as the second argument to force live stitching. Constraints, sorting, field selection and
-pagination apply to the complete graph view in either route. Request `SerializedDocument.class`, `Document.class` or
-stream typed `SearchHit<ObjectNode>` values when transport or index details are needed.
+pagination apply to the complete graph view in either route. Use an explicit terminal result type such as
+`fetch(1, ObjectNode.class)` only at a raw JSON, document or transport boundary.
 
 Or reconstructed as typed models:
 
@@ -182,7 +193,7 @@ List<LineItem> lines = Fluxzero.search(LineItem.class)
                 2,
                 MatchConstraint.match(
                         "Acme", true, "name"))
-        .fetchAll(LineItem.class);
+        .fetchAll();
 ```
 
 The reverse is also possible:
@@ -197,7 +208,7 @@ List<Order> orders = Fluxzero.search(Order.class)
                         productId.toString(),
                         true,
                         "productId"))
-        .fetchAll(Order.class);
+        .fetchAll();
 ```
 
 These current searches use relational joins between direct model documents and current edges. They do not require an
@@ -209,15 +220,16 @@ For repeated whole-root queries, opt in to a durable graph projection:
 
 ```java
 @Model(
-    searchable = true,
+    materializeGraph = true,
     graphProjection = @GraphProjection(
         collection = "order-graphs"))
 record Order(@EntityId OrderId orderId, String customerName) {
 }
 ```
 
-The runtime consumes durable projection signals, coalesces affected roots, composes each bounded graph and writes it
-with a `(configurationVersion, stateIndex)` fence. A move updates both the old and new root.
+The runtime consumes durable projection signals, coalesces affected roots, composes each complete graph and writes it
+with a `(configurationVersion, stateIndex)` fence. A move updates both the old and new root. `searchable = true` is a
+separate choice that enables direct `Order` search; it is not required for this whole-graph projection.
 
 Projection completion is configurable:
 

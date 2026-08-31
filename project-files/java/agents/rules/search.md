@@ -36,8 +36,8 @@ data through a unified document store, leveraging automatic indexing and a rich 
 4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
 5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
    historical, search is optimized for current data.
-6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Use the `collection`
-   attribute in annotations to override this.
+6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Configure a Model's
+   direct collection through `searchProjection = @Searchable(collection = "...")`.
 7. **Server-side Search Logic**: Keep filtering and sorting in Fluxzero search calls (`match`, `any/all`, `sortBy`,
    etc.). Avoid re-implementing filtering/sorting in client app code.
 
@@ -115,7 +115,7 @@ Access the search engine via `Fluxzero.search(Class<T>)` or by providing a colle
 [//]: # (@formatter:off)
 ```java
 List<Project> results = Fluxzero.search(Project.class)
-    .lookAhead("flux", "name")
+    .lookAhead("flux", "details/name")
     .match("ACTIVE", "status")
     .fetch(10);
 ```
@@ -214,8 +214,8 @@ value before doing more work.
 @HandleQuery
 CompletableFuture<List<Project>> handle(SearchProjects query) {
     return Fluxzero.search(Project.class)
-        .lookAhead(query.term(), "name")
-        .fetchAsync(50, Project.class);
+        .lookAhead(query.term(), "details/name")
+        .fetchAsync(50);
 }
 
 @HandleQuery

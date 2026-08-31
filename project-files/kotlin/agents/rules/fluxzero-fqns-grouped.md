@@ -58,6 +58,7 @@ io.fluxzero.sdk.configuration.DefaultFluxzero
 io.fluxzero.sdk.configuration.DefaultFluxzero.Builder
 io.fluxzero.sdk.configuration.FluxzeroBuilder
 io.fluxzero.sdk.configuration.FluxzeroConfiguration
+io.fluxzero.sdk.configuration.PublishedEventModelMigration
 io.fluxzero.sdk.configuration.client.AbstractClient
 io.fluxzero.sdk.configuration.client.Client
 io.fluxzero.sdk.configuration.client.ClientDispatchMonitor
@@ -88,6 +89,7 @@ io.fluxzero.sdk.modeling.Alias
 io.fluxzero.sdk.modeling.AnnotatedEntityHolder
 io.fluxzero.sdk.modeling.AppliedEvent
 io.fluxzero.sdk.modeling.AssertLegal
+io.fluxzero.sdk.modeling.AutomaticModelHandling
 io.fluxzero.sdk.modeling.BatchingHandlerRepository
 io.fluxzero.sdk.modeling.DefaultEntityHelper
 io.fluxzero.sdk.modeling.DefaultEntityHelper.DeserializingMessageWithEntity
@@ -100,6 +102,11 @@ io.fluxzero.sdk.modeling.EntityId
 io.fluxzero.sdk.modeling.EntityParameterResolver
 io.fluxzero.sdk.modeling.EventPublication
 io.fluxzero.sdk.modeling.EventPublicationStrategy
+io.fluxzero.sdk.modeling.Graph<T>
+io.fluxzero.sdk.modeling.GraphLookupPolicy
+io.fluxzero.sdk.modeling.GraphProjection
+io.fluxzero.sdk.modeling.GraphProjectionCompletion
+io.fluxzero.sdk.modeling.GraphProperty
 io.fluxzero.sdk.modeling.HandlerRepository
 io.fluxzero.sdk.modeling.HasEntity
 io.fluxzero.sdk.modeling.Id<T>
@@ -107,10 +114,13 @@ io.fluxzero.sdk.modeling.ImmutableAggregateRoot<T>
 io.fluxzero.sdk.modeling.ImmutableEntity<T>
 io.fluxzero.sdk.modeling.LazyAggregateRoot<T>
 io.fluxzero.sdk.modeling.Member
+io.fluxzero.sdk.modeling.Model
+io.fluxzero.sdk.modeling.ModelCommitPolicy
 io.fluxzero.sdk.modeling.ModifiableAggregateRoot.CommitHandler
 io.fluxzero.sdk.modeling.ModifiableAggregateRoot<T>
 io.fluxzero.sdk.modeling.ModifiableEntity<T>
 io.fluxzero.sdk.modeling.NoOpEntity<T>
+io.fluxzero.sdk.modeling.Parent
 io.fluxzero.sdk.modeling.SearchParameters
 io.fluxzero.sdk.modeling.SideEffectFreeEntity<T>
 io.fluxzero.common.caching.AdaptiveObjectCache
@@ -149,6 +159,7 @@ io.fluxzero.sdk.persisting.keyvalue.client.WebsocketKeyValueClient
 io.fluxzero.sdk.persisting.repository.AggregateRepository
 io.fluxzero.sdk.persisting.repository.CachingAggregateRepository
 io.fluxzero.sdk.persisting.repository.DefaultAggregateRepository
+io.fluxzero.sdk.persisting.repository.ModelRepository
 io.fluxzero.sdk.persisting.search.DefaultDocumentStore
 io.fluxzero.sdk.persisting.search.DefaultIndexOperation
 io.fluxzero.sdk.persisting.search.DocumentSerializer
@@ -156,7 +167,7 @@ io.fluxzero.sdk.persisting.search.DocumentStore
 io.fluxzero.sdk.persisting.search.DocumentStoreException
 io.fluxzero.sdk.persisting.search.GroupSearch
 io.fluxzero.sdk.persisting.search.IndexOperation
-io.fluxzero.sdk.persisting.search.Search
+io.fluxzero.sdk.persisting.search.Search<R>
 io.fluxzero.sdk.persisting.search.SearchHit<T>
 io.fluxzero.sdk.persisting.search.Searchable
 io.fluxzero.sdk.persisting.search.client.CollectionMessageStore
@@ -461,6 +472,10 @@ io.fluxzero.common.api.modeling.GetAggregateIds
 io.fluxzero.common.api.modeling.GetAggregateIdsResult
 io.fluxzero.common.api.modeling.GetRelationships
 io.fluxzero.common.api.modeling.GetRelationshipsResult
+io.fluxzero.common.api.modeling.ModelConflictPolicy
+io.fluxzero.common.api.modeling.ModelDeletionCascade
+io.fluxzero.common.api.modeling.ModelDeletionPlan
+io.fluxzero.common.api.modeling.ModelDeletionResult
 io.fluxzero.common.api.modeling.Relationship
 io.fluxzero.common.api.modeling.RepairRelationships
 io.fluxzero.common.api.modeling.UpdateRelationships

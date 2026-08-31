@@ -477,7 +477,7 @@ class ProjectsEndpoint {
 class ProjectsEndpoint {
     @HandlePost
     fun createProject(details: ProjectDetails): ProjectId {
-        val id = Fluxzero.generateId(ProjectId::class)
+        val id = Fluxzero.generateId(ProjectId::class.java)
         Fluxzero.sendCommandAndWait(CreateProject(id, details))
         return id
     }
@@ -826,7 +826,7 @@ class ProjectId(id: String) : Id<Project>(id)
 ```
 [//]: # (@formatter:on)
 
-**Important**: Always use `Fluxzero.generateId(ProjectId::class)` to create new IDs.
+**Important**: Always use `Fluxzero.generateId(ProjectId::class.java)` to create new IDs.
 
 ---
 

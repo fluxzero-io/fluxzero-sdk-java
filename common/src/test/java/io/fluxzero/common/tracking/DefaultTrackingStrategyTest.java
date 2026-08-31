@@ -62,6 +62,24 @@ import static org.mockito.Mockito.when;
 class DefaultTrackingStrategyTest {
 
     @Test
+    void appliesConfiguredInitialPositionLagForNewConsumer() {
+        Duration lag = Duration.ofSeconds(10);
+        TestScheduler scheduler = new TestScheduler();
+        long earliestExpectedMillis = System.currentTimeMillis() - lag.toMillis();
+        try (TestStrategy subject = new TestStrategy(mockSource(), scheduler, mockPositionStore(), lag)) {
+            Tracker newTracker = tracker("consumer", "tracker").withLastTrackerIndex(null);
+            long initialPositionMillis = subject.initialPosition(newTracker).getIndex(0)
+                    .orElseThrow() >> 16;
+            long latestExpectedMillis = System.currentTimeMillis() - lag.toMillis();
+
+            assertTrue(initialPositionMillis >= earliestExpectedMillis,
+                       () -> initialPositionMillis + " < " + earliestExpectedMillis);
+            assertTrue(initialPositionMillis <= latestExpectedMillis,
+                       () -> initialPositionMillis + " > " + latestExpectedMillis);
+        }
+    }
+
+    @Test
     void deliversAvailableMessagesImmediately() {
         TestScheduler scheduler = new TestScheduler();
         try (TestStrategy subject = new TestStrategy(mockSource(), scheduler)
@@ -486,6 +504,15 @@ class DefaultTrackingStrategyTest {
 
         TestStrategy(MessageStore source, TaskScheduler scheduler, PositionStore positionStore) {
             super(source, positionStore, scheduler);
+        }
+
+        TestStrategy(MessageStore source, TaskScheduler scheduler, PositionStore positionStore,
+                     Duration initialPositionLag) {
+            super(source, positionStore, scheduler, initialPositionLag);
+        }
+
+        Position initialPosition(Tracker tracker) {
+            return position(tracker, new int[]{0, MAX_SEGMENT});
         }
 
         @SafeVarargs

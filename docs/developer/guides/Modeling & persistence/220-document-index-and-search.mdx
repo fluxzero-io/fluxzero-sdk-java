@@ -91,19 +91,29 @@ Many domain models and stateful handlers in Fluxzero are automatically indexable
   </TabItem>
 </Tabs>
 
-By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
-unless explicitly overridden via an annotation like `@Model`, `@Stateful` or `@Searchable` or in the search/index
-call:
+By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`). Configure
+a Model's direct document through its `searchProjection`; `@Stateful` and directly searchable values expose the
+`@Searchable` settings themselves:
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Model(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+    @Model(
+        searchable = true,
+        searchProjection = @Searchable(
+            collection = "users",
+            timestampPath = "profile/createdAt"))
     ```
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Model(searchable = true, collection = "users", timestampPath = "profile/createdAt")
+    @Model(
+        searchable = true,
+        searchProjection = @Searchable(
+            collection = "users",
+            timestampPath = "profile/createdAt"
+        )
+    )
     ```
   </TabItem>
 </Tabs>
@@ -118,7 +128,7 @@ Use the fluent `search(...)` API:
   <TabItem label="Java">
     ```java
     List<UserAccount> admins = Fluxzero
-            .search("users")
+            .search(UserAccount.class)
             .match("admin", "profile/role")
             .inLast(Duration.ofDays(30))
             .sortBy("profile/lastLogin", true)
@@ -128,7 +138,7 @@ Use the fluent `search(...)` API:
   <TabItem label="Kotlin">
     ```kotlin
     val admins: List<UserAccount> = Fluxzero
-        .search("users")
+        .search(UserAccount::class.java)
         .match("admin", "profile/role")
         .inLast(Duration.ofDays(30))
         .sortBy("profile/lastLogin", true)
@@ -216,7 +226,8 @@ Search execution also has asynchronous variants for request handlers and web end
 `CompletableFuture`. Return the future directly instead of calling `.join()` inside the handler; this lets Fluxzero keep
 processing other work while the search request is in flight.
 
-- `fetchAsync(maxSize)` / `fetchAsync(maxSize, type)` fetch matching documents asynchronously.
+- `fetchAsync(maxSize)` fetches the search's configured result type asynchronously. Pass an explicit result class only
+  at a raw collection, JSON or document boundary.
 - `countAsync()` returns the matching document count asynchronously.
 - `aggregateAsync(fields...)` and `groupBy(paths...).aggregateAsync(fields...)` return search statistics
   asynchronously.
@@ -229,7 +240,7 @@ processing other work while the search request is in flight.
     CompletableFuture<List<UserAccount>> handle(SearchUsers query) {
         return Fluxzero.search(UserAccount.class)
                 .lookAhead(query.term(), "profile.name", "email")
-                .fetchAsync(50, UserAccount.class);
+                .fetchAsync(50);
     }
     ```
   </TabItem>
@@ -239,7 +250,7 @@ processing other work while the search request is in flight.
     fun handle(query: SearchUsers): CompletableFuture<List<UserAccount>> =
         Fluxzero.search(UserAccount::class.java)
             .lookAhead(query.term, "profile.name", "email")
-            .fetchAsync(50, UserAccount::class.java)
+            .fetchAsync(50)
     ```
   </TabItem>
 </Tabs>
