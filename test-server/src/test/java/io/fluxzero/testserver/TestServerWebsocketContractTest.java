@@ -456,6 +456,12 @@ class TestServerWebsocketContractTest {
                                                   + UUID.randomUUID(),
                                                   -1L,
                                                   root)));
+            var rootDocument = search.fetchModelDocument(
+                    new GetDocument(rootId, roots));
+            assertEquals(rootId, rootDocument.getDocument().getId());
+            assertEquals(
+                    rootResult.getUpdates().getFirst().getStateIndex(),
+                    rootDocument.getModelHead().getStateIndex());
             var rootChange = eventStore.getModelChange(
                     new GetModelChange(rootResult.getCommitId(), 0));
             assertEquals(rootResult.getCommitId(), rootChange.getCommitId());

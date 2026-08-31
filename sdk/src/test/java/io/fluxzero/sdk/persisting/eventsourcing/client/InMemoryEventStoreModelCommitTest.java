@@ -599,6 +599,10 @@ class InMemoryEventStoreModelCommitTest {
                 () -> store.commitModels(
                                 commit)
                         .join());
+        var pendingPosition = store.trackModelUpdates(
+                new TrackModelUpdates(-1L, 1, 0L)).join();
+        assertEquals(0L, pendingPosition.getCurrentStateIndex());
+        assertEquals(-1L, pendingPosition.getMaterializedStateIndex());
         CommitModels retryCommit =
                 commit(
                         "commit-1",
@@ -617,6 +621,9 @@ class InMemoryEventStoreModelCommitTest {
 
         assertEquals(2, attempts.get());
         assertTrue(retry.isDuplicate());
+        var completedPosition = store.trackModelUpdates(
+                new TrackModelUpdates(-1L, 1, 0L)).join();
+        assertEquals(0L, completedPosition.getMaterializedStateIndex());
         assertEquals(
                 1,
                 store.getEvents("order-1")

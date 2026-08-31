@@ -535,6 +535,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         if (!modelCommitMaterializations.remove(commitId, pending)) {
             return;
         }
+        modelUpdateGeneration.incrementAndGet();
+        synchronized (modelUpdateMonitor) {
+            modelUpdateMonitor.notifyAll();
+        }
         synchronized (this) {
             if (publication != null) {
                 modelMaterializationPublications.add(publication);
@@ -595,8 +599,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 request.getRequestId(),
                 lastStateIndex,
                 modelStateIndex,
-                modelStateIndex,
+                materializedModelStateIndex(),
                 updates);
+    }
+
+    private long materializedModelStateIndex() {
+        return modelCommitMaterializations.values().stream()
+                .flatMap(pending -> pending.assignedUpdates().stream())
+                .mapToLong(ModelUpdate::getStateIndex)
+                .min()
+                .stream()
+                .map(stateIndex -> stateIndex - 1L)
+                .findFirst()
+                .orElse(modelStateIndex);
     }
 
     @Override
