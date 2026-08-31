@@ -53,6 +53,7 @@ import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.configuration.client.LocalClient;
@@ -79,6 +80,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
+import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.persisting.search.client.SearchClient;
@@ -137,6 +139,7 @@ class DefaultModelRepositoryTest {
     private DefaultModelRepository repository() {
         when(client.getEventStoreClient()).thenReturn(eventStoreClient);
         when(client.getSearchClient()).thenReturn(searchClient);
+        when(documentStore.getSerializer()).thenReturn(serializer);
         when(searchClient.fetchModelDocument(any())).thenAnswer(invocation -> {
             var request = (io.fluxzero.common.api.search.GetDocument) invocation.getArgument(0);
             Product value = documentStore
@@ -933,6 +936,81 @@ class DefaultModelRepositoryTest {
 
             assertEquals(product, result.get());
             assertEquals(id.toString(), result.id());
+        }
+    }
+
+    @Test
+    void customDocumentSerializerRoundTripsRepositoryReadsAfterRestart() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        EnvelopeDocumentSerializer documentSerializer =
+                new EnvelopeDocumentSerializer(serializer);
+        Instant timestamp = Instant.parse("2026-08-31T10:15:30Z");
+        Instant end = timestamp.plusSeconds(60);
+        Metadata metadata = Metadata.of("tenant", "acme");
+        ProductId firstId = new ProductId("enveloped-first");
+        ProductId secondId = new ProductId("enveloped-second");
+        Product first = new Product(firstId, "first");
+        Product second = new Product(secondId, "second");
+        LocalClient client = LocalClient.newInstance(null);
+
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .replaceSerializer(serializer)
+                .replaceDocumentSerializer(documentSerializer)
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(client))) {
+            commitDirectDocument(
+                    client, serializer, documentSerializer,
+                    "enveloped-first", firstId.toString(),
+                    Product.class.getName(), "products", first,
+                    timestamp, end, metadata);
+            commitDirectDocument(
+                    client, serializer, documentSerializer,
+                    "enveloped-second", secondId.toString(),
+                    Product.class.getName(), "products", second,
+                    timestamp, end, metadata);
+
+            DefaultModelRepository restarted =
+                    freshRepository(fluxzero, serializer);
+
+            assertEquals(first, restarted.load(firstId).get());
+            assertEquals(second, restarted.loadCurrent(
+                    secondId, Product.class).get());
+            assertEquals(
+                    List.of(first, second),
+                    restarted.loadAll(
+                                    List.of(firstId, secondId), Product.class)
+                            .stream().map(Entity::get).toList());
+            assertEquals(first, restarted.loadGraph(firstId).get());
+
+            String namespace = "customer";
+            ProductId namespacedId =
+                    new ProductId("enveloped-namespaced");
+            Product namespaced =
+                    new Product(namespacedId, "namespaced");
+            commitDirectDocument(
+                    client.forNamespace(namespace), serializer,
+                    documentSerializer, "enveloped-namespaced",
+                    namespacedId.toString(), Product.class.getName(),
+                    "products", namespaced, timestamp, end, metadata);
+            assertEquals(
+                    namespaced,
+                    restarted.forNamespace(namespace)
+                            .load(namespacedId).get());
+
+            assertTrue(documentSerializer.reads().stream().allMatch(
+                    read -> "products".equals(read.collection())
+                            && timestamp.toEpochMilli()
+                            == read.timestamp()
+                            && end.toEpochMilli() == read.end()
+                            && metadata.equals(read.metadata())));
+            assertTrue(documentSerializer.reads().stream()
+                               .map(DocumentRead::id)
+                               .collect(java.util.stream.Collectors.toSet())
+                               .containsAll(Set.of(
+                                       firstId.toString(),
+                                       secondId.toString(),
+                                       namespacedId.toString())));
         }
     }
 
@@ -2095,8 +2173,27 @@ class DefaultModelRepositoryTest {
     private static void commitDirectDocument(
             Fluxzero fluxzero, String commitId, String modelId,
             String modelType, String collection, Object value) {
+        commitDirectDocument(
+                fluxzero.client(), fluxzero.serializer(),
+                fluxzero.configuration().documentSerializer(),
+                commitId, modelId, modelType, collection, value,
+                null, null, Metadata.empty());
+    }
+
+    private static void commitDirectDocument(
+            Client client,
+            Serializer serializer,
+            DocumentSerializer documentSerializer,
+            String commitId,
+            String modelId,
+            String modelType,
+            String collection,
+            Object value,
+            Instant timestamp,
+            Instant end,
+            Metadata metadata) {
         ModelCommitStep substep = ModelCommitStep.builder()
-                .event(new Message(value).serialize(fluxzero.serializer()))
+                .event(new Message(value).serialize(serializer))
                 .targets(List.of(ModelCommitTarget.builder()
                                          .modelId(modelId)
                                          .modelType(modelType)
@@ -2104,19 +2201,116 @@ class DefaultModelRepositoryTest {
                                          .updateState(true)
                                          .document(new ModelDocumentMutation(
                                                  collection,
-                                                 fluxzero.configuration().documentSerializer()
-                                                         .toDocument(
-                                                                 value, modelId, collection,
-                                                                 null, null)))
+                                                 documentSerializer.toDocument(
+                                                         value, modelId, collection,
+                                                         timestamp, end, metadata)))
                                          .relationships(List.of())
                                          .build()))
                 .build();
-        CommitModelsResult result = fluxzero.client().getEventStoreClient()
+        CommitModelsResult result = client.getEventStoreClient()
                 .commitModels(new CommitModels(
                         commitId, -1L, List.of(modelId), List.of(substep),
                         ModelConflictPolicy.ACCEPT, Guarantee.STORED, true))
                 .join();
         assertTrue(result.isAccepted());
+    }
+
+    private record DocumentRead(
+            String id,
+            String collection,
+            Long timestamp,
+            Long end,
+            Metadata metadata) {
+    }
+
+    private static final class EnvelopeDocumentSerializer
+            implements DocumentSerializer {
+        private static final byte[] PREFIX =
+                new byte[]{'F', 'Z', '2', ':'};
+
+        private final DocumentSerializer delegate;
+        private final List<DocumentRead> reads =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        private EnvelopeDocumentSerializer(
+                DocumentSerializer delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public SerializedDocument toDocument(
+                Object value, String id, String collection,
+                Instant timestamp, Instant end, Metadata metadata) {
+            return transform(
+                    delegate.toDocument(
+                            value, id, collection,
+                            timestamp, end, metadata),
+                    bytes -> {
+                        byte[] wrapped =
+                                new byte[PREFIX.length + bytes.length];
+                        System.arraycopy(
+                                PREFIX, 0, wrapped, 0, PREFIX.length);
+                        System.arraycopy(
+                                bytes, 0, wrapped, PREFIX.length,
+                                bytes.length);
+                        return wrapped;
+                    });
+        }
+
+        @Override
+        public <T> T fromDocument(
+                SerializedDocument document) {
+            SerializedDocument unwrapped = unwrap(document);
+            recordRead(document, unwrapped);
+            return delegate.fromDocument(unwrapped);
+        }
+
+        @Override
+        public <T> T fromDocument(
+                SerializedDocument document, Class<T> type) {
+            SerializedDocument unwrapped = unwrap(document);
+            recordRead(document, unwrapped);
+            return delegate.fromDocument(unwrapped, type);
+        }
+
+        private SerializedDocument unwrap(
+                SerializedDocument document) {
+            return transform(document, bytes -> {
+                if (bytes.length < PREFIX.length
+                    || !Arrays.equals(
+                            PREFIX,
+                            Arrays.copyOf(bytes, PREFIX.length))) {
+                    throw new IllegalArgumentException(
+                            "Missing document envelope");
+                }
+                return Arrays.copyOfRange(
+                        bytes, PREFIX.length, bytes.length);
+            });
+        }
+
+        private static SerializedDocument transform(
+                SerializedDocument document,
+                java.util.function.Function<byte[], byte[]> transform) {
+            Data<byte[]> data = document.getDocument();
+            return document.withData(
+                    () -> new Data<>(
+                            transform.apply(data.getValue()),
+                            data.getType(), data.getRevision(),
+                            data.getFormat()));
+        }
+
+        private void recordRead(
+                SerializedDocument document,
+                SerializedDocument unwrapped) {
+            reads.add(new DocumentRead(
+                    document.getId(), document.getCollection(),
+                    document.getTimestamp(), document.getEnd(),
+                    unwrapped.getMetadata()));
+        }
+
+        private List<DocumentRead> reads() {
+            return List.copyOf(reads);
+        }
     }
 
     private static long commitModels(

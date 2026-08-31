@@ -6093,7 +6093,9 @@ public class MyCustomizer implements FluxzeroCustomizer {
 #### Message Serialization
 
 - `replaceSerializer(...)` changes the default JSON serializer (e.g., for Jackson customizations).
-- `replaceDocumentSerializer(...)` lets you influence how document fields are indexed and stored for search.
+- `replaceDocumentSerializer(...)` owns complete document serialization in both directions, including current documents
+  of `@Model(eventSourced = false)`. It can therefore implement document-level encryption, compression, signing, or a
+  custom envelope using the document ID, collection, timestamps, and metadata.
 
 #### Parameter Injection and Handler Behavior
 

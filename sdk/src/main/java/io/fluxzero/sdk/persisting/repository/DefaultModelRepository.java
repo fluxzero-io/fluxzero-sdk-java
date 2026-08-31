@@ -1285,8 +1285,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
         }
         Object value = result.getDocument() == null
-                ? null : serializer.deserialize(
-                        result.getDocument().getDocument(), modelType);
+                ? null : documentStore.getSerializer()
+                        .fromDocument(result.getDocument(), modelType);
         if (value != null && !modelType.isInstance(value)) {
             throw new EventSourcingException(
                     "Direct Model document '%s' contains %s instead of %s"

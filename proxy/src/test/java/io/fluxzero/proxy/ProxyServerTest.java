@@ -1918,10 +1918,11 @@ class ProxyServerTest {
         void closeSocketExternally() throws Exception {
             CountDownLatch socketClosed = new CountDownLatch(1);
             CompletableFuture<String> closeResult = new CompletableFuture<>();
+            AtomicInteger handledCloseReason = new AtomicInteger(-1);
             testFixture.registerHandlers(new Object() {
                         @HandleSocketClose("/")
                         void close(Integer reason) {
-                            Fluxzero.publishEvent("ws closed with " + reason);
+                            handledCloseReason.set(reason);
                             socketClosed.countDown();
                         }
                     })
@@ -1932,7 +1933,8 @@ class ProxyServerTest {
                                    "Timed out waiting for the websocket close handler");
                         return null;
                     })
-                    .expectEvents("ws closed with 1000");
+                    .expectNoErrors();
+            assertEquals(1000, handledCloseReason.get());
             assertEquals("1000", closeResult.get(5, TimeUnit.SECONDS));
         }
 
