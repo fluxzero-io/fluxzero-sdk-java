@@ -44,9 +44,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -654,6 +656,44 @@ class InMemoryEventStoreModelCommitTest {
                 () -> store.commitModels(outer).join());
         assertNotNull(modelStream(store, "outer-model").getHead());
         assertNotNull(modelStream(store, "nested-model").getHead());
+    }
+
+    @Test
+    void concurrentAppendAndPublishingModelCommitUseConsistentLockOrder() {
+        BlockingNotificationEventStore store = new BlockingNotificationEventStore();
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+            CompletableFuture<Void> append = CompletableFuture.runAsync(
+                    () -> store.append(List.of(event("ordinary-event"))).join());
+            try {
+                store.notificationStarted.await();
+                AtomicReference<Thread> commitThread = new AtomicReference<>();
+                CompletableFuture<Void> commit = CompletableFuture.runAsync(() -> {
+                    commitThread.set(Thread.currentThread());
+                    store.commitModels(commit(
+                            "model-commit",
+                            ModelCommitStep.builder()
+                                    .event(event("model-event"))
+                                    .publishEvent(true)
+                                    .targets(List.of(storedTarget("model-1")))
+                                    .build())).join();
+                });
+                while (commitThread.get() == null
+                       || commitThread.get().getState() != Thread.State.BLOCKED) {
+                    Thread.onSpinWait();
+                }
+                store.continueNotification.countDown();
+                append.join();
+                commit.join();
+            } finally {
+                store.continueNotification.countDown();
+            }
+        });
+
+        assertEquals(List.of("ordinary-event", "model-event"),
+                     store.getBatch(null, 10, true).stream()
+                             .map(SerializedMessage::getMessageId)
+                             .toList());
+        assertNotNull(modelStream(store, "model-1").getHead());
     }
 
     @Test
@@ -1635,5 +1675,30 @@ class InMemoryEventStoreModelCommitTest {
         return new SerializedMessage(
                 new Data<>(messageId.getBytes(), "event", 0),
                 Metadata.empty(), messageId, 1L);
+    }
+
+    private static class BlockingNotificationEventStore extends InMemoryEventStore {
+
+        private final AtomicBoolean blockNotification = new AtomicBoolean(true);
+        private final CountDownLatch notificationStarted = new CountDownLatch(1);
+        private final CountDownLatch continueNotification = new CountDownLatch(1);
+
+        private BlockingNotificationEventStore() {
+            super(Duration.ofMinutes(2), () -> 0L);
+        }
+
+        @Override
+        protected void notifyMonitors(List<SerializedMessage> messages) {
+            if (blockNotification.compareAndSet(true, false)) {
+                notificationStarted.countDown();
+                try {
+                    continueNotification.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+            }
+            super.notifyMonitors(messages);
+        }
     }
 }

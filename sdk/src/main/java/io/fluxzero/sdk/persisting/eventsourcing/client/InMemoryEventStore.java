@@ -224,7 +224,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         try {
-            ModelCommitOutcome outcome = commitModelsSynchronized(commit);
+            ModelCommitOutcome outcome;
+            synchronized (monitorNotificationLock()) {
+                outcome = commitModelsSynchronized(commit);
+            }
             completeModelCommitMaterialization(
                     commit.getCommitId());
             if (!outcome.publishedEvents().isEmpty()) {
