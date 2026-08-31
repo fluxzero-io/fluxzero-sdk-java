@@ -126,7 +126,7 @@ public @interface Model {
     /**
      * Whether the latest model state should be stored in the shared application cache.
      * <p>
-     * Models participating in an commit may additionally be retained in an commit-local cache until the commit
+     * Models participating in a commit may additionally be retained in a commit-local cache until the commit
      * completes.
      */
     boolean cached() default true;

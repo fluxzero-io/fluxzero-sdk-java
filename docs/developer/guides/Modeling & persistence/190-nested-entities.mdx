@@ -301,6 +301,6 @@ has been deleted. Globally published audit events are outside the model-stream h
 
 <Aside type="note" title="Legacy aggregate trees">
 `@Aggregate`, `loadEntity(...)` and `loadAggregateFor(...)` describe the old shared-root storage model. They remain
-supported for existing 1.x applications but should not be used for new trees. Use `@Model` with optional embedded
-`@Member` values instead; the aggregate API is scheduled for deprecation in Fluxzero 2.0.
+supported for existing persisted applications but should not be used for new trees. Use `@Model` with optional embedded
+`@Member` values instead; the aggregate API remains the compatibility boundary for existing aggregate state.
 </Aside>

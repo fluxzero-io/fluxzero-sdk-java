@@ -9,7 +9,7 @@ data through a unified document store, leveraging automatic indexing and a rich 
 
 - [Core Principles](#core-rules)
 - [Configuration & Indexing](#configuration)
-    - [@Searchable & @Model](#searchable)
+    - [Model documents and @Searchable values](#searchable)
     - [Facets & Sorting (@Facet, @Sortable)](#facets-sorting)
     - [Exclusion & Inclusion (@SearchExclude, @SearchInclude)](#exclude-include)
 - [Searching for Data](#searching)
@@ -50,9 +50,10 @@ data through a unified document store, leveraging automatic indexing and a rich 
 
 <a name="searchable"></a>
 
-### @Searchable & @Model
+### Model documents and @Searchable values
 
-To enable search for a model or any object, use the appropriate annotation.
+Choose a Model persistence option that stores a direct document. Use `@Searchable` for an ordinary document value;
+do not annotate a Model with it.
 
 [//]: # (@formatter:off)
 ```java
@@ -136,7 +137,7 @@ List<Task> results = Fluxzero.search(Task.class)
 
 Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
 and further traversal. Class-based constraints use the related Model's actual current-document collection, including
-the type-isolated private collection of a non-searchable Graph component. They select matching related IDs before
+the type-isolated private collection of a Graph-only Model component. They select matching related IDs before
 relationship traversal, so prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` for selective
 live Graph search based on children. `searchGraph(Root.class).stream()` returns typed lazy `Graph<Root>` values through
 explicit `@Parent(pathInParent = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches

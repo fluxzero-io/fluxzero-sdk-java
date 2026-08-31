@@ -1,7 +1,7 @@
 # Models and state
 
-Use `@Model` for persisted domain state. Do not introduce `@Aggregate` in new code. Existing aggregate APIs are legacy
-Fluxzero 1.x compatibility surfaces and are scheduled for deprecation in 2.0.
+Use `@Model` for persisted domain state. Do not introduce `@Aggregate` in new code. Existing aggregate APIs remain the
+compatibility boundary for already persisted aggregate state.
 
 ## Core rules
 

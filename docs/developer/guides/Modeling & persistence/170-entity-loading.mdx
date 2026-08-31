@@ -364,6 +364,6 @@ the intended ownership. Use a separate `@Model` plus `@Parent` when a child must
 have its own lifecycle or be changed without loading the root.
 
 <Aside type="note" title="Legacy aggregate API">
-`@Aggregate`, `loadAggregate(...)` and `loadAggregateFor(...)` remain available for existing Fluxzero 1.x
-applications. New code should use `@Model`; the aggregate API is scheduled for deprecation in Fluxzero 2.0.
+`@Aggregate`, `loadAggregate(...)` and `loadAggregateFor(...)` remain available for existing persisted applications.
+New code should use `@Model`; the aggregate API remains the compatibility boundary for existing aggregate state.
 </Aside>
