@@ -1143,6 +1143,52 @@ class InMemoryEventStoreModelCommitTest {
     }
 
     @Test
+    void staleCascadeDeleteRebasesWhenAChildWasAttachedAfterItsReadBoundary() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit(
+                "create-parent", -1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("parent"))
+                        .targets(List.of(storedTarget("parent-1")))
+                        .build())).join();
+        store.commitModels(commit(
+                "create-child", 0L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("child"))
+                        .targets(List.of(storedTarget("child-1").toBuilder()
+                                                 .updateRelationships(true)
+                                                 .relationships(List.of(
+                                                         ModelRelationship.builder()
+                                                                 .parentId("parent-1")
+                                                                 .parentType("Parent")
+                                                                 .path("children")
+                                                                 .build()))
+                                                 .build()))
+                        .build())).join();
+        ModelCommitTarget staleCascadeDelete = storedTarget("parent-1").toBuilder()
+                .delete(true)
+                .cascadeDelete(true)
+                .updateRelationships(true)
+                .relationships(List.of())
+                .build();
+
+        CommitModelsResult result = store.commitModels(commit(
+                "delete-parent", 0L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("delete"))
+                        .targets(List.of(staleCascadeDelete))
+                        .build())).join();
+
+        assertTrue(result.isRebaseRequired());
+        assertEquals("parent-1", result.getConflicts().getFirst().getModelId());
+        assertEquals(1L, result.getConflicts().getFirst().getCurrentRelationStateIndex());
+        assertFalse(modelStream(store, "parent-1").getHead().isDeleted());
+    }
+
+    @Test
     void deletionPlanIncludesDetachedAndExternallySharedDescendantsWithoutMutating() {
         InMemoryEventStore store =
                 denseStore();

@@ -71,10 +71,31 @@ class ModelCommitConflictsTest {
                 Map.of("current", new Head(3L, 10L)),
                 Head::sequenceNumber,
                 Head::stateIndex,
-                Map.of());
+                Map.of("current", 11L));
 
         assertTrue(conflicts.isEmpty());
         assertNull(ModelCommitConflicts.result(commit, conflicts, 20L));
+    }
+
+    @Test
+    void detectsRelationshipOnlyConflictsForSensitiveModels() {
+        CommitModels commit = commit(
+                ModelConflictPolicy.ACCEPT,
+                List.of("cascade-root"),
+                target("cascade-root", 3L));
+
+        List<ModelCommitConflict> conflicts = ModelCommitConflicts.detect(
+                commit,
+                Map.of("cascade-root", new Head(3L, 10L)),
+                Head::sequenceNumber,
+                Head::stateIndex,
+                Map.of("cascade-root", 11L),
+                List.of("cascade-root"));
+
+        assertEquals(
+                List.of(new ModelCommitConflict(
+                        "cascade-root", 10L, 11L)),
+                conflicts);
     }
 
     @Test
