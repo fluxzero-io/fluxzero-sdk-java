@@ -1,7 +1,7 @@
 # Models and state
 
-Use `@Model` for persisted domain state. Do not introduce `@Aggregate` in new code. Existing aggregate APIs are legacy
-Fluxzero 1.x compatibility surfaces and are scheduled for deprecation in 2.0.
+Use `@Model` for persisted domain state. Do not introduce `@Aggregate` in new code. Existing aggregate APIs remain the
+compatibility boundary for already persisted aggregate state.
 
 ## Core rules
 
@@ -298,7 +298,7 @@ retention and deletion all belong to the root. If any of those concerns can dive
 `@Parent`. A list-shaped field, frequent updates, or convenient whole-document storage is never sufficient reason to
 use `@Member`.
 
-## Loading
+## Loading and event parameters
 
 ```java
 Project project = Fluxzero.loadModel(projectId).get();

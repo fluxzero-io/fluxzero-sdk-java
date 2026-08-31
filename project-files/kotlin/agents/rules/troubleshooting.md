@@ -124,7 +124,7 @@ This guide helps you quickly resolve common issues encountered when building Flu
 - Use `Fluxzero.scheduleCommand(MyCmd(id), Duration.parse(ApplicationProperties.getProperty("key", "PT10M")))`.
 - See: [Sending: Schedules](./sending.md#schedules)
 
-### Validation errors on valid-looking data
+### Missing validation errors on invalid data
 
 **Cause**:
 - Missing `@field:Valid` on nested objects or collections in the command/query data class.

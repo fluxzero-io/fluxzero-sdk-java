@@ -247,7 +247,7 @@ Use a model with embedded `@Member` values when one small object graph genuinely
 Split independently changing or searchable children into their own models.
 
 <Aside type="note" title="Legacy aggregate persistence">
-`@Aggregate` persists an older shared-root representation. It remains compatible throughout Fluxzero 1.x so existing
-streams keep loading, but new manuals and examples use `@Model` exclusively. The aggregate API is scheduled for
-deprecation in Fluxzero 2.0.
+`@Aggregate` persists an older shared-root representation. It remains compatible so existing streams keep loading,
+but new manuals and examples use `@Model` exclusively. It remains the compatibility boundary for existing persisted
+aggregate state rather than a pattern for new domain code.
 </Aside>

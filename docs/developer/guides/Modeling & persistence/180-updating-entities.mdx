@@ -272,7 +272,7 @@ Publish follow-up messages from handlers or event handlers instead.
 </Aside>
 
 <Aside type="note" title="Legacy aggregate API">
-Existing Fluxzero 1.x applications may continue to use `@Aggregate` and
-`Fluxzero.loadAggregate(...).assertAndApply(...)`. New code should use model commits; the aggregate API is scheduled for
-deprecation in Fluxzero 2.0.
+Existing persisted applications may continue to use `@Aggregate` and
+`Fluxzero.loadAggregate(...).assertAndApply(...)`. New code should use Model commits; the aggregate API remains the
+compatibility boundary for existing aggregate state.
 </Aside>

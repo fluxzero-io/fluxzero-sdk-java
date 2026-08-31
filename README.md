@@ -3736,13 +3736,14 @@ Model commit history remains available for replay, repair and an application-spe
 legacy state, but such a reverse projection is not a generic migration guarantee. Do not treat changing `@Aggregate`
 to `@Model` as a persistence migration.
 
-## Legacy aggregate API (existing Fluxzero 1.x applications only)
+## Legacy aggregate API (existing persisted applications only)
 
 The following section documents the shared-root API for applications that already persist aggregate streams. Do not
-introduce it in new code. `@Model` plus `@Member` covers the intentional single-stream case; the aggregate API is
-scheduled for Java deprecation in Fluxzero 2.0. Migrating an existing aggregate requires a deliberate persistence
-migration and is not an annotation-only refactor. Do not copy an old aggregate's embedded shape into new Models: first
-re-evaluate every nested value by lifecycle and promote independently living children to `@Model` plus `@Parent`.
+introduce it in new code. `@Model` plus `@Member` covers the intentional single-stream case; the aggregate API remains
+available as the compatibility boundary for existing persisted state. Migrating an existing aggregate requires a
+deliberate persistence migration and is not an annotation-only refactor. Do not copy an old aggregate's embedded shape
+into new Models: first re-evaluate every nested value by lifecycle and promote independently living children to
+`@Model` plus `@Parent`.
 
 ### Defining a legacy aggregate
 
@@ -4766,9 +4767,10 @@ documentStore.bulkUpdate("customCollection")
 
 ---
 
-### Searchable Domain Models
+### Model documents and searchable values
 
-Many domain objects in Flux (e.g. models or stateful handlers) are automatically indexable:
+Models choose whether to maintain a direct document through `ModelPersistence`. Other values use the document-store
+annotations that own automatic indexing:
 
 - `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)`
 - `@Stateful` (implicitly `@Searchable`)

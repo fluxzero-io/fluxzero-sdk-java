@@ -61,9 +61,10 @@ You can also specify the collection in which the object should be stored directl
 
 ---
 
-## Domain Models with direct documents
+## Model documents and searchable values
 
-Many domain models and stateful handlers in Fluxzero are automatically indexable:
+Models choose whether to maintain a direct document through `ModelPersistence`. Other values use the document-store
+annotations that own automatic indexing:
 
 - `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)`
 - `@Stateful` (implicitly `@Searchable`)
@@ -109,7 +110,7 @@ settings themselves:
     ```kotlin
     @Model(
         persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
-        document = @DocumentProjection(
+        document = DocumentProjection(
             collection = "users",
             timestampPath = "profile/createdAt"
         )

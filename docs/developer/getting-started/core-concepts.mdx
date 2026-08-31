@@ -348,7 +348,7 @@ run the same flow against a real Fluxzero runtime.
 
 ## Legacy applications
 
-Fluxzero 1.x continues to support `@Aggregate` and its loading APIs for existing persisted applications. New
-applications and new domain state should use `@Model`; `@Model` with `@Member` covers the intentional single-stream
-case too. The aggregate API is scheduled for Java deprecation in Fluxzero 2.0 because migrating existing aggregate
-streams is a persistence migration, not a source-only annotation change.
+Fluxzero continues to support `@Aggregate` and its loading APIs for existing persisted applications. New applications
+and new domain state should use `@Model`; `@Model` with `@Member` covers the intentional single-stream case too. The
+aggregate API remains the compatibility boundary for existing state because migrating aggregate streams is a
+persistence migration, not a source-only annotation change.

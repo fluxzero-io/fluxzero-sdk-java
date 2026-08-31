@@ -312,11 +312,6 @@ annotated with `@Searchable(collection = "...")`, that collection is used; other
 used. Use `@HandleDocument(documentClass = OrderDocument::class)` when the document type cannot be inferred from the
 first parameter, and `@HandleDocument("orders")` when binding directly to a collection name.
 
-### Retroactive Updates
-
-If you need to retroactively update a collection of documents or handle errors in historical data, you can use the
-Replay mechanism. See [Tracking: Replays](tracking.md#replays) for more details.
-
 #### @HandleError
 
 Used for error monitoring or handling.
