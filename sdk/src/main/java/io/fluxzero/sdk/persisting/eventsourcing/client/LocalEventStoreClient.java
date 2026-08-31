@@ -32,6 +32,16 @@ public class LocalEventStoreClient extends LocalTrackingClient implements EventS
         super(new InMemoryEventStore(messageExpiration), MessageType.EVENT);
     }
 
+    /**
+     * Creates a local event store with a configurable look-back for consumers without a stored position.
+     *
+     * @param messageExpiration  retention duration for local events
+     * @param initialPositionLag duration subtracted from the current time for a new consumer
+     */
+    public LocalEventStoreClient(Duration messageExpiration, Duration initialPositionLag) {
+        super(new InMemoryEventStore(messageExpiration), MessageType.EVENT, null, initialPositionLag);
+    }
+
     @Override
     @Delegate
     public InMemoryEventStore getMessageStore() {

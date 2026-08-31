@@ -32,7 +32,6 @@ import io.fluxzero.common.tracking.TrackingStrategy;
 import io.fluxzero.common.tracking.WebSocketTracker;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 import java.lang.management.ManagementFactory;
@@ -41,6 +40,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+
+import static io.fluxzero.common.tracking.DefaultTrackingStrategy.DEFAULT_INITIAL_POSITION_LAG;
 
 /**
  * In-memory implementation of the {@link TrackingClient} and {@link GatewayClient} interfaces, designed for
@@ -80,7 +81,6 @@ import java.util.function.Consumer;
  * @see InMemoryMessageStore
  * @see InMemoryPositionStore
  */
-@AllArgsConstructor
 public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMessageStore {
     private static final String LOCAL_CLIENT_ID = ManagementFactory.getRuntimeMXBean().getName();
 
@@ -92,18 +92,60 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     private final MessageType messageType;
     @Getter
     private final String topic;
+    private final Duration initialPositionLag;
 
     @Getter(lazy = true)
-    private final TrackingStrategy trackingStrategy = new DefaultTrackingStrategy(messageStore, positionStore);
+    private final TrackingStrategy trackingStrategy =
+            new DefaultTrackingStrategy(messageStore, positionStore, initialPositionLag);
     @Getter(lazy = true)
     private final MessageLogMaintenance messageLogMaintenance =
             new MessageLogMaintenance(messageStore, positionStore, getTrackingStrategy());
 
+    /**
+     * Creates a local tracking client from explicit storage components using the default initial look-back.
+     */
+    public LocalTrackingClient(MessageStore messageStore, PositionStore positionStore, MessageType messageType,
+                               String topic) {
+        this(messageStore, positionStore, messageType, topic, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    /**
+     * Creates a local tracking client from explicit storage components.
+     *
+     * @param messageStore       local message store
+     * @param positionStore      local consumer position store
+     * @param messageType        message log type
+     * @param topic              optional message topic
+     * @param initialPositionLag duration subtracted from the current time for a new consumer
+     */
+    public LocalTrackingClient(MessageStore messageStore, PositionStore positionStore, MessageType messageType,
+                               String topic, Duration initialPositionLag) {
+        this.messageStore = messageStore;
+        this.positionStore = positionStore;
+        this.messageType = messageType;
+        this.topic = topic;
+        this.initialPositionLag = validateInitialPositionLag(initialPositionLag);
+    }
+
     public LocalTrackingClient(MessageType messageType, String topic, Duration messageExpiration) {
+        this(messageType, topic, messageExpiration, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    /**
+     * Creates a local tracking client with a configurable look-back for consumers without a stored position.
+     *
+     * @param messageType         message log type
+     * @param topic               optional message topic
+     * @param messageExpiration   retention duration for local messages
+     * @param initialPositionLag  duration subtracted from the current time for a new consumer
+     */
+    public LocalTrackingClient(MessageType messageType, String topic, Duration messageExpiration,
+                               Duration initialPositionLag) {
         this.messageStore = new InMemoryMessageStore(messageType, messageExpiration);
         this.positionStore = new InMemoryPositionStore();
         this.messageType = messageType;
         this.topic = topic;
+        this.initialPositionLag = validateInitialPositionLag(initialPositionLag);
     }
 
     public LocalTrackingClient(MessageStore messageStore, MessageType messageType) {
@@ -111,10 +153,31 @@ public class LocalTrackingClient implements TrackingClient, GatewayClient, HasMe
     }
 
     public LocalTrackingClient(MessageStore messageStore, MessageType messageType, String topic) {
+        this(messageStore, messageType, topic, DEFAULT_INITIAL_POSITION_LAG);
+    }
+
+    /**
+     * Creates a local tracking client over an existing message store with a configurable initial look-back.
+     *
+     * @param messageStore        local message store
+     * @param messageType         message log type
+     * @param topic               optional message topic
+     * @param initialPositionLag  duration subtracted from the current time for a new consumer
+     */
+    public LocalTrackingClient(MessageStore messageStore, MessageType messageType, String topic,
+                               Duration initialPositionLag) {
         this.messageStore = messageStore;
         this.messageType = messageType;
         this.topic = topic;
         this.positionStore = new InMemoryPositionStore();
+        this.initialPositionLag = validateInitialPositionLag(initialPositionLag);
+    }
+
+    private static Duration validateInitialPositionLag(Duration initialPositionLag) {
+        if (initialPositionLag == null || initialPositionLag.isNegative()) {
+            throw new IllegalArgumentException("initialPositionLag must be non-negative");
+        }
+        return initialPositionLag;
     }
 
     @Override
