@@ -32,7 +32,9 @@ import java.time.Instant;
  *     <li>Optional metadata associated with the document</li>
  * </ul>
  * <p>
- * Implementations are typically used by the {@link DocumentStore} when indexing or retrieving documents.
+ * Implementations are used by the {@link DocumentStore} and by document-based Models when indexing or retrieving
+ * documents. They own both directions of the complete {@link SerializedDocument} contract, so transformations may
+ * depend on document identity, collection, timestamps, metadata, and payload.
  *
  * <p>
  * This interface supports both serialization ({@link #toDocument}) and deserialization ({@link #fromDocument}).
@@ -78,7 +80,7 @@ public interface DocumentSerializer {
      * Deserializes the payload of the given document into a Java object using the type information contained in the
      * document.
      *
-     * @param document the {@link SerializedDocument} to deserialize
+     * @param document the complete {@link SerializedDocument} to deserialize
      * @param <T>      the target type
      * @return the deserialized object
      */
@@ -87,7 +89,7 @@ public interface DocumentSerializer {
     /**
      * Deserializes the payload of the given document into an instance of the specified type.
      *
-     * @param document the {@link SerializedDocument} to deserialize
+     * @param document the complete {@link SerializedDocument} to deserialize
      * @param type     the target class for deserialization
      * @param <T>      the target type
      * @return the deserialized object

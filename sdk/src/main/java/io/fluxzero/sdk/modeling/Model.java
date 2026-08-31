@@ -102,11 +102,12 @@ public @interface Model {
     /**
      * Whether normal loads reconstruct the model from its event stream.
      * <p>
-     * When disabled, the current model is loaded directly from its document. This setting does not suppress storing or
-     * publishing events produced by {@link Apply} methods. A state-changing event-sourced model apply must store its
-     * reconstructing event; a {@code PUBLISH_ONLY} or {@link EventPublication#NEVER NEVER} transition that would change
-     * state is rejected before commit. A publish-only no-op remains a valid domain notification when publication is
-     * explicitly set to {@link EventPublication#ALWAYS ALWAYS}.
+     * When disabled, the current model is loaded directly from its document through the configured
+     * {@link io.fluxzero.sdk.persisting.search.DocumentSerializer}. This setting does not suppress storing or publishing
+     * events produced by {@link Apply} methods. A state-changing event-sourced model apply must store its reconstructing
+     * event; a {@code PUBLISH_ONLY} or {@link EventPublication#NEVER NEVER} transition that would change state is
+     * rejected before commit. A publish-only no-op remains a valid domain notification when publication is explicitly
+     * set to {@link EventPublication#ALWAYS ALWAYS}.
      */
     boolean eventSourced() default true;
 
