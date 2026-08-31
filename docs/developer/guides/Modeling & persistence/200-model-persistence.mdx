@@ -6,16 +6,14 @@ sidebar:
    order: 200
 ---
 
-import { Tabs, TabItem } from '@astrojs/starlight/components';
 import { Aside } from '@astrojs/starlight/components';
 
-Every `@Model` has an independent persisted identity. The annotation configures how that model is loaded, cached,
-snapshotted, searched and conflict-checked:
+Every `@Model` has an independent persisted identity. `ModelPersistence` makes its durable representation and
+authoritative load path explicit:
 
 ```java
 @Model(
-    eventSourced = true,
-    searchable = true,
+    persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
     snapshotPeriod = 1000)
 record Account(
         @EntityId AccountId accountId,
@@ -47,13 +45,12 @@ attempt or short-lived process can keep its own small history while still partic
 
 ## Document-based models
 
-Set `eventSourced = false` to make the current direct document the normal load source:
+Select `DOCUMENT` to make the current direct document the normal load source:
 
 ```java
 @Model(
-    eventSourced = false,
-    searchable = true,
-    searchProjection = @Searchable(
+    persistence = ModelPersistence.DOCUMENT,
+    document = @DocumentProjection(
         collection = "countries"))
 record Country(
         @EntityId CountryId countryId,
@@ -61,17 +58,14 @@ record Country(
 }
 ```
 
-`eventSourced` controls the **load path**, not whether updates become events. Applied updates are still stored and
-published by default. This preserves auditing, exact event-handler boundaries and the option to change loading strategy
-later.
+`persistence` controls the durable representation and **load path**, not whether updates become events. Applied updates
+are still stored and published by default. This preserves auditing and exact event-handler boundaries.
 
 The direct searchable document is synchronously maintained with the model commit. After a successful command result,
 an immediate direct search can observe the changed model.
 
-<Aside type="caution">
-A document-based model needs a current document. Normally that means `searchable = true`; a non-searchable child with
-an explicit `@Parent(pathInParent = "...")` can instead load from its private graph-component document.
-</Aside>
+`DOCUMENT` always maintains this direct document. Its collection and temporal paths can be configured through
+`document = @DocumentProjection(...)`.
 
 ## Event storage and publication
 
@@ -125,14 +119,15 @@ default starts after Model apply handlers and awaits all started commits at batc
 application has a measured ordering, latency or concurrency reason to choose another `ModelCommitPolicy`; the policy
 does not split one multi-Model action into separate commits.
 
-## Searchable models
+## Direct Model documents
 
-`searchable = true` gives every model its own direct current document:
+`EVENT_SOURCED_WITH_DOCUMENT` keeps event replay authoritative while also maintaining a directly searchable current
+document:
 
 ```java
 @Model(
-    searchable = true,
-    searchProjection = @Searchable(
+    persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+    document = @DocumentProjection(
         collection = "line-items"))
 record LineItem(
         @EntityId LineItemId lineItemId,
@@ -141,12 +136,13 @@ record LineItem(
 }
 ```
 
-This document is authoritative for direct search and for document-based loading. It is not the asynchronously stitched
-root graph.
+This document is authoritative for direct search, but event replay remains authoritative for loading the Model. With
+`DOCUMENT`, the same direct document is authoritative for both search and loading. It is never the asynchronously
+stitched root Graph.
 
-`searchable = false` controls only this independent collection. A child with an explicit `@Parent(pathInParent = "...")`
-still supplies a private current document to virtual and materialized graph composition. Without an explicit path,
-Fluxzero stores no graph-component document and performs no extra document write.
+Plain `EVENT_SOURCED` omits only this independent collection. A child with an explicit
+`@Parent(pathInParent = "...")` still supplies a private current document to virtual and materialized Graph composition.
+Without an explicit path, Fluxzero stores no Graph-component document and performs no extra document write.
 
 You can additionally:
 

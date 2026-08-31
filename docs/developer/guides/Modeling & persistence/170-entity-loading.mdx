@@ -145,10 +145,10 @@ history of the order, inventory model or its siblings.
 
 ## Document-based loading
 
-Set `eventSourced = false` to load the current model directly from its synchronously maintained document:
+Select document persistence to load the current model directly from its synchronously maintained document:
 
 ```java
-@Model(eventSourced = false, searchable = true)
+@Model(persistence = ModelPersistence.DOCUMENT)
 record Country(@EntityId CountryId countryId, String name) {
 }
 ```

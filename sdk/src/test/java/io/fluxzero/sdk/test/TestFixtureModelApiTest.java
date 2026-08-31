@@ -23,6 +23,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
@@ -307,7 +308,7 @@ class TestFixtureModelApiTest {
         }
     }
 
-    @Model(eventSourced = false, cached = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT, cached = false)
     private record UncachedDocument(@EntityId String id, int value) {
     }
 

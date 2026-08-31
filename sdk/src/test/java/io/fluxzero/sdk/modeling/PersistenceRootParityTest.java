@@ -873,7 +873,8 @@ class PersistenceRootParityTest {
     }
 
     @Model(
-            searchable = true, cachingDepth = 1,
+            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            cachingDepth = 1,
             snapshotPeriod = 2)
     private record ParityModel(
             @EntityId ParityModelId id, String value) {
@@ -968,7 +969,7 @@ class PersistenceRootParityTest {
         }
     }
 
-    @Model(eventSourced = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record DocumentModel(
             @EntityId DocumentModelId id, String value) {
     }
@@ -1011,9 +1012,7 @@ class PersistenceRootParityTest {
         }
     }
 
-    @Model(
-            eventSourced = false, searchable = true,
-            eventPublication = EventPublication.NEVER)
+    @Model(persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
     private record SilentModel(
             @EntityId SilentModelId id, String value) {
     }
@@ -1049,9 +1048,7 @@ class PersistenceRootParityTest {
         }
     }
 
-    @Model(
-            searchable = true,
-            publicationStrategy =
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, publicationStrategy =
                     EventPublicationStrategy.STORE_ONLY)
     private record StoreOnlyModel(
             @EntityId StoreOnlyModelId id,
@@ -1106,7 +1103,7 @@ class PersistenceRootParityTest {
         }
     }
 
-    @Model(searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
     private record EmbeddedModel(
             @EntityId EmbeddedModelId id,
             @Member List<EmbeddedValue> members) {

@@ -98,7 +98,7 @@ Use an explicit `@HandleCommand` when the action needs orchestration around the 
   <TabItem label="Java">
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 public record Project(@EntityId ProjectId projectId,
                       ProjectDetails details,
                       UserId ownerId) {
@@ -109,7 +109,7 @@ public record Project(@EntityId ProjectId projectId,
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
@@ -127,12 +127,12 @@ Each model ID is its own persistence and lifecycle boundary. Its event stream, c
 document are enabled independently through `@Model` settings. The exact
 `Id.toString()` value is its persisted identity.
 
-Models are event-sourced by default. Set `eventSourced = false` when current state should load from the direct
-document instead. Updates are still stored as model events and published according to `eventPublication`; the option
-only changes how current state is loaded.
+Models are event-sourced by default. Select `DOCUMENT` when the current document should be the durable representation
+and authoritative load source. Updates are still stored and published as Model events according to
+`eventPublication` and `publicationStrategy`.
 
 ```java
-@Model(eventSourced = false, searchable = true)
+@Model(persistence = ModelPersistence.DOCUMENT)
 public record Product(@EntityId ProductId productId,
                       String name,
                       BigDecimal price) {
@@ -214,7 +214,7 @@ Account debit(@Association("sourceId") Account source) { ... }
 Use `@Parent` when independently stored models form a navigable graph:
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 public record Task(@EntityId TaskId taskId,
                    @Parent(pathInParent = "tasks") ProjectId projectId,
                    TaskDetails details,
@@ -248,7 +248,7 @@ Not every value needs an independent lifecycle. Use `@Member` inside a model for
 searches and disappears with that model:
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 public record Invoice(@EntityId InvoiceId invoiceId,
                       @Member List<InvoiceLine> lines) {
 }
@@ -305,9 +305,10 @@ public final class ProjectQueries {
 }
 ```
 
-The direct collection of a searchable model is synchronous with its model commit. A whole-tree graph projection is a
-separate read optimization and is asynchronous by default. Choose `GraphProjectionCompletion.AWAIT` for an operation
-whose result must not be released until affected root projections have crossed its state boundary.
+The direct collection of a Model using `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` is synchronous with its Model
+commit. A whole-tree Graph projection is a separate read optimization and is asynchronous by default. Choose
+`GraphProjectionCompletion.AWAIT` for an operation whose result must not be released until affected root projections
+have crossed its state boundary.
 
 ## Events and handlers
 

@@ -398,7 +398,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                     ? DefaultAggregateRepository.this.relationshipsCache : RelationshipsCache.noOp();
             this.commitPolicy = resolveCommitPolicy(configuration);
             this.snapshotSettings = configuration.snapshotSettings(
-                    !configuration.eventSourced() && !configuration.searchable());
+                    !configuration.eventSourced() && !configuration.directDocument());
             this.snapshotStore = snapshotSettings.enabled()
                     ? DefaultAggregateRepository.this.snapshotStore : NoOpSnapshotStore.INSTANCE;
             this.collection = Optional.of(configuration.collection())
@@ -437,7 +437,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                     new RepairRelationships(aggregateId, type.getName(), Collections.emptySet(), STORED)));
             futures.add(eventStoreClient.deleteEvents(aggregateId, STORED));
             futures.add(snapshotStore.deleteSnapshot(id));
-            if (configuration.searchable()) {
+            if (configuration.directDocument()) {
                 futures.add(documentStore.deleteDocument(id, collection));
             }
             return CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
@@ -469,7 +469,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                             .idProperty(idProperty)
                             .entityHelper(entityHelper).serializer(serializer)
                             .eventStore(eventStore);
-            return (configuration.searchable() && !configuration.eventSourced()
+            return (configuration.directDocument() && !configuration.eventSourced()
                     ? documentStore.<T>fetchDocument(id, collection)
                     .map(d -> builder.value(d).build())
                     : snapshotStore.<T>getSnapshot(id).map(
@@ -603,7 +603,7 @@ public class DefaultAggregateRepository extends AbstractNamespaced<AggregateRepo
                         futures.add(eventsStored.thenCompose(ignored -> snapshotStore.storeSnapshot(after)));
                     }
                 }
-                if (stateChanged && configuration.searchable()) {
+                if (stateChanged && configuration.directDocument()) {
                     Object value = after.get();
                     if (value == null) {
                         futures.add(eventsStored.thenCompose(

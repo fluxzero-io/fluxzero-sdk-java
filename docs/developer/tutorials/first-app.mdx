@@ -40,7 +40,7 @@ value types are assumed below so the example can stay focused on Model behavior:
   <TabItem label="Java">
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 public record Project(@EntityId ProjectId projectId,
                       ProjectDetails details,
                       UserId ownerId,
@@ -52,7 +52,7 @@ public record Project(@EntityId ProjectId projectId,
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
@@ -64,10 +64,9 @@ data class Project(
   </TabItem>
 </Tabs>
 
-`@Model` gives each project ID its own persistence and lifecycle boundary. Here `searchable = true` also gives it a
-synchronously maintained direct search document; caching, event sourcing and snapshots remain independently
-configurable.
-`@EntityId` identifies the model. `searchable = true` makes the current project directly searchable.
+`@Model` gives each project ID its own persistence and lifecycle boundary. Here
+`EVENT_SOURCED_WITH_DOCUMENT` keeps event replay authoritative and also maintains a synchronous direct search
+document. `@EntityId` identifies the Model.
 
 ## Create a project
 
@@ -131,7 +130,7 @@ model and link it to a project:
   <TabItem label="Java">
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 public record Task(@EntityId TaskId taskId,
                    @Parent(pathInParent = "tasks") ProjectId projectId,
                    TaskDetails details,
@@ -143,7 +142,7 @@ public record Task(@EntityId TaskId taskId,
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 data class Task(
     @EntityId val taskId: TaskId,
     @Parent(pathInParent = "tasks") val projectId: ProjectId,
@@ -395,7 +394,7 @@ For repeatedly queried large trees, enable a graph projection on the root:
 
 ```java
 @Model(
-    searchable = true,
+    persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
     materializeGraph = true,
     graphProjection = @GraphProjection(
         collection = "project-overviews"))

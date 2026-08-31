@@ -82,8 +82,8 @@ public class SearchParameters implements Substitutable<SearchParameters> {
     /**
      * Resolves the effective search configuration for a model or searchable document type.
      *
-     * <p>Models own their direct-document projection through {@link Model#searchProjection()}; other document types
-     * continue to use {@link Searchable}. An unspecified collection resolves to the type's simple name.</p>
+     * <p>Models own their direct-document projection through {@link Model#document()}; other document types continue
+     * to use {@link Searchable}. An unspecified collection resolves to the type's simple name.</p>
      */
     public static SearchParameters forType(Class<?> type) {
         EntityMetadata.RootConfiguration model = EntityMetadata.rootConfiguration(type)
@@ -91,7 +91,7 @@ public class SearchParameters implements Substitutable<SearchParameters> {
                 .orElse(null);
         if (model != null) {
             return new SearchParameters(
-                    model.searchable(), model.resolvedCollection(type),
+                    model.directDocument(), model.resolvedCollection(type),
                     model.timestampPath(), model.endPath());
         }
         return io.fluxzero.common.reflection.ReflectionUtils

@@ -20,7 +20,6 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
-import io.fluxzero.sdk.persisting.search.Searchable;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -43,7 +42,7 @@ class ModelTest {
     void exposesIndependentStorageDefaults() {
         Model model = DefaultModel.class.getAnnotation(Model.class);
 
-        assertTrue(model.eventSourced());
+        assertEquals(ModelPersistence.EVENT_SOURCED, model.persistence());
         assertFalse(model.ignoreUnknownEvents());
         assertEquals(0, model.snapshotPeriod());
         assertEquals(1, model.maxSnapshotCount());
@@ -55,11 +54,10 @@ class ModelTest {
         assertEquals(EventPublicationStrategy.DEFAULT, model.publicationStrategy());
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
-        assertFalse(model.searchable());
         assertFalse(model.materializeGraph());
-        assertEquals("", model.searchProjection().collection());
-        assertEquals("", model.searchProjection().timestampPath());
-        assertEquals("", model.searchProjection().endPath());
+        assertEquals("", model.document().collection());
+        assertEquals("", model.document().timestampPath());
+        assertEquals("", model.document().endPath());
     }
 
     @Test
@@ -78,7 +76,7 @@ class ModelTest {
     void exposesAggregateEquivalentConfiguration() {
         Model model = ConfiguredModel.class.getAnnotation(Model.class);
 
-        assertFalse(model.eventSourced());
+        assertEquals(ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, model.persistence());
         assertTrue(model.ignoreUnknownEvents());
         assertEquals(20, model.snapshotPeriod());
         assertEquals(3, model.maxSnapshotCount());
@@ -90,10 +88,9 @@ class ModelTest {
         assertEquals(STORE_ONLY, model.publicationStrategy());
         assertEquals(ModelConflictPolicy.FAIL, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DISABLED, model.automaticHandling());
-        assertTrue(model.searchable());
-        assertEquals("configured-models", model.searchProjection().collection());
-        assertEquals("createdAt", model.searchProjection().timestampPath());
-        assertEquals("expiresAt", model.searchProjection().endPath());
+        assertEquals("configured-models", model.document().collection());
+        assertEquals("createdAt", model.document().timestampPath());
+        assertEquals("expiresAt", model.document().endPath());
     }
 
     @Test
@@ -107,16 +104,17 @@ class ModelTest {
                 Set.of(
                         "automaticHandling",
                         "conflictPolicy",
+                        "document",
                         "graphProjection",
                         "materializeGraph",
-                        "searchProjection"),
+                        "persistence"),
                 modelSettings.stream()
                         .filter(setting ->
                                         !aggregateSettings
                                                 .contains(setting))
                         .collect(
                                 Collectors.toSet()));
-        assertEquals(Set.of("collection", "timestampPath", "endPath", "eventRouting"),
+        assertEquals(Set.of("collection", "timestampPath", "endPath", "eventRouting", "eventSourced", "searchable"),
                      aggregateSettings.stream()
                              .filter(setting -> !modelSettings.contains(setting))
                              .collect(Collectors.toSet()));
@@ -128,12 +126,12 @@ class ModelTest {
         Model annotation = ReflectionUtils.getTypeMetadata(InheritedModel.class).typeAnnotation(Model.class);
 
         assertNotNull(annotation);
-        assertTrue(annotation.searchable());
-        assertEquals("base-models", annotation.searchProjection().collection());
+        assertEquals(ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, annotation.persistence());
+        assertEquals("base-models", annotation.document().collection());
     }
 
     @Test
-    void resolvesNestedSearchProjectionConfiguration() {
+    void resolvesDocumentProjectionConfiguration() {
         SearchParameters searchable = ClientUtils.getSearchParameters(ConfiguredModel.class);
 
         assertTrue(searchable.isSearchable());
@@ -143,11 +141,24 @@ class ModelTest {
     }
 
     @Test
-    void searchProjectionConfigurationDoesNotEnableSearch() {
-        SearchParameters searchable = ClientUtils.getSearchParameters(ConfiguredUnsearchableModel.class);
+    void documentConfigurationRequiresDirectDocumentPersistence() {
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> EntityMetadata.validate(InvalidDocumentConfiguration.class));
 
-        assertFalse(searchable.isSearchable());
-        assertEquals("inactive-models", searchable.getCollection());
+        assertTrue(exception.getMessage().contains("requires persistence that stores a direct document"));
+    }
+
+    @Test
+    void documentPersistenceRejectsEventSourcingOptions() {
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(DocumentWithUnknownEventPolicy.class));
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(DocumentWithSnapshots.class));
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(DocumentWithSnapshotRetention.class));
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(DocumentWithReplayCheckpoints.class));
     }
 
     @Test
@@ -188,8 +199,7 @@ class ModelTest {
     private static class DefaultModel {
     }
 
-    @Model(
-            eventSourced = false,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
             ignoreUnknownEvents = true,
             snapshotPeriod = 20,
             maxSnapshotCount = 3,
@@ -201,20 +211,37 @@ class ModelTest {
             publicationStrategy = STORE_ONLY,
             conflictPolicy = ModelConflictPolicy.FAIL,
             automaticHandling = AutomaticModelHandling.DISABLED,
-            searchable = true,
-            searchProjection = @Searchable(
+            document = @DocumentProjection(
                     collection = "configured-models",
                     timestampPath = "createdAt",
                     endPath = "expiresAt"))
     private static class ConfiguredModel {
     }
 
-    @Model(searchable = true, searchProjection = @Searchable(collection = "base-models"))
+    @Model(
+            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            document = @DocumentProjection(collection = "base-models"))
     private static class BaseModel {
     }
 
-    @Model(searchProjection = @Searchable(collection = "inactive-models"))
-    private static class ConfiguredUnsearchableModel {
+    @Model(document = @DocumentProjection(collection = "inactive-models"))
+    private static class InvalidDocumentConfiguration {
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT, ignoreUnknownEvents = true)
+    private static class DocumentWithUnknownEventPolicy {
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT, snapshotPeriod = 1)
+    private static class DocumentWithSnapshots {
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT, maxSnapshotCount = 2)
+    private static class DocumentWithSnapshotRetention {
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT, checkpointPeriod = 10)
+    private static class DocumentWithReplayCheckpoints {
     }
 
     private static class InheritedModel extends BaseModel {

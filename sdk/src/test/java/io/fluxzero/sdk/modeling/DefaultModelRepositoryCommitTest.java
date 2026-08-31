@@ -1319,8 +1319,9 @@ class DefaultModelRepositoryCommitTest {
     }
 
     @Revision(7)
-    @Model(eventSourced = false, searchable = true,
-            searchProjection = @Searchable(collection = "orders", timestampPath = "changedAt"))
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(collection = "orders", timestampPath = "changedAt"))
     private record Order(
             @EntityId OrderId orderId,
             @Parent(value = Customer.class, pathInParent = "orders") CustomerId customerId,
@@ -1354,7 +1355,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(eventSourced = false)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record PolymorphicContact(
             @EntityId String id,
             @Parent(types = {Customer.class, AlternateCustomer.class}, pathInParent = "contacts") Id<?> parentId) {
@@ -1409,10 +1410,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(
-            eventSourced = false,
-            searchable = true,
-            searchProjection = @Searchable(collection = "privateDocuments"),
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "privateDocuments"),
             eventPublication = EventPublication.NEVER)
     private record PrivateDocument(@EntityId PrivateDocumentId documentId, String value) {
     }
@@ -1430,7 +1428,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(eventSourced = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record ConditionalModel(@EntityId ConditionalId conditionalId, String value) {
     }
 

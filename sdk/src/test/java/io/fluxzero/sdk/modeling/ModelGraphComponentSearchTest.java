@@ -169,7 +169,7 @@ class ModelGraphComponentSearchTest {
                                  .fetchAll()));
     }
 
-    @Model(searchable = true, materializeGraph = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true)
     private record SearchRoot(@EntityId SearchRootId searchRootId) {
     }
 
@@ -273,7 +273,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model(searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
     private record SearchLeaf(
             @EntityId SearchLeafId searchLeafId,
             @Parent(pathInParent = "searchLeaves") PrivateChildId privateChildId) {

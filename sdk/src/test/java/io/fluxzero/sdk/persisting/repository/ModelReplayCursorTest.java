@@ -29,9 +29,11 @@ import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
@@ -140,10 +142,7 @@ class ModelReplayCursorTest {
                 sequenceNumber, stateIndex, true, false);
     }
 
-    @Model(
-            eventSourced = false,
-            searchable = true,
-            searchProjection = @Searchable(collection = "currentDocuments"))
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "currentDocuments"))
     private record CurrentDocument(
             @EntityId String id,
             String value) {

@@ -75,8 +75,8 @@ If multiple consumers handle the same request message type, multiple results can
 
 ### Command followed by query
 
-For a searchable model, the direct document is part of model-commit completion. A command followed by a direct model
-query therefore reads committed state.
+For a Model using `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT`, the direct document is part of Model-commit completion.
+A command followed by a direct Model query therefore reads committed state.
 
 Whole-graph projections and documents written by event handlers remain asynchronous. Await their own completion
 boundary when a request result must not be released first.

@@ -202,7 +202,8 @@ Use this tree to find the correct manual for your current task, ordered by the r
     `DepositMoney` command solely to see what changed. Reserve `Entity<T>` for legacy Aggregate and persistence code.
 20. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
     system that updates whenever source documents change.
-21. **The Consistency Window**: Direct searchable Model documents complete with the Model commit. Materialized Graph
+21. **The Consistency Window**: Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT`
+    complete with the Model commit. Materialized Graph
     projections are asynchronous unless the operation selects `GraphProjectionCompletion.AWAIT`; unrelated handler
     side effects remain eventually consistent.
 22. **Let go of Sequentialism**: Don't try to build long sequential scripts. Let handlers respond to the results of

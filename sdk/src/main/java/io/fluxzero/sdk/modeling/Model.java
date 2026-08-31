@@ -18,7 +18,6 @@ package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
-import io.fluxzero.sdk.persisting.search.Searchable;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -50,18 +49,17 @@ import java.lang.annotation.Target;
  * invalid for model applies because it does not identify a stored result. Legacy mutable aggregate applies remain
  * supported.
  *
- * <h2>Event-sourced and document-based loading</h2>
- * {@link #eventSourced()} selects the normal load path, not whether applied events are stored or published. An
- * event-sourced model is reconstructed from its model stream, optionally from a snapshot. A document-based model is
- * loaded directly from its current document. In both cases, event storage and publication are controlled independently
- * by {@link #eventPublication()}, {@link #publicationStrategy()}, and per-apply overrides. Choose this persistence
- * strategy after choosing the lifecycle boundary. Splitting independently living children into their own models often
- * makes their individual streams small enough for straightforward event sourcing even when the former shared root had
- * a very large event history.
+ * <h2>Persistence</h2>
+ * {@link #persistence()} makes the durable representation and authoritative load path explicit. Event-sourced models
+ * are reconstructed from their model stream, optionally from a snapshot. They may additionally maintain a direct
+ * current document for search. Document-authoritative models load directly from that current document. Event storage
+ * and publication remain independent and are controlled by {@link #eventPublication()},
+ * {@link #publicationStrategy()}, and per-apply overrides. Internal component documents used for Graph composition are
+ * likewise orthogonal and never change the selected load path.
  *
  * <h2>Example</h2>
  * <pre>{@code
- * @Model(searchable = true)
+ * @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
  * public record Product(@EntityId ProductId productId, String name) {
  *     @Apply
  *     Product rename(RenameProduct command) {
@@ -80,13 +78,13 @@ import java.lang.annotation.Target;
  * @see Parent
  * @see Apply
  * @see EntityId
- * @see Searchable
+ * @see ModelPersistence
+ * @see DocumentProjection
  */
 @Documented
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
-@Searchable
 public @interface Model {
 
     /**
@@ -100,16 +98,15 @@ public @interface Model {
     AutomaticModelHandling automaticHandling() default AutomaticModelHandling.DEFAULT;
 
     /**
-     * Whether normal loads reconstruct the model from its event stream.
+     * Durable representation and authoritative load path for this Model.
      * <p>
-     * When disabled, the current model is loaded directly from its document through the configured
-     * {@link io.fluxzero.sdk.persisting.search.DocumentSerializer}. This setting does not suppress storing or publishing
-     * events produced by {@link Apply} methods. A state-changing event-sourced model apply must store its reconstructing
-     * event; a {@code PUBLISH_ONLY} or {@link EventPublication#NEVER NEVER} transition that would change state is
-     * rejected before commit. A publish-only no-op remains a valid domain notification when publication is explicitly
-     * set to {@link EventPublication#ALWAYS ALWAYS}.
+     * This setting does not suppress storing or publishing events produced by {@link Apply} methods. A state-changing
+     * event-sourced Model apply must store its reconstructing event; a {@code PUBLISH_ONLY} or
+     * {@link EventPublication#NEVER NEVER} transition that would change state is rejected before commit. A publish-only
+     * no-op remains a valid domain notification when publication is explicitly set to
+     * {@link EventPublication#ALWAYS ALWAYS}.
      */
-    boolean eventSourced() default true;
+    ModelPersistence persistence() default ModelPersistence.EVENT_SOURCED;
 
     /**
      * Whether unknown events should be ignored while reconstructing an event-sourced model.
@@ -180,35 +177,22 @@ public @interface Model {
     EventPublicationStrategy publicationStrategy() default EventPublicationStrategy.DEFAULT;
 
     /**
-     * Whether the model should expose a synchronous current document through its ordinary class-based search
-     * collection.
+     * Advanced configuration for the Model's direct current document.
      * <p>
-     * Successful commit completion makes the directly changed model searchable in its own collection. This setting
-     * does not control graph participation: a model connected through an explicit {@link Parent#pathInParent()} still
-     * supplies an internal current document for virtual and materialized graph composition. Private component
-     * documents are isolated per model type and can be selected through relationship constraints such as
-     * {@link io.fluxzero.sdk.persisting.search.Search#whereDescendant(Object,
-     * io.fluxzero.common.api.search.Constraint...)}, without exposing the model through its ordinary class-based
-     * search collection. Composed root documents are separate projections.
+     * Select a {@link ModelPersistence} that stores a document to enable this projection. The document store makes the
+     * resulting current state searchable. The collection defaults to the Model's simple class name; timestamps default
+     * to the applied event timestamp when no paths are configured.
      */
-    boolean searchable() default false;
-
-    /**
-     * Advanced configuration for the model's direct search document.
-     * <p>
-     * This configuration does not enable indexing by itself; set {@link #searchable()} to {@code true}. Defaults to
-     * the model's simple class name as collection and to event timestamps when no timestamp paths are configured.
-     */
-    Searchable searchProjection() default @Searchable;
+    DocumentProjection document() default @DocumentProjection;
 
     /**
      * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
      * <p>
-     * Fluxzero retains the root's current document in its direct collection when {@link #searchable()} is enabled and
-     * otherwise in the same type-isolated private component storage used by non-searchable children. Only the
-     * separately named graph collection is allowed to lag; its high-watermark is exposed through the model repository.
-     * The collection defaults to the resolved direct-model collection plus {@code -graphs} when searchable, or to
-     * {@code <simple model name>-graphs} otherwise.
+     * Fluxzero retains the root's current document in its direct collection when {@link #persistence()} stores a
+     * document and otherwise in the same type-isolated private component storage used by other Graph-only Models. Only
+     * the separately named graph collection is allowed to lag; its high-watermark is exposed through the model
+     * repository. The collection defaults to the resolved direct-model collection plus {@code -graphs} when present,
+     * or to {@code <simple model name>-graphs} otherwise.
      */
     boolean materializeGraph() default false;
 

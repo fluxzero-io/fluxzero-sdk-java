@@ -63,11 +63,13 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
+import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
@@ -2362,8 +2364,9 @@ class DefaultModelRepositoryTest {
     private record CommitEvent(Object payload, String targetId, Class<?> modelType) {
     }
 
-    @Model(eventSourced = false, searchable = true,
-            searchProjection = @Searchable(collection = "products"))
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(collection = "products"))
     private record Product(@EntityId ProductId productId, String name) {
     }
 
@@ -2438,9 +2441,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(
-            eventSourced = false, searchable = true,
-            searchProjection = @Searchable(collection = "aliasedAccounts"))
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "aliasedAccounts"))
     private record AliasedAccount(
             @EntityId AliasedAccountId accountId,
             int balance) {
@@ -2571,10 +2572,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(
-            eventSourced = false,
-            searchable = true,
-            searchProjection = @Searchable(collection = "documentInventory"))
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "documentInventory"))
     private record DocumentInventory(
             @EntityId DocumentInventoryId inventoryId,
             int available) {
@@ -2777,11 +2775,9 @@ class DefaultModelRepositoryTest {
     }
 
     @Revision(1)
-    @Model(
-            eventSourced = false,
-            cached = true,
-            searchable = true,
-            searchProjection = @Searchable(
+    @Model(persistence = ModelPersistence.DOCUMENT, cached = true,
+
+            document = @DocumentProjection(
                     collection = "evolvedDocuments"))
     private record EvolvedDocument(
             @EntityId EvolvedDocumentId id,
@@ -2956,9 +2952,7 @@ class DefaultModelRepositoryTest {
             @EntityId GraphRootId graphRootId, String name) {
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "repository-graphs"))
     private record ProjectedRoot(
@@ -2973,9 +2967,7 @@ class DefaultModelRepositoryTest {
             String rootId) {
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "repository-graphs"))
     private record AlternateProjectedRoot(

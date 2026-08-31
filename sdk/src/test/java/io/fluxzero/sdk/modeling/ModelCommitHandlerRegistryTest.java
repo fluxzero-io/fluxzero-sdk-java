@@ -2036,9 +2036,7 @@ class ModelCommitHandlerRegistryTest {
                 null, false);
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "retryRoots"))
     private record RetryRoot(
@@ -2061,7 +2059,7 @@ class ModelCommitHandlerRegistryTest {
         }
     }
 
-    @Model(eventSourced = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record RetryBoundaryModel(
             @EntityId String id,
             String value) {
@@ -2426,9 +2424,7 @@ class ModelCommitHandlerRegistryTest {
             String batchId) {
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "awaited-graphs",
                     completion = GraphProjectionCompletion.AWAIT))
@@ -2450,18 +2446,14 @@ class ModelCommitHandlerRegistryTest {
             ProjectionRootId rootId) {
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "default-graphs"))
     private record DefaultProjectionRoot(
             @EntityId String id) {
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "async-graphs",
                     completion = GraphProjectionCompletion.ASYNC))

@@ -3244,7 +3244,7 @@ Metrics messages provide lightweight hooks into system behavior — use them for
 Use `@Model` for all new persisted domain state:
 
 ```java
-@Model(searchable = true)
+@Model
 public record UserAccount(
         @EntityId UserId userId,
         UserProfile profile,
@@ -3255,6 +3255,35 @@ public record UserAccount(
 Every model ID is an independent persistence and lifecycle boundary. Depending on its `@Model` settings, it has its own
 event stream, cache entry, snapshots and direct search document. Commands can own their assertions and transitions
 directly:
+
+Choose one explicit persistence contract:
+
+| `ModelPersistence` | Authoritative load path | Direct searchable document |
+|---|---|---|
+| `EVENT_SOURCED` (default) | Model event stream, optionally from snapshots | No |
+| `EVENT_SOURCED_WITH_DOCUMENT` | Model event stream, optionally from snapshots | Yes |
+| `DOCUMENT` | Current document through the configured `DocumentSerializer` | Yes |
+
+Event storage and publication remain controlled independently by `eventPublication`, `publicationStrategy` and
+per-apply overrides. Internal type-isolated documents required for Graph composition are likewise independent: they do
+not make an `EVENT_SOURCED` Model directly searchable and never change its authoritative load path. Configure the
+direct document only when needed:
+
+```java
+@Model(
+        persistence = ModelPersistence.DOCUMENT,
+        document = @DocumentProjection(
+                collection = "user-accounts",
+                timestampPath = "profile/createdAt"))
+public record UserAccount(
+        @EntityId UserId userId,
+        UserProfile profile,
+        boolean accountClosed) {
+}
+```
+
+Event-sourcing-only settings such as `ignoreUnknownEvents`, `snapshotPeriod`, `maxSnapshotCount` and
+`checkpointPeriod` are rejected on `DOCUMENT` Models instead of being silently ignored.
 
 ```java
 public record UpdateProfile(
@@ -3287,9 +3316,9 @@ functional ID is unique only below its parent.
 
 Conversely, use `@Member` only when the nested value deliberately shares creation, every change, history, retention,
 and deletion with the root. Collection shape, convenient embedding, searchability, update frequency, and the chosen
-load strategy do not decide this boundary. Choose `eventSourced`, snapshots, caching, and document indexing only after
-the lifecycle boundary is correct. Splitting independently living children often turns one enormous legacy stream into
-many very small streams that are ideal for event sourcing.
+load strategy do not decide this boundary. Choose `persistence`, snapshots and caching only after the lifecycle
+boundary is correct. Splitting independently living children often turns one enormous legacy stream into many very
+small streams that are ideal for event sourcing.
 
 ### Combining payload and Model handlers
 
@@ -3338,7 +3367,7 @@ final state. Live handling, retry, rebase and event replay use this same phasing
 Related models remain independently stored:
 
 ```java
-@Model(searchable = true)
+@Model
 public record Address(
         @EntityId AddressId addressId,
         @Parent(pathInParent = "addresses") UserId userId,
@@ -3357,8 +3386,8 @@ being mixed with other component types or exposed by `Fluxzero.search(Component.
 cast or type witness. It uses a configured materialized projection and otherwise stitches current public or private
 documents live; `searchGraph(User.class, true)` forces live stitching. Use `fetch(..., ObjectNode.class)` only at a boundary that
 explicitly needs raw documents. Graph constraints have the same full-document meaning on both routes.
-`searchable = false` suppresses only the Model's own search collection: an explicit
-`@Parent(pathInParent = "...")` or `materializeGraph = true` still gives graph composition an internal current document.
+`ModelPersistence.EVENT_SOURCED` does not maintain a direct Model collection: an explicit
+`@Parent(pathInParent = "...")` or `materializeGraph = true` still gives Graph composition an internal current document.
 `pathInParent` is always relative to the parent document; it never points from the child to its parent.
 
 For a selective live Graph query based on children, express the child predicate as a relationship constraint so
@@ -3380,7 +3409,7 @@ Relations may be recursive. A `Folder` can, for example, point to another `Folde
 relation remains an ordinary independently stored edge and does not turn the descendants into embedded state:
 
 ```java
-@Model(searchable = true)
+@Model
 record Folder(
         @EntityId FolderId folderId,
         @Parent(pathInParent = "folders") FolderId parentFolderId,
@@ -3440,13 +3469,14 @@ public record User(@EntityId UserId userId, String name) {
 ```
 
 `materializeGraph` is sufficient: Fluxzero keeps the private root document needed for composition without exposing a
-direct Model collection. Enable `searchable` separately only when callers should also be able to search the root Model
-itself. Use `searchProjection = @Searchable(...)` or `graphProjection = @GraphProjection(...)` only for advanced
-configuration. The graph collection is `User-graphs` by default; for a searchable root Fluxzero appends `-graphs` to
-the resolved direct collection. Set `GraphProjection.collection` only when a custom durable name is needed. Projection
-is asynchronous unless completion is explicitly configured otherwise. Both live and materialized composition follow the
-complete finite graph by default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use
-`UNBOUNDED` (`-1`) when absent. An explicit guardrail fails instead of publishing a partial graph.
+direct Model collection. Select `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` only when callers should also be able to
+search the root Model itself. Use `document = @DocumentProjection(...)` or
+`graphProjection = @GraphProjection(...)` only for advanced configuration. The graph collection is `User-graphs` by
+default; for a root with a direct document Fluxzero appends `-graphs` to the resolved direct collection. Set
+`GraphProjection.collection` only when a custom durable name is needed. Projection is asynchronous unless completion
+is explicitly configured otherwise. Both live and materialized composition follow the complete finite graph by
+default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use `UNBOUNDED` (`-1`) when
+absent. An explicit guardrail fails instead of publishing a partial graph.
 
 Every node in a materialized graph keeps its own serialized type and revision. On read, the normal serializer applies
 the registered `@Upcast` chain lazily to each root or descendant when that node is accessed; there is no separate
@@ -3470,8 +3500,9 @@ authoritative and unchanged; a delayed handler cannot overwrite a newer projecti
 
 Use `@Member` inside a model only for values that intentionally share the model's creation, changes, history, stream,
 document, cache, retention and deletion lifecycle. If any of those can diverge, use a separate `@Model` plus `@Parent`,
-including when the child is normally displayed as one item in a parent collection. Set `eventSourced = false` when
-current state should load from the direct document; model events are still stored and published. `@Model` defaults
+including when the child is normally displayed as one item in a parent collection. Select
+`persistence = ModelPersistence.DOCUMENT` when current state should load from the direct document; Model events are
+still stored and published. `@Model` defaults
 `eventPublication` to `IF_MODIFIED`, so returning unchanged state does not produce an event; use `ALWAYS` explicitly for
 intentional no-op domain notifications. Direct searchable documents are synchronous with model-commit completion.
 
@@ -4739,7 +4770,7 @@ documentStore.bulkUpdate("customCollection")
 
 Many domain objects in Flux (e.g. models or stateful handlers) are automatically indexable:
 
-- `@Model(searchable = true)`
+- `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
@@ -4748,7 +4779,7 @@ manually.
 
 ```java
 
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 public record UserAccount(@EntityId UserId userId,
                           UserProfile profile,
                           boolean accountClosed) {
@@ -4756,12 +4787,12 @@ public record UserAccount(@EntityId UserId userId,
 ```
 
 By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
-unless explicitly overridden through `Model.searchProjection`, `@Stateful`, `@Searchable` or in the search/index call:
+unless explicitly overridden through `Model.document`, `@Stateful`, `@Searchable` or in the search/index call:
 
 ```java
 @Model(
-        searchable = true,
-        searchProjection = @Searchable(
+        persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+        document = @DocumentProjection(
                 collection = "users",
                 timestampPath = "profile/createdAt"))
 ```
@@ -5121,7 +5152,7 @@ Fluxzero.search("expiredTokens")
 
 - Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
-- Use `@Model(searchable = true)` or `@Stateful` for automatic indexing.
+- Use `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)` or `@Stateful` for automatic indexing.
 - Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 
 ---
@@ -5201,7 +5232,7 @@ UserAccount upgrade(UserAccount user) {
 You can subscribe to a document collection using any of the following styles:
 
 - `@HandleDocument` — infers the collection from the **first parameter** of the handler method; this is the preferred style when the document is the first parameter
-- `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the model’s `@Searchable` annotation when the document type cannot be inferred from the first parameter
+- `@HandleDocument(documentClass = MyModel.class)` — resolves the collection via the Model's `document` projection when the document type cannot be inferred from the first parameter
 - `@HandleDocument(modelGraph = MyModel.class)` — subscribes to the model's enabled materialized graph projection and can inject a typed lazy `Graph<MyModel>`, including its derived or explicitly configured graph collection. Returning that complete Graph persists node-by-node serializer upcasting only into the derived projection, using an atomic manifest comparison so a delayed handler cannot overwrite newer state; direct Models and relationships remain authoritative and unchanged. Returning an already-current Graph is a no-op. Deleting the root delivers an observational typed empty graph that retains its identity and boundary; `previous()` returns the complete last graph. Ordinary document handlers for the same collection do not receive this deletion record.
 - `@HandleDocument("myCollection")` — binds directly to the named collection
 
@@ -6094,8 +6125,8 @@ public class MyCustomizer implements FluxzeroCustomizer {
 
 - `replaceSerializer(...)` changes the default JSON serializer (e.g., for Jackson customizations).
 - `replaceDocumentSerializer(...)` owns complete document serialization in both directions, including current documents
-  of `@Model(eventSourced = false)`. It can therefore implement document-level encryption, compression, signing, or a
-  custom envelope using the document ID, collection, timestamps, and metadata.
+  of `@Model(persistence = ModelPersistence.DOCUMENT)`. It can therefore implement document-level encryption,
+  compression, signing, or a custom envelope using the document ID, collection, timestamps, and metadata.
 
 #### Parameter Injection and Handler Behavior
 

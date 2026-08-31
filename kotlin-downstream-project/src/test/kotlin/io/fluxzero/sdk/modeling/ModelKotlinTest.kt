@@ -2,12 +2,9 @@ package io.fluxzero.sdk.modeling
 
 import io.fluxzero.sdk.Fluxzero
 import io.fluxzero.sdk.persisting.eventsourcing.Apply
-import io.fluxzero.sdk.persisting.search.Searchable
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 class ModelKotlinTest {
     @Test
@@ -15,9 +12,8 @@ class ModelKotlinTest {
         val annotation = KotlinModel::class.java.getAnnotation(Model::class.java)
 
         assertNotNull(annotation)
-        assertFalse(annotation.eventSourced)
-        assertTrue(annotation.searchable)
-        assertEquals("kotlin-models", annotation.searchProjection.collection)
+        assertEquals(ModelPersistence.DOCUMENT, annotation.persistence)
+        assertEquals("kotlin-models", annotation.document.collection)
         assertEquals(1, KotlinModel("model", emptyList()).rename(RenameKotlinModel("new")).parts.size)
     }
 
@@ -28,9 +24,8 @@ class ModelKotlinTest {
 }
 
 @Model(
-    eventSourced = false,
-    searchable = true,
-    searchProjection = Searchable(collection = "kotlin-models"),
+    persistence = ModelPersistence.DOCUMENT,
+    document = DocumentProjection(collection = "kotlin-models"),
 )
 data class KotlinModel(
     @EntityId val id: String,
