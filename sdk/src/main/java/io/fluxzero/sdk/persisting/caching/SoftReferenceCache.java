@@ -198,75 +198,26 @@ public class SoftReferenceCache implements Cache, AutoCloseable {
             BiFunction<? super T, ? super T, ? extends T> mergeFunction) {
         Objects.requireNonNull(values, "values");
         Objects.requireNonNull(mergeFunction, "mergeFunction");
-        synchronized (valueMap) {
-            if (valueMap.isEmpty()) {
-                Map<Object, CacheReference> additions =
-                        new LinkedHashMap<>(
-                                (int) Math.min(
-                                        (long) values.size()
-                                        * 4L / 3L + 1L,
-                                        maxSize));
-                values.forEach(
-                        (id, candidate) -> {
-                            CacheReference next =
-                                    wrap(
-                                            id,
-                                            mergeFunction.apply(
-                                                    null,
-                                                    candidate));
-                            if (next != null) {
-                                additions.put(id, next);
-                            }
-                        });
-                valueMap.putAll(additions);
-                return;
-            }
-            values.forEach(
-                    (id, candidate) -> {
-                        CacheReference previous =
-                                valueMap.get(id);
-                        CacheReference next =
-                                wrap(
-                                        id,
+        values.forEach(
+                (id, candidate) ->
+                        this.<T>compute(
+                                id,
+                                (ignored, current) ->
                                         mergeFunction.apply(
-                                                unwrap(previous),
-                                                candidate));
-                        if (next == null) {
-                            valueMap.remove(id);
-                            if (previous != null
-                                && previous.get() != null) {
-                                registerEviction(
-                                        previous, manual);
-                            }
-                        } else {
-                            valueMap.put(id, next);
-                        }
-                    });
-        }
+                                                current,
+                                                candidate)));
     }
 
     @Override
     public <T> void updateAll(
             Map<?, ? extends Function<? super T, ? extends T>> updates) {
         Objects.requireNonNull(updates, "updates");
-        synchronized (valueMap) {
-            updates.forEach(
-                    (id, update) -> {
-                        CacheReference previous = valueMap.get(id);
-                        CacheReference next = wrap(
+        updates.forEach(
+                (id, update) ->
+                        this.<T>compute(
                                 id,
-                                update.apply(unwrap(previous)));
-                        if (next == null) {
-                            valueMap.remove(id);
-                            if (previous != null
-                                && previous.get() != null) {
-                                registerEviction(previous, manual);
-                            }
-                        } else {
-                            valueMap.put(id, next);
-                        }
-                    });
-        }
+                                (ignored, current) ->
+                                        update.apply(current)));
     }
 
     private static Object computeLock(Object id) {

@@ -81,7 +81,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
-import io.fluxzero.sdk.persisting.caching.DefaultCache;
+import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -90,6 +90,7 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -103,6 +104,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1499,40 +1502,49 @@ class DefaultModelRepositoryTest {
 
     @Test
     void olderCommitCompletionCannotOverwriteANewerCachedModel() {
-        JacksonSerializer serializer =
-                new JacksonSerializer();
-        Cache cache = new DefaultCache();
-        DefaultModelRepository repository =
-                new DefaultModelRepository(
+        modelCaches().forEach(cache -> {
+            try {
+                JacksonSerializer serializer = new JacksonSerializer();
+                DefaultModelRepository repository = new DefaultModelRepository(
                         client, documentStore, serializer,
                         mock(EntityHelper.class), null,
                         cache, List.of());
-        AccountId id = new AccountId("fenced");
-        repository.updateAfterCommit(List.of(
-                committed(repository, id, 20, 1L, 20L)));
-        repository.updateAfterCommit(List.of(
-                committed(repository, id, 10, 0L, 10L)));
-        AtomicReference<Entity<?>> cached =
-                new AtomicReference<>();
-        cache.<Object>modifyEach((ignored, value) -> {
-            if (value instanceof Entity<?> entity) {
-                cached.set(entity);
-            }
-            return value;
-        });
+                AccountId id = new AccountId("fenced");
+                repository.updateAfterCommit(List.of(
+                        committed(repository, id, 20, 1L, 20L)));
+                repository.updateAfterCommit(List.of(
+                        committed(repository, id, 10, 0L, 10L)));
+                AtomicReference<Entity<?>> cached = new AtomicReference<>();
+                cache.<Object>modifyEach((ignored, value) -> {
+                    if (value instanceof Entity<?> entity) {
+                        cached.set(entity);
+                    }
+                    return value;
+                });
 
-        assertNotNull(cached.get());
-        assertEquals(
-                new Account(id, 20),
-                cached.get().get());
-        assertEquals(20L,
-                     ((ModelRoot<?>) cached.get())
-                             .stateIndex());
-        cache.close();
+                assertNotNull(cached.get());
+                assertEquals(new Account(id, 20), cached.get().get());
+                assertEquals(20L, ((ModelRoot<?>) cached.get()).stateIndex());
+            } finally {
+                cache.close();
+            }
+        });
     }
 
     @Test
+    @Timeout(20)
     void olderReconstructionCompletionCannotOverwriteANewerCachedModel()
+            throws InterruptedException {
+        for (Cache cache : modelCaches()) {
+            try {
+                verifyOlderReconstructionCannotOverwriteNewerCommit(cache);
+            } finally {
+                cache.close();
+            }
+        }
+    }
+
+    private void verifyOlderReconstructionCannotOverwriteNewerCommit(Cache cache)
             throws InterruptedException {
         AccountId id = new AccountId("reconstruction-fence");
         LocalClient localClient = LocalClient.newInstance(null);
@@ -1541,10 +1553,12 @@ class DefaultModelRepositoryTest {
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient)
                 .when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = withModelHandlers(
+        try (ExecutorService reconstructionExecutor = Executors.newSingleThreadExecutor();
+             Fluxzero fluxzero = withModelHandlers(
                      DefaultFluxzero.builder()
                              .disableKeepalive()
                              .disableShutdownHook()
+                             .withModelCache(cache)
                              .build(client))) {
             fluxzero.commandGateway().send(
                     new CreateAccount(id, 5)).join();
@@ -1570,11 +1584,7 @@ class DefaultModelRepositoryTest {
                         true, false)) {
                     reconstructionLoaded
                             .countDown();
-                    assertTrue(
-                            allowReconstructionCompletion
-                                    .await(
-                                            5,
-                                            TimeUnit.SECONDS));
+                    allowReconstructionCompletion.await();
                 }
                 return result;
             }).when(eventStoreClient)
@@ -1583,10 +1593,9 @@ class DefaultModelRepositoryTest {
             CompletableFuture<Entity<Account>>
                     olderReconstruction =
                     CompletableFuture.supplyAsync(
-                            () -> repository.load(id));
-            assertTrue(
-                    reconstructionLoaded.await(
-                            5, TimeUnit.SECONDS));
+                            () -> repository.load(id),
+                            reconstructionExecutor);
+            reconstructionLoaded.await();
 
             repository.updateAfterCommit(
                     List.of(committed(
@@ -1602,6 +1611,12 @@ class DefaultModelRepositoryTest {
                     new Account(id, 20),
                     repository.load(id).get());
         }
+    }
+
+    private static List<Cache> modelCaches() {
+        return List.of(
+                new SoftReferenceCache(100),
+                new AdaptiveObjectCache(100));
     }
 
     private static DefaultModelRepository.Commit.Outcome
