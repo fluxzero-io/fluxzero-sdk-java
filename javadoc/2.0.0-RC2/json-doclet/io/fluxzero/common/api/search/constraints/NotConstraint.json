@@ -1,0 +1,120 @@
+{
+  "name" : "NotConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.constraints.NotConstraint",
+  "packageName" : "io.fluxzero.common.api.search.constraints",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {
+      "access" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " A constraint that negates the result of another constraint.\n <p>\n This is equivalent to a logical <strong>NOT</strong>. A document matches this constraint if it does <em>not</em>\n match the provided inner constraint.\n\n <p>\n Example: to find all documents that do <em>not</em> have a particular value:\n <pre>{@code\n Constraint notAdmin = NotConstraint.not(MatchConstraint.match(\"admin\", \"userRole\"));\n }</pre>\n\n @see AllConstraint for logical AND\n @see AnyConstraint for logical OR\n @see Constraint\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.search.Constraint" ],
+  "fields" : [ {
+    "name" : "decompose",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.NotConstraint.decompose",
+    "type" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "not",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.NotConstraint.not",
+    "type" : "io.fluxzero.common.api.search.@lombok.NonNull Constraint",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The inner constraint that is being negated.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "NotConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.NotConstraint#NotConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "hasPathConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.NotConstraint#hasPathConstraint",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.NotConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "not",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.NotConstraint#not",
+    "returnType" : "io.fluxzero.common.api.search.constraints.NotConstraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "constraint",
+      "type" : "io.fluxzero.common.api.search.Constraint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Factory method to create a {@code NotConstraint}.\n\n @param constraint the constraint to negate\n @return a constraint that matches if the input constraint does not match\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,218 @@
+{
+  "name" : "HandlerPlan",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "EMPTY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan.EMPTY",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPlan",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "all",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan.all",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "model",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan.model",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan.payload",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandlerPlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#HandlerPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "compiler",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "HandlerPlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#HandlerPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "HandlerPlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#HandlerPlan",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "all",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "model",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "all",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#all",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "methods",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#methods",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "model",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#model",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#payload",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "singleApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#singleApply",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "all",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "model",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "payload",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

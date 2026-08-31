@@ -1,0 +1,148 @@
+{
+  "name" : "URL",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.constraints",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Repeatable",
+    "values" : {
+      "value" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL.List"
+    }
+  }, {
+    "annotationType" : "jakarta.validation.Constraint",
+    "values" : {
+      "validatedBy" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URLValidator.class"
+    }
+  } ],
+  "documentation" : " Validates that a character sequence can be parsed as a URL and optionally matches URL components.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "flags",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#flags",
+    "returnType" : "jakarta.validation.constraints.Pattern.Flag[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return pattern flags used for {@link #regexp()}\n"
+  }, {
+    "name" : "groups",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#groups",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return validation groups for which this constraint applies\n"
+  }, {
+    "name" : "host",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#host",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return required URL host, or an empty string to allow any host\n"
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#message",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return violation message template\n"
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#payload",
+    "returnType" : "java.lang.Class<? extends jakarta.validation.Payload>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return payload metadata associated with this constraint\n"
+  }, {
+    "name" : "port",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#port",
+    "returnType" : "int",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return required URL port, or {@code -1} to allow any port\n"
+  }, {
+    "name" : "protocol",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#protocol",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return required URL protocol, or an empty string to allow any protocol\n"
+  }, {
+    "name" : "regexp",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL#regexp",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return regular expression that the original URL text must match\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL$List",
+    "kind" : "annotation_type",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.annotation.Documented",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.annotation.Target",
+      "values" : {
+        "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+      }
+    }, {
+      "annotationType" : "java.lang.annotation.Retention",
+      "values" : {
+        "value" : "RUNTIME"
+      }
+    } ]
+  } ]
+}

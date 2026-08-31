@@ -1,0 +1,44 @@
+{
+  "name" : "BodyParam",
+  "qualifiedName" : "io.fluxzero.sdk.web.BodyParam",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "PARAMETER"
+    }
+  }, {
+    "annotationType" : "io.fluxzero.sdk.web.WebParam",
+    "values" : {
+      "type" : "BODY"
+    }
+  } ],
+  "documentation" : " Injects a field from a JSON request body into a handler method parameter.\n <p>\n If no explicit field name is provided, the method parameter name is used.\n Nested JSON properties may be addressed using dot or slash notation.\n </p>\n\n <h2>Example:</h2>\n <pre>{@code\n @HandlePost(\"/bookings\")\n BookingId createBooking(@BodyParam HotelId hotelId,\n                         @BodyParam RoomId roomId,\n                         @BodyParam BookingDetails details) { ... }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.web.BodyParam#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Body field name. If left empty, it defaults to the method parameter's name.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,117 @@
+{
+  "name" : "FacetConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.constraints.FacetConstraint",
+  "packageName" : "io.fluxzero.common.api.search.constraints",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {
+      "access" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " A constraint that matches documents containing a specific {@link FacetEntry}.\n <p>\n Facets are indexed fields marked using {@code @Facet} annotations. Using this constraint allows for efficient lookups\n because the facet matching is typically executed directly by the backing search store. This can make it significantly\n faster than using a general {@link MatchConstraint} for the same purpose.\n\n <p>\n Example usage to match a single facet:\n <pre>{@code\n Constraint facetMatch = FacetConstraint.matchFacet(\"country\", \"Netherlands\");\n }</pre>\n\n @see Constraint\n @see io.fluxzero.common.search.Facet\n @see FacetEntry\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.search.Constraint" ],
+  "fields" : [ {
+    "name" : "facet",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.FacetConstraint.facet",
+    "type" : "io.fluxzero.common.api.search.@lombok.NonNull FacetEntry",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The facet that must be present in the document for this constraint to match.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FacetConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.FacetConstraint#FacetConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "hasPathConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.FacetConstraint#hasPathConstraint",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " This constraint does not apply to specific document paths, so this always returns {@code false}.\n"
+  }, {
+    "name" : "matchFacet",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.FacetConstraint#matchFacet",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "facet",
+      "type" : "io.fluxzero.common.api.search.FacetEntry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Factory method to create a constraint that matches a single {@link FacetEntry}.\n\n @param facet the facet to match\n @return a {@code FacetConstraint} for the provided facet or a {@link NoOpConstraint} if the facet is null\n"
+  }, {
+    "name" : "matchFacet",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.FacetConstraint#matchFacet",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Factory method to create a constraint that matches documents with the given facet name and value.\n <p>\n If the value is a {@link Collection}, multiple facets are matched using an {@link AnyConstraint} over the\n individual values. If the value is a {@link HasId}, its identifier is used for matching.\n\n @param name  the facet field name (normalized internally)\n @param value the expected facet value\n @return a {@code FacetConstraint} or a composite constraint if {@code value} is a collection, or\n {@link NoOpConstraint} if the name is null or the value is null/empty.\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.FacetConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

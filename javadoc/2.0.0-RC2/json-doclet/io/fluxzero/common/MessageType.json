@@ -1,0 +1,137 @@
+{
+  "name" : "MessageType",
+  "qualifiedName" : "io.fluxzero.common.MessageType",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Enumerates the types of messages recognized and routed by the Fluxzero Runtime.\n <p>\n Each message type represents a semantic category of communication, such as commands, events, queries, or errors.\n These types inform how messages are tracked, handled, and optionally responded to.\n </p>\n\n <p>\n Each {@code MessageType} has two behavioral flags:\n </p>\n\n <h2>Usage Examples:</h2>\n <ul>\n   <li>{@code COMMAND} – a state-changing request with an optional result (e.g., CreateUser)</li>\n   <li>{@code EVENT} – a broadcast message representing something that happened</li>\n   <li>{@code QUERY} – a read-only request expecting a result</li>\n   <li>{@code ERROR} – indicates failure of a prior message</li>\n   <li>{@code WEBREQUEST} / {@code WEBRESPONSE} – HTTP/WebSocket message flows via Fluxzero</li>\n </ul>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.MessageType>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "request",
+    "qualifiedName" : "io.fluxzero.common.MessageType.request",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Whether this message type expects a response.\n",
+    "constantValue" : null
+  }, {
+    "name" : "response",
+    "qualifiedName" : "io.fluxzero.common.MessageType.response",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Whether this message type represents a response to a request.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MessageType",
+    "qualifiedName" : "io.fluxzero.common.MessageType#MessageType",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.MessageType#valueOf",
+    "returnType" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.MessageType#values",
+    "returnType" : "io.fluxzero.common.MessageType[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "COMMAND",
+    "qualifiedName" : "io.fluxzero.common.MessageType.COMMAND",
+    "annotations" : [ ],
+    "documentation" : " A request to perform an action or change state. Usually processed by a command handler and optionally followed by\n a {@link #RESULT}.\n"
+  }, {
+    "name" : "CUSTOM",
+    "qualifiedName" : "io.fluxzero.common.MessageType.CUSTOM",
+    "annotations" : [ ],
+    "documentation" : " A message from a custom message topic.\n"
+  }, {
+    "name" : "DOCUMENT",
+    "qualifiedName" : "io.fluxzero.common.MessageType.DOCUMENT",
+    "annotations" : [ ],
+    "documentation" : " A message containing an updated search document from a given collection.\n"
+  }, {
+    "name" : "ERROR",
+    "qualifiedName" : "io.fluxzero.common.MessageType.ERROR",
+    "annotations" : [ ],
+    "documentation" : " A handler failure in response to a request message or generic system failure.\n"
+  }, {
+    "name" : "EVENT",
+    "qualifiedName" : "io.fluxzero.common.MessageType.EVENT",
+    "annotations" : [ ],
+    "documentation" : " A record of something that occurred. Does not expect a response.\n"
+  }, {
+    "name" : "METRICS",
+    "qualifiedName" : "io.fluxzero.common.MessageType.METRICS",
+    "annotations" : [ ],
+    "documentation" : " Internal system event used for diagnostics and monitoring.\n"
+  }, {
+    "name" : "NOTIFICATION",
+    "qualifiedName" : "io.fluxzero.common.MessageType.NOTIFICATION",
+    "annotations" : [ ],
+    "documentation" : " Same as events, but used in a fan-out strategy when a consumer is interested in events across all segments.\n"
+  }, {
+    "name" : "QUERY",
+    "qualifiedName" : "io.fluxzero.common.MessageType.QUERY",
+    "annotations" : [ ],
+    "documentation" : " A request for data or read-only information. Typically returns a {@link #RESULT}.\n"
+  }, {
+    "name" : "RESULT",
+    "qualifiedName" : "io.fluxzero.common.MessageType.RESULT",
+    "annotations" : [ ],
+    "documentation" : " The result of handling a request (e.g. command, query).\n"
+  }, {
+    "name" : "SCHEDULE",
+    "qualifiedName" : "io.fluxzero.common.MessageType.SCHEDULE",
+    "annotations" : [ ],
+    "documentation" : " A scheduled message to be delivered at a specific time.\n"
+  }, {
+    "name" : "WEBREQUEST",
+    "qualifiedName" : "io.fluxzero.common.MessageType.WEBREQUEST",
+    "annotations" : [ ],
+    "documentation" : " A tracked web request routed to a handler via HTTP or WebSocket. Expects a {@link #WEBRESPONSE}.\n"
+  }, {
+    "name" : "WEBRESPONSE",
+    "qualifiedName" : "io.fluxzero.common.MessageType.WEBRESPONSE",
+    "annotations" : [ ],
+    "documentation" : " A response to a {@link #WEBREQUEST}, typically an HTTP or WebSocket reply.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

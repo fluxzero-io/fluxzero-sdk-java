@@ -1,0 +1,1857 @@
+{
+  "name" : "DefaultModelRepository",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Default repository for independently stored models.\n <p>\n Current document-based models use their synchronously maintained direct document. Event-sourced and historical\n loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.persisting.repository.ModelRepository>",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.repository.ModelAncestorResolver", "io.fluxzero.sdk.persisting.repository.ModelRepository" ],
+  "fields" : [ {
+    "name" : "COMMITTED_CACHE_UPDATE_BATCH_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.COMMITTED_CACHE_UPDATE_BATCH_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 128
+  }, {
+    "name" : "COMPLETED_VOID",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.COMPLETED_VOID",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "INITIAL_MIGRATION_POLL_NANOS",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.INITIAL_MIGRATION_POLL_NANOS",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "MAX_MIGRATION_POLL_NANOS",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.MAX_MIGRATION_POLL_NANOS",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cacheSource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.cacheSource",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.client",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "documentStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.documentStore",
+    "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "entityHelper",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.entityHelper",
+    "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "graphProjectionRegistrations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.graphProjectionRegistrations",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,io.fluxzero.sdk.persisting.repository.DefaultModelRepository.GraphProjectionRegistration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "migratedThrough",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.migratedThrough",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "migrationReadBarrierConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.migrationReadBarrierConfiguration",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.MigrationReadBarrierConfiguration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.modelCache",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelCacheTracker",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.modelCacheTracker",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelCacheTracker",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelDefinitionCompiler",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.modelDefinitionCompiler",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.modelTypes",
+    "type" : "java.util.function.Supplier<java.util.List<java.lang.Class<?>>>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "replayCursor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.replayCursor",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelReplayCursor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshotSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.snapshotSerializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshotStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.snapshotStore",
+    "type" : "io.fluxzero.sdk.persisting.repository.ModelSnapshotStore",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultModelRepository",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#DefaultModelRepository",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentStore",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshotSerializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cache",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelDefinitionCompiler",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migrationReadBarrierConfiguration",
+      "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.MigrationReadBarrierConfiguration>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultModelRepository",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#DefaultModelRepository",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.configuration.client.Client",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentStore",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentStore",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "entityHelper",
+      "type" : "io.fluxzero.sdk.modeling.EntityHelper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshotSerializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cache",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "adoptModelMigrationBatch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#adoptModelMigrationBatch",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Integer>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "adopted",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "adoptModelMigrations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#adoptModelMigrations",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Integer>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "adoptPersistedModelMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#adoptPersistedModelMigration",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "persistedId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyCommittedModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#applyCommittedModel",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "current",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revisions",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CommittedRevision>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "awaitGraphProjections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#awaitGraphProjections",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "projections",
+      "type" : "java.util.@lombok.NonNull Map<java.lang.Class<?>,java.util.Set<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "firstStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Completes when every affected durable graph projection has processed the supplied commit range. "
+  }, {
+    "name" : "awaitPublishedEventMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#awaitPublishedEventMigration",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "eventIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "beginLocalCommit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#beginLocalCommit",
+    "returnType" : "java.lang.Runnable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks model targets as belonging to an in-flight commit from this SDK so a concurrently observed tracker update\n does not race the authoritative accepted result into an unnecessary cache refresh.\n\n @return an idempotent completion callback\n"
+  }, {
+    "name" : "boundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#boundary",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "boundary",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.PinnedBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cacheTrackingReadiness",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#cacheTrackingReadiness",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Boolean>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cast",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#cast",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "castPrevious",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#castPrevious",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "entity",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "committedEntity",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#committedEntity",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "finalTransition",
+      "type" : "io.fluxzero.sdk.modeling.Change",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revisions",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CommittedRevision>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "previous",
+      "type" : "io.fluxzero.sdk.modeling.Entity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "configureModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#configureModelTypes",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.function.Supplier<java.util.List<java.lang.Class<?>>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Configures the application-bound model catalog used to version materialized Graph schemas. "
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionPlan",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deletionId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionPlan",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deletionId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "emptyUntyped",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#emptyUntyped",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<java.lang.Object>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "exactModelId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#exactModelId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#executeDeletion",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.DeleteModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "followPublishedEventMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#followPublishedEventMigration",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "migrationName",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "maxWait",
+      "type" : "java.time.@lombok.NonNull Duration",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "graphProjectionDefinition",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#graphProjectionDefinition",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the application-resolved durable definition owned by this repository. "
+  }, {
+    "name" : "graphProjectionStatus",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#graphProjectionStatus",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelGraphProjectionStatus",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handlerBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#handlerBoundary",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.PinnedBoundary",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "interruptedMigrationWait",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#interruptedMigrationWait",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.MigrationReadBarrierConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invalidateModels",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#invalidateModels",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.lang.Iterable<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes commit-scoped entries before a strict-policy retry reload.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadAll",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.@lombok.NonNull List<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadAncestorGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadAncestorGraph",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<A>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "A" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ancestorType",
+      "type" : "java.lang.Class<A>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadAncestorGraphs",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadAncestorGraphs",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<A>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "A" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ancestorType",
+      "type" : "java.lang.Class<A>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadAncestorGraphs",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadAncestorGraphs",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<A>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "A" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ancestorType",
+      "type" : "java.lang.Class<A>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "all",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadContext",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads all direct commit targets at one state boundary.\n <p>\n A {@code null} boundary pins the current event-store state once. Historical document-model dependencies are\n reconstructed from stored model events; current document-model targets retain their direct-document load path.\n"
+  }, {
+    "name" : "loadContext",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stagedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeMessageBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadContext",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stagedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeMessageBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadContext",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxStateIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stagedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeMessageBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a commit context with an explicit choice whether pending values from the surrounding tracking batch should\n be overlaid. Automatic model handling disables this generic overlay because its preplanned batch view already\n supplies exactly the required predecessors; explicit operations and ordinary handlers enable it.\n"
+  }, {
+    "name" : "loadContext",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxStateIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stagedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeMessageBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadCurrent",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadDocumentProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadDocumentProjection",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReplayCursor.DocumentVersion",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadDocumentUnchecked",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadDocumentUnchecked",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelReplayCursor.DocumentVersion",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadDurable",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadDurable",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadDurable",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadDurable",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerBoundary",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.PinnedBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadGraphAtIncludingMessageBatch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#loadGraphAtIncludingMessageBatch",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a graph at an exact durable boundary and overlays pending values from earlier messages in the\n current message batch. This is used by atomic model planning that must retain read-your-writes semantics without\n advancing beyond its already pinned durable boundary.\n"
+  }, {
+    "name" : "messageBatchNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#messageBatchNamespace",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "migrationType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#migrationType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "migration",
+      "type" : "io.fluxzero.common.api.modeling.ModelHeadState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelDefinitionCompiler",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#modelDefinitionCompiler",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the model-definition compiler shared by live commits and stored-event replay. "
+  }, {
+    "name" : "pin",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#pin",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "boundary",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.PinnedBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "planDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#planDeletion",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelDeletionPlan",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rebuildApplicationGraphProjections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#rebuildApplicationGraphProjections",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reconstructGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#reconstructGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerBoundary",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.PinnedBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeMessageBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "refreshCurrentModels",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#refreshCurrentModels",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelCacheTracker.RefreshedBatch",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targets",
+      "type" : "java.util.Map<java.lang.String,java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "safeStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Advances stale cached models in one bounded store round trip for event-sourced targets and direct document\n reads for document-based targets.\n"
+  }, {
+    "name" : "registerGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#registerGraphProjection",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rebuild",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestGraphProjectionRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#requestGraphProjectionRegistration",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rebuild",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveAncestors",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveAncestors",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.AncestorResolution",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stagedValues",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "includeMessageBatch",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requireAncestors",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "closestAncestorsOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "allowMultipleAncestors",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveStoredType",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#resolveStoredType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerBoundary",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.PinnedBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sameCurrentValue",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#sameCurrentValue",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supplyCurrentModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#supplyCurrentModel",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sink",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CurrentModelSink",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Supplies one independently proven current cache value without allocating an intermediate result object.\n"
+  }, {
+    "name" : "updateAfterCommit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#updateAfterCommit",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "outcomes",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Makes accepted local model transitions immediately visible through this repository.\n"
+  }, {
+    "name" : "updateAfterCommit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#updateAfterCommit",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "committed",
+      "type" : "java.util.Map.Entry<java.lang.String,java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CommittedRevision>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateTrackerAfterCommit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository#updateTrackerAfterCommit",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "committed",
+      "type" : "java.util.Map.Entry<java.lang.String,java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CommittedRevision>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "AncestorResolution",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$AncestorResolution",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Commit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit",
+    "kind" : "class",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CommittedRevision",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$CommittedRevision",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CurrentModelSink",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$CurrentModelSink",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "GraphProjectionRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "MigrationReadBarrierConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$MigrationReadBarrierConfiguration",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PinnedBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$PinnedBoundary",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

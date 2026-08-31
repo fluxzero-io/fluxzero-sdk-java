@@ -1,0 +1,216 @@
+{
+  "name" : "HandlerMethodPreparation",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " The outcome of trying to prepare a handler method for repeated invocation.\n\n <p>A preparation distinguishes a successful match, a definitive non-match, and a case that cannot be prepared\n safely. This distinction lets callers cache non-matches while retaining the normal handling path for unsupported\n cases.</p>\n\n @param status the outcome of the preparation\n @param plan the reusable invocation plan when {@code status} is {@link Status#PREPARED}; otherwise {@code null}\n @param <M> the message type used by the handling pipeline\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "noMatch",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation.noMatch",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPreparation<?>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "plan",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation.plan",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "status",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation.status",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPreparation.Status",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "unsupported",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation.unsupported",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPreparation<?>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandlerMethodPreparation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#HandlerMethodPreparation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "status",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPreparation.Status",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isPrepared",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#isPrepared",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether preparation produced an invocation plan.\n\n @return {@code true} when {@link #plan()} can be invoked\n"
+  }, {
+    "name" : "isUnsupported",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#isUnsupported",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the normal per-message handling path must be used.\n\n @return {@code true} when safe preparation was not possible\n"
+  }, {
+    "name" : "noMatch",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#noMatch",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "plan",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#plan",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepared",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#prepared",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a successful preparation.\n\n @param plan the reusable invocation plan\n @return a successful preparation containing the plan\n"
+  }, {
+    "name" : "status",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#status",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation.Status",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unsupported",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation#unsupported",
+    "returnType" : "io.fluxzero.common.handling.HandlerMethodPreparation<M>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "plan",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPlan<M>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "status",
+    "type" : "io.fluxzero.common.handling.HandlerMethodPreparation.Status",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ {
+    "name" : "Status",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPreparation$Status",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

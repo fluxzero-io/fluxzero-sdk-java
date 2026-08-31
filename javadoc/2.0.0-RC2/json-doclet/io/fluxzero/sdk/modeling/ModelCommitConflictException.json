@@ -1,0 +1,60 @@
+{
+  "name" : "ModelCommitConflictException",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  } ],
+  "documentation" : " Default SDK error when a rolled-back model commit conflict is not retried.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException.result",
+    "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelCommitConflictException",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException#ModelCommitConflictException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an exception containing the runtime's current model and relationship positions.\n"
+  } ],
+  "methods" : [ {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitConflictException#message",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

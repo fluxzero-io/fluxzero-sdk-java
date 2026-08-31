@@ -1,0 +1,95 @@
+{
+  "name" : "HandshakeCapture",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "expectedAccept",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture.expectedAccept",
+    "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handshakeResponse",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture.handshakeResponse",
+    "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestRegistered",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture.requestRegistered",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandshakeCapture",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture#HandshakeCapture",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handshakeResponse",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector.CapturedHandshakeResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "awaitRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture#awaitRegistration",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.lang.InterruptedException", "java.util.concurrent.ExecutionException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture#completeRegistration",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.JdkWebsocketConnector$HandshakeCapture#register",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "expectedAccept",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

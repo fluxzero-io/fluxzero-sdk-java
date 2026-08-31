@@ -1,0 +1,37 @@
+{
+  "name" : "AuthorizationFailureMapper",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthorizationFailureMapper",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Message-scoped hook for infrastructure that wants to add context to authorization failures.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "mapAuthorizationFailure",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.AuthorizationFailureMapper#mapAuthorizationFailure",
+    "returnType" : "java.lang.Throwable",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

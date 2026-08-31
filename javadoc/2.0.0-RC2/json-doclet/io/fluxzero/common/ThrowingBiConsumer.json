@@ -1,0 +1,61 @@
+{
+  "name" : "ThrowingBiConsumer",
+  "qualifiedName" : "io.fluxzero.common.ThrowingBiConsumer",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " {@link java.util.function.BiConsumer}-like interface whose {@link #accept(Object, Object)} method may throw a\n checked {@link Exception}.\n <p>\n Useful when lambda expressions need to propagate exceptions without wrapping them in runtime exceptions.\n\n @param <T> the type of the first argument to the operation\n @param <U> the type of the second argument to the operation\n",
+  "typeParameters" : [ "T", "U" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "accept",
+    "qualifiedName" : "io.fluxzero.common.ThrowingBiConsumer#accept",
+    "returnType" : "void",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "t",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "u",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : " Performs this operation on the given arguments.\n\n @param t the first input argument\n @param u the second input argument\n @throws Exception if unable to complete successfully\n"
+  }, {
+    "name" : "andThen",
+    "qualifiedName" : "io.fluxzero.common.ThrowingBiConsumer#andThen",
+    "returnType" : "io.fluxzero.common.ThrowingBiConsumer<T,U>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "after",
+      "type" : "io.fluxzero.common.@lombok.NonNull ThrowingBiConsumer<? super T,? super U>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns a composed {@code ThrowingBiConsumer} that performs, in sequence, this\n operation followed by the {@code after} operation.\n\n @param after the operation to perform after this operation\n @return a composed {@code ThrowingBiConsumer}\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

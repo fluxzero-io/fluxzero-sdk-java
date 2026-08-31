@@ -1,0 +1,19 @@
+{
+  "files" : [ ],
+  "subdirectories" : [ {
+    "name" : "caching",
+    "path" : "caching"
+  }, {
+    "name" : "eventsourcing",
+    "path" : "eventsourcing"
+  }, {
+    "name" : "keyvalue",
+    "path" : "keyvalue"
+  }, {
+    "name" : "repository",
+    "path" : "repository"
+  }, {
+    "name" : "search",
+    "path" : "search"
+  } ]
+}

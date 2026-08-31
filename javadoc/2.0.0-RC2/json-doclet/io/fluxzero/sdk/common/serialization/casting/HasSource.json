@@ -1,0 +1,29 @@
+{
+  "name" : "HasSource",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.HasSource",
+  "packageName" : "io.fluxzero.sdk.common.serialization.casting",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Marker interface for wrapper objects that retain a reference to their originating source.\n\n <p>This is commonly used to wrap or decorate serialized objects (e.g., for format conversion),\n while preserving access to the original representation. Used by infrastructure such as\n {@link DefaultCasterChain.ConvertingSerializedObject} to maintain traceability of transformations.\n\n @param <T> the type of the source object being wrapped, e.g. {@link io.fluxzero.common.api.SerializedMessage}.\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "getSource",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.HasSource#getSource",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the original source object this instance was derived from.\n\n @return the original source object\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

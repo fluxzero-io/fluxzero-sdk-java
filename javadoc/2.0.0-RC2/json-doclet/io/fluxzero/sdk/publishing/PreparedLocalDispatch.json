@@ -1,0 +1,74 @@
+{
+  "name" : "PreparedLocalDispatch",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Applies a {@link DispatchInterceptor} to local dispatch without requiring Fluxzero to create a complete message\n before handler selection.\n\n <p>A prepared policy is created for one {@link LocalDispatchDescriptor}, may be cached, and may be invoked\n concurrently. Implementations must therefore be immutable or otherwise thread-safe. Data belonging to one dispatch\n is available through the supplied {@link LocalExecution}.</p>\n\n @see DispatchInterceptor#prepareLocalDispatch(LocalDispatchDescriptor)\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch.noOp",
+    "type" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "A policy that leaves every local dispatch unchanged. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "interceptMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch#interceptMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "execution",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Applies this interceptor's metadata changes when metadata is first requested for the local message.\n\n <p>This method may run later than {@link #prepare(LocalExecution)}, or not at all when neither the handler nor\n another interceptor observes metadata. Its result must match the metadata produced by regular dispatch.</p>\n\n @param metadata the metadata produced by earlier prepared dispatch policies\n @param execution the current local dispatch\n @return the metadata to pass to later policies and the handler\n"
+  }, {
+    "name" : "prepare",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch#prepare",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "execution",
+      "type" : "io.fluxzero.sdk.tracking.handling.LocalExecution",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Performs work that must happen before Fluxzero selects a local handler.\n\n <p>This method runs once for each dispatch. Returning {@code false} abandons prepared local handling and makes\n the caller use the regular message-based dispatch path. It must not suppress a message; suppression remains part\n of the regular {@link DispatchInterceptor#interceptDispatch(io.fluxzero.sdk.common.Message,\n io.fluxzero.common.MessageType, String)} contract.</p>\n\n @param execution the current local dispatch\n @return {@code true} to continue prepared local handling, or {@code false} to use the regular dispatch path\n"
+  }, {
+    "name" : "requiresPreparation",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.PreparedLocalDispatch#requiresPreparation",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether {@link #prepare(LocalExecution)} performs per-dispatch work.\n\n <p>Return {@code false} only when calling {@code prepare} can always be skipped safely. The default is\n conservative and returns {@code true}.</p>\n\n @return {@code true} if preparation must run before local handler selection\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

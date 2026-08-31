@@ -1,0 +1,47 @@
+{
+  "name" : "ClaimResult",
+  "qualifiedName" : "io.fluxzero.common.tracking.ClaimResult",
+  "packageName" : "io.fluxzero.common.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Result of a segment claim in the tracking strategy domain.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "position",
+    "qualifiedName" : "io.fluxzero.common.tracking.ClaimResult.position",
+    "type" : "io.fluxzero.common.api.tracking.Position",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The current position for the tracker consumer.\n",
+    "constantValue" : null
+  }, {
+    "name" : "segment",
+    "qualifiedName" : "io.fluxzero.common.tracking.ClaimResult.segment",
+    "type" : "int[]",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The claimed segment range, expressed as an inclusive-exclusive {@code [start, end)} array.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ClaimResult",
+    "qualifiedName" : "io.fluxzero.common.tracking.ClaimResult#ClaimResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

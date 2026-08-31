@@ -1,0 +1,752 @@
+{
+  "name" : "DefaultCache",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache",
+  "packageName" : "io.fluxzero.sdk.persisting.caching",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Default aggregate cache facade that selects the current SDK cache implementation from Fluxzero cache properties.\n <p>\n Existing applications without a defaults version or explicit {@link #MODE_PROPERTY} keep the legacy\n {@link SoftReferenceCache}. Newer applications that use Fluxzero defaults {@code >= 2026.05.25}, or set\n {@code fluxzero.cache.mode = adaptive}, use {@link AdaptiveObjectCache}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.caching.Cache", "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "ADAPTIVE_DEFAULTS_VERSION",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.ADAPTIVE_DEFAULTS_VERSION",
+    "type" : "java.time.LocalDate",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Fluxzero defaults version from which {@link DefaultCache} uses {@link AdaptiveObjectCache} by default.\n",
+    "constantValue" : null
+  }, {
+    "name" : "DEFAULT_MAX_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.DEFAULT_MAX_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1000000
+  }, {
+    "name" : "MAX_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MAX_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Property that configures the maximum entry count for {@link AdaptiveObjectCache} when selected by\n {@link DefaultCache}.\n",
+    "constantValue" : "fluxzero.cache.maxSize"
+  }, {
+    "name" : "MODE_ADAPTIVE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MODE_ADAPTIVE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " {@link #MODE_PROPERTY} value that selects {@link AdaptiveObjectCache}.\n",
+    "constantValue" : "adaptive"
+  }, {
+    "name" : "MODE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MODE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Property that selects the cache implementation used by {@link DefaultCache}.\n",
+    "constantValue" : "fluxzero.cache.mode"
+  }, {
+    "name" : "MODE_SOFT_REFERENCE",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.MODE_SOFT_REFERENCE",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " {@link #MODE_PROPERTY} value that selects {@link SoftReferenceCache}.\n",
+    "constantValue" : "softRef"
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache.delegate",
+    "type" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a cache using the active Fluxzero property source, or the default property source when no Fluxzero\n instance is active.\n"
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a cache with a specified max size for the selected implementation.\n"
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a cache with specified size and expiration for the selected implementation.\n"
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a cache using the given property source for cache mode and defaults-version selection.\n"
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a cache using the given property source for cache mode and defaults-version selection, with a custom\n max size for the selected implementation.\n"
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "softReferenceCacheSupplier",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.common.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adaptiveDefaultMaxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "softReferenceCacheSupplier",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.common.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adaptiveDefaultMaxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#DefaultCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "io.fluxzero.common.caching.Cache",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#clear",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compute",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#compute",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mappingFunction",
+      "type" : "java.util.function.BiFunction<? super java.lang.Object,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#computeIfAbsent",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mappingFunction",
+      "type" : "java.util.function.Function<? super java.lang.Object,T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "computeIfPresent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#computeIfPresent",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mappingFunction",
+      "type" : "java.util.function.BiFunction<? super java.lang.Object,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "containsKey",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#containsKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentPropertySource",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#currentPropertySource",
+    "returnType" : "io.fluxzero.common.application.PropertySource",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultEvictionNotifier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#defaultEvictionNotifier",
+    "returnType" : "java.util.concurrent.Executor",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultsVersionUsesAdaptiveCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#defaultsVersionUsesAdaptiveCache",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#delegate",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the selected cache implementation.\n"
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#get",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mergeAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#mergeAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Map<?,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mergeFunction",
+      "type" : "java.util.function.BiFunction<? super T,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modifyEach",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#modifyEach",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modifierFunction",
+      "type" : "java.util.function.BiFunction<? super java.lang.Object,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "newAdaptiveCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#newAdaptiveCache",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultMaxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "newSoftReferenceCache",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#newSoftReferenceCache",
+    "returnType" : "io.fluxzero.sdk.persisting.caching.SoftReferenceCache",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#put",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putIfAbsent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#putIfAbsent",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rebuild",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#rebuild",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerEvictionListener",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#registerEvictionListener",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "listener",
+      "type" : "java.util.function.Consumer<io.fluxzero.common.caching.CacheEviction>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "remove",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#remove",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectDelegate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#selectDelegate",
+    "returnType" : "io.fluxzero.common.caching.Cache",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "softReferenceCacheSupplier",
+      "type" : "java.util.function.Supplier<? extends io.fluxzero.common.caching.Cache>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "adaptiveDefaultMaxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expiry",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "size",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#size",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supplyAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#supplyAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "lookups",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "valueConsumer",
+      "type" : "java.util.function.BiConsumer<? super U,? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "keyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "U", "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Iterable<? extends U>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retainedKeyFunction",
+      "type" : "java.util.function.Function<? super U,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "updateFunction",
+      "type" : "java.util.function.BiFunction<? super U,? super T,? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.caching.DefaultCache#updateAll",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Map<?,? extends java.util.function.Function<? super T,? extends T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
