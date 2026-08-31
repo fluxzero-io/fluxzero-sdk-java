@@ -67,6 +67,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -126,7 +127,7 @@ public class InMemorySearchStore implements SearchClient {
             new ConcurrentHashMap<>();
 
     private final AtomicLong nextIndex = new AtomicLong();
-    private final Map<String, ConcurrentSkipListMap<Long, SerializedMessage>> messageLogs = new ConcurrentHashMap<>();
+    private final Map<String, DocumentUpdateLog> messageLogs = new ConcurrentHashMap<>();
     private final List<BiConsumer<String, List<SerializedMessage>>> monitors = new CopyOnWriteArrayList<>();
     private final Set<String> collections = ConcurrentHashMap.newKeySet();
     private final Set<String> auditTrails = ConcurrentHashMap.newKeySet();
@@ -1155,7 +1156,7 @@ public class InMemorySearchStore implements SearchClient {
             return Stream.empty();
         }
         lastIndex = lastIndex == null ? -1L : lastIndex;
-        return map.tailMap(lastIndex, false).values().stream()
+        return map.openStream(lastIndex)
                 .filter(message -> includeDocumentTombstones
                         || message.getMetadata().get(
                                 ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY) == null)
@@ -1225,19 +1226,16 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     private void storeMessagesInLog(String collection, List<SerializedMessage> messages) {
-        var log = messageLogs.computeIfAbsent(collection, c -> new ConcurrentSkipListMap<>());
-        messages.forEach(message -> {
-            log.values().removeIf(old -> old.getMessageId().equals(message.getMessageId()));
-            log.put(message.getIndex(), message);
-        });
+        assert Thread.holdsLock(this);
+        messageLogs.computeIfAbsent(collection, ignored -> new DocumentUpdateLog())
+                .store(messages);
     }
 
     private boolean hasGraphTombstone(String collection, String rootId) {
         var log = messageLogs.get(collection);
-        return log != null && log.values().stream().anyMatch(
-                message -> Objects.equals(rootId, message.getMessageId())
-                           && message.getMetadata().get(
-                                   ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY) != null);
+        SerializedMessage latest = log == null ? null : log.latest(rootId);
+        return latest != null && latest.getMetadata().get(
+                ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY) != null;
     }
 
     private SerializedMessage asGraphTombstone(
@@ -1281,9 +1279,15 @@ public class InMemorySearchStore implements SearchClient {
     }
 
     protected void purgeExpiredMessages(Duration messageExpiration) {
-        var threshold = Fluxzero.currentTime().minus(messageExpiration).toEpochMilli();
-        messageLogs.values().forEach(messageLog -> messageLog.headMap(
-                IndexUtils.maxIndexFromMillis(threshold), true).clear());
+        synchronized (this) {
+            var threshold = Fluxzero.currentTime().minus(messageExpiration).toEpochMilli();
+            long maximumIndex = IndexUtils.maxIndexFromMillis(threshold);
+            messageLogs.entrySet().removeIf(entry -> {
+                DocumentUpdateLog messageLog = entry.getValue();
+                messageLog.purgeThrough(maximumIndex);
+                return messageLog.isEmpty();
+            });
+        }
     }
 
     protected void notifyMonitors(String collection, List<SerializedMessage> messages) {
@@ -1313,5 +1317,60 @@ public class InMemorySearchStore implements SearchClient {
 
     @Override
     public void close() {
+    }
+
+    static final class DocumentUpdateLog {
+        private final ConcurrentSkipListMap<Long, SerializedMessage> messagesByIndex =
+                new ConcurrentSkipListMap<>();
+        private final Map<String, Long> indexByMessageId = new HashMap<>();
+
+        synchronized void store(List<SerializedMessage> messages) {
+            messages.forEach(message -> {
+                Long previousIndex = indexByMessageId.get(message.getMessageId());
+                if (previousIndex != null) {
+                    remove(previousIndex);
+                }
+                SerializedMessage displaced = messagesByIndex.put(message.getIndex(), message);
+                if (displaced != null) {
+                    indexByMessageId.remove(displaced.getMessageId(), message.getIndex());
+                }
+                indexByMessageId.put(message.getMessageId(), message.getIndex());
+            });
+        }
+
+        Stream<SerializedMessage> openStream(long lastIndex) {
+            return messagesByIndex.tailMap(lastIndex, false).values().stream();
+        }
+
+        synchronized SerializedMessage latest(String messageId) {
+            Long index = indexByMessageId.get(messageId);
+            return index == null ? null : messagesByIndex.get(index);
+        }
+
+        synchronized void purgeThrough(long maximumIndex) {
+            var expired = messagesByIndex.headMap(maximumIndex, true);
+            expired.forEach((index, message) ->
+                    indexByMessageId.remove(message.getMessageId(), index));
+            expired.clear();
+        }
+
+        synchronized boolean isEmpty() {
+            return messagesByIndex.isEmpty();
+        }
+
+        synchronized int messageCount() {
+            return messagesByIndex.size();
+        }
+
+        synchronized int lookupCount() {
+            return indexByMessageId.size();
+        }
+
+        private void remove(long index) {
+            SerializedMessage removed = messagesByIndex.remove(index);
+            if (removed != null) {
+                indexByMessageId.remove(removed.getMessageId(), index);
+            }
+        }
     }
 }
