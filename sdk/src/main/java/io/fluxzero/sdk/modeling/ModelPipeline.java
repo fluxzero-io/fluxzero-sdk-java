@@ -527,6 +527,7 @@ final class ModelPipeline {
                                 Commit.Outcome nextPrepared =
                                         retry.accepting()
                                         && !original.hasCascadedDeletion()
+                                        && evaluation.cascadeRootIds().isEmpty()
                                                 ? repositoryCommit.prepareRebased(commitId, original, next)
                                                 : repositoryCommit.prepare(
                                                         commitId, next, conflictPolicy,
