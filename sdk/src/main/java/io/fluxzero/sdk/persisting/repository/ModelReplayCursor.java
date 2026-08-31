@@ -29,6 +29,8 @@ import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelHeadState;
+import io.fluxzero.common.api.modeling.TrackModelUpdates;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -91,6 +93,10 @@ final class ModelReplayCursor {
     private static final int COMMIT_ANCESTOR_MAX_DEPTH = 64;
     private static final int COMMIT_ANCESTOR_MAX_MODELS = 10_000;
     private static final int MAX_CURRENT_GRAPH_RECONSTRUCTION_ATTEMPTS = 8;
+    private static final int MAX_DOCUMENT_REBASE_ATTEMPTS = 8;
+    private static final long DOCUMENT_MATERIALIZATION_TIMEOUT_NANOS =
+            5_000_000_000L;
+    private static final long DOCUMENT_MATERIALIZATION_POLL_MILLIS = 50L;
     static final Settings DEFAULT_SETTINGS =
             new Settings(32_768, 131_072, 128, 64L * 1_024L * 1_024L);
 
@@ -668,6 +674,91 @@ final class ModelReplayCursor {
             ModelCacheTracker cacheTracker,
             boolean requireBoundary,
             boolean migration) {
+        return context(
+                resolution, boundary, stagedValues, pendingAncestor,
+                cacheTracker, requireBoundary, migration, false);
+    }
+
+    CommitAttempt context(
+            MutationPlan.Resolution resolution,
+            ModelReadBoundary boundary,
+            Map<String, Object> stagedValues,
+            Function<String, Entity<?>> pendingAncestor,
+            ModelCacheTracker cacheTracker,
+            boolean requireBoundary,
+            boolean migration,
+            boolean advanceIncompleteDocumentBoundary) {
+        if (!advanceIncompleteDocumentBoundary) {
+            return contextAtBoundary(
+                    resolution, boundary, stagedValues, pendingAncestor,
+                    cacheTracker, requireBoundary, migration);
+        }
+        ModelReadBoundary candidate = boundary;
+        long provenMaterializedBoundary = -1L;
+        for (int attempt = 0;
+             attempt < MAX_DOCUMENT_REBASE_ATTEMPTS;
+             attempt++) {
+            try {
+                return contextAtBoundary(
+                        resolution, candidate, stagedValues, pendingAncestor,
+                        cacheTracker, requireBoundary, migration);
+            } catch (IncompleteDocumentBoundaryException failure) {
+                Long previous = candidate.stateIndex();
+                if (previous == null
+                    || failure.stateIndex < previous
+                    || attempt + 1 >= MAX_DOCUMENT_REBASE_ATTEMPTS) {
+                    throw failure;
+                }
+                if (failure.stateIndex == previous) {
+                    if (provenMaterializedBoundary >= previous) {
+                        throw failure;
+                    }
+                    provenMaterializedBoundary = awaitMaterializedBoundary(
+                            previous);
+                    if (provenMaterializedBoundary < previous) {
+                        throw failure;
+                    }
+                } else {
+                    candidate = ModelReadBoundary.state(
+                            failure.stateIndex, false);
+                    provenMaterializedBoundary = -1L;
+                }
+            }
+        }
+        throw new IllegalStateException("Unreachable document boundary retry state");
+    }
+
+    private long awaitMaterializedBoundary(
+            long requiredStateIndex) {
+        long deadline = System.nanoTime()
+                        + DOCUMENT_MATERIALIZATION_TIMEOUT_NANOS;
+        long cursor = requiredStateIndex;
+        TrackModelUpdatesResult position = eventStoreClient.trackModelUpdates(
+                new TrackModelUpdates(cursor, 1, 0L)).join();
+        while (position.getMaterializedStateIndex() < requiredStateIndex) {
+            long remainingNanos = deadline - System.nanoTime();
+            if (remainingNanos <= 0L) {
+                return position.getMaterializedStateIndex();
+            }
+            cursor = Math.max(cursor, position.getCurrentStateIndex());
+            long waitMillis = Math.max(
+                    1L, Math.min(
+                            DOCUMENT_MATERIALIZATION_POLL_MILLIS,
+                            remainingNanos / 1_000_000L));
+            position = eventStoreClient.trackModelUpdates(
+                    new TrackModelUpdates(cursor, 1, waitMillis)).join();
+        }
+        return position.getMaterializedStateIndex();
+    }
+
+    private CommitAttempt contextAtBoundary(
+            MutationPlan.Resolution resolution,
+            ModelReadBoundary boundary,
+            Map<String, Object> stagedValues,
+            Function<String, Entity<?>> pendingAncestor,
+            ModelCacheTracker cacheTracker,
+            boolean requireBoundary,
+            boolean migration) {
         Objects.requireNonNull(resolution, "resolution");
         Objects.requireNonNull(boundary, "boundary");
         Objects.requireNonNull(stagedValues, "stagedValues");
@@ -691,8 +782,38 @@ final class ModelReplayCursor {
 
         List<MutationPlan.ResolvedModel> replayTargets = new ArrayList<>();
         List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
+        Map<String, ModelHeadState> incompleteHistoricalDocumentHeads = new LinkedHashMap<>();
+        long historicalDocumentStateIndex = -1L;
+        if (historicalBoundary) {
+            List<MutationPlan.ResolvedModel> historicalDocuments = resolution.models().stream()
+                    .filter(target -> !EntityMetadata.validate(target.modelType())
+                            .rootConfiguration().orElseThrow().eventSourced())
+                    .toList();
+            if (!historicalDocuments.isEmpty()) {
+                LoadResult heads = loadHeads(
+                        historicalDocuments.stream()
+                                .map(MutationPlan.ResolvedModel::modelId)
+                                .toList(),
+                        boundary);
+                historicalDocumentStateIndex = heads.stateIndex();
+                for (MutationPlan.ResolvedModel target : historicalDocuments) {
+                    ModelHeadState head = heads.heads().get(target.modelId());
+                    if (head != null
+                        && !head.isHistoryComplete()
+                        && target.modelId().equals(head.getModelId())) {
+                        incompleteHistoricalDocumentHeads.put(target.modelId(), head);
+                    }
+                }
+            }
+        }
         for (MutationPlan.ResolvedModel target : resolution.models()) {
-            (requiresReplay(target, historicalBoundary) ? replayTargets : documentTargets).add(target);
+            if (incompleteHistoricalDocumentHeads.containsKey(target.modelId())) {
+                documentTargets.add(target);
+            } else if (requiresReplay(target, historicalBoundary)) {
+                replayTargets.add(target);
+            } else {
+                documentTargets.add(target);
+            }
         }
 
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
@@ -707,10 +828,12 @@ final class ModelReplayCursor {
                         current.entities());
             }
             stateIndex = ancestorStateIndex == null
-                    ? requireBoundary && documentTargets.isEmpty()
-                            ? load(Map.of(), boundary, ignored -> {
-                            }).stateIndex()
-                            : -1L
+                    ? historicalDocumentStateIndex >= 0L
+                            ? historicalDocumentStateIndex
+                            : requireBoundary && documentTargets.isEmpty()
+                                    ? load(Map.of(), boundary, ignored -> {
+                                    }).stateIndex()
+                                    : -1L
                     : ancestorStateIndex;
         } else {
             CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
@@ -740,6 +863,21 @@ final class ModelReplayCursor {
             DocumentVersion document = documentReader.load(
                     target.modelId(), target.modelType(), migration);
             Entity<?> entity = document.entity();
+            ModelHeadState historicalHead = incompleteHistoricalDocumentHeads.get(
+                    target.modelId());
+            if (historicalHead != null
+                && !historicalHead.equals(document.head())) {
+                if (document.head() != null
+                    && document.head().getStateIndex() > stateIndex) {
+                    throw new IncompleteDocumentBoundaryException(
+                            target.modelId(), stateIndex,
+                            document.head().getStateIndex(),
+                            historicalHead, document.head());
+                }
+                throw new IncompleteDocumentBoundaryException(
+                        target.modelId(), stateIndex, stateIndex,
+                        historicalHead, document.head());
+            }
             if (entity.isEmpty() && metadata.hasAliases()) {
                 LoadResult alias = loadHeads(
                         List.of(target.modelId()),
@@ -838,6 +976,25 @@ final class ModelReplayCursor {
             }
         }
         return CommitAttempt.create(stateIndex, resolution, loaded);
+    }
+
+    private static final class IncompleteDocumentBoundaryException
+            extends EventSourcingException {
+        private final long stateIndex;
+
+        private IncompleteDocumentBoundaryException(
+                String modelId,
+                long requestedStateIndex,
+                long stateIndex,
+                ModelHeadState historicalHead,
+                ModelHeadState documentHead) {
+            super(("Document model '%s' does not match incomplete historical head %s at boundary %d "
+                   + "(document head: %s)")
+                          .formatted(
+                                  modelId, historicalHead,
+                                  requestedStateIndex, documentHead));
+            this.stateIndex = stateIndex;
+        }
     }
 
     /** Advances cache projections through this cursor's current replay boundary. */

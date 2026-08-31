@@ -1039,7 +1039,7 @@ class DefaultModelRepositoryCommitTest {
                         Order.class)),
                 Map.of(id.toString(), stale));
         var rebased = evaluation(
-                51L, List.of(id.toString()),
+                53L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
                         id, Order.class, stale, merged,
@@ -1090,7 +1090,7 @@ class DefaultModelRepositoryCommitTest {
                         .getData(),
                 retried.getSubsteps().getFirst().getEvent()
                         .getData());
-        assertEquals(51L, retried.getReadStateIndex());
+        assertEquals(53L, retried.getReadStateIndex());
         assertEquals(
                 merged,
                 serializer.fromDocument(

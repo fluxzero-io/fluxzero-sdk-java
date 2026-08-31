@@ -980,7 +980,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return loadContext(
                 resolution,
                 ModelReadBoundary.at(maxStateIndex),
-                stagedValues, includeMessageBatch, false);
+                stagedValues, includeMessageBatch, false, false);
     }
 
     public CommitAttempt loadContext(
@@ -990,9 +990,24 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean includeMessageBatch,
             boolean migration) {
         return loadContext(
+                resolution, ModelReadBoundary.at(maxStateIndex), stagedValues,
+                includeMessageBatch, migration, false);
+    }
+
+    /**
+     * Reloads an ACCEPT rebase while allowing an incomplete authoritative document to advance the exact boundary.
+     * Ordinary historical reads never enable this retry mode.
+     */
+    public CommitAttempt loadRebaseContext(
+            MutationPlan.Resolution resolution,
+            Long maxStateIndex,
+            Map<String, Object> stagedValues,
+            boolean includeMessageBatch,
+            boolean migration) {
+        return loadContext(
                 resolution,
                 ModelReadBoundary.at(maxStateIndex),
-                stagedValues, includeMessageBatch, migration);
+                stagedValues, includeMessageBatch, migration, true);
     }
 
     private String messageBatchNamespace() {
@@ -1029,7 +1044,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             boolean includeMessageBatch) {
         return loadContext(
                 resolution, boundary, stagedValues,
-                includeMessageBatch, false);
+                includeMessageBatch, false, false);
     }
 
     private CommitAttempt loadContext(
@@ -1037,7 +1052,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             ModelReadBoundary boundary,
             Map<String, Object> stagedValues,
             boolean includeMessageBatch,
-            boolean migration) {
+            boolean migration,
+            boolean advanceIncompleteDocumentBoundary) {
         String namespace = includeMessageBatch ? messageBatchNamespace() : null;
         Map<String, Object> effectiveStagedValues = stagedValues;
         if (includeMessageBatch) {
@@ -1059,7 +1075,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         ? modelId -> ModelBatchScope.currentValue(namespace, modelId)
                         : null,
                 migration ? null : modelCacheTracker, true,
-                migration);
+                migration, advanceIncompleteDocumentBoundary);
         return includeMessageBatch
                 ? ModelBatchScope.overlayCurrent(namespace, context)
                 : context;

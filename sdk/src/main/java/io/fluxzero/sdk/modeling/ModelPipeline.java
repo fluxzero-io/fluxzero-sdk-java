@@ -419,7 +419,7 @@ final class ModelPipeline {
                 ? Retry.accepting((result, current) -> {
                     try {
                         return CompletableFuture.completedFuture(
-                                rebase(current.steps(), result.getRebaseStateIndex(), migration));
+                                rebase(current, result.getRebaseStateIndex(), migration));
                     } catch (Throwable failure) {
                         return CompletableFuture.failedFuture(failure);
                     }
@@ -517,7 +517,9 @@ final class ModelPipeline {
                                     asynchronousReevaluation))
                             .thenCompose(next -> {
                                 if (retry.accepting()
-                                    && next.readStateIndex() != result.getRebaseStateIndex()) {
+                                    && !validRebaseBoundary(
+                                            evaluation, result.getRebaseStateIndex(),
+                                            next.readStateIndex())) {
                                     return CompletableFuture.failedFuture(new IllegalStateException(
                                             "Model commit '%s' rebase loaded state index %d instead of requested %d"
                                                     .formatted(
@@ -539,6 +541,22 @@ final class ModelPipeline {
                                         asynchronousReevaluation);
                             });
                 });
+    }
+
+    private static boolean validRebaseBoundary(
+            CommitAttempt evaluation,
+            long requestedStateIndex,
+            long loadedStateIndex) {
+        return loadedStateIndex == requestedStateIndex
+               || loadedStateIndex > requestedStateIndex
+                  && readsDocumentModel(evaluation);
+    }
+
+    private static boolean readsDocumentModel(
+            CommitAttempt evaluation) {
+        return evaluation.readModelTypes().values().stream()
+                .anyMatch(modelType -> !EntityMetadata.validate(modelType)
+                        .rootConfiguration().orElseThrow().eventSourced());
     }
 
     private static <T> CompletableFuture<T> invoke(
@@ -669,13 +687,16 @@ final class ModelPipeline {
         return expandCascadeDeletes(
                 ModelReducer.apply(
                         attempt, List.of(initialMessage),
-                        new CommitLoader(null, false, false, initialMessage, prefetched)));
+                        new CommitLoader(
+                                null, false, false, false,
+                                initialMessage, prefetched)));
     }
 
     private CommitAttempt rebase(
-            List<CommitAttempt.Step> steps,
+            CommitAttempt evaluation,
             long stateIndex,
             boolean migration) {
+        List<CommitAttempt.Step> steps = evaluation.steps();
         return ModelBatchScope.withMessageDependency(
                 steps.getFirst().message(),
                 () -> expandCascadeDeletes(ModelReducer.reapplySteps(
@@ -684,7 +705,9 @@ final class ModelPipeline {
                                 .filter(step -> !(step.message().getPayload()
                                         instanceof CascadedModelDeletion))
                                 .toList(),
-                        new CommitLoader(stateIndex, true, migration))));
+                        new CommitLoader(
+                                stateIndex, true, migration,
+                                readsDocumentModel(evaluation)))));
     }
 
     /**
@@ -851,9 +874,10 @@ final class ModelPipeline {
     }
 
     private final class CommitLoader implements ModelReducer.SubstepResolver {
-        private final Long pinnedStateIndex;
+        private Long pinnedStateIndex;
         private final boolean applyOnly;
         private final boolean migration;
+        private final boolean advanceIncompleteDocumentBoundary;
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
@@ -861,29 +885,42 @@ final class ModelPipeline {
                 new LinkedHashMap<>();
 
         private CommitLoader(Long pinnedStateIndex) {
-            this(pinnedStateIndex, false, false, null, null);
+            this(pinnedStateIndex, false, false, false, null, null);
         }
 
         private CommitLoader(Long pinnedStateIndex, boolean applyOnly) {
-            this(pinnedStateIndex, applyOnly, false, null, null);
+            this(pinnedStateIndex, applyOnly, false, false, null, null);
         }
 
         private CommitLoader(
                 Long pinnedStateIndex,
                 boolean applyOnly,
                 boolean migration) {
-            this(pinnedStateIndex, applyOnly, migration, null, null);
+            this(pinnedStateIndex, applyOnly, migration, false, null, null);
         }
 
         private CommitLoader(
                 Long pinnedStateIndex,
                 boolean applyOnly,
                 boolean migration,
+                boolean advanceIncompleteDocumentBoundary) {
+            this(
+                    pinnedStateIndex, applyOnly, migration,
+                    advanceIncompleteDocumentBoundary, null, null);
+        }
+
+        private CommitLoader(
+                Long pinnedStateIndex,
+                boolean applyOnly,
+                boolean migration,
+                boolean advanceIncompleteDocumentBoundary,
                 DeserializingMessage directMessage,
                 PrefetchSlot prefetched) {
             this.pinnedStateIndex = pinnedStateIndex;
             this.applyOnly = applyOnly;
             this.migration = migration;
+            this.advanceIncompleteDocumentBoundary =
+                    advanceIncompleteDocumentBoundary;
             this.directMessage = directMessage;
             this.prefetched = prefetched;
         }
@@ -1014,17 +1051,22 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution,
                 Long boundary,
                 Map<String, Object> stagedValues) {
-            CommitAttempt loaded = migration
-                    ? repository.loadContext(
-                            resolution, boundary, stagedValues,
-                            true, true)
-                    : repository.loadContext(
-                            resolution, boundary, stagedValues,
-                            true);
+            CommitAttempt loaded = advanceIncompleteDocumentBoundary
+                    ? repository.loadRebaseContext(
+                            resolution, boundary, stagedValues, true, migration)
+                    : migration
+                            ? repository.loadContext(
+                                    resolution, boundary, stagedValues, true, true)
+                            : repository.loadContext(
+                                    resolution, boundary, stagedValues, true);
             if (boundary != null && loaded.readStateIndex() != boundary) {
-                throw new IllegalStateException(
-                        "Model commit requested state index %d but loaded %d"
-                                .formatted(boundary, loaded.readStateIndex()));
+                if (!advanceIncompleteDocumentBoundary
+                    || loaded.readStateIndex() < boundary) {
+                    throw new IllegalStateException(
+                            "Model commit requested state index %d but loaded %d"
+                                    .formatted(boundary, loaded.readStateIndex()));
+                }
+                pinnedStateIndex = loaded.readStateIndex();
             }
             for (String modelId : loaded.modelIds()) {
                 commitEntities.put(modelId, loaded.entity(modelId));
