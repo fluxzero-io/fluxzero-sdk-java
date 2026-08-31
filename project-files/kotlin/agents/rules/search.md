@@ -36,8 +36,8 @@ data through a unified document store, leveraging automatic indexing and a rich 
 4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
 5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
    historical, search is optimized for current data.
-6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Use the `collection`
-   attribute in annotations to override this.
+6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Configure a Model's
+   direct collection through `searchProjection = Searchable(collection = "...")`.
 7. **Server-side Search Logic**: Keep filtering and sorting in Fluxzero search calls (`match`, `any/all`, `sortBy`,
    etc.). Avoid re-implementing filtering/sorting in client app code.
 
@@ -99,7 +99,7 @@ For response shaping, prefer search projections instead of post-processing in ap
 
 ## Searching for Data
 
-Access the search engine via `Fluxzero.search(Project::class)` or by providing a collection name.
+Access the search engine via `Fluxzero.search(Project::class.java)` or by providing a collection name.
 
 <a name="basic-constraints"></a>
 
@@ -110,8 +110,8 @@ Access the search engine via `Fluxzero.search(Project::class)` or by providing a
 - **query(text, paths...)**: Full-text search with support for wildcards and operators (`*`, `&`, `|`).
 
 ```kotlin
-val results: List<Project> = Fluxzero.search(Project::class)
-    .lookAhead("flux", "name")
+val results: List<Project> = Fluxzero.search(Project::class.java)
+    .lookAhead("flux", "details/name")
     .match("ACTIVE", "status")
     .fetch(10)
 ```
@@ -147,7 +147,7 @@ Filter documents based on their creation or modification time.
 - **inLast(duration)** / **beforeLast(duration)**: Relative time ranges.
 
 ```kotlin
-val recent: List<Project> = Fluxzero.search(Project::class)
+val recent: List<Project> = Fluxzero.search(Project::class.java)
     .inLast(Duration.ofDays(7))
     .fetchAll()
 ```
@@ -159,7 +159,7 @@ val recent: List<Project> = Fluxzero.search(Project::class)
 Combine multiple constraints using logical operations.
 
 ```kotlin
-val complex: List<User> = Fluxzero.search(User::class)
+val complex: List<User> = Fluxzero.search(User::class.java)
     .any(
         MatchConstraint.match("ADMIN", "role"),
         AllConstraint.all(
@@ -203,8 +203,8 @@ value before doing more work.
 @HandleQuery
 fun handle(query: SearchProjects): CompletableFuture<List<Project>> =
     Fluxzero.search(Project::class.java)
-        .lookAhead(query.term, "name")
-        .fetchAsync(50, Project::class.java)
+        .lookAhead(query.term, "details/name")
+        .fetchAsync(50)
 
 @HandleQuery
 fun handle(query: ProjectFacetQuery): CompletableFuture<List<FacetStats>> =
@@ -267,7 +267,7 @@ Retrieve document counts grouped by their facet values. This is ideal for buildi
 sidebars.
 
 ```kotlin
-val stats: List<FacetStats> = Fluxzero.search(Product::class)
+val stats: List<FacetStats> = Fluxzero.search(Product::class.java)
     .lookAhead("wireless")
     .facetStats()
 ```

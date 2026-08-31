@@ -47,8 +47,12 @@ List<LineItem> lines = graph.childModels("lines", LineItem.class);
 `Graph<T>` carries:
 
 - `isPresent()` distinguishes an existing model from an empty or logically deleted model;
-- `id()` and `type()` expose its persisted identity and type;
+- `id()` and `type()` expose its collision-safe persisted identity and type;
+- `functionalId()` exposes the public ID from the current or last present model value, without repository prefixes,
+  postfixes or parent scope;
 - `previous()` returns the retained previous revision when `cachingDepth` permits it;
+- `stateIndex()` pins the whole graph read, while `revisionStateIndex()` says when this concrete node revision became
+  current;
 - `sequenceNumber()` is the position within this model's own stream;
 - `root()`, `parent()`, `children(...)` and `descendants(...)` navigate the temporal model graph;
 - `apply(...)`, `update(...)`, `assertAndApply(...)` and `delete()` stage model changes.
@@ -198,6 +202,17 @@ ancestors of the requested type are reachable.
 Later cache entries never leak into historical event handling. Earlier `STORE_ONLY` model transitions are included
 because exactness is based on the committed model commit, not only on the globally published event stream.
 
+Ordinary `loadGraph(...)` calls made while handling a message inherit that same coherent read boundary. This is usually
+what event and notification handlers need. After sending a synchronous nested command, use `loadCurrentGraph(...)`
+only when the remainder of the handler deliberately needs the newer state produced by that command:
+
+```java
+Fluxzero.sendCommandAndWait(new ReserveItem(itemId));
+Graph<Item> current = Fluxzero.loadCurrentGraph(itemId);
+```
+
+This explicit escape prevents a handler from accidentally mixing the event-visible past with unrelated latest state.
+
 ### Backfilling Models from legacy events
 
 Configure the SDK-owned migration runner in a dedicated application:
@@ -320,6 +335,12 @@ operation intentionally accepts only a bounded graph; use a direct model load wh
 Returning `Graph<T>` from a message or web handler serializes the root and descendants placed through explicit
 `@Parent(pathInParent = "...")` edges. Pathless relationships remain available through typed `children(...)` and
 `descendants(...)`, but do not invent a public JSON property name.
+
+Use `@GraphProperty` for a response value derived from graph context rather than from one independently stored Model.
+The method may receive the current graph or a typed ancestor graph. When many nodes share an already-batched lookup,
+attach that response-only value once with `graph.withContext(value)` and read it inside the property method with
+`graph.context(ValueType.class)`. The context is shared by the immutable graph view and is never persisted as Model
+state.
 
 A current graph load inside an ordered tracking batch includes pending model state produced by earlier messages in the
 same routing segment. This includes newly created nodes, changed values and `@Parent` moves. Moving an existing node

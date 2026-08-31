@@ -3442,9 +3442,9 @@ public record User(@EntityId UserId userId, String name) {
 `materializeGraph` is sufficient: Fluxzero keeps the private root document needed for composition without exposing a
 direct Model collection. Enable `searchable` separately only when callers should also be able to search the root Model
 itself. Use `searchProjection = @Searchable(...)` or `graphProjection = @GraphProjection(...)` only for advanced
-configuration. The graph collection is `User-graphs` by default; for a searchable root it derives from the resolved
-direct collection instead. Set `GraphProjection.collection` only when a custom durable name is needed. Projection is
-asynchronous unless completion is explicitly configured otherwise. Both live and materialized composition follow the
+configuration. The graph collection is `User-graphs` by default; for a searchable root Fluxzero appends `-graphs` to
+the resolved direct collection. Set `GraphProjection.collection` only when a custom durable name is needed. Projection
+is asynchronous unless completion is explicitly configured otherwise. Both live and materialized composition follow the
 complete finite graph by default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use
 `UNBOUNDED` (`-1`) when absent. An explicit guardrail fails instead of publishing a partial graph.
 
@@ -3532,7 +3532,9 @@ the complete operation, and a collision while creating a new identity never reba
 
 `Graph<T>` is the public context view around a model. A typed `loadGraph` is source-lazy: typed ancestor resolution
 need not load the source value or intermediate parents. A typed `Id` or explicit parent-scoped load also makes `id()`
-available immediately; an alias lookup resolves the source before reporting its true primary ID. `get()` returns the value; `parent()`, `root()`, `children(...)`
+available immediately; an alias lookup resolves the source before reporting its true primary ID. `id()` is that
+collision-safe repository identity, while `functionalId()` exposes the public ID from the current or last present
+Model value without repository affixes or parent scope. `get()` returns the value; `parent()`, `root()`, `children(...)`
 and `descendants(...)` navigate relationships; `previous()`, `atStateIndex(...)` and `playBackToEvent(...)` expose
 history; and `apply(...)`, `assertAndApply(...)` or `delete()` stage model transitions. Graph creation itself performs
 only the same direct model load as `T` injection. Relationship state is loaded lazily when navigation is requested.
@@ -3554,6 +3556,10 @@ that omits rejected placements while sharing every accepted model value. `filter
 tree selection: a matched parent retains its subtree, while a matched leaf automatically retains the ancestors needed
 to serialize its path.
 
+Ordinary `loadGraph(...)` calls inside a message handler inherit its coherent current or historical read boundary. Use
+`loadCurrentGraph(...)` only after a synchronous nested command when the rest of that handler deliberately needs the
+newer Model state produced by the command; it is an explicit boundary escape, not the normal loading route.
+
 Use `@GraphProperty` for a value that belongs to the serialized graph rather than to one independently stored model:
 
 ```java
@@ -3569,6 +3575,9 @@ ancestor from the graph already in memory, so defining a derived property perfor
 Graph properties are also added to generated response schemas for `@ApiDocResponse(modelGraph = ...)`; they are never
 added to request schemas. Annotate a graph-property method with `@ApiDoc` to describe it or with `@ApiDocExclude` (or
 `@ApiDoc(exclude = true)`) to keep it out of API documentation without changing serialized responses.
+For one already-batched response lookup that several nodes use, attach the value once with
+`graph.withContext(value)` and read it inside a property method through `graph.context(ValueType.class)`. This immutable
+view context follows parents, children and revisions but is never loaded or persisted as Model state.
 
 An event or notification handler with only one unqualified `Graph<T>` parameter subscribes to durable changes anywhere
 below that root:

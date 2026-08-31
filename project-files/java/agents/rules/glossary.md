@@ -12,6 +12,13 @@ and current-document consequences. A meaningful domain identity is strong eviden
 child-only identity can be parent-scoped. Related independent models form dynamic action boundaries and a temporal
 graph through `@Parent`.
 
+### Graph
+
+A typed, lazy view around one Model and its temporal `@Parent` relationships. `Graph<T>` exposes current or historical
+state, parents, descendants, functional and repository identity, previous revisions and staged transitions without
+turning those Models into one persistence boundary. As the sole parameter of an event or notification handler, it is
+also a subscription to durable changes anywhere below that root.
+
 ### Aggregate (legacy)
 
 The Fluxzero 1.x shared-root persistence API. Keep it for existing persisted state only. New code uses `@Model`;

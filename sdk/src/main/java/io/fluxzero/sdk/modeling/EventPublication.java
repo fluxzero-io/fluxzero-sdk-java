@@ -52,7 +52,8 @@ public enum EventPublication {
     /**
      * Never publish or store applied updates.
      * <p>
-     * Useful for aggregates where event sourcing is disabled or updates should remain private.
+     * Useful for document-backed models or aggregates when the state change deliberately has no stored or published
+     * event. Event-sourced state-changing updates reject this value because they could not be reconstructed later.
      */
     NEVER,
 
