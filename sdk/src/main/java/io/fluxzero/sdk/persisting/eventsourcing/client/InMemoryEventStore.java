@@ -267,19 +267,20 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         "Model readStateIndex %d is newer than visible stateIndex %d"
                                 .formatted(commit.getReadStateIndex(), modelStateIndex));
             }
+            ModelCommitAssignment.Description description =
+                    ModelCommitAssignment.describe(commit);
             CommitModelsResult conflict = ModelCommitConflicts.result(
                     commit,
                     ModelCommitConflicts.detect(
                             commit, modelHeads,
                             ModelStreamHead::sequenceNumber,
                             ModelStreamHead::stateIndex,
-                            modelRelationStateIndices),
+                            modelRelationStateIndices,
+                            description.cascadeRootIds()),
                     modelStateIndex);
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
             }
-            ModelCommitAssignment.Description description =
-                    ModelCommitAssignment.describe(commit);
             validateCommitRelationships(description);
             description.aliases().validate(modelAliases);
             List<ModelStreamHead> assignedHeads = new ArrayList<>(

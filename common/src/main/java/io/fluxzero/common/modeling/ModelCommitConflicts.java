@@ -29,8 +29,9 @@ import java.util.Map;
 import java.util.function.ToLongFunction;
 
 /**
- * Owns generic model-commit conflict detection and conflict-policy outcomes. Stores supply their current heads and
- * optional relationship positions; storage-specific loading and cascade checks remain store responsibilities.
+ * Owns generic model-commit conflict detection and conflict-policy outcomes. Stores supply their current heads,
+ * optional relationship positions and the identities whose operation depends on a current relationship closure;
+ * storage-specific loading remains the store's responsibility.
  */
 public final class ModelCommitConflicts {
 
@@ -45,6 +46,22 @@ public final class ModelCommitConflicts {
             ToLongFunction<? super H> sequenceNumber,
             ToLongFunction<? super H> stateIndex,
             Map<String, Long> relationStateIndices) {
+        return detect(
+                commit, heads, sequenceNumber, stateIndex,
+                relationStateIndices, List.of());
+    }
+
+    /**
+     * Detects ordinary model conflicts plus relationship-only changes for identities whose evaluated operation
+     * depended on their relationship closure, such as cascade-deletion roots.
+     */
+    public static <H> List<ModelCommitConflict> detect(
+            CommitModels commit,
+            Map<String, ? extends H> heads,
+            ToLongFunction<? super H> sequenceNumber,
+            ToLongFunction<? super H> stateIndex,
+            Map<String, Long> relationStateIndices,
+            Iterable<String> relationshipSensitiveModelIds) {
         List<ModelCommitConflict> conflicts = null;
         for (int modelIndex = 0; modelIndex < commit.getReadModelIds().size(); modelIndex++) {
             String modelId = commit.getReadModelIds().get(modelIndex);
@@ -80,6 +97,22 @@ public final class ModelCommitConflicts {
                             relationStateIndices.getOrDefault(target.getModelId(), -1L)));
                 }
             }
+        }
+        for (String modelId : relationshipSensitiveModelIds) {
+            long currentRelationStateIndex =
+                    relationStateIndices.getOrDefault(modelId, -1L);
+            if (currentRelationStateIndex <= commit.getReadStateIndex()
+                || contains(conflicts, modelId)) {
+                continue;
+            }
+            if (conflicts == null) {
+                conflicts = new ArrayList<>();
+            }
+            H head = heads.get(modelId);
+            conflicts.add(new ModelCommitConflict(
+                    modelId,
+                    head == null ? -1L : stateIndex.applyAsLong(head),
+                    currentRelationStateIndex));
         }
         return conflicts == null ? List.of() : List.copyOf(conflicts);
     }

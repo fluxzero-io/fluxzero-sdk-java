@@ -95,11 +95,19 @@ public class JettyProxyWebsocketAdapter extends Session.Listener.AbstractAutoDem
     @Override
     public void onWebSocketClose(int statusCode, String reason, Callback callback) {
         JettyProxyWebsocketSession session = this.session;
-        if (session != null) {
-            session.markClosed();
-            endpoint.onClose(session, new WebsocketCloseReason(statusCode, reason));
+        if (session == null) {
+            callback.succeed();
+            return;
         }
+        session.markClosed();
+        // Acknowledge the transport frame before notifying the application. The notification may wait for a remote
+        // handler, but that must never delay or replace the close code already received from the websocket peer.
         callback.succeed();
+        try {
+            endpoint.onClose(session, new WebsocketCloseReason(statusCode, reason));
+        } catch (Throwable e) {
+            endpoint.onError(session, e);
+        }
     }
 
     private static byte[] copyBytes(ByteBuffer buffer) {
