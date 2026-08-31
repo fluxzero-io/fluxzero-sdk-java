@@ -286,21 +286,24 @@ class EntityMetadataTest {
                 .collect(toSet());
 
         Set<String> expectedSharedSettings = new java.util.HashSet<>(aggregateSettings);
-        expectedSharedSettings.removeAll(Set.of("collection", "timestampPath", "endPath", "eventRouting"));
+        expectedSharedSettings.removeAll(Set.of(
+                "collection", "timestampPath", "endPath", "eventRouting", "eventSourced", "searchable"));
         assertEquals(expectedSharedSettings,
                      modelSettings.stream()
                              .filter(name ->
                                              !Set.of(
                                                      "automaticHandling",
                                                      "conflictPolicy",
+                                                     "document",
                                                      "graphProjection",
                                                      "materializeGraph",
-                                                     "searchProjection")
+                                                     "persistence")
                                                      .contains(name))
                              .collect(toSet()));
         Set<String> expectedConfiguration = new java.util.HashSet<>(modelSettings);
-        expectedConfiguration.remove("searchProjection");
-        expectedConfiguration.addAll(Set.of("collection", "timestampPath", "endPath"));
+        expectedConfiguration.removeAll(Set.of("document", "persistence"));
+        expectedConfiguration.addAll(Set.of(
+                "eventSourced", "directDocument", "collection", "timestampPath", "endPath"));
         assertEquals(expectedConfiguration, configurationSettings);
     }
 
@@ -581,14 +584,15 @@ class EntityMetadataTest {
     private record ParentModel(@EntityId ParentModelId parentId) {
     }
 
-    @Model(eventSourced = false, searchable = true,
-            searchProjection = @Searchable(collection = "models"))
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(collection = "models"))
     private record ConfiguredModel(@EntityId String id) {
     }
 
     @Model(
-            searchable = true,
-            searchProjection = @Searchable(collection = "projected-models"),
+            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            document = @DocumentProjection(collection = "projected-models"),
             materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "projected-graphs",
@@ -627,23 +631,23 @@ class EntityMetadataTest {
     }
 
     @Model(
-            searchable = true,
-            searchProjection = @Searchable(collection = "default-projected-models"),
+            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            document = @DocumentProjection(collection = "default-projected-models"),
             materializeGraph = true)
     private record DefaultProjectedModel(
             @EntityId String id) {
     }
 
     @Model(
-            searchable = true,
+            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
             graphProjection = @GraphProjection(collection = "ignored-graphs"))
     private record ConfiguredUnmaterializedModel(
             @EntityId String id) {
     }
 
     @Model(
-            searchable = true,
-            searchProjection = @Searchable(collection = "same-collection"),
+            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            document = @DocumentProjection(collection = "same-collection"),
             materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "same-collection"))
@@ -652,8 +656,8 @@ class EntityMetadataTest {
     }
 
     @Model(
-            searchable = true,
-            searchProjection = @Searchable(collection = "${graphRootCollection}"),
+            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            document = @DocumentProjection(collection = "${graphRootCollection}"),
             materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "${graphProjectionCollection}"))

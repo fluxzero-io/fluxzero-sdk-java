@@ -31,13 +31,14 @@ data through a unified document store, leveraging automatic indexing and a rich 
 ## Core Rules
 
 1. **No SQL**: Data retrieval is performed exclusively via the `Fluxzero.search()` API or by loading entities.
-2. **Automatic Indexing**: Models with `searchable = true` maintain a direct current-state document.
+2. **Automatic Indexing**: Models with `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` persistence maintain a direct
+   current-state document.
 3. **Stateful Handlers**: `@Stateful` handlers are automatically searchable as they are backed by the document store.
 4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
 5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
    historical, search is optimized for current data.
 6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Configure a Model's
-   direct collection through `searchProjection = Searchable(collection = "...")`.
+   direct collection through `document = DocumentProjection(collection = "...")`.
 7. **Server-side Search Logic**: Keep filtering and sorting in Fluxzero search calls (`match`, `any/all`, `sortBy`,
    etc.). Avoid re-implementing filtering/sorting in client app code.
 
@@ -55,8 +56,8 @@ To enable search for a model or any object, use the appropriate annotation.
 
 ```kotlin
 @Model(
-    searchable = true,
-    searchProjection = Searchable(collection = "active_projects"),
+    persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+    document = DocumentProjection(collection = "active_projects"),
 )
 data class Project(...)
 
@@ -219,7 +220,8 @@ fun handle(query: ProjectFacetQuery): CompletableFuture<List<FacetStats>> =
 
 ## Consistency & The Window
 
-Direct searchable-model documents are **synchronous with model-commit completion**.
+Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` are **synchronous with Model-commit
+completion**.
 
 - **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
   document.

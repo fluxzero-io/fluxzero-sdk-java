@@ -21,7 +21,7 @@ Fluxzero 1.x compatibility surfaces and are scheduled for deprecation in 2.0.
 ## Define a model
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 public record Project(
         @EntityId ProjectId projectId,
         ProjectDetails details,
@@ -34,12 +34,13 @@ definitions unless the user asks for them.
 
 Important settings:
 
-- `eventSourced`: controls the current-state load route. Events are still stored when `false`.
+- `persistence`: selects exactly one durable/load contract:
+  - `EVENT_SOURCED` (default): reconstruct from Model events, without a direct public document.
+  - `EVENT_SOURCED_WITH_DOCUMENT`: reconstruct from events and maintain a direct searchable current document.
+  - `DOCUMENT`: load authoritative current state from the direct document.
 - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
-- `searchable`: maintains an independently searchable synchronous current-state document. `false` suppresses only the
-  model's own collection; an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true` still retains the
-  private graph-component document needed for composition.
-- `searchProjection`: optional `@Searchable` configuration for the direct collection and timestamp paths.
+- `document`: optional `@DocumentProjection` configuration for the direct collection and timestamp paths. It is valid
+  only when `persistence` stores a direct document.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
@@ -50,11 +51,13 @@ Important settings:
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
 - `materializeGraph`: enables the optional durable whole-tree read model.
 - `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
-  Model collection plus `-graphs` when searchable, or `<simple model name>-graphs` otherwise, and materializes the
-  complete finite graph without implicit size limits.
+  Model collection plus `-graphs` when a direct document exists, or `<simple model name>-graphs` otherwise, and
+  materializes the complete finite graph without implicit size limits.
 
-`eventSourced = false` does not disable event storage or publication. It means current state loads from the direct
-document. Historical event-boundary loads still use stored model events.
+Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
+`publicationStrategy` and per-apply overrides. Internal Graph-component documents are also orthogonal: they neither
+make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
+`ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT` Models.
 
 ## Apply actions
 
@@ -227,7 +230,7 @@ when that order is a domain requirement.
 Use `@Parent` on the child:
 
 ```java
-@Model(searchable = true)
+@Model
 public record Task(
         @EntityId TaskId taskId,
         @Parent(pathInParent = "tasks") ProjectId projectId,
@@ -278,7 +281,7 @@ not modify direct Models, histories or relationships.
 `@Model` plus `@Member` is the intentional shared-stream option:
 
 ```java
-@Model(searchable = true)
+@Model
 public record Invoice(
         @EntityId InvoiceId invoiceId,
         @Member List<InvoiceLine> lines) {
@@ -392,7 +395,8 @@ payload turns the method back into ordinary payload handling with direct/ancesto
 
 ## Search and graph composition
 
-Direct searchable-model documents are synchronous with successful commit completion:
+Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` are synchronous with successful commit
+completion:
 
 ```java
 List<Task> open = Fluxzero.search(Task.class)
@@ -420,9 +424,9 @@ nested-path filter when the child type is known. Use
 reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;
 `searchGraph(Root.class, true)`
 forces live composition. Use `fetch(..., ObjectNode.class)` for explicit raw JSON. Enable materialization with
-`@Model(materializeGraph = true)`. Enable `searchable` separately only for direct public Model search. A blank projection
-collection appends `-graphs` to the direct Model collection when searchable, or to the simple root-model name otherwise;
-explicit lower-level composition limits fail rather than returning a partial graph.
+`@Model(materializeGraph = true)`. Select `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` separately only for direct public
+Model search. A blank projection collection appends `-graphs` to the direct Model collection when one exists, or to the
+simple root-model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
 
 ## Conflict policy
 

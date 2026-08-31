@@ -46,9 +46,9 @@ sequenceDiagram
 
 ### Command Followed by Query
 
-For searchable models, the direct document is part of model-commit completion. A command followed by a direct model
-query therefore reads committed state. Whole-graph projections and documents written by event handlers remain
-asynchronous unless their own completion boundary is awaited.
+For Models using `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT`, the direct document is part of Model-commit completion.
+A command followed by a direct Model query therefore reads committed state. Whole-Graph projections and documents
+written by event handlers remain asynchronous unless their own completion boundary is awaited.
 
 ---
 

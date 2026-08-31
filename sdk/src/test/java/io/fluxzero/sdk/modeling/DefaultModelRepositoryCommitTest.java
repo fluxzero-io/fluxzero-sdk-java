@@ -242,7 +242,7 @@ class DefaultModelRepositoryCommitTest {
                     assertEquals(51L, result.getRebaseStateIndex());
                     assertEquals(1, current.steps().size());
                     return CompletableFuture.completedFuture(rebased);
-                }), null, -1).join();
+                }), null, -1, true).join();
 
         assertTrue(accepted.orElseThrow().isAccepted());
         ArgumentCaptor<CommitModels> requests =
@@ -258,6 +258,49 @@ class DefaultModelRepositoryCommitTest {
         assertEquals(
                 merged,
                 serializer.deserialize(direct.target(id.toString()).getState()));
+    }
+
+    @Test
+    void localAcceptRebaseReevaluatesInline() {
+        OrderId id = new OrderId("local-rebase");
+        Order before = new Order(id, null, "before", Instant.EPOCH);
+        Order stale = new Order(id, null, "stale", Instant.EPOCH.plusMillis(1));
+        Order after = new Order(id, null, "after", Instant.EPOCH.plusSeconds(1));
+        UpdateOrder event = new UpdateOrder(id);
+        var original = evaluation(
+                List.of(id.toString()),
+                substep(event, Change.applied(
+                        id.toString(), Order.class, 0L, null,
+                        before, stale, null, current -> current, false)),
+                Map.of(id.toString(), stale));
+        var rebased = evaluation(
+                51L, List.of(id.toString()), Map.of(id.toString(), Order.class),
+                List.of(substep(event, Change.applied(
+                        id.toString(), Order.class, 0L, null,
+                        before, after, null, current -> current, false))),
+                Map.of(id.toString(), after));
+        AtomicInteger commits = new AtomicInteger();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels request = invocation.getArgument(0);
+            return commits.getAndIncrement() == 0
+                    ? CompletableFuture.completedFuture(CommitModelsResult.rebase(
+                            request.getRequestId(), request.getCommitId(),
+                            List.of(new ModelCommitConflict(id.toString(), 51L, 0L)), 51L))
+                    : CompletableFuture.completedFuture(result(request));
+        });
+        String callerThread = Thread.currentThread().getName();
+        AtomicReference<String> rebaseThread = new AtomicReference<>();
+
+        CompletableFuture<Optional<CommitModelsResult>> completion = ModelPipeline.commit(
+                protocol, "local-rebase", original, ModelConflictPolicy.ACCEPT,
+                ModelPipeline.Retry.accepting((result, current) -> {
+                    rebaseThread.set(Thread.currentThread().getName());
+                    return CompletableFuture.completedFuture(rebased);
+                }), null, -1, false);
+
+        assertTrue(completion.isDone());
+        assertTrue(completion.join().orElseThrow().isAccepted());
+        assertEquals(callerThread, rebaseThread.get());
     }
 
     @Test
@@ -600,7 +643,7 @@ class DefaultModelRepositoryCommitTest {
                         (conflict, current) -> {
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(reloadedEvaluation);
-                }), null, -1).join();
+                }), null, -1, true).join();
 
         assertTrue(result.orElseThrow().isAccepted());
         assertEquals(2, commits.get());
@@ -645,7 +688,7 @@ class DefaultModelRepositoryCommitTest {
                         (conflict, current) -> {
                     reloads.incrementAndGet();
                     return CompletableFuture.completedFuture(evaluation);
-                }), null, -1).join());
+                }), null, -1, true).join());
 
         assertInstanceOf(ModelCommitConflictException.class, bounded.getCause());
         assertEquals(1, reloads.get());
@@ -660,7 +703,7 @@ class DefaultModelRepositoryCommitTest {
                         }, 0,
                         (conflict, current) ->
                                 CompletableFuture.completedFuture(evaluation)),
-                null, -1).join());
+                null, -1, true).join());
         assertEquals(applicationError, mapped.getCause());
     }
 
@@ -943,7 +986,7 @@ class DefaultModelRepositoryCommitTest {
                     assertEquals(1, current.steps().size());
                     return CompletableFuture.completedFuture(
                             rebased);
-                }), null, -1).join();
+                }), null, -1, true).join();
 
         assertTrue(accepted.orElseThrow().isAccepted());
         ArgumentCaptor<CommitModels> requests =
@@ -1034,7 +1077,7 @@ class DefaultModelRepositoryCommitTest {
                                                 .getName());
                                 return CompletableFuture.completedFuture(
                                         rebased);
-                            }), null, -1);
+                            }), null, -1, true);
         } finally {
             Fluxzero.instance.remove();
         }
@@ -1319,8 +1362,9 @@ class DefaultModelRepositoryCommitTest {
     }
 
     @Revision(7)
-    @Model(eventSourced = false, searchable = true,
-            searchProjection = @Searchable(collection = "orders", timestampPath = "changedAt"))
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(collection = "orders", timestampPath = "changedAt"))
     private record Order(
             @EntityId OrderId orderId,
             @Parent(value = Customer.class, pathInParent = "orders") CustomerId customerId,
@@ -1354,7 +1398,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(eventSourced = false)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record PolymorphicContact(
             @EntityId String id,
             @Parent(types = {Customer.class, AlternateCustomer.class}, pathInParent = "contacts") Id<?> parentId) {
@@ -1409,10 +1453,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(
-            eventSourced = false,
-            searchable = true,
-            searchProjection = @Searchable(collection = "privateDocuments"),
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "privateDocuments"),
             eventPublication = EventPublication.NEVER)
     private record PrivateDocument(@EntityId PrivateDocumentId documentId, String value) {
     }
@@ -1430,7 +1471,7 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(eventSourced = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record ConditionalModel(@EntityId ConditionalId conditionalId, String value) {
     }
 

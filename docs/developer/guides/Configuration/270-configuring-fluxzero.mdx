@@ -92,7 +92,8 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
 
 - `replaceSerializer(...)` changes the default JSON serializer (e.g., for Jackson customizations).
 - `replaceDocumentSerializer(...)` owns complete document serialization in both directions, including current documents
-  of `@Model(eventSourced = false)`. It can therefore implement document-level encryption, compression, signing, or a
+  of `@Model(persistence = ModelPersistence.DOCUMENT)`. It can therefore implement document-level encryption,
+  compression, signing, or a
   custom envelope using the document ID, collection, timestamps, and metadata.
 
 ### Parameter injection and handler behavior

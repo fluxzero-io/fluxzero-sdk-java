@@ -63,11 +63,13 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Alias;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.DefaultEntityHelper;
+import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EventPublicationStrategy;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
@@ -79,7 +81,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.InterceptApply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
-import io.fluxzero.sdk.persisting.caching.DefaultCache;
+import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.Searchable;
@@ -88,6 +90,7 @@ import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.client.TrackingClient;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -101,6 +104,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1497,40 +1502,49 @@ class DefaultModelRepositoryTest {
 
     @Test
     void olderCommitCompletionCannotOverwriteANewerCachedModel() {
-        JacksonSerializer serializer =
-                new JacksonSerializer();
-        Cache cache = new DefaultCache();
-        DefaultModelRepository repository =
-                new DefaultModelRepository(
+        modelCaches().forEach(cache -> {
+            try {
+                JacksonSerializer serializer = new JacksonSerializer();
+                DefaultModelRepository repository = new DefaultModelRepository(
                         client, documentStore, serializer,
                         mock(EntityHelper.class), null,
                         cache, List.of());
-        AccountId id = new AccountId("fenced");
-        repository.updateAfterCommit(List.of(
-                committed(repository, id, 20, 1L, 20L)));
-        repository.updateAfterCommit(List.of(
-                committed(repository, id, 10, 0L, 10L)));
-        AtomicReference<Entity<?>> cached =
-                new AtomicReference<>();
-        cache.<Object>modifyEach((ignored, value) -> {
-            if (value instanceof Entity<?> entity) {
-                cached.set(entity);
-            }
-            return value;
-        });
+                AccountId id = new AccountId("fenced");
+                repository.updateAfterCommit(List.of(
+                        committed(repository, id, 20, 1L, 20L)));
+                repository.updateAfterCommit(List.of(
+                        committed(repository, id, 10, 0L, 10L)));
+                AtomicReference<Entity<?>> cached = new AtomicReference<>();
+                cache.<Object>modifyEach((ignored, value) -> {
+                    if (value instanceof Entity<?> entity) {
+                        cached.set(entity);
+                    }
+                    return value;
+                });
 
-        assertNotNull(cached.get());
-        assertEquals(
-                new Account(id, 20),
-                cached.get().get());
-        assertEquals(20L,
-                     ((ModelRoot<?>) cached.get())
-                             .stateIndex());
-        cache.close();
+                assertNotNull(cached.get());
+                assertEquals(new Account(id, 20), cached.get().get());
+                assertEquals(20L, ((ModelRoot<?>) cached.get()).stateIndex());
+            } finally {
+                cache.close();
+            }
+        });
     }
 
     @Test
+    @Timeout(20)
     void olderReconstructionCompletionCannotOverwriteANewerCachedModel()
+            throws InterruptedException {
+        for (Cache cache : modelCaches()) {
+            try {
+                verifyOlderReconstructionCannotOverwriteNewerCommit(cache);
+            } finally {
+                cache.close();
+            }
+        }
+    }
+
+    private void verifyOlderReconstructionCannotOverwriteNewerCommit(Cache cache)
             throws InterruptedException {
         AccountId id = new AccountId("reconstruction-fence");
         LocalClient localClient = LocalClient.newInstance(null);
@@ -1539,10 +1553,12 @@ class DefaultModelRepositoryTest {
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient)
                 .when(client).getEventStoreClient();
-        try (Fluxzero fluxzero = withModelHandlers(
+        try (ExecutorService reconstructionExecutor = Executors.newSingleThreadExecutor();
+             Fluxzero fluxzero = withModelHandlers(
                      DefaultFluxzero.builder()
                              .disableKeepalive()
                              .disableShutdownHook()
+                             .withModelCache(cache)
                              .build(client))) {
             fluxzero.commandGateway().send(
                     new CreateAccount(id, 5)).join();
@@ -1568,11 +1584,7 @@ class DefaultModelRepositoryTest {
                         true, false)) {
                     reconstructionLoaded
                             .countDown();
-                    assertTrue(
-                            allowReconstructionCompletion
-                                    .await(
-                                            5,
-                                            TimeUnit.SECONDS));
+                    allowReconstructionCompletion.await();
                 }
                 return result;
             }).when(eventStoreClient)
@@ -1581,10 +1593,9 @@ class DefaultModelRepositoryTest {
             CompletableFuture<Entity<Account>>
                     olderReconstruction =
                     CompletableFuture.supplyAsync(
-                            () -> repository.load(id));
-            assertTrue(
-                    reconstructionLoaded.await(
-                            5, TimeUnit.SECONDS));
+                            () -> repository.load(id),
+                            reconstructionExecutor);
+            reconstructionLoaded.await();
 
             repository.updateAfterCommit(
                     List.of(committed(
@@ -1600,6 +1611,12 @@ class DefaultModelRepositoryTest {
                     new Account(id, 20),
                     repository.load(id).get());
         }
+    }
+
+    private static List<Cache> modelCaches() {
+        return List.of(
+                new SoftReferenceCache(100),
+                new AdaptiveObjectCache(100));
     }
 
     private static DefaultModelRepository.Commit.Outcome
@@ -2362,8 +2379,9 @@ class DefaultModelRepositoryTest {
     private record CommitEvent(Object payload, String targetId, Class<?> modelType) {
     }
 
-    @Model(eventSourced = false, searchable = true,
-            searchProjection = @Searchable(collection = "products"))
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(collection = "products"))
     private record Product(@EntityId ProductId productId, String name) {
     }
 
@@ -2438,9 +2456,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(
-            eventSourced = false, searchable = true,
-            searchProjection = @Searchable(collection = "aliasedAccounts"))
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "aliasedAccounts"))
     private record AliasedAccount(
             @EntityId AliasedAccountId accountId,
             int balance) {
@@ -2571,10 +2587,7 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(
-            eventSourced = false,
-            searchable = true,
-            searchProjection = @Searchable(collection = "documentInventory"))
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "documentInventory"))
     private record DocumentInventory(
             @EntityId DocumentInventoryId inventoryId,
             int available) {
@@ -2777,11 +2790,9 @@ class DefaultModelRepositoryTest {
     }
 
     @Revision(1)
-    @Model(
-            eventSourced = false,
-            cached = true,
-            searchable = true,
-            searchProjection = @Searchable(
+    @Model(persistence = ModelPersistence.DOCUMENT, cached = true,
+
+            document = @DocumentProjection(
                     collection = "evolvedDocuments"))
     private record EvolvedDocument(
             @EntityId EvolvedDocumentId id,
@@ -2956,9 +2967,7 @@ class DefaultModelRepositoryTest {
             @EntityId GraphRootId graphRootId, String name) {
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "repository-graphs"))
     private record ProjectedRoot(
@@ -2973,9 +2982,7 @@ class DefaultModelRepositoryTest {
             String rootId) {
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "repository-graphs"))
     private record AlternateProjectedRoot(

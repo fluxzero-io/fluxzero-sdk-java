@@ -435,7 +435,8 @@ final class ModelPipeline {
                         () -> commit(
                                 repositoryCommit, message.getMessageId(), evaluation,
                                 effectiveConflictPolicy, retry,
-                                migration, existingEvent, transportBatch, transportSlot));
+                                migration, existingEvent, transportBatch, transportSlot,
+                                !localHandlingEnabled.getAsBoolean()));
         return committed.handle((commitResult, failure) ->
                 finishEvaluation(evaluation, effectiveConflictPolicy, failure));
     }
@@ -447,10 +448,12 @@ final class ModelPipeline {
             ModelConflictPolicy conflictPolicy,
             Retry retry,
             ModelCommitBatchingClient.ModelCommitBatch batch,
-            int batchSlot) {
+            int batchSlot,
+            boolean asynchronousReevaluation) {
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
-                retry, false, false, batch, batchSlot);
+                retry, false, false, batch, batchSlot,
+                asynchronousReevaluation);
     }
 
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
@@ -462,14 +465,16 @@ final class ModelPipeline {
             boolean migration,
             boolean existingEvent,
             ModelCommitBatchingClient.ModelCommitBatch batch,
-            int batchSlot) {
+            int batchSlot,
+            boolean asynchronousReevaluation) {
         Objects.requireNonNull(retry, "retry");
         Commit.Outcome original = repositoryCommit.prepare(
                 commitId, evaluation, conflictPolicy, migration, existingEvent);
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
-                ThreadLocalContext.capture(), 0, batch, batchSlot);
+                ThreadLocalContext.capture(), 0, batch, batchSlot,
+                asynchronousReevaluation);
     }
 
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
@@ -483,7 +488,8 @@ final class ModelPipeline {
             ThreadLocalContext.Snapshot context,
             int attempts,
             ModelCommitBatchingClient.ModelCommitBatch batch,
-            int batchSlot) {
+            int batchSlot,
+            boolean asynchronousReevaluation) {
         return repositoryCommit.commitPrepared(prepared, batch, batchSlot)
                 .thenCompose(optional -> {
                     if (optional.isEmpty()) {
@@ -503,11 +509,12 @@ final class ModelPipeline {
                         return CompletableFuture.completedFuture(optional);
                     }
                     return retryDecision(result, attempts, retry, context)
-                            .thenCompose(ignored -> invokeAsync(
+                            .thenCompose(ignored -> invoke(
                                     context,
                                     () -> retry.evaluator().reevaluate(
                                             result, evaluation),
-                                    "Model commit reevaluation returned null"))
+                                    "Model commit reevaluation returned null",
+                                    asynchronousReevaluation))
                             .thenCompose(next -> {
                                 if (retry.accepting()
                                     && next.readStateIndex() != result.getRebaseStateIndex()) {
@@ -527,9 +534,26 @@ final class ModelPipeline {
                                 return commit(
                                         repositoryCommit, commitId, next, conflictPolicy,
                                         original, nextPrepared, retry,
-                                        context, attempts + 1, null, -1);
+                                        context, attempts + 1, null, -1,
+                                        asynchronousReevaluation);
                             });
                 });
+    }
+
+    private static <T> CompletableFuture<T> invoke(
+            ThreadLocalContext.Snapshot context,
+            Supplier<CompletableFuture<T>> operation,
+            String nullMessage,
+            boolean asynchronous) {
+        if (asynchronous) {
+            return invokeAsync(context, operation, nullMessage);
+        }
+        try {
+            return context.supply(() ->
+                    Objects.requireNonNull(operation.get(), nullMessage));
+        } catch (Throwable failure) {
+            return CompletableFuture.failedFuture(failure);
+        }
     }
 
     private static CompletableFuture<Void> retryDecision(

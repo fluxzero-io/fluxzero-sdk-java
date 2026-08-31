@@ -30,9 +30,8 @@ import java.lang.annotation.Target;
  * it to be stored and queried using {@link io.fluxzero.sdk.persisting.search.DocumentStore}.
  * <p>
  * This annotation can also be used as a meta-annotation to define custom searchable types with preconfigured values.
- * Independent models use the same collection and timestamp configuration through
- * {@link io.fluxzero.sdk.modeling.Model#searchProjection()}; {@link io.fluxzero.sdk.modeling.Model#searchable()} remains
- * the activation switch in that context.
+ * Independent Models use their dedicated {@link io.fluxzero.sdk.modeling.DocumentProjection} configuration instead;
+ * their {@link io.fluxzero.sdk.modeling.ModelPersistence} determines whether a direct document exists.
  *
  * <h2>Usage</h2>
  * <pre>{@code

@@ -30,10 +30,12 @@ import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.GraphProjection;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import io.fluxzero.sdk.search.SearchTest.SomeDocument;
@@ -426,15 +428,13 @@ public class HandleDocumentTest {
         }
     }
 
-    @Model(
-            searchable = true,
-            searchProjection = @Searchable(collection = "graph-roots"),
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, document = @DocumentProjection(collection = "graph-roots"),
             materializeGraph = true)
     @Revision(1)
     record GraphRoot(@EntityId String id) {
     }
 
-    @Model(searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
     record DirectOnlyModel(@EntityId String id) {
     }
 

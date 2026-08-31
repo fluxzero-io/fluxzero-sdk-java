@@ -25,6 +25,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.function.Executable;
 
 import java.time.Duration;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 import static io.fluxzero.common.caching.CacheEviction.Reason.expiry;
 import static io.fluxzero.common.caching.CacheEviction.Reason.manual;
@@ -137,6 +139,57 @@ class SoftReferenceCacheTest {
                 (current, candidate) -> null);
 
         assertNull(subject.get("remove"));
+    }
+
+    @Test
+    @Timeout(10)
+    void mergeAllWaitsForAnInFlightComputeOnTheSameKey() throws InterruptedException {
+        assertBulkUpdateWaitsForCompute(
+                cache -> cache.mergeAll(
+                        Map.of("id", 20),
+                        (current, candidate) -> Math.max(current, candidate)));
+    }
+
+    @Test
+    @Timeout(10)
+    void updateAllWaitsForAnInFlightComputeOnTheSameKey() throws InterruptedException {
+        assertBulkUpdateWaitsForCompute(
+                cache -> cache.updateAll(
+                        Map.of("id", ignored -> 20)));
+    }
+
+    private void assertBulkUpdateWaitsForCompute(
+            Consumer<SoftReferenceCache> bulkUpdate) throws InterruptedException {
+        subject.put("id", 0);
+        CountDownLatch computeStarted = new CountDownLatch(1);
+        CountDownLatch completeCompute = new CountDownLatch(1);
+        Thread compute = Thread.ofPlatform().unstarted(
+                () -> subject.compute(
+                        "id",
+                        (ignored, current) -> ObjectUtils.call(() -> {
+                            computeStarted.countDown();
+                            completeCompute.await();
+                            return 10;
+                        })));
+        compute.start();
+        computeStarted.await();
+
+        Thread bulk = Thread.ofPlatform().unstarted(() -> bulkUpdate.accept(subject));
+        Thread.State blockedState;
+        try {
+            bulk.start();
+            while (bulk.isAlive() && bulk.getState() != Thread.State.BLOCKED) {
+                Thread.onSpinWait();
+            }
+            blockedState = bulk.getState();
+        } finally {
+            completeCompute.countDown();
+            compute.join();
+            bulk.join();
+        }
+
+        assertEquals(Thread.State.BLOCKED, blockedState);
+        assertEquals(20, subject.<Integer>get("id"));
     }
 
     @Test

@@ -18,6 +18,7 @@ import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import io.fluxzero.proxy.ProxyServer;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.OpenApiProcessor;
@@ -28,7 +29,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,9 +65,8 @@ class DownstreamProjectTest {
                 DownstreamModel.Child.class.getDeclaredMethod("externalParentId").getAnnotation(Parent.class);
 
         assertNotNull(model);
-        assertFalse(model.eventSourced());
-        assertTrue(model.searchable());
-        assertEquals("downstream-models", model.searchProjection().collection());
+        assertEquals(ModelPersistence.DOCUMENT, model.persistence());
+        assertEquals("downstream-models", model.document().collection());
         assertNotNull(typedParent);
         assertNotNull(untypedParent);
         assertEquals("children", typedParent.pathInParent());

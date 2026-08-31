@@ -1087,7 +1087,7 @@ class ModelEntityParameterResolverTest {
         }
     }
 
-    @Model(eventSourced = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record Inventory(
             @EntityId InventoryId inventoryId, int quantity) {
     }

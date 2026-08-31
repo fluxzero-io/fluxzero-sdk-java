@@ -2473,7 +2473,7 @@ class ModelCommitHandlerIntegrationTest {
         throw lastError;
     }
 
-    @Model(searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
     private record Account(@EntityId AccountId accountId, int balance) {
         @Apply
         Account apply(SetExplicitValue command) {
@@ -2959,7 +2959,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(eventSourced = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record Inventory(
             @EntityId InventoryId inventoryId, int available) {
     }
@@ -2987,7 +2987,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(eventSourced = false)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record FixedDocument(
             @EntityId FixedDocumentId id, int value) {
         private FixedDocument(int value) {
@@ -2998,6 +2998,11 @@ class ModelCommitHandlerIntegrationTest {
     private static final class FixedDocumentId extends Id<FixedDocument> {
         private FixedDocumentId() {
             super("fixed-document");
+        }
+
+        @SuppressWarnings("unused")
+        private FixedDocumentId(String ignored) {
+            this();
         }
     }
 
@@ -3040,10 +3045,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(
-            eventSourced = false,
-            searchable = true,
-            eventPublication = EventPublication.NEVER)
+    @Model(persistence = ModelPersistence.DOCUMENT, eventPublication = EventPublication.NEVER)
     private record PrivateInventory(
             @EntityId PrivateInventoryId inventoryId, int available) {
     }
@@ -3165,7 +3167,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
     private record FamilyRoot(
             @EntityId FamilyRootId familyRootId,
             String name) {
@@ -3336,7 +3338,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
     private record AffixedRoot(
             @EntityId(prefix = "move-", postfix = "-state") AffixedRootId affixedRootId) {
     }
@@ -3450,7 +3452,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
     private record FamilyChild(
             @EntityId FamilyChildId familyChildId,
             @Parent(pathInParent = "children")
@@ -3476,7 +3478,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(eventSourced = false, searchable = true)
+    @Model(persistence = ModelPersistence.DOCUMENT)
     private record DocumentFamilyChild(
             @EntityId DocumentFamilyChildId documentFamilyChildId,
             @Parent(pathInParent = "documentChildren")
@@ -3502,7 +3504,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(cached = false, searchable = true)
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, cached = false)
     private record FamilyGrandchild(
             @EntityId FamilyGrandchildId familyGrandchildId,
             @Parent(pathInParent = "primaryGrandchildren")
@@ -3638,9 +3640,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(
-            searchable = true,
-            materializeGraph = true,
+    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "projectionRoots",
                     pathOverrides = @GraphPathOverride(

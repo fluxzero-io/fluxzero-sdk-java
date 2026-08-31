@@ -217,6 +217,9 @@ public final class EntityMetadata {
         if (model != null && aggregate != null) {
             throw invalid("%s cannot be annotated with both @Model and @Aggregate".formatted(type.getName()));
         }
+        if (model != null) {
+            validateModelPersistence(type, model);
+        }
         return model == null
                 ? aggregate == null ? null : RootConfiguration.aggregate(aggregate)
                 : RootConfiguration.model(model);
@@ -508,8 +511,8 @@ public final class EntityMetadata {
     /**
      * Whether this model is placed in an automatically composed graph through at least one explicit parent path.
      * <p>
-     * Graph participation is independent from {@link Model#searchable()}: a model can supply a current document for
-     * composition without exposing that document through its own searchable collection.
+     * Graph participation is independent from {@link Model#persistence()}: a Model can supply an internal current
+     * document for composition without exposing a direct document through its own collection.
      */
     public boolean participatesInGraphComposition() {
         return parentReferences.stream()
@@ -521,7 +524,7 @@ public final class EntityMetadata {
         if (model == null) {
             return Optional.empty();
         }
-        if (rootConfiguration.searchable()) {
+        if (rootConfiguration.directDocument()) {
             return Optional.of(configuredModelDocumentCollection());
         }
         return participatesInGraphComposition() || rootConfiguration.materializeGraph()
@@ -560,7 +563,7 @@ public final class EntityMetadata {
                 () -> new IllegalStateException(
                         "Graph projection root %s has no current-document collection"
                                 .formatted(type.getName())));
-        String publicCollectionBase = rootConfiguration.searchable()
+        String publicCollectionBase = rootConfiguration.directDocument()
                 ? rootCollection : type.getSimpleName();
         String collection = projection.collection().isEmpty()
                 ? publicCollectionBase + "-graphs"
@@ -838,6 +841,36 @@ public final class EntityMetadata {
                 throw invalid("Multiple graph projection paths on %s project to '%s'"
                                       .formatted(type.getName(), override.projectionPath()));
             }
+        }
+    }
+
+    private static void validateModelPersistence(Class<?> type, Model annotation) {
+        ModelPersistence persistence = annotation.persistence();
+        if (!persistence.isEventSourced()) {
+            if (annotation.ignoreUnknownEvents()) {
+                throw invalid("@Model.ignoreUnknownEvents on %s requires event-sourced persistence"
+                                      .formatted(type.getName()));
+            }
+            if (annotation.snapshotPeriod() != 0) {
+                throw invalid("@Model.snapshotPeriod on %s requires event-sourced persistence"
+                                      .formatted(type.getName()));
+            }
+            if (annotation.maxSnapshotCount() != 1) {
+                throw invalid("@Model.maxSnapshotCount on %s requires event-sourced persistence"
+                                      .formatted(type.getName()));
+            }
+            if (annotation.checkpointPeriod() != 100) {
+                throw invalid("@Model.checkpointPeriod on %s requires event-sourced persistence"
+                                      .formatted(type.getName()));
+            }
+        }
+        DocumentProjection document = annotation.document();
+        if (!persistence.storesDocument()
+            && (!document.collection().isEmpty()
+                || !document.timestampPath().isEmpty()
+                || !document.endPath().isEmpty())) {
+            throw invalid("@Model.document on %s requires persistence that stores a direct document"
+                                  .formatted(type.getName()));
         }
     }
 
@@ -1424,7 +1457,7 @@ public final class EntityMetadata {
             CommitPolicy commitPolicy,
             EventPublication eventPublication,
             EventPublicationStrategy publicationStrategy,
-            boolean searchable,
+            boolean directDocument,
             boolean materializeGraph,
             GraphProjection graphProjection,
             String collection,
@@ -1441,13 +1474,13 @@ public final class EntityMetadata {
         static RootConfiguration model(Model annotation) {
             return new RootConfiguration(
                     RootKind.MODEL, annotation.conflictPolicy(), annotation.automaticHandling(),
-                    annotation.eventSourced(), annotation.ignoreUnknownEvents(),
+                    annotation.persistence().isEventSourced(), annotation.ignoreUnknownEvents(),
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(),
-                    annotation.searchable(), annotation.materializeGraph(), annotation.graphProjection(),
-                    annotation.searchProjection().collection(), annotation.searchProjection().timestampPath(),
-                    annotation.searchProjection().endPath());
+                    annotation.persistence().storesDocument(), annotation.materializeGraph(), annotation.graphProjection(),
+                    annotation.document().collection(), annotation.document().timestampPath(),
+                    annotation.document().endPath());
         }
 
         static RootConfiguration aggregate(Aggregate annotation) {
@@ -1496,7 +1529,7 @@ public final class EntityMetadata {
             return new RootConfiguration(
                     kind, conflictPolicy, automaticHandling, eventSourced, ignoreUnknownEvents,
                     snapshotPeriod, maxSnapshotCount, cached, cachingDepth, checkpointPeriod, commitPolicy,
-                    eventPublication, publicationStrategy, searchable, materializeGraph,
+                    eventPublication, publicationStrategy, directDocument, materializeGraph,
                     graphProjection, collection, timestampPath, endPath);
         }
 

@@ -13,13 +13,13 @@ Domain objects may form a tree without sharing one permanent storage boundary. A
 storing its parent's ID in an `@Parent` property:
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 record Order(
         @EntityId OrderId orderId,
         String customerName) {
 }
 
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -32,14 +32,14 @@ record LineItem(
 and direct search document. Updating it does not load or
 rewrite the order.
 
-The child does not have to be independently searchable. With `@Model(searchable = false)`, the explicit
-`@Parent(pathInParent = "lines")` still retains a private current document for graph composition; only the child’s own public
-search collection is suppressed.
+The child does not need a direct public document. With the default `EVENT_SOURCED` persistence, the explicit
+`@Parent(pathInParent = "lines")` still retains a private current document for Graph composition; only the child's own
+public search collection is absent.
 
 The relation may point to the same Model type, which makes recursive domains such as folders natural:
 
 ```java
-@Model(searchable = true)
+@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
 record Folder(
         @EntityId FolderId folderId,
         @Parent(pathInParent = "folders") FolderId parentFolderId,
@@ -228,8 +228,9 @@ record Order(@EntityId OrderId orderId, String customerName) {
 ```
 
 The runtime consumes durable projection signals, coalesces affected roots, composes each complete graph and writes it
-with a `(configurationVersion, stateIndex)` fence. A move updates both the old and new root. `searchable = true` is a
-separate choice that enables direct `Order` search; it is not required for this whole-graph projection.
+with a `(configurationVersion, stateIndex)` fence. A move updates both the old and new root. Selecting
+`EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` is a separate choice that enables direct `Order` search; it is not
+required for this whole-Graph projection.
 
 Projection completion is configurable:
 

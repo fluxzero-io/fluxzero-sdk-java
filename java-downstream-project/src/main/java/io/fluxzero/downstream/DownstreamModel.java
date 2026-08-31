@@ -17,20 +17,22 @@
 package io.fluxzero.downstream;
 
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Member;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
-import io.fluxzero.sdk.persisting.search.Searchable;
 
 import java.util.List;
 import java.util.stream.Stream;
 
-@Model(eventSourced = false, searchable = true,
-        searchProjection = @Searchable(collection = "downstream-models"))
+@Model(
+        persistence = ModelPersistence.DOCUMENT,
+        document = @DocumentProjection(collection = "downstream-models"))
 public record DownstreamModel(@EntityId String id, String value, @Member List<Part> parts) {
 
     @Apply
