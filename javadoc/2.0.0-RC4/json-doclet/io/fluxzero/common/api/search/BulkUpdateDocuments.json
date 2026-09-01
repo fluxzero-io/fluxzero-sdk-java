@@ -1,0 +1,131 @@
+{
+  "name" : "BulkUpdateDocuments",
+  "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command to perform a batch update of documents in the search/document store.\n <p>\n This operation accepts a collection of {@link DocumentUpdate} items, which may be of the types:\n <ul>\n   <li>{@link IndexDocument} – index or replace a document</li>\n   <li>{@link IndexDocumentIfNotExists} – index only if the document does not yet exist</li>\n   <li>{@link DeleteDocument} – remove a document from a collection</li>\n </ul>\n <p>\n The entire batch is processed together, and depending on the {@link Guarantee}, may ensure delivery or persistence.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The delivery or storage guarantee for the update operation.\n",
+    "constantValue" : null
+  }, {
+    "name" : "updates",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments.updates",
+    "type" : "java.util.Collection<io.fluxzero.common.api.search.DocumentUpdate>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " A list of document update operations to perform in this batch.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "BulkUpdateDocuments",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments#BulkUpdateDocuments",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getBytes",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments#getBytes",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return the total number of bytes of all the updates in this batch.\n"
+  }, {
+    "name" : "getSize",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments#getSize",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return the number of document updates in this batch.\n"
+  }, {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Uses the ID of the first update as the routing key for this command.\n"
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments#toMetric",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Metric representation of the bulk update, for logging or monitoring.\n"
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.BulkUpdateDocuments$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

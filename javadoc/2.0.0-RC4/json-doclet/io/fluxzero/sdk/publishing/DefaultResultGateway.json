@@ -1,0 +1,514 @@
+{
+  "name" : "DefaultResultGateway",
+  "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway",
+  "packageName" : "io.fluxzero.sdk.publishing",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Default implementation of the {@link ResultGateway} interface for sending response messages.\n <p>\n This class is responsible for handling responses to commands, queries, dispatching the result message to the\n specified target using a {@link GatewayClient}.\n <p>\n The dispatch process utilizes the {@link DispatchInterceptor} and {@link ResponseMapper} to modify or monitor\n messages before they are sent.\n\n @see ResultGateway\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.common.AbstractNamespaced<io.fluxzero.sdk.publishing.ResultGateway>",
+  "interfaces" : [ "io.fluxzero.sdk.publishing.ResultGateway", "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "PARALLEL_SERIALIZATION_THRESHOLD",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.PARALLEL_SERIALIZATION_THRESHOLD",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "RESULT_BATCH_COLLECTION_NANOS",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.RESULT_BATCH_COLLECTION_NANOS",
+    "type" : "long",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "RESULT_BATCH_SIZE",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.RESULT_BATCH_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "client",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.client",
+    "type" : "io.fluxzero.sdk.configuration.client.Client",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "dispatchInterceptor",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.dispatchInterceptor",
+    "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "gatewayClient",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.gatewayClient",
+    "type" : "io.fluxzero.sdk.publishing.client.GatewayClient",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responseBacklog",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.responseBacklog",
+    "type" : "io.fluxzero.common.Backlog<io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responseMapper",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.responseMapper",
+    "type" : "io.fluxzero.sdk.tracking.handling.ResponseMapper",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responseQueueDepth",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.responseQueueDepth",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "serializer",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway.serializer",
+    "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultResultGateway",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#DefaultResultGateway",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "complete",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#complete",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createForNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#createForNamespace",
+    "returnType" : "io.fluxzero.sdk.publishing.ResultGateway",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "enqueue",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#enqueue",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "enqueueBatched",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#enqueueBatched",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.sdk.publishing.DefaultResultGateway.ResultPreparationErrorHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackCompletion",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "enqueueRetry",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#enqueueRetry",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handlePreparationFailure",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#handlePreparationFailure",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#interceptDispatch",
+    "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "prepareRange",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#prepareRange",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responses",
+      "type" : "java.util.List<io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messages",
+      "type" : "io.fluxzero.sdk.common.Message[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serialized",
+      "type" : "io.fluxzero.common.api.SerializedMessage[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failures",
+      "type" : "java.lang.Throwable[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "start",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "end",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "publishBatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#publishBatch",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responses",
+      "type" : "java.util.List<io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "respond",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#respond",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "respondBatched",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#respondBatched",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enqueues an automatically published handler response for ordered, context-preserving batch serialization.\n\n <p>The originating handler context is captured before the response is enqueued. Mapping, interception and\n serialization then run with that context active on the result workers, allowing the complete response pipeline\n to overlap with subsequent tracking work. Monitoring and appending remain ordered. The returned future completes\n when the resulting transport append completes.</p>\n"
+  }, {
+    "name" : "respondBatched",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#respondBatched",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.sdk.publishing.DefaultResultGateway.ResultPreparationErrorHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enqueues an automatically published handler response and delegates asynchronous preparation failures to the\n originating consumer's error handler.\n"
+  }, {
+    "name" : "respondBatchedAndForget",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#respondBatchedAndForget",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "response",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Integer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.sdk.publishing.DefaultResultGateway.ResultPreparationErrorHandler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Enqueues an automatically published handler response without allocating an individual completion future.\n\n <p>The ordered result backlog still waits for the actual transport append before publishing its next batch.\n This method is intended for consumers that explicitly do not await asynchronous result publication.</p>\n"
+  }, {
+    "name" : "resultBatchEvent",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway#resultBatchEvent",
+    "returnType" : "io.fluxzero.common.jfr.FluxzeroJfr.Batch",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responses",
+      "type" : "java.util.List<io.fluxzero.sdk.publishing.DefaultResultGateway.PreparedResponse>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "queueDepth",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "BatchResponse",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway$BatchResponse",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PreparedResponse",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway$PreparedResponse",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ResultPreparationErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultResultGateway$ResultPreparationErrorHandler",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  } ]
+}

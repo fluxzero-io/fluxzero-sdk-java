@@ -1,0 +1,749 @@
+{
+  "name" : "RootConfiguration",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Aggregate-neutral persistence settings of an explicitly annotated root.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "automaticHandling",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.automaticHandling",
+    "type" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cached",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.cached",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cachingDepth",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.cachingDepth",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "checkpointPeriod",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.checkpointPeriod",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "commitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.commitPolicy",
+    "type" : "io.fluxzero.sdk.modeling.CommitPolicy",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "conflictPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.conflictPolicy",
+    "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "directDocument",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.directDocument",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "endPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.endPath",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "eventPublication",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.eventPublication",
+    "type" : "io.fluxzero.sdk.modeling.EventPublication",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "eventSourced",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.eventSourced",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "graphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.graphProjection",
+    "type" : "io.fluxzero.sdk.modeling.GraphProjection",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "ignoreUnknownEvents",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.ignoreUnknownEvents",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "kind",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.kind",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootKind",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "materializeGraph",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.materializeGraph",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxSnapshotCount",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.maxSnapshotCount",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "publicationStrategy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.publicationStrategy",
+    "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshotPeriod",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.snapshotPeriod",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timestampPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration.timestampPath",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RootConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#RootConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "kind",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootKind",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "automaticHandling",
+      "type" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventSourced",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ignoreUnknownEvents",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshotPeriod",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSnapshotCount",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cached",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cachingDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "checkpointPeriod",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.CommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventPublication",
+      "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publicationStrategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "directDocument",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "materializeGraph",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graphProjection",
+      "type" : "io.fluxzero.sdk.modeling.GraphProjection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timestampPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "endPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "aggregate",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#aggregate",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "io.fluxzero.sdk.modeling.Aggregate",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "automaticHandling",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#automaticHandling",
+    "returnType" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cached",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#cached",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cachingDepth",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#cachingDepth",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "checkpointPeriod",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#checkpointPeriod",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#collection",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#commitPolicy",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitPolicy",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "conflictPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#conflictPolicy",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "directDocument",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#directDocument",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "endPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#endPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "eventPublication",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#eventPublication",
+    "returnType" : "io.fluxzero.sdk.modeling.EventPublication",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "eventSourced",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#eventSourced",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "graphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#graphProjection",
+    "returnType" : "io.fluxzero.sdk.modeling.GraphProjection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ignoreUnknownEvents",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#ignoreUnknownEvents",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "kind",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#kind",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootKind",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "materializeGraph",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#materializeGraph",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "maxSnapshotCount",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#maxSnapshotCount",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "model",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#model",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "annotation",
+      "type" : "io.fluxzero.sdk.modeling.Model",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "publicationStrategy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#publicationStrategy",
+    "returnType" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolvedCollection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#resolvedCollection",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "snapshotPeriod",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#snapshotPeriod",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "snapshotSettings",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#snapshotSettings",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.SnapshotSettings",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "documentFallback",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves the shared periodic snapshot policy for this persisted root. "
+  }, {
+    "name" : "timestampPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#timestampPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "transitionSettings",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#transitionSettings",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.TransitionSettings",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "publicationOverride",
+      "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "strategyOverride",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictOverride",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "transitionSettings",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#transitionSettings",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.TransitionSettings",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "apply",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.Apply",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Resolves root and handler-level transition settings without retaining either annotation shape. "
+  }, {
+    "name" : "withTransitionDefaults",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$RootConfiguration#withTransitionDefaults",
+    "returnType" : "io.fluxzero.sdk.modeling.EntityMetadata.RootConfiguration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "eventSourced",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventPublication",
+      "type" : "io.fluxzero.sdk.modeling.EventPublication",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publicationStrategy",
+      "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "automaticHandling",
+    "type" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "cached",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "cachingDepth",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "checkpointPeriod",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "collection",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "commitPolicy",
+    "type" : "io.fluxzero.sdk.modeling.CommitPolicy",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "conflictPolicy",
+    "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "directDocument",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "endPath",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "eventPublication",
+    "type" : "io.fluxzero.sdk.modeling.EventPublication",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "eventSourced",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "graphProjection",
+    "type" : "io.fluxzero.sdk.modeling.GraphProjection",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "ignoreUnknownEvents",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "kind",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.RootKind",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "materializeGraph",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "maxSnapshotCount",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "publicationStrategy",
+    "type" : "io.fluxzero.sdk.modeling.EventPublicationStrategy",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "snapshotPeriod",
+    "type" : "int",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "timestampPath",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

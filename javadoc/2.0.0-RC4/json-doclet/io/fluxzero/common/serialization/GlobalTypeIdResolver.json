@@ -1,0 +1,109 @@
+{
+  "name" : "GlobalTypeIdResolver",
+  "qualifiedName" : "io.fluxzero.common.serialization.GlobalTypeIdResolver",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.jsontype.impl.TypeIdResolverBase",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "GlobalTypeIdResolver",
+    "qualifiedName" : "io.fluxzero.common.serialization.GlobalTypeIdResolver#GlobalTypeIdResolver",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getMechanism",
+    "qualifiedName" : "io.fluxzero.common.serialization.GlobalTypeIdResolver#getMechanism",
+    "returnType" : "com.fasterxml.jackson.annotation.JsonTypeInfo.Id",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "idFromValue",
+    "qualifiedName" : "io.fluxzero.common.serialization.GlobalTypeIdResolver#idFromValue",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "idFromValueAndType",
+    "qualifiedName" : "io.fluxzero.common.serialization.GlobalTypeIdResolver#idFromValueAndType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "suggestedType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "typeFromId",
+    "qualifiedName" : "io.fluxzero.common.serialization.GlobalTypeIdResolver#typeFromId",
+    "returnType" : "com.fasterxml.jackson.databind.JavaType",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "com.fasterxml.jackson.databind.DatabindContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "id",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

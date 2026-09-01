@@ -1,0 +1,53 @@
+{
+  "name" : "Alias",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.Alias",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Marks a property whose current value is an alternative identifier for an entity or independently stored model.\n <p>\n Aliases are used when looking for an embedded entity via {@link Entity#getEntity}, when resolving a legacy aggregate\n through {@link Fluxzero#loadAggregateFor}, and when loading an independent model through\n {@link Fluxzero#loadModel(Object)}.\n <p>\n You can annotate fields and property methods. If a property value is a collection the members of the collection are\n all added as aliases of the entity. If the property value is {@code null} or an empty collection the alias is\n ignored.\n <p>\n On an independently stored {@link Model}, the complete current alias set is replaced atomically with each model\n transition. A changed or deleted alias therefore stops resolving after that commit. Such aliases identify a model\n globally and must be unique across independently stored models. A primary model ID takes precedence over an equal\n alias. Aliases which are intentionally local to one aggregate tree should not be exposed as independent-model\n aliases.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "postfix",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Alias#postfix",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds given string as a postfix to the alias (if the property value is non-null). Useful to prevent clashes with\n other entity ids.\n"
+  }, {
+    "name" : "prefix",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Alias#prefix",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds given string as a prefix to the alias (if the property value is non-null). Useful to prevent clashes with\n other entity ids.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

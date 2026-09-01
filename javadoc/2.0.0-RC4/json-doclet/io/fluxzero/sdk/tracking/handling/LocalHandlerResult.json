@@ -1,0 +1,183 @@
+{
+  "name" : "LocalHandlerResult",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Result of trying to handle a message locally.\n\n <p>This type preserves a synchronously returned handler value as a direct value instead of wrapping it immediately\n in a {@link CompletableFuture}. It also distinguishes a handler that returned {@code null} from a message for which\n no local handler was found.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "future",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult.future",
+    "type" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handled",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult.handled",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "notHandled",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult.notHandled",
+    "type" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult.value",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LocalHandlerResult",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#LocalHandlerResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handled",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "asFuture",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#asFuture",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asynchronous",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#asynchronous",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#completed",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a successfully completed local result. The value itself may be {@code null}.\n\n @param value the value returned by the handler\n @return a synchronously completed result\n"
+  }, {
+    "name" : "failed",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#failed",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#getValue",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isCompletedSuccessfully",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#isCompletedSuccessfully",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isHandled",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#isHandled",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "notHandled",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult#notHandled",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.LocalHandlerResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the shared result for a message that had no matching local handler.\n\n @return a not-handled result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

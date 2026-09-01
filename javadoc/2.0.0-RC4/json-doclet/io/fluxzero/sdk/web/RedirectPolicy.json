@@ -1,0 +1,75 @@
+{
+  "name" : "RedirectPolicy",
+  "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Redirect policy for outbound {@link WebRequest} execution through the direct native client or proxy.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.web.RedirectPolicy>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "RedirectPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy#RedirectPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy#valueOf",
+    "returnType" : "io.fluxzero.sdk.web.RedirectPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy#values",
+    "returnType" : "io.fluxzero.sdk.web.RedirectPolicy[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ALLOW",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy.ALLOW",
+    "annotations" : [ ],
+    "documentation" : " Uses the JDK's normal redirect policy, which follows HTTP-to-HTTP, HTTP-to-HTTPS, and HTTPS-to-HTTPS redirects,\n but not HTTPS-to-HTTP redirects.\n"
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Uses the application default. Compatibility defaults allow normal JDK redirects; newer defaults only follow\n redirects within the original origin.\n"
+  }, {
+    "name" : "NEVER",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy.NEVER",
+    "annotations" : [ ],
+    "documentation" : " Does not follow redirects.\n"
+  }, {
+    "name" : "SAME_ORIGIN",
+    "qualifiedName" : "io.fluxzero.sdk.web.RedirectPolicy.SAME_ORIGIN",
+    "annotations" : [ ],
+    "documentation" : " Follows at most five redirects, and only when scheme, host, and effective port equal the original request origin.\n The origin is verified before any request headers or body are reused for the redirect target.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

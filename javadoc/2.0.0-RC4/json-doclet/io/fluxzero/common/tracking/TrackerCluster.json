@@ -1,0 +1,402 @@
+{
+  "name" : "TrackerCluster",
+  "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster",
+  "packageName" : "io.fluxzero.common.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents the current set of {@link Tracker}s that are connected for a specific consumer.\n <p>\n A {@code TrackerCluster} tracks which segments of the message log are assigned to which tracker, as well as\n which trackers are actively processing messages. It is used during tracking strategy evaluation to balance\n work across multiple clients or threads.\n <p>\n This class is immutable. Methods that alter the state (e.g., {@code withActiveTracker}, {@code withoutTracker})\n return a new updated instance.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "activeTrackers",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster.activeTrackers",
+    "type" : "java.util.Map<io.fluxzero.common.tracking.Tracker,java.time.Instant>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Tracks when a {@link Tracker} became active. Presence in this map indicates the tracker is currently active.\n",
+    "constantValue" : null
+  }, {
+    "name" : "emptyRange",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster.emptyRange",
+    "type" : "int[]",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Shared constant representing an empty segment range.\n",
+    "constantValue" : null
+  }, {
+    "name" : "segments",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster.segments",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {}
+    } ],
+    "documentation" : " The total number of segments available for this cluster.\n",
+    "constantValue" : null
+  }, {
+    "name" : "trackers",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster.trackers",
+    "type" : "java.util.Map<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.TrackerCluster.Segment>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Mapping of trackers to their assigned segment.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TrackerCluster",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#TrackerCluster",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segments",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new, empty cluster with the given number of segments.\n\n @param segments number of total segments to divide among trackers\n"
+  }, {
+    "name" : "TrackerCluster",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#TrackerCluster",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segments",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackers",
+      "type" : "java.util.Map<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.TrackerCluster.Segment>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "activeTrackers",
+      "type" : "java.util.Map<io.fluxzero.common.tracking.Tracker,java.time.Instant>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "adjustConstraints",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#adjustConstraints",
+    "returnType" : "java.util.Map<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.TrackerCluster.Segment>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segments",
+      "type" : "java.util.List<io.fluxzero.common.tracking.TrackerCluster.Segment>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraints",
+      "type" : "java.util.Map<io.fluxzero.common.tracking.Tracker,io.fluxzero.common.tracking.TrackerCluster.Segment>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "contains",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#contains",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks if the tracker is part of this cluster.\n"
+  }, {
+    "name" : "createGrid",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#createGrid",
+    "returnType" : "java.util.TreeSet<java.lang.Integer>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segments",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackers",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraints",
+      "type" : "java.util.Collection<io.fluxzero.common.tracking.TrackerCluster.Segment>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getIntersections",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#getIntersections",
+    "returnType" : "java.util.Set<java.lang.Integer>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"ResultOfMethodCallIgnored\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segments",
+      "type" : "java.util.Collection<io.fluxzero.common.tracking.TrackerCluster.Segment>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getProcessingDuration",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#getProcessingDuration",
+    "returnType" : "java.util.Optional<java.time.Duration>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns how long the given tracker has been active.\n\n @param tracker tracker whose processing duration to retrieve\n @return duration since the tracker became active, if available\n"
+  }, {
+    "name" : "getSegment",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#getSegment",
+    "returnType" : "int[]",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the segment range assigned to the tracker.\n\n @param tracker tracker to query\n @return assigned segment range or null if unassigned\n"
+  }, {
+    "name" : "getTrackers",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#getTrackers",
+    "returnType" : "java.util.Set<io.fluxzero.common.tracking.Tracker>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an unmodifiable view of the current set of trackers.\n"
+  }, {
+    "name" : "isActive",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#isActive",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks if the tracker is currently marked as active. I.e., if it is currently processing a batch of messages.\n"
+  }, {
+    "name" : "isEmpty",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#isEmpty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns true if no trackers are currently registered.\n"
+  }, {
+    "name" : "purgeCeasedTrackers",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#purgeCeasedTrackers",
+    "returnType" : "io.fluxzero.common.tracking.TrackerCluster",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "threshold",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes trackers that have not sent activity after the given timestamp.\n\n @param threshold timestamp threshold for inactivity\n @return new updated cluster instance\n"
+  }, {
+    "name" : "purgeTrackers",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#purgeTrackers",
+    "returnType" : "io.fluxzero.common.tracking.TrackerCluster",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<io.fluxzero.common.tracking.Tracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes all trackers that match the provided predicate.\n\n @param predicate filter to determine which trackers to remove\n @return new updated cluster instance\n"
+  }, {
+    "name" : "recalculate",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#recalculate",
+    "returnType" : "io.fluxzero.common.tracking.TrackerCluster",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "trackers",
+      "type" : "java.util.SortedSet<io.fluxzero.common.tracking.Tracker>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "activeTrackers",
+      "type" : "java.util.Map<io.fluxzero.common.tracking.Tracker,java.time.Instant>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeGridPoints",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#removeGridPoints",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "grid",
+      "type" : "java.util.TreeSet<java.lang.Integer>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "trackers",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraints",
+      "type" : "java.util.Set<java.lang.Integer>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toSegments",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#toSegments",
+    "returnType" : "java.util.List<io.fluxzero.common.tracking.TrackerCluster.Segment>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "grid",
+      "type" : "java.util.SortedSet<java.lang.Integer>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withActiveTracker",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#withActiveTracker",
+    "returnType" : "io.fluxzero.common.tracking.TrackerCluster",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks the given tracker as actively processing messages.\n If the tracker is not currently in the cluster, it is first added.\n\n @param tracker tracker to mark as active\n @return new updated cluster instance\n"
+  }, {
+    "name" : "withWaitingTracker",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#withWaitingTracker",
+    "returnType" : "io.fluxzero.common.tracking.TrackerCluster",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds or updates the tracker as waiting (not currently processing).\n\n @param tracker tracker to register\n @return new updated cluster instance\n"
+  }, {
+    "name" : "withoutTracker",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster#withoutTracker",
+    "returnType" : "io.fluxzero.common.tracking.TrackerCluster",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "tracker",
+      "type" : "io.fluxzero.common.tracking.Tracker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Removes the tracker from the cluster.\n\n @param tracker tracker to remove\n @return new updated cluster instance\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Segment",
+    "qualifiedName" : "io.fluxzero.common.tracking.TrackerCluster$Segment",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

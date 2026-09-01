@@ -1,0 +1,218 @@
+{
+  "name" : "SearchQuery",
+  "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "builderClassName" : "Builder",
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " A query for filtering documents in one or more search collections.\n <p>\n A {@code SearchQuery} is used to retrieve documents from the search index by applying a combination of time-based\n constraints, collection filters, and field-level constraints.\n </p>\n <p>\n Example usage:\n <pre>{@code\n SearchQuery query = SearchQuery.builder()\n     .collection(\"complaints\")\n     .since(Instant.parse(\"2023-01-01T00:00:00Z\"))\n     .before(Instant.now())\n     .constraint(BetweenConstraint.atLeast(2, \"priority\"))\n     .build();\n }</pre>\n\n <h2>Fields</h2>\n <ul>\n     <li>{@code collections}: List of collection names to search in (required).</li>\n     <li>{@code since, before}: Start and end timestamps to filter documents within a time window.</li>\n     <li>{@code sinceExclusive, beforeInclusive}: Control boundary inclusivity for time filtering.</li>\n     <li>{@code constraints}: A list of {@link Constraint} objects applied to fields within the document.</li>\n </ul>\n\n <h2>Validation</h2>\n The query must include at least one collection. An exception is thrown if none are specified.\n\n @see Constraint\n @see SerializedDocument\n @see io.fluxzero.common.search.Document\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "before",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery.before",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "beforeInclusive",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery.beforeInclusive",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "collections",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery.collections",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonAlias",
+      "values" : {
+        "value" : "\"collections\""
+      }
+    }, {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonProperty",
+      "values" : {
+        "value" : "collection"
+      }
+    }, {
+      "annotationType" : "lombok.Singular",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "constraints",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery.constraints",
+    "type" : "java.util.List<io.fluxzero.common.api.search.Constraint>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Singular",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "decomposeConstraints",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery.decomposeConstraints",
+    "type" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "since",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery.since",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sinceExclusive",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery.sinceExclusive",
+    "type" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SearchQuery",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery#SearchQuery",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder",
+      "values" : {
+        "builderClassName" : "Builder",
+        "toBuilder" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.extern.jackson.Jacksonized",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collections",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "since",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "before",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sinceExclusive",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "beforeInclusive",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraints",
+      "type" : "java.util.List<io.fluxzero.common.api.search.Constraint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getBefore",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery#getBefore",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "d",
+      "type" : "io.fluxzero.common.api.search.SerializedDocument",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Checks if the given serialized document matches the query's constraints and collection filters.\n\n @param d the serialized document to be checked; may be null. If null or if the collection of the document is not\n          part of the query's collection filters, the method returns false.\n @return true if the document meets the constraints and collection filters of the query, false otherwise.\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"RedundantIfStatement\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "d",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Builder",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchQuery$Builder",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

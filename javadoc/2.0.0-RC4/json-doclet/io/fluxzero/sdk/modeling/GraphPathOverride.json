@@ -1,0 +1,53 @@
+{
+  "name" : "GraphPathOverride",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.GraphPathOverride",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : ""
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Replaces one canonical {@link Parent#pathInParent()} only inside a materialized graph projection.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphPathOverride#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Canonical relationship path.\n"
+  }, {
+    "name" : "projectionPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.GraphPathOverride#projectionPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Path used in the materialized graph document.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

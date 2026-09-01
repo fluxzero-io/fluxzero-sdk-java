@@ -1,0 +1,109 @@
+{
+  "name" : "ModelStreamBatchDecoder",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Decoder for the final persisted independent-model stream batch format. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "VERSION",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.VERSION",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 7
+  } ],
+  "constructors" : [ {
+    "name" : "ModelStreamBatchDecoder",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#ModelStreamBatchDecoder",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "decode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decode",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.Entry>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Decodes one stored stream batch. "
+  }, {
+    "name" : "decode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decode",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.Entry>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "block",
+      "type" : "io.fluxzero.common.api.modeling.ModelEventDataBlock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Decodes one stored stream batch directly from a byte range. "
+  }, {
+    "name" : "decodeEntries",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#decodeEntries",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelStreamBatchDecoder.Entry>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "unpacker",
+      "type" : "org.msgpack.core.MessageUnpacker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unpackNullableString",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder#unpackNullableString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "unpacker",
+      "type" : "org.msgpack.core.MessageUnpacker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Entry",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Entry",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

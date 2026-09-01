@@ -1,0 +1,117 @@
+{
+  "name" : "ChunkAccumulator",
+  "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "protected", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "buffer",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator.buffer",
+    "type" : "byte[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "chunkSize",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator.chunkSize",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "size",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator.size",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ChunkAccumulator",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator#ChunkAccumulator",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "chunkSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "hasBytes",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator#hasBytes",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isFull",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator#isFull",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readFrom",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator#readFrom",
+    "returnType" : "int",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.io.InputStream",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "takeBytes",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator#takeBytes",
+    "returnType" : "byte[]",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "takeChunk",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$ChunkAccumulator#takeChunk",
+    "returnType" : "byte[]",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

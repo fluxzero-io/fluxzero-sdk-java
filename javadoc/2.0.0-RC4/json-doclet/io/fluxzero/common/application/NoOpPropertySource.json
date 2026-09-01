@@ -1,0 +1,79 @@
+{
+  "name" : "NoOpPropertySource",
+  "qualifiedName" : "io.fluxzero.common.application.NoOpPropertySource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " A no-operation {@link PropertySource} implementation that never returns any property values.\n\n <p>This is a singleton enum used as a fallback or placeholder where a {@code PropertySource}\n is required but no actual configuration values are available or needed.\n\n <p>All calls to {@link #get(String)} will return {@code null}.\n\n @see PropertySource\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.application.NoOpPropertySource>",
+  "interfaces" : [ "io.fluxzero.common.application.PropertySource" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "NoOpPropertySource",
+    "qualifiedName" : "io.fluxzero.common.application.NoOpPropertySource#NoOpPropertySource",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.application.NoOpPropertySource#get",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Always returns {@code null} for any requested property name.\n\n @param name the name of the property\n @return {@code null}\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.application.NoOpPropertySource#valueOf",
+    "returnType" : "io.fluxzero.common.application.NoOpPropertySource",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.application.NoOpPropertySource#values",
+    "returnType" : "io.fluxzero.common.application.NoOpPropertySource[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "INSTANCE",
+    "qualifiedName" : "io.fluxzero.common.application.NoOpPropertySource.INSTANCE",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

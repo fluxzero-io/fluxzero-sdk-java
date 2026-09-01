@@ -1,0 +1,135 @@
+{
+  "name" : "Route",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "endpointSupplier",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route.endpointSupplier",
+    "type" : "java.util.function.Function<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route.path",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Route",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route#Route",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "endpointSupplier",
+      "type" : "java.util.function.Function<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "creator",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route#creator",
+    "returnType" : "org.eclipse.jetty.websocket.server.WebSocketCreator",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "endpointSupplier",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route#endpointSupplier",
+    "returnType" : "java.util.function.Function<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.JettyWebsocketRouter$Route#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "endpointSupplier",
+    "type" : "java.util.function.Function<io.fluxzero.testserver.websocket.ServerWebsocketSession,io.fluxzero.testserver.websocket.WebsocketEndpoint>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

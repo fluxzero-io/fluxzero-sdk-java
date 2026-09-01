@@ -1,0 +1,64 @@
+{
+  "name" : "DocumentProjection",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : ""
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  } ],
+  "documentation" : " Configures the direct current-state document maintained by a {@link Model} whose\n {@link Model#persistence() persistence} stores a document.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection#collection",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Collection receiving current Model documents. Blank defaults to the Model's simple class name. "
+  }, {
+    "name" : "endPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection#endPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Optional property path used as the document's end timestamp. "
+  }, {
+    "name" : "timestampPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.DocumentProjection#timestampPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Optional property path used as the document's start timestamp. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

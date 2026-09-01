@@ -1,0 +1,320 @@
+{
+  "name" : "CronExpression",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " This provides cron support for java8 using java-time.\n <p>\n Parser for unix-like cron expressions: Cron expressions allow specifying combinations of criteria for time such as:\n &quot;Each Monday-Friday at 08:00&quot; or &quot;Every last friday of the month at 01:30&quot;\n <p>\n A cron expressions consists of 5 or 6 mandatory fields (seconds may be omitted) separated by space. <br> These are:\n <table>\n <caption>Cron expression values</caption>\n <tr>\n <th>Field</th>\n <th>&nbsp;</th>\n <th>Allowable values</th>\n <th>&nbsp;</th>\n <th>Special Characters</th>\n </tr>\n <tbody>\n <tr>\n <td><code>Seconds (may be omitted)</code></td>\n <td>&nbsp;</td>\n <td><code>0-59</code></td>\n <td>&nbsp;</td>\n <td><code>, - * /</code></td>\n </tr>\n <tr>\n <td><code>Minutes</code></td>\n <td>&nbsp;</td>\n <td><code>0-59</code></td>\n <td>&nbsp;</td>\n <td><code>, - * /</code></td>\n </tr>\n <tr>\n <td><code>Hours</code></td>\n <td>&nbsp;</td>\n <td><code>0-23</code></td>\n <td>&nbsp;</td>\n <td><code>, - * /</code></td>\n </tr>\n <tr>\n <td><code>Day of month</code></td>\n <td>&nbsp;</td>\n <td><code>1-31</code></td>\n <td>&nbsp;</td>\n <td><code>, - * ? / L W</code></td>\n </tr>\n <tr>\n <td><code>Month</code></td>\n <td>&nbsp;</td>\n <td><code>1-12 or JAN-DEC (note: english abbreviations)</code></td>\n <td>&nbsp;</td>\n <td><code>, - * /</code></td>\n </tr>\n <tr>\n <td><code>Day of week</code></td>\n <td>&nbsp;</td>\n <td><code>1-7 or MON-SUN (note: english abbreviations)</code></td>\n <td>&nbsp;</td>\n <td><code>, - * ? / L #</code></td>\n </tr>\n </tbody>\n </table>\n <p>\n '*' Can be used in all fields and means 'for all values'. E.g. &quot;*&quot; in minutes, means 'for all minutes'\n <p>\n '?' Can be used in Day-of-month and Day-of-week fields. Used to signify 'no special value'. It is used when one want\n to specify something for one of those two fields, but not the other.\n <p>\n '-' Used to specify a time interval. E.g. &quot;10-12&quot; in Hours field means 'for hours 10, 11 and 12'\n <p>\n ',' Used to specify multiple values for a field. E.g. &quot;MON,WED,FRI&quot; in Day-of-week field means &quot;for\n monday, wednesday and friday&quot;\n <p>\n '/' Used to specify increments. E.g. &quot;0/15&quot; in Seconds field means &quot;for seconds 0, 15, 30, ad\n 45&quot;. And &quot;5/15&quot; in seconds field means &quot;for seconds 5, 20, 35, and 50&quot;. If '*' s specified\n before '/' it is the same as saying it starts at 0. For every field there's a list of values that can be turned on or\n off. For Seconds and Minutes these range from 0-59. For Hours from 0 to 23, For Day-of-month it's 1 to 31, For Months\n 1 to 12. &quot;/&quot; character helsp turn some of these values back on. Thus &quot;7/6&quot; in Months field\n specify just Month 7. It doesn't turn on every 6 month following, since cron fields never roll over\n <p>\n 'L' Can be used on Day-of-month and Day-of-week fields. It signifies last day of the set of allowed values. In\n Day-of-month field it's the last day of the month (e.g.. 31 jan, 28 feb (29 in leap years), 31 march, etc.). In\n Day-of-week field it's Sunday. If there's a prefix, this will be subtracted (5L in Day-of-month means 5 days before\n last day of Month: 26 jan, 23 feb, etc.)\n <p>\n 'W' Can be specified in Day-of-Month field. It specifies closest weekday (monday-friday). Holidays are not accounted\n for. &quot;15W&quot; in Day-of-Month field means 'closest weekday to 15 i in given month'. If the 15th is a Saturday,\n it gives Friday. If 15th is a Sunday, the it gives following Monday.\n <p>\n '#' Can be used in Day-of-Week field. For example: &quot;5#3&quot; means 'third friday in month' (day 5 = friday, #3\n - the third). If the day does not exist (e.g. &quot;5#5&quot; - 5th friday of month) and there aren't 5 fridays in\n the month, then it won't match until the next month with 5 fridays.\n <p>\n <b>Case-sensitive</b> No fields are case-sensitive\n <p>\n <b>Dependencies between fields</b> Fields are always evaluated independently, but the expression doesn't match until\n the constraints of each field are met. Overlap of intervals are not allowed. That is: for\n Day-of-week field &quot;FRI-MON&quot; is invalid,but &quot;FRI-SUN,MON&quot; is valid\n <p>\n Adopted from <a href=\"https://github.com/frode-carlsen/cron\">https://github.com/frode-carlsen/cron</a>.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cache",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.cache",
+    "type" : "java.util.function.BiFunction<java.lang.String,java.lang.Boolean,io.fluxzero.sdk.scheduling.CronExpression>",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "dayOfMonthField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.dayOfMonthField",
+    "type" : "io.fluxzero.sdk.scheduling.CronExpression.DayOfMonthField",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "dayOfWeekField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.dayOfWeekField",
+    "type" : "io.fluxzero.sdk.scheduling.CronExpression.DayOfWeekField",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "expr",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.expr",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "hourField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.hourField",
+    "type" : "io.fluxzero.sdk.scheduling.CronExpression.SimpleField",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "minuteField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.minuteField",
+    "type" : "io.fluxzero.sdk.scheduling.CronExpression.SimpleField",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "monthField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.monthField",
+    "type" : "io.fluxzero.sdk.scheduling.CronExpression.SimpleField",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "secondField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression.secondField",
+    "type" : "io.fluxzero.sdk.scheduling.CronExpression.SimpleField",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CronExpression",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#CronExpression",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "expr",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "CronExpression",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#CronExpression",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "expr",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "withSeconds",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "checkIfDateTimeBarrierIsReached",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#checkIfDateTimeBarrierIsReached",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "nextTime",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dateTimeBarrier",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "findDay",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#findDay",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "dateTime",
+      "type" : "java.time.ZonedDateTime[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dateTimeBarrier",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Find the next match for the day field.\n <p>\n This is handled different than all other fields because there are two ways to describe the day and it is easier\n to handle them together in the same method.\n\n @param dateTime        Initial {@link ZonedDateTime} instance to start from\n @param dateTimeBarrier At which point stop searching for next execution time\n @return {@code true} if a match was found for this field or {@code false} if the field overflowed\n @see {@link SimpleField#nextMatch(ZonedDateTime[])}\n"
+  }, {
+    "name" : "nextLocalDateTimeAfter",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#nextLocalDateTimeAfter",
+    "returnType" : "java.time.LocalDateTime",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "dateTime",
+      "type" : "java.time.LocalDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextTimeAfter",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#nextTimeAfter",
+    "returnType" : "java.time.ZonedDateTime",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "afterTime",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextTimeAfter",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#nextTimeAfter",
+    "returnType" : "java.time.ZonedDateTime",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "afterTime",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "dateTimeBarrier",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextTimeAfter",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#nextTimeAfter",
+    "returnType" : "java.time.ZonedDateTime",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "afterTime",
+      "type" : "java.time.ZonedDateTime",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "durationInMillis",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseCronExpression",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#parseCronExpression",
+    "returnType" : "io.fluxzero.sdk.scheduling.CronExpression",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "expression",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parseCronExpression",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#parseCronExpression",
+    "returnType" : "io.fluxzero.sdk.scheduling.CronExpression",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "expression",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "withSeconds",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "BasicField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$BasicField",
+    "kind" : "class",
+    "modifiers" : [ "abstract", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CronFieldType",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$CronFieldType",
+    "kind" : "enum",
+    "modifiers" : [ "sealed", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DayOfMonthField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$DayOfMonthField",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DayOfWeekField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$DayOfWeekField",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "FieldPart",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$FieldPart",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SimpleField",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.CronExpression$SimpleField",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  } ]
+}

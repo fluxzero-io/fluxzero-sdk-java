@@ -1,0 +1,37 @@
+{
+  "name" : "Request",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Request",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.SuppressWarnings",
+    "values" : {
+      "value" : "\"unused\""
+    }
+  } ],
+  "documentation" : " Marker interface for request messages (e.g., commands or queries) that expect a response of a specific type.\n <p>\n Implementing this interface allows the Fluxzero client to infer the return type of a request, enabling:\n <ol>\n     <li>Type-safe request invocations (e.g. {@code Fluxzero.queryAndWait(Request<T>)} returns {@code T})</li>\n     <li>Compile-time verification that handler methods return a value compatible with the expected response</li>\n </ol>\n\n <h2>Example</h2>\n <pre>{@code\n @Value\n public class GetUser implements Request<UserProfile> {\n     String userId;\n\n     @HandleQuery\n     UserProfile handle(GetUser query) {\n         return Fluxzero.search(UserProfile.class).match(query.getUserId()).fetchFirstOrNull();\n     }\n }\n }</pre>\n\n <p>\n The {@link #responseType()} method provides runtime introspection for the expected return type. This is primarily\n used for generic resolution and handler validation, and relies on reflection to inspect the generic type parameter\n {@code R} declared in {@code Request<R>}.\n\n @param <R> the expected response type of the request\n",
+  "typeParameters" : [ "R" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "responseType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.Request#responseType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.Transient",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the expected response type associated with this request instance.\n <p>\n This is resolved via reflective analysis of the request's declared generic type (i.e., {@code R} in\n {@code Request<R>}). If no concrete type is available, {@code Object.class} is returned as a fallback.\n\n @return the {@link Type} representing the expected response type, or {@code Object.class} if unknown\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

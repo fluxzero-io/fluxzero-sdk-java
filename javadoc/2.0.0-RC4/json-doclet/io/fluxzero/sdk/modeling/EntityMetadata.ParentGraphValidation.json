@@ -1,0 +1,36 @@
+{
+  "name" : "ParentGraphValidation",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentGraphValidation",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "INSTANCE",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentGraphValidation.INSTANCE",
+    "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ParentGraphValidation",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ParentGraphValidation",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.EntityMetadata$ParentGraphValidation#ParentGraphValidation",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

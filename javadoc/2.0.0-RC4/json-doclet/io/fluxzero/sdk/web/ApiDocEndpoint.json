@@ -1,0 +1,414 @@
+{
+  "name" : "ApiDocEndpoint",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Describes a single extracted web API endpoint.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "autoHead",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.autoHead",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "autoOptions",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.autoOptions",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "documentation",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.documentation",
+    "type" : "io.fluxzero.sdk.web.ApiDocDetails",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.executable",
+    "type" : "java.lang.reflect.Executable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerType",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.handlerType",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "method",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.method",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "origin",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.origin",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.parameters",
+    "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocParameter>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.path",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requestBodies",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.requestBodies",
+    "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocRequestBody>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responseType",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.responseType",
+    "type" : "java.lang.reflect.Type",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "responses",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint.responses",
+    "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocResponseDescriptor>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ApiDocEndpoint",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#ApiDocEndpoint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "executable",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "origin",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "autoHead",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "autoOptions",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentation",
+      "type" : "io.fluxzero.sdk.web.ApiDocDetails",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameters",
+      "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocParameter>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestBodies",
+      "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocRequestBody>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseType",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responses",
+      "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocResponseDescriptor>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "autoHead",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#autoHead",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "autoOptions",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#autoOptions",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "documentation",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#documentation",
+    "returnType" : "io.fluxzero.sdk.web.ApiDocDetails",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#executable",
+    "returnType" : "java.lang.reflect.Executable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handlerType",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#handlerType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "method",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#method",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "origin",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#origin",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#parameters",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.ApiDocParameter>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "requestBodies",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#requestBodies",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.ApiDocRequestBody>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responseType",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#responseType",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "responses",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#responses",
+    "returnType" : "java.util.List<io.fluxzero.sdk.web.ApiDocResponseDescriptor>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocEndpoint#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "autoHead",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "autoOptions",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "documentation",
+    "type" : "io.fluxzero.sdk.web.ApiDocDetails",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "executable",
+    "type" : "java.lang.reflect.Executable",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "handlerType",
+    "type" : "java.lang.Class<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "method",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "origin",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parameters",
+    "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocParameter>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "requestBodies",
+    "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocRequestBody>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "responseType",
+    "type" : "java.lang.reflect.Type",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "responses",
+    "type" : "java.util.List<io.fluxzero.sdk.web.ApiDocResponseDescriptor>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

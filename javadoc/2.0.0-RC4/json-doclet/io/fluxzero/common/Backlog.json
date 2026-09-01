@@ -1,0 +1,1139 @@
+{
+  "name" : "Backlog",
+  "qualifiedName" : "io.fluxzero.common.Backlog",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A thread-safe batching queue that asynchronously flushes its content to a consumer in configurable batch sizes.\n <p>\n This utility is useful for scenarios where multiple values are being added over time and you want to consume\n them in batches for efficiency—such as sending messages to a remote system, writing to a log, etc.\n\n <p>\n Flushes are executed on a single background thread, and results (e.g. completion or failure) are tracked\n via {@link CompletableFuture}s. Optional monitors may observe each flushed batch.\n\n <h2>Key Features</h2>\n <ul>\n   <li>Supports both synchronous and asynchronous consumers</li>\n   <li>Flushes automatically after new items are added</li>\n   <li>Tracks flush progress with {@link CompletableFuture} per add</li>\n   <li>Customizable error handling via {@link ErrorHandler}</li>\n   <li>Monitoring support via {@link Monitored}</li>\n </ul>\n\n <h2>Typical Use</h2>\n <pre>{@code\n Backlog<String> backlog = Backlog.forAsyncConsumer(batch -> {\n     return sendToServer(batch); // returns CompletableFuture\n });\n backlog.add(\"a\", \"b\", \"c\");\n }</pre>\n\n @param <T> The type of item being buffered and processed.\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.Monitored<java.util.List<T>>" ],
+  "fields" : [ {
+    "name" : "MAX_INITIAL_BATCH_CAPACITY",
+    "qualifiedName" : "io.fluxzero.common.Backlog.MAX_INITIAL_BATCH_CAPACITY",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 16
+  }, {
+    "name" : "batchCollectionDelayNanos",
+    "qualifiedName" : "io.fluxzero.common.Backlog.batchCollectionDelayNanos",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "consumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog.consumer",
+    "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "errorHandler",
+    "qualifiedName" : "io.fluxzero.common.Backlog.errorHandler",
+    "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "executorService",
+    "qualifiedName" : "io.fluxzero.common.Backlog.executorService",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "flushing",
+    "qualifiedName" : "io.fluxzero.common.Backlog.flushing",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "inFlightBatches",
+    "qualifiedName" : "io.fluxzero.common.Backlog.inFlightBatches",
+    "type" : "java.util.concurrent.atomic.AtomicInteger",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "itemWeight",
+    "qualifiedName" : "io.fluxzero.common.Backlog.itemWeight",
+    "type" : "java.util.function.ToLongFunction<? super T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxBatchSize",
+    "qualifiedName" : "io.fluxzero.common.Backlog.maxBatchSize",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxBatchWeight",
+    "qualifiedName" : "io.fluxzero.common.Backlog.maxBatchWeight",
+    "type" : "long",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxInFlightBatches",
+    "qualifiedName" : "io.fluxzero.common.Backlog.maxInFlightBatches",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "monitors",
+    "qualifiedName" : "io.fluxzero.common.Backlog.monitors",
+    "type" : "java.util.Collection<java.util.function.Consumer<java.util.List<T>>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "queue",
+    "qualifiedName" : "io.fluxzero.common.Backlog.queue",
+    "type" : "java.util.Queue<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "shutdownRequested",
+    "qualifiedName" : "io.fluxzero.common.Backlog.shutdownRequested",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Backlog",
+    "qualifiedName" : "io.fluxzero.common.Backlog#Backlog",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Backlog",
+    "qualifiedName" : "io.fluxzero.common.Backlog#Backlog",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Backlog",
+    "qualifiedName" : "io.fluxzero.common.Backlog#Backlog",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Backlog",
+    "qualifiedName" : "io.fluxzero.common.Backlog#Backlog",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxInFlightBatches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Backlog",
+    "qualifiedName" : "io.fluxzero.common.Backlog#Backlog",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxInFlightBatches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "itemWeight",
+      "type" : "java.util.function.ToLongFunction<? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Backlog",
+    "qualifiedName" : "io.fluxzero.common.Backlog#Backlog",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxInFlightBatches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "itemWeight",
+      "type" : "java.util.function.ToLongFunction<? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchCollectionDelayNanos",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.common.Backlog#add",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SafeVarargs",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "T[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Adds values to the backlog.\n\n @param values one or more values to enqueue\n @return a future that completes when the values are processed by the consumer.\n"
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.common.Backlog#add",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Collection<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a collection of values to the backlog.\n\n @param values collection of values to enqueue\n @return a future that completes when the values are processed by the consumer.\n"
+  }, {
+    "name" : "addAllUntracked",
+    "qualifiedName" : "io.fluxzero.common.Backlog#addAllUntracked",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.util.Collection<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds multiple values without creating per-value flush futures.\n\n @see #addUntracked(Object)\n"
+  }, {
+    "name" : "addUntracked",
+    "qualifiedName" : "io.fluxzero.common.Backlog#addUntracked",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds one value without allocating a separate flush future.\n <p>\n Use this only when the asynchronous consumer owns completion and failure propagation for the\n value itself. Consumer failures still reach the configured backlog error handler.\n"
+  }, {
+    "name" : "asSubmission",
+    "qualifiedName" : "io.fluxzero.common.Backlog#asSubmission",
+    "returnType" : "io.fluxzero.common.Backlog.Submission<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "queued",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "asValue",
+    "qualifiedName" : "io.fluxzero.common.Backlog#asValue",
+    "returnType" : "T",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "queued",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "consume",
+    "qualifiedName" : "io.fluxzero.common.Backlog#consume",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "queued",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "submission",
+      "type" : "io.fluxzero.common.Backlog.Submission<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "values",
+      "type" : "java.util.List<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "slices",
+      "type" : "java.util.List<io.fluxzero.common.Backlog.SubmissionSlice<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "dispatch",
+    "qualifiedName" : "io.fluxzero.common.Backlog#dispatch",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.Backlog.ConsumerBatch<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "enqueue",
+    "qualifiedName" : "io.fluxzero.common.Backlog#enqueue",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "submission",
+      "type" : "io.fluxzero.common.Backlog.Submission<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "enqueueUntracked",
+    "qualifiedName" : "io.fluxzero.common.Backlog#enqueueUntracked",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "finishBatch",
+    "qualifiedName" : "io.fluxzero.common.Backlog#finishBatch",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.Backlog.ConsumerBatch<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "flush",
+    "qualifiedName" : "io.fluxzero.common.Backlog#flush",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collectBeforeFlush",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "flushIfNotFlushing",
+    "qualifiedName" : "io.fluxzero.common.Backlog#flushIfNotFlushing",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collectBeforeFlush",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "forAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a backlog for an asynchronous consumer with default max batch size and default logging error handler.\n"
+  }, {
+    "name" : "forAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a backlog for an asynchronous consumer with custom max batch size and default logging error handler.\n"
+  }, {
+    "name" : "forAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxInFlightBatches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a backlog for an asynchronous consumer with a bounded number of in-flight batches. A batch remains\n in flight until the future returned by the consumer completes. A new batch is dispatched as soon as capacity\n becomes available.\n"
+  }, {
+    "name" : "forAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxInFlightBatches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a bounded asynchronous backlog with a custom error handler.\n"
+  }, {
+    "name" : "forAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a backlog for an asynchronous consumer with custom max batch size and error handler.\n"
+  }, {
+    "name" : "forAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "itemWeight",
+      "type" : "java.util.function.ToLongFunction<? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxInFlightBatches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an asynchronous backlog bounded by item count, cumulative item weight and in-flight batches.\n <p>\n The first item is always admitted, even when it exceeds {@code maxBatchWeight}, so an oversized item can make\n progress as a one-item batch.\n\n @param consumer       asynchronous batch consumer\n @param maxBatchSize   maximum number of items in one batch\n @param itemWeight     function that returns the non-negative weight of an item\n @param maxBatchWeight maximum cumulative weight, except for one individually oversized item\n @param maxInFlightBatches maximum number of consumer batches whose returned future has not completed\n"
+  }, {
+    "name" : "forAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "itemWeight",
+      "type" : "java.util.function.ToLongFunction<? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxInFlightBatches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchCollectionDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an asynchronous backlog bounded by item count, cumulative item weight and in-flight batches, with a\n bounded collection delay whenever an idle backlog starts flushing.\n <p>\n The delay only applies to the first batch after the backlog was idle. Batches already queued\n behind an active consumer are drained immediately. This allows very short micro-batching\n windows without delaying a sustained backlog once it has filled.\n\n @param consumer             asynchronous batch consumer\n @param maxBatchSize         maximum number of items in one batch\n @param itemWeight           function that returns the non-negative weight of an item\n @param maxBatchWeight       maximum cumulative weight, except for one individually oversized item\n @param maxInFlightBatches   maximum number of consumer batches whose returned future has not completed\n @param batchCollectionDelay maximum time to collect concurrent items after an idle start\n"
+  }, {
+    "name" : "forConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingConsumer<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a new backlog for a synchronous consumer and default batch size and default logging error handler.\n"
+  }, {
+    "name" : "forConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingConsumer<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a backlog with custom max batch size and default logging error handler.\n"
+  }, {
+    "name" : "forConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingConsumer<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a backlog with custom max batch size and error handler.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {
+        "forRemoval" : "true"
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, int)} with one in-flight batch.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {
+        "forRemoval" : "true"
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, int)} with one in-flight batch.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {
+        "forRemoval" : "true"
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorHandler",
+      "type" : "io.fluxzero.common.ErrorHandler<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, int, ErrorHandler)} with one in-flight batch.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {
+        "forRemoval" : "true"
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchWeight",
+      "type" : "java.util.function.ToLongFunction<? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, ToLongFunction, long, int)} with one\n in-flight batch.\n"
+  }, {
+    "name" : "forOrderedAsyncConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog#forOrderedAsyncConsumer",
+    "returnType" : "io.fluxzero.common.Backlog<T>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Deprecated",
+      "values" : {
+        "forRemoval" : "true"
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "consumer",
+      "type" : "io.fluxzero.common.ThrowingFunction<java.util.List<T>,java.util.concurrent.CompletableFuture<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchWeight",
+      "type" : "java.util.function.ToLongFunction<? super T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBatchWeight",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "batchCollectionDelay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @deprecated Use {@link #forAsyncConsumer(ThrowingFunction, int, ToLongFunction, long, int, Duration)} with one\n in-flight batch.\n"
+  }, {
+    "name" : "initialBatchCapacity",
+    "qualifiedName" : "io.fluxzero.common.Backlog#initialBatchCapacity",
+    "returnType" : "int",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "maxBatchSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isIdle",
+    "qualifiedName" : "io.fluxzero.common.Backlog#isIdle",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextBatch",
+    "qualifiedName" : "io.fluxzero.common.Backlog#nextBatch",
+    "returnType" : "io.fluxzero.common.Backlog.ConsumerBatch<T>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerMonitor",
+    "qualifiedName" : "io.fluxzero.common.Backlog#registerMonitor",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "monitor",
+      "type" : "java.util.function.Consumer<java.util.List<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds a monitor to observe flushed batches.\n\n @param monitor the observer\n @return a {@link Registration} that can be used to remove the monitor\n"
+  }, {
+    "name" : "scheduleIfCapacityAvailable",
+    "qualifiedName" : "io.fluxzero.common.Backlog#scheduleIfCapacityAvailable",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "collectBeforeFlush",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "shutDown",
+    "qualifiedName" : "io.fluxzero.common.Backlog#shutDown",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Shuts down the internal executor service cleanly.\n"
+  }, {
+    "name" : "tryShutdownExecutor",
+    "qualifiedName" : "io.fluxzero.common.Backlog#tryShutdownExecutor",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unwrap",
+    "qualifiedName" : "io.fluxzero.common.Backlog#unwrap",
+    "returnType" : "java.lang.Throwable",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateValues",
+    "qualifiedName" : "io.fluxzero.common.Backlog#validateValues",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.lang.Object[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "weightOf",
+    "qualifiedName" : "io.fluxzero.common.Backlog#weightOf",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "BatchConsumer",
+    "qualifiedName" : "io.fluxzero.common.Backlog$BatchConsumer",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "ConsumerBatch",
+    "qualifiedName" : "io.fluxzero.common.Backlog$ConsumerBatch",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Submission",
+    "qualifiedName" : "io.fluxzero.common.Backlog$Submission",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "SubmissionSlice",
+    "qualifiedName" : "io.fluxzero.common.Backlog$SubmissionSlice",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

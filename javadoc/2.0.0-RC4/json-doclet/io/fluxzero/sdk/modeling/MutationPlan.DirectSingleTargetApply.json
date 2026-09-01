@@ -1,0 +1,124 @@
+{
+  "name" : "DirectSingleTargetApply",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "invoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply.invoker",
+    "type" : "io.fluxzero.common.reflection.MemberInvoker",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "receiver",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply.receiver",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DirectSingleTargetApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply#DirectSingleTargetApply",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "invoker",
+      "type" : "io.fluxzero.common.reflection.MemberInvoker",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "receiver",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invoker",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply#invoker",
+    "returnType" : "io.fluxzero.common.reflection.MemberInvoker",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "receiver",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply#receiver",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "invoker",
+    "type" : "io.fluxzero.common.reflection.MemberInvoker",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "receiver",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

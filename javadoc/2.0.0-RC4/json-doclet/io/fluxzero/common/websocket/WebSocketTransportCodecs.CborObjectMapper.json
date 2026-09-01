@@ -1,0 +1,33 @@
+{
+  "name" : "CborObjectMapper",
+  "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborObjectMapper",
+  "packageName" : "io.fluxzero.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.ObjectMapper",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "CborObjectMapper",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodecs$CborObjectMapper#CborObjectMapper",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "objectMapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

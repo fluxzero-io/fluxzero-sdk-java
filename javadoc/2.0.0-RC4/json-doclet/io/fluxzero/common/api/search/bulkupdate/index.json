@@ -1,0 +1,24 @@
+{
+  "package" : {
+    "name" : "bulkupdate",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "DeleteDocument.json",
+    "name" : "DeleteDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.DeleteDocument",
+    "kind" : "class"
+  }, {
+    "file" : "IndexDocument.json",
+    "name" : "IndexDocument",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocument",
+    "kind" : "class"
+  }, {
+    "file" : "IndexDocumentIfNotExists.json",
+    "name" : "IndexDocumentIfNotExists",
+    "qualifiedName" : "io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

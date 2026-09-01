@@ -1,0 +1,263 @@
+{
+  "name" : "Position",
+  "qualifiedName" : "io.fluxzero.common.api.tracking.Position",
+  "packageName" : "io.fluxzero.common.api.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonSerialize",
+    "values" : {
+      "using" : "io.fluxzero.common.api.tracking.Position.PositionSerializer"
+    }
+  }, {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonDeserialize",
+    "values" : {
+      "using" : "io.fluxzero.common.api.tracking.Position.PositionDeserializer"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents the tracking state of a consumer, i.e. the last known indexes of consumed messages per segment.\n <p>\n Fluxzero segments the message log to support parallel consumption. A {@code Position} stores\n the most recent message index processed for each segment. This allows precise resumption of message\n consumption on restarts or rebalances.\n\n <p>A {@code Position} is an immutable structure and may be merged or queried to support multi-segment tracking.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "NEW_POSITION",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position.NEW_POSITION",
+    "type" : "io.fluxzero.common.api.tracking.Position",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "segmentRanges",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position.segmentRanges",
+    "type" : "java.util.List<io.fluxzero.common.api.tracking.SegmentRange>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Position",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#Position",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a position for a single segment range.\n"
+  }, {
+    "name" : "Position",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#Position",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segmentRange",
+      "type" : "io.fluxzero.common.api.tracking.SegmentRange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a position for a single segment range.\n"
+  }, {
+    "name" : "Position",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#Position",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segmentRanges",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.SegmentRange>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a position from a list of segment ranges.\n @param segmentRanges a list of segment ranges, this list is expected to be sorted by segment start, segments are\n                      expected to not overlap.\n"
+  }, {
+    "name" : "Position",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#Position",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a position that applies the same index to all segments.\n"
+  } ],
+  "methods" : [ {
+    "name" : "appendRange",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#appendRange",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.util.List<io.fluxzero.common.api.tracking.SegmentRange>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "range",
+      "type" : "io.fluxzero.common.api.tracking.SegmentRange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getIndex",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#getIndex",
+    "returnType" : "java.util.Optional<java.lang.Long>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the last known index for a specific segment.\n"
+  }, {
+    "name" : "isNew",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#isNew",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether no index has been tracked yet for any segment in the given range.\n"
+  }, {
+    "name" : "isNewIndex",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#isNewIndex",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether the provided message index is newer than what is currently tracked for a segment.\n"
+  }, {
+    "name" : "isNewMessage",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#isNewMessage",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether the message index is newer than what is currently tracked for its segment.\n"
+  }, {
+    "name" : "lowestIndexForSegment",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#lowestIndexForSegment",
+    "returnType" : "java.util.Optional<java.lang.Long>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the lowest tracked index within the given segment range.\n"
+  }, {
+    "name" : "merge",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#merge",
+    "returnType" : "io.fluxzero.common.api.tracking.Position",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "other",
+      "type" : "io.fluxzero.common.api.tracking.Position",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Merges two {@code Position} objects by taking the highest known index per segment.\n"
+  }, {
+    "name" : "newPosition",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position#newPosition",
+    "returnType" : "io.fluxzero.common.api.tracking.Position",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an empty position.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "NullableIterator",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position$NullableIterator",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PositionDeserializer",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position$PositionDeserializer",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PositionSerializer",
+    "qualifiedName" : "io.fluxzero.common.api.tracking.Position$PositionSerializer",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  } ]
+}

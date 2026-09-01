@@ -1,0 +1,115 @@
+{
+  "name" : "Range",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation.constraints",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Repeatable",
+    "values" : {
+      "value" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range.List"
+    }
+  }, {
+    "annotationType" : "jakarta.validation.Constraint",
+    "values" : {
+      "validatedBy" : "io.fluxzero.sdk.tracking.handling.validation.constraints.RangeValidator.class"
+    }
+  } ],
+  "documentation" : " Validates that a numeric value is between {@link #min()} and {@link #max()}, inclusive.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "groups",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range#groups",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return validation groups for which this constraint applies\n"
+  }, {
+    "name" : "max",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range#max",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return inclusive upper bound\n"
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range#message",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return violation message template\n"
+  }, {
+    "name" : "min",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range#min",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return inclusive lower bound\n"
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range#payload",
+    "returnType" : "java.lang.Class<? extends jakarta.validation.Payload>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return payload metadata associated with this constraint\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range$List",
+    "kind" : "annotation_type",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.annotation.Documented",
+      "values" : {}
+    }, {
+      "annotationType" : "java.lang.annotation.Target",
+      "values" : {
+        "value" : "FIELD,METHOD,PARAMETER,CONSTRUCTOR,TYPE_USE,ANNOTATION_TYPE"
+      }
+    }, {
+      "annotationType" : "java.lang.annotation.Retention",
+      "values" : {
+        "value" : "RUNTIME"
+      }
+    } ]
+  } ]
+}

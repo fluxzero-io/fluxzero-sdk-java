@@ -1,0 +1,117 @@
+{
+  "name" : "Permit",
+  "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "limiter",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit.limiter",
+    "type" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Permit",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit#Permit",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "limiter",
+      "type" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "limiter",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit#limiter",
+    "returnType" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "release",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit#release",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tracked",
+    "qualifiedName" : "io.fluxzero.proxy.ProxyRequestHandler$InFlightWebRequestLimiter$Permit#tracked",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "limiter",
+    "type" : "io.fluxzero.proxy.ProxyRequestHandler.InFlightWebRequestLimiter",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

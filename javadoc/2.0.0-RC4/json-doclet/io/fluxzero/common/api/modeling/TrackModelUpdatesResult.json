@@ -1,0 +1,102 @@
+{
+  "name" : "TrackModelUpdatesResult",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " One bounded page of model-commit updates returned by {@link TrackModelUpdates}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "currentStateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult.currentStateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Current durable namespace high-watermark observed while producing the response.\n",
+    "constantValue" : null
+  }, {
+    "name" : "lastStateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult.lastStateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Cursor after the last update in this response, or the request cursor for an empty heartbeat.\n",
+    "constantValue" : null
+  }, {
+    "name" : "materializedStateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult.materializedStateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Highest namespace state from which a newly loaded direct document can start tracking without skipping an commit\n whose document/snapshot materialization is still pending.\n",
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "updates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult.updates",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelUpdate>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Committed commit-substep updates in increasing state-index order.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "TrackModelUpdatesResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult#TrackModelUpdatesResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult#toMetric",
+    "returnType" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}
