@@ -224,7 +224,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     @Override
     public CompletableFuture<CommitModelsResult> commitModels(CommitModels commit) {
         try {
-            ModelCommitOutcome outcome = commitModelsSynchronized(commit);
+            ModelCommitOutcome outcome;
+            synchronized (monitorNotificationLock()) {
+                outcome = commitModelsSynchronized(commit);
+            }
             completeModelCommitMaterialization(
                     commit.getCommitId());
             if (!outcome.publishedEvents().isEmpty()) {
@@ -532,6 +535,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         if (!modelCommitMaterializations.remove(commitId, pending)) {
             return;
         }
+        modelUpdateGeneration.incrementAndGet();
+        synchronized (modelUpdateMonitor) {
+            modelUpdateMonitor.notifyAll();
+        }
         synchronized (this) {
             if (publication != null) {
                 modelMaterializationPublications.add(publication);
@@ -592,8 +599,19 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 request.getRequestId(),
                 lastStateIndex,
                 modelStateIndex,
-                modelStateIndex,
+                materializedModelStateIndex(),
                 updates);
+    }
+
+    private long materializedModelStateIndex() {
+        return modelCommitMaterializations.values().stream()
+                .flatMap(pending -> pending.assignedUpdates().stream())
+                .mapToLong(ModelUpdate::getStateIndex)
+                .min()
+                .stream()
+                .map(stateIndex -> stateIndex - 1L)
+                .findFirst()
+                .orElse(modelStateIndex);
     }
 
     @Override

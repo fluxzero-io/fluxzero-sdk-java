@@ -528,14 +528,13 @@ class ModelCacheTrackerTest {
                                                             "sample-1",
                                                             1L,
                                                             true))))));
+            awaitUnavailable(
+                    tracker, "sample-1",
+                    SampleModel.class);
             CompletableFuture<TrackModelUpdatesResult>
                     materializationPoll =
                     awaitNext(polls);
 
-            assertNull(
-                    tracker.current(
-                            "sample-1",
-                            SampleModel.class));
             assertEquals(
                     0,
                     refreshCount.get());
@@ -1294,6 +1293,22 @@ class ModelCacheTrackerTest {
         }
         assertTrue(current != null);
         return current;
+    }
+
+    private static void awaitUnavailable(
+            ModelCacheTracker tracker,
+            String modelId,
+            Class<?> modelType) {
+        long deadline =
+                System.nanoTime()
+                + TimeUnit.SECONDS.toNanos(5L);
+        while (tracker.current(modelId, modelType) != null
+               && System.nanoTime() < deadline) {
+            Thread.onSpinWait();
+        }
+        assertNull(
+                tracker.current(modelId, modelType),
+                "tracker did not fence the stale cache entry");
     }
 
     private static void completeNext(

@@ -1553,6 +1553,26 @@ class DefaultModelRepositoryTest {
         LocalClient client = spy(localClient);
         doReturn(eventStoreClient)
                 .when(client).getEventStoreClient();
+        CountDownLatch reconstructionLoaded =
+                new CountDownLatch(1);
+        CountDownLatch allowReconstructionCompletion =
+                new CountDownLatch(1);
+        AtomicReference<Thread> reconstructionThread =
+                new AtomicReference<>();
+        AtomicBoolean intercept =
+                new AtomicBoolean(true);
+        doAnswer(invocation -> {
+            GetModelEventsResult result =
+                    (GetModelEventsResult)
+                            invocation.callRealMethod();
+            if (Thread.currentThread() == reconstructionThread.get()
+                && intercept.compareAndSet(true, false)) {
+                reconstructionLoaded.countDown();
+                allowReconstructionCompletion.await();
+            }
+            return result;
+        }).when(eventStoreClient)
+                .getModelEvents(any());
         try (ExecutorService reconstructionExecutor = Executors.newSingleThreadExecutor();
              Fluxzero fluxzero = withModelHandlers(
                      DefaultFluxzero.builder()
@@ -1570,30 +1590,14 @@ class DefaultModelRepositoryTest {
             repository.invalidateModels(
                     List.of(id.toString()));
 
-            CountDownLatch reconstructionLoaded =
-                    new CountDownLatch(1);
-            CountDownLatch allowReconstructionCompletion =
-                    new CountDownLatch(1);
-            AtomicBoolean intercept =
-                    new AtomicBoolean(true);
-            doAnswer(invocation -> {
-                GetModelEventsResult result =
-                        (GetModelEventsResult)
-                                invocation.callRealMethod();
-                if (intercept.compareAndSet(
-                        true, false)) {
-                    reconstructionLoaded
-                            .countDown();
-                    allowReconstructionCompletion.await();
-                }
-                return result;
-            }).when(eventStoreClient)
-                    .getModelEvents(any());
-
             CompletableFuture<Entity<Account>>
                     olderReconstruction =
                     CompletableFuture.supplyAsync(
-                            () -> repository.load(id),
+                            () -> {
+                                reconstructionThread.set(
+                                        Thread.currentThread());
+                                return repository.load(id);
+                            },
                             reconstructionExecutor);
             reconstructionLoaded.await();
 

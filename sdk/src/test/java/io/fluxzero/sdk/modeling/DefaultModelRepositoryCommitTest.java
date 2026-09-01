@@ -49,6 +49,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -301,6 +302,92 @@ class DefaultModelRepositoryCommitTest {
         assertTrue(completion.isDone());
         assertTrue(completion.join().orElseThrow().isAccepted());
         assertEquals(callerThread, rebaseThread.get());
+    }
+
+    @Test
+    void acceptRebaseMayAddANewlyDiscoveredCascadeTarget()
+            throws Exception {
+        OrderId rootId = new OrderId("cascade-rebase");
+        Order root = new Order(
+                rootId, null, "before", Instant.EPOCH);
+        GraphOnlyChildId childId =
+                new GraphOnlyChildId("cascade-rebase");
+        GraphOnlyChild child = new GraphOnlyChild(
+                childId, new CustomerId("cascade-rebase"),
+                "child");
+        DeleteOrder event = new DeleteOrder(rootId);
+        Change rootDeletion = transition(
+                rootId, Order.class, root, null,
+                DeleteOrder.class, "apply", Order.class);
+        CommitAttempt original = evaluation(
+                List.of(rootId.toString()),
+                substep(event, rootDeletion),
+                java.util.Collections.singletonMap(
+                        rootId.toString(), null));
+        original.cascadeRoots(Set.of(rootId.toString()));
+
+        Change childDeletion = Change.applied(
+                childId.toString(), GraphOnlyChild.class,
+                0L, null, child, null, null, null, true);
+        CommitAttempt rebased = evaluation(
+                51L,
+                List.of(rootId.toString(), childId.toString()),
+                Map.of(
+                        rootId.toString(), Order.class,
+                        childId.toString(), GraphOnlyChild.class),
+                List.of(
+                        substep(event, rootDeletion),
+                        substep(
+                                new CascadedModelDeletion(
+                                        List.of(rootId.toString())),
+                                childDeletion)),
+                java.util.Collections.singletonMap(
+                        rootId.toString(), null));
+        rebased.cascadeRoots(Set.of(rootId.toString()));
+        AtomicInteger commits = new AtomicInteger();
+        when(eventStoreClient.commitModels(any()))
+                .thenAnswer(invocation -> {
+                    CommitModels request = invocation.getArgument(0);
+                    return commits.getAndIncrement() == 0
+                            ? CompletableFuture.completedFuture(
+                                    CommitModelsResult.rebase(
+                                            request.getRequestId(),
+                                            request.getCommitId(),
+                                            List.of(new ModelCommitConflict(
+                                                    rootId.toString(),
+                                                    51L, 0L)),
+                                            51L))
+                            : CompletableFuture.completedFuture(
+                                    result(request));
+                });
+
+        Optional<CommitModelsResult> accepted = ModelPipeline.commit(
+                protocol, "cascade-rebase", original,
+                ModelConflictPolicy.ACCEPT,
+                ModelPipeline.Retry.accepting(
+                        (ignored, current) ->
+                                CompletableFuture.completedFuture(
+                                        rebased)),
+                null, -1, true).join();
+
+        assertTrue(accepted.orElseThrow().isAccepted());
+        ArgumentCaptor<CommitModels> requests =
+                ArgumentCaptor.forClass(CommitModels.class);
+        verify(eventStoreClient, times(2))
+                .commitModels(requests.capture());
+        CommitModels initial = requests.getAllValues().getFirst();
+        CommitModels retried = requests.getAllValues().getLast();
+        assertEquals(2, retried.getSubsteps().size());
+        assertEquals(
+                initial.getSubsteps().getFirst().getEvent().getData(),
+                retried.getSubsteps().getFirst().getEvent().getData());
+        assertEquals(
+                childId.toString(),
+                retried.getSubsteps().getLast()
+                        .getTargets().getFirst().getModelId());
+        assertTrue(
+                retried.getSubsteps().getFirst()
+                        .getTargets().getFirst().isCascadeDelete());
     }
 
     @Test
@@ -952,7 +1039,7 @@ class DefaultModelRepositoryCommitTest {
                         Order.class)),
                 Map.of(id.toString(), stale));
         var rebased = evaluation(
-                51L, List.of(id.toString()),
+                53L, List.of(id.toString()),
                 Map.of(id.toString(), Order.class),
                 List.of(substep(event, transition(
                         id, Order.class, stale, merged,
@@ -1003,7 +1090,7 @@ class DefaultModelRepositoryCommitTest {
                         .getData(),
                 retried.getSubsteps().getFirst().getEvent()
                         .getData());
-        assertEquals(51L, retried.getReadStateIndex());
+        assertEquals(53L, retried.getReadStateIndex());
         assertEquals(
                 merged,
                 serializer.fromDocument(

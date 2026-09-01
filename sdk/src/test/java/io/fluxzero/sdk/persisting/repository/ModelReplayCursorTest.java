@@ -27,13 +27,16 @@ import io.fluxzero.common.api.modeling.ModelEventPayload;
 import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
-import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.DocumentProjection;
+import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.MutationPlan;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
@@ -45,6 +48,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -62,6 +66,189 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ModelReplayCursorTest {
+
+    @Test
+    void exactContextUsesUnchangedAuthoritativeDocumentWhenHistoryIsIncomplete() {
+        String modelId = "incomplete-document";
+        long boundary = 42L;
+        ModelHeadState head = new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                1L, 40L, false, false);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), boundary, List.of(),
+                    List.of(new ModelEventStream(modelId, head, List.of())));
+        });
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        CurrentDocument value = new CurrentDocument(modelId, "current");
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id", value),
+                        head));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+        MutationPlan.Resolution resolution = new MutationPlan.Resolution(
+                List.of(new MutationPlan.ResolvedModel(
+                        modelId, CurrentDocument.class,
+                        MutationPlan.Access.READ_WRITE, List.of("id"))),
+                List.of());
+
+        CommitAttempt context = loader.context(
+                resolution, ModelReadBoundary.state(boundary, false),
+                Map.of(), null, null, true, false);
+
+        assertEquals(boundary, context.readStateIndex());
+        assertEquals(value, context.entity(modelId).get());
+    }
+
+    @Test
+    void exactContextRejectsAuthoritativeDocumentThatMovedPastIncompleteHistory() {
+        String modelId = "moved-incomplete-document";
+        long boundary = 42L;
+        ModelHeadState historicalHead = new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                1L, 40L, false, false);
+        ModelHeadState currentHead = new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                2L, 43L, false, false);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), boundary, List.of(),
+                    List.of(new ModelEventStream(
+                            modelId, historicalHead, List.of())));
+        });
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id",
+                                new CurrentDocument(modelId, "moved")),
+                        currentHead));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+        MutationPlan.Resolution resolution = new MutationPlan.Resolution(
+                List.of(new MutationPlan.ResolvedModel(
+                        modelId, CurrentDocument.class,
+                        MutationPlan.Access.READ_WRITE, List.of("id"))),
+                List.of());
+
+        EventSourcingException failure = assertThrows(
+                EventSourcingException.class,
+                () -> loader.context(
+                        resolution, ModelReadBoundary.state(boundary, false),
+                        Map.of(), null, null, true, false));
+
+        assertTrue(failure.getMessage().contains(
+                "does not match incomplete historical head"));
+    }
+
+    @Test
+    void acceptRebaseAdvancesToMovedAuthoritativeDocument() {
+        String modelId = "advanced-incomplete-document";
+        long requestedBoundary = 42L;
+        long currentBoundary = 43L;
+        ModelHeadState historicalHead = new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                1L, 40L, false, false);
+        ModelHeadState currentHead = new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                2L, currentBoundary, false, false);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            long boundary = request.getBoundary().stateIndex();
+            ModelHeadState head = boundary == requestedBoundary
+                    ? historicalHead : currentHead;
+            return new GetModelEventsResult(
+                    request.getRequestId(), boundary, List.of(),
+                    List.of(new ModelEventStream(modelId, head, List.of())));
+        });
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        CurrentDocument value = new CurrentDocument(modelId, "current");
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id", value),
+                        currentHead));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+        MutationPlan.Resolution resolution = new MutationPlan.Resolution(
+                List.of(new MutationPlan.ResolvedModel(
+                        modelId, CurrentDocument.class,
+                        MutationPlan.Access.READ_WRITE, List.of("id"))),
+                List.of());
+
+        CommitAttempt context = loader.context(
+                resolution, ModelReadBoundary.state(requestedBoundary, false),
+                Map.of(), null, null, true, false, true);
+
+        assertEquals(currentBoundary, context.readStateIndex());
+        assertEquals(value, context.entity(modelId).get());
+        verify(client, times(2)).getModelEvents(any());
+    }
+
+    @Test
+    void acceptRebaseWaitsForLaggingAuthoritativeDocument() {
+        String modelId = "lagging-incomplete-document";
+        long boundary = 42L;
+        ModelHeadState head = new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                1L, 40L, false, false);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), boundary, List.of(),
+                    List.of(new ModelEventStream(modelId, head, List.of())));
+        });
+        when(client.trackModelUpdates(any())).thenReturn(
+                CompletableFuture.completedFuture(
+                        new TrackModelUpdatesResult(
+                                0L, boundary, boundary,
+                                boundary, List.of())));
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        CurrentDocument value = new CurrentDocument(modelId, "current");
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                                ImmutableModelRoot.initial(
+                                        modelId, CurrentDocument.class, "id", null),
+                                null),
+                            new ModelReplayCursor.DocumentVersion(
+                                    ImmutableModelRoot.initial(
+                                            modelId, CurrentDocument.class, "id", value),
+                                    head));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+        MutationPlan.Resolution resolution = new MutationPlan.Resolution(
+                List.of(new MutationPlan.ResolvedModel(
+                        modelId, CurrentDocument.class,
+                        MutationPlan.Access.READ_WRITE, List.of("id"))),
+                List.of());
+
+        CommitAttempt context = loader.context(
+                resolution, ModelReadBoundary.state(boundary, false),
+                Map.of(), null, null, true, false, true);
+
+        assertEquals(boundary, context.readStateIndex());
+        assertEquals(value, context.entity(modelId).get());
+        verify(client, times(2)).getModelEvents(any());
+        verify(documentReader, times(2)).load(
+                modelId, CurrentDocument.class, false);
+        verify(client).trackModelUpdates(any());
+    }
 
     @Test
     void retriesCurrentGraphWhenADocumentAdvancesDuringReconstruction() {

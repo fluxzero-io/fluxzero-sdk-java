@@ -166,6 +166,9 @@ public class SearchEndpoint extends WebsocketEndpoint {
     @Handle
     GetDocumentResult handle(GetDocument request) {
         try {
+            if (request.isIncludeModelHead()) {
+                return store.fetchModelDocument(request);
+            }
             return new GetDocumentResult(request.getRequestId(), store.fetch(request).orElse(null));
         } catch (Exception e) {
             log.error("Failed to handle {}", request, e);
