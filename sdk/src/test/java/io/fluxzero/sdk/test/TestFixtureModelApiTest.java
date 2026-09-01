@@ -20,6 +20,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.AssertLegal;
 import io.fluxzero.sdk.modeling.Model;
@@ -159,6 +160,46 @@ class TestFixtureModelApiTest {
                 .whenApplying(ignored -> Fluxzero.loadModel(
                         "document-1", UncachedDocument.class).get())
                 .expectResult(new UncachedDocument("document-1", 3));
+    }
+
+    @Test
+    void cachelessEventlessDocumentModelSupportsItsCompleteLifecycle() {
+        String id = "document-lifecycle";
+
+        TestFixture.create(UncachedDocument.class)
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id, UncachedDocument.class)
+                        .update(current -> new UncachedDocument(id, 1))
+                        .commit())
+                .expectSuccessfulResult()
+                .expectNoEvents()
+                .andThen()
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id, UncachedDocument.class)
+                        .update(current -> new UncachedDocument(id, current.value() + 1))
+                        .commit())
+                .expectSuccessfulResult()
+                .expectNoEvents()
+                .andThen()
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id, UncachedDocument.class)
+                        .update(current -> new UncachedDocument(id, current.value() + 1))
+                        .commit())
+                .expectSuccessfulResult()
+                .expectNoEvents()
+                .andThen()
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id, UncachedDocument.class)
+                        .update(current -> null)
+                        .commit())
+                .expectSuccessfulResult()
+                .expectNoEvents()
+                .expectTrue(ignored -> Fluxzero.loadModel(id, UncachedDocument.class).isEmpty())
+                .andThen()
+                .whenExecuting(ignored -> Fluxzero.loadGraph(id, UncachedDocument.class)
+                        .update(current -> new UncachedDocument(id, 4))
+                        .commit())
+                .expectSuccessfulResult()
+                .expectNoEvents()
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.loadModel(id, UncachedDocument.class).get())
+                .expectResult(new UncachedDocument(id, 4));
     }
 
     @Test
@@ -308,7 +349,10 @@ class TestFixtureModelApiTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, cached = false)
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            eventPublication = EventPublication.NEVER,
+            cached = false)
     private record UncachedDocument(@EntityId String id, int value) {
     }
 

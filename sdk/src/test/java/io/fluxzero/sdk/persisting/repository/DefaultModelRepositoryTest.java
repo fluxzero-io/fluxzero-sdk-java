@@ -1557,16 +1557,13 @@ class DefaultModelRepositoryTest {
                 new CountDownLatch(1);
         CountDownLatch allowReconstructionCompletion =
                 new CountDownLatch(1);
-        AtomicReference<Thread> reconstructionThread =
-                new AtomicReference<>();
         AtomicBoolean intercept =
-                new AtomicBoolean(true);
+                new AtomicBoolean();
         doAnswer(invocation -> {
             GetModelEventsResult result =
                     (GetModelEventsResult)
                             invocation.callRealMethod();
-            if (Thread.currentThread() == reconstructionThread.get()
-                && intercept.compareAndSet(true, false)) {
+            if (intercept.compareAndSet(true, false)) {
                 reconstructionLoaded.countDown();
                 allowReconstructionCompletion.await();
             }
@@ -1589,17 +1586,14 @@ class DefaultModelRepositoryTest {
                             fluxzero.modelRepository();
             repository.invalidateModels(
                     List.of(id.toString()));
+            intercept.set(true);
 
             CompletableFuture<Entity<Account>>
                     olderReconstruction =
                     CompletableFuture.supplyAsync(
-                            () -> {
-                                reconstructionThread.set(
-                                        Thread.currentThread());
-                                return repository.load(id);
-                            },
+                            () -> repository.load(id),
                             reconstructionExecutor);
-            reconstructionLoaded.await();
+            assertTrue(reconstructionLoaded.await(5L, TimeUnit.SECONDS));
 
             repository.updateAfterCommit(
                     List.of(committed(
@@ -1614,6 +1608,8 @@ class DefaultModelRepositoryTest {
             assertEquals(
                     new Account(id, 20),
                     repository.load(id).get());
+        } finally {
+            allowReconstructionCompletion.countDown();
         }
     }
 
