@@ -1097,14 +1097,48 @@ final class ModelReplayCursor {
         GetModelGraphResult response = getModelGraph(request);
         GetModelEventsResult graphEvents = response.getEvents();
         long stateIndex = graphEvents.getStateIndex();
-        List<MutationPlan.ResolvedModel> targets = new ArrayList<>(graphEvents.getStreams().size());
+        List<ModelEventStream> streams = graphEvents.getStreams();
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
-        for (ModelEventStream stream : graphEvents.getStreams()) {
-            Class<?> modelType = graphModelType(stream, rootId, rootType);
+        streams.forEach(stream -> heads.put(stream.getModelId(), stream.getHead()));
+        List<String> missingHeads = streams.stream()
+                .filter(stream -> stream.getHead() == null)
+                .map(ModelEventStream::getModelId)
+                .toList();
+        if (!missingHeads.isEmpty()) {
+            LoadResult loaded = loadHeads(
+                    missingHeads, ModelReadBoundary.at(stateIndex));
+            if (loaded.stateIndex() != stateIndex) {
+                throw new GraphBoundaryMovedException(
+                        "Model graph moved from state index %d to %d while resolving heads"
+                                .formatted(stateIndex, loaded.stateIndex()));
+            }
+            heads.putAll(loaded.heads());
+        }
+        List<MutationPlan.ResolvedModel> targets = new ArrayList<>(streams.size());
+        for (ModelEventStream stream : streams) {
+            Class<?> modelType = graphModelType(
+                    stream, heads.get(stream.getModelId()), rootId, rootType);
             targets.add(new MutationPlan.ResolvedModel(
                     stream.getModelId(), modelType, MutationPlan.Access.READ_ONLY,
                     List.of(EntityMetadata.validate(modelType).entityId().orElseThrow().name())));
-            heads.put(stream.getModelId(), stream.getHead());
+        }
+        List<String> unresolvedDocumentHeads = targets.stream()
+                .filter(target -> !EntityMetadata.validate(target.modelType())
+                        .rootConfiguration().orElseThrow().eventSourced())
+                .map(MutationPlan.ResolvedModel::modelId)
+                .filter(modelId -> heads.get(modelId) == null
+                                   || heads.get(modelId).isHistoryComplete())
+                .toList();
+        if (!unresolvedDocumentHeads.isEmpty()) {
+            LoadResult loaded = loadHeads(
+                    unresolvedDocumentHeads, ModelReadBoundary.at(stateIndex));
+            if (loaded.stateIndex() != stateIndex) {
+                throw new GraphBoundaryMovedException(
+                        "Model graph moved from state index %d to %d while resolving document heads"
+                                .formatted(stateIndex, loaded.stateIndex()));
+            }
+            unresolvedDocumentHeads.forEach(heads::remove);
+            heads.putAll(loaded.heads());
         }
         boolean historicalBoundary = boundary.historical();
         LinkedHashMap<String, Entity<?>> models = reconstructProjection(targets, heads, stateIndex, historicalBoundary);
@@ -1135,7 +1169,8 @@ final class ModelReplayCursor {
             boolean historicalBoundary) {
         List<MutationPlan.ResolvedModel> replayTargets = new ArrayList<>();
         List<MutationPlan.ResolvedModel> documentTargets = new ArrayList<>();
-        targets.forEach(target -> (requiresReplay(target, historicalBoundary)
+        targets.forEach(target -> (requiresReplay(
+                target, historicalBoundary, heads.get(target.modelId()))
                 ? replayTargets : documentTargets).add(target));
         LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
         if (!replayTargets.isEmpty()) {
@@ -1149,18 +1184,32 @@ final class ModelReplayCursor {
             result.putAll(reconstructed.entities());
         }
         for (MutationPlan.ResolvedModel target : documentTargets) {
-            DocumentVersion document = documentReader.load(
-                    target.modelId(), target.modelType(), false);
-            Entity<?> entity = document.entity();
             ModelHeadState expected = heads.get(target.modelId());
-            if (!Objects.equals(expected, document.head())) {
-                throw new GraphBoundaryMovedException(
-                        "Document model '%s' moved while reconstructing graph boundary"
-                                .formatted(target.modelId()));
-            }
-            result.put(target.modelId(), entity);
+            result.put(target.modelId(), loadGraphDocument(target, expected));
         }
         return result;
+    }
+
+    private Entity<?> loadGraphDocument(
+            MutationPlan.ResolvedModel target,
+            ModelHeadState expected) {
+        DocumentVersion document = documentReader.load(
+                target.modelId(), target.modelType(), false);
+        ModelHeadState actual = document.head();
+        if (!Objects.equals(expected, actual)
+            && expected != null && !expected.isHistoryComplete()
+            && (actual == null || actual.getStateIndex() < expected.getStateIndex())
+            && awaitMaterializedBoundary(expected.getStateIndex())
+               >= expected.getStateIndex()) {
+            document = documentReader.load(
+                    target.modelId(), target.modelType(), false);
+        }
+        if (!Objects.equals(expected, document.head())) {
+            throw new GraphBoundaryMovedException(
+                    "Document model '%s' moved while reconstructing graph boundary"
+                            .formatted(target.modelId()));
+        }
+        return document.entity();
     }
 
     private static final class GraphBoundaryMovedException extends EventSourcingException {
@@ -1170,15 +1219,27 @@ final class ModelReplayCursor {
     }
 
     private static boolean requiresReplay(MutationPlan.ResolvedModel target, boolean historicalBoundary) {
-        return historicalBoundary || EntityMetadata.validate(target.modelType()).rootConfiguration()
-                .orElseThrow().eventSourced();
+        return requiresReplay(target, historicalBoundary, null);
+    }
+
+    /**
+     * An incomplete durable head identifies an authoritative document without replayable history. Its exactness is
+     * proven immediately afterwards by comparing that head with the document that was actually loaded.
+     */
+    private static boolean requiresReplay(
+            MutationPlan.ResolvedModel target,
+            boolean historicalBoundary,
+            ModelHeadState head) {
+        return EntityMetadata.validate(target.modelType()).rootConfiguration()
+                       .orElseThrow().eventSourced()
+               || historicalBoundary && (head == null || head.isHistoryComplete());
     }
 
     private Class<?> graphModelType(
             ModelEventStream stream,
+            ModelHeadState head,
             String rootId,
             Class<?> rootType) {
-        ModelHeadState head = stream.getHead();
         String storedType = head == null ? null : head.getModelType();
         if (storedType == null) {
             if (stream.getModelId().equals(rootId)) {

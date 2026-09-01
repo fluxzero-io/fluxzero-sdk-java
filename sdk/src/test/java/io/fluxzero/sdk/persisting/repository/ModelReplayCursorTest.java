@@ -61,6 +61,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -255,10 +256,21 @@ class ModelReplayCursorTest {
         String modelId = "current-document";
         ModelHeadState firstHead = documentHead(modelId, 0L, 1L);
         ModelHeadState currentHead = documentHead(modelId, 1L, 2L);
+        ModelHeadState currentDocumentHead = directDocumentHead(modelId, 1L, 2L);
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelGraph(any())).thenReturn(
                 graphResponse(modelId, firstHead, 1L),
                 graphResponse(modelId, currentHead, 2L));
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            long stateIndex = request.getBoundary().stateIndex();
+            ModelHeadState head = stateIndex == 1L
+                    ? directDocumentHead(modelId, 0L, 1L)
+                    : directDocumentHead(modelId, 1L, 2L);
+            return new GetModelEventsResult(
+                    request.getRequestId(), stateIndex, List.of(),
+                    List.of(new ModelEventStream(modelId, head, List.of())));
+        });
         ModelReplayCursor.DocumentReader documentReader = mock(
                 ModelReplayCursor.DocumentReader.class);
         when(documentReader.load(modelId, CurrentDocument.class, false))
@@ -266,7 +278,7 @@ class ModelReplayCursorTest {
                         ImmutableModelRoot.initial(
                                 modelId, CurrentDocument.class, "id",
                                 new CurrentDocument(modelId, "current")),
-                        currentHead));
+                        currentDocumentHead));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
                 documentReader, mock(ModelRepository.class));
@@ -281,6 +293,180 @@ class ModelReplayCursorTest {
     }
 
     @Test
+    void exactGraphUsesUnchangedAuthoritativeDocumentWhenHistoryIsIncomplete() {
+        String modelId = "exact-document";
+        long boundary = 42L;
+        ModelHeadState head = directDocumentHead(modelId, 2L, boundary);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelGraph(any())).thenReturn(
+                graphResponse(modelId, head, boundary));
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        CurrentDocument value = new CurrentDocument(modelId, "current");
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id", value),
+                        head));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+
+        Graph<CurrentDocument> result = loader.graph(
+                modelId, CurrentDocument.class, Graph.Options.DEFAULT,
+                ModelReadBoundary.at(boundary), "test", Map.of());
+
+        assertEquals(value, result.get());
+        assertEquals(boundary, result.stateIndex());
+        verify(client, never()).getModelEvents(any());
+    }
+
+    @Test
+    void exactGraphResolvesAMissingInlineHeadBeforeChoosingDocumentReconstruction() {
+        String modelId = "exact-document-with-deferred-head";
+        long boundary = 42L;
+        ModelHeadState head = directDocumentHead(modelId, 2L, boundary);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelGraph(any())).thenReturn(
+                graphResponse(modelId, null, boundary));
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), boundary, List.of(),
+                    List.of(new ModelEventStream(modelId, head, List.of())));
+        });
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        CurrentDocument value = new CurrentDocument(modelId, "current");
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id", value),
+                        head));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+
+        Graph<CurrentDocument> result = loader.graph(
+                modelId, CurrentDocument.class, Graph.Options.DEFAULT,
+                ModelReadBoundary.at(boundary), "test", Map.of());
+
+        assertEquals(value, result.get());
+        assertEquals(boundary, result.stateIndex());
+        verify(client).getModelEvents(any());
+    }
+
+    @Test
+    void exactGraphUsesTheDurableDocumentHeadInsteadOfAReplayableInlineStreamHead() {
+        String modelId = "exact-document-with-event-stream-head";
+        long boundary = 42L;
+        ModelHeadState streamHead = documentHead(modelId, -1L, boundary);
+        ModelHeadState documentHead = directDocumentHead(modelId, 2L, boundary);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelGraph(any())).thenReturn(
+                graphResponse(modelId, streamHead, boundary));
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), boundary, List.of(),
+                    List.of(new ModelEventStream(
+                            modelId, documentHead, List.of())));
+        });
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        CurrentDocument value = new CurrentDocument(modelId, "current");
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id", value),
+                        documentHead));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+
+        Graph<CurrentDocument> result = loader.graph(
+                modelId, CurrentDocument.class, Graph.Options.DEFAULT,
+                ModelReadBoundary.at(boundary), "test", Map.of());
+
+        assertEquals(value, result.get());
+        assertEquals(boundary, result.stateIndex());
+        verify(client).getModelEvents(any());
+    }
+
+    @Test
+    void exactGraphWaitsForLaggingAuthoritativeDocument() {
+        String modelId = "lagging-exact-document";
+        long boundary = 42L;
+        ModelHeadState head = directDocumentHead(modelId, 2L, boundary);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelGraph(any())).thenReturn(
+                graphResponse(modelId, head, boundary));
+        when(client.trackModelUpdates(any())).thenReturn(
+                CompletableFuture.completedFuture(
+                        new TrackModelUpdatesResult(
+                                0L, boundary, boundary,
+                                boundary, List.of())));
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        CurrentDocument value = new CurrentDocument(modelId, "current");
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(
+                        new ModelReplayCursor.DocumentVersion(
+                                ImmutableModelRoot.initial(
+                                        modelId, CurrentDocument.class, "id", null),
+                                null),
+                        new ModelReplayCursor.DocumentVersion(
+                                ImmutableModelRoot.initial(
+                                        modelId, CurrentDocument.class, "id", value),
+                                head));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+
+        Graph<CurrentDocument> result = loader.graph(
+                modelId, CurrentDocument.class, Graph.Options.DEFAULT,
+                ModelReadBoundary.at(boundary), "test", Map.of());
+
+        assertEquals(value, result.get());
+        verify(documentReader, times(2)).load(
+                modelId, CurrentDocument.class, false);
+        verify(client).trackModelUpdates(any());
+        verify(client, never()).getModelEvents(any());
+    }
+
+    @Test
+    void exactGraphRejectsAuthoritativeDocumentThatMovedPastIncompleteHistory() {
+        String modelId = "moved-exact-document";
+        long boundary = 42L;
+        ModelHeadState historicalHead = directDocumentHead(modelId, 1L, boundary);
+        ModelHeadState currentHead = directDocumentHead(modelId, 2L, boundary + 1L);
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelGraph(any())).thenReturn(
+                graphResponse(modelId, historicalHead, boundary));
+        ModelReplayCursor.DocumentReader documentReader = mock(
+                ModelReplayCursor.DocumentReader.class);
+        when(documentReader.load(modelId, CurrentDocument.class, false))
+                .thenReturn(new ModelReplayCursor.DocumentVersion(
+                        ImmutableModelRoot.initial(
+                                modelId, CurrentDocument.class, "id",
+                                new CurrentDocument(modelId, "moved")),
+                        currentHead));
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, new JacksonSerializer(), null, null, null, null,
+                documentReader, mock(ModelRepository.class));
+
+        EventSourcingException failure = assertThrows(
+                EventSourcingException.class,
+                () -> loader.graph(
+                        modelId, CurrentDocument.class, Graph.Options.DEFAULT,
+                        ModelReadBoundary.at(boundary), "test", Map.of()));
+
+        assertTrue(failure.getMessage().contains(
+                "moved while reconstructing graph boundary"));
+        verify(client, never()).getModelEvents(any());
+    }
+
+    @Test
     void boundsCurrentGraphRetriesWhenADocumentKeepsAdvancing() {
         String modelId = "moving-document";
         ModelHeadState graphHead = documentHead(modelId, 0L, 1L);
@@ -288,6 +474,13 @@ class ModelReplayCursorTest {
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelGraph(any())).thenReturn(
                 graphResponse(modelId, graphHead, 1L));
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            return new GetModelEventsResult(
+                    request.getRequestId(), 1L, List.of(),
+                    List.of(new ModelEventStream(
+                            modelId, directDocumentHead(modelId, 0L, 1L), List.of())));
+        });
         ModelReplayCursor.DocumentReader documentReader = mock(
                 ModelReplayCursor.DocumentReader.class);
         when(documentReader.load(modelId, CurrentDocument.class, false))
@@ -327,6 +520,15 @@ class ModelReplayCursorTest {
         return new ModelHeadState(
                 modelId, CurrentDocument.class.getName(),
                 sequenceNumber, stateIndex, true, false);
+    }
+
+    private static ModelHeadState directDocumentHead(
+            String modelId,
+            long sequenceNumber,
+            long stateIndex) {
+        return new ModelHeadState(
+                modelId, CurrentDocument.class.getName(),
+                sequenceNumber, stateIndex, false, false);
     }
 
     @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "currentDocuments"))
