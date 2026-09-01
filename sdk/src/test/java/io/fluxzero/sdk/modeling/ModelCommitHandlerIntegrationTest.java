@@ -402,6 +402,7 @@ class ModelCommitHandlerIntegrationTest {
                 .registerHandlers(new Object() {
                     @HandleNotification
                     void handle(Graph<FamilyRoot> graph) {
+                        assertEquals(rootId.toString(), graph.id().toString());
                         Fluxzero.get().cache().clear();
                         loaded.set(Fluxzero.<Account>loadModel(accountId).get());
                     }
