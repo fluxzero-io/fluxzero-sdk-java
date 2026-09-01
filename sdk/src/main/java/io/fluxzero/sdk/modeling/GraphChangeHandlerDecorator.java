@@ -110,18 +110,18 @@ public final class GraphChangeHandlerDecorator {
                                         graph.id().toString(), graph.type()))) {
                                     continue;
                                 }
+                                HandlerInvoker invoker = withGraph(
+                                        graphHandler.parameter(), graph, true,
+                                        () -> handler.getInvokerOrNull(message));
+                                if (invoker == null
+                                    || !graphHandler.executable().equals(invoker.getMethod())) {
+                                    throw new IllegalStateException(
+                                            "Could not select graph-change handler %s for %s"
+                                                    .formatted(graphHandler.executable(), graph.type()));
+                                }
                                 Object next = withGraph(
-                                        graphHandler.parameter(), graph,
-                                        () -> {
-                                            HandlerInvoker invoker = handler.getInvokerOrNull(message);
-                                            if (invoker == null
-                                                || !graphHandler.executable().equals(invoker.getMethod())) {
-                                                throw new IllegalStateException(
-                                                        "Could not select graph-change handler %s for %s"
-                                                                .formatted(graphHandler.executable(), graph.type()));
-                                            }
-                                            return invoker.invoke(combiner);
-                                        });
+                                        graphHandler.parameter(), graph, false,
+                                        () -> invoker.invoke(combiner));
                                 result = first ? next : combiner.apply(result, next);
                                 first = false;
                             }
@@ -139,7 +139,7 @@ public final class GraphChangeHandlerDecorator {
             List<GraphHandler> graphHandlers) throws Exception {
         for (GraphHandler graphHandler : graphHandlers) {
             HandlerInvoker invoker = withGraph(
-                    graphHandler.parameter(), null,
+                    graphHandler.parameter(), null, true,
                     () -> handler.getInvokerOrNull(message));
             if (invoker != null
                 && graphHandler.executable().equals(invoker.getMethod())) {
@@ -283,7 +283,8 @@ public final class GraphChangeHandlerDecorator {
     }
 
     static boolean resolvingGraphChange() {
-        return graphArgument.get() != null;
+        GraphArgument value = graphArgument.get();
+        return value != null && value.selecting();
     }
 
     static boolean suppliesGraph(Parameter parameter) {
@@ -302,9 +303,10 @@ public final class GraphChangeHandlerDecorator {
     private static <T> T withGraph(
             Parameter parameter,
             Graph<?> graph,
+            boolean selecting,
             Callable<T> task) throws Exception {
         GraphArgument previous = graphArgument.get();
-        graphArgument.set(new GraphArgument(parameter, graph));
+        graphArgument.set(new GraphArgument(parameter, graph, selecting));
         try {
             return task.call();
         } finally {
@@ -327,7 +329,8 @@ public final class GraphChangeHandlerDecorator {
 
     private record GraphArgument(
             Parameter parameter,
-            Graph<?> graph) {
+            Graph<?> graph,
+            boolean selecting) {
     }
 
     private record GraphHandler(

@@ -393,6 +393,29 @@ class ModelCommitHandlerIntegrationTest {
     }
 
     @Test
+    void graphChangeHandlerMayReplayAnotherModelDuringInvocation() {
+        AccountId accountId = new AccountId("nested-replay");
+        FamilyRootId rootId = new FamilyRootId("nested-replay");
+        AtomicReference<Account> loaded = new AtomicReference<>();
+
+        TestFixture.create()
+                .registerHandlers(new Object() {
+                    @HandleNotification
+                    void handle(Graph<FamilyRoot> graph) {
+                        Fluxzero.get().cache().clear();
+                        loaded.set(Fluxzero.<Account>loadModel(accountId).get());
+                    }
+                })
+                .givenCommands(
+                        new CreateAccount(accountId, 41),
+                        new ApplyTargetedCredit(accountId, 1))
+                .whenCommand(new CreateFamilyRoot(rootId, "family"))
+                .expectNoErrors()
+                .expectThat(ignored -> assertEquals(
+                        new Account(accountId, 42), loaded.get()));
+    }
+
+    @Test
     void oneHandlerObjectRoutesInheritedGraphChangesToTheMostSpecificMethod() {
         List<String> handled = new CopyOnWriteArrayList<>();
 
