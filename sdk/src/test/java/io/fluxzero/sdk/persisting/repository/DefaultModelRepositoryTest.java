@@ -1086,6 +1086,8 @@ class DefaultModelRepositoryTest {
             fluxzero.executeModelCommit(
                     new Message(new CreateAliasAccount(
                             id, "first-code", 5))).join();
+            ((DefaultModelRepository) fluxzero.modelRepository())
+                    .invalidateModels(List.of(id.toString()));
 
             Entity<AliasAccount> typed = fluxzero.apply(ignored ->
                     Fluxzero.loadModel(
@@ -1102,6 +1104,8 @@ class DefaultModelRepositoryTest {
             fluxzero.executeModelCommit(
                     new Message(new RenameAliasAccount(
                             id, "second-code"))).join();
+            ((DefaultModelRepository) fluxzero.modelRepository())
+                    .invalidateModels(List.of(id.toString()));
 
             assertTrue(fluxzero.apply(ignored ->
                     Fluxzero.loadModel(
@@ -2473,7 +2477,9 @@ class DefaultModelRepositoryTest {
             AliasedAccountId accountId, int balance) {
     }
 
-    @Model
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(searchable = false))
     private record AliasAccount(
             @EntityId AliasAccountId accountId,
             @Alias String code,
@@ -2967,7 +2973,7 @@ class DefaultModelRepositoryTest {
             @EntityId GraphRootId graphRootId, String name) {
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "repository-graphs"))
     private record ProjectedRoot(
@@ -2982,7 +2988,7 @@ class DefaultModelRepositoryTest {
             String rootId) {
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "repository-graphs"))
     private record AlternateProjectedRoot(

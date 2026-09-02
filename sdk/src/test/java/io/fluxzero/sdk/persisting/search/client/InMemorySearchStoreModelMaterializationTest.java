@@ -122,7 +122,7 @@ class InMemorySearchStoreModelMaterializationTest {
         String rootId = "root-1";
         String childId = "child-1";
         String childCollection =
-                ModelDocumentMutation.graphComponentCollection(
+                ModelDocumentMutation.privateModelDocumentCollection(
                         "Child");
         Map<String, String> collections =
                 Map.of(
@@ -233,7 +233,7 @@ class InMemorySearchStoreModelMaterializationTest {
         String rootId = "legacy-root";
         String childId = "model-child";
         String childCollection =
-                ModelDocumentMutation.graphComponentCollection(
+                ModelDocumentMutation.privateModelDocumentCollection(
                         "Child");
         Map<String, String> collections = Map.of(
                 rootId, "roots", childId,

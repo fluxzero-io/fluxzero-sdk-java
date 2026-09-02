@@ -17,38 +17,17 @@
 package io.fluxzero.sdk.modeling;
 
 /**
- * Defines the durable representation and authoritative load path of a {@link Model}.
+ * Defines one durable representation of a {@link Model}.
  * <p>
- * This choice is independent from event publication and from internal documents used to compose model graphs.
+ * A model may select both representations. When {@link #EVENT_SOURCED} is present, the event stream is authoritative;
+ * otherwise {@link #DOCUMENT} is authoritative. This set is independent from event publication and from internal
+ * documents used to compose model graphs.
  */
 public enum ModelPersistence {
 
-    /** Reconstruct state from the model event stream and do not maintain a directly searchable current document. */
-    EVENT_SOURCED(true, false),
+    /** Persist reconstructing events in the model event stream. */
+    EVENT_SOURCED,
 
-    /** Reconstruct state from the event stream and also maintain a directly searchable current document. */
-    EVENT_SOURCED_WITH_DOCUMENT(true, true),
-
-    /**
-     * Treat the current document as authoritative and load state directly through the configured document serializer.
-     */
-    DOCUMENT(false, true);
-
-    private final boolean eventSourced;
-    private final boolean storesDocument;
-
-    ModelPersistence(boolean eventSourced, boolean storesDocument) {
-        this.eventSourced = eventSourced;
-        this.storesDocument = storesDocument;
-    }
-
-    /** Whether normal loads reconstruct state from stored model events. */
-    public boolean isEventSourced() {
-        return eventSourced;
-    }
-
-    /** Whether commits maintain a directly searchable current document. */
-    public boolean storesDocument() {
-        return storesDocument;
-    }
+    /** Persist the current model state as a document. */
+    DOCUMENT
 }

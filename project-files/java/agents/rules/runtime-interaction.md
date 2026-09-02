@@ -46,7 +46,7 @@ sequenceDiagram
 
 ### Command Followed by Query
 
-For Models using `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT`, the direct document is part of Model-commit completion.
+For Models whose persistence set contains `DOCUMENT`, the direct document is part of Model-commit completion.
 A command followed by a direct Model query therefore reads committed state. Whole-Graph projections and documents
 written by event handlers remain asynchronous unless their own completion boundary is awaited.
 

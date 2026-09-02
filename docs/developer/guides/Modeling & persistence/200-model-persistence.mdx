@@ -8,12 +8,12 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-Every `@Model` has an independent persisted identity. `ModelPersistence` makes its durable representation and
+Every `@Model` has an independent persisted identity. Its non-empty `ModelPersistence[]` set makes the durable representations and
 authoritative load path explicit:
 
 ```java
 @Model(
-    persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+    persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
     snapshotPeriod = 1000)
 record Account(
         @EntityId AccountId accountId,
@@ -35,6 +35,14 @@ record Account(@EntityId AccountId accountId, Money balance) {
 
 Each applied update is stored in this account's model stream. Loading reconstructs the account by replaying its
 `@Apply` methods, optionally starting at a snapshot or checkpoint.
+
+The set supports exactly the meaningful combinations:
+
+- `{EVENT_SOURCED}` reconstructs from events without a current document;
+- `{DOCUMENT}` loads from its authoritative current document;
+- `{EVENT_SOURCED, DOCUMENT}` reconstructs from events and also maintains a current document.
+
+An empty set or duplicate representation is rejected during Model discovery.
 
 By default an event-sourced Model fails when its stream contains an event for which no applicable `@Apply` exists.
 Set `ignoreUnknownEvents = true` only when skipping such historical events is an explicit compatibility decision; it
@@ -61,11 +69,27 @@ record Country(
 `persistence` controls the durable representation and **load path**, not whether updates become events. Applied updates
 are still stored and published by default. This preserves auditing and exact event-handler boundaries.
 
-The direct searchable document is synchronously maintained with the model commit. After a successful command result,
-an immediate direct search can observe the changed model.
+The current document is synchronously maintained with the Model commit. It is publicly searchable by default, so after
+a successful command result an immediate direct search can observe the changed Model.
 
-`DOCUMENT` always maintains this direct document. Its collection and temporal paths can be configured through
+`DOCUMENT` always maintains this current document. Its search visibility, collection and temporal paths are configured through
 `document = @DocumentProjection(...)`.
+
+When state should load from a document but ordinary Model search is unnecessary, keep it reference-only:
+
+```java
+@Model(
+    persistence = ModelPersistence.DOCUMENT,
+    document = @DocumentProjection(searchable = false))
+record UserPreferences(
+        @EntityId UserId userId,
+        Preferences preferences) {
+}
+```
+
+Fluxzero keeps this value in a type-isolated private Model collection. Identity and alias loads, parent relationships
+and Graph composition still use it; `Fluxzero.search(UserPreferences.class)` does not expose it. A custom public
+collection is consequently invalid for a reference-only projection.
 
 ## Event storage and publication
 
@@ -121,12 +145,11 @@ does not split one multi-Model action into separate commits.
 
 ## Direct Model documents
 
-`EVENT_SOURCED_WITH_DOCUMENT` keeps event replay authoritative while also maintaining a directly searchable current
-document:
+Combining `EVENT_SOURCED` and `DOCUMENT` keeps event replay authoritative while also maintaining a current document:
 
 ```java
 @Model(
-    persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+    persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
     document = @DocumentProjection(
         collection = "line-items"))
 record LineItem(
@@ -136,9 +159,9 @@ record LineItem(
 }
 ```
 
-This document is authoritative for direct search, but event replay remains authoritative for loading the Model. With
-`DOCUMENT`, the same direct document is authoritative for both search and loading. It is never the asynchronously
-stitched root Graph.
+The public document serves direct search, but event replay remains authoritative for loading the Model. With
+document-only persistence, the same current document is authoritative for loading. It is never the asynchronously
+stitched root Graph. Set `document.searchable = false` when the document should remain reference-only instead.
 
 Plain `EVENT_SOURCED` omits only this independent collection. A child with an explicit
 `@Parent(pathInParent = "...")` still supplies a private current document to virtual and materialized Graph composition.

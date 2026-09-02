@@ -31,8 +31,7 @@ data through a unified document store, leveraging automatic indexing and a rich 
 ## Core Rules
 
 1. **No SQL**: Data retrieval is performed exclusively via the `Fluxzero.search()` API or by loading entities.
-2. **Automatic Indexing**: Models with `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` persistence maintain a direct
-   current-state document.
+2. **Automatic Indexing**: Models whose persistence set contains `DOCUMENT` maintain a direct current-state document.
 3. **Stateful Handlers**: `@Stateful` handlers are automatically searchable as they are backed by the document store.
 4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
 5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
@@ -52,20 +51,29 @@ data through a unified document store, leveraging automatic indexing and a rich 
 
 ### Model documents and @Searchable values
 
-Choose a Model persistence option that stores a direct document. Use `@Searchable` for an ordinary document value;
-do not annotate a Model with it.
+Include `DOCUMENT` in a Model's persistence set to store a direct document. Use `@Searchable` for an ordinary document
+value; do not annotate a Model with it.
 
 [//]: # (@formatter:off)
 ```java
 @Model(
-        persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
         document = @DocumentProjection(collection = "active_projects"))
 public record Project(...) {}
+
+@Model(
+        persistence = ModelPersistence.DOCUMENT,
+        document = @DocumentProjection(searchable = false))
+public record UserPreferences(@EntityId UserId userId, ...) {}
 
 @Searchable(collection = "custom_docs")
 public record ExternalDocument(...) {}
 ```
 [//]: # (@formatter:on)
+
+`DocumentProjection.searchable = false` keeps a Model document in private type-isolated storage. Direct Model loads,
+aliases, parent relations and Graph composition still work, while `Fluxzero.search(UserPreferences.class)` does not
+expose the document.
 
 <a name="facets-sorting"></a>
 
@@ -235,8 +243,8 @@ CompletableFuture<List<FacetStats>> handle(ProjectFacetQuery query) {
 
 ## Consistency & The Window
 
-Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` are **synchronous with Model-commit
-completion**.
+Public Model documents selected by including `DOCUMENT` and keeping `DocumentProjection.searchable = true` are
+**synchronous with Model-commit completion**.
 
 - **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
   document.

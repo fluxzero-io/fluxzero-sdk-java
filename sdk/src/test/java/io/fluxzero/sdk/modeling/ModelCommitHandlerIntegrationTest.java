@@ -2497,7 +2497,7 @@ class ModelCommitHandlerIntegrationTest {
         throw lastError;
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record Account(@EntityId AccountId accountId, int balance) {
         @Apply
         Account apply(SetExplicitValue command) {
@@ -3191,7 +3191,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record FamilyRoot(
             @EntityId FamilyRootId familyRootId,
             String name) {
@@ -3362,7 +3362,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record AffixedRoot(
             @EntityId(prefix = "move-", postfix = "-state") AffixedRootId affixedRootId) {
     }
@@ -3476,7 +3476,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record FamilyChild(
             @EntityId FamilyChildId familyChildId,
             @Parent(pathInParent = "children")
@@ -3502,7 +3502,9 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT)
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(searchable = false))
     private record DocumentFamilyChild(
             @EntityId DocumentFamilyChildId documentFamilyChildId,
             @Parent(pathInParent = "documentChildren")
@@ -3528,7 +3530,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, cached = false)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, cached = false)
     private record FamilyGrandchild(
             @EntityId FamilyGrandchildId familyGrandchildId,
             @Parent(pathInParent = "primaryGrandchildren")
@@ -3664,7 +3666,7 @@ class ModelCommitHandlerIntegrationTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "projectionRoots",
                     pathOverrides = @GraphPathOverride(

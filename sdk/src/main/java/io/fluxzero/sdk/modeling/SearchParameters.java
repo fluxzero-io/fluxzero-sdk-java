@@ -91,7 +91,7 @@ public class SearchParameters implements Substitutable<SearchParameters> {
                 .orElse(null);
         if (model != null) {
             return new SearchParameters(
-                    model.directDocument(), model.resolvedCollection(type),
+                    model.publicDocument(), model.resolvedCollection(type),
                     model.timestampPath(), model.endPath());
         }
         return io.fluxzero.common.reflection.ReflectionUtils

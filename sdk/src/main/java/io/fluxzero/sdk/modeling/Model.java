@@ -50,16 +50,19 @@ import java.lang.annotation.Target;
  * supported.
  *
  * <h2>Persistence</h2>
- * {@link #persistence()} makes the durable representation and authoritative load path explicit. Event-sourced models
- * are reconstructed from their model stream, optionally from a snapshot. They may additionally maintain a direct
- * current document for search. Document-authoritative models load directly from that current document. Event storage
+ * {@link #persistence()} makes the durable representations and authoritative load path explicit. Event-sourced models
+ * are reconstructed from their model stream, optionally from a snapshot. Adding {@link ModelPersistence#DOCUMENT}
+ * maintains a current document as well; when event sourcing is absent, that document is authoritative. Event storage
  * and publication remain independent and are controlled by {@link #eventPublication()},
  * {@link #publicationStrategy()}, and per-apply overrides. Internal component documents used for Graph composition are
  * likewise orthogonal and never change the selected load path.
  *
  * <h2>Example</h2>
  * <pre>{@code
- * @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+ * @Model(persistence = {
+ *         ModelPersistence.EVENT_SOURCED,
+ *         ModelPersistence.DOCUMENT
+ * })
  * public record Product(@EntityId ProductId productId, String name) {
  *     @Apply
  *     Product rename(RenameProduct command) {
@@ -98,7 +101,11 @@ public @interface Model {
     AutomaticModelHandling automaticHandling() default AutomaticModelHandling.DEFAULT;
 
     /**
-     * Durable representation and authoritative load path for this Model.
+     * Durable representations and authoritative load path for this Model.
+     * <p>
+     * The set must contain at least one unique value. When {@link ModelPersistence#EVENT_SOURCED EVENT_SOURCED} is
+     * present, the event stream is authoritative. Otherwise {@link ModelPersistence#DOCUMENT DOCUMENT} is
+     * authoritative.
      * <p>
      * This setting does not suppress storing or publishing events produced by {@link Apply} methods. A state-changing
      * event-sourced Model apply must store its reconstructing event; a {@code PUBLISH_ONLY} or
@@ -106,7 +113,7 @@ public @interface Model {
      * no-op remains a valid domain notification when publication is explicitly set to
      * {@link EventPublication#ALWAYS ALWAYS}.
      */
-    ModelPersistence persistence() default ModelPersistence.EVENT_SOURCED;
+    ModelPersistence[] persistence() default {ModelPersistence.EVENT_SOURCED};
 
     /**
      * Whether unknown events should be ignored while reconstructing an event-sourced model.
@@ -179,20 +186,21 @@ public @interface Model {
     /**
      * Advanced configuration for the Model's direct current document.
      * <p>
-     * Select a {@link ModelPersistence} that stores a document to enable this projection. The document store makes the
-     * resulting current state searchable. The collection defaults to the Model's simple class name; timestamps default
-     * to the applied event timestamp when no paths are configured.
+     * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Searchable
+     * documents use a public collection that defaults to the Model's simple class name. Reference-only documents use
+     * type-isolated private storage while remaining available to Model loads, aliases, relationships and Graph
+     * composition. Timestamps default to the applied event timestamp when no paths are configured.
      */
     DocumentProjection document() default @DocumentProjection;
 
     /**
      * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
      * <p>
-     * Fluxzero retains the root's current document in its direct collection when {@link #persistence()} stores a
-     * document and otherwise in the same type-isolated private component storage used by other Graph-only Models. Only
-     * the separately named graph collection is allowed to lag; its high-watermark is exposed through the model
-     * repository. The collection defaults to the resolved direct-model collection plus {@code -graphs} when present,
-     * or to {@code <simple model name>-graphs} otherwise.
+     * Fluxzero retains the root's current document in its public direct collection when it has a searchable document
+     * projection and otherwise in the same type-isolated private storage used by other Graph-only Models. Only the
+     * separately named graph collection is allowed to lag; its high-watermark is exposed through the model repository.
+     * The collection defaults to the resolved public direct-model collection plus {@code -graphs} when present, or to
+     * {@code <simple model name>-graphs} otherwise.
      */
     boolean materializeGraph() default false;
 

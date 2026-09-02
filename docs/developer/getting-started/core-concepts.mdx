@@ -98,7 +98,7 @@ Use an explicit `@HandleCommand` when the action needs orchestration around the 
   <TabItem label="Java">
 
 ```java
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record Project(@EntityId ProjectId projectId,
                       ProjectDetails details,
                       UserId ownerId) {
@@ -109,7 +109,7 @@ public record Project(@EntityId ProjectId projectId,
   <TabItem label="Kotlin">
 
 ```kotlin
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
@@ -214,7 +214,7 @@ Account debit(@Association("sourceId") Account source) { ... }
 Use `@Parent` when independently stored models form a navigable graph:
 
 ```java
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record Task(@EntityId TaskId taskId,
                    @Parent(pathInParent = "tasks") ProjectId projectId,
                    TaskDetails details,
@@ -248,7 +248,7 @@ Not every value needs an independent lifecycle. Use `@Member` inside a model for
 searches and disappears with that model:
 
 ```java
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record Invoice(@EntityId InvoiceId invoiceId,
                       @Member List<InvoiceLine> lines) {
 }
@@ -305,7 +305,7 @@ public final class ProjectQueries {
 }
 ```
 
-The direct collection of a Model using `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` is synchronous with its Model
+The direct collection of a Model whose persistence set contains `DOCUMENT` is synchronous with its Model
 commit. A whole-tree Graph projection is a separate read optimization and is asynchronous by default. Choose
 `GraphProjectionCompletion.AWAIT` for an operation whose result must not be released until affected root projections
 have crossed its state boundary.

@@ -218,11 +218,10 @@ public final class EntityMetadata {
             throw invalid("%s cannot be annotated with both @Model and @Aggregate".formatted(type.getName()));
         }
         if (model != null) {
-            validateModelPersistence(type, model);
+            Set<ModelPersistence> persistence = validateModelPersistence(type, model);
+            return RootConfiguration.model(model, persistence);
         }
-        return model == null
-                ? aggregate == null ? null : RootConfiguration.aggregate(aggregate)
-                : RootConfiguration.model(model);
+        return aggregate == null ? null : RootConfiguration.aggregate(aggregate);
     }
 
     public Class<?> type() {
@@ -525,10 +524,13 @@ public final class EntityMetadata {
             return Optional.empty();
         }
         if (rootConfiguration.directDocument()) {
-            return Optional.of(configuredModelDocumentCollection());
+            return Optional.of(rootConfiguration.publicDocument()
+                                       ? configuredModelDocumentCollection()
+                                       : ModelDocumentMutation.privateModelDocumentCollection(
+                                               type.getName()));
         }
         return participatesInGraphComposition() || rootConfiguration.materializeGraph()
-                ? Optional.of(ModelDocumentMutation.graphComponentCollection(
+                ? Optional.of(ModelDocumentMutation.privateModelDocumentCollection(
                         type.getName()))
                 : Optional.empty();
     }
@@ -563,7 +565,7 @@ public final class EntityMetadata {
                 () -> new IllegalStateException(
                         "Graph projection root %s has no current-document collection"
                                 .formatted(type.getName())));
-        String publicCollectionBase = rootConfiguration.directDocument()
+        String publicCollectionBase = rootConfiguration.publicDocument()
                 ? rootCollection : type.getSimpleName();
         String collection = projection.collection().isEmpty()
                 ? publicCollectionBase + "-graphs"
@@ -844,9 +846,20 @@ public final class EntityMetadata {
         }
     }
 
-    private static void validateModelPersistence(Class<?> type, Model annotation) {
-        ModelPersistence persistence = annotation.persistence();
-        if (!persistence.isEventSourced()) {
+    private static Set<ModelPersistence> validateModelPersistence(Class<?> type, Model annotation) {
+        ModelPersistence[] configured = annotation.persistence();
+        if (configured.length == 0) {
+            throw invalid("@Model.persistence on %s must contain at least one representation"
+                                  .formatted(type.getName()));
+        }
+        Set<ModelPersistence> persistence = new LinkedHashSet<>(Arrays.asList(configured));
+        if (persistence.size() != configured.length) {
+            throw invalid("@Model.persistence on %s must not contain duplicate representations"
+                                  .formatted(type.getName()));
+        }
+        boolean eventSourced = persistence.contains(ModelPersistence.EVENT_SOURCED);
+        boolean storesDocument = persistence.contains(ModelPersistence.DOCUMENT);
+        if (!eventSourced) {
             if (annotation.ignoreUnknownEvents()) {
                 throw invalid("@Model.ignoreUnknownEvents on %s requires event-sourced persistence"
                                       .formatted(type.getName()));
@@ -865,13 +878,20 @@ public final class EntityMetadata {
             }
         }
         DocumentProjection document = annotation.document();
-        if (!persistence.storesDocument()
-            && (!document.collection().isEmpty()
+        if (!storesDocument
+            && (!document.searchable()
+                || !document.collection().isEmpty()
                 || !document.timestampPath().isEmpty()
                 || !document.endPath().isEmpty())) {
             throw invalid("@Model.document on %s requires persistence that stores a direct document"
                                   .formatted(type.getName()));
         }
+        if (storesDocument && !document.searchable()
+            && !document.collection().isEmpty()) {
+            throw invalid("@Model.document.collection on %s requires a searchable document projection"
+                                  .formatted(type.getName()));
+        }
+        return Set.copyOf(persistence);
     }
 
     private void validateProjectionPath(
@@ -1458,6 +1478,7 @@ public final class EntityMetadata {
             EventPublication eventPublication,
             EventPublicationStrategy publicationStrategy,
             boolean directDocument,
+            boolean publicDocument,
             boolean materializeGraph,
             GraphProjection graphProjection,
             String collection,
@@ -1471,14 +1492,21 @@ public final class EntityMetadata {
                     .orElse(type.getSimpleName());
         }
 
-        static RootConfiguration model(Model annotation) {
+        static RootConfiguration model(
+                Model annotation,
+                Set<ModelPersistence> persistence) {
+            boolean eventSourced = persistence.contains(
+                    ModelPersistence.EVENT_SOURCED);
+            boolean storesDocument = persistence.contains(
+                    ModelPersistence.DOCUMENT);
             return new RootConfiguration(
                     RootKind.MODEL, annotation.conflictPolicy(), annotation.automaticHandling(),
-                    annotation.persistence().isEventSourced(), annotation.ignoreUnknownEvents(),
+                    eventSourced, annotation.ignoreUnknownEvents(),
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(),
-                    annotation.persistence().storesDocument(), annotation.materializeGraph(), annotation.graphProjection(),
+                    storesDocument, storesDocument && annotation.document().searchable(),
+                    annotation.materializeGraph(), annotation.graphProjection(),
                     annotation.document().collection(), annotation.document().timestampPath(),
                     annotation.document().endPath());
         }
@@ -1490,7 +1518,8 @@ public final class EntityMetadata {
                     annotation.snapshotPeriod(), annotation.maxSnapshotCount(), annotation.cached(),
                     annotation.cachingDepth(), annotation.checkpointPeriod(), annotation.commitPolicy(),
                     annotation.eventPublication(), annotation.publicationStrategy(),
-                    annotation.searchable(), false, null, annotation.collection(), annotation.timestampPath(),
+                    annotation.searchable(), annotation.searchable(), false, null,
+                    annotation.collection(), annotation.timestampPath(),
                     annotation.endPath());
         }
 
@@ -1529,7 +1558,7 @@ public final class EntityMetadata {
             return new RootConfiguration(
                     kind, conflictPolicy, automaticHandling, eventSourced, ignoreUnknownEvents,
                     snapshotPeriod, maxSnapshotCount, cached, cachingDepth, checkpointPeriod, commitPolicy,
-                    eventPublication, publicationStrategy, directDocument, materializeGraph,
+                    eventPublication, publicationStrategy, directDocument, publicDocument, materializeGraph,
                     graphProjection, collection, timestampPath, endPath);
         }
 

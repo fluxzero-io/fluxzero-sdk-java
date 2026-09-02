@@ -30,24 +30,24 @@ import java.util.Objects;
 @Value
 public class ModelDocumentMutation {
 
-    /** Prefix for type-isolated internal graph-component collections. */
-    public static final String GRAPH_COMPONENT_COLLECTION_PREFIX =
+    /** Prefix for type-isolated internal current-Model collections. */
+    public static final String PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX =
             "$modelGraphComponents/";
 
     /**
-     * Returns the private search collection for current graph-component documents of one model type.
+     * Returns the private search collection for current documents of one Model type.
      * <p>
-     * Type isolation lets relationship search use the component's ordinary document indexes without scanning or
-     * mixing unrelated model types. The complete model type name is already part of the persisted model contract and
-     * keeps the collection deterministic across SDK instances.
+     * Type isolation lets direct lookup, relationship search and Graph composition use ordinary document indexes
+     * without scanning or mixing unrelated Model types. The complete Model type name is already part of the persisted
+     * contract and keeps the collection deterministic across SDK instances.
      */
-    public static String graphComponentCollection(String modelType) {
+    public static String privateModelDocumentCollection(String modelType) {
         Objects.requireNonNull(modelType, "Model type");
         if (modelType.isBlank() || !modelType.equals(modelType.trim())) {
             throw new IllegalArgumentException(
                     "Model type must not be blank or have surrounding whitespace");
         }
-        return GRAPH_COMPONENT_COLLECTION_PREFIX + modelType;
+        return PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX + modelType;
     }
 
     /**
@@ -58,8 +58,8 @@ public class ModelDocumentMutation {
             "$modelMigrationDocuments";
 
     /**
-     * Current-document collection. This is either the independently searchable model collection or an internal,
-     * type-isolated graph-component collection.
+     * Current-document collection. This is either the independently searchable Model collection or an internal,
+     * type-isolated current-Model collection.
      */
     String collection;
 

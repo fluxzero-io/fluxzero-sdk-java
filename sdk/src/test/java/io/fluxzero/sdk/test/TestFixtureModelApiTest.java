@@ -23,6 +23,7 @@ import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.EventPublication;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.AssertLegal;
+import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.Parent;
@@ -199,7 +200,10 @@ class TestFixtureModelApiTest {
                 .expectNoEvents()
                 .andThen()
                 .whenApplying(ignored -> Fluxzero.loadModel(id, UncachedDocument.class).get())
-                .expectResult(new UncachedDocument(id, 4));
+                .expectResult(new UncachedDocument(id, 4))
+                .andThen()
+                .whenApplying(ignored -> Fluxzero.search(UncachedDocument.class).fetchAll())
+                .expectResult(List.of());
     }
 
     @Test
@@ -351,6 +355,7 @@ class TestFixtureModelApiTest {
 
     @Model(
             persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(searchable = false),
             eventPublication = EventPublication.NEVER,
             cached = false)
     private record UncachedDocument(@EntityId String id, int value) {

@@ -428,13 +428,13 @@ public class HandleDocumentTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, document = @DocumentProjection(collection = "graph-roots"),
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, document = @DocumentProjection(collection = "graph-roots"),
             materializeGraph = true)
     @Revision(1)
     record GraphRoot(@EntityId String id) {
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     record DirectOnlyModel(@EntityId String id) {
     }
 

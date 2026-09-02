@@ -142,8 +142,8 @@ class ModelGraphComponentSearchTest {
                 .modelDocumentCollection().orElseThrow();
 
         assertNotEquals(first, second);
-        assertTrue(first.startsWith(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION_PREFIX), first);
-        assertTrue(second.startsWith(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION_PREFIX), second);
+        assertTrue(first.startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX), first);
+        assertTrue(second.startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX), second);
     }
 
     private static List<SearchRootId> graphIds(List<Graph<SearchRoot>> graphs) {
@@ -169,7 +169,7 @@ class ModelGraphComponentSearchTest {
                                  .fetchAll()));
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true)
     private record SearchRoot(@EntityId SearchRootId searchRootId) {
     }
 
@@ -273,7 +273,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record SearchLeaf(
             @EntityId SearchLeafId searchLeafId,
             @Parent(pathInParent = "searchLeaves") PrivateChildId privateChildId) {

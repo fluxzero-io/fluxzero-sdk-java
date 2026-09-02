@@ -3,6 +3,7 @@ package io.fluxzero.sdk.modeling
 import io.fluxzero.sdk.Fluxzero
 import io.fluxzero.sdk.persisting.eventsourcing.Apply
 import org.junit.jupiter.api.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
@@ -12,7 +13,7 @@ class ModelKotlinTest {
         val annotation = KotlinModel::class.java.getAnnotation(Model::class.java)
 
         assertNotNull(annotation)
-        assertEquals(ModelPersistence.DOCUMENT, annotation.persistence)
+        assertContentEquals(arrayOf(ModelPersistence.DOCUMENT), annotation.persistence)
         assertEquals("kotlin-models", annotation.document.collection)
         assertEquals(1, KotlinModel("model", emptyList()).rename(RenameKotlinModel("new")).parts.size)
     }
@@ -24,7 +25,7 @@ class ModelKotlinTest {
 }
 
 @Model(
-    persistence = ModelPersistence.DOCUMENT,
+    persistence = [ModelPersistence.DOCUMENT],
     document = DocumentProjection(collection = "kotlin-models"),
 )
 data class KotlinModel(

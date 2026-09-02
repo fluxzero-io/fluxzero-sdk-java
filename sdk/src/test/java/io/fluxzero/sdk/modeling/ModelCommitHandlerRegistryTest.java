@@ -2075,7 +2075,7 @@ class ModelCommitHandlerRegistryTest {
                 null, false);
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "retryRoots"))
     private record RetryRoot(
@@ -2463,7 +2463,7 @@ class ModelCommitHandlerRegistryTest {
             String batchId) {
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "awaited-graphs",
                     completion = GraphProjectionCompletion.AWAIT))
@@ -2485,14 +2485,14 @@ class ModelCommitHandlerRegistryTest {
             ProjectionRootId rootId) {
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "default-graphs"))
     private record DefaultProjectionRoot(
             @EntityId String id) {
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(
                     collection = "async-graphs",
                     completion = GraphProjectionCompletion.ASYNC))

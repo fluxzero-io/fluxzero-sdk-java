@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,7 +66,7 @@ class DownstreamProjectTest {
                 DownstreamModel.Child.class.getDeclaredMethod("externalParentId").getAnnotation(Parent.class);
 
         assertNotNull(model);
-        assertEquals(ModelPersistence.DOCUMENT, model.persistence());
+        assertArrayEquals(new ModelPersistence[]{ModelPersistence.DOCUMENT}, model.persistence());
         assertEquals("downstream-models", model.document().collection());
         assertNotNull(typedParent);
         assertNotNull(untypedParent);
