@@ -949,9 +949,36 @@ class WebSocketTransportCodecsTest {
             assertEquals(
                     ModelRelationConstraint.RelationDirection.ANCESTOR,
                     relation.getDirection());
+            assertEquals(List.of(), relation.getRelatedModelIds());
             assertEquals(
                     1,
                     decoded.toMetric().getRelationCount());
+        }
+    }
+
+    @Test
+    void exactModelRelationIdsRoundTripWithoutARelatedDocumentQuery()
+            throws Exception {
+        ModelRelationConstraint relation =
+                ModelRelationConstraint.builder()
+                        .direction(ModelRelationConstraint.RelationDirection.ANCESTOR)
+                        .relatedModelId("project-1")
+                        .relatedModelId("project-2")
+                        .maxRelatedModels(10)
+                        .build();
+        SearchModelDocuments request = new SearchModelDocuments(
+                SearchDocuments.builder()
+                        .query(SearchQuery.builder().collection("tasks").build())
+                        .build(),
+                List.of(relation));
+
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec)) {
+            SearchModelDocuments decoded = assertInstanceOf(
+                    SearchModelDocuments.class, roundTrip(codec, request));
+
+            assertEquals(List.of("project-1", "project-2"),
+                         decoded.getRelations().getFirst().getRelatedModelIds());
+            assertNull(decoded.getRelations().getFirst().getQuery());
         }
     }
 

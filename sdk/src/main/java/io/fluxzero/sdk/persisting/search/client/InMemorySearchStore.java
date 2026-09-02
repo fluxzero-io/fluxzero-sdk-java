@@ -241,23 +241,10 @@ public class InMemorySearchStore implements SearchClient {
         LinkedHashSet<String> candidates = null;
         for (ModelRelationConstraint relation :
                 request.getRelations()) {
-            List<String> related = search(
-                    SearchDocuments.builder()
-                            .query(relation.getQuery())
-                            .maxSize(
-                                    relation.getMaxRelatedModels()
-                                    + 1)
-                            .build(),
-                    relation.getMaxRelatedModels() + 1)
-                    .map(SearchHit::getId)
-                    .toList();
-            if (related.size()
-                > relation.getMaxRelatedModels()) {
-                throw new IllegalArgumentException(
-                        "Related model query exceeds maxRelatedModels "
-                        + relation.getMaxRelatedModels()
-                        + "; narrow the query or use a materialized graph projection");
-            }
+            List<String> related =
+                    relation.getRelatedModelIds().isEmpty()
+                            ? searchRelatedModelIds(relation)
+                            : relation.getRelatedModelIds();
             Set<String> resolved =
                     modelRelationResolver.resolve(
                             new LinkedHashSet<>(related),
@@ -284,6 +271,28 @@ public class InMemorySearchStore implements SearchClient {
                         .documentIds(List.copyOf(candidates))
                         .build(),
                 fetchSize);
+    }
+
+    private List<String> searchRelatedModelIds(
+            ModelRelationConstraint relation) {
+        List<String> result = search(
+                SearchDocuments.builder()
+                        .query(relation.getQuery())
+                        .maxSize(
+                                relation.getMaxRelatedModels()
+                                + 1)
+                        .build(),
+                relation.getMaxRelatedModels() + 1)
+                .map(SearchHit::getId)
+                .toList();
+        if (result.size()
+            > relation.getMaxRelatedModels()) {
+            throw new IllegalArgumentException(
+                    "Related model query exceeds maxRelatedModels "
+                    + relation.getMaxRelatedModels()
+                    + "; narrow the query or use a materialized graph projection");
+        }
+        return result;
     }
 
     @Override

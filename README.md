@@ -3395,10 +3395,42 @@ public record Address(
 
 Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
 injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
-`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. These selectors first search the related Model's
-own indexed current-document collection and only then traverse the matching IDs to their targets. Non-public Graph
-components use a private collection per Model type, so they remain available for efficient parent selection without
-being mixed with other component types or exposed by `Fluxzero.search(Component.class)`.
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use a typed ID when the related identity is already
+known; Fluxzero then starts directly from the durable relationship index, so that parent or ancestor does not need a
+current-state document:
+
+```java
+List<Task> projectTasks = Fluxzero.search(Task.class)
+        .whereParent(projectId)
+        .fetch(100);
+
+List<Task> organisationTasks = Fluxzero.search(Task.class)
+        .whereAncestor(organisationId)
+        .fetch(100);
+```
+
+`whereAncestor(organisationId, 2, 2)` restricts traversal to exactly a grandparent. For a functional ID that does not
+extend `Id<T>`, pass its Model type as the second argument. A parent-scoped identity needs its exact persisted identity,
+so pass the already loaded parent or ancestor `Graph` instead.
+
+Use a Model class plus constraints when the related identity is not known and must be selected by current content:
+
+```java
+List<Task> activeProjectTasks = Fluxzero.search(Task.class)
+        .whereParent(Project.class, match("ACTIVE", "status"))
+        .fetch(100);
+```
+
+This form first searches the related Model's own current-document collection and then traverses the matching IDs. A
+public direct document is not required: an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true`
+maintains a type-isolated private current document that can supply the predicate. The materialized whole-Graph
+projection is not used as a substitute for the related Model's own fields.
+
+The returned target also needs a current document because `Search` returns current documents. That may be a public
+`DOCUMENT` projection or a private document maintained for Graph participation; adding a relationship selector makes
+that private target available only within the explicitly bounded relation. Plain `Fluxzero.search(Component.class)`
+still does not expose it. A standalone event-sourced target without a direct document, explicit composition path or
+materialized root has no searchable representation; load that known Model or Graph by identity instead.
 `searchGraph(User.class)` returns a
 `Search<Graph<User>>`, so `stream()`, `fetchAll()`, `fetchFirst()` and other terminal operations remain typed without a
 cast or type witness. It uses a configured materialized projection and otherwise stitches current public or private

@@ -138,11 +138,31 @@ val results = Fluxzero.search(Task::class.java)
     .fetchAll()
 ```
 
-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
-and further traversal. Class-based constraints use the related Model's actual current-document collection, including
-the type-isolated private collection of a Graph-only Model component. They select matching related IDs before
-relationship traversal, so prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` for
-selective live Graph search based on children. `searchGraph(Root::class.java).stream()` returns typed lazy `Graph<Root>` values through
+When a parent or ancestor ID is already known, avoid a document predicate:
+
+```kotlin
+val projectTasks = Fluxzero.search(Task::class.java)
+    .whereParent(projectId)
+    .fetch(100)
+
+val organisationTasks = Fluxzero.search(Task::class.java)
+    .whereAncestor(organisationId)
+    .fetch(100)
+```
+
+The ID overload starts from durable relationships and does not require a document for the parent or ancestor. A typed
+`Id<T>` supplies its Model type; otherwise pass the functional ID and Model class. Use a loaded `Graph` for a
+parent-scoped identity. Depth-bounded overloads support exact grandparents and further traversal.
+
+Use the class-and-constraint overload when IDs must be selected by related Model content. It requires that related
+Model's own public or private current document; an explicit composition path or `materializeGraph = true` supplies a
+private one, while the whole materialized Graph projection is not searched as the Model itself. The returned target
+also needs a public document or relation-scoped private Graph-component document. A standalone event-sourced target
+without either is loaded by ID rather than searched.
+
+Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` for content-based traversal. Prefer
+`searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` for selective live Graph search based on
+children. `searchGraph(Root::class.java).stream()` returns typed lazy `Graph<Root>` values through
 explicit `@Parent(pathInParent = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches
 live; pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` only for
 an explicit raw JSON boundary. Full-graph constraints mean the same on both routes, but broad free-form child filtering,

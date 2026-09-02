@@ -416,10 +416,16 @@ List<Task> tasks = Fluxzero.search(Task.class)
         .fetchAll();
 ```
 
-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
-class-based relationship constraints for selective parent or Graph search through either a searchable child or a
-type-isolated private Graph component; Fluxzero searches matching child IDs before traversing relationships and
-composing targets. Prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` over a broad forced-live
+Use `.whereParent(projectId)` or `.whereAncestor(organisationId)` when the related typed ID is known. This traverses
+durable relationships directly and needs no parent or ancestor document. Use the ID-plus-Model-class overload for
+untyped functional IDs and a loaded `Graph` for parent-scoped identities. The returned target must still have either a
+public document or a private current document maintained for Graph participation; standalone event-sourced targets
+without one should be loaded by ID.
+
+Use the class-and-constraint `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` overloads when related
+IDs must first be selected by current Model content. They use that Model's own public or type-isolated private current
+document; `materializeGraph = true` supplies a private root document but does not make the whole Graph projection the
+related predicate source. Prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` over a broad forced-live
 nested-path filter when the child type is known. Use
 `searchGraph(Root.class).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness. It
 reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;

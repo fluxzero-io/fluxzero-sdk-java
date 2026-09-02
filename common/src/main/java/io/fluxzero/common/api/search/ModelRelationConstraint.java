@@ -16,6 +16,7 @@
 
 package io.fluxzero.common.api.search;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
@@ -28,9 +29,10 @@ import java.util.Objects;
 /**
  * Current-state relationship constraint for independent model documents.
  * <p>
- * The {@link #query} selects related model documents. The runtime then follows temporal model relationships from those
- * matches towards the target documents of a {@link SearchModelDocuments} request. Traversal is always bounded and
- * never changes the ordinary document constraint semantics.
+ * A relation starts either from related model documents selected by {@link #query} or from
+ * {@link #relatedModelIds exact persisted model identities}. The runtime then follows temporal model relationships
+ * from those IDs towards the target documents of a {@link SearchModelDocuments} request. Traversal is always bounded
+ * and never changes the ordinary document constraint semantics.
  */
 @Value
 @Builder(toBuilder = true)
@@ -45,7 +47,17 @@ public class ModelRelationConstraint {
     /**
      * Query that selects the related ancestor or descendant documents.
      */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     SearchQuery query;
+
+    /**
+     * Exact persisted identities used as relation starting points instead of a related-document query.
+     * <p>
+     * This form does not require the related models to maintain current-state documents.
+     */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    @Singular("relatedModelId")
+    List<String> relatedModelIds;
 
     /**
      * Minimum number of relationship edges between a returned target and a related match.
@@ -66,7 +78,8 @@ public class ModelRelationConstraint {
     List<String> paths;
 
     /**
-     * Maximum number of documents that the related query may match before graph search refuses the request.
+     * Maximum number of documents that a related query may match, or exact related IDs that may be supplied, before
+     * graph search refuses the request.
      */
     @Builder.Default
     int maxRelatedModels = 10_000;
@@ -80,6 +93,7 @@ public class ModelRelationConstraint {
     public ModelRelationConstraint(
             RelationDirection direction,
             SearchQuery query,
+            List<String> relatedModelIds,
             int minDepth,
             int maxDepth,
             List<String> paths,
@@ -87,8 +101,22 @@ public class ModelRelationConstraint {
             int maxTraversedModels) {
         this.direction = Objects.requireNonNull(
                 direction, "Model relation direction");
-        this.query = Objects.requireNonNull(
-                query, "Related model query");
+        LinkedHashSet<String> normalizedIds = new LinkedHashSet<>();
+        if (relatedModelIds != null) {
+            for (String modelId : relatedModelIds) {
+                if (modelId == null || modelId.isBlank()) {
+                    throw new IllegalArgumentException(
+                            "Related model IDs must not be blank");
+                }
+                normalizedIds.add(modelId);
+            }
+        }
+        if ((query == null) == normalizedIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Supply either a related model query or exact related model IDs");
+        }
+        this.query = query;
+        this.relatedModelIds = List.copyOf(normalizedIds);
         if (minDepth < 1 || maxDepth < minDepth
             || maxDepth > 64) {
             throw new IllegalArgumentException(
@@ -111,6 +139,10 @@ public class ModelRelationConstraint {
             || maxRelatedModels > 100_000) {
             throw new IllegalArgumentException(
                     "maxRelatedModels must be between 1 and 100000");
+        }
+        if (this.relatedModelIds.size() > maxRelatedModels) {
+            throw new IllegalArgumentException(
+                    "Exact related model IDs exceed maxRelatedModels " + maxRelatedModels);
         }
         if (maxTraversedModels < maxRelatedModels
             || maxTraversedModels > 1_000_000) {

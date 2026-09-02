@@ -33,6 +33,8 @@ import io.fluxzero.common.api.search.HasDocument;
 import io.fluxzero.common.api.search.SearchCollection;
 import io.fluxzero.common.api.search.SearchDocuments;
 import io.fluxzero.common.api.search.SearchHistogram;
+import io.fluxzero.common.api.search.SearchModelDocuments;
+import io.fluxzero.common.api.search.SearchModelGraphDocuments;
 import io.fluxzero.common.api.search.SearchQuery;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.sdk.persisting.search.SearchHit;
@@ -149,6 +151,30 @@ class DocumentTrackingSearchClient implements SearchClient {
     @Override
     public Stream<SearchHit<SerializedDocument>> search(SearchDocuments searchDocuments, int fetchSize) {
         return delegate.search(searchDocuments, fetchSize);
+    }
+
+    @Override
+    public Stream<SearchHit<SerializedDocument>> searchModels(
+            SearchModelDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModels(searchDocuments, fetchSize);
+    }
+
+    @Override
+    public CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelsAsync(
+            SearchModelDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModelsAsync(searchDocuments, fetchSize);
+    }
+
+    @Override
+    public Stream<SearchHit<SerializedDocument>> searchModelGraph(
+            SearchModelGraphDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModelGraph(searchDocuments, fetchSize);
+    }
+
+    @Override
+    public CompletableFuture<List<SearchHit<SerializedDocument>>> searchModelGraphAsync(
+            SearchModelGraphDocuments searchDocuments, int fetchSize) {
+        return delegate.searchModelGraphAsync(searchDocuments, fetchSize);
     }
 
     @Override

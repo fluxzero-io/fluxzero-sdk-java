@@ -169,7 +169,10 @@ Without an explicit path, Fluxzero stores no Graph-component document and perfor
 
 You can additionally:
 
-- join current direct documents through `whereAncestor(...)` and `whereDescendant(...)`;
+- select current target documents directly through a known typed parent or ancestor ID, even when that related Model
+  has no current document;
+- select parents, ancestors, children or descendants by current document content through the class-and-constraint
+  `whereParent(...)`, `whereAncestor(...)`, `whereChild(...)` and `whereDescendant(...)` overloads;
 - search typed complete graphs with `searchGraph(Root.class)`, using a materialized projection when configured and
   otherwise stitching live;
 - set `materializeGraph = true` for a durable whole-root document and optionally configure it with
