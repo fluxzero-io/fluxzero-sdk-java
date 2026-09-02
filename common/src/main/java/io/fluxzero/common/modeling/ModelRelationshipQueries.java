@@ -24,6 +24,7 @@ import io.fluxzero.common.api.modeling.ModelCommitValidator;
 import io.fluxzero.common.api.modeling.ModelDeletionCascade;
 import io.fluxzero.common.api.modeling.ModelEventStreamRequest;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelRelationship;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.search.ModelGraphComposition;
 import io.fluxzero.common.api.search.ModelRelationConstraint;
@@ -338,6 +339,101 @@ public final class ModelRelationshipQueries {
                         Function.identity(),
                         null)
                 .modelIds().stream().filter(modelId -> !rootIds.contains(modelId)).toList();
+    }
+
+    /** Creates the transient owned-relationship view used to validate recursive cascade plans. */
+    public static OwnedRelationshipGraph ownedRelationshipGraph() {
+        return new OwnedRelationshipGraph();
+    }
+
+    /**
+     * Mutable commit-scoped view of relationships that own the child lifecycle.
+     * Deleted children deliberately remain until the caller has verified that every current descendant is a delete
+     * target; {@link #removeModel(String)} advances the view after an accepted plan in a commit batch.
+     */
+    public static final class OwnedRelationshipGraph {
+        private final Map<String, LinkedHashSet<String>> childrenByParent =
+                new LinkedHashMap<>();
+        private final Map<String, LinkedHashSet<String>> parentsByChild =
+                new LinkedHashMap<>();
+
+        /** Adds one current owned child edge. */
+        public void add(String parentId, String childId) {
+            childrenByParent.computeIfAbsent(
+                    parentId, ignored -> new LinkedHashSet<>()).add(childId);
+            parentsByChild.computeIfAbsent(
+                    childId, ignored -> new LinkedHashSet<>()).add(parentId);
+        }
+
+        /** Adds a relationship only when deletion of its parent owns the child lifecycle. */
+        public void add(Relationship relationship) {
+            if (relationship.deleteOnParentDeletion()) {
+                add(relationship.parentId(), relationship.childId());
+            }
+        }
+
+        /** Applies the final non-deletion relationship values from ordered commit steps. */
+        public void overlayChanges(
+                Collection<ModelCommitAssignment.RelationshipStep> steps) {
+            steps.stream().flatMap(step -> step.changes().stream())
+                    .filter(change -> !change.deleted())
+                    .forEach(change -> {
+                        removeChild(change.childId());
+                        change.desired().stream()
+                                .filter(ModelRelationship::isDeleteOnParentDeletion)
+                                .forEach(relationship -> add(
+                                        relationship.getParentId(), change.childId()));
+                    });
+        }
+
+        /** Removes every incoming and outgoing owned edge for an accepted deleted Model. */
+        public void removeModel(String modelId) {
+            removeChild(modelId);
+            removeParent(modelId);
+        }
+
+        /** Returns all transitive owned descendants in deterministic traversal order. */
+        public List<String> descendants(Collection<String> roots) {
+            return ModelRelationshipQueries.descendants(
+                    roots,
+                    frontier -> frontier.stream()
+                            .map(childrenByParent::get)
+                            .filter(java.util.Objects::nonNull)
+                            .flatMap(Set::stream)
+                            .toList());
+        }
+
+        private void removeChild(String childId) {
+            Set<String> parents = parentsByChild.remove(childId);
+            if (parents == null) {
+                return;
+            }
+            parents.forEach(parentId -> {
+                LinkedHashSet<String> children = childrenByParent.get(parentId);
+                if (children != null) {
+                    children.remove(childId);
+                    if (children.isEmpty()) {
+                        childrenByParent.remove(parentId);
+                    }
+                }
+            });
+        }
+
+        private void removeParent(String parentId) {
+            Set<String> children = childrenByParent.remove(parentId);
+            if (children == null) {
+                return;
+            }
+            children.forEach(childId -> {
+                LinkedHashSet<String> parents = parentsByChild.get(childId);
+                if (parents != null) {
+                    parents.remove(parentId);
+                    if (parents.isEmpty()) {
+                        parentsByChild.remove(childId);
+                    }
+                }
+            });
+        }
     }
 
     /** Storage-independent view of one temporal child-to-parent relationship interval. */

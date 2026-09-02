@@ -27,6 +27,7 @@ import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
+import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import org.junit.jupiter.api.Test;
 
@@ -43,6 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
@@ -1094,6 +1096,89 @@ class ModelCacheTrackerTest {
                     12L,
                     tracker.safeDocumentBoundary());
         } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void hardDeleteReleasesLookupBeforeDeferredEvictionNotification()
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
+                polls = polls(eventStore);
+        ConcurrentLinkedQueue<Runnable> evictionNotifications =
+                new ConcurrentLinkedQueue<>();
+        Cache cache = new SoftReferenceCache(
+                100, evictionNotifications::add, null);
+        cache.put("sample-1", entity(SampleModel.class));
+        CountDownLatch refreshStarted = new CountDownLatch(1);
+        CountDownLatch continueRefresh = new CountDownLatch(1);
+        try (ModelCacheTracker tracker =
+                     new ModelCacheTracker(
+                             eventStore, cache,
+                             (ignored, safeStateIndex) -> {
+                                 refreshStarted.countDown();
+                                 try {
+                                     assertTrue(continueRefresh.await(
+                                             5L, TimeUnit.SECONDS));
+                                 } catch (InterruptedException failure) {
+                                     Thread.currentThread().interrupt();
+                                     throw new RuntimeException(failure);
+                                 }
+                                 return new ModelCacheTracker.RefreshedBatch(
+                                         safeStateIndex);
+                             })) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            2L, 11L, 11L, 11L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.COMMIT,
+                                            "remote-commit", 0,
+                                            11L, null,
+                                            List.of(
+                                                    new ModelCommitTargetResult(
+                                                            "sample-1",
+                                                            1L,
+                                                            true))))));
+            assertTrue(refreshStarted.await(5L, TimeUnit.SECONDS));
+
+            CompletableFuture<Entity<?>> lookup = new CompletableFuture<>();
+            CountDownLatch lookupStarted = new CountDownLatch(1);
+            Thread lookupThread = Thread.ofVirtual().start(() -> {
+                lookupStarted.countDown();
+                lookup.complete(tracker.current(
+                        "sample-1", SampleModel.class));
+            });
+            assertTrue(lookupStarted.await(5L, TimeUnit.SECONDS));
+            long waitingDeadline = System.nanoTime()
+                                   + TimeUnit.SECONDS.toNanos(5L);
+            while (lookupThread.getState() != Thread.State.WAITING
+                   && !lookup.isDone()
+                   && System.nanoTime() < waitingDeadline) {
+                Thread.onSpinWait();
+            }
+            assertFalse(lookup.isDone());
+
+            completeNext(
+                    polls,
+                    new TrackModelUpdatesResult(
+                            3L, 12L, 12L, 12L,
+                            List.of(
+                                    new ModelUpdate(
+                                            ModelUpdateKind.HARD_DELETE,
+                                            "deletion-1", 0,
+                                            12L, null,
+                                            List.of()))));
+
+            assertTimeoutPreemptively(
+                    Duration.ofSeconds(1L),
+                    () -> assertNull(lookup.join()));
+            assertFalse(evictionNotifications.isEmpty());
+        } finally {
+            continueRefresh.countDown();
             cache.close();
         }
     }
