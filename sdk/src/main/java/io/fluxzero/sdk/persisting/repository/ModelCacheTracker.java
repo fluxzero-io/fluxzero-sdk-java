@@ -139,16 +139,7 @@ final class ModelCacheTracker implements AutoCloseable {
             return;
         }
         staleModelIds.remove(modelId);
-        CompletableFuture<Void> refresh =
-                entry.refresh;
-        if (refresh != null) {
-            /*
-             * A current lookup may already be waiting for this stale entry to refresh. A missing cached value makes
-             * that refresh ineligible, so release the waiter; it will observe the detached stale entry and use the
-             * repository path.
-             */
-            refresh.complete(null);
-        }
+        releaseRefreshWaiter(entry);
     }
 
     /**
@@ -725,9 +716,13 @@ final class ModelCacheTracker implements AutoCloseable {
             }
             if (update.getKind()
                 == ModelUpdateKind.HARD_DELETE) {
+                List<Entry> discardedEntries =
+                        List.copyOf(entries.values());
                 cache.clear();
                 entries.clear();
                 staleModelIds.clear();
+                discardedEntries.forEach(
+                        ModelCacheTracker::releaseRefreshWaiter);
             } else {
                 for (ModelCommitTargetResult target :
                         update.getTargets()) {
@@ -998,6 +993,18 @@ final class ModelCacheTracker implements AutoCloseable {
             result = result.getCause();
         }
         return result;
+    }
+
+    private static void releaseRefreshWaiter(Entry entry) {
+        CompletableFuture<Void> refresh = entry.refresh;
+        if (refresh != null) {
+            /*
+             * A current lookup may already be waiting for this stale entry. Once the entry is detached, its refresh
+             * is ineligible and the reader must fall back to the repository path. Cache eviction notifications may be
+             * asynchronous, so the owner performing a bulk invalidation cannot rely on the listener to release it.
+             */
+            refresh.complete(null);
+        }
     }
 
     private static void validatePosition(
