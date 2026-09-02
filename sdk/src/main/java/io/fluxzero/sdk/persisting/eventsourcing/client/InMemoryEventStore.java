@@ -31,6 +31,7 @@ import io.fluxzero.common.api.modeling.GetModelGraphResult;
 import io.fluxzero.common.api.modeling.GetRelationships;
 import io.fluxzero.common.api.modeling.ModelCommitValidator;
 import io.fluxzero.common.api.modeling.ModelChangeTarget;
+import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
@@ -284,6 +285,10 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
             }
+            conflict = cascadeConflict(commit, description);
+            if (conflict != null) {
+                return new ModelCommitOutcome(conflict, List.of());
+            }
             validateCommitRelationships(description);
             description.aliases().validate(modelAliases);
             List<ModelStreamHead> assignedHeads = new ArrayList<>(
@@ -383,6 +388,45 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
             return new ModelCommitOutcome(
                     modelCommits.get(commit.getCommitId()), publishedEvents);
+    }
+
+    private CommitModelsResult cascadeConflict(
+            CommitModels commit,
+            ModelCommitAssignment.Description description) {
+        List<String> cascadeRoots = description.cascadeRootIds();
+        if (cascadeRoots.isEmpty()) {
+            return null;
+        }
+        ModelRelationshipQueries.OwnedRelationshipGraph graph =
+                ModelRelationshipQueries.ownedRelationshipGraph();
+        currentModelRelationships.forEach((childId, current) ->
+                current.values().forEach(graph::add));
+        graph.overlayChanges(description.relationshipSteps());
+        LinkedHashSet<String> missing = new LinkedHashSet<>(
+                graph.descendants(cascadeRoots));
+        missing.removeAll(description.finalDeletedModelIds());
+        if (missing.isEmpty()) {
+            return null;
+        }
+        long missingRelationStateIndex = missing.stream()
+                .mapToLong(modelId -> modelRelationStateIndices.getOrDefault(
+                        modelId, -1L))
+                .max().orElse(-1L);
+        List<ModelCommitConflict> conflicts =
+                cascadeRoots.stream()
+                        .map(rootId -> {
+                            ModelStreamHead head = modelHeads.get(rootId);
+                            return new ModelCommitConflict(
+                                    rootId,
+                                    head == null ? -1L : head.stateIndex(),
+                                    Math.max(
+                                            modelRelationStateIndices.getOrDefault(
+                                                    rootId, -1L),
+                                            missingRelationStateIndex));
+                        })
+                        .toList();
+        return ModelCommitConflicts.result(
+                commit, conflicts, modelStateIndex);
     }
 
     private Map<Long, SerializedMessage> existingEvents(
