@@ -396,16 +396,21 @@ public document or a private current document maintained for Graph participation
 without one should be loaded by ID.
 
 Use the class-and-constraint `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` overloads when related
-IDs must first be selected by current Model content. They use that Model's own public or type-isolated private current
-document; `materializeGraph = true` supplies a private root document but does not make the whole Graph projection the
-related predicate source. Prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` over a broad
+IDs must first be selected by current Model content. They use that Model's own public document or independently
+maintained internal Graph-component document. A reference-only `DOCUMENT` projection without such a Graph role does
+not add content, facet or sortable indexes. `materializeGraph = true` supplies an internal root document but does not
+make the whole Graph projection the related predicate source. Prefer
+`searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` over a broad
 forced-live nested-path filter when the child type is known. Use
 `searchGraph(Root::class.java).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness.
 It reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;
 pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` for explicit raw
 JSON. Enable materialization with
 `@Model(materializeGraph = true)`. Include `DOCUMENT` separately only when the Model itself needs a current document;
-set `DocumentProjection.searchable = false` when that document is reference-only. A blank projection collection
+set `DocumentProjection.searchable = false` when that document must not be publicly searchable. Without a separate
+Graph role its payload remains reference-loadable but its summary/reversary, facets and sortables are not indexed. A
+Graph-component role retains its private indexes; shape those explicitly with `@SearchExclude`, `@Facet` and
+`@Sortable`. A blank projection collection
 appends `-graphs` to the direct Model collection when one exists, or to the
 simple root-model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
 

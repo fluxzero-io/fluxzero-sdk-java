@@ -29,6 +29,8 @@ import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.serialization.Revision;
+import io.fluxzero.common.search.Facet;
+import io.fluxzero.common.search.Sortable;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -1232,7 +1234,8 @@ class DefaultModelRepositoryCommitTest {
     @Test
     void neverPublicationUpdatesStateAndDirectDocumentWithoutCreatingEvent() throws Exception {
         PrivateDocumentId id = new PrivateDocumentId("1");
-        PrivateDocument after = new PrivateDocument(id, "secret");
+        PrivateDocument after = new PrivateDocument(
+                id, "findable summary", "classified", 42);
         var evaluation = evaluation(
                 List.of(id.toString()),
                 substep(new UpdatePrivateDocument(id), transition(
@@ -1257,8 +1260,15 @@ class DefaultModelRepositoryCommitTest {
                 update.getDocument(),
                 PrivateDocument.class));
         assertEquals(
-                "privateDocuments",
+                ModelDocumentMutation.referenceModelDocumentCollection(
+                        PrivateDocument.class.getName()),
                 update.getCollection());
+        assertNull(update.getDocument().getSummary());
+        assertTrue(update.getDocument().getFacets().isEmpty());
+        assertTrue(update.getDocument().getIndexes().isEmpty());
+        assertNull(update.getDocument().deserializeDocument().getSummary());
+        assertTrue(update.getDocument().deserializeDocument().getFacets().isEmpty());
+        assertTrue(update.getDocument().deserializeDocument().getSortables().isEmpty());
     }
 
     @Test
@@ -1540,9 +1550,14 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "privateDocuments"),
+    @Model(persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(searchable = false),
             eventPublication = EventPublication.NEVER)
-    private record PrivateDocument(@EntityId PrivateDocumentId documentId, String value) {
+    private record PrivateDocument(
+            @EntityId PrivateDocumentId documentId,
+            String description,
+            @Facet String category,
+            @Sortable int priority) {
     }
 
     private static class PrivateDocumentId extends Id<PrivateDocument> {

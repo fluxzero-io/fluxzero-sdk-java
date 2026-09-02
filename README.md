@@ -3297,8 +3297,12 @@ public record UserPreferences(
 }
 ```
 
-Reference-only documents use the same type-isolated private Model storage as Graph components. They remain durable and
-directly loadable, but `Fluxzero.search(UserPreferences.class)` does not expose them.
+Reference-only documents remain durable and directly loadable, but contain no text summary/reversary, facets or
+sortables. `Fluxzero.search(UserPreferences.class)` therefore does not expose them. They can still be reached through
+their Model ID, an alias or an exact parent/ancestor ID; these routes use the separate durable Model identity and
+relationship indexes. When the same Model independently participates in Graph composition, its private current
+document keeps the internal indexes required by content-based Graph and relationship queries without becoming publicly
+searchable. Use `@SearchExclude`, `@Facet` and `@Sortable` to shape those internal indexes explicitly.
 
 Event-sourcing-only settings such as `ignoreUnknownEvents`, `snapshotPeriod`, `maxSnapshotCount` and
 `checkpointPeriod` are rejected on `DOCUMENT` Models instead of being silently ignored.
@@ -3423,7 +3427,8 @@ List<Task> activeProjectTasks = Fluxzero.search(Task.class)
 
 This form first searches the related Model's own current-document collection and then traverses the matching IDs. A
 public direct document is not required: an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true`
-maintains a type-isolated private current document that can supply the predicate. The materialized whole-Graph
+maintains a type-isolated internal component document that can supply the predicate. A reference-only `DOCUMENT`
+projection without such a Graph role contributes no summary, facet or sortable indexes. The materialized whole-Graph
 projection is not used as a substitute for the related Model's own fields.
 
 The returned target also needs a current document because `Search` returns current documents. That may be a public
@@ -4829,7 +4834,9 @@ annotations that own automatic indexing:
 
 Adding `DOCUMENT` enables automatic document maintenance after updates without needing to call
 `Fluxzero.index(...)` manually. Its `DocumentProjection.searchable` setting determines whether that document is placed
-in the public Model collection or retained in type-isolated private storage.
+in the public Model collection with its derived search indexes, or kept out of unrestricted Model search. In the latter
+case a document without a separate Graph role is stored reference-only, without summary/reversary, facets or sortables;
+an internal Graph-component role retains only the independently required private indexes.
 
 ```java
 

@@ -71,9 +71,12 @@ public record ExternalDocument(...) {}
 ```
 [//]: # (@formatter:on)
 
-`DocumentProjection.searchable = false` keeps a Model document in private type-isolated storage. Direct Model loads,
-aliases, parent relations and Graph composition still work, while `Fluxzero.search(UserPreferences.class)` does not
-expose the document.
+`DocumentProjection.searchable = false` keeps a Model document out of unrestricted typed Model search. Without a
+separate Graph role it uses private type-isolated reference-only storage: the payload remains available to the
+configured `DocumentSerializer`, but its summary/reversary, facets and sortables are empty. Direct Model loads, aliases
+and exact parent/ancestor-ID relations still work. If the same Model participates in Graph composition, its private
+current document retains the independently required internal indexes without becoming publicly searchable; shape those
+with `@SearchExclude`, `@Facet` and `@Sortable`.
 
 <a name="facets-sorting"></a>
 
@@ -160,8 +163,10 @@ The ID overload starts from durable relationships and does not require a documen
 parent-scoped identity. Depth-bounded overloads support exact grandparents and further traversal.
 
 Use the class-and-constraint overload when IDs must be selected by related Model content. It requires that related
-Model's own public or private current document; an explicit composition path or `materializeGraph = true` supplies a
-private one, while the whole materialized Graph projection is not searched as the Model itself. The returned target
+Model's own public document or independently maintained internal Graph-component document; an explicit composition
+path or `materializeGraph = true` supplies the latter. A reference-only `DOCUMENT` projection without such a Graph role
+supplies no content, facet or sortable indexes. The whole materialized Graph projection is not searched as the Model
+itself. The returned target
 also needs a public document or relation-scoped private Graph-component document. A standalone event-sourced target
 without either is loaded by ID rather than searched.
 

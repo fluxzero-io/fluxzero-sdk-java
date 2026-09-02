@@ -2001,11 +2001,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     blankToNull(model.timestampPath()), value, false, () -> eventTimestamp);
             Instant end = parseTimeProperty(
                     blankToNull(model.endPath()), value, true, () -> begin);
-            return new ModelDocumentMutation(
-                    collection,
-                    documentSerializer.toDocument(
-                            value, transition.modelId(), collection,
-                            begin, end, metadata));
+            SerializedDocument document = documentSerializer.toDocument(
+                    value, transition.modelId(), collection,
+                    begin, end, metadata);
+            if (model.directDocument()
+                && !model.publicDocument()
+                && !transition.metadata()
+                        .maintainsGraphComponentDocument()) {
+                document = document.withoutSearchIndexes();
+            }
+            return new ModelDocumentMutation(collection, document);
         }
 
         private static String blankToNull(String value) {

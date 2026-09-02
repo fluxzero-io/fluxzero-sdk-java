@@ -1082,10 +1082,29 @@ class DefaultModelRepositoryTest {
     @Test
     void loadsIndependentModelByCurrentAliasWithoutSearch() {
         AliasAccountId id = new AliasAccountId("1");
-        try (Fluxzero fluxzero = configuredFluxzero()) {
+        JacksonSerializer serializer = new JacksonSerializer();
+        EnvelopeDocumentSerializer documentSerializer =
+                new EnvelopeDocumentSerializer(serializer);
+        LocalClient client = LocalClient.newInstance(null);
+        try (Fluxzero fluxzero = withModelHandlers(DefaultFluxzero.builder()
+                .replaceSerializer(serializer)
+                .replaceDocumentSerializer(documentSerializer)
+                .disableKeepalive()
+                .disableShutdownHook()
+                .build(client))) {
             fluxzero.executeModelCommit(
                     new Message(new CreateAliasAccount(
                             id, "first-code", 5))).join();
+            String collection = EntityMetadata.validate(AliasAccount.class)
+                    .modelDocumentCollection().orElseThrow();
+            SerializedDocument stored = client.getSearchClient()
+                    .fetchModelDocument(new GetDocument(
+                            id.toString(), collection))
+                    .getDocument();
+            assertNotNull(stored);
+            assertNull(stored.getSummary());
+            assertTrue(stored.getFacets().isEmpty());
+            assertTrue(stored.getIndexes().isEmpty());
             ((DefaultModelRepository) fluxzero.modelRepository())
                     .invalidateModels(List.of(id.toString()));
 
@@ -1116,6 +1135,9 @@ class DefaultModelRepositoryTest {
                             "second-code", AliasAccount.class));
             assertEquals(id.toString(), renamed.id());
             assertEquals("second-code", renamed.get().code());
+            assertTrue(documentSerializer.reads().stream()
+                               .anyMatch(read -> id.toString().equals(read.id())
+                                                 && collection.equals(read.collection())));
         }
     }
 

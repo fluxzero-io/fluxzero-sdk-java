@@ -518,6 +518,13 @@ public final class EntityMetadata {
                 .anyMatch(ParentReference::automaticallyComposed);
     }
 
+    /** Whether this Model independently needs an indexed internal current document for Graph operations. */
+    public boolean maintainsGraphComponentDocument() {
+        return model != null
+               && (participatesInGraphComposition()
+                   || rootConfiguration.materializeGraph());
+    }
+
     /** Returns the application-resolved collection that owns this Model's current document, if it has one. */
     public Optional<String> modelDocumentCollection() {
         if (model == null) {
@@ -526,10 +533,13 @@ public final class EntityMetadata {
         if (rootConfiguration.directDocument()) {
             return Optional.of(rootConfiguration.publicDocument()
                                        ? configuredModelDocumentCollection()
-                                       : ModelDocumentMutation.privateModelDocumentCollection(
-                                               type.getName()));
+                                       : maintainsGraphComponentDocument()
+                                               ? ModelDocumentMutation.privateModelDocumentCollection(
+                                                       type.getName())
+                                               : ModelDocumentMutation.referenceModelDocumentCollection(
+                                                       type.getName()));
         }
-        return participatesInGraphComposition() || rootConfiguration.materializeGraph()
+        return maintainsGraphComponentDocument()
                 ? Optional.of(ModelDocumentMutation.privateModelDocumentCollection(
                         type.getName()))
                 : Optional.empty();

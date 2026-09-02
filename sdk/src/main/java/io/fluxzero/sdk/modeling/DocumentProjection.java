@@ -33,9 +33,12 @@ public @interface DocumentProjection {
     /**
      * Whether this current document is exposed through the Model's public search collection.
      * <p>
-     * When {@code false}, Fluxzero stores it in type-isolated private Model storage. It remains available to direct
-     * Model loads, aliases, parent relationships and Graph composition, but is not returned by an unrestricted typed
-     * Model search. An explicitly parent- or ancestor-bounded relationship search may return it within that scope.
+     * When {@code false}, Fluxzero does not expose the document through an unrestricted typed Model search. A Model
+     * without a separate Graph role is stored reference-only, without a text summary, facets or sortable indexes, and
+     * remains available through direct Model loads, aliases and exact parent or ancestor relationships. A Model that
+     * participates in Graph composition still maintains its independently required internal component indexes; use
+     * {@link io.fluxzero.common.search.SearchExclude @SearchExclude}, {@code @Facet} and {@code @Sortable} to shape
+     * those indexes explicitly.
      */
     boolean searchable() default true;
 

@@ -163,7 +163,7 @@ class ModelTest {
         assertFalse(metadata.rootConfiguration().orElseThrow().publicDocument());
         assertEquals(
                 io.fluxzero.common.api.modeling.ModelDocumentMutation
-                        .privateModelDocumentCollection(
+                        .referenceModelDocumentCollection(
                                 ReferenceOnlyDocumentModel.class.getName()),
                 metadata.modelDocumentCollection().orElseThrow());
         assertFalse(search.isSearchable());

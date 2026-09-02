@@ -30,9 +30,13 @@ import java.util.Objects;
 @Value
 public class ModelDocumentMutation {
 
-    /** Prefix for type-isolated internal current-Model collections. */
+    /** Prefix for type-isolated internal Graph-component collections. */
     public static final String PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX =
             "$modelGraphComponents/";
+
+    /** Prefix for type-isolated reference-only current-Model collections. */
+    public static final String REFERENCE_MODEL_DOCUMENT_COLLECTION_PREFIX =
+            "$modelDocuments/";
 
     /**
      * Returns the private search collection for current documents of one Model type.
@@ -42,12 +46,29 @@ public class ModelDocumentMutation {
      * contract and keeps the collection deterministic across SDK instances.
      */
     public static String privateModelDocumentCollection(String modelType) {
+        return collectionForModelType(
+                PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX, modelType);
+    }
+
+    /**
+     * Returns the private retrieval collection for a reference-only document of one Model type.
+     * <p>
+     * This collection is distinct from internal Graph-component collections so a Model that has no Graph search role
+     * does not accidentally acquire or expose derived search indexes.
+     */
+    public static String referenceModelDocumentCollection(String modelType) {
+        return collectionForModelType(
+                REFERENCE_MODEL_DOCUMENT_COLLECTION_PREFIX, modelType);
+    }
+
+    private static String collectionForModelType(
+            String prefix, String modelType) {
         Objects.requireNonNull(modelType, "Model type");
         if (modelType.isBlank() || !modelType.equals(modelType.trim())) {
             throw new IllegalArgumentException(
                     "Model type must not be blank or have surrounding whitespace");
         }
-        return PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX + modelType;
+        return prefix + modelType;
     }
 
     /**

@@ -263,7 +263,9 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model
+    @Model(
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
+            document = @DocumentProjection(searchable = false))
     private record PrivateChild(
             @EntityId PrivateChildId privateChildId,
             @Parent(pathInParent = "privateChildren") SearchRootId searchRootId,
