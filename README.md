@@ -1,5 +1,5 @@
 <a href="https://fluxzero.io">
-    <img src="https://fluxzero.io/assets/fluxzero/fluxzero-logo.png" alt="Fluxzero logo" title="Fluxzero" align="right" height="60" />
+    <img src="https://fluxzero.io/assets/fluxzero/brand/6f850ace-8509-45ad-9664-4dcf381e181f/fluxzero-logo.svg" alt="Fluxzero logo" title="Fluxzero" align="right" height="60" />
 </a>
 
 # Fluxzero Java SDK
@@ -242,9 +242,9 @@ What follows is a summary of the most important features.
 
 ### Domain Modeling, Persistence, and Search
 
-- [Domain Modeling](#domain-modeling)
+- [Domain Modeling with Models](#domain-modeling-with-models)
 - [Applying Updates to Entities](#applying-updates-to-entities)
-- [Nested Entities](#nested-entities)
+- [Nested Entities in Legacy Aggregates](#nested-entities-in-a-legacy-aggregate)
 - [Model Persistence](#model-persistence)
 - [Stateful Handlers](#stateful-handlers)
 - [Document Indexing and Search](#document-indexing-and-search)
@@ -3251,6 +3251,8 @@ public record UserAccount(
         boolean accountClosed) {
 }
 ```
+
+### Model persistence
 
 Every model ID is an independent persistence and lifecycle boundary. Depending on its `@Model` settings, it has its own
 event stream, cache entry, snapshots and direct search document. Commands can own their assertions and transitions
