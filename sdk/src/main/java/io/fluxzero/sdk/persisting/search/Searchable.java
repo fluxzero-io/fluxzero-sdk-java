@@ -31,7 +31,7 @@ import java.lang.annotation.Target;
  * <p>
  * This annotation can also be used as a meta-annotation to define custom searchable types with preconfigured values.
  * Independent Models use their dedicated {@link io.fluxzero.sdk.modeling.DocumentProjection} configuration instead;
- * their {@link io.fluxzero.sdk.modeling.ModelPersistence} determines whether a direct document exists.
+ * their {@link io.fluxzero.sdk.modeling.ModelPersistence} set determines whether a direct document exists.
  *
  * <h2>Usage</h2>
  * <pre>{@code

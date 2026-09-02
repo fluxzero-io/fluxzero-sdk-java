@@ -45,9 +45,16 @@ class ModelGraphComponentSearchTest {
                         privateProjectionChildIds(Fluxzero.searchGraph(PrivateProjectionRoot.class)
                                                           .fetchAll()),
                         privateProjectionChildIds(Fluxzero.searchGraph(PrivateProjectionRoot.class, true)
-                                                          .fetchAll())))
+                                                          .fetchAll()),
+                        Fluxzero.search(PrivateProjectionChild.class)
+                                .whereParent(
+                                        PrivateProjectionRoot.class,
+                                        match(rootId, true, "id"))
+                                .fetchAll().stream()
+                                .map(PrivateProjectionChild::id).toList()))
                 .expectResult(List.of(
-                        true, List.of(childId), List.of(childId)));
+                        true, List.of(childId), List.of(childId),
+                        List.of(childId)));
     }
 
     @Test
@@ -142,8 +149,53 @@ class ModelGraphComponentSearchTest {
                 .modelDocumentCollection().orElseThrow();
 
         assertNotEquals(first, second);
-        assertTrue(first.startsWith(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION_PREFIX), first);
-        assertTrue(second.startsWith(ModelDocumentMutation.GRAPH_COMPONENT_COLLECTION_PREFIX), second);
+        assertTrue(first.startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX), first);
+        assertTrue(second.startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX), second);
+    }
+
+    @Test
+    void selectsPrivateTargetsByExactParentAndAncestorIdsWithoutAncestorDocuments() {
+        NoDocumentRootId selectedRoot = new NoDocumentRootId("selected");
+        NoDocumentRootId otherRoot = new NoDocumentRootId("other");
+        NoDocumentMiddleId selectedMiddle = new NoDocumentMiddleId("selected");
+        NoDocumentMiddleId otherMiddle = new NoDocumentMiddleId("other");
+        NoDocumentLeafId selectedLeaf = new NoDocumentLeafId("selected");
+
+        assertTrue(EntityMetadata.validate(NoDocumentRoot.class)
+                           .modelDocumentCollection().isEmpty());
+
+        TestFixture.create()
+                .givenCommands(
+                        new CreateNoDocumentRoot(selectedRoot),
+                        new CreateNoDocumentRoot(otherRoot),
+                        new CreateNoDocumentMiddle(selectedMiddle, selectedRoot),
+                        new CreateNoDocumentMiddle(otherMiddle, otherRoot),
+                        new CreateNoDocumentLeaf(selectedLeaf, selectedMiddle),
+                        new CreateNoDocumentLeaf(new NoDocumentLeafId("other"), otherMiddle))
+                .whenApplying(ignored -> List.of(
+                        Fluxzero.search(NoDocumentMiddle.class)
+                                .whereParent(selectedRoot)
+                                .fetchAll().stream()
+                                .map(NoDocumentMiddle::id).toList(),
+                        Fluxzero.search(NoDocumentLeaf.class)
+                                .whereAncestor(selectedRoot)
+                                .fetchAll().stream()
+                                .map(NoDocumentLeaf::id).toList(),
+                        Fluxzero.search(NoDocumentLeaf.class)
+                                .whereAncestor(selectedRoot, 2, 2)
+                                .fetchAll().stream()
+                                .map(NoDocumentLeaf::id).toList(),
+                        Fluxzero.search(NoDocumentLeaf.class)
+                                .whereAncestor("selected", NoDocumentRoot.class)
+                                .fetchAll().stream()
+                                .map(NoDocumentLeaf::id).toList(),
+                        Fluxzero.search(NoDocumentLeaf.class).fetchAll()))
+                .expectResult(List.of(
+                        List.of(selectedMiddle),
+                        List.of(selectedLeaf),
+                        List.of(selectedLeaf),
+                        List.of(selectedLeaf),
+                        List.of()));
     }
 
     private static List<SearchRootId> graphIds(List<Graph<SearchRoot>> graphs) {
@@ -169,7 +221,7 @@ class ModelGraphComponentSearchTest {
                                  .fetchAll()));
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true)
     private record SearchRoot(@EntityId SearchRootId searchRootId) {
     }
 
@@ -273,7 +325,7 @@ class ModelGraphComponentSearchTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record SearchLeaf(
             @EntityId SearchLeafId searchLeafId,
             @Parent(pathInParent = "searchLeaves") PrivateChildId privateChildId) {
@@ -291,6 +343,66 @@ class ModelGraphComponentSearchTest {
         @Apply
         SearchLeaf apply() {
             return new SearchLeaf(searchLeafId, privateChildId);
+        }
+    }
+
+    @Model
+    private record NoDocumentRoot(
+            @EntityId NoDocumentRootId id) {
+    }
+
+    private static final class NoDocumentRootId extends Id<NoDocumentRoot> {
+        private NoDocumentRootId(String id) {
+            super(id, "no-document-root-");
+        }
+    }
+
+    private record CreateNoDocumentRoot(NoDocumentRootId id) {
+        @Apply
+        NoDocumentRoot apply() {
+            return new NoDocumentRoot(id);
+        }
+    }
+
+    @Model
+    private record NoDocumentMiddle(
+            @EntityId NoDocumentMiddleId id,
+            @Parent(pathInParent = "middles") NoDocumentRootId rootId) {
+    }
+
+    private static final class NoDocumentMiddleId extends Id<NoDocumentMiddle> {
+        private NoDocumentMiddleId(String id) {
+            super(id, "no-document-middle-");
+        }
+    }
+
+    private record CreateNoDocumentMiddle(
+            NoDocumentMiddleId id,
+            NoDocumentRootId rootId) {
+        @Apply
+        NoDocumentMiddle apply() {
+            return new NoDocumentMiddle(id, rootId);
+        }
+    }
+
+    @Model
+    private record NoDocumentLeaf(
+            @EntityId NoDocumentLeafId id,
+            @Parent(pathInParent = "leaves") NoDocumentMiddleId middleId) {
+    }
+
+    private static final class NoDocumentLeafId extends Id<NoDocumentLeaf> {
+        private NoDocumentLeafId(String id) {
+            super(id, "no-document-leaf-");
+        }
+    }
+
+    private record CreateNoDocumentLeaf(
+            NoDocumentLeafId id,
+            NoDocumentMiddleId middleId) {
+        @Apply
+        NoDocumentLeaf apply() {
+            return new NoDocumentLeaf(id, middleId);
         }
     }
 }

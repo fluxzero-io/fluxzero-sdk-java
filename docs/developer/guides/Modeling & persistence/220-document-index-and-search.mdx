@@ -63,17 +63,17 @@ You can also specify the collection in which the object should be stored directl
 
 ## Model documents and searchable values
 
-Models choose whether to maintain a direct document through `ModelPersistence`. Other values use the document-store
+Models choose whether to maintain a current document through their `ModelPersistence[]` set. Other values use the document-store
 annotations that own automatic indexing:
 
-- `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)`
+- `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
 <Tabs>
   <TabItem label="Java">
     ```java
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     public record UserAccount(@EntityId UserId userId,
                               UserProfile profile,
                               boolean accountClosed) {
@@ -82,7 +82,7 @@ annotations that own automatic indexing:
   </TabItem>
   <TabItem label="Kotlin">
     ```kotlin
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
     data class UserAccount(
         @EntityId val userId: UserId,
         val profile: UserProfile,
@@ -100,7 +100,7 @@ settings themselves:
   <TabItem label="Java">
     ```java
     @Model(
-        persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
         document = @DocumentProjection(
             collection = "users",
             timestampPath = "profile/createdAt"))
@@ -109,7 +109,7 @@ settings themselves:
   <TabItem label="Kotlin">
     ```kotlin
     @Model(
-        persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+        persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT],
         document = DocumentProjection(
             collection = "users",
             timestampPath = "profile/createdAt"
@@ -118,6 +118,37 @@ settings themselves:
     ```
   </TabItem>
 </Tabs>
+
+The document is placed in the public Model collection by default. A document-authoritative Model that only needs
+identity-, alias-, relationship- and Graph-based lookup can keep it reference-only:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @Model(
+        persistence = ModelPersistence.DOCUMENT,
+        document = @DocumentProjection(searchable = false))
+    public record UserPreferences(@EntityId UserId userId,
+                                  Preferences preferences) {
+    }
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @Model(
+        persistence = [ModelPersistence.DOCUMENT],
+        document = DocumentProjection(searchable = false)
+    )
+    data class UserPreferences(
+        @EntityId val userId: UserId,
+        val preferences: Preferences
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+Fluxzero stores this document in a type-isolated private Model collection. `loadModel(...)`, aliases, parent
+relationships and Graph composition still use it, while `Fluxzero.search(UserPreferences.class)` does not expose it.
 
 ---
 
@@ -150,8 +181,8 @@ Use the fluent `search(...)` API:
 
 ### Consistency after commands
 
-Search is optimized for current state, but indexing still follows the commit path. A Model using `DOCUMENT` or
-`EVENT_SOURCED_WITH_DOCUMENT` synchronously maintains its direct document with the Model commit. Calling
+Search is optimized for current state, but indexing still follows the commit path. A Model whose persistence set
+contains `DOCUMENT` synchronously maintains its current document with the Model commit. Calling
 `sendCommandAndWait(...)` and then querying that Model's direct collection observes the committed state.
 
 This does not automatically wait for a materialized whole-root graph projection. Select
@@ -180,6 +211,59 @@ You can also query by class:
     ```
   </TabItem>
 </Tabs>
+
+### Selecting Models by parent or ancestor
+
+When the related identity is already known, pass its typed ID directly. Fluxzero starts from the durable relationship
+index, so the parent or ancestor does not need a searchable or private current-state document:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    List<Task> projectTasks = Fluxzero.search(Task.class)
+            .whereParent(projectId)
+            .fetch(100);
+
+    List<Task> organisationTasks = Fluxzero.search(Task.class)
+            .whereAncestor(organisationId)
+            .fetch(100);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val projectTasks = Fluxzero.search(Task::class.java)
+        .whereParent(projectId)
+        .fetch(100)
+
+    val organisationTasks = Fluxzero.search(Task::class.java)
+        .whereAncestor(organisationId)
+        .fetch(100)
+    ```
+  </TabItem>
+</Tabs>
+
+Use `whereAncestor(organisationId, 2, 2)` to require exactly a grandparent. Typed `Id<T>` values supply their Model
+type. For another functional-ID type, use `whereAncestor(id, Organisation.class)` in Java or
+`whereAncestor(id, Organisation::class.java)` in Kotlin. When the related Model has a parent-scoped primary identity,
+pass its already loaded `Graph` so Fluxzero can use the exact persisted identity.
+
+When the related identity must instead be discovered from its current content, pass the Model type and constraints:
+
+```java
+List<Task> activeProjectTasks = Fluxzero.search(Task.class)
+        .whereParent(Project.class, MatchConstraint.match("ACTIVE", "status"))
+        .fetch(100);
+```
+
+This form requires a current document for the related Model. It may be a public direct document or the type-isolated
+private document maintained because the Model has an explicit `@Parent(pathInParent = "...")` or
+`materializeGraph = true`. The predicate applies to that Model's own fields, not to fields nested only in a materialized
+whole-Graph projection.
+
+The returned target also needs a current document. A public `DOCUMENT` projection works, and a private Graph-component
+document becomes available only because the query is explicitly relation-bounded; ordinary typed search still does not
+expose it. A standalone event-sourced target without a direct document, explicit composition path or materialized root
+has no document-search representation. Use `loadModel(...)` or `loadGraph(...)` when its identity is already known.
 
 <Aside type="note">
 You can choose to split path segments with either <code>.</code> or <code>/</code>. Both styles are equivalent.
@@ -674,6 +758,6 @@ To remove documents from the index:
 
 - Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
-- Use `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)` or `@Stateful` for automatic indexing.
+- Use `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})` or `@Stateful` for automatic indexing.
 - Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 - Use `fetchAsync(...)`, `countAsync()`, `aggregateAsync(...)`, and `facetStatsAsync()` in asynchronous handlers.

@@ -474,11 +474,11 @@ class TestServerWebsocketContractTest {
                             childId,
                             "ContractChild",
                             new ModelDocumentMutation(
-                                    ModelDocumentMutation.graphComponentCollection(
+                                    ModelDocumentMutation.privateModelDocumentCollection(
                                             "ContractChild"),
                                     structuredDocument(
                                             childId,
-                                            ModelDocumentMutation.graphComponentCollection(
+                                            ModelDocumentMutation.privateModelDocumentCollection(
                                                     "ContractChild"),
                                             "name",
                                             "child")),

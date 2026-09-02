@@ -21,7 +21,7 @@ compatibility boundary for already persisted aggregate state.
 ## Define a model
 
 ```kotlin
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = [ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT])
 data class Project(
     @EntityId val projectId: ProjectId,
     val details: ProjectDetails,
@@ -34,13 +34,14 @@ definitions unless the user asks for them.
 
 Important settings:
 
-- `persistence`: selects exactly one durable/load contract:
-  - `EVENT_SOURCED` (default): reconstruct from Model events, without a direct public document.
-  - `EVENT_SOURCED_WITH_DOCUMENT`: reconstruct from events and maintain a direct searchable current document.
-  - `DOCUMENT`: load authoritative current state from the direct document.
+- `persistence`: selects a non-empty set of durable representations:
+  - `[EVENT_SOURCED]` (default): reconstruct from Model events, without a direct document.
+  - `[EVENT_SOURCED, DOCUMENT]`: reconstruct from events and also maintain a current document.
+  - `[DOCUMENT]`: load authoritative current state from the current document.
 - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
-- `document`: optional `DocumentProjection` configuration for the direct collection and timestamp paths. It is valid
-  only when `persistence` stores a direct document.
+- `document`: optional `DocumentProjection` configuration for the direct collection, timestamp paths, and public
+  searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
+  should remain available by Model ID, alias, parent relation and Graph composition without entering typed search.
 - `eventPublication`: controls whether unchanged transitions create an event.
 - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
 - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
@@ -388,17 +389,24 @@ val related = Fluxzero.search(Task::class.java)
     .fetchAll()
 ```
 
-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
-class-based relationship constraints for selective parent or Graph search through either a searchable child or a
-type-isolated private Graph component; Fluxzero searches matching child IDs before traversing relationships and
-composing targets. Prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` over a broad
+Use `.whereParent(projectId)` or `.whereAncestor(organisationId)` when the related typed ID is known. This traverses
+durable relationships directly and needs no parent or ancestor document. Use the ID-plus-Model-class overload for
+untyped functional IDs and a loaded `Graph` for parent-scoped identities. The returned target must still have either a
+public document or a private current document maintained for Graph participation; standalone event-sourced targets
+without one should be loaded by ID.
+
+Use the class-and-constraint `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` overloads when related
+IDs must first be selected by current Model content. They use that Model's own public or type-isolated private current
+document; `materializeGraph = true` supplies a private root document but does not make the whole Graph projection the
+related predicate source. Prefer `searchGraph(Root::class.java).whereDescendant(Child::class.java, constraint)` over a broad
 forced-live nested-path filter when the child type is known. Use
 `searchGraph(Root::class.java).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness.
 It reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;
 pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode::class.java)` for explicit raw
 JSON. Enable materialization with
-`@Model(materializeGraph = true)`. Select `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` separately only for direct public
-Model search. A blank projection collection appends `-graphs` to the direct Model collection when one exists, or to the
+`@Model(materializeGraph = true)`. Include `DOCUMENT` separately only when the Model itself needs a current document;
+set `DocumentProjection.searchable = false` when that document is reference-only. A blank projection collection
+appends `-graphs` to the direct Model collection when one exists, or to the
 simple root-model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
 
 ## Conflict policy

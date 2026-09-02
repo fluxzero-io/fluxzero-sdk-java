@@ -36,7 +36,7 @@ import java.util.Set;
 import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toSet;
 
-import static io.fluxzero.common.api.modeling.ModelDocumentMutation.graphComponentCollection;
+import static io.fluxzero.common.api.modeling.ModelDocumentMutation.privateModelDocumentCollection;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.APPLY;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.ASSERT_LEGAL;
 import static io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind.INTERCEPT_APPLY;
@@ -139,7 +139,7 @@ class EntityMetadataTest {
     void ownsDirectModelDocumentCollectionResolution() {
         assertEquals("models", EntityMetadata.validate(ConfiguredModel.class)
                 .modelDocumentCollection().orElseThrow());
-        assertEquals(graphComponentCollection(ChildModel.class.getName()), EntityMetadata.validate(ChildModel.class)
+        assertEquals(privateModelDocumentCollection(ChildModel.class.getName()), EntityMetadata.validate(ChildModel.class)
                 .modelDocumentCollection().orElseThrow());
         assertTrue(EntityMetadata.validate(ParentModel.class)
                            .modelDocumentCollection().isEmpty());
@@ -176,7 +176,7 @@ class EntityMetadataTest {
                         .graphProjectionConfiguration()
                         .orElseThrow();
         assertEquals(
-                graphComponentCollection(UnsearchableProjectedModel.class.getName()),
+                privateModelDocumentCollection(UnsearchableProjectedModel.class.getName()),
                 privateConfiguration.getRootCollection());
         assertEquals(
                 "UnsearchableProjectedModel-graphs",
@@ -303,7 +303,7 @@ class EntityMetadataTest {
         Set<String> expectedConfiguration = new java.util.HashSet<>(modelSettings);
         expectedConfiguration.removeAll(Set.of("document", "persistence"));
         expectedConfiguration.addAll(Set.of(
-                "eventSourced", "directDocument", "collection", "timestampPath", "endPath"));
+                "eventSourced", "directDocument", "publicDocument", "collection", "timestampPath", "endPath"));
         assertEquals(expectedConfiguration, configurationSettings);
     }
 
@@ -591,7 +591,7 @@ class EntityMetadataTest {
     }
 
     @Model(
-            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             document = @DocumentProjection(collection = "projected-models"),
             materializeGraph = true,
             graphProjection = @GraphProjection(
@@ -631,7 +631,7 @@ class EntityMetadataTest {
     }
 
     @Model(
-            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             document = @DocumentProjection(collection = "default-projected-models"),
             materializeGraph = true)
     private record DefaultProjectedModel(
@@ -639,14 +639,14 @@ class EntityMetadataTest {
     }
 
     @Model(
-            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             graphProjection = @GraphProjection(collection = "ignored-graphs"))
     private record ConfiguredUnmaterializedModel(
             @EntityId String id) {
     }
 
     @Model(
-            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             document = @DocumentProjection(collection = "same-collection"),
             materializeGraph = true,
             graphProjection = @GraphProjection(
@@ -656,7 +656,7 @@ class EntityMetadataTest {
     }
 
     @Model(
-            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             document = @DocumentProjection(collection = "${graphRootCollection}"),
             materializeGraph = true,
             graphProjection = @GraphProjection(

@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import static io.fluxzero.sdk.modeling.ModelCommitPolicy.ASYNC_AFTER_BATCH;
 import static io.fluxzero.sdk.modeling.EventPublication.IF_MODIFIED;
 import static io.fluxzero.sdk.modeling.EventPublicationStrategy.STORE_ONLY;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -42,7 +43,9 @@ class ModelTest {
     void exposesIndependentStorageDefaults() {
         Model model = DefaultModel.class.getAnnotation(Model.class);
 
-        assertEquals(ModelPersistence.EVENT_SOURCED, model.persistence());
+        assertArrayEquals(
+                new ModelPersistence[]{ModelPersistence.EVENT_SOURCED},
+                model.persistence());
         assertFalse(model.ignoreUnknownEvents());
         assertEquals(0, model.snapshotPeriod());
         assertEquals(1, model.maxSnapshotCount());
@@ -55,6 +58,7 @@ class ModelTest {
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
         assertFalse(model.materializeGraph());
+        assertTrue(model.document().searchable());
         assertEquals("", model.document().collection());
         assertEquals("", model.document().timestampPath());
         assertEquals("", model.document().endPath());
@@ -76,7 +80,11 @@ class ModelTest {
     void exposesAggregateEquivalentConfiguration() {
         Model model = ConfiguredModel.class.getAnnotation(Model.class);
 
-        assertEquals(ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, model.persistence());
+        assertArrayEquals(
+                new ModelPersistence[]{
+                        ModelPersistence.EVENT_SOURCED,
+                        ModelPersistence.DOCUMENT},
+                model.persistence());
         assertTrue(model.ignoreUnknownEvents());
         assertEquals(20, model.snapshotPeriod());
         assertEquals(3, model.maxSnapshotCount());
@@ -126,7 +134,11 @@ class ModelTest {
         Model annotation = ReflectionUtils.getTypeMetadata(InheritedModel.class).typeAnnotation(Model.class);
 
         assertNotNull(annotation);
-        assertEquals(ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, annotation.persistence());
+        assertArrayEquals(
+                new ModelPersistence[]{
+                        ModelPersistence.EVENT_SOURCED,
+                        ModelPersistence.DOCUMENT},
+                annotation.persistence());
         assertEquals("base-models", annotation.document().collection());
     }
 
@@ -138,6 +150,39 @@ class ModelTest {
         assertEquals("configured-models", searchable.getCollection());
         assertEquals("createdAt", searchable.getTimestampPath());
         assertEquals("expiresAt", searchable.getEndPath());
+    }
+
+    @Test
+    void keepsReferenceOnlyDocumentsOutOfThePublicModelCollection() {
+        EntityMetadata metadata = EntityMetadata.validate(
+                ReferenceOnlyDocumentModel.class);
+        SearchParameters search = ClientUtils.getSearchParameters(
+                ReferenceOnlyDocumentModel.class);
+
+        assertTrue(metadata.rootConfiguration().orElseThrow().directDocument());
+        assertFalse(metadata.rootConfiguration().orElseThrow().publicDocument());
+        assertEquals(
+                io.fluxzero.common.api.modeling.ModelDocumentMutation
+                        .privateModelDocumentCollection(
+                                ReferenceOnlyDocumentModel.class.getName()),
+                metadata.modelDocumentCollection().orElseThrow());
+        assertFalse(search.isSearchable());
+    }
+
+    @Test
+    void rejectsEmptyAndDuplicatePersistenceRepresentations() {
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(EmptyPersistenceModel.class));
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(DuplicatePersistenceModel.class));
+    }
+
+    @Test
+    void rejectsDocumentProjectionSettingsWithoutMatchingPersistence() {
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(InvalidReferenceOnlyProjection.class));
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(PrivateDocumentWithPublicCollection.class));
     }
 
     @Test
@@ -199,7 +244,7 @@ class ModelTest {
     private static class DefaultModel {
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             ignoreUnknownEvents = true,
             snapshotPeriod = 20,
             maxSnapshotCount = 3,
@@ -219,13 +264,41 @@ class ModelTest {
     }
 
     @Model(
-            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             document = @DocumentProjection(collection = "base-models"))
     private static class BaseModel {
     }
 
     @Model(document = @DocumentProjection(collection = "inactive-models"))
     private static class InvalidDocumentConfiguration {
+    }
+
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(searchable = false))
+    private record ReferenceOnlyDocumentModel(@EntityId String id) {
+    }
+
+    @Model(persistence = {})
+    private static class EmptyPersistenceModel {
+    }
+
+    @Model(persistence = {
+            ModelPersistence.EVENT_SOURCED,
+            ModelPersistence.EVENT_SOURCED})
+    private static class DuplicatePersistenceModel {
+    }
+
+    @Model(document = @DocumentProjection(searchable = false))
+    private static class InvalidReferenceOnlyProjection {
+    }
+
+    @Model(
+            persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(
+                    searchable = false,
+                    collection = "public-models"))
+    private static class PrivateDocumentWithPublicCollection {
     }
 
     @Model(persistence = ModelPersistence.DOCUMENT, ignoreUnknownEvents = true)

@@ -3258,13 +3258,13 @@ Every model ID is an independent persistence and lifecycle boundary. Depending o
 event stream, cache entry, snapshots and direct search document. Commands can own their assertions and transitions
 directly:
 
-Choose one explicit persistence contract:
+Choose one non-empty set of durable representations:
 
-| `ModelPersistence` | Authoritative load path | Direct searchable document |
+| `ModelPersistence[]` | Authoritative load path | Current document |
 |---|---|---|
-| `EVENT_SOURCED` (default) | Model event stream, optionally from snapshots | No |
-| `EVENT_SOURCED_WITH_DOCUMENT` | Model event stream, optionally from snapshots | Yes |
-| `DOCUMENT` | Current document through the configured `DocumentSerializer` | Yes |
+| `{EVENT_SOURCED}` (default) | Model event stream, optionally from snapshots | No |
+| `{EVENT_SOURCED, DOCUMENT}` | Model event stream, optionally from snapshots | Yes |
+| `{DOCUMENT}` | Current document through the configured `DocumentSerializer` | Yes |
 
 Event storage and publication remain controlled independently by `eventPublication`, `publicationStrategy` and
 per-apply overrides. Internal type-isolated documents required for Graph composition are likewise independent: they do
@@ -3283,6 +3283,22 @@ public record UserAccount(
         boolean accountClosed) {
 }
 ```
+
+Current documents are publicly searchable by default. Keep a document available only through Model identity, aliases,
+parent relationships and Graph composition by making its projection reference-only:
+
+```java
+@Model(
+        persistence = ModelPersistence.DOCUMENT,
+        document = @DocumentProjection(searchable = false))
+public record UserPreferences(
+        @EntityId UserId userId,
+        Preferences preferences) {
+}
+```
+
+Reference-only documents use the same type-isolated private Model storage as Graph components. They remain durable and
+directly loadable, but `Fluxzero.search(UserPreferences.class)` does not expose them.
 
 Event-sourcing-only settings such as `ignoreUnknownEvents`, `snapshotPeriod`, `maxSnapshotCount` and
 `checkpointPeriod` are rejected on `DOCUMENT` Models instead of being silently ignored.
@@ -3379,10 +3395,42 @@ public record Address(
 
 Changing `userId` moves the address without loading or rewriting either parent. Parents and further ancestors can be
 injected into `@AssertLegal`, `@InterceptApply` and `@Apply`. Search supports current relationship constraints through
-`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. These selectors first search the related Model's
-own indexed current-document collection and only then traverse the matching IDs to their targets. Non-public Graph
-components use a private collection per Model type, so they remain available for efficient parent selection without
-being mixed with other component types or exposed by `Fluxzero.search(Component.class)`.
+`whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use a typed ID when the related identity is already
+known; Fluxzero then starts directly from the durable relationship index, so that parent or ancestor does not need a
+current-state document:
+
+```java
+List<Task> projectTasks = Fluxzero.search(Task.class)
+        .whereParent(projectId)
+        .fetch(100);
+
+List<Task> organisationTasks = Fluxzero.search(Task.class)
+        .whereAncestor(organisationId)
+        .fetch(100);
+```
+
+`whereAncestor(organisationId, 2, 2)` restricts traversal to exactly a grandparent. For a functional ID that does not
+extend `Id<T>`, pass its Model type as the second argument. A parent-scoped identity needs its exact persisted identity,
+so pass the already loaded parent or ancestor `Graph` instead.
+
+Use a Model class plus constraints when the related identity is not known and must be selected by current content:
+
+```java
+List<Task> activeProjectTasks = Fluxzero.search(Task.class)
+        .whereParent(Project.class, match("ACTIVE", "status"))
+        .fetch(100);
+```
+
+This form first searches the related Model's own current-document collection and then traverses the matching IDs. A
+public direct document is not required: an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true`
+maintains a type-isolated private current document that can supply the predicate. The materialized whole-Graph
+projection is not used as a substitute for the related Model's own fields.
+
+The returned target also needs a current document because `Search` returns current documents. That may be a public
+`DOCUMENT` projection or a private document maintained for Graph participation; adding a relationship selector makes
+that private target available only within the explicitly bounded relation. Plain `Fluxzero.search(Component.class)`
+still does not expose it. A standalone event-sourced target without a direct document, explicit composition path or
+materialized root has no searchable representation; load that known Model or Graph by identity instead.
 `searchGraph(User.class)` returns a
 `Search<Graph<User>>`, so `stream()`, `fetchAll()`, `fetchFirst()` and other terminal operations remain typed without a
 cast or type witness. It uses a configured materialized projection and otherwise stitches current public or private
@@ -3471,8 +3519,9 @@ public record User(@EntityId UserId userId, String name) {
 ```
 
 `materializeGraph` is sufficient: Fluxzero keeps the private root document needed for composition without exposing a
-direct Model collection. Select `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` only when callers should also be able to
-search the root Model itself. Use `document = @DocumentProjection(...)` or
+direct Model collection. Add `DOCUMENT` to an event-sourced Model only when callers should also be able to search its
+current state directly. Select document-only persistence when that document should be authoritative; set
+`document.searchable = false` when it should remain reference-only. Use `document = @DocumentProjection(...)` or
 `graphProjection = @GraphProjection(...)` only for advanced configuration. The graph collection is `User-graphs` by
 default; for a root with a direct document Fluxzero appends `-graphs` to the resolved direct collection. Set
 `GraphProjection.collection` only when a custom durable name is needed. Projection is asynchronous unless completion
@@ -4771,19 +4820,20 @@ documentStore.bulkUpdate("customCollection")
 
 ### Model documents and searchable values
 
-Models choose whether to maintain a direct document through `ModelPersistence`. Other values use the document-store
+Models choose whether to maintain a current document through their `ModelPersistence[]` set. Other values use the document-store
 annotations that own automatic indexing:
 
-- `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)`
+- `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})`
 - `@Stateful` (implicitly `@Searchable`)
 - Directly annotate any POJO with `@Searchable`
 
-This enables automatic indexing after updates or message handling, without needing to call `Fluxzero.index(...)`
-manually.
+Adding `DOCUMENT` enables automatic document maintenance after updates without needing to call
+`Fluxzero.index(...)` manually. Its `DocumentProjection.searchable` setting determines whether that document is placed
+in the public Model collection or retained in type-isolated private storage.
 
 ```java
 
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 public record UserAccount(@EntityId UserId userId,
                           UserProfile profile,
                           boolean accountClosed) {
@@ -4795,7 +4845,7 @@ unless explicitly overridden through `Model.document`, `@Stateful`, `@Searchable
 
 ```java
 @Model(
-        persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
         document = @DocumentProjection(
                 collection = "users",
                 timestampPath = "profile/createdAt"))
@@ -5156,7 +5206,7 @@ Fluxzero.search("expiredTokens")
 
 - Use `Fluxzero.index(...)` to manually index documents.
 - Use `@Searchable` to configure the collection name or time range for an object.
-- Use `@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)` or `@Stateful` for automatic indexing.
+- Use `@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})` or `@Stateful` for automatic indexing.
 - Use `Fluxzero.search(...)` to query, stream, sort, and aggregate your documents.
 
 ---

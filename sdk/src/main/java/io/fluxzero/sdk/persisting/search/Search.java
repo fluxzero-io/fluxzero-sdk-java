@@ -38,6 +38,9 @@ import io.fluxzero.common.api.search.constraints.QueryConstraint;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.ClientUtils;
+import io.fluxzero.sdk.modeling.EntityMetadata;
+import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.Id;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -48,6 +51,7 @@ import java.time.LocalDate;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
@@ -306,6 +310,38 @@ public interface Search<R> {
     Search<R> constraint(Constraint... constraints);
 
     /**
+     * Requires a direct parent with the supplied typed identity.
+     * <p>
+     * Unlike the related-document overload, this selector starts directly from the parent's durable Model identity and
+     * therefore does not require the parent to maintain a current-state document.
+     */
+    default Search<R> whereParent(Id<?> parentId) {
+        Objects.requireNonNull(parentId, "Parent ID");
+        return whereAncestor(parentId, parentId.getType(), 1, 1);
+    }
+
+    /**
+     * Requires a direct parent with the supplied functional identity and Model type.
+     * <p>
+     * Use this overload for identifiers that do not extend {@link Id}. The Model type supplies any configured
+     * {@code @EntityId} affixes needed to resolve its exact persisted identity.
+     */
+    default Search<R> whereParent(
+            Object parentId, Class<?> parentType) {
+        return whereAncestor(parentId, parentType, 1, 1);
+    }
+
+    /**
+     * Requires the supplied existing Model graph to be the direct parent.
+     * <p>
+     * This overload is useful when the parent's persisted identity is scoped by one of its own parents.
+     */
+    default Search<R> whereParent(Graph<?> parent) {
+        Objects.requireNonNull(parent, "Parent graph");
+        return whereAncestorModelId(parent.id(), 1, 1);
+    }
+
+    /**
      * Requires a directly related parent document to match the supplied document constraints.
      */
     default Search<R> whereParent(
@@ -321,6 +357,101 @@ public interface Search<R> {
             Object collection, Constraint... constraints) {
         return whereAncestor(
                 collection, 1, 64, constraints);
+    }
+
+    /**
+     * Requires an ancestor with the supplied typed identity at any supported depth.
+     * <p>
+     * This selector uses only the durable Model relationship index; the ancestor does not need a current-state
+     * document or public search projection.
+     */
+    default Search<R> whereAncestor(Id<?> ancestorId) {
+        Objects.requireNonNull(ancestorId, "Ancestor ID");
+        return whereAncestor(
+                ancestorId, ancestorId.getType(), 1, 64);
+    }
+
+    /**
+     * Requires an ancestor with the supplied typed identity within the given depth range.
+     */
+    default Search<R> whereAncestor(
+            Id<?> ancestorId,
+            int minDepth,
+            int maxDepth) {
+        Objects.requireNonNull(ancestorId, "Ancestor ID");
+        return whereAncestor(
+                ancestorId, ancestorId.getType(),
+                minDepth, maxDepth);
+    }
+
+    /**
+     * Requires an ancestor with the supplied functional identity and Model type at any supported depth.
+     * <p>
+     * Use this overload for identifiers that do not extend {@link Id}.
+     */
+    default Search<R> whereAncestor(
+            Object ancestorId, Class<?> ancestorType) {
+        return whereAncestor(
+                ancestorId, ancestorType, 1, 64);
+    }
+
+    /**
+     * Requires the supplied existing Model graph to be an ancestor at any supported depth.
+     */
+    default Search<R> whereAncestor(Graph<?> ancestor) {
+        Objects.requireNonNull(ancestor, "Ancestor graph");
+        return whereAncestorModelId(ancestor.id(), 1, 64);
+    }
+
+    /**
+     * Requires the supplied existing Model graph to be an ancestor within the given depth range.
+     */
+    default Search<R> whereAncestor(
+            Graph<?> ancestor,
+            int minDepth,
+            int maxDepth) {
+        Objects.requireNonNull(ancestor, "Ancestor graph");
+        return whereAncestorModelId(
+                ancestor.id(), minDepth, maxDepth);
+    }
+
+    /**
+     * Requires an ancestor with the supplied functional identity and Model type within the given depth range.
+     * <p>
+     * The related Model itself is never loaded or searched. Models with parent-scoped primary identities cannot be
+     * resolved from a functional ID alone; use an exact persisted identity obtained from their {@code Graph} instead.
+     */
+    default Search<R> whereAncestor(
+            Object ancestorId,
+            Class<?> ancestorType,
+            int minDepth,
+            int maxDepth) {
+        Objects.requireNonNull(ancestorId, "Ancestor ID");
+        Objects.requireNonNull(ancestorType, "Ancestor type");
+        EntityMetadata metadata =
+                EntityMetadata.validate(ancestorType);
+        if (!metadata.isModel()) {
+            throw new IllegalArgumentException(
+                    ancestorType.getName()
+                    + " is not an independent Model");
+        }
+        return whereAncestorModelId(
+                metadata.repositoryId(ancestorId),
+                minDepth, maxDepth);
+    }
+
+    private Search<R> whereAncestorModelId(
+            Object ancestorModelId,
+            int minDepth,
+            int maxDepth) {
+        return relation(ModelRelationConstraint.builder()
+                                .direction(ModelRelationConstraint.RelationDirection.ANCESTOR)
+                                .relatedModelId(Objects.requireNonNull(
+                                        ancestorModelId,
+                                        "Persisted ancestor identity").toString())
+                                .minDepth(minDepth)
+                                .maxDepth(maxDepth)
+                                .build());
     }
 
     /**
@@ -386,6 +517,8 @@ public interface Search<R> {
      * type-isolated collection of a model that participates in graph composition without maintaining a direct public
      * document. Related documents are selected before relationship traversal and target search, so a selective child
      * constraint does not require live composition of unrelated roots.
+     * Constraints with exact related model IDs skip related-document selection and can therefore start from an
+     * event-sourced Model that has no current document.
      * <p>
      * Implementations that do not support independent-model graph search fail when this method is called.
      */

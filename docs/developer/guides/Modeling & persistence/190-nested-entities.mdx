@@ -13,13 +13,13 @@ Domain objects may form a tree without sharing one permanent storage boundary. A
 storing its parent's ID in an `@Parent` property:
 
 ```java
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 record Order(
         @EntityId OrderId orderId,
         String customerName) {
 }
 
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 record LineItem(
         @EntityId LineItemId lineItemId,
         @Parent(pathInParent = "lines") OrderId orderId,
@@ -39,7 +39,7 @@ public search collection is absent.
 The relation may point to the same Model type, which makes recursive domains such as folders natural:
 
 ```java
-@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
 record Folder(
         @EntityId FolderId folderId,
         @Parent(pathInParent = "folders") FolderId parentFolderId,
@@ -228,8 +228,8 @@ record Order(@EntityId OrderId orderId, String customerName) {
 ```
 
 The runtime consumes durable projection signals, coalesces affected roots, composes each complete graph and writes it
-with a `(configurationVersion, stateIndex)` fence. A move updates both the old and new root. Selecting
-`EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` is a separate choice that enables direct `Order` search; it is not
+with a `(configurationVersion, stateIndex)` fence. A move updates both the old and new root. Adding `DOCUMENT` to the
+persistence set is a separate choice that enables direct `Order` search by default; it is not
 required for this whole-Graph projection.
 
 Projection completion is configurable:

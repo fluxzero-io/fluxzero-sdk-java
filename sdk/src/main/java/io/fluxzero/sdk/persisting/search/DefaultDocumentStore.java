@@ -53,7 +53,6 @@ import io.fluxzero.sdk.tracking.handling.HasLocalHandlers;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.With;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
@@ -220,6 +219,17 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     @Override
     public <T> Search<T> search(SearchQuery.Builder searchBuilder) {
         return new DefaultSearch<>(searchBuilder);
+    }
+
+    @Override
+    public <T> Search<T> search(@NonNull Class<T> collection) {
+        Class<?> targetModelType = EntityMetadata.of(collection).rootConfiguration()
+                .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
+                .map(ignored -> collection)
+                .orElse(null);
+        return new DefaultSearch<>(
+                SearchQuery.builder().collection(determineCollection(collection)),
+                targetModelType);
     }
 
     @Override
@@ -398,10 +408,10 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                         modelTypesSupplier);
     }
 
-    @RequiredArgsConstructor
     protected class DefaultSearch<R> implements Search<R> {
 
         private final SearchQuery.Builder queryBuilder;
+        private final Class<?> targetModelType;
         private final List<String> sorting = new ArrayList<>();
         private final List<String> pathFilters = new ArrayList<>();
         private final List<ModelRelationConstraint> relationConstraints =
@@ -412,7 +422,18 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
         private volatile int skip;
 
         protected DefaultSearch() {
-            this(SearchQuery.builder());
+            this(SearchQuery.builder(), null);
+        }
+
+        protected DefaultSearch(SearchQuery.Builder queryBuilder) {
+            this(queryBuilder, null);
+        }
+
+        protected DefaultSearch(
+                SearchQuery.Builder queryBuilder,
+                Class<?> targetModelType) {
+            this.queryBuilder = queryBuilder;
+            this.targetModelType = targetModelType;
         }
 
         @Override
@@ -453,12 +474,26 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 ModelRelationConstraint... constraints) {
             for (ModelRelationConstraint constraint :
                     constraints) {
+                useModelCurrentDocumentCollection();
                 relationConstraints.add(
                         Objects.requireNonNull(
                                 constraint,
                                 "Model relation constraint"));
             }
             return this;
+        }
+
+        private void useModelCurrentDocumentCollection() {
+            if (targetModelType == null) {
+                return;
+            }
+            String collection = EntityMetadata.validate(targetModelType)
+                    .modelDocumentCollection()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            ("Relationship search target %s has no current-state document; "
+                             + "load it as a Model or Graph instead")
+                                    .formatted(targetModelType.getName())));
+            queryBuilder.collections(List.of(collection));
         }
 
         @Override

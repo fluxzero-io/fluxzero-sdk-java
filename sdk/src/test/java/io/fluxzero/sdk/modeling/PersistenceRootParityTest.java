@@ -873,7 +873,7 @@ class PersistenceRootParityTest {
     }
 
     @Model(
-            persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
             cachingDepth = 1,
             snapshotPeriod = 2)
     private record ParityModel(
@@ -1048,7 +1048,7 @@ class PersistenceRootParityTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, publicationStrategy =
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, publicationStrategy =
                     EventPublicationStrategy.STORE_ONLY)
     private record StoreOnlyModel(
             @EntityId StoreOnlyModelId id,
@@ -1103,7 +1103,7 @@ class PersistenceRootParityTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
     private record EmbeddedModel(
             @EntityId EmbeddedModelId id,
             @Member List<EmbeddedValue> members) {

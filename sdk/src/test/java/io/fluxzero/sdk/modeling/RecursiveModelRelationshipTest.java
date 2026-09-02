@@ -135,7 +135,7 @@ class RecursiveModelRelationshipTest {
         return folders.stream().map(RecursiveFolder::folderId).toList();
     }
 
-    @Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT, materializeGraph = true,
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, materializeGraph = true,
             graphProjection = @GraphProjection(collection = "recursiveFolderGraphs"))
     private record RecursiveFolder(
             @EntityId RecursiveFolderId folderId,

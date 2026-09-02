@@ -542,7 +542,7 @@ class DefaultModelRepositoryCommitTest {
                         .getDocument();
         assertNotNull(document);
         assertEquals(
-                ModelDocumentMutation.graphComponentCollection(
+                ModelDocumentMutation.privateModelDocumentCollection(
                         GraphOnlyChild.class.getName()),
                 document.getCollection());
         assertEquals(
