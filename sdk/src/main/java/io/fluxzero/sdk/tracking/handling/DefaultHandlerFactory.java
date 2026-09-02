@@ -294,7 +294,10 @@ public class DefaultHandlerFactory implements HandlerFactory {
                                     message.getPayloadClass()) && !hasMoreSpecificTrackSelfHandlerType(
                                     targetClass, message.getPayloadClass());
                     config = config.toBuilder().messageFilter(selfFilter.and(config.messageFilter())).build();
-                    return createDefaultHandler(targetClass, DeserializingMessage::getPayload, config);
+                    return createDefaultHandler(targetClass,
+                                                message -> targetClass.isAssignableFrom(message.getPayloadClass())
+                                                        ? message.getPayload() : null,
+                                                config);
                 }
             }
 
