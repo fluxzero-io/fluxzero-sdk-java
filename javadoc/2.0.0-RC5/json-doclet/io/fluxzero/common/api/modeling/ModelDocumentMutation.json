@@ -1,0 +1,90 @@
+{
+  "name" : "ModelDocumentMutation",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Optional direct current-document consequence of one model target transition.\n <p>\n A {@code null} document represents deletion from {@link #collection}. The runtime attaches the target transition's\n assigned {@code stateIndex} and applies the mutation through a monotone write fence.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "MIGRATION_COLLECTION",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation.MIGRATION_COLLECTION",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Internal collection containing crash-safe direct-document state while published legacy\n events are being rebuilt. Ordinary Model loads and searches never use this collection.\n",
+    "constantValue" : "$modelMigrationDocuments"
+  }, {
+    "name" : "PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Prefix for type-isolated internal current-Model collections. ",
+    "constantValue" : "$modelGraphComponents/"
+  }, {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Current-document collection. This is either the independently searchable Model collection or an internal,\n type-isolated current-Model collection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "document",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation.document",
+    "type" : "io.fluxzero.common.api.search.SerializedDocument",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Complete serialized current document, or {@code null} to delete it.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelDocumentMutation",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation#ModelDocumentMutation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getBytes",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation#getBytes",
+    "returnType" : "long",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the serialized document payload size without counting protocol framing.\n"
+  }, {
+    "name" : "privateModelDocumentCollection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation#privateModelDocumentCollection",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the private search collection for current documents of one Model type.\n <p>\n Type isolation lets direct lookup, relationship search and Graph composition use ordinary document indexes\n without scanning or mixing unrelated Model types. The complete Model type name is already part of the persisted\n contract and keeps the collection deterministic across SDK instances.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

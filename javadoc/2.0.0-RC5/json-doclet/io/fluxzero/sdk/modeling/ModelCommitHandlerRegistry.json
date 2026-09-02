@@ -1,0 +1,551 @@
+{
+  "name" : "ModelCommitHandlerRegistry",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Registration and dispatch facade for independent-model handlers.\n\n <p>This type registers models and delegates application-bound definition lookup to {@link MutationPlan}. It owns no\n evaluation, commit, retry, batching or completion state; every invocation delegates to the single\n {@link ModelPipeline} lifecycle.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.HandlerFactory", "io.fluxzero.sdk.tracking.handling.HandlerRegistry", "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "decoratedHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry.decoratedHandler",
+    "type" : "io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "definitions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry.definitions",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.Catalog",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "handlerDecorator",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry.handlerDecorator",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "localHandlingEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry.localHandlingEnabled",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "pipeline",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry.pipeline",
+    "type" : "io.fluxzero.sdk.modeling.ModelPipeline",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "repository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry.repository",
+    "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelCommitHandlerRegistry",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#ModelCommitHandlerRegistry",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "repository",
+      "type" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventStoreClient",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "snapshotSerializer",
+      "type" : "io.fluxzero.sdk.common.serialization.Serializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documentSerializer",
+      "type" : "io.fluxzero.sdk.persisting.search.DocumentSerializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventDispatchInterceptor",
+      "type" : "io.fluxzero.sdk.publishing.DispatchInterceptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterResolvers",
+      "type" : "java.util.List<io.fluxzero.common.handling.ParameterResolver<? super io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerDecorator",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerDecorator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictResolver",
+      "type" : "io.fluxzero.sdk.modeling.ModelConflictResolver",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxConflictRetries",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "automaticHandling",
+      "type" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "graphProjectionCompletion",
+      "type" : "io.fluxzero.sdk.modeling.GraphProjectionCompletion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Creates the automatic model registration facade and its single execution pipeline. "
+  } ],
+  "methods" : [ {
+    "name" : "applyStoredEvent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#applyStoredEvent",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Replays one already accepted event without command assertions or interception. "
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#assertAndApply",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Executes one explicit update through the model pipeline. "
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#assertAndApply",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Executes one explicit update against the selected persisted model. "
+  }, {
+    "name" : "assertAndApplyAll",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#assertAndApplyAll",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.List<io.fluxzero.sdk.common.Message>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Executes independent explicit updates with shared transport batching. "
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#assertLegal",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Runs interceptors and immediate assertions without applying or committing. "
+  }, {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "canSkipLocalHandling",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#canSkipLocalHandling",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commandPayloadTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#commandPayloadTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commitPolicyFor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#commitPolicyFor",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelCommitPolicy",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "createHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#createHandler",
+    "returnType" : "java.util.Optional<io.fluxzero.common.handling.Handler<io.fluxzero.sdk.common.serialization.DeserializingMessage>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "extraInterceptors",
+      "type" : "java.util.List<io.fluxzero.sdk.tracking.handling.HandlerInterceptor>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "handle",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#handle",
+    "returnType" : "java.util.Optional<java.util.concurrent.CompletableFuture<java.lang.Object>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasLocalHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#hasLocalHandlers",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isFrameworkParameter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#isFrameworkParameter",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "knownModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#knownModelTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns registered or structurally referenced concrete model types. "
+  }, {
+    "name" : "migratePublishedEvent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#migratePublishedEvent",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies one existing globally published event without republishing it. "
+  }, {
+    "name" : "pipeline",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#pipeline",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelPipeline",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#registerHandler",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerMigrationTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#registerMigrationTypes",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelTypes",
+      "type" : "java.util.Collection<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Registers Model definitions for migration without enabling command tracking or Graph projections. "
+  }, {
+    "name" : "registeredModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#registeredModelTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the model types registered as handlers in this application. "
+  }, {
+    "name" : "repository",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#repository",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the repository shared by automatic handling and public model loads. "
+  }, {
+    "name" : "setSelfHandlerFilter",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#setSelfHandlerFilter",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "selfHandlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trackingTargets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelCommitHandlerRegistry#trackingTargets",
+    "returnType" : "java.util.List<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlerFilter",
+      "type" : "io.fluxzero.common.handling.HandlerFilter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

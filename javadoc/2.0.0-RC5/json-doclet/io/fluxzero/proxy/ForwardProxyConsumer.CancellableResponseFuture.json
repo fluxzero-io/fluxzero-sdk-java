@@ -1,0 +1,71 @@
+{
+  "name" : "CancellableResponseFuture",
+  "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture",
+  "packageName" : "io.fluxzero.proxy",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.util.concurrent.CompletableFuture<io.fluxzero.sdk.web.WebResponse>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "activeOperation",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture.activeOperation",
+    "type" : "java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CancellableResponseFuture",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture#CancellableResponseFuture",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cancel",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture#cancel",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "mayInterruptIfRunning",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "track",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$CancellableResponseFuture#track",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "java.util.concurrent.CompletableFuture<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

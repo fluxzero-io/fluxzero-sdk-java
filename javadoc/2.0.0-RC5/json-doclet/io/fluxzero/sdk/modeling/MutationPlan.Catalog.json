@@ -1,0 +1,255 @@
+{
+  "name" : "Catalog",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Application-bound definitions invalidated together when model registration changes. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "automaticHandling",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.automaticHandling",
+    "type" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "compiler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.compiler",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "definitions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.definitions",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,io.fluxzero.sdk.modeling.MutationPlan>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "knownModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.knownModelTypes",
+    "type" : "java.util.concurrent.CopyOnWriteArrayList<java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "recentDefinition",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.recentDefinition",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.CachedDefinition",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registeredModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.registeredModelTypes",
+    "type" : "java.util.concurrent.CopyOnWriteArrayList<java.lang.Class<?>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "registeredModelTypesDiscovered",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog.registeredModelTypesDiscovered",
+    "type" : "boolean",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Catalog",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#Catalog",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "compiler",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Compiler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "automaticHandling",
+      "type" : "io.fluxzero.sdk.modeling.AutomaticModelHandling",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "automaticHandlingEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#automaticHandlingEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#clear",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compileDefinition",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#compileDefinition",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "discoverRegisteredModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#discoverRegisteredModelTypes",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#get",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inspectHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#inspectHandlers",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "inspectPlanTraits",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#inspectPlanTraits",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.PlanTraits",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visiting",
+      "type" : "java.util.Set<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "knownModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#knownModelTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#register",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registeredModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#registeredModelTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unregister",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog#unregister",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,122 @@
+{
+  "name" : "ExistsConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.constraints.ExistsConstraint",
+  "packageName" : "io.fluxzero.common.api.search.constraints",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {
+      "access" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " A {@link Constraint} that checks whether one or more paths exist in a document.\n <p>\n This constraint matches any document that contains a non-null value at the specified path(s).\n <p>\n If multiple paths are provided, the constraint will match if <em>any</em> of them are present (i.e. this behaves as\n an {@link AnyConstraint}).\n <p>\n Optionally, sub-paths can be included using a glob-style match with {@code /**}.\n\n <h2>Examples</h2>\n <pre>{@code\n // Matches documents where \"person/firstName\" exists (is non-null)\n Constraint c1 = ExistsConstraint.exists(\"person/firstName\");\n\n // Matches if any of the specified paths or their children exist\n Constraint c2 = ExistsConstraint.exists(true, \"address\", \"email\");\n }</pre>\n <p>\n Note: to speed up {@link ExistsConstraint} matching, it is recommended to annotate fields with {@link Sortable}.\n\n @see Sortable\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.search.constraints.PathConstraint",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "exists",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.ExistsConstraint.exists",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " Represents a non-null path within a document that is checked for existence.\n",
+    "constantValue" : null
+  }, {
+    "name" : "paths",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.ExistsConstraint.paths",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ExistsConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.ExistsConstraint#ExistsConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "exists",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.ExistsConstraint#exists",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "paths",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Creates a constraint that checks for the presence of any of the given paths. Sub-paths will be included.\n\n @param paths the paths to check for existence\n @return a constraint that matches if any of the given paths (or their sub-paths) exist\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.ExistsConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entry",
+      "type" : "io.fluxzero.common.search.Document.Entry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withPaths",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.ExistsConstraint#withPaths",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "paths",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

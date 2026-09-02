@@ -1,0 +1,222 @@
+{
+  "name" : "HostMetricsCollector",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector",
+  "packageName" : "io.fluxzero.sdk.tracking.metrics.host",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Orchestrates periodic collection and publication of host metrics.\n <p>\n This class manages the lifecycle of host metrics collection, scheduling periodic\n collections and publishing the results via the {@link MetricsGateway}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "classCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.classCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmClassCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "configuration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.configuration",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "containerCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.containerCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cpuCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.cpuCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.CpuCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "diskCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.diskCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "fileDescriptorCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.fileDescriptorCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.FileDescriptorCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "fluxzero",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.fluxzero",
+    "type" : "io.fluxzero.sdk.Fluxzero",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "gcCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.gcCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmGcCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "memoryCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.memoryCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "running",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.running",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "scheduledTask",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.scheduledTask",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.common.Registration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "threadCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.threadCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmThreadCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "uptimeCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector.uptimeCollector",
+    "type" : "io.fluxzero.sdk.tracking.metrics.host.collectors.UptimeCollector",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HostMetricsCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#HostMetricsCollector",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fluxzero",
+      "type" : "io.fluxzero.sdk.Fluxzero",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collectAndPublish",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#collectAndPublish",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "collectAndPublishNow",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#collectAndPublishNow",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Manually triggers a metrics collection and publication.\n <p>\n This method can be used for on-demand metrics collection independent of the\n periodic schedule.\n"
+  }, {
+    "name" : "collectMetrics",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#collectMetrics",
+    "returnType" : "io.fluxzero.sdk.tracking.metrics.host.events.HostMetrics",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isRunning",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#isRunning",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether the collector is currently running.\n\n @return true if metrics collection is active\n"
+  }, {
+    "name" : "scheduleNextCollection",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#scheduleNextCollection",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "start",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#start",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts periodic metrics collection.\n <p>\n If already running, this method does nothing.\n"
+  }, {
+    "name" : "stop",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector#stop",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Stops metrics collection.\n <p>\n Cancels any pending scheduled collection. This method is safe to call multiple times.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

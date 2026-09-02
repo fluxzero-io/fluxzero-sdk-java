@@ -1,0 +1,148 @@
+{
+  "name" : "FluxzeroErrorCode",
+  "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode",
+  "packageName" : "io.fluxzero.sdk.common.exception",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Stable identifiers for Fluxzero SDK errors.\n <p>\n The textual message may evolve to become more helpful, but the code should remain stable so application logs,\n support playbooks, and Fluxzero documentation can refer to the same problem over time.\n <p>\n Published codes are part of the SDK support contract: do not renumber, rename, or reuse them for a different meaning.\n Add a new code when introducing a distinct error category.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.common.exception.FluxzeroErrorCode>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "DOCUMENTATION_BASE_URL",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.DOCUMENTATION_BASE_URL",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Default documentation root for SDK error pages.\n",
+    "constantValue" : "https://fluxzero.io/docs/errors#"
+  }, {
+    "name" : "code",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.code",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FluxzeroErrorCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode#FluxzeroErrorCode",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "code",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode#getCode",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the stable machine-readable error code.\n"
+  }, {
+    "name" : "getDocumentationUrl",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode#getDocumentationUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the canonical documentation URL for this error.\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode#valueOf",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode#values",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "FLUXZERO_INSTANCE_MISSING",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.FLUXZERO_INSTANCE_MISSING",
+    "annotations" : [ ],
+    "documentation" : " No {@link io.fluxzero.sdk.Fluxzero} instance is available for the current call.\n"
+  }, {
+    "name" : "HANDLER_INVOCATION_FAILED",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.HANDLER_INVOCATION_FAILED",
+    "annotations" : [ ],
+    "documentation" : " A handler failed while processing a message.\n"
+  }, {
+    "name" : "MESSAGE_DISPATCH_FAILED",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.MESSAGE_DISPATCH_FAILED",
+    "annotations" : [ ],
+    "documentation" : " One or more messages could not be dispatched.\n"
+  }, {
+    "name" : "PERIODIC_SCHEDULE_INVALID",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.PERIODIC_SCHEDULE_INVALID",
+    "annotations" : [ ],
+    "documentation" : " A periodic schedule annotation is missing the required timing configuration.\n"
+  }, {
+    "name" : "REQUEST_TIMED_OUT",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.REQUEST_TIMED_OUT",
+    "annotations" : [ ],
+    "documentation" : " A request was sent, but no matching response arrived before the timeout elapsed.\n"
+  }, {
+    "name" : "RESPONSE_DISPATCH_FAILED",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.RESPONSE_DISPATCH_FAILED",
+    "annotations" : [ ],
+    "documentation" : " A response could not be published back to the requester.\n"
+  }, {
+    "name" : "THREAD_INTERRUPTED",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.THREAD_INTERRUPTED",
+    "annotations" : [ ],
+    "documentation" : " A blocking wait was interrupted before Fluxzero could complete it.\n"
+  }, {
+    "name" : "TRACKING_CONFIGURATION_INVALID",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.TRACKING_CONFIGURATION_INVALID",
+    "annotations" : [ ],
+    "documentation" : " Tracking could not start because consumer configuration is incomplete or conflicting.\n"
+  }, {
+    "name" : "TRACKING_RUNTIME_FAILED",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.TRACKING_RUNTIME_FAILED",
+    "annotations" : [ ],
+    "documentation" : " Tracking failed while storing position or managing tracker state.\n"
+  }, {
+    "name" : "USER_PROVIDER_MISSING",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrorCode.USER_PROVIDER_MISSING",
+    "annotations" : [ ],
+    "documentation" : " A user was attached to a message without a configured user provider.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

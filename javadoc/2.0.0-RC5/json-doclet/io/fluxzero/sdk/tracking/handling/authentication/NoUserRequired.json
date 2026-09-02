@@ -1,0 +1,34 @@
+{
+  "name" : "NoUserRequired",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE,CONSTRUCTOR,METHOD,ANNOTATION_TYPE,PACKAGE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " <p>\n This annotation allows a message handler or payload to be invoked even if the current user is <strong>not</strong> authenticated.\n It effectively overrides broader authentication requirements — for example, those set by {@link RequiresUser} on a root or parent package or class.\n </p>\n\n <p>\n {@code @NoUserRequired} is particularly useful in applications where most handlers require authentication,\n but you want to selectively permit anonymous access to specific messages or operations (e.g., public APIs, health checks).\n </p>\n\n <p>\n Note that {@code @NoUserRequired} is not the inverse of {@link RequiresUser} — it does not forbid authenticated users,\n nor does it prevent handling if a user is present. It simply removes the requirement for authentication in the context where it is applied.\n </p>\n\n <p><strong>Example usage:</strong></p>\n <pre>{@code\n @NoUserRequired\n @HandleCommand\n void handle(SignUpUser command) {\n     // This can be invoked by anonymous users\n }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

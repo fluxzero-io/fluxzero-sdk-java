@@ -1,0 +1,175 @@
+{
+  "name" : "Aliases",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Final alias replacements and their requested owners in commit order. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "EMPTY",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases.EMPTY",
+    "type" : "io.fluxzero.common.modeling.ModelCommitAssignment.Aliases",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "owners",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases.owners",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "replacements",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases.replacements",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Aliases",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#Aliases",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replacements",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "applyTo",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#applyTo",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "current",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies a previously validated plan to an alias-to-model view. "
+  }, {
+    "name" : "from",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#from",
+    "returnType" : "io.fluxzero.common.modeling.ModelCommitAssignment.Aliases",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "io.fluxzero.common.api.modeling.ModelCommitTarget",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "from",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#from",
+    "returnType" : "io.fluxzero.common.modeling.ModelCommitAssignment.Aliases",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replacements",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isEmpty",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#isEmpty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "owners",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#owners",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#put",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "replacements",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "io.fluxzero.common.api.modeling.ModelCommitTarget",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "replacements",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#replacements",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validate",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$Aliases#validate",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "current",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Validates replacements against a store's current alias-to-model view. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

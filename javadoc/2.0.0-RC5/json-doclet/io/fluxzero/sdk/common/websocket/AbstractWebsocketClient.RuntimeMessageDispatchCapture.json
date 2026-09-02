@@ -1,0 +1,44 @@
+{
+  "name" : "RuntimeMessageDispatchCapture",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$RuntimeMessageDispatchCapture",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "active",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$RuntimeMessageDispatchCapture.active",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "dispatch",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$RuntimeMessageDispatchCapture.dispatch",
+    "type" : "io.fluxzero.sdk.common.websocket.RuntimeIngressController.MessageDispatch",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RuntimeMessageDispatchCapture",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient$RuntimeMessageDispatchCapture#RuntimeMessageDispatchCapture",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

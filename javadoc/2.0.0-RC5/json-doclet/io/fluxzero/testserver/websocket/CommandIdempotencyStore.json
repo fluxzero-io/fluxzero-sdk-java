@@ -1,0 +1,282 @@
+{
+  "name" : "CommandIdempotencyStore",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.AutoCloseable" ],
+  "fields" : [ {
+    "name" : "COMMAND_RESULT_CACHE_SIZE_PROPERTY",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.COMMAND_RESULT_CACHE_SIZE_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "websocket.commandResultCacheSize"
+  }, {
+    "name" : "DEFAULT_INACTIVE_CLIENT_TTL_SECONDS",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.DEFAULT_INACTIVE_CLIENT_TTL_SECONDS",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 600
+  }, {
+    "name" : "DEFAULT_RETAINED_COMMAND_RESULTS_PER_CLIENT",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.DEFAULT_RETAINED_COMMAND_RESULTS_PER_CLIENT",
+    "type" : "int",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 16384
+  }, {
+    "name" : "INACTIVE_CLIENT_TTL_SECONDS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.INACTIVE_CLIENT_TTL_SECONDS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "websocket.commandResultInactiveClientTtlSeconds"
+  }, {
+    "name" : "cleanupScheduler",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.cleanupScheduler",
+    "type" : "io.fluxzero.common.TaskScheduler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "clients",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.clients",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.testserver.websocket.CommandIdempotencyStore.ClientCommandResults>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "inactiveClientTtl",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.inactiveClientTtl",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "retainedResultsPerClient",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.retainedResultsPerClient",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CommandIdempotencyStore",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#CommandIdempotencyStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "CommandIdempotencyStore",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#CommandIdempotencyStore",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "retainedResultsPerClient",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inactiveClientTtl",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cleanupScheduler",
+      "type" : "io.fluxzero.common.TaskScheduler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "cleanupInactiveClient",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#cleanupInactiveClient",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "client",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.ClientCommandResults",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clientCount",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#clientCount",
+    "returnType" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "clientResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#clientResults",
+    "returnType" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.ClientCommandResults",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "close",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#close",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "executeExpiredCleanupTasks",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#executeExpiredCleanupTasks",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isEnabled",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#isEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#register",
+    "returnType" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandRegistration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerSession",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#registerSession",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unregisterSession",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore#unregisterSession",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "clientId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "ClientCommandResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults",
+    "kind" : "class",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CommandRegistration",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CommandResult",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandResult",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -1,0 +1,109 @@
+{
+  "name" : "StoreValueIfAbsent",
+  "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent",
+  "packageName" : "io.fluxzero.common.api.keyvalue",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " Stores a key-value pair <strong>only if</strong> the specified key does not already exist in the key-value store.\n <p>\n This command ensures atomic \"put-if-absent\" semantics, making it useful for distributed locks, idempotency markers,\n or one-time setup flags in legacy Fluxzero applications.\n </p>\n\n <h2>Notes</h2>\n <ul>\n   <li>Always uses {@link Guarantee#STORED} for persistence safety.</li>\n   <li>This command is part of the legacy key-value subsystem. For most modern use cases, consider migrating\n       to the {@code DocumentStore} or {@code Searchable} storage model.</li>\n </ul>\n\n @see KeyValuePair\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent.value",
+    "type" : "io.fluxzero.common.api.keyvalue.KeyValuePair",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "StoreValueIfAbsent",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent#StoreValueIfAbsent",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "getGuarantee",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent#getGuarantee",
+    "returnType" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent#toMetric",
+    "returnType" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.keyvalue.StoreValueIfAbsent$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

@@ -1,0 +1,124 @@
+{
+  "name" : "ResolvedSubstep",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "context",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep.context",
+    "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "reducer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep.reducer",
+    "type" : "io.fluxzero.sdk.modeling.ModelReducer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ResolvedSubstep",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep#ResolvedSubstep",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "reducer",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "context",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep#context",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reducer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep#reducer",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelReducer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ModelReducer$ResolvedSubstep#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "context",
+    "type" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "reducer",
+    "type" : "io.fluxzero.sdk.modeling.ModelReducer",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

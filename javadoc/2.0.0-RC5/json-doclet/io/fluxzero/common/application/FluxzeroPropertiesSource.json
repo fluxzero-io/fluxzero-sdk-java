@@ -1,0 +1,135 @@
+{
+  "name" : "FluxzeroPropertiesSource",
+  "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " A {@link PropertySource} that loads Fluxzero-specific settings from classpath resources.\n <p>\n The source reads {@code fluxzero.json} and {@code fluxzero.properties} from the root of the classpath, merging all\n matching resources across modules. JSON objects are flattened to dot-separated property names, so\n {@code {\"validation\":{\"enabled\":true}}} becomes {@code validation.enabled=true}. Inside this source,\n {@code fluxzero.properties} wins over {@code fluxzero.json}; the default Fluxzero property chain still lets\n {@code application.properties}, {@code application-<env>.properties}, system properties, and environment variables\n override these Fluxzero-specific defaults.\n\n @see DefaultPropertySource\n @see ApplicationPropertiesSource\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.application.JavaPropertiesSource",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "FluxzeroPropertiesSource",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource#FluxzeroPropertiesSource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a source backed by {@code fluxzero.json} and {@code fluxzero.properties} classpath resources.\n"
+  } ],
+  "methods" : [ {
+    "name" : "flattenJsonProperties",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource#flattenJsonProperties",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.util.Properties",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "prefix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadFluxzeroProperties",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource#loadFluxzeroProperties",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadJsonProperties",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource#loadJsonProperties",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "inputStream",
+      "type" : "java.io.InputStream",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "loadJsonProperties",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource#loadJsonProperties",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.common.application.FluxzeroPropertiesSource#put",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "result",
+      "type" : "java.util.Properties",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "key",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

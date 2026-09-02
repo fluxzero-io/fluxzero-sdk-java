@@ -1,0 +1,133 @@
+{
+  "name" : "AllConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint",
+  "packageName" : "io.fluxzero.common.api.search.constraints",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {
+      "access" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " A composite constraint that requires all inner constraints to match.\n <p>\n This is equivalent to a logical <strong>AND</strong> operation over the contained constraints. The document must\n satisfy every inner constraint in the list for the {@code AllConstraint} to match.\n\n <p>\n If the constraint list is empty, this becomes a no-op constraint that matches all documents. If only one constraint\n is provided, it is returned directly to avoid unnecessary nesting.\n\n @see AnyConstraint for logical OR\n @see NotConstraint for logical negation\n @see Constraint\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.api.search.Constraint" ],
+  "fields" : [ {
+    "name" : "all",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint.all",
+    "type" : "java.util.List<io.fluxzero.common.api.search.Constraint>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The list of constraints being combined using a logical AND.\n",
+    "constantValue" : null
+  }, {
+    "name" : "decompose",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint.decompose",
+    "type" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AllConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint#AllConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "all",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint#all",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "constraints",
+      "type" : "io.fluxzero.common.api.search.Constraint[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Creates an {@code AllConstraint} from the given array of constraints.\n <p>\n If the array is empty, a {@link NoOpConstraint} is returned. If only one constraint is provided, that constraint\n is returned directly.\n\n @param constraints one or more constraints to combine\n @return a constraint that requires all inputs to match\n"
+  }, {
+    "name" : "all",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint#all",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "constraints",
+      "type" : "java.util.Collection<io.fluxzero.common.api.search.Constraint>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an {@code AllConstraint} from the given collection of constraints.\n <p>\n If the collection is empty, a {@link NoOpConstraint} is returned. If it contains only one constraint, that\n constraint is returned directly.\n\n @param constraints a collection of constraints to combine\n @return a constraint that requires all inputs to match\n"
+  }, {
+    "name" : "hasPathConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint#hasPathConstraint",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.AllConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

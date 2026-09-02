@@ -1,0 +1,55 @@
+{
+  "name" : "SearchHistogram",
+  "qualifiedName" : "io.fluxzero.common.api.search.SearchHistogram",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents a histogram over a time range, typically returned by\n {@link io.fluxzero.common.api.search.GetSearchHistogramResult}.\n <p>\n This class captures how many documents fall into equally sized time buckets between {@code since} and {@code before}.\n It is often used for visualizing activity over time (e.g., in a timeline or bar chart).\n <p>\n The number of buckets (i.e. the size of {@code counts}) is determined by the {@code resolution}\n parameter in the original {@link io.fluxzero.common.api.search.GetSearchHistogram} request.\n\n @see io.fluxzero.common.api.search.GetSearchHistogram\n @see io.fluxzero.common.api.search.GetSearchHistogramResult\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "before",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchHistogram.before",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The end of the histogram range (exclusive).\n",
+    "constantValue" : null
+  }, {
+    "name" : "counts",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchHistogram.counts",
+    "type" : "java.util.List<java.lang.Long>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The list of counts per time bucket. Always has {@code resolution} entries.\n",
+    "constantValue" : null
+  }, {
+    "name" : "since",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchHistogram.since",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The start of the histogram range (inclusive).\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SearchHistogram",
+    "qualifiedName" : "io.fluxzero.common.api.search.SearchHistogram#SearchHistogram",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

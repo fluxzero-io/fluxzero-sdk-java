@@ -1,0 +1,60 @@
+{
+  "name" : "WebSocketPayloadCodec",
+  "qualifiedName" : "io.fluxzero.common.websocket.WebSocketPayloadCodec",
+  "packageName" : "io.fluxzero.common.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Optional compact representation for a protocol-specific websocket payload.\n\n <p>Implementations return {@code null} for values or transport formats they do not own. The generic transport then\n falls back to its regular JSON or CBOR representation.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "tryDecode",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketPayloadCodec#tryDecode",
+    "returnType" : "io.fluxzero.common.api.JsonType",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Returns the decoded value, or {@code null} when the bytes do not belong to this codec. "
+  }, {
+    "name" : "tryEncode",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketPayloadCodec#tryEncode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "format",
+      "type" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : "Returns a compact representation, or {@code null} when this codec does not own the value. "
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

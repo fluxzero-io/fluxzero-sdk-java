@@ -1,0 +1,147 @@
+{
+  "name" : "LazyId",
+  "qualifiedName" : "io.fluxzero.sdk.common.LazyId",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.experimental.NonFinal",
+    "values" : {}
+  }, {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonSerialize",
+    "values" : {
+      "using" : "io.fluxzero.sdk.common.LazyId.CustomSerializer"
+    }
+  }, {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonDeserialize",
+    "values" : {
+      "using" : "io.fluxzero.sdk.common.LazyId.CustomDeserializer"
+    }
+  } ],
+  "documentation" : " A lazily initialized identifier that serializes as a plain string.\n <p>\n Unlike using Lombok's lazy getters, {@code LazyId} ensures the ID is generated only once and remains stable even\n after calling {@code .toBuilder()} on the enclosing object. This makes it useful in scenarios where the ID should be\n deterministically generated only once per logical instance, including deserialization and cloning scenarios.\n <p>\n If the ID is not provided directly, a supplier (e.g., {@code Fluxzero::generateId}) can be used to compute it\n lazily on first access. The ID is then cached and reused.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "computed",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId.computed",
+    "type" : "boolean",
+    "modifiers" : [ "volatile" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " Indicates whether the ID has already been computed.\n",
+    "constantValue" : null
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId.id",
+    "type" : "java.lang.String",
+    "modifiers" : [ "volatile" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.experimental.NonFinal",
+      "values" : {}
+    } ],
+    "documentation" : " The string value of the identifier. May be {@code null} if not yet computed.\n",
+    "constantValue" : null
+  }, {
+    "name" : "supplier",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId.supplier",
+    "type" : "java.util.function.Supplier<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " The supplier used to generate the ID when needed. May be {@code null} if the ID is provided directly.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LazyId",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId#LazyId",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new {@code LazyId} with a default ID supplier using {@code Fluxzero::generateId}.\n"
+  }, {
+    "name" : "LazyId",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId#LazyId",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code LazyId} with a known ID value. No computation will occur.\n\n @param id the ID value (converted to string if non-null)\n"
+  }, {
+    "name" : "LazyId",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId#LazyId",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "supplier",
+      "type" : "java.util.function.Supplier<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new {@code LazyId} with the specified supplier. The ID will be computed when accessed.\n\n @param supplier the supplier used to generate the ID\n"
+  } ],
+  "methods" : [ {
+    "name" : "getId",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId#getId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the ID value as a string.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "CustomDeserializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId$CustomDeserializer",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CustomSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.LazyId$CustomSerializer",
+    "kind" : "class",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ]
+  } ]
+}

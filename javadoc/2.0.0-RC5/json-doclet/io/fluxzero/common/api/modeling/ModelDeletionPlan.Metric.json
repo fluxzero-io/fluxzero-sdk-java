@@ -1,0 +1,111 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cascade",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.cascade",
+    "type" : "io.fluxzero.common.api.modeling.ModelDeletionCascade",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "externallySharedModelCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.externallySharedModelCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxDepth",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.maxDepth",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxModels",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.maxModels",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.modelCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "publishedEventCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.publishedEventCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "sampleSize",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.sampleSize",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.stateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "storedEventMembershipCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.storedEventMembershipCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}
