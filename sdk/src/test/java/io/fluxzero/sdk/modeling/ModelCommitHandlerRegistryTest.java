@@ -21,6 +21,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
@@ -67,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -691,6 +695,26 @@ class ModelCommitHandlerRegistryTest {
 
             assertTrue(subject.canHandle(
                     message(new TimingCreateCommand("fixture"))));
+        } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void automaticModelHandlerDoesNotDeserializeNonMatchingPayload() {
+        ModelCommitHandlerRegistry subject =
+                subject(AutomaticModelHandling.ENABLED);
+        try {
+            Handler<DeserializingMessage> handler = subject.createHandler(
+                    TimingCreateCommand.class,
+                    HandlerFilter.ALWAYS_HANDLE,
+                    List.of()).orElseThrow();
+            AtomicInteger deserializationAttempts = new AtomicInteger();
+
+            assertNull(handler.getInvokerOrNull(malformedMessage(
+                    CrossApplicationCommand.class,
+                    deserializationAttempts)));
+            assertEquals(0, deserializationAttempts.get());
         } finally {
             subject.close();
         }
@@ -1997,6 +2021,21 @@ class ModelCommitHandlerRegistryTest {
         DeserializingMessage result = message(payload);
         result.getSerializedObject().setSegment(segment);
         return result;
+    }
+
+    private static DeserializingMessage malformedMessage(
+            Class<?> payloadClass,
+            AtomicInteger deserializationAttempts) {
+        SerializedMessage serializedMessage = new SerializedMessage(
+                new Data<>(new byte[0], payloadClass.getName(), 0),
+                Metadata.empty(), "message-id", 0L);
+        return new DeserializingMessage(
+                serializedMessage,
+                ignored -> {
+                    deserializationAttempts.incrementAndGet();
+                    throw new IllegalStateException("malformed payload");
+                },
+                MessageType.COMMAND, null, null);
     }
 
     private static CommitAttempt evaluation(
