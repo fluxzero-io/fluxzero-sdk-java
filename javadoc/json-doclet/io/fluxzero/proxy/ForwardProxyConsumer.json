@@ -770,6 +770,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "captureCorrelationData",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#captureCorrelationData",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "complete",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer#complete",
     "returnType" : "void",

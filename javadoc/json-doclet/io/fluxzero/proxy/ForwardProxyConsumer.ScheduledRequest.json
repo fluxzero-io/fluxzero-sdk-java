@@ -18,6 +18,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "correlationData",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest.correlationData",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "execution",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest.execution",
     "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.proxy.ForwardProxyConsumer.CancellableResponseFuture>",
@@ -196,6 +204,17 @@
     "name" : "copyForRequeue",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest#copyForRequeue",
     "returnType" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "correlationData",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer$ScheduledRequest#correlationData",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
