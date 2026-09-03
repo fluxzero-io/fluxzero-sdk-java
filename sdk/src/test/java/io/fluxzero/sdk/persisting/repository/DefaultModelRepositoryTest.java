@@ -1625,7 +1625,12 @@ class DefaultModelRepositoryTest {
             GetModelEventsResult result =
                     (GetModelEventsResult)
                             invocation.callRealMethod();
-            if (intercept.compareAndSet(true, false)) {
+            GetModelEvents request = invocation.getArgument(0);
+            boolean reconstructsTarget = request.getRequests().stream()
+                    .anyMatch(stream -> id.toString().equals(stream.getModelId())
+                                        && stream.getMaxSize() > 0);
+            if (reconstructsTarget
+                && intercept.compareAndSet(true, false)) {
                 reconstructionLoaded.countDown();
                 allowReconstructionCompletion.await();
             }
