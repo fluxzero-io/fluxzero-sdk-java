@@ -18,6 +18,14 @@
     "documentation" : " Optional version of the deployed application. When configured, Fluxzero adds the value to the correlation\n metadata of every outgoing message under {@code $applicationVersion}. The default environment-variable alias is\n {@code FLUXZERO_APPLICATION_VERSION}.\n",
     "constantValue" : "fluxzero.application.version"
   }, {
+    "name" : "CLIENT_ID_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.CLIENT_ID_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Optional explicit unique client-instance ID. The default environment-variable name is\n {@code FLUXZERO_CLIENT_ID}; {@code FLUX_CLIENT_ID} remains supported as a legacy alias.\n",
+    "constantValue" : "FLUXZERO_CLIENT_ID"
+  }, {
     "name" : "DEFAULTS_VERSION_FORMAT",
     "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULTS_VERSION_FORMAT",
     "type" : "java.time.format.DateTimeFormatter",
@@ -33,6 +41,30 @@
     "annotations" : [ ],
     "documentation" : " Selects the versioned Fluxzero default behavior profile for applications that do not configure each default\n explicitly.\n <p>\n Existing applications can omit this property to keep compatibility defaults. New applications can set a value in\n {@code yyyy.MM.dd} format to opt into all default changes introduced on or before that date. Each default can\n still be overridden by its own dedicated property.\n <table>\n     <caption>Versioned defaults</caption>\n     <tr>\n         <th>Defaults version</th>\n         <th>Equivalent property</th>\n         <th>Behavior</th>\n     </tr>\n     <tr>\n         <td>{@code >= 2026.05.20}</td>\n         <td>{@code fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler}</td>\n         <td>Handlers without an explicit consumer get an isolated generated default consumer per handler class,\n         instead of joining the shared application default consumer for the message type.</td>\n     </tr>\n     <tr>\n         <td>{@code >= 2026.05.21}</td>\n         <td>{@code fluxzero.scheduling.periodic.useDefaultInitialDelay = true}</td>\n         <td>{@code @Periodic} schedules without an explicit {@code initialDelay} use their natural first\n         deadline: fixed-delay schedules first run after {@code delay}, and cron schedules first run at the next\n         cron match. Use {@code initialDelay = 0} for an immediate first run.</td>\n     </tr>\n     <tr>\n         <td>{@code >= 2026.05.25}</td>\n         <td>{@code fluxzero.cache.mode = adaptive}</td>\n         <td>The default aggregate cache uses a count-bounded hard-reference cache. Applications can keep the old\n         behavior with {@code fluxzero.cache.mode = softRef}. Tracking caches are not changed by this defaults\n         version and require an explicit {@code fluxzero.tracking.cache.mode} setting.</td>\n     </tr>\n     <tr>\n         <td>{@code >= 2026.06.09}</td>\n         <td>{@code fluxzero.aggregate.commitPolicy = async_after_handler_await_after_batch}</td>\n         <td>Aggregates using the default commit policy start their commits after each handler, keep active\n         thread-local aggregates visible until batch completion, and wait for all started commits together at the\n         end of the current message batch. Existing applications can keep the legacy behavior with\n         {@code fluxzero.aggregate.commitPolicy = sync_after_batch}.</td>\n     </tr>\n     <tr>\n         <td>{@code >= 2026.06.20}</td>\n         <td>{@code fluxzero.tracking.defaultHandlingMode.webrequest = async}</td>\n         <td>Web request handlers assigned through default consumers are invoked on worker threads by default.\n         Existing applications can keep synchronous handling with\n         {@code fluxzero.tracking.defaultHandlingMode.webrequest = sync} or by configuring the web request default\n         consumer with {@code handlingMode = SYNC}.</td>\n     </tr>\n     <tr>\n         <td>{@code >= 2026.08.04}</td>\n         <td>{@code fluxzero.auth.useUserIdMetadata = true}</td>\n         <td>{@link io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider} writes {@code $system}\n         for the system user and {@link java.security.Principal#getName()} for regular users. It resolves\n         {@code $system} to the system user and other values through {@code getUserById}. Existing applications can\n         keep serialized user objects with {@code fluxzero.auth.useUserIdMetadata = false}.</td>\n     </tr>\n     <tr>\n         <td>{@code >= 2026.08.26}</td>\n         <td>{@code fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN}</td>\n         <td>Outbound web requests using {@link io.fluxzero.sdk.web.RedirectPolicy#DEFAULT} only follow\n         redirects within the original scheme, host, and effective port. Existing applications can retain normal\n         JDK redirects with {@code fluxzero.web.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables\n         redirects explicitly.</td>\n     </tr>\n </table>\n <p>\n Memory-aware cache pressure can be tuned with\n {@code fluxzero.cache.memoryPressure.heapThresholdPercent},\n {@code fluxzero.cache.memoryPressure.gcTimeThresholdPercent}, and\n {@code fluxzero.cache.memoryPressure.trimRatioPercent}. The amount evicted in a single pass is also capped by\n {@code fluxzero.cache.memoryPressure.maxTrimWeight}.\n",
     "constantValue" : "fluxzero.defaults.version"
+  }, {
+    "name" : "LEGACY_CLIENT_ID_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.LEGACY_CLIENT_ID_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Legacy alias for {@link #CLIENT_ID_PROPERTY}. ",
+    "constantValue" : "FLUX_CLIENT_ID"
+  }, {
+    "name" : "LEGACY_TASK_ID_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.LEGACY_TASK_ID_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "Legacy alias for {@link #TASK_ID_PROPERTY}. ",
+    "constantValue" : "FLUX_TASK_ID"
+  }, {
+    "name" : "TASK_ID_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties.TASK_ID_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Identity of the platform task that hosts the application. The default environment-variable name is\n {@code FLUXZERO_TASK_ID}; {@code FLUX_TASK_ID} remains supported as a legacy alias.\n",
+    "constantValue" : "FLUXZERO_TASK_ID"
   } ],
   "constructors" : [ {
     "name" : "ApplicationProperties",
@@ -61,6 +93,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Returns {@code true} if a property with the given name exists.\n"
+  }, {
+    "name" : "createClientId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#createClientId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a unique ID for a client instance. An explicitly configured {@code FLUXZERO_CLIENT_ID} is used when\n present. Otherwise, a random UUID is generated and prefixed with {@code FLUXZERO_TASK_ID} when available.\n Callers should create this ID once and retain it across reconnects.\n"
+  }, {
+    "name" : "createClientId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#createClientId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a unique ID for a client instance from the given property source.\n"
   }, {
     "name" : "decryptValue",
     "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#decryptValue",
@@ -343,6 +402,33 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "getTaskId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getTaskId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the configured platform task ID, or {@code null} when the application does not run as a known task.\n"
+  }, {
+    "name" : "getTaskId",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#getTaskId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the platform task ID from the given property source, or {@code null} when absent or blank.\n"
   }, {
     "name" : "mapProperty",
     "qualifiedName" : "io.fluxzero.sdk.configuration.ApplicationProperties#mapProperty",

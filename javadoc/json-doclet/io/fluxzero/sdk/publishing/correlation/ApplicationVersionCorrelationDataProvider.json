@@ -282,6 +282,20 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "getTaskIdKey",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.ApplicationVersionCorrelationDataProvider#getTaskIdKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getTraceIdKey",
     "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.ApplicationVersionCorrelationDataProvider#getTraceIdKey",
     "returnType" : "java.lang.String",

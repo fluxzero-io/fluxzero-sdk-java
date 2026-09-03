@@ -24,6 +24,11 @@
     "name" : "DefaultCorrelationDataProvider",
     "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider",
     "kind" : "enum"
+  }, {
+    "file" : "TaskIdCorrelationDataProvider.json",
+    "name" : "TaskIdCorrelationDataProvider",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }

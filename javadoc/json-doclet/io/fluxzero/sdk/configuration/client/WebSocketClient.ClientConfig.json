@@ -217,7 +217,7 @@
       "annotationType" : "lombok.Builder.Default",
       "values" : {}
     } ],
-    "documentation" : " A unique ID for the client instance. Defaults to {@code FLUXZERO_TASK_ID} or a randomly generated UUID.\n",
+    "documentation" : " A unique ID for this client instance. Defaults to {@code FLUXZERO_CLIENT_ID} when configured. Otherwise a\n random UUID is generated, prefixed with {@code FLUXZERO_TASK_ID} when that task identity is available.\n Namespace-specific clients and reconnecting websocket sessions retain the same ID.\n",
     "constantValue" : null
   }, {
     "name" : "keyValueSessions",
