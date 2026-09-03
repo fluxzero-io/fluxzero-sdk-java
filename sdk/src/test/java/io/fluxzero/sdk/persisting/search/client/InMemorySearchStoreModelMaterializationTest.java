@@ -147,17 +147,12 @@ class InMemorySearchStoreModelMaterializationTest {
                                                 .toUnmodifiableMap(
                                                         Map.Entry::getKey,
                                                         Map.Entry::getValue)));
-        graphStore.index(
-                        List.of(
-                                structuredDocument(
-                                        rootId, "roots",
-                                        "root"),
-                                structuredDocument(
-                                        childId,
-                                        childCollection,
-                                        "first")),
-                        STORED, false)
-                .join();
+        materialize(graphStore, rootId, 1L,
+                    new ModelDocumentMutation("roots",
+                                              structuredDocument(rootId, "roots", "root")));
+        materialize(graphStore, childId, 2L,
+                    new ModelDocumentMutation(childCollection,
+                                              structuredDocument(childId, childCollection, "first")));
         ModelGraphProjectionConfiguration configuration =
                 new ModelGraphProjectionConfiguration(
                         "Root", "roots",
@@ -388,8 +383,9 @@ class InMemorySearchStoreModelMaterializationTest {
                 Duration.ofDays(1), null,
                 (ignored, composition) -> List.of(),
                 ignored -> Map.of(rootId, "roots"));
-        graphStore.index(List.of(structuredDocument(
-                rootId, "roots", "original")), STORED, false).join();
+        materialize(graphStore, rootId, 1L,
+                    new ModelDocumentMutation("roots",
+                                              structuredDocument(rootId, "roots", "original")));
         ModelGraphProjectionConfiguration configuration =
                 new ModelGraphProjectionConfiguration(
                         "TestModel", "roots", "rootGraphs",
@@ -535,6 +531,7 @@ class InMemorySearchStoreModelMaterializationTest {
                         .build());
         return ModelGraphDocumentStitcher.stitch(
                 List.of(direct), List.of(), Map.of(id, direct),
+                Map.of(id, type.substring(type.lastIndexOf('.') + 1)),
                 ModelGraphComposition.builder().build(), stateIndex)
                 .getFirst();
     }

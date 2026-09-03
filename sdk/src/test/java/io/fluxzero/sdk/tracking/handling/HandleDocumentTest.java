@@ -140,6 +140,7 @@ public class HandleDocumentTest {
                                     .build());
                     SerializedDocument oldGraph = ModelGraphDocumentStitcher.stitch(
                             List.of(direct), List.of(), Map.of("root", direct),
+                            Map.of("root", "GraphRoot"),
                             ModelGraphComposition.builder().build(), 41L)
                             .getFirst().withCollection("graph-roots-graphs");
                     fc.client().getSearchClient().index(
@@ -379,9 +380,9 @@ public class HandleDocumentTest {
     private static DeserializingMessage graphDocumentMessage(
             JacksonSerializer serializer) {
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
-                41L, List.of(GraphRoot.class.getName()), List.of(),
+                41L, List.of("GraphRoot"), List.of(GraphRoot.class.getName()), List.of(),
                 List.of(new ModelGraphDocumentManifest.Node(
-                        "root", 0, 0, -1, -1, 0)));
+                        "root", 0, 0, 0, -1, -1, 0)));
         var payload = serializer.getObjectMapper().createObjectNode()
                 .put("id", "root");
         return new DeserializingMessage(

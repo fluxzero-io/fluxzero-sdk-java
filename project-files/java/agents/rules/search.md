@@ -72,7 +72,7 @@ public record ExternalDocument(...) {}
 [//]: # (@formatter:on)
 
 `DocumentProjection.searchable = false` keeps a Model document out of unrestricted typed Model search. Without a
-separate Graph role it stays in the normal resolved collection—by default the simple Model name or the explicitly
+separate Graph role it stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
 configured collection—but its summary/reversary, facets and sortables are empty. Keeping the collection stable supports
 adoption of existing documents. Direct Model loads, aliases and exact parent/ancestor-ID relations still work. If the
 same Model participates in Graph composition, its current component document retains the independently required

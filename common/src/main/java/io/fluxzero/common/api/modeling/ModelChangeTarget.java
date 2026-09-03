@@ -21,6 +21,9 @@ import lombok.Value;
 /** One model identity changed by a durable model-commit substep. */
 @Value
 public class ModelChangeTarget {
+    /** Exact persisted Model identity. */
     String modelId;
+
+    /** Stable application-scoped logical Model name, or {@code null} for an untyped effect. */
     String modelType;
 }

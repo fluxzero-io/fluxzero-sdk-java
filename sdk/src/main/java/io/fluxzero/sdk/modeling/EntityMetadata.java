@@ -74,6 +74,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyType;
 public final class EntityMetadata {
     private final Class<?> type;
     private final Model model;
+    private final String localModelName;
     private final Aggregate aggregate;
     private final RootConfiguration rootConfiguration;
     private final Property entityId;
@@ -158,6 +159,9 @@ public final class EntityMetadata {
         this.type = type;
         ReflectionUtils.TypeMetadata typeMetadata = ReflectionUtils.getTypeMetadata(type);
         this.model = typeMetadata.typeAnnotation(Model.class);
+        Model declaredModel = type.getDeclaredAnnotation(Model.class);
+        this.localModelName = model == null ? null : validateModelName(
+                type, declaredModel == null ? "" : declaredModel.name());
         this.aggregate = typeMetadata.typeAnnotation(Aggregate.class);
         this.revision = ClientUtils.getRevisionNumberForType(type);
         this.rootConfiguration = rootConfiguration(type, model, aggregate);
@@ -230,6 +234,14 @@ public final class EntityMetadata {
 
     public boolean isModel() {
         return model != null;
+    }
+
+    /** Returns the prefix-independent durable name of this concrete Model type. */
+    public String localModelName() {
+        if (localModelName == null) {
+            throw new IllegalStateException(type.getName() + " is not annotated with @Model");
+        }
+        return localModelName;
     }
 
     /** Returns this type's serializer revision. */
@@ -393,8 +405,8 @@ public final class EntityMetadata {
                             .formatted(type.getName(), parents.size()));
         }
         ParentValue parent = parents.getFirst();
-        String parentType = Objects.requireNonNull(parent.parentModelType(),
-                                                   "Parent model type must be known for scoped identity").getName();
+        String parentType = ModelNames.name(Objects.requireNonNull(
+                parent.parentModelType(), "Parent model type must be known for scoped identity"));
         String parentId = parent.reference().repositoryId(parent.value());
         String childId = unscopedRepositoryId(functionalId);
         return "@%d:%s:%d:%s:%s".formatted(
@@ -527,15 +539,21 @@ public final class EntityMetadata {
 
     /** Returns the application-resolved collection that owns this Model's current document, if it has one. */
     public Optional<String> modelDocumentCollection() {
+        return modelDocumentCollection(ApplicationProperties.getProperty(
+                ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
+    }
+
+    /** Returns the Model current-document collection using an already application-scoped name prefix. */
+    public Optional<String> modelDocumentCollection(String modelNamePrefix) {
         if (model == null) {
             return Optional.empty();
         }
         if (rootConfiguration.directDocument()) {
-            return Optional.of(configuredModelDocumentCollection());
+            return Optional.of(configuredModelDocumentCollection(modelNamePrefix));
         }
         return maintainsGraphComponentDocument()
                 ? Optional.of(ModelDocumentMutation.privateModelDocumentCollection(
-                        type.getName()))
+                        ModelNames.name(type, modelNamePrefix)))
                 : Optional.empty();
     }
 
@@ -544,16 +562,25 @@ public final class EntityMetadata {
      * non-event-sourced Model that does not materialize one itself.
      */
     public String modelDocumentReadCollection() {
-        return modelDocumentCollection().orElseGet(this::configuredModelDocumentCollection);
+        return modelDocumentReadCollection(ApplicationProperties.getProperty(
+                ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
     }
 
-    private String configuredModelDocumentCollection() {
-        return rootConfiguration.resolvedCollection(type);
+    /** Returns the read collection using an already application-scoped name prefix. */
+    public String modelDocumentReadCollection(String modelNamePrefix) {
+        return modelDocumentCollection(modelNamePrefix)
+                .orElseGet(() -> configuredModelDocumentCollection(modelNamePrefix));
+    }
+
+    private String configuredModelDocumentCollection(String modelNamePrefix) {
+        return rootConfiguration.resolvedCollection(type, modelNamePrefix);
     }
 
     /** Returns this root's application-resolved materialized graph definition, if enabled. */
     public Optional<ModelGraphProjectionConfiguration> graphProjectionConfiguration() {
-        return graphProjectionConfiguration(List.of(type));
+        return graphProjectionConfiguration(
+                List.of(type), ApplicationProperties.getProperty(
+                        ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
     }
 
     /**
@@ -561,16 +588,24 @@ public final class EntityMetadata {
      */
     public Optional<ModelGraphProjectionConfiguration> graphProjectionConfiguration(
             Collection<Class<?>> knownModelTypes) {
+        return graphProjectionConfiguration(
+                knownModelTypes, ApplicationProperties.getProperty(
+                        ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
+    }
+
+    /** Returns the durable Graph definition using an already application-scoped Model-name prefix. */
+    public Optional<ModelGraphProjectionConfiguration> graphProjectionConfiguration(
+            Collection<Class<?>> knownModelTypes, String modelNamePrefix) {
         if (model == null || !model.materializeGraph()) {
             return Optional.empty();
         }
         GraphProjection projection = model.graphProjection();
-        String rootCollection = modelDocumentCollection().orElseThrow(
+        String rootCollection = modelDocumentCollection(modelNamePrefix).orElseThrow(
                 () -> new IllegalStateException(
                         "Graph projection root %s has no current-document collection"
                                 .formatted(type.getName())));
         String graphCollectionBase = rootConfiguration.directDocument()
-                ? rootCollection : type.getSimpleName();
+                ? rootCollection : ModelNames.name(type, modelNamePrefix);
         String collection = projection.collection().isEmpty()
                 ? graphCollectionBase + "-graphs"
                 : ApplicationProperties.substituteProperties(projection.collection());
@@ -580,9 +615,9 @@ public final class EntityMetadata {
                             .formatted(type.getName(), rootCollection));
         }
         return Optional.of(new ModelGraphProjectionConfiguration(
-                type.getName(), rootCollection, collection,
+                ModelNames.name(type, modelNamePrefix), rootCollection, collection,
                 ModelGraphComposition.builder().build(),
-                graphModelRevisions(knownModelTypes),
+                graphModelRevisions(knownModelTypes, modelNamePrefix),
                 Arrays.stream(projection.pathOverrides())
                         .map(override -> new ModelGraphPathOverride(
                                 override.path(), override.projectionPath()))
@@ -590,7 +625,7 @@ public final class EntityMetadata {
     }
 
     private List<ModelGraphProjectionConfiguration.ModelRevision>
-            graphModelRevisions(Collection<Class<?>> knownModelTypes) {
+            graphModelRevisions(Collection<Class<?>> knownModelTypes, String modelNamePrefix) {
         Objects.requireNonNull(knownModelTypes, "Known model types");
         LinkedHashSet<Class<?>> reachable = new LinkedHashSet<>();
         reachable.add(type);
@@ -625,7 +660,7 @@ public final class EntityMetadata {
                 .map(modelType -> {
                     EntityMetadata metadata = EntityMetadata.of(modelType);
                     return new ModelGraphProjectionConfiguration.ModelRevision(
-                            modelType.getName(), metadata.revision());
+                            ModelNames.name(modelType, modelNamePrefix), metadata.revision());
                 })
                 .toList();
     }
@@ -891,6 +926,22 @@ public final class EntityMetadata {
                                   .formatted(type.getName()));
         }
         return Set.copyOf(persistence);
+    }
+
+    private static String validateModelName(Class<?> type, String configured) {
+        if (configured.isEmpty()) {
+            String inferred = type.getSimpleName();
+            if (!inferred.isEmpty()) {
+                return inferred;
+            }
+            throw invalid("@Model.name must be set on a Model type without a simple class name: %s"
+                                  .formatted(type.getName()));
+        }
+        if (configured.isBlank() || !configured.equals(configured.trim())) {
+            throw invalid("@Model.name on %s must not be blank or have surrounding whitespace"
+                                  .formatted(type.getName()));
+        }
+        return configured;
     }
 
     private void validateProjectionPath(
@@ -1338,9 +1389,15 @@ public final class EntityMetadata {
 
         /** Converts this structural relationship to its commit-wire value. */
         public ModelRelationship asCommitRelationship() {
+            return asCommitRelationship(ApplicationProperties.getProperty(
+                    ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
+        }
+
+        /** Converts this relationship using an already application-scoped Model-name prefix. */
+        public ModelRelationship asCommitRelationship(String modelNamePrefix) {
             return ModelRelationship.builder()
                     .parentId(parentId)
-                    .parentType(parentType == null ? null : parentType.getName())
+                    .parentType(parentType == null ? null : ModelNames.name(parentType, modelNamePrefix))
                     .path(pathInParent)
                     .deleteOnParentDeletion(deleteOnParentDeletion)
                     .build();
@@ -1348,9 +1405,15 @@ public final class EntityMetadata {
 
         /** Converts this structural relationship to one transient Graph edge. */
         public ModelGraphEdge asGraphEdge(String childId) {
+            return asGraphEdge(childId, ApplicationProperties.getProperty(
+                    ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
+        }
+
+        /** Converts this relationship using an already application-scoped Model-name prefix. */
+        public ModelGraphEdge asGraphEdge(String childId, String modelNamePrefix) {
             return new ModelGraphEdge(
                     childId, parentId,
-                    parentType == null ? null : parentType.getName(),
+                    parentType == null ? null : ModelNames.name(parentType, modelNamePrefix),
                     pathInParent, -1L, null, deleteOnParentDeletion);
         }
     }
@@ -1485,10 +1548,16 @@ public final class EntityMetadata {
             String endPath) {
 
         String resolvedCollection(Class<?> type) {
+            return resolvedCollection(type, ApplicationProperties.getProperty(
+                    ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
+        }
+
+        String resolvedCollection(Class<?> type, String modelNamePrefix) {
             return Optional.of(collection)
                     .filter(value -> !value.isEmpty())
                     .map(ApplicationProperties::substituteProperties)
-                    .orElse(type.getSimpleName());
+                    .orElseGet(() -> kind == RootKind.MODEL
+                            ? ModelNames.name(type, modelNamePrefix) : type.getSimpleName());
         }
 
         static RootConfiguration model(

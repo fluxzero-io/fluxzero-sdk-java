@@ -155,7 +155,7 @@ class DefaultModelRepositoryTest {
                     value == null ? null : serializer.toDocument(
                             value, request.getId(), request.getCollection(), null, null, Metadata.empty()),
                     value == null ? null : new ModelHeadState(
-                            request.getId(), Product.class.getName(), 0L, 0L, true, false));
+                            request.getId(), Product.class.getSimpleName(), 0L, 0L, true, false));
         });
         return new DefaultModelRepository(
                 client, documentStore, serializer,
@@ -268,7 +268,7 @@ class DefaultModelRepositoryTest {
     @Test
     void pluralMigrationAdoptionRebuildsApplicationGraphProjectionsEvenWhenResumed() {
         ModelHeadState migratedHead = new ModelHeadState(
-                "root-1", ProjectedRoot.class.getName(),
+                "root-1", ProjectedRoot.class.getSimpleName(),
                 0L, 5L, true, false);
         SerializedDocument migratedDocument = serializer.toDocument(
                 new ProjectedRoot("root-1"), "root-1", "ProjectedRoot",
@@ -297,6 +297,38 @@ class DefaultModelRepositoryTest {
                 .registerModelGraphProjection(registrations.capture());
         assertTrue(registrations.getAllValues().stream()
                            .allMatch(io.fluxzero.common.api.modeling.RegisterModelGraphProjection::isRebuild));
+    }
+
+    @Test
+    void rejectsDuplicateLogicalModelNamesAtCatalogRegistration() {
+        @Model(name = "DuplicateLogicalName")
+        record First(@EntityId String id) {
+        }
+        @Model(name = "DuplicateLogicalName")
+        record Second(@EntityId String id) {
+        }
+        IllegalStateException failure = assertThrows(
+                IllegalStateException.class,
+                () -> repository.configureModelTypes(
+                        () -> List.of(First.class, Second.class)));
+
+        assertTrue(failure.getMessage().contains("DuplicateLogicalName"));
+        assertTrue(failure.getMessage().contains(First.class.getName()));
+        assertTrue(failure.getMessage().contains(Second.class.getName()));
+    }
+
+    @Test
+    void appliesTheRepositoryScopedPrefixToLogicalModelNames() {
+        DefaultModelRepository prefixedRepository = new DefaultModelRepository(
+                client, documentStore, serializer,
+                new DefaultEntityHelper(List.of(), false), null,
+                NoOpCache.INSTANCE, List.of(), "billing");
+
+        assertEquals("billingRenamedAccount",
+                     prefixedRepository.modelName(AliasedAccount.class));
+        assertEquals(AliasedAccount.class,
+                     prefixedRepository.modelType(
+                             "billingRenamedAccount", "test lookup"));
     }
 
     @Test
@@ -498,16 +530,13 @@ class DefaultModelRepositoryTest {
     }
 
     @Test
-    void untypedLoadResolvesStoredModelTypeThroughSerializerAlias() {
+    void untypedLoadResolvesStoredLogicalModelNameWithoutAClassNameAlias() {
         AliasedAccountId id =
                 new AliasedAccountId("renamed-type");
         try (Fluxzero fluxzero = configuredFluxzero()) {
-            fluxzero.serializer().registerTypeCaster(
-                    "legacy.example.AliasedAccount",
-                    AliasedAccount.class.getName());
             commitDirectDocument(
                     fluxzero, "renamed-type", id.toString(),
-                    "legacy.example.AliasedAccount", "aliasedAccounts",
+                    io.fluxzero.sdk.modeling.ModelNames.name(AliasedAccount.class), "aliasedAccounts",
                     new AliasedAccount(id, 7));
 
             Entity<Object> loaded =
@@ -935,7 +964,7 @@ class DefaultModelRepositoryTest {
                 .build(LocalClient.newInstance(null))) {
             commitDirectDocument(
                     fluxzero, "configured-product", id.toString(),
-                    Product.class.getName(), "products", product);
+                    Product.class.getSimpleName(), "products", product);
 
             var result = fluxzero.modelRepository().load(id);
 
@@ -967,12 +996,12 @@ class DefaultModelRepositoryTest {
             commitDirectDocument(
                     client, serializer, documentSerializer,
                     "enveloped-first", firstId.toString(),
-                    Product.class.getName(), "products", first,
+                    Product.class.getSimpleName(), "products", first,
                     timestamp, end, metadata);
             commitDirectDocument(
                     client, serializer, documentSerializer,
                     "enveloped-second", secondId.toString(),
-                    Product.class.getName(), "products", second,
+                    Product.class.getSimpleName(), "products", second,
                     timestamp, end, metadata);
 
             DefaultModelRepository restarted =
@@ -996,7 +1025,7 @@ class DefaultModelRepositoryTest {
             commitDirectDocument(
                     client.forNamespace(namespace), serializer,
                     documentSerializer, "enveloped-namespaced",
-                    namespacedId.toString(), Product.class.getName(),
+                    namespacedId.toString(), Product.class.getSimpleName(),
                     "products", namespaced, timestamp, end, metadata);
             assertEquals(
                     namespaced,
@@ -2196,7 +2225,7 @@ class DefaultModelRepositoryTest {
                 .targets(java.util.Arrays.stream(targetIds)
                                  .map(modelId -> ModelCommitTarget.builder()
                                          .modelId(modelId)
-                                         .modelType(modelType.getName())
+                                         .modelType(io.fluxzero.sdk.modeling.ModelNames.name(modelType))
                                          .storeEvent(true)
                                          .updateState(true)
                                          .relationships(List.of())
@@ -2375,7 +2404,7 @@ class DefaultModelRepositoryTest {
                         .publishEvent(false)
                         .targets(List.of(ModelCommitTarget.builder()
                                                  .modelId(event.targetId())
-                                                 .modelType(event.modelType().getName())
+                                                 .modelType(io.fluxzero.sdk.modeling.ModelNames.name(event.modelType()))
                                                  .storeEvent(true)
                                                  .updateState(true)
                                                  .relationships(List.of())
@@ -2489,7 +2518,8 @@ class DefaultModelRepositoryTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "aliasedAccounts"))
+    @Model(name = "RenamedAccount", persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(collection = "aliasedAccounts"))
     private record AliasedAccount(
             @EntityId AliasedAccountId accountId,
             int balance) {

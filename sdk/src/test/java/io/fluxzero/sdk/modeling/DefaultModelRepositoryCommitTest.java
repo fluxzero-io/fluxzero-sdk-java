@@ -545,7 +545,7 @@ class DefaultModelRepositoryCommitTest {
         assertNotNull(document);
         assertEquals(
                 ModelDocumentMutation.privateModelDocumentCollection(
-                        GraphOnlyChild.class.getName()),
+                        GraphOnlyChild.class.getSimpleName()),
                 document.getCollection());
         assertEquals(
                 after,
@@ -637,7 +637,7 @@ class DefaultModelRepositoryCommitTest {
                 nextCustomer.toString(),
                 target.getRelationships().getFirst().getParentId());
         assertEquals(
-                Customer.class.getName(),
+                Customer.class.getSimpleName(),
                 target.getRelationships().getFirst().getParentType());
         assertEquals(
                 "orders",
@@ -665,7 +665,7 @@ class DefaultModelRepositoryCommitTest {
                 .findFirst().orElseThrow();
         assertEquals(1, target.getRelationships().size());
         assertEquals(parentId.toString(), target.getRelationships().getFirst().getParentId());
-        assertEquals(AlternateCustomer.class.getName(),
+        assertEquals(AlternateCustomer.class.getSimpleName(),
                      target.getRelationships().getFirst().getParentType());
         assertEquals("contacts", target.getRelationships().getFirst().getPath());
     }

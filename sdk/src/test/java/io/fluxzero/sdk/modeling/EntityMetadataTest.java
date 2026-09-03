@@ -139,7 +139,7 @@ class EntityMetadataTest {
     void ownsDirectModelDocumentCollectionResolution() {
         assertEquals("models", EntityMetadata.validate(ConfiguredModel.class)
                 .modelDocumentCollection().orElseThrow());
-        assertEquals(privateModelDocumentCollection(ChildModel.class.getName()), EntityMetadata.validate(ChildModel.class)
+        assertEquals(privateModelDocumentCollection(ChildModel.class.getSimpleName()), EntityMetadata.validate(ChildModel.class)
                 .modelDocumentCollection().orElseThrow());
         assertTrue(EntityMetadata.validate(ParentModel.class)
                            .modelDocumentCollection().isEmpty());
@@ -176,7 +176,7 @@ class EntityMetadataTest {
                         .graphProjectionConfiguration()
                         .orElseThrow();
         assertEquals(
-                privateModelDocumentCollection(UnsearchableProjectedModel.class.getName()),
+                privateModelDocumentCollection(UnsearchableProjectedModel.class.getSimpleName()),
                 privateConfiguration.getRootCollection());
         assertEquals(
                 "UnsearchableProjectedModel-graphs",
@@ -216,11 +216,11 @@ class EntityMetadataTest {
         assertEquals(
                 List.of(
                         new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision(
-                                ProjectedModel.class.getName(), 0),
+                                ProjectedModel.class.getSimpleName(), 0),
                         new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision(
-                                RevisionedProjectedChild.class.getName(), 2),
+                                RevisionedProjectedChild.class.getSimpleName(), 2),
                         new io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration.ModelRevision(
-                                RevisionedProjectedGrandchild.class.getName(), 3)),
+                                RevisionedProjectedGrandchild.class.getSimpleName(), 3)),
                 configuration.getModelRevisions());
     }
 
@@ -304,11 +304,12 @@ class EntityMetadataTest {
                                                      "document",
                                                      "graphProjection",
                                                      "materializeGraph",
+                                                     "name",
                                                      "persistence")
                                                      .contains(name))
                              .collect(toSet()));
         Set<String> expectedConfiguration = new java.util.HashSet<>(modelSettings);
-        expectedConfiguration.removeAll(Set.of("document", "persistence"));
+        expectedConfiguration.removeAll(Set.of("document", "name", "persistence"));
         expectedConfiguration.addAll(Set.of(
                 "eventSourced", "directDocument", "publicDocument", "collection", "timestampPath", "endPath"));
         assertEquals(expectedConfiguration, configurationSettings);

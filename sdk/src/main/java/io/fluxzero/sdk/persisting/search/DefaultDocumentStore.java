@@ -43,6 +43,7 @@ import io.fluxzero.common.api.search.bulkupdate.IndexDocumentIfNotExists;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.configuration.client.Client;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.EntityMetadata;
@@ -89,6 +90,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
     private final DocumentSerializer serializer;
     @Delegate
     private final HasLocalHandlers handlerRegistry;
+    private final String modelNamePrefix;
     private volatile Supplier<ModelRepository> modelRepositorySupplier = () -> null;
     private volatile Supplier<List<Class<?>>> modelTypesSupplier = List::of;
 
@@ -96,18 +98,30 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
             Client client,
             DocumentSerializer serializer,
             HasLocalHandlers handlerRegistry) {
+        this(client, serializer, handlerRegistry,
+             ApplicationProperties.getProperty(
+                     ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
+    }
+
+    public DefaultDocumentStore(
+            Client client,
+            DocumentSerializer serializer,
+            HasLocalHandlers handlerRegistry,
+            String modelNamePrefix) {
         this.client = client;
         this.serializer = serializer;
         this.handlerRegistry = handlerRegistry;
+        this.modelNamePrefix = modelNamePrefix == null ? "" : modelNamePrefix;
     }
 
     private DefaultDocumentStore(
             Client client,
             DocumentSerializer serializer,
             HasLocalHandlers handlerRegistry,
+            String modelNamePrefix,
             Supplier<ModelRepository> modelRepositorySupplier,
             Supplier<List<Class<?>>> modelTypesSupplier) {
-        this(client, serializer, handlerRegistry);
+        this(client, serializer, handlerRegistry, modelNamePrefix);
         this.modelRepositorySupplier = modelRepositorySupplier;
         this.modelTypesSupplier = modelTypesSupplier;
     }
@@ -230,7 +244,8 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 .orElse(null);
         Class<?> targetModelType = model == null ? null : collection;
         String queryCollection = model != null && !model.publicDocument()
-                ? NON_SEARCHABLE_MODEL_QUERY_PREFIX + collection.getName()
+                ? NON_SEARCHABLE_MODEL_QUERY_PREFIX
+                  + io.fluxzero.sdk.modeling.ModelNames.name(collection, modelNamePrefix)
                 : determineCollection(collection);
         return new DefaultSearch<>(
                 SearchQuery.builder().collection(queryCollection),
@@ -254,13 +269,13 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                     rootModelType.getName()
                     + " is not an independent model");
         }
-        String rootCollection = metadata.modelDocumentCollection()
+        String rootCollection = metadata.modelDocumentCollection(modelNamePrefix)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Graph search root %s has no current document"
                                 .formatted(rootModelType.getName())));
         Optional<io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>
                 projection =
-                metadata.graphProjectionConfiguration();
+                metadata.graphProjectionConfiguration(modelTypesSupplier.get(), modelNamePrefix);
         boolean live =
                 forceAdHoc
                 || projection.isEmpty();
@@ -408,6 +423,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 : new DefaultDocumentStore(
                         namespacedClient, serializer,
                         namespacedHandlerRegistry,
+                        modelNamePrefix,
                         () -> modelRepositorySupplier.get()
                                 .forNamespace(namespace),
                         modelTypesSupplier);
@@ -493,7 +509,7 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                 return;
             }
             String collection = EntityMetadata.validate(targetModelType)
-                    .modelDocumentCollection()
+                    .modelDocumentCollection(modelNamePrefix)
                     .orElseThrow(() -> new IllegalArgumentException(
                             ("Relationship search target %s has no current-state document; "
                              + "load it as a Model or Graph instead")
@@ -752,6 +768,18 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
                                 .collect(toMap(DocumentStats::getGroup, DocumentStats::getFieldStats)));
             }
         }
+    }
+
+    @Override
+    public String determineCollection(@NonNull Object collection) {
+        Class<?> type = io.fluxzero.common.reflection.ReflectionUtils.ifClass(collection);
+        if (type != null) {
+            EntityMetadata metadata = EntityMetadata.of(type);
+            if (metadata.isModel()) {
+                return metadata.modelDocumentReadCollection(modelNamePrefix);
+            }
+        }
+        return DocumentStore.super.determineCollection(collection);
     }
 
     protected class DefaultGraphSearch<T> extends DefaultSearch<Graph<T>> {

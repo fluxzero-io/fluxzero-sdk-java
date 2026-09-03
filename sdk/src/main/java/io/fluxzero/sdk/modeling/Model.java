@@ -91,6 +91,20 @@ import java.lang.annotation.Target;
 public @interface Model {
 
     /**
+     * Stable logical name of this Model in persisted Model metadata.
+     * <p>
+     * The default is the simple name of the concrete Model class. This name deliberately does not contain the Java
+     * package, so moving or renaming a class remains possible by retaining its previous logical name explicitly.
+     * Applications sharing one Runtime namespace can prepend an application-scoped prefix with
+     * {@code fluxzero.model.namePrefix}; the prefix is concatenated literally and should therefore include any desired
+     * separator; prefix {@code billing} and name {@code Invoice} become {@code billingInvoice}.
+     * <p>
+     * This is a durable identity. Changing it for an existing Model creates a different Model type and requires an
+     * application-managed data transition.
+     */
+    String name() default "";
+
+    /**
      * Conflict handling for this model when an apply does not provide an explicit override.
      */
     ModelConflictPolicy conflictPolicy() default ModelConflictPolicy.DEFAULT;
@@ -187,7 +201,7 @@ public @interface Model {
      * Advanced configuration for the Model's direct current document.
      * <p>
      * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Every direct
-     * document uses the configured collection, which defaults to the Model's simple class name. A reference-only
+     * document uses the configured collection, which defaults to the resolved logical Model name. A reference-only
      * document is excluded from unrestricted typed Model search while remaining available to Model loads, aliases,
      * relationships and Graph composition. Timestamps default to the applied event timestamp when no paths are
      * configured.
@@ -201,7 +215,7 @@ public @interface Model {
      * irrespective of that document's public search visibility. A root without a direct document uses the same
      * type-isolated private storage as other Graph-only Models. Only the separately named graph collection is allowed
      * to lag; its high-watermark is exposed through the model repository. The collection defaults to the resolved
-     * direct-model collection plus {@code -graphs} when present, or to {@code <simple model name>-graphs} otherwise.
+     * direct-model collection plus {@code -graphs} when present, or to {@code <logical Model name>-graphs} otherwise.
      */
     boolean materializeGraph() default false;
 

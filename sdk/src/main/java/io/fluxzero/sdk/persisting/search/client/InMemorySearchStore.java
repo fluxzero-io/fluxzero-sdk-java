@@ -391,6 +391,7 @@ public class InMemorySearchStore implements SearchClient {
                         ModelGraphDocumentStitcher.stitch(
                                 roots, edges,
                                 graphDocuments,
+                                graphModelTypes(graphDocuments),
                                 request.getComposition(),
                                 modelStateIndex),
                         graphSearch)
@@ -618,6 +619,21 @@ public class InMemorySearchStore implements SearchClient {
                     }
                 });
         return result;
+    }
+
+    private Map<String, String> graphModelTypes(
+            Map<String, SerializedDocument> graphDocuments) {
+        LinkedHashMap<String, String> result = new LinkedHashMap<>();
+        graphDocuments.forEach((modelId, document) -> {
+            DirectDocumentVersion version = modelDocumentVersions.get(
+                    asIdentifier(document.getCollection(), modelId));
+            if (version == null || version.head() == null) {
+                throw new IllegalStateException(
+                        "No Model head is available for graph component " + modelId);
+            }
+            result.put(modelId, version.head().getModelType());
+        });
+        return Map.copyOf(result);
     }
 
     @Override
@@ -1068,6 +1084,7 @@ public class InMemorySearchStore implements SearchClient {
                                     List.of(root),
                                     edges,
                                     graphDocuments,
+                                    graphModelTypes(graphDocuments),
                                     configuration
                                             .getComposition(),
                                     stateIndex)
@@ -1251,8 +1268,8 @@ public class InMemorySearchStore implements SearchClient {
             String rootId, String rootType, long stateIndex,
             Long previousStateIndex) {
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
-                stateIndex, List.of(rootType), List.of(),
-                List.of(new ModelGraphDocumentManifest.Node(rootId, 0, 0, -1, -1, 0)));
+                stateIndex, List.of(rootType), List.of(rootType), List.of(),
+                List.of(new ModelGraphDocumentManifest.Node(rootId, 0, 0, 0, -1, -1, 0)));
         Metadata metadata = Metadata.of(
                 ModelGraphDocumentManifest.METADATA_KEY, manifest.serialize(),
                 ModelGraphDocumentManifest.TOMBSTONE_METADATA_KEY, true);

@@ -38,8 +38,8 @@ public class ModelDocumentMutation {
      * Returns the private search collection for current documents of one Model type.
      * <p>
      * Type isolation lets direct lookup, relationship search and Graph composition use ordinary document indexes
-     * without scanning or mixing unrelated Model types. The complete Model type name is already part of the persisted
-     * contract and keeps the collection deterministic across SDK instances.
+     * without scanning or mixing unrelated Model types. The logical Model name is already part of the persisted
+     * contract and keeps the collection deterministic across SDK instances and Java class/package renames.
      */
     public static String privateModelDocumentCollection(String modelType) {
         return collectionForModelType(

@@ -21,13 +21,14 @@ import io.fluxzero.common.SearchUtils;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.search.SerializedDocument;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.common.search.ModelGraphDocumentManifest;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Graphs;
 import io.fluxzero.sdk.modeling.EntityMetadata;
+import io.fluxzero.sdk.modeling.ModelNames;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelTypeResolver;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -78,6 +79,10 @@ final class MaterializedGraphFactory {
     }
 
     private static <T> Graph<T> create(Source source, Class<T> rootType) {
+        if (source.repository instanceof ModelTypeResolver resolver) {
+            resolver.modelName(rootType);
+            source.registeredModelTypes.forEach(resolver::modelName);
+        }
         List<Graphs.MaterializedNode> nodes = source.nodes();
         if (nodes.isEmpty() || !rootType.isAssignableFrom(nodes.getFirst().type())) {
             throw new IllegalArgumentException(
@@ -101,6 +106,7 @@ final class MaterializedGraphFactory {
         private final Long previousStateIndex;
         private final Supplier<JsonNode> jsonSupplier;
         private final Map<String, String> pathOverrides;
+        private final List<Class<?>> registeredModelTypes;
         private final Map<Class<?>, List<String>> declaredPaths;
         private volatile JsonNode json;
 
@@ -119,6 +125,7 @@ final class MaterializedGraphFactory {
             this.previousStateIndex = previousStateIndex;
             this.jsonSupplier = Objects.requireNonNull(jsonSupplier, "jsonSupplier");
             this.pathOverrides = Map.copyOf(pathOverrides);
+            this.registeredModelTypes = List.copyOf(registeredModelTypes);
             this.declaredPaths = declaredPaths(registeredModelTypes, pathOverrides);
         }
 
@@ -132,13 +139,15 @@ final class MaterializedGraphFactory {
                             "Invalid parent placement %s for model graph node %s"
                                     .formatted(manifestNode.parent(), manifestNode.id()));
                 }
-                String typeName = manifest.type(manifestNode);
-                String currentTypeName = documentSerializer instanceof Serializer serializer
-                        ? serializer.upcastType(typeName) : typeName;
-                Class<?> type = ReflectionUtils.classForName(currentTypeName, null);
+                String modelTypeName = manifest.modelType(manifestNode);
+                Class<?> type = repository instanceof ModelTypeResolver resolver
+                        ? resolver.modelType(modelTypeName, manifestNode.id())
+                        : registeredModelTypes.stream()
+                                .filter(candidate -> ModelNames.name(candidate).equals(modelTypeName))
+                                .findFirst().orElse(null);
                 if (type == null) {
                     throw new IllegalArgumentException(
-                            "Could not resolve materialized graph model type " + typeName);
+                            "Could not resolve materialized graph Model type " + modelTypeName);
                 }
                 String relationshipPath = manifest.relationshipPath(manifestNode);
                 String documentPath = manifestNode.parent() < 0 ? "" : joinPath(

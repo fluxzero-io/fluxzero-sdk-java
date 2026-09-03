@@ -256,9 +256,9 @@ class GraphJsonSerializerTest {
                        visible.id(), entity(visible.id(), ViewChild.class, visible),
                        hidden.id(), entity(hidden.id(), ViewChild.class, hidden)),
                 List.of(
-                        new ModelGraphEdge(visible.id(), rootValue.id(), ViewRoot.class.getName(),
+                        new ModelGraphEdge(visible.id(), rootValue.id(), ViewRoot.class.getSimpleName(),
                                            "children", 0L, null, false),
-                        new ModelGraphEdge(hidden.id(), rootValue.id(), ViewRoot.class.getName(),
+                        new ModelGraphEdge(hidden.id(), rootValue.id(), ViewRoot.class.getSimpleName(),
                                            "children", 0L, null, false)),
                 mock(ModelRepository.class), false);
     }

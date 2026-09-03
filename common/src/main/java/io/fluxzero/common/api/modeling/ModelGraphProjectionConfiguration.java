@@ -35,7 +35,7 @@ import java.util.Objects;
 public class ModelGraphProjectionConfiguration {
 
     /**
-     * Stable serialized type descriptor of projection roots.
+     * Stable application-scoped logical Model name of projection roots.
      */
     String rootModelType;
 
@@ -56,7 +56,7 @@ public class ModelGraphProjectionConfiguration {
     ModelGraphComposition composition;
 
     /**
-     * Types that can occur in this projection and the revision of their direct document schema.
+     * Logical Model names that can occur in this projection and the revision of their direct document schema.
      * <p>
      * The ordered list is part of the durable projection definition. Changing any participating model revision
      * therefore advances the Runtime's existing configuration fence and triggers a complete rebuild.

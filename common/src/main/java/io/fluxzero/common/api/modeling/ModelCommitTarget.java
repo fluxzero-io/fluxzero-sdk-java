@@ -39,10 +39,11 @@ public class ModelCommitTarget {
     String modelId;
 
     /**
-     * Stable serialized model type descriptor. A model's first commit that creates its durable head must provide this
+     * Stable application-scoped logical Model name. A model's first commit that creates its durable head must provide this
      * value; later commits may omit it and inherit the durable type.
      * <p>
-     * This is coordination metadata for untyped and graph loads; it is not part of model identity.
+     * This is coordination metadata for untyped and graph loads; it is independent from the serializer payload type
+     * and is not part of model identity.
      */
     String modelType;
 

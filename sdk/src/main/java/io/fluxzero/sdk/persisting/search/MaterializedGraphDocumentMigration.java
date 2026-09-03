@@ -78,6 +78,7 @@ public final class MaterializedGraphDocumentMigration {
         Instant end = instant(message.getMetadata().get("$end"));
         String collection = message.getTopic();
         Map<String, SerializedDocument> documents = new LinkedHashMap<>();
+        Map<String, String> modelTypes = new LinkedHashMap<>();
         List<ModelGraphEdge> edges = new ArrayList<>();
         boolean evolved = false;
         for (int index = 0; index < placements.size(); index++) {
@@ -97,6 +98,11 @@ public final class MaterializedGraphDocumentMigration {
             evolved |= !manifest.type(source).equals(direct.getDocument().getType())
                        || source.revision() != direct.getDocument().getRevision();
             SerializedDocument previous = documents.putIfAbsent(source.id(), direct);
+            String modelType = manifest.modelType(source);
+            String previousModelType = modelTypes.putIfAbsent(source.id(), modelType);
+            if (previousModelType != null && !previousModelType.equals(modelType)) {
+                throw incompatible("shared node %s has inconsistent Model types".formatted(source.id()));
+            }
             if (previous != null
                 && (!previous.getDocument().getType().equals(direct.getDocument().getType())
                     || previous.getDocument().getRevision() != direct.getDocument().getRevision()
@@ -105,9 +111,9 @@ public final class MaterializedGraphDocumentMigration {
                 throw incompatible("shared node %s has inconsistent values".formatted(source.id()));
             }
             if (placement.parent() >= 0) {
-                Graph<?> parent = placements.get(placement.parent()).graph();
+                ModelGraphDocumentManifest.Node parent = manifest.nodes().get(placement.parent());
                 edges.add(new ModelGraphEdge(
-                        source.id(), parent.id().toString(), parent.type().getName(),
+                        source.id(), parent.id(), manifest.modelType(parent),
                         placement.path(), 0L, null, false));
             }
         }
@@ -116,7 +122,7 @@ public final class MaterializedGraphDocumentMigration {
         }
         SerializedDocument replacement = ModelGraphDocumentStitcher.stitch(
                 List.of(documents.get(manifest.nodes().getFirst().id())),
-                edges, documents, ModelGraphComposition.builder().build(),
+                edges, documents, modelTypes, ModelGraphComposition.builder().build(),
                 manifest.stateIndex()).getFirst().withCollection(collection);
         return Optional.of(new Migration(expectedManifest, replacement));
     }

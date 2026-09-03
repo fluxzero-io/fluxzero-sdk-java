@@ -30,18 +30,21 @@ import java.util.Optional;
  * Hidden structural description carried by a composed independent-model graph document.
  * <p>
  * The visible document remains ordinary nested JSON. This compact, dictionary-encoded manifest preserves exact node
- * identities, concrete types, revisions and placements so SDK clients can reconstruct and independently upcast a
- * typed lazy graph without guessing schema information from JSON paths. Parent nodes always precede their children.
+ * identities, logical Model names, serializer payload types, revisions and placements so SDK clients can reconstruct
+ * and independently upcast a typed lazy graph without guessing schema information from JSON paths. Parent nodes
+ * always precede their children. Logical names deliberately remain separate from serializer types so a Java
+ * class/package rename does not change durable Model identity.
  */
 public record ModelGraphDocumentManifest(
         @JsonProperty("v") int version,
         @JsonProperty("s") long stateIndex,
+        @JsonProperty("m") List<String> modelTypes,
         @JsonProperty("t") List<String> types,
         @JsonProperty("r") List<String> relationshipPaths,
         @JsonProperty("n") List<Node> nodes) {
 
     /** Current manifest format version. */
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 3;
 
     /** Reserved document-metadata key containing the manifest. */
     public static final String METADATA_KEY = "$fluxzeroModelGraph";
@@ -57,10 +60,11 @@ public record ModelGraphDocumentManifest(
 
     public ModelGraphDocumentManifest(
             long stateIndex,
+            List<String> modelTypes,
             List<String> types,
             List<String> relationshipPaths,
             List<Node> nodes) {
-        this(CURRENT_VERSION, stateIndex, types,
+        this(CURRENT_VERSION, stateIndex, modelTypes, types,
              relationshipPaths, nodes);
     }
 
@@ -69,9 +73,15 @@ public record ModelGraphDocumentManifest(
             throw new IllegalArgumentException(
                     "Unsupported model graph manifest version " + version);
         }
+        modelTypes = List.copyOf(modelTypes);
         types = List.copyOf(types);
         relationshipPaths = List.copyOf(relationshipPaths);
         nodes = List.copyOf(nodes);
+        if (modelTypes.stream().anyMatch(type -> type == null || type.isBlank())
+            || modelTypes.stream().distinct().count() != modelTypes.size()) {
+            throw new IllegalArgumentException(
+                    "Model graph manifest Model types must be unique and non-blank");
+        }
         if (types.stream().anyMatch(type -> type == null || type.isBlank())
             || types.stream().distinct().count() != types.size()) {
             throw new IllegalArgumentException(
@@ -92,6 +102,10 @@ public record ModelGraphDocumentManifest(
         }
         for (int index = 0; index < nodes.size(); index++) {
             Node node = nodes.get(index);
+            if (node.modelType() < 0 || node.modelType() >= modelTypes.size()) {
+                throw new IllegalArgumentException(
+                        "Invalid model graph manifest Model type index " + node.modelType());
+            }
             if (node.type() < 0 || node.type() >= types.size()) {
                 throw new IllegalArgumentException(
                         "Invalid model graph manifest type index " + node.type());
@@ -114,9 +128,14 @@ public record ModelGraphDocumentManifest(
         }
     }
 
-    /** Returns the concrete class name referenced by a node. */
+    /** Returns the serializer payload type referenced by a node. */
     public String type(Node node) {
         return types.get(node.type());
+    }
+
+    /** Returns the stable logical Model name referenced by a node. */
+    public String modelType(Node node) {
+        return modelTypes.get(node.modelType());
     }
 
     /** Returns the relationship path referenced by a non-root node. */
@@ -167,6 +186,7 @@ public record ModelGraphDocumentManifest(
      */
     public record Node(
             @JsonProperty("i") String id,
+            @JsonProperty("m") int modelType,
             @JsonProperty("t") int type,
             @JsonProperty("v") int revision,
             @JsonProperty("p") int parent,

@@ -359,7 +359,7 @@ public class ModelCacheBenchmark {
                 .targets(List.of(
                         ModelCommitTarget.builder()
                                 .modelId(id.toString())
-                                .modelType(Counter.class.getName())
+                                .modelType(Counter.class.getSimpleName())
                                 .storeEvent(true)
                                 .updateState(true)
                                 .relationships(List.of())

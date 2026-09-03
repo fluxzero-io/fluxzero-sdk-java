@@ -34,6 +34,10 @@ definitions unless the user asks for them.
 
 Important settings:
 
+- `name`: durable logical Model type name; defaults to the concrete class's simple name. Keep an explicit value stable
+  across Java class/package renames. It is separate from serializer payload types and has no aliases or FQN fallback.
+  `fluxzero.model.namePrefix` is prepended literally for applications sharing a namespace (`billing` + `Invoice` =
+  `billingInvoice`). Changing either value after data exists requires an application-managed data transition.
 - `persistence`: selects a non-empty set of durable representations:
   - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
   - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and also maintain a current document.
@@ -52,7 +56,7 @@ Important settings:
 - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
 - `materializeGraph`: enables the optional durable whole-tree read model.
 - `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
-  Model collection plus `-graphs` when a direct document exists, or `<simple model name>-graphs` otherwise, and
+  Model collection plus `-graphs` when a direct document exists, or `<logical Model name>-graphs` otherwise, and
   materializes the complete finite graph without implicit size limits.
 
 Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
@@ -439,7 +443,7 @@ Graph role its payload remains reference-loadable but its summary/reversary, fac
 Graph-component role retains its independently required indexes; shape those explicitly with `@SearchExclude`, `@Facet` and
 `@Sortable`. A blank projection collection
 appends `-graphs` to the direct Model collection when one exists, or to the
-simple root-model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
+logical root-Model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
 
 ## Conflict policy
 

@@ -1110,7 +1110,8 @@ public class DefaultFluxzero implements Fluxzero {
                             DOCUMENT, handlerChains, runtimeParameterResolvers, dispatchChains,
                             handlerRepositorySupplier,
                             repositorySupplier), dispatchChains.get(DOCUMENT), serializer)
-                            : HandlerRegistry.noOp()));
+                            : HandlerRegistry.noOp(),
+                    propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY)));
             runtimeDocumentStore = documentStore.get();
 
             //event sourcing
@@ -1139,7 +1140,8 @@ public class DefaultFluxzero implements Fluxzero {
                             new DefaultEntityHelper(
                                     runtimeParameterResolvers, disablePayloadValidation),
                             snapshotSerializer, modelCache,
-                            runtimeParameterResolvers);
+                            runtimeParameterResolvers,
+                            propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY));
             graphRepository.set(commandModelRepository);
             modelCommitHandlerRegistry = new ModelCommitHandlerRegistry(
                     commandModelRepository, client.getEventStoreClient(),
