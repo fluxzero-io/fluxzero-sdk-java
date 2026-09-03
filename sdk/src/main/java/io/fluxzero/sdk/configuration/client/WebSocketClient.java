@@ -45,8 +45,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
 import java.util.function.Function;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.LZ4;
@@ -59,6 +57,7 @@ import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.keyValueUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.schedulingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.searchUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.createClientId;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static java.util.stream.Collectors.toMap;
@@ -233,12 +232,13 @@ public class WebSocketClient extends AbstractClient {
         String applicationId = getFirstAvailableProperty("FLUXZERO_APPLICATION_ID", "FLUX_APPLICATION_ID");
 
         /**
-         * A unique ID for the client instance. Defaults to {@code FLUXZERO_TASK_ID} or a randomly generated UUID.
+         * A unique ID for this client instance. Defaults to {@code FLUXZERO_CLIENT_ID} when configured. Otherwise a
+         * random UUID is generated, prefixed with {@code FLUXZERO_TASK_ID} when that task identity is available.
+         * Namespace-specific clients and reconnecting websocket sessions retain the same ID.
          */
         @NonNull
         @Default
-        String id = Optional.ofNullable(getFirstAvailableProperty(
-                "FLUXZERO_TASK_ID", "FLUX_TASK_ID")).orElseGet(UUID.randomUUID()::toString);
+        String id = createClientId();
 
         /**
          * Ordered list of compression algorithms the client supports for websocket communication, with the preferred

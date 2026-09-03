@@ -60,7 +60,7 @@ Key options include:
 | `runtimeBaseUrl`                             | Base URL for all subsystems <br/>(e.g. `wss://my.flux.host`)                     | `FLUXZERO_BASE_URL` or `FLUX_BASE_URL`   |
 | `name`                                       | Name of the application                                                          | `FLUXZERO_APPLICATION_NAME` or legacy alias |
 | `applicationId`                              | Optional app ID                                                                  | `FLUXZERO_APPLICATION_ID` or legacy alias |
-| `id`                                         | Unique client instance ID                                                        | `FLUXZERO_TASK_ID`, legacy alias, or UUID |
+| `id`                                         | Unique client/process instance ID                                                | `FLUXZERO_CLIENT_ID`, legacy alias; otherwise task-ID-prefixed UUID or UUID |
 | `supportedCompressionAlgorithms`             | Preferred and fallback compression algorithms                                   | ZSTD, then LZ4                           |
 | `pingDelay` / `pingTimeout`                  | Heartbeat intervals for WebSocket health                                         | 10s / 15s                                |
 | `maxConcurrentRuntimeWebSocketMessages`      | Messages decoded or waiting for completion-dispatcher admission per session     | `3`                                      |
@@ -70,6 +70,12 @@ Key options include:
 | `runtimeIngressStallCloseTimeout`            | Optional close delay after ingress is diagnosed as stalled                      | Disabled                                 |
 | `disableMetrics`                             | Whether to suppress all outgoing metrics                                         | `false`                                  |
 | `typeFilter`                                 | Optional message type restriction                                                | `null`                                   |
+
+`FLUXZERO_TASK_ID` identifies the hosting platform task or pod; it is not itself a unique process incarnation. When
+present, the SDK uses it as the recognizable prefix of a generated client ID and publishes the unchanged value as
+authoritative `$taskId` correlation metadata. The generated client ID remains stable across WebSocket reconnects, but
+a newly constructed client receives a new UUID suffix. Set `FLUXZERO_CLIENT_ID` only when supplying an explicitly
+unique client-instance ID; `FLUX_CLIENT_ID` remains available as a legacy alias.
 
 ---
 

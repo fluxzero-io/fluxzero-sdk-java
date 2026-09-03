@@ -58,6 +58,7 @@ import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionIntercepto
  * The published event will automatically contain metadata such as:
  * <ul>
  *   <li>{@code $applicationVersion}, when configured</li>
+ *   <li>{@code $taskId}, when configured</li>
  *   <li>{@code $correlationId}</li>
  *   <li>{@code $traceId}</li>
  *   <li>{@code $trigger}</li>
@@ -101,7 +102,9 @@ public class CorrelatingInterceptor implements DispatchInterceptor {
                         .orElse(DefaultCorrelationDataProvider.INSTANCE);
                 if (provider != DefaultCorrelationDataProvider.INSTANCE
                     && !(provider instanceof ApplicationVersionCorrelationDataProvider applicationVersionProvider
-                         && applicationVersionProvider.decoratesDefaultProvider())) {
+                         && applicationVersionProvider.decoratesDefaultProvider())
+                    && !(provider instanceof TaskIdCorrelationDataProvider taskIdProvider
+                         && taskIdProvider.decoratesDefaultProvider())) {
                     return false;
                 }
                 if (correlationMetadata == null) {

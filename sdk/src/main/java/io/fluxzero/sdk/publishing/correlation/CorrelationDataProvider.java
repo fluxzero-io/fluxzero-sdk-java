@@ -57,6 +57,7 @@ import static java.util.Optional.ofNullable;
  * <ul>
  *   <li><b>{@code $applicationId}</b> – ID of the application this client belongs to (optional)</li>
  *   <li><b>{@code $applicationVersion}</b> – Deployed version configured for the application (optional)</li>
+ *   <li><b>{@code $taskId}</b> – Platform task identity configured for the application (optional)</li>
  *   <li><b>{@code $clientId}</b> – Unique identifier for this Fluxzero client instance</li>
  *   <li><b>{@code $clientName}</b> – Logical name of the client (e.g. "service-A")</li>
  *   <li><b>{@code $consumer}</b> – Consumer name of the current {@link Tracker}, if active</li>
@@ -188,6 +189,15 @@ public interface CorrelationDataProvider {
      */
     default String getApplicationVersionKey() {
         return "$applicationVersion";
+    }
+
+    /**
+     * Retrieves the key used to identify the platform task in correlation metadata.
+     *
+     * @return a string representing the task ID key
+     */
+    default String getTaskIdKey() {
+        return "$taskId";
     }
 
     /**

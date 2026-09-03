@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -68,6 +69,24 @@ import java.util.function.Supplier;
  * @see DecryptingPropertySource
  */
 public class ApplicationProperties {
+
+    /**
+     * Identity of the platform task that hosts the application. The default environment-variable name is
+     * {@code FLUXZERO_TASK_ID}; {@code FLUX_TASK_ID} remains supported as a legacy alias.
+     */
+    public static final String TASK_ID_PROPERTY = "FLUXZERO_TASK_ID";
+
+    /** Legacy alias for {@link #TASK_ID_PROPERTY}. */
+    public static final String LEGACY_TASK_ID_PROPERTY = "FLUX_TASK_ID";
+
+    /**
+     * Optional explicit unique client-instance ID. The default environment-variable name is
+     * {@code FLUXZERO_CLIENT_ID}; {@code FLUX_CLIENT_ID} remains supported as a legacy alias.
+     */
+    public static final String CLIENT_ID_PROPERTY = "FLUXZERO_CLIENT_ID";
+
+    /** Legacy alias for {@link #CLIENT_ID_PROPERTY}. */
+    public static final String LEGACY_CLIENT_ID_PROPERTY = "FLUX_CLIENT_ID";
 
     /**
      * Optional version of the deployed application. When configured, Fluxzero adds the value to the correlation
@@ -226,6 +245,47 @@ public class ApplicationProperties {
     public static String getFirstAvailableProperty(String... propertyNames) {
         return Arrays.stream(propertyNames)
                 .map(ApplicationProperties::getProperty).filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    /**
+     * Returns the configured platform task ID, or {@code null} when the application does not run as a known task.
+     */
+    public static String getTaskId() {
+        return getTaskId(getPropertySource());
+    }
+
+    /**
+     * Returns the platform task ID from the given property source, or {@code null} when absent or blank.
+     */
+    public static String getTaskId(PropertySource propertySource) {
+        return Arrays.stream(new String[]{TASK_ID_PROPERTY, LEGACY_TASK_ID_PROPERTY})
+                .map(propertySource::get).filter(Objects::nonNull).map(String::strip)
+                .filter(value -> !value.isEmpty()).findFirst().orElse(null);
+    }
+
+    /**
+     * Creates a unique ID for a client instance. An explicitly configured {@code FLUXZERO_CLIENT_ID} is used when
+     * present. Otherwise, a random UUID is generated and prefixed with {@code FLUXZERO_TASK_ID} when available.
+     * Callers should create this ID once and retain it across reconnects.
+     */
+    public static String createClientId() {
+        return createClientId(getPropertySource());
+    }
+
+    /**
+     * Creates a unique ID for a client instance from the given property source.
+     */
+    public static String createClientId(PropertySource propertySource) {
+        Objects.requireNonNull(propertySource, "propertySource");
+        String configuredClientId = Arrays.stream(new String[]{CLIENT_ID_PROPERTY, LEGACY_CLIENT_ID_PROPERTY})
+                .map(propertySource::get).filter(Objects::nonNull).map(String::strip)
+                .filter(value -> !value.isEmpty()).findFirst().orElse(null);
+        if (configuredClientId != null) {
+            return configuredClientId;
+        }
+        String instanceId = UUID.randomUUID().toString();
+        String taskId = getTaskId(propertySource);
+        return taskId == null ? instanceId : taskId + "_" + instanceId;
     }
 
     /**
