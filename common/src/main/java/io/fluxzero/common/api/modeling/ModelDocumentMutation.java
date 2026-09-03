@@ -34,10 +34,6 @@ public class ModelDocumentMutation {
     public static final String PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX =
             "$modelGraphComponents/";
 
-    /** Prefix for type-isolated reference-only current-Model collections. */
-    public static final String REFERENCE_MODEL_DOCUMENT_COLLECTION_PREFIX =
-            "$modelDocuments/";
-
     /**
      * Returns the private search collection for current documents of one Model type.
      * <p>
@@ -48,17 +44,6 @@ public class ModelDocumentMutation {
     public static String privateModelDocumentCollection(String modelType) {
         return collectionForModelType(
                 PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX, modelType);
-    }
-
-    /**
-     * Returns the private retrieval collection for a reference-only document of one Model type.
-     * <p>
-     * This collection is distinct from internal Graph-component collections so a Model that has no Graph search role
-     * does not accidentally acquire or expose derived search indexes.
-     */
-    public static String referenceModelDocumentCollection(String modelType) {
-        return collectionForModelType(
-                REFERENCE_MODEL_DOCUMENT_COLLECTION_PREFIX, modelType);
     }
 
     private static String collectionForModelType(
@@ -79,8 +64,8 @@ public class ModelDocumentMutation {
             "$modelMigrationDocuments";
 
     /**
-     * Current-document collection. This is either the independently searchable Model collection or an internal,
-     * type-isolated current-Model collection.
+     * Current-document collection. A direct Model document uses its configured collection; a Model that only supplies
+     * a Graph component uses an internal, type-isolated collection.
      */
     String collection;
 

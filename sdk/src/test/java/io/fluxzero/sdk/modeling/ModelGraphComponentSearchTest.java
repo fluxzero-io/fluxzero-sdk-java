@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static io.fluxzero.common.api.search.constraints.MatchConstraint.match;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -142,14 +143,14 @@ class ModelGraphComponentSearchTest {
     }
 
     @Test
-    void givesEveryPrivateComponentTypeItsOwnInternalCollection() {
+    void resolvesDirectAndGraphOnlyPrivateComponentCollectionsIndependently() {
         String first = EntityMetadata.validate(PrivateChild.class)
                 .modelDocumentCollection().orElseThrow();
         String second = EntityMetadata.validate(OtherPrivateChild.class)
                 .modelDocumentCollection().orElseThrow();
 
         assertNotEquals(first, second);
-        assertTrue(first.startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX), first);
+        assertEquals("PrivateChild", first);
         assertTrue(second.startsWith(ModelDocumentMutation.PRIVATE_MODEL_DOCUMENT_COLLECTION_PREFIX), second);
     }
 

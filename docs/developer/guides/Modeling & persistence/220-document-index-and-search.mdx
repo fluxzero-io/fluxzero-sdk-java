@@ -119,8 +119,9 @@ settings themselves:
   </TabItem>
 </Tabs>
 
-The document is placed in the public Model collection by default. A document-authoritative Model that only needs
-identity-, alias-, relationship- and Graph-based lookup can keep it reference-only:
+The document uses the resolved Model collection and is exposed to unrestricted typed Model search by default. A
+document-authoritative Model that only needs identity-, alias-, relationship- and Graph-based lookup can keep it
+reference-only:
 
 <Tabs>
   <TabItem label="Java">
@@ -147,8 +148,11 @@ identity-, alias-, relationship- and Graph-based lookup can keep it reference-on
   </TabItem>
 </Tabs>
 
-Fluxzero stores this document in a type-isolated private Model collection. `loadModel(...)`, aliases, parent
-relationships and Graph composition still use it, while `Fluxzero.search(UserPreferences.class)` does not expose it.
+Fluxzero stores this document in its normal resolved collection, which defaults to `UserPreferences` and can be
+overridden with `DocumentProjection.collection`. This keeps existing collection names usable during migration.
+`loadModel(...)`, aliases, parent relationships and Graph composition still use it, while
+`Fluxzero.search(UserPreferences.class)` does not expose it. Without a separate Graph role the stored document has no
+summary/reversary, facets or sortables.
 
 ---
 
@@ -255,10 +259,10 @@ List<Task> activeProjectTasks = Fluxzero.search(Task.class)
         .fetch(100);
 ```
 
-This form requires a current document for the related Model. It may be a public direct document or the type-isolated
-private document maintained because the Model has an explicit `@Parent(pathInParent = "...")` or
-`materializeGraph = true`. The predicate applies to that Model's own fields, not to fields nested only in a materialized
-whole-Graph projection.
+This form requires a current document for the related Model. A direct `DOCUMENT` uses its resolved collection,
+irrespective of public search visibility. Without a direct document, an explicit
+`@Parent(pathInParent = "...")` or `materializeGraph = true` maintains a type-isolated private component document. The
+predicate applies to that Model's own fields, not to fields nested only in a materialized whole-Graph projection.
 
 The returned target also needs a current document. A public `DOCUMENT` projection works, and a private Graph-component
 document becomes available only because the query is explicitly relation-bounded; ordinary typed search still does not

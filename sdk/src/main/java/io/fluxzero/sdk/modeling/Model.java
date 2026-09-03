@@ -186,21 +186,22 @@ public @interface Model {
     /**
      * Advanced configuration for the Model's direct current document.
      * <p>
-     * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Searchable
-     * documents use a public collection that defaults to the Model's simple class name. Reference-only documents use
-     * type-isolated private storage while remaining available to Model loads, aliases, relationships and Graph
-     * composition. Timestamps default to the applied event timestamp when no paths are configured.
+     * Include {@link ModelPersistence#DOCUMENT} in {@link #persistence()} to enable this projection. Every direct
+     * document uses the configured collection, which defaults to the Model's simple class name. A reference-only
+     * document is excluded from unrestricted typed Model search while remaining available to Model loads, aliases,
+     * relationships and Graph composition. Timestamps default to the applied event timestamp when no paths are
+     * configured.
      */
     DocumentProjection document() default @DocumentProjection;
 
     /**
      * Whether Fluxzero should asynchronously materialize the complete model graph as a separate search document.
      * <p>
-     * Fluxzero retains the root's current document in its public direct collection when it has a searchable document
-     * projection and otherwise in the same type-isolated private storage used by other Graph-only Models. Only the
-     * separately named graph collection is allowed to lag; its high-watermark is exposed through the model repository.
-     * The collection defaults to the resolved public direct-model collection plus {@code -graphs} when present, or to
-     * {@code <simple model name>-graphs} otherwise.
+     * Fluxzero retains the root's current document in its resolved direct collection when it has a document projection,
+     * irrespective of that document's public search visibility. A root without a direct document uses the same
+     * type-isolated private storage as other Graph-only Models. Only the separately named graph collection is allowed
+     * to lag; its high-watermark is exposed through the model repository. The collection defaults to the resolved
+     * direct-model collection plus {@code -graphs} when present, or to {@code <simple model name>-graphs} otherwise.
      */
     boolean materializeGraph() default false;
 

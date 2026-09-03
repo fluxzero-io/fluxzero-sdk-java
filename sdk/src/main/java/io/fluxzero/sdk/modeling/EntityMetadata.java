@@ -531,13 +531,7 @@ public final class EntityMetadata {
             return Optional.empty();
         }
         if (rootConfiguration.directDocument()) {
-            return Optional.of(rootConfiguration.publicDocument()
-                                       ? configuredModelDocumentCollection()
-                                       : maintainsGraphComponentDocument()
-                                               ? ModelDocumentMutation.privateModelDocumentCollection(
-                                                       type.getName())
-                                               : ModelDocumentMutation.referenceModelDocumentCollection(
-                                                       type.getName()));
+            return Optional.of(configuredModelDocumentCollection());
         }
         return maintainsGraphComponentDocument()
                 ? Optional.of(ModelDocumentMutation.privateModelDocumentCollection(
@@ -575,10 +569,10 @@ public final class EntityMetadata {
                 () -> new IllegalStateException(
                         "Graph projection root %s has no current-document collection"
                                 .formatted(type.getName())));
-        String publicCollectionBase = rootConfiguration.publicDocument()
+        String graphCollectionBase = rootConfiguration.directDocument()
                 ? rootCollection : type.getSimpleName();
         String collection = projection.collection().isEmpty()
-                ? publicCollectionBase + "-graphs"
+                ? graphCollectionBase + "-graphs"
                 : ApplicationProperties.substituteProperties(projection.collection());
         if (rootCollection.equals(collection)) {
             throw new IllegalStateException(
@@ -894,11 +888,6 @@ public final class EntityMetadata {
                 || !document.timestampPath().isEmpty()
                 || !document.endPath().isEmpty())) {
             throw invalid("@Model.document on %s requires persistence that stores a direct document"
-                                  .formatted(type.getName()));
-        }
-        if (storesDocument && !document.searchable()
-            && !document.collection().isEmpty()) {
-            throw invalid("@Model.document.collection on %s requires a searchable document projection"
                                   .formatted(type.getName()));
         }
         return Set.copyOf(persistence);

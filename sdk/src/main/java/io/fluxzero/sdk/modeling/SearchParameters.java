@@ -35,7 +35,8 @@ import lombok.With;
  *
  * <h2>Fields:</h2>
  * <ul>
- *   <li>{@code searchable} – whether documents of this type should be indexed and searchable.</li>
+ *   <li>{@code searchable} – whether the type's ordinary search representation is enabled. For Models this controls
+ *       exposure through unrestricted typed search.</li>
  *   <li>{@code collection} – name of the logical collection under which documents are grouped; if not
  *       specified, the simple name of the class is used.</li>
  *   <li>{@code timestampPath} – expression to extract the primary timestamp (start time) from the object.</li>
@@ -55,7 +56,9 @@ public class SearchParameters implements Substitutable<SearchParameters> {
     public static final SearchParameters defaultSearchParameters = SearchParameters.builder().build();
 
     /**
-     * Whether instances of the annotated class are eligible for indexing and search. Defaults to {@code true}.
+     * Whether the type's ordinary search representation is enabled. Defaults to {@code true}. For Models this controls
+     * exposure through unrestricted typed search; a non-searchable Model that participates in Graph composition may
+     * still maintain the internal indexes required by explicitly bounded Graph and relationship queries.
      */
     @Builder.Default
     boolean searchable = true;

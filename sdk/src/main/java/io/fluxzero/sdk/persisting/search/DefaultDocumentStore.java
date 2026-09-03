@@ -81,6 +81,8 @@ import static java.util.stream.Collectors.toMap;
 @Slf4j
 public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> implements DocumentStore, HasLocalHandlers {
 
+    private static final String NON_SEARCHABLE_MODEL_QUERY_PREFIX = "$nonSearchableModels/";
+
     @With
     private final Client client;
     @Getter
@@ -223,12 +225,15 @@ public class DefaultDocumentStore extends AbstractNamespaced<DocumentStore> impl
 
     @Override
     public <T> Search<T> search(@NonNull Class<T> collection) {
-        Class<?> targetModelType = EntityMetadata.of(collection).rootConfiguration()
+        EntityMetadata.RootConfiguration model = EntityMetadata.of(collection).rootConfiguration()
                 .filter(configuration -> configuration.kind() == EntityMetadata.RootKind.MODEL)
-                .map(ignored -> collection)
                 .orElse(null);
+        Class<?> targetModelType = model == null ? null : collection;
+        String queryCollection = model != null && !model.publicDocument()
+                ? NON_SEARCHABLE_MODEL_QUERY_PREFIX + collection.getName()
+                : determineCollection(collection);
         return new DefaultSearch<>(
-                SearchQuery.builder().collection(determineCollection(collection)),
+                SearchQuery.builder().collection(queryCollection),
                 targetModelType);
     }
 

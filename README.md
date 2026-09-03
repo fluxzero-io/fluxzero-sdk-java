@@ -3297,12 +3297,14 @@ public record UserPreferences(
 }
 ```
 
-Reference-only documents remain durable and directly loadable, but contain no text summary/reversary, facets or
-sortables. `Fluxzero.search(UserPreferences.class)` therefore does not expose them. They can still be reached through
-their Model ID, an alias or an exact parent/ancestor ID; these routes use the separate durable Model identity and
-relationship indexes. When the same Model independently participates in Graph composition, its private current
-document keeps the internal indexes required by content-based Graph and relationship queries without becoming publicly
-searchable. Use `@SearchExclude`, `@Facet` and `@Sortable` to shape those internal indexes explicitly.
+Reference-only documents remain in the normal resolved document collection: `UserPreferences` in this example, or the
+explicit `DocumentProjection.collection` when configured. This preserves existing collection names during migration.
+Without a separate Graph role they contain no text summary/reversary, facets or sortables, and
+`Fluxzero.search(UserPreferences.class)` does not expose them. They can still be reached through their Model ID, an
+alias or an exact parent/ancestor ID; these routes use the durable Model identity and relationship indexes. When the
+same Model independently participates in Graph composition, its current component document keeps the indexes required
+by content-based Graph and relationship queries without becoming publicly searchable. Use `@SearchExclude`, `@Facet`
+and `@Sortable` to shape those internal indexes explicitly.
 
 Event-sourcing-only settings such as `ignoreUnknownEvents`, `snapshotPeriod`, `maxSnapshotCount` and
 `checkpointPeriod` are rejected on `DOCUMENT` Models instead of being silently ignored.
@@ -3427,9 +3429,10 @@ List<Task> activeProjectTasks = Fluxzero.search(Task.class)
 
 This form first searches the related Model's own current-document collection and then traverses the matching IDs. A
 public direct document is not required: an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true`
-maintains a type-isolated internal component document that can supply the predicate. A reference-only `DOCUMENT`
-projection without such a Graph role contributes no summary, facet or sortable indexes. The materialized whole-Graph
-projection is not used as a substitute for the related Model's own fields.
+maintains a component document that can supply the predicate. It uses the direct document's resolved collection when
+`DOCUMENT` is configured, and otherwise a type-isolated internal collection. A reference-only `DOCUMENT` projection
+without such a Graph role contributes no summary, facet or sortable indexes. The materialized whole-Graph projection
+is not used as a substitute for the related Model's own fields.
 
 The returned target also needs a current document because `Search` returns current documents. That may be a public
 `DOCUMENT` projection or a private document maintained for Graph participation; adding a relationship selector makes
@@ -4833,10 +4836,11 @@ annotations that own automatic indexing:
 - Directly annotate any POJO with `@Searchable`
 
 Adding `DOCUMENT` enables automatic document maintenance after updates without needing to call
-`Fluxzero.index(...)` manually. Its `DocumentProjection.searchable` setting determines whether that document is placed
-in the public Model collection with its derived search indexes, or kept out of unrestricted Model search. In the latter
-case a document without a separate Graph role is stored reference-only, without summary/reversary, facets or sortables;
-an internal Graph-component role retains only the independently required private indexes.
+`Fluxzero.index(...)` manually. Every direct document uses its resolved collection, which defaults to the Model's
+simple class name and may be overridden through `DocumentProjection.collection`. Its `searchable` setting determines
+whether unrestricted typed Model search exposes that collection. When it is `false`, a document without a separate
+Graph role is stored without summary/reversary, facets or sortables; a Graph-component role retains only its
+independently required indexes.
 
 ```java
 

@@ -1259,10 +1259,7 @@ class DefaultModelRepositoryCommitTest {
         assertEquals(after, serializer.fromDocument(
                 update.getDocument(),
                 PrivateDocument.class));
-        assertEquals(
-                ModelDocumentMutation.referenceModelDocumentCollection(
-                        PrivateDocument.class.getName()),
-                update.getCollection());
+        assertEquals("privateDocuments", update.getCollection());
         assertNull(update.getDocument().getSummary());
         assertTrue(update.getDocument().getFacets().isEmpty());
         assertTrue(update.getDocument().getIndexes().isEmpty());
@@ -1551,7 +1548,9 @@ class DefaultModelRepositoryCommitTest {
     }
 
     @Model(persistence = ModelPersistence.DOCUMENT,
-            document = @DocumentProjection(searchable = false),
+            document = @DocumentProjection(
+                    searchable = false,
+                    collection = "privateDocuments"),
             eventPublication = EventPublication.NEVER)
     private record PrivateDocument(
             @EntityId PrivateDocumentId documentId,

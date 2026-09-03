@@ -153,7 +153,7 @@ class ModelTest {
     }
 
     @Test
-    void keepsReferenceOnlyDocumentsOutOfThePublicModelCollection() {
+    void keepsReferenceOnlyDocumentsInTheirResolvedCollection() {
         EntityMetadata metadata = EntityMetadata.validate(
                 ReferenceOnlyDocumentModel.class);
         SearchParameters search = ClientUtils.getSearchParameters(
@@ -161,12 +161,13 @@ class ModelTest {
 
         assertTrue(metadata.rootConfiguration().orElseThrow().directDocument());
         assertFalse(metadata.rootConfiguration().orElseThrow().publicDocument());
-        assertEquals(
-                io.fluxzero.common.api.modeling.ModelDocumentMutation
-                        .referenceModelDocumentCollection(
-                                ReferenceOnlyDocumentModel.class.getName()),
-                metadata.modelDocumentCollection().orElseThrow());
+        assertEquals("ReferenceOnlyDocumentModel",
+                     metadata.modelDocumentCollection().orElseThrow());
         assertFalse(search.isSearchable());
+        assertEquals("ReferenceOnlyDocumentModel", search.getCollection());
+        assertEquals("private-models",
+                     EntityMetadata.validate(PrivateDocumentWithConfiguredCollection.class)
+                             .modelDocumentCollection().orElseThrow());
     }
 
     @Test
@@ -181,8 +182,6 @@ class ModelTest {
     void rejectsDocumentProjectionSettingsWithoutMatchingPersistence() {
         assertThrows(IllegalStateException.class,
                      () -> EntityMetadata.validate(InvalidReferenceOnlyProjection.class));
-        assertThrows(IllegalStateException.class,
-                     () -> EntityMetadata.validate(PrivateDocumentWithPublicCollection.class));
     }
 
     @Test
@@ -297,8 +296,9 @@ class ModelTest {
             persistence = ModelPersistence.DOCUMENT,
             document = @DocumentProjection(
                     searchable = false,
-                    collection = "public-models"))
-    private static class PrivateDocumentWithPublicCollection {
+                    collection = "private-models"))
+    private record PrivateDocumentWithConfiguredCollection(
+            @EntityId String id) {
     }
 
     @Model(persistence = ModelPersistence.DOCUMENT, ignoreUnknownEvents = true)

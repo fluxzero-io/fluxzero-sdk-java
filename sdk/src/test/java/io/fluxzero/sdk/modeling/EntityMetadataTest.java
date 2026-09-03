@@ -186,6 +186,13 @@ class EntityMetadataTest {
                 EntityMetadata.validate(DefaultProjectedModel.class)
                         .graphProjectionConfiguration()
                         .orElseThrow().getCollection());
+        var referenceOnlyConfiguration =
+                EntityMetadata.validate(ReferenceOnlyProjectedModel.class)
+                        .graphProjectionConfiguration().orElseThrow();
+        assertEquals("reference-only-projected-models",
+                     referenceOnlyConfiguration.getRootCollection());
+        assertEquals("reference-only-projected-models-graphs",
+                     referenceOnlyConfiguration.getCollection());
         assertTrue(EntityMetadata.validate(ParentModel.class)
                            .graphProjectionConfiguration().isEmpty());
         assertTrue(EntityMetadata.validate(ConfiguredUnmaterializedModel.class)
@@ -635,6 +642,16 @@ class EntityMetadataTest {
             document = @DocumentProjection(collection = "default-projected-models"),
             materializeGraph = true)
     private record DefaultProjectedModel(
+            @EntityId String id) {
+    }
+
+    @Model(
+            persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
+            document = @DocumentProjection(
+                    searchable = false,
+                    collection = "reference-only-projected-models"),
+            materializeGraph = true)
+    private record ReferenceOnlyProjectedModel(
             @EntityId String id) {
     }
 

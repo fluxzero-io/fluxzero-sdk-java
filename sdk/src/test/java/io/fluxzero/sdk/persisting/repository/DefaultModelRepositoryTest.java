@@ -1097,6 +1097,7 @@ class DefaultModelRepositoryTest {
                             id, "first-code", 5))).join();
             String collection = EntityMetadata.validate(AliasAccount.class)
                     .modelDocumentCollection().orElseThrow();
+            assertEquals("AliasAccount", collection);
             SerializedDocument stored = client.getSearchClient()
                     .fetchModelDocument(new GetDocument(
                             id.toString(), collection))
@@ -1105,6 +1106,12 @@ class DefaultModelRepositoryTest {
             assertNull(stored.getSummary());
             assertTrue(stored.getFacets().isEmpty());
             assertTrue(stored.getIndexes().isEmpty());
+            assertEquals(new AliasAccount(id, "first-code", 5),
+                         fluxzero.documentStore()
+                                 .fetchDocument(id, AliasAccount.class, AliasAccount.class)
+                                 .orElseThrow());
+            assertTrue(fluxzero.documentStore().search(AliasAccount.class)
+                               .fetchAll().isEmpty());
             ((DefaultModelRepository) fluxzero.modelRepository())
                     .invalidateModels(List.of(id.toString()));
 
