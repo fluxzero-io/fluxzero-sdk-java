@@ -131,6 +131,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static io.fluxzero.common.MessageType.EVENT;
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.reflection.ReflectionUtils.getFieldValue;
 
 class DefaultModelRepositoryTest {
 
@@ -1651,6 +1652,11 @@ class DefaultModelRepositoryTest {
             DefaultModelRepository repository =
                     (DefaultModelRepository)
                             fluxzero.modelRepository();
+            getFieldValue(
+                    "modelCacheTracker", repository)
+                    .map(ModelCacheTracker.class::cast)
+                    .orElseThrow()
+                    .close();
             repository.invalidateModels(
                     List.of(id.toString()));
             intercept.set(true);
@@ -1672,9 +1678,22 @@ class DefaultModelRepositoryTest {
             assertEquals(
                     new Account(id, 5),
                     olderReconstruction.join().get());
+            AtomicReference<Entity<?>> cached =
+                    new AtomicReference<>();
+            cache.<Object>modifyEach((ignored, value) -> {
+                if (value instanceof Entity<?> entity) {
+                    cached.set(entity);
+                }
+                return value;
+            });
+            assertNotNull(cached.get());
             assertEquals(
                     new Account(id, 20),
-                    repository.load(id).get());
+                    cached.get().get());
+            assertEquals(
+                    oldStateIndex + 1L,
+                    ((ModelRoot<?>) cached.get())
+                            .stateIndex());
         } finally {
             allowReconstructionCompletion.countDown();
         }
