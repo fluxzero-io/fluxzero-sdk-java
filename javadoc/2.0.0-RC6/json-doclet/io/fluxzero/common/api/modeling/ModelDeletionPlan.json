@@ -1,0 +1,158 @@
+{
+  "name" : "ModelDeletionPlan",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Bounded dry-run result for one explicit independent-model hard deletion.\n <p>\n The sample is diagnostic only. {@link #fingerprint} commits to the complete ordered selection and is required when\n executing a descendant cascade.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.AbstractRequestResult",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "cascade",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.cascade",
+    "type" : "io.fluxzero.common.api.modeling.ModelDeletionCascade",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Planned deletion scope.\n",
+    "constantValue" : null
+  }, {
+    "name" : "externallySharedModelCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.externallySharedModelCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Number of selected descendants with at least one current parent outside the selected set.\n",
+    "constantValue" : null
+  }, {
+    "name" : "fingerprint",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.fingerprint",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Stable SHA-256 fingerprint of the complete selected ID set and cascade scope.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxDepth",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.maxDepth",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum child-edge depth used to compute the complete selection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "maxModels",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.maxModels",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Maximum distinct model count used to compute the complete selection.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.modelCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Number of distinct selected models, including the root.\n",
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Exact requested root ID.\n",
+    "constantValue" : null
+  }, {
+    "name" : "publishedEventCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.publishedEventCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Number of distinct globally published events referenced by selected model streams.\n",
+    "constantValue" : null
+  }, {
+    "name" : "requestId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.requestId",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Correlated request ID.\n",
+    "constantValue" : null
+  }, {
+    "name" : "sampleModelIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.sampleModelIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Deterministic bounded prefix of selected IDs for operator review.\n",
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.stateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Model state boundary at which the plan was observed.\n",
+    "constantValue" : null
+  }, {
+    "name" : "storedEventMembershipCount",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.storedEventMembershipCount",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Number of stored event memberships in selected model streams.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Observation timestamp.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelDeletionPlan",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan#ModelDeletionPlan",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "toMetric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan#toMetric",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelDeletionPlan.Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Value",
+      "values" : {}
+    } ]
+  } ]
+}

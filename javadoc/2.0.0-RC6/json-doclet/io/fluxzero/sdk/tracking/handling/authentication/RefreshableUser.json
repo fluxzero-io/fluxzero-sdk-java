@@ -1,0 +1,68 @@
+{
+  "name" : "RefreshableUser",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Mutable holder for a previously resolved user that may be refreshed while handling a message.\n <p>\n The holder itself is kept stable in message context while the contained user can be replaced by a refresh-capable\n {@link UserProvider}. This lets authorization, {@link User#getCurrent()}, and {@link User} parameter resolution see\n the same refreshed user during a single handling flow.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "user",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser.user",
+    "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RefreshableUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser#RefreshableUser",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a holder for a previously resolved user.\n\n @param user the initial user\n"
+  } ],
+  "methods" : [ {
+    "name" : "update",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser#update",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Replaces the current user.\n\n @param user the refreshed user\n @return the refreshed user\n"
+  }, {
+    "name" : "user",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshableUser#user",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the current user.\n\n @return the current user, or {@code null} if no authenticated user is available\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

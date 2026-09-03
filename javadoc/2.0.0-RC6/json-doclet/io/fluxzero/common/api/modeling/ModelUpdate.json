@@ -1,0 +1,79 @@
+{
+  "name" : "ModelUpdate",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Resulting target heads of one committed model-commit substep.\n <p>\n {@link #eventIndex} links a published domain event to this exact model-state boundary. It is {@code null} for\n store-only, publication-free, document-only, and relationship-only transitions.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "commitId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate.commitId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Durable model commit identity.\n",
+    "constantValue" : null
+  }, {
+    "name" : "eventIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate.eventIndex",
+    "type" : "java.lang.Long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Global event-log index linked to this substep, either newly published or pre-existing, otherwise {@code null}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "kind",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate.kind",
+    "type" : "io.fluxzero.common.api.modeling.ModelUpdateKind",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Nature of the durable update.\n",
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate.stateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Namespace-wide committed model-state position.\n",
+    "constantValue" : null
+  }, {
+    "name" : "substep",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate.substep",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Ordered substep within the commit.\n",
+    "constantValue" : null
+  }, {
+    "name" : "targets",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate.targets",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitTargetResult>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Resulting positions of every model targeted by the substep. Empty for {@link ModelUpdateKind#HARD_DELETE}.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelUpdate",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate#ModelUpdate",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

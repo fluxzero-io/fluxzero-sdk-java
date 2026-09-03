@@ -1,0 +1,131 @@
+{
+  "name" : "Tracker",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Represents the client-side tracking context during message consumption in Fluxzero.\n <p>\n This {@code Tracker} is used locally in a Fluxzero application to provide filtering and stateful context when\n consuming message batches. It is automatically set as a thread-local variable for the duration of batch processing,\n allowing handlers and other logic to access it via {@link #current()}.\n\n @see #current()\n @see MessageBatch\n @see Position\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "configuration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker.configuration",
+    "type" : "io.fluxzero.sdk.tracking.ConsumerConfiguration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Configuration settings such as the consumer name.\n",
+    "constantValue" : null
+  }, {
+    "name" : "current",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker.current",
+    "type" : "java.lang.ThreadLocal<io.fluxzero.sdk.tracking.Tracker>",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Thread-local variable that holds the current tracker instance. This is automatically set by the Fluxzero Java SDK.\n",
+    "constantValue" : null
+  }, {
+    "name" : "messageBatch",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker.messageBatch",
+    "type" : "io.fluxzero.common.api.tracking.MessageBatch",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " The current batch being processed, including segment and position metadata.\n",
+    "constantValue" : null
+  }, {
+    "name" : "messageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker.messageType",
+    "type" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The type of messages being consumed (e.g., {@code EVENT}, {@code COMMAND}).\n",
+    "constantValue" : null
+  }, {
+    "name" : "topic",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker.topic",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The topic being tracked if {@code messageType} is {@link MessageType#CUSTOM} or {@link MessageType#DOCUMENT}.\n Otherwise, {@code null}.\n",
+    "constantValue" : null
+  }, {
+    "name" : "trackerId",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker.trackerId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " An identifier for the current tracker instance.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Tracker",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker#Tracker",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "canHandle",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker#canHandle",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "routingKey",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " When the consumer is configured with {@code ignoreSegment=true}, segment filtering is performed client-side. This\n method uses the current {@link MessageBatch} to determine whether a given message should be processed by the\n current tracker, based on:\n <ul>\n     <li>The segment range of the batch</li>\n     <li>The index of the message relative to the current {@link Position}</li>\n </ul>\n\n @param message The message to check\n @param routingKey The routing key to base the check on\n"
+  }, {
+    "name" : "current",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker#current",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.Tracker>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the current tracker instance, if any.\n"
+  }, {
+    "name" : "getName",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.Tracker#getName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the name of the consumer associated with this tracker.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,176 @@
+{
+  "name" : "GraphJsonSerializer",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer",
+  "packageName" : "io.fluxzero.sdk.common.serialization.jackson",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Serializes a public {@link Graph} as its model value enriched with recursively composed child paths. ",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.JsonSerializer<io.fluxzero.sdk.modeling.Graph<?>>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "GraphJsonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer#GraphJsonSerializer",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addGraphProperties",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer#addGraphProperties",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "mapper",
+      "type" : "com.fasterxml.jackson.databind.ObjectMapper",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "com.fasterxml.jackson.databind.JsonMappingException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "document",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer#document",
+    "returnType" : "com.fasterxml.jackson.databind.JsonNode",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "codec",
+      "type" : "com.fasterxml.jackson.core.ObjectCodec",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveGraphParameter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer#resolveGraphParameter",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Method",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "com.fasterxml.jackson.databind.JsonMappingException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "serialize",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer#serialize",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "serializers",
+      "type" : "com.fasterxml.jackson.databind.SerializerProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "set",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer#set",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "com.fasterxml.jackson.databind.node.ArrayNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "generator",
+      "type" : "com.fasterxml.jackson.core.JsonGenerator",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "com.fasterxml.jackson.databind.JsonMappingException" ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

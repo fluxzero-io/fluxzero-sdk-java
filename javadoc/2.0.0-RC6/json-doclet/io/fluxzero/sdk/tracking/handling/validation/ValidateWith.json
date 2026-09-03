@@ -1,0 +1,42 @@
+{
+  "name" : "ValidateWith",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidateWith",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " Specifies validation groups to apply when validating the annotated class.\n <p>\n This annotation can be placed on payload classes (such as updates or commands) or on any class\n that is validated manually using {@link io.fluxzero.sdk.tracking.handling.validation.ValidationUtils}.\n <p>\n When present, only the specified validation groups will be used. If no groups are defined\n or if the annotation is missing altogether, validation is performed using the default group\n ({@link jakarta.validation.groups.Default}).\n\n <p><strong>Example:</strong></p>\n <pre>{@code\n @ValidateWith(AdminChecks.class)\n public class ApproveApplication {\n\n     @NotNull(groups = AdminChecks.class)\n     private String approvalNote;\n }\n }</pre>\n\n <p>\n This allows you to tailor validation rules depending on context, such as admin-specific checks,\n creation vs. update flows, or conditional enforcement.\n\n @see jakarta.validation.GroupSequence\n @see jakarta.validation.groups.Default\n @see io.fluxzero.sdk.tracking.handling.validation.ValidationUtils\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ValidateWith#value",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " One or more validation groups to include when validating this class.\n\n @return the groups to use during validation\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

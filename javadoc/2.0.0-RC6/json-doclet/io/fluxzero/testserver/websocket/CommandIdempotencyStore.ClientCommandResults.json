@@ -1,0 +1,174 @@
+{
+  "name" : "ClientCommandResults",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "activeSessionIds",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults.activeSessionIds",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cleanupRegistration",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults.cleanupRegistration",
+    "type" : "java.util.concurrent.atomic.AtomicReference<io.fluxzero.common.Registration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "cleanupScheduler",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults.cleanupScheduler",
+    "type" : "io.fluxzero.common.TaskScheduler",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "completedResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults.completedResults",
+    "type" : "java.util.concurrent.ConcurrentLinkedQueue<java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "inactiveClientTtl",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults.inactiveClientTtl",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "results",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults.results",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Long,io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandResult>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "retainedResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults.retainedResults",
+    "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ClientCommandResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults#ClientCommandResults",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "retainedResults",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inactiveClientTtl",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cleanupScheduler",
+      "type" : "io.fluxzero.common.TaskScheduler",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "isInactive",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults#isInactive",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "register",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults#register",
+    "returnType" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandRegistration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerSession",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults#registerSession",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trimCompletedResults",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults#trimCompletedResults",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "unregisterSession",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$ClientCommandResults#unregisterSession",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sessionId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cleanupTask",
+      "type" : "java.lang.Runnable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

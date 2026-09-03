@@ -1,0 +1,70 @@
+{
+  "name" : "AggregateEventRouting",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Controls how events published from an aggregate are assigned to a message segment.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.modeling.AggregateEventRouting>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "AggregateEventRouting",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting#AggregateEventRouting",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting#valueOf",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateEventRouting",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting#values",
+    "returnType" : "io.fluxzero.sdk.modeling.AggregateEventRouting[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "AGGREGATE_ID",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting.AGGREGATE_ID",
+    "annotations" : [ ],
+    "documentation" : " Route aggregate events by the aggregate id, regardless of routing annotations on the event payload.\n"
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Use the enclosing aggregate's configured event routing. At the aggregate level, this behaves like\n {@link #MESSAGE_ROUTING_KEY}.\n"
+  }, {
+    "name" : "MESSAGE_ROUTING_KEY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.AggregateEventRouting.MESSAGE_ROUTING_KEY",
+    "annotations" : [ ],
+    "documentation" : " Preserve the regular message routing behavior. If the event payload has a\n {@link io.fluxzero.sdk.publishing.routing.RoutingKey @RoutingKey}, that value determines the segment.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

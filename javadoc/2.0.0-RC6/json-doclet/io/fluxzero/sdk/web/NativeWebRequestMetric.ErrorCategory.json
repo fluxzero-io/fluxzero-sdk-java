@@ -1,0 +1,90 @@
+{
+  "name" : "ErrorCategory",
+  "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Safe transport-failure classification used instead of exception details.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.web.NativeWebRequestMetric.ErrorCategory>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ErrorCategory",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory#ErrorCategory",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory#valueOf",
+    "returnType" : "io.fluxzero.sdk.web.NativeWebRequestMetric.ErrorCategory",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory#values",
+    "returnType" : "io.fluxzero.sdk.web.NativeWebRequestMetric.ErrorCategory[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "CANCELLED",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory.CANCELLED",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "CONNECTION",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory.CONNECTION",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "INVALID_REQUEST",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory.INVALID_REQUEST",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "IO",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory.IO",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "OTHER",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory.OTHER",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "SECURITY",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory.SECURITY",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "TIMEOUT",
+    "qualifiedName" : "io.fluxzero.sdk.web.NativeWebRequestMetric$ErrorCategory.TIMEOUT",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,59 @@
+{
+  "package" : {
+    "name" : "collectors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ContainerCollector.json",
+    "name" : "ContainerCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.ContainerCollector",
+    "kind" : "class"
+  }, {
+    "file" : "CpuCollector.json",
+    "name" : "CpuCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.CpuCollector",
+    "kind" : "class"
+  }, {
+    "file" : "DiskCollector.json",
+    "name" : "DiskCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.DiskCollector",
+    "kind" : "class"
+  }, {
+    "file" : "FileDescriptorCollector.json",
+    "name" : "FileDescriptorCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.FileDescriptorCollector",
+    "kind" : "class"
+  }, {
+    "file" : "JvmClassCollector.json",
+    "name" : "JvmClassCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmClassCollector",
+    "kind" : "class"
+  }, {
+    "file" : "JvmGcCollector.json",
+    "name" : "JvmGcCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmGcCollector",
+    "kind" : "class"
+  }, {
+    "file" : "JvmMemoryCollector.json",
+    "name" : "JvmMemoryCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmMemoryCollector",
+    "kind" : "class"
+  }, {
+    "file" : "JvmThreadCollector.json",
+    "name" : "JvmThreadCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.JvmThreadCollector",
+    "kind" : "class"
+  }, {
+    "file" : "MetricCollector.json",
+    "name" : "MetricCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.MetricCollector",
+    "kind" : "interface"
+  }, {
+    "file" : "UptimeCollector.json",
+    "name" : "UptimeCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.collectors.UptimeCollector",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}
