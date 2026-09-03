@@ -76,6 +76,16 @@ public class ApplicationProperties {
      */
     public static final String APPLICATION_VERSION_PROPERTY = "fluxzero.application.version";
 
+    /**
+     * Optional literal prefix for every persisted logical {@code @Model} name in one application.
+     * <p>
+     * Fluxzero does not insert a separator. For example, prefix {@code billing} and Model name {@code Invoice}
+     * resolve to {@code billingInvoice}. Applications that share a Runtime namespace can use this to avoid Model-name
+     * collisions. Changing the prefix changes durable Model identity and requires an application-managed data
+     * transition.
+     */
+    public static final String MODEL_NAME_PREFIX_PROPERTY = "fluxzero.model.namePrefix";
+
     private static final DateTimeFormatter DEFAULTS_VERSION_FORMAT = DateTimeFormatter.ofPattern("uuuu.MM.dd");
 
     /**

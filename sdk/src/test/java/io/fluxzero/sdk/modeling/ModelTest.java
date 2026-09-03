@@ -20,6 +20,8 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.common.ClientUtils;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
+import io.fluxzero.sdk.persisting.search.DefaultIndexOperation;
+import io.fluxzero.sdk.persisting.search.DocumentStore;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -36,6 +38,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Answers.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 class ModelTest {
 
@@ -57,6 +62,7 @@ class ModelTest {
         assertEquals(EventPublicationStrategy.DEFAULT, model.publicationStrategy());
         assertEquals(ModelConflictPolicy.DEFAULT, model.conflictPolicy());
         assertEquals(AutomaticModelHandling.DEFAULT, model.automaticHandling());
+        assertEquals("", model.name());
         assertFalse(model.materializeGraph());
         assertTrue(model.document().searchable());
         assertEquals("", model.document().collection());
@@ -115,6 +121,7 @@ class ModelTest {
                         "document",
                         "graphProjection",
                         "materializeGraph",
+                        "name",
                         "persistence"),
                 modelSettings.stream()
                         .filter(setting ->
@@ -126,7 +133,34 @@ class ModelTest {
                      aggregateSettings.stream()
                              .filter(setting -> !modelSettings.contains(setting))
                              .collect(Collectors.toSet()));
-        assertFalse(modelSettings.contains("name"));
+    }
+
+    @Test
+    void resolvesStableLogicalNamesPerConcreteType() {
+        assertEquals("NamedModel", ModelNames.name(NamedModel.class));
+        assertEquals("OriginalName", ModelNames.name(RenamedModel.class));
+        assertEquals("ConcreteNamedModel", ModelNames.name(ConcreteNamedModel.class));
+        assertEquals("billingOriginalName", ModelNames.name(RenamedModel.class, "billing"));
+    }
+
+    @Test
+    void letsTheDocumentStoreOwnModelCollectionResolution() {
+        DocumentStore documentStore = mock(DocumentStore.class, CALLS_REAL_METHODS);
+        doReturn("billingOriginalName")
+                .when(documentStore).determineCollection(RenamedModel.class);
+
+        DefaultIndexOperation operation = DefaultIndexOperation.prepare(
+                documentStore, new RenamedModel());
+
+        assertEquals("billingOriginalName", operation.collection());
+    }
+
+    @Test
+    void rejectsAmbiguousConfiguredModelNamesAndPrefixes() {
+        assertThrows(IllegalStateException.class,
+                     () -> EntityMetadata.validate(BlankNamedModel.class));
+        assertThrows(IllegalArgumentException.class,
+                     () -> ModelNames.name(NamedModel.class, "  "));
     }
 
     @Test
@@ -153,7 +187,7 @@ class ModelTest {
     }
 
     @Test
-    void keepsReferenceOnlyDocumentsOutOfThePublicModelCollection() {
+    void keepsReferenceOnlyDocumentsInTheirResolvedCollection() {
         EntityMetadata metadata = EntityMetadata.validate(
                 ReferenceOnlyDocumentModel.class);
         SearchParameters search = ClientUtils.getSearchParameters(
@@ -161,12 +195,15 @@ class ModelTest {
 
         assertTrue(metadata.rootConfiguration().orElseThrow().directDocument());
         assertFalse(metadata.rootConfiguration().orElseThrow().publicDocument());
-        assertEquals(
-                io.fluxzero.common.api.modeling.ModelDocumentMutation
-                        .privateModelDocumentCollection(
-                                ReferenceOnlyDocumentModel.class.getName()),
-                metadata.modelDocumentCollection().orElseThrow());
+        assertEquals("ReferenceOnlyDocumentModel",
+                     metadata.modelDocumentCollection().orElseThrow());
+        assertEquals("billingReferenceOnlyDocumentModel",
+                     metadata.modelDocumentCollection("billing").orElseThrow());
         assertFalse(search.isSearchable());
+        assertEquals("ReferenceOnlyDocumentModel", search.getCollection());
+        assertEquals("private-models",
+                     EntityMetadata.validate(PrivateDocumentWithConfiguredCollection.class)
+                             .modelDocumentCollection().orElseThrow());
     }
 
     @Test
@@ -181,8 +218,6 @@ class ModelTest {
     void rejectsDocumentProjectionSettingsWithoutMatchingPersistence() {
         assertThrows(IllegalStateException.class,
                      () -> EntityMetadata.validate(InvalidReferenceOnlyProjection.class));
-        assertThrows(IllegalStateException.class,
-                     () -> EntityMetadata.validate(PrivateDocumentWithPublicCollection.class));
     }
 
     @Test
@@ -297,8 +332,9 @@ class ModelTest {
             persistence = ModelPersistence.DOCUMENT,
             document = @DocumentProjection(
                     searchable = false,
-                    collection = "public-models"))
-    private static class PrivateDocumentWithPublicCollection {
+                    collection = "private-models"))
+    private record PrivateDocumentWithConfiguredCollection(
+            @EntityId String id) {
     }
 
     @Model(persistence = ModelPersistence.DOCUMENT, ignoreUnknownEvents = true)
@@ -318,6 +354,33 @@ class ModelTest {
     }
 
     private static class InheritedModel extends BaseModel {
+    }
+
+    @Model
+    private static class NamedModel {
+        @EntityId
+        String id;
+    }
+
+    @Model(name = "OriginalName")
+    private static class RenamedModel {
+        @EntityId
+        String id = "id";
+    }
+
+    @Model(name = "BaseName")
+    private static class NamedBaseModel {
+        @EntityId
+        String id;
+    }
+
+    private static class ConcreteNamedModel extends NamedBaseModel {
+    }
+
+    @Model(name = " ")
+    private static class BlankNamedModel {
+        @EntityId
+        String id;
     }
 
     @Model

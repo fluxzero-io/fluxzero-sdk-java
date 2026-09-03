@@ -112,6 +112,7 @@ final class ModelReplayCursor {
     private final DocumentReader documentReader;
     private final ModelRepository repository;
     private final EventBoundaryBarrier eventBoundaryBarrier;
+    private final ModelTypeResolver modelTypeResolver;
 
     ModelReplayCursor(EventStoreClient eventStoreClient) {
         this(eventStoreClient, DEFAULT_SETTINGS);
@@ -119,7 +120,7 @@ final class ModelReplayCursor {
 
     ModelReplayCursor(EventStoreClient eventStoreClient, Settings settings) {
         this(eventStoreClient, settings, null, null, null, null, null, null, null,
-             EventBoundaryBarrier.NONE);
+             EventBoundaryBarrier.NONE, null);
     }
 
     ModelReplayCursor(
@@ -127,7 +128,7 @@ final class ModelReplayCursor {
             Settings settings,
             EventBoundaryBarrier eventBoundaryBarrier) {
         this(eventStoreClient, settings, null, null, null, null, null, null, null,
-             eventBoundaryBarrier);
+             eventBoundaryBarrier, null);
     }
 
     ModelReplayCursor(
@@ -140,7 +141,7 @@ final class ModelReplayCursor {
             DocumentReader documentReader,
             ModelRepository repository) {
         this(eventStoreClient, serializer, entityHelper, modelDefinitionCompiler, modelCache,
-             snapshotStore, documentReader, repository, EventBoundaryBarrier.NONE);
+             snapshotStore, documentReader, repository, EventBoundaryBarrier.NONE, null);
     }
 
     ModelReplayCursor(
@@ -153,8 +154,24 @@ final class ModelReplayCursor {
             DocumentReader documentReader,
             ModelRepository repository,
             EventBoundaryBarrier eventBoundaryBarrier) {
+        this(eventStoreClient, serializer, entityHelper, modelDefinitionCompiler, modelCache,
+             snapshotStore, documentReader, repository, eventBoundaryBarrier, null);
+    }
+
+    ModelReplayCursor(
+            EventStoreClient eventStoreClient,
+            Serializer serializer,
+            EntityHelper entityHelper,
+            MutationPlan.Compiler modelDefinitionCompiler,
+            Cache modelCache,
+            ModelSnapshotStore snapshotStore,
+            DocumentReader documentReader,
+            ModelRepository repository,
+            EventBoundaryBarrier eventBoundaryBarrier,
+            ModelTypeResolver modelTypeResolver) {
         this(eventStoreClient, DEFAULT_SETTINGS, serializer, entityHelper, modelDefinitionCompiler,
-             modelCache, snapshotStore, documentReader, repository, eventBoundaryBarrier);
+             modelCache, snapshotStore, documentReader, repository, eventBoundaryBarrier,
+             modelTypeResolver);
     }
 
     private ModelReplayCursor(
@@ -167,7 +184,8 @@ final class ModelReplayCursor {
             ModelSnapshotStore snapshotStore,
             DocumentReader documentReader,
             ModelRepository repository,
-            EventBoundaryBarrier eventBoundaryBarrier) {
+            EventBoundaryBarrier eventBoundaryBarrier,
+            ModelTypeResolver modelTypeResolver) {
         this.eventStoreClient = Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.settings = Objects.requireNonNull(settings, "settings");
         this.eventBoundaryBarrier = Objects.requireNonNull(
@@ -185,6 +203,7 @@ final class ModelReplayCursor {
         this.snapshotStore = snapshotStore;
         this.documentReader = documentReader;
         this.repository = repository;
+        this.modelTypeResolver = modelTypeResolver;
     }
 
     Session session() {
@@ -1263,8 +1282,11 @@ final class ModelReplayCursor {
                     "Model '%s' has no stored type metadata".formatted(modelId));
         }
         try {
-            Class<?> result = io.fluxzero.common.reflection.ReflectionUtils.classForName(
-                    serializer.upcastType(storedType));
+            if (modelTypeResolver == null) {
+                throw new IllegalStateException(
+                        "No application Model type catalog is configured");
+            }
+            Class<?> result = modelTypeResolver.modelType(storedType, modelId);
             EntityMetadata.validate(result);
             return result;
         } catch (Throwable failure) {

@@ -485,8 +485,8 @@ public class ClientUtils {
     }
 
     /**
-     * Returns the effective {@link SearchParameters} for the given type, using the {@link Searchable} annotation.
-     * Defaults to a collection name matching the class’s simple name if not explicitly set.
+     * Returns the effective {@link SearchParameters} for the given type. Ordinary searchable documents default to the
+     * class's simple name; Models default to their resolved logical name.
      */
     public static SearchParameters getSearchParameters(Class<?> type) {
         return SearchParameters.forType(type);

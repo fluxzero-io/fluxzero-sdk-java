@@ -29,6 +29,8 @@ import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.serialization.Revision;
+import io.fluxzero.common.search.Facet;
+import io.fluxzero.common.search.Sortable;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -543,7 +545,7 @@ class DefaultModelRepositoryCommitTest {
         assertNotNull(document);
         assertEquals(
                 ModelDocumentMutation.privateModelDocumentCollection(
-                        GraphOnlyChild.class.getName()),
+                        GraphOnlyChild.class.getSimpleName()),
                 document.getCollection());
         assertEquals(
                 after,
@@ -635,7 +637,7 @@ class DefaultModelRepositoryCommitTest {
                 nextCustomer.toString(),
                 target.getRelationships().getFirst().getParentId());
         assertEquals(
-                Customer.class.getName(),
+                Customer.class.getSimpleName(),
                 target.getRelationships().getFirst().getParentType());
         assertEquals(
                 "orders",
@@ -663,7 +665,7 @@ class DefaultModelRepositoryCommitTest {
                 .findFirst().orElseThrow();
         assertEquals(1, target.getRelationships().size());
         assertEquals(parentId.toString(), target.getRelationships().getFirst().getParentId());
-        assertEquals(AlternateCustomer.class.getName(),
+        assertEquals(AlternateCustomer.class.getSimpleName(),
                      target.getRelationships().getFirst().getParentType());
         assertEquals("contacts", target.getRelationships().getFirst().getPath());
     }
@@ -1232,7 +1234,8 @@ class DefaultModelRepositoryCommitTest {
     @Test
     void neverPublicationUpdatesStateAndDirectDocumentWithoutCreatingEvent() throws Exception {
         PrivateDocumentId id = new PrivateDocumentId("1");
-        PrivateDocument after = new PrivateDocument(id, "secret");
+        PrivateDocument after = new PrivateDocument(
+                id, "findable summary", "classified", 42);
         var evaluation = evaluation(
                 List.of(id.toString()),
                 substep(new UpdatePrivateDocument(id), transition(
@@ -1256,9 +1259,13 @@ class DefaultModelRepositoryCommitTest {
         assertEquals(after, serializer.fromDocument(
                 update.getDocument(),
                 PrivateDocument.class));
-        assertEquals(
-                "privateDocuments",
-                update.getCollection());
+        assertEquals("privateDocuments", update.getCollection());
+        assertNull(update.getDocument().getSummary());
+        assertTrue(update.getDocument().getFacets().isEmpty());
+        assertTrue(update.getDocument().getIndexes().isEmpty());
+        assertNull(update.getDocument().deserializeDocument().getSummary());
+        assertTrue(update.getDocument().deserializeDocument().getFacets().isEmpty());
+        assertTrue(update.getDocument().deserializeDocument().getSortables().isEmpty());
     }
 
     @Test
@@ -1540,9 +1547,16 @@ class DefaultModelRepositoryCommitTest {
         }
     }
 
-    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "privateDocuments"),
+    @Model(persistence = ModelPersistence.DOCUMENT,
+            document = @DocumentProjection(
+                    searchable = false,
+                    collection = "privateDocuments"),
             eventPublication = EventPublication.NEVER)
-    private record PrivateDocument(@EntityId PrivateDocumentId documentId, String value) {
+    private record PrivateDocument(
+            @EntityId PrivateDocumentId documentId,
+            String description,
+            @Facet String category,
+            @Sortable int priority) {
     }
 
     private static class PrivateDocumentId extends Id<PrivateDocument> {

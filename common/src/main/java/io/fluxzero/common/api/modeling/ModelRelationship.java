@@ -37,7 +37,7 @@ public class ModelRelationship {
     String parentId;
 
     /**
-     * Parent model class/type name when statically known, otherwise {@code null}.
+     * Stable application-scoped logical parent Model name when statically known, otherwise {@code null}.
      */
     String parentType;
 

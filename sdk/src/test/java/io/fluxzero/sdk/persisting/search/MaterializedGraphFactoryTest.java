@@ -66,14 +66,15 @@ class MaterializedGraphFactoryTest {
                 .put("oldValue", "current child");
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
                 41L,
+                List.of("RevisionedRoot", "RevisionedChild"),
                 List.of("legacy.RevisionedRoot",
                         "legacy.RevisionedChild"),
                 List.of("children"),
                 List.of(
                         new ModelGraphDocumentManifest.Node(
-                                "root", 0, 0, -1, -1, 0),
+                                "root", 0, 0, 0, -1, -1, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "child", 1, 0, 0, 0, 0)));
+                                "child", 1, 1, 0, 0, 0, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "root", "revisioned-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -155,14 +156,15 @@ class MaterializedGraphFactoryTest {
         ModelGraphDocumentManifest manifest =
                 new ModelGraphDocumentManifest(
                         41L,
+                        List.of("CountingRoot", "CountingChild"),
                         List.of(CountingRoot.class.getName(),
                                 CountingChild.class.getName()),
                         List.of("children"),
                         List.of(
                                 new ModelGraphDocumentManifest.Node(
-                                        "root", 0, 0, -1, -1, 0),
+                                        "root", 0, 0, 0, -1, -1, 0),
                                 new ModelGraphDocumentManifest.Node(
-                                        "child", 1, 0, 0, 0, 0)));
+                                        "child", 1, 1, 0, 0, 0, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "root", "root-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -195,9 +197,9 @@ class MaterializedGraphFactoryTest {
         ObjectNode json = serializer.getObjectMapper().createObjectNode()
                 .put("id", "child").put("rootId", "root");
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
-                41L, List.of(CountingChild.class.getName()), List.of(),
+                41L, List.of("CountingChild"), List.of(CountingChild.class.getName()), List.of(),
                 List.of(new ModelGraphDocumentManifest.Node(
-                        "child", 0, 0, -1, -1, 0)));
+                        "child", 0, 0, 0, -1, -1, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "child", "child-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -244,6 +246,7 @@ class MaterializedGraphFactoryTest {
                 .put("id", "secondary").put("rootId", "root");
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
                 41L,
+                List.of("MultiParentRoot", "PrimaryParent", "SecondaryParent", "MultiParentChild"),
                 List.of(MultiParentRoot.class.getName(),
                         PrimaryParent.class.getName(),
                         SecondaryParent.class.getName(),
@@ -251,15 +254,15 @@ class MaterializedGraphFactoryTest {
                 List.of("primaryParents", "secondaryParents", "children"),
                 List.of(
                         new ModelGraphDocumentManifest.Node(
-                                "root", 0, 0, -1, -1, 0),
+                                "root", 0, 0, 0, -1, -1, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "primary", 1, 0, 0, 0, 0),
+                                "primary", 1, 1, 0, 0, 0, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "child", 3, 0, 1, 2, 0),
+                                "child", 3, 3, 0, 1, 2, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "secondary", 2, 0, 0, 1, 0),
+                                "secondary", 2, 2, 0, 0, 1, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "alternate-primary", 1, 0, 0, 0, 1)));
+                                "alternate-primary", 1, 1, 0, 0, 0, 1)));
         SerializedDocument document = serializer.toDocument(
                 json, "root", "multi-parent-root-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -299,14 +302,15 @@ class MaterializedGraphFactoryTest {
                 .put("alternatePrimaryId", "external-primary");
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
                 41L,
+                List.of("PrimaryParent", "MultiParentChild"),
                 List.of(PrimaryParent.class.getName(),
                         MultiParentChild.class.getName()),
                 List.of("children"),
                 List.of(
                         new ModelGraphDocumentManifest.Node(
-                                "primary", 0, 0, -1, -1, 0),
+                                "primary", 0, 0, 0, -1, -1, 0),
                         new ModelGraphDocumentManifest.Node(
-                                "child", 1, 0, 0, 0, 0)));
+                                "child", 1, 1, 0, 0, 0, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "primary", "primary-parent-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -333,9 +337,9 @@ class MaterializedGraphFactoryTest {
         ObjectNode json = serializer.getObjectMapper().createObjectNode()
                 .put("id", "child").put("rootId", "root");
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
-                41L, List.of(CountingChild.class.getName()), List.of(),
+                41L, List.of("CountingChild"), List.of(CountingChild.class.getName()), List.of(),
                 List.of(new ModelGraphDocumentManifest.Node(
-                        "child", 0, 0, -1, -1, 0)));
+                        "child", 0, 0, 0, -1, -1, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "child", "child-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,
@@ -367,9 +371,9 @@ class MaterializedGraphFactoryTest {
         ObjectNode json = serializer.getObjectMapper().createObjectNode()
                 .put("id", "root");
         ModelGraphDocumentManifest manifest = new ModelGraphDocumentManifest(
-                41L, List.of(CountingRoot.class.getName()), List.of(),
+                41L, List.of("CountingRoot"), List.of(CountingRoot.class.getName()), List.of(),
                 List.of(new ModelGraphDocumentManifest.Node(
-                        "root", 0, 0, -1, -1, 0)));
+                        "root", 0, 0, 0, -1, -1, 0)));
         SerializedDocument document = serializer.toDocument(
                 json, "root", "root-graphs", null, null,
                 Metadata.of(ModelGraphDocumentManifest.METADATA_KEY,

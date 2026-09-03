@@ -26,6 +26,8 @@ import lombok.Value;
 public class ModelGraphEdge {
     String childId;
     String parentId;
+
+    /** Stable application-scoped logical parent Model name, or {@code null} when unknown. */
     String parentType;
     String path;
     long validFrom;

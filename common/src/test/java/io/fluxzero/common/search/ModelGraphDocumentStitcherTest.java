@@ -88,6 +88,7 @@ class ModelGraphDocumentStitcherTest {
                                                 "child-a",
                                                 "details")),
                                 documents,
+                                modelTypes("root", "child-a", "child-b", "grandchild"),
                                 ModelGraphComposition
                                         .builder()
                                         .build())
@@ -136,6 +137,7 @@ class ModelGraphDocumentStitcherTest {
         Document result = ModelGraphDocumentStitcher.stitch(
                         List.of(root), List.of(edge("child", "root", "children")),
                         Map.of("root", root, "child", child),
+                        modelTypes("root", "child"),
                         ModelGraphComposition.builder().build())
                 .getFirst().deserializeDocument();
 
@@ -167,6 +169,7 @@ class ModelGraphDocumentStitcherTest {
                                         edge("shared", "child", "details")),
                                 Map.of("root", root, "child", child,
                                        "shared", shared),
+                                Map.of("root", "Root", "child", "Child", "shared", "Detail"),
                                 ModelGraphComposition.builder().build(),
                                 42L)
                         .getFirst();
@@ -180,17 +183,19 @@ class ModelGraphDocumentStitcherTest {
         assertEquals(List.of("example.Root", "example.Child",
                              "example.Detail"),
                      manifest.types());
+        assertEquals(List.of("Root", "Child", "Detail"),
+                     manifest.modelTypes());
         assertEquals(List.of("children", "details"),
                      manifest.relationshipPaths());
         assertEquals(List.of(
                 new ModelGraphDocumentManifest.Node(
-                        "root", 0, 1, -1, -1, 0),
+                        "root", 0, 0, 1, -1, -1, 0),
                 new ModelGraphDocumentManifest.Node(
-                        "child", 1, 2, 0, 0, 0),
+                        "child", 1, 1, 2, 0, 0, 0),
                 new ModelGraphDocumentManifest.Node(
-                        "shared", 2, 3, 1, 1, 0),
+                        "shared", 2, 2, 3, 1, 1, 0),
                 new ModelGraphDocumentManifest.Node(
-                        "shared", 2, 3, 0, 1, 0)),
+                        "shared", 2, 2, 3, 0, 1, 0)),
                      manifest.nodes());
         assertTrue(stitched.deserializeDocument()
                            .getMatchingEntries(path ->
@@ -213,6 +218,7 @@ class ModelGraphDocumentStitcherTest {
                         List.of(root),
                         List.of(edge("child", "root", "children")),
                         Map.of("child", child),
+                        Map.of("root", "Root", "child", "Child"),
                         ModelGraphComposition.builder().build(),
                         12L)
                 .getFirst();
@@ -262,6 +268,7 @@ class ModelGraphDocumentStitcherTest {
                                         "child-b", document(
                                                 "child-b", "secondType",
                                                 "name", "B")),
+                                modelTypes("root", "child-a", "child-b"),
                                 ModelGraphComposition.builder()
                                         .build())
                         .getFirst()
@@ -292,6 +299,7 @@ class ModelGraphDocumentStitcherTest {
                         List.of(edge("child", "root", "children"),
                                 edge("grandchild", "child", "grandchildren")),
                         Map.of("root", root, "child", child, "grandchild", grandchild),
+                        modelTypes("root", "child", "grandchild"),
                         ModelGraphComposition.builder().maxDepth(1).build()));
 
         assertTrue(failure.getMessage().contains("maxDepth 1"));
@@ -311,6 +319,7 @@ class ModelGraphDocumentStitcherTest {
                         List.of(edge("child", "root", "children"),
                                 edge("root", "child", "parent")),
                         Map.of("root", root, "child", child),
+                        modelTypes("root", "child"),
                         ModelGraphComposition.builder().build()));
 
         assertTrue(failure.getMessage().contains("cycle at root"));
@@ -370,6 +379,7 @@ class ModelGraphDocumentStitcherTest {
                                 Map.of(
                                         "root", root,
                                         "child", child),
+                                modelTypes("root", "child"),
                                 ModelGraphComposition
                                         .builder()
                                         .build())
@@ -407,6 +417,7 @@ class ModelGraphDocumentStitcherTest {
                                         "root",
                                         directCollision,
                                         "child", child),
+                                modelTypes("root", "child"),
                                 ModelGraphComposition
                                         .builder()
                                         .build()));
@@ -437,6 +448,7 @@ class ModelGraphDocumentStitcherTest {
                                                 "children",
                                                 "name",
                                                 "other")),
+                                modelTypes("root", "child", "other"),
                                 ModelGraphComposition
                                         .builder()
                                         .build()));
@@ -476,6 +488,7 @@ class ModelGraphDocumentStitcherTest {
                                         "root-b",
                                         secondRoot,
                                         "shared", shared),
+                                modelTypes("root-a", "root-b", "shared"),
                                 ModelGraphComposition
                                         .builder()
                                         .maxPlacements(1)
@@ -504,6 +517,7 @@ class ModelGraphDocumentStitcherTest {
                                         Map.of(
                                                 "root",
                                                 oversized),
+                                        modelTypes("root"),
                                         ModelGraphComposition
                                                 .builder()
                                                 .maxBytes(100L)
@@ -524,6 +538,7 @@ class ModelGraphDocumentStitcherTest {
                                 List.of(root),
                                 List.of(),
                                 Map.of("root", root),
+                                modelTypes("root"),
                                 ModelGraphComposition.builder()
                                         .build())
                         .getFirst().bytes();
@@ -539,6 +554,7 @@ class ModelGraphDocumentStitcherTest {
                                         List.of(),
                                         Map.of(
                                                 "root", root),
+                                        modelTypes("root"),
                                         ModelGraphComposition
                                                 .builder()
                                                 .maxBytes(
@@ -577,6 +593,12 @@ class ModelGraphDocumentStitcherTest {
                                 "rank", "sortable")))
                 .build();
         return new SerializedDocument(document);
+    }
+
+    private static Map<String, String> modelTypes(String... modelIds) {
+        return java.util.Arrays.stream(modelIds).collect(
+                java.util.stream.Collectors.toUnmodifiableMap(
+                        id -> id, id -> "Model-" + id));
     }
 
     private static SerializedDocument typedDocument(

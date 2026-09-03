@@ -14,22 +14,14 @@
  * limitations under the License.
  */
 
-package io.fluxzero.common.api.modeling;
+package io.fluxzero.sdk.persisting.repository;
 
-import lombok.Value;
+/** Resolves application-scoped logical Model names in both directions. */
+public interface ModelTypeResolver {
 
-/**
- * Coordination head observed for one model at the response boundary.
- */
-@Value
-public class ModelHeadState {
-    /** Exact persisted Model identity. */
-    String modelId;
+    /** Returns and registers the stable logical name for one concrete Model type. */
+    String modelName(Class<?> modelType);
 
-    /** Stable application-scoped logical Model name. */
-    String modelType;
-    long sequenceNumber;
-    long stateIndex;
-    boolean historyComplete;
-    boolean deleted;
+    /** Resolves a stored logical name to a registered concrete Model type. */
+    Class<?> modelType(String modelName, String modelId);
 }

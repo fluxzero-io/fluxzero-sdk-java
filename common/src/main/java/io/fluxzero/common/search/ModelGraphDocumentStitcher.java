@@ -62,8 +62,9 @@ public final class ModelGraphDocumentStitcher {
             List<SerializedDocument> roots,
             Collection<ModelGraphEdge> edges,
             Map<String, SerializedDocument> documents,
+            Map<String, String> modelTypes,
             ModelGraphComposition composition) {
-        return stitch(roots, edges, documents, composition, -1L);
+        return stitch(roots, edges, documents, modelTypes, composition, -1L);
     }
 
     /**
@@ -73,11 +74,13 @@ public final class ModelGraphDocumentStitcher {
             List<SerializedDocument> roots,
             Collection<ModelGraphEdge> edges,
             Map<String, SerializedDocument> documents,
+            Map<String, String> modelTypes,
             ModelGraphComposition composition,
             long stateIndex) {
         Objects.requireNonNull(roots, "Root documents");
         Objects.requireNonNull(edges, "Model graph edges");
         Objects.requireNonNull(documents, "Model documents");
+        Objects.requireNonNull(modelTypes, "Model types");
         Objects.requireNonNull(
                 composition, "Model graph composition");
 
@@ -113,7 +116,7 @@ public final class ModelGraphDocumentStitcher {
                     root.getId(),
                     rootDocument,
                     -1, null, 0,
-                    children, documents, bounds, manifest, 0,
+                    children, documents, modelTypes, bounds, manifest, 0,
                     new LinkedHashSet<>());
             composed = withManifest(
                     composed, manifest.build());
@@ -226,6 +229,7 @@ public final class ModelGraphDocumentStitcher {
             int ordinal,
             Map<String, List<ModelGraphEdge>> children,
             Map<String, SerializedDocument> documents,
+            Map<String, String> modelTypes,
             Bounds bounds,
             ManifestBuilder manifest,
             int depth,
@@ -241,7 +245,9 @@ public final class ModelGraphDocumentStitcher {
             Document direct =
                     serialized.deserializeDocument();
             int nodeIndex = manifest.add(
-                    modelId, direct.getType(), direct.getRevision(), parent,
+                    modelId, Objects.requireNonNull(modelTypes.get(modelId),
+                            () -> "No logical Model type is available for " + modelId),
+                    direct.getType(), direct.getRevision(), parent,
                     relationshipPath, ordinal);
             Map<String, List<ModelGraphEdge>> byPath =
                     new LinkedHashMap<>();
@@ -308,7 +314,7 @@ public final class ModelGraphDocumentStitcher {
                     Document childDocument = compose(
                             edge.getChildId(), child,
                             nodeIndex, path, childOrdinal,
-                            children, documents, bounds, manifest,
+                            children, documents, modelTypes, bounds, manifest,
                             depth + 1, ancestry);
                     String prefix =
                             path + "/" + childOrdinal++;
@@ -477,6 +483,9 @@ public final class ModelGraphDocumentStitcher {
 
     private static final class ManifestBuilder {
         private final long stateIndex;
+        private final List<String> modelTypes = new ArrayList<>();
+        private final Map<String, Integer> modelTypeIndexes =
+                new LinkedHashMap<>();
         private final List<String> types = new ArrayList<>();
         private final Map<String, Integer> typeIndexes =
                 new LinkedHashMap<>();
@@ -491,20 +500,21 @@ public final class ModelGraphDocumentStitcher {
         }
 
         private int add(
-                String modelId, String type, int revision, int parent,
+                String modelId, String modelType, String type, int revision, int parent,
                 String relationshipPath, int ordinal) {
             int nodeIndex = nodes.size();
+            int modelTypeIndex = index(modelType, modelTypes, modelTypeIndexes);
             int typeIndex = index(type, types, typeIndexes);
             int pathIndex = relationshipPath == null ? -1
                     : index(relationshipPath, paths, pathIndexes);
             nodes.add(new ModelGraphDocumentManifest.Node(
-                    modelId, typeIndex, revision, parent, pathIndex, ordinal));
+                    modelId, modelTypeIndex, typeIndex, revision, parent, pathIndex, ordinal));
             return nodeIndex;
         }
 
         private ModelGraphDocumentManifest build() {
             return new ModelGraphDocumentManifest(
-                    stateIndex, types, paths, nodes);
+                    stateIndex, modelTypes, types, paths, nodes);
         }
 
         private static int index(

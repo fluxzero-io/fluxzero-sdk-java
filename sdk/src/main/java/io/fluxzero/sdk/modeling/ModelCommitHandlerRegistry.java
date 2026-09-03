@@ -117,6 +117,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
                 throw new IllegalArgumentException(
                         type.getName() + " is not a Model root");
             }
+            repository.modelName(type);
         });
         validated.forEach(definitions::register);
         return () -> validated.forEach(definitions::unregister);
@@ -194,6 +195,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         if (!EntityMetadata.of(targetType).isModel()) {
             return Registration.noOp();
         }
+        repository.modelName(targetType);
         definitions.register(targetType);
         EntityMetadata.graphProjectionRoots(targetType)
                 .forEach(root -> repository.registerGraphProjection(

@@ -117,7 +117,7 @@ import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
  * loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.
  */
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
-        implements ModelRepository, ModelAncestorResolver {
+        implements ModelRepository, ModelAncestorResolver, ModelTypeResolver {
     private static final int COMMITTED_CACHE_UPDATE_BATCH_SIZE = 128;
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
@@ -125,6 +125,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private static final long MAX_MIGRATION_POLL_NANOS = Duration.ofMillis(250).toNanos();
 
     private final Client client;
+    private final String modelNamePrefix;
     private final DocumentStore documentStore;
     private final Serializer serializer;
     private final EntityHelper entityHelper;
@@ -140,6 +141,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final AtomicLong migratedThrough = new AtomicLong(-1L);
     private final ConcurrentHashMap<Class<?>, GraphProjectionRegistration>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
 
     public DefaultModelRepository(
@@ -151,9 +153,23 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
         this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
+             parameterResolvers, ApplicationProperties.getProperty(
+                        ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY, ""));
+    }
+
+    public DefaultModelRepository(
+            Client client,
+            DocumentStore documentStore,
+            Serializer serializer,
+            EntityHelper entityHelper,
+            Serializer snapshotSerializer,
+            Cache cache,
+            List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
+            String modelNamePrefix) {
+        this(client, documentStore, serializer, entityHelper, snapshotSerializer, cache,
              new MutationPlan.Compiler(Objects.requireNonNull(
                      parameterResolvers, "parameterResolvers")),
-             new AtomicReference<>());
+             new AtomicReference<>(), modelNamePrefix, new ConcurrentHashMap<>());
     }
 
     private DefaultModelRepository(
@@ -165,8 +181,12 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Cache cache,
             MutationPlan.Compiler modelDefinitionCompiler,
             AtomicReference<MigrationReadBarrierConfiguration>
-                    migrationReadBarrierConfiguration) {
+                    migrationReadBarrierConfiguration,
+            String modelNamePrefix,
+            ConcurrentHashMap<String, Class<?>> modelTypesByName) {
         this.client = Objects.requireNonNull(client, "client");
+        this.modelNamePrefix = modelNamePrefix == null ? "" : modelNamePrefix;
+        this.modelTypesByName = Objects.requireNonNull(modelTypesByName, "Model type catalog");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         this.entityHelper = Objects.requireNonNull(entityHelper, "entityHelper");
@@ -186,7 +206,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 eventStoreClient, serializer, entityHelper,
                 modelDefinitionCompiler, modelCache, snapshotStore,
                 this::loadDocumentProjection, this,
-                this::awaitPublishedEventMigration);
+                this::awaitPublishedEventMigration, this);
         this.modelCacheTracker = cache == NoOpCache.INSTANCE
                 ? null
                 : new ModelCacheTracker(
@@ -206,7 +226,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         DefaultModelRepository result = new DefaultModelRepository(
                 namespacedClient, namespacedDocumentStore, serializer, entityHelper,
                 snapshotSerializer, cacheSource, modelDefinitionCompiler,
-                migrationReadBarrierConfiguration);
+                migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName);
         result.configureModelTypes(modelTypes);
         return result;
     }
@@ -418,7 +438,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             String persistedId,
             Class<?> modelType,
             EntityMetadata metadata) {
-        String collection = metadata.modelDocumentCollection()
+        String collection = metadata.modelDocumentCollection(modelNamePrefix)
                 .orElseThrow(() -> new IllegalArgumentException(
                         modelType.getName() + " has no current document to adopt"));
         GetModelMigrationResult migration = client.getSearchClient()
@@ -430,13 +450,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     new IllegalStateException(
                             "No staged Model migration exists for " + persistedId));
         }
-        if (!modelType.getName().equals(migratedHead.getModelType())) {
+        if (!modelName(modelType).equals(migratedHead.getModelType())) {
             return CompletableFuture.failedFuture(
                     new IllegalStateException(
                             "Staged Model type %s does not match requested type %s for %s"
                                     .formatted(
                                             migratedHead.getModelType(),
-                                            modelType.getName(), persistedId)));
+                                            modelName(modelType), persistedId)));
         }
         SerializedDocument production = migration.getProductionDocument();
         SerializedDocument staged = migration.getMigratedDocument();
@@ -502,7 +522,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private Class<?> migrationType(
             ModelHeadState migration) {
         return modelTypes.get().stream()
-                .filter(type -> type.getName().equals(
+                .filter(type -> modelName(type).equals(
                         migration.getModelType()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
@@ -567,14 +587,44 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Supplier<List<Class<?>>> modelTypes) {
         this.modelTypes = Objects.requireNonNull(
                 modelTypes, "Model types");
+        modelTypes.get().forEach(this::modelName);
+    }
+
+    @Override
+    public String modelName(Class<?> modelType) {
+        String name = io.fluxzero.sdk.modeling.ModelNames.name(modelType, modelNamePrefix);
+        Class<?> existing = modelTypesByName.putIfAbsent(name, modelType);
+        if (existing != null && !existing.equals(modelType)) {
+            throw new IllegalStateException(
+                    "Logical Model name '%s' is used by both %s and %s"
+                            .formatted(name, existing.getName(), modelType.getName()));
+        }
+        return name;
+    }
+
+    @Override
+    public Class<?> modelType(String modelName, String modelId) {
+        if (modelName == null || modelName.isBlank()) {
+            throw new IllegalStateException("Model '%s' has no stored type metadata".formatted(modelId));
+        }
+        modelTypes.get().forEach(this::modelName);
+        Class<?> result = modelTypesByName.get(modelName);
+        if (result == null) {
+            throw new IllegalStateException(
+                    "Stored Model type '%s' for %s is not registered in this application"
+                            .formatted(modelName, modelId));
+        }
+        return result;
     }
 
     /** Returns the application-resolved durable definition owned by this repository. */
     public ModelGraphProjectionConfiguration graphProjectionDefinition(
             @NonNull Class<?> modelType) {
+        modelName(modelType);
+        modelTypes.get().forEach(this::modelName);
         return EntityMetadata.validate(modelType)
                 .graphProjectionConfiguration(
-                        modelTypes.get())
+                        modelTypes.get(), modelNamePrefix)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 modelType.getName()
@@ -668,6 +718,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     modelId, resolvedType,
                     boundary, handlerBoundary));
         }
+        modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         metadata.rootConfiguration()
                 .filter(root -> root.kind() == EntityMetadata.RootKind.MODEL)
@@ -691,6 +742,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         if (modelIds.isEmpty()) {
             return List.of();
         }
+        modelName(modelType);
         EntityMetadata metadata = EntityMetadata.validate(modelType);
         String idProperty = metadata.entityId().orElseThrow().name();
         LinkedHashSet<String> uniqueIds = new LinkedHashSet<>();
@@ -776,6 +828,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Class<A> ancestorType,
             ModelReadBoundary boundary,
             boolean all) {
+        modelName(modelType);
+        modelName(ancestorType);
         EntityMetadata sourceMetadata = EntityMetadata.validate(modelType);
         MutationPlan.ResolvedModel source =
                 new MutationPlan.ResolvedModel(
@@ -855,6 +909,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             ModelReadBoundary boundary,
             PinnedBoundary handlerBoundary,
             boolean includeMessageBatch) {
+        modelName(rootType);
         EntityMetadata.validate(rootType);
         Map<String, Entity<?>> staged =
                 includeMessageBatch
@@ -1278,7 +1333,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
             boolean migration) {
-        String collection = metadata.modelDocumentReadCollection();
+        String collection = metadata.modelDocumentReadCollection(modelNamePrefix);
         GetDocumentResult result = client.getSearchClient().fetchModelDocument(
                 new GetDocument(
                         modelId,
@@ -1768,7 +1823,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     ModelCommitTarget left = before.getTargets().get(target);
                     ModelCommitTarget right = after.getTargets().get(target);
                     if (!left.getModelId().equals(right.getModelId())
-                        || !left.getModelType().equals(right.getModelType())
+                        || !Objects.equals(left.getModelType(), right.getModelType())
                         || left.isStoreEvent() != right.isStoreEvent()
                         || left.isUpdateState() != right.isUpdateState()) {
                         throw changedRebaseShape();
@@ -1819,7 +1874,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     : null;
             return new ModelCommitTarget(
                     transition.modelId(),
-                    transition.modelType().getName(),
+                    modelName(transition.modelType()),
                     transition.beforeSequenceNumber(),
                     transition.storeEvent(),
                     transition.updateState(),
@@ -1927,7 +1982,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     .anyMatch(index -> index >= sourceIndex);
         }
 
-        private static RelationshipUpdate relationshipUpdate(
+        private RelationshipUpdate relationshipUpdate(
                 Change transition) {
             EntityMetadata metadata = transition.metadata();
             if (metadata.parentReferences().isEmpty()) {
@@ -1937,11 +1992,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             }
             List<ModelRelationship> before = metadata.parentRelationships(
                             transition.modelId(), transition.before()).stream()
-                    .map(EntityMetadata.ParentRelationship::asCommitRelationship)
+                    .map(relationship -> relationship.asCommitRelationship(modelNamePrefix))
                     .toList();
             List<ModelRelationship> after = metadata.parentRelationships(
                             transition.modelId(), transition.after()).stream()
-                    .map(EntityMetadata.ParentRelationship::asCommitRelationship)
+                    .map(relationship -> relationship.asCommitRelationship(modelNamePrefix))
                     .toList();
             boolean update = transition.after() == null
                              || !before.equals(after);
@@ -2001,11 +2056,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     blankToNull(model.timestampPath()), value, false, () -> eventTimestamp);
             Instant end = parseTimeProperty(
                     blankToNull(model.endPath()), value, true, () -> begin);
-            return new ModelDocumentMutation(
-                    collection,
-                    documentSerializer.toDocument(
-                            value, transition.modelId(), collection,
-                            begin, end, metadata));
+            SerializedDocument document = documentSerializer.toDocument(
+                    value, transition.modelId(), collection,
+                    begin, end, metadata);
+            if (model.directDocument()
+                && !model.publicDocument()
+                && !transition.metadata()
+                        .maintainsGraphComponentDocument()) {
+                document = document.withoutSearchIndexes();
+            }
+            return new ModelDocumentMutation(collection, document);
         }
 
         private static String blankToNull(String value) {
@@ -2015,7 +2075,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         private String documentCollection(Change transition) {
             return documentCollections.computeIfAbsent(
                     transition.metadata().type(),
-                    ignored -> transition.metadata().modelDocumentCollection())
+                    ignored -> transition.metadata().modelDocumentCollection(modelNamePrefix))
                     .orElse(null);
         }
 

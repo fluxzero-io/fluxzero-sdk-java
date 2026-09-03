@@ -3252,6 +3252,26 @@ public record UserAccount(
 }
 ```
 
+Every Model also has one durable logical type name. It defaults to the concrete class's simple name and is persisted in
+Model heads, relationships, migrations and Graph manifests independently from the serializer payload type. Declare it
+explicitly before data exists when the Java class name may change, and retain that value through later class/package
+renames:
+
+```java
+@Model(name = "UserAccount")
+public record RenamedUserAccount(
+        @EntityId UserId userId,
+        UserProfile profile,
+        boolean accountClosed) {
+}
+```
+
+Logical names must be unique within an application namespace. Applications sharing one Runtime namespace may set
+`fluxzero.model.namePrefix`; Fluxzero concatenates it literally, so prefix `billing` plus `UserAccount` becomes
+`billingUserAccount`. There are deliberately no name aliases or FQN fallback. Changing `name` or the prefix after data
+exists is therefore an application-managed data transition. Serializer upcasters and `Data<T>` envelopes remain the
+separate mechanism for evolving serialized event/document payload types.
+
 ### Model persistence
 
 Every model ID is an independent persistence and lifecycle boundary. Depending on its `@Model` settings, it has its own
@@ -3297,8 +3317,15 @@ public record UserPreferences(
 }
 ```
 
-Reference-only documents use the same type-isolated private Model storage as Graph components. They remain durable and
-directly loadable, but `Fluxzero.search(UserPreferences.class)` does not expose them.
+Reference-only documents remain in the normal resolved document collection: the resolved logical Model name
+(`UserPreferences` in this example), or the explicit `DocumentProjection.collection` when configured. This preserves
+existing collection names during migration.
+Without a separate Graph role they contain no text summary/reversary, facets or sortables, and
+`Fluxzero.search(UserPreferences.class)` does not expose them. They can still be reached through their Model ID, an
+alias or an exact parent/ancestor ID; these routes use the durable Model identity and relationship indexes. When the
+same Model independently participates in Graph composition, its current component document keeps the indexes required
+by content-based Graph and relationship queries without becoming publicly searchable. Use `@SearchExclude`, `@Facet`
+and `@Sortable` to shape those internal indexes explicitly.
 
 Event-sourcing-only settings such as `ignoreUnknownEvents`, `snapshotPeriod`, `maxSnapshotCount` and
 `checkpointPeriod` are rejected on `DOCUMENT` Models instead of being silently ignored.
@@ -3423,8 +3450,10 @@ List<Task> activeProjectTasks = Fluxzero.search(Task.class)
 
 This form first searches the related Model's own current-document collection and then traverses the matching IDs. A
 public direct document is not required: an explicit `@Parent(pathInParent = "...")` or `materializeGraph = true`
-maintains a type-isolated private current document that can supply the predicate. The materialized whole-Graph
-projection is not used as a substitute for the related Model's own fields.
+maintains a component document that can supply the predicate. It uses the direct document's resolved collection when
+`DOCUMENT` is configured, and otherwise a type-isolated internal collection. A reference-only `DOCUMENT` projection
+without such a Graph role contributes no summary, facet or sortable indexes. The materialized whole-Graph projection
+is not used as a substitute for the related Model's own fields.
 
 The returned target also needs a current document because `Search` returns current documents. That may be a public
 `DOCUMENT` projection or a private document maintained for Graph participation; adding a relationship selector makes
@@ -3522,8 +3551,9 @@ public record User(@EntityId UserId userId, String name) {
 direct Model collection. Add `DOCUMENT` to an event-sourced Model only when callers should also be able to search its
 current state directly. Select document-only persistence when that document should be authoritative; set
 `document.searchable = false` when it should remain reference-only. Use `document = @DocumentProjection(...)` or
-`graphProjection = @GraphProjection(...)` only for advanced configuration. The graph collection is `User-graphs` by
-default; for a root with a direct document Fluxzero appends `-graphs` to the resolved direct collection. Set
+`graphProjection = @GraphProjection(...)` only for advanced configuration. The graph collection uses the resolved
+logical Model name (`User-graphs` by default); for a root with a direct document Fluxzero appends `-graphs` to the
+resolved direct collection. Set
 `GraphProjection.collection` only when a custom durable name is needed. Projection is asynchronous unless completion
 is explicitly configured otherwise. Both live and materialized composition follow the complete finite graph by
 default; lower-level `ModelGraphComposition` maxima are optional advanced guardrails and use `UNBOUNDED` (`-1`) when
@@ -4828,8 +4858,11 @@ annotations that own automatic indexing:
 - Directly annotate any POJO with `@Searchable`
 
 Adding `DOCUMENT` enables automatic document maintenance after updates without needing to call
-`Fluxzero.index(...)` manually. Its `DocumentProjection.searchable` setting determines whether that document is placed
-in the public Model collection or retained in type-isolated private storage.
+`Fluxzero.index(...)` manually. Every direct document uses its resolved collection, which defaults to the Model's
+resolved logical Model name and may be overridden through `DocumentProjection.collection`. Its `searchable` setting determines
+whether unrestricted typed Model search exposes that collection. When it is `false`, a document without a separate
+Graph role is stored without summary/reversary, facets or sortables; a Graph-component role retains only its
+independently required indexes.
 
 ```java
 
@@ -4840,7 +4873,7 @@ public record UserAccount(@EntityId UserId userId,
 }
 ```
 
-By default, the collection name is derived from the class’s **simple name** (UserAccount → `"UserAccount"`),
+By default, the collection name is derived from the Model's **resolved logical name** (UserAccount → `"UserAccount"`),
 unless explicitly overridden through `Model.document`, `@Stateful`, `@Searchable` or in the search/index call:
 
 ```java

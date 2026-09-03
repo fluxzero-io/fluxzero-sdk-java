@@ -73,7 +73,7 @@ class ModelReplayCursorTest {
         String modelId = "incomplete-document";
         long boundary = 42L;
         ModelHeadState head = new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 1L, 40L, false, false);
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
@@ -92,7 +92,8 @@ class ModelReplayCursorTest {
                         head));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
         MutationPlan.Resolution resolution = new MutationPlan.Resolution(
                 List.of(new MutationPlan.ResolvedModel(
                         modelId, CurrentDocument.class,
@@ -112,10 +113,10 @@ class ModelReplayCursorTest {
         String modelId = "moved-incomplete-document";
         long boundary = 42L;
         ModelHeadState historicalHead = new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 1L, 40L, false, false);
         ModelHeadState currentHead = new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 2L, 43L, false, false);
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
@@ -135,7 +136,8 @@ class ModelReplayCursorTest {
                         currentHead));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
         MutationPlan.Resolution resolution = new MutationPlan.Resolution(
                 List.of(new MutationPlan.ResolvedModel(
                         modelId, CurrentDocument.class,
@@ -158,10 +160,10 @@ class ModelReplayCursorTest {
         long requestedBoundary = 42L;
         long currentBoundary = 43L;
         ModelHeadState historicalHead = new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 1L, 40L, false, false);
         ModelHeadState currentHead = new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 2L, currentBoundary, false, false);
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
@@ -183,7 +185,8 @@ class ModelReplayCursorTest {
                         currentHead));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
         MutationPlan.Resolution resolution = new MutationPlan.Resolution(
                 List.of(new MutationPlan.ResolvedModel(
                         modelId, CurrentDocument.class,
@@ -204,7 +207,7 @@ class ModelReplayCursorTest {
         String modelId = "lagging-incomplete-document";
         long boundary = 42L;
         ModelHeadState head = new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 1L, 40L, false, false);
         EventStoreClient client = mock(EventStoreClient.class);
         when(client.getModelEvents(any())).thenAnswer(invocation -> {
@@ -232,7 +235,8 @@ class ModelReplayCursorTest {
                                     head));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
         MutationPlan.Resolution resolution = new MutationPlan.Resolution(
                 List.of(new MutationPlan.ResolvedModel(
                         modelId, CurrentDocument.class,
@@ -281,7 +285,8 @@ class ModelReplayCursorTest {
                         currentDocumentHead));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
 
         Graph<CurrentDocument> result = loader.graph(
                 modelId, CurrentDocument.class, Graph.Options.DEFAULT,
@@ -310,7 +315,8 @@ class ModelReplayCursorTest {
                         head));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
 
         Graph<CurrentDocument> result = loader.graph(
                 modelId, CurrentDocument.class, Graph.Options.DEFAULT,
@@ -345,7 +351,8 @@ class ModelReplayCursorTest {
                         head));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
 
         Graph<CurrentDocument> result = loader.graph(
                 modelId, CurrentDocument.class, Graph.Options.DEFAULT,
@@ -382,7 +389,8 @@ class ModelReplayCursorTest {
                         documentHead));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
 
         Graph<CurrentDocument> result = loader.graph(
                 modelId, CurrentDocument.class, Graph.Options.DEFAULT,
@@ -421,7 +429,8 @@ class ModelReplayCursorTest {
                                 head));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
 
         Graph<CurrentDocument> result = loader.graph(
                 modelId, CurrentDocument.class, Graph.Options.DEFAULT,
@@ -453,7 +462,8 @@ class ModelReplayCursorTest {
                         currentHead));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
 
         EventSourcingException failure = assertThrows(
                 EventSourcingException.class,
@@ -491,7 +501,8 @@ class ModelReplayCursorTest {
                         currentHead));
         ModelReplayCursor loader = new ModelReplayCursor(
                 client, new JacksonSerializer(), null, null, null, null,
-                documentReader, mock(ModelRepository.class));
+                documentReader, mock(ModelRepository.class),
+                ModelReplayCursor.EventBoundaryBarrier.NONE, currentDocumentTypes());
 
         assertThrows(
                 EventSourcingException.class,
@@ -518,7 +529,7 @@ class ModelReplayCursorTest {
             long sequenceNumber,
             long stateIndex) {
         return new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 sequenceNumber, stateIndex, true, false);
     }
 
@@ -527,8 +538,26 @@ class ModelReplayCursorTest {
             long sequenceNumber,
             long stateIndex) {
         return new ModelHeadState(
-                modelId, CurrentDocument.class.getName(),
+                modelId, CurrentDocument.class.getSimpleName(),
                 sequenceNumber, stateIndex, false, false);
+    }
+
+    private static ModelTypeResolver currentDocumentTypes() {
+        return new ModelTypeResolver() {
+            @Override
+            public String modelName(Class<?> modelType) {
+                return modelType.getSimpleName();
+            }
+
+            @Override
+            public Class<?> modelType(String modelName, String modelId) {
+                if (!CurrentDocument.class.getSimpleName().equals(modelName)) {
+                    throw new IllegalStateException(
+                            "Unknown Model type " + modelName + " for " + modelId);
+                }
+                return CurrentDocument.class;
+            }
+        };
     }
 
     @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "currentDocuments"))

@@ -30,6 +30,7 @@ import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelTypeResolver;
 import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleMessage;
 import io.fluxzero.sdk.tracking.handling.HandleNotification;
@@ -213,7 +214,9 @@ public final class GraphChangeHandlerDecorator {
         List<ModelChangeTarget> targets = change.getTargets().isEmpty()
                 ? payloadTypes.entrySet().stream()
                         .map(entry -> new ModelChangeTarget(
-                                entry.getKey(), entry.getValue().getName()))
+                                entry.getKey(), repository instanceof ModelTypeResolver resolver
+                                        ? resolver.modelName(entry.getValue())
+                                        : ModelNames.name(entry.getValue())))
                         .toList()
                 : change.getTargets();
         long currentState = change.getStateIndex();
@@ -221,7 +224,7 @@ public final class GraphChangeHandlerDecorator {
         LinkedHashMap<String, Class<? extends T>> roots = new LinkedHashMap<>();
         for (ModelChangeTarget target : targets) {
             Class<?> targetType = targetType(
-                    target, payloadTypes, fluxzero);
+                    target, payloadTypes, repository);
             if (targetType == null) {
                 continue;
             }
@@ -261,13 +264,16 @@ public final class GraphChangeHandlerDecorator {
     private static Class<?> targetType(
             ModelChangeTarget target,
             Map<String, Class<?>> payloadTypes,
-            Fluxzero fluxzero) {
+            ModelRepository repository) {
         if (target.getModelType() == null
             || target.getModelType().isBlank()) {
             return payloadTypes.get(target.getModelId());
         }
-        return ReflectionUtils.classForName(
-                fluxzero.serializer().upcastType(target.getModelType()), null);
+        if (repository instanceof ModelTypeResolver resolver) {
+            return resolver.modelType(target.getModelType(), target.getModelId());
+        }
+        throw new UnsupportedOperationException(
+                "Graph-change handlers require a Model repository with a logical type catalog");
     }
 
     private static <T> void addRoots(

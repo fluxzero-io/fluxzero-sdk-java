@@ -87,9 +87,11 @@ record UserPreferences(
 }
 ```
 
-Fluxzero keeps this value in a type-isolated private Model collection. Identity and alias loads, parent relationships
-and Graph composition still use it; `Fluxzero.search(UserPreferences.class)` does not expose it. A custom public
-collection is consequently invalid for a reference-only projection.
+Fluxzero keeps this value in its normal resolved collection, which defaults to `UserPreferences`; an explicitly
+configured `DocumentProjection.collection` is also valid. Keeping that collection stable makes an existing document
+collection directly usable during migration. Identity and alias loads, parent relationships and Graph composition still
+use it, while `Fluxzero.search(UserPreferences.class)` does not expose it. Without a separate Graph role Fluxzero omits
+the summary/reversary, facets and sortables from the stored document.
 
 ## Event storage and publication
 
