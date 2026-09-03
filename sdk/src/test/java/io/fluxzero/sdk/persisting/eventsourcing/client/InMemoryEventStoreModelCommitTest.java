@@ -1236,6 +1236,48 @@ class InMemoryEventStoreModelCommitTest {
     }
 
     @Test
+    void staleCascadeDeleteRebasesWhenADeepDescendantIsMissingFromThePlan() {
+        InMemoryEventStore store = denseStore();
+        store.commitModels(commit(
+                "create-parent", -1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("parent"))
+                        .targets(List.of(storedTarget("parent-1")))
+                        .build())).join();
+        store.commitModels(commit(
+                "create-child", 0L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("child"))
+                        .targets(List.of(ownedTarget("child-1", "parent-1")))
+                        .build())).join();
+        store.commitModels(commit(
+                "create-grandchild", 1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("grandchild"))
+                        .targets(List.of(ownedTarget("grandchild-1", "child-1")))
+                        .build())).join();
+
+        CommitModelsResult result = store.commitModels(commit(
+                "delete-incomplete-tree", 1L,
+                ModelConflictPolicy.ACCEPT,
+                ModelCommitStep.builder()
+                        .event(event("delete"))
+                        .targets(List.of(
+                                cascadeDeleteTarget("parent-1"),
+                                deleteTarget("child-1")))
+                        .build())).join();
+
+        assertTrue(result.isRebaseRequired());
+        assertEquals("parent-1", result.getConflicts().getFirst().getModelId());
+        assertEquals(2L, result.getConflicts().getFirst().getCurrentRelationStateIndex());
+        assertFalse(modelStream(store, "parent-1").getHead().isDeleted());
+        assertFalse(modelStream(store, "child-1").getHead().isDeleted());
+    }
+
+    @Test
     void deletionPlanIncludesDetachedAndExternallySharedDescendantsWithoutMutating() {
         InMemoryEventStore store =
                 denseStore();
@@ -1674,6 +1716,34 @@ class InMemoryEventStoreModelCommitTest {
                 .modelType("example.Model")
                 .storeEvent(true)
                 .updateState(true)
+                .relationships(List.of())
+                .build();
+    }
+
+    private static ModelCommitTarget ownedTarget(
+            String modelId,
+            String parentId) {
+        return storedTarget(modelId).toBuilder()
+                .updateRelationships(true)
+                .relationships(List.of(ModelRelationship.builder()
+                                               .parentId(parentId)
+                                               .parentType("example.Model")
+                                               .path("children")
+                                               .deleteOnParentDeletion(true)
+                                               .build()))
+                .build();
+    }
+
+    private static ModelCommitTarget cascadeDeleteTarget(String modelId) {
+        return deleteTarget(modelId).toBuilder()
+                .cascadeDelete(true)
+                .build();
+    }
+
+    private static ModelCommitTarget deleteTarget(String modelId) {
+        return storedTarget(modelId).toBuilder()
+                .delete(true)
+                .updateRelationships(true)
                 .relationships(List.of())
                 .build();
     }
