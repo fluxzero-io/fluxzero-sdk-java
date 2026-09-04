@@ -77,6 +77,7 @@ import io.fluxzero.sdk.publishing.correlation.ApplicationVersionCorrelationDataP
 import io.fluxzero.sdk.publishing.correlation.CorrelatingInterceptor;
 import io.fluxzero.sdk.publishing.correlation.CorrelationDataProvider;
 import io.fluxzero.sdk.publishing.correlation.DefaultCorrelationDataProvider;
+import io.fluxzero.sdk.publishing.correlation.TaskIdCorrelationDataProvider;
 import io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor;
 import io.fluxzero.sdk.publishing.dataprotection.MissingProtectedDataPolicy;
 import io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor;
@@ -464,7 +465,9 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public CorrelationDataProvider correlationDataProvider() {
-            return ApplicationVersionCorrelationDataProvider.decorate(correlationDataProvider, propertySource);
+            return TaskIdCorrelationDataProvider.decorate(
+                    ApplicationVersionCorrelationDataProvider.decorate(correlationDataProvider, propertySource),
+                    propertySource);
         }
 
         @Override

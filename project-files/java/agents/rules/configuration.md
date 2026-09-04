@@ -59,7 +59,8 @@ The following properties are used by the SDK to configure its connection and beh
 | `FLUXZERO_APPLICATION_NAME` | The logical name of your application.                              | `inMemory` (local)           |
 | `FLUXZERO_NAMESPACE`        | The project or tenant namespace.                                   | `default`                    |
 | `FLUXZERO_APPLICATION_ID`   | A unique identifier for the application deployment.                | `null`                       |
-| `FLUXZERO_TASK_ID`          | A unique ID for the specific client instance (for tracking).       | Random UUID                  |
+| `FLUXZERO_TASK_ID`          | Platform task/pod ID; published as authoritative `$taskId` correlation metadata and used as the generated client-ID prefix. | `null` |
+| `FLUXZERO_CLIENT_ID`        | Optional explicitly unique client/process instance ID.            | Task-ID-prefixed UUID or random UUID |
 | `ENCRYPTION_KEY`            | The key used for automatic decryption of `encrypted` values.       | `null`                       |
 
 `FLUXZERO_NAMESPACE` sets the app-wide default namespace (not just one consumer). It applies to runtime interactions

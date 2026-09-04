@@ -18,6 +18,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.Client;
 import jakarta.annotation.Nullable;
 
@@ -25,55 +26,53 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static io.fluxzero.sdk.configuration.ApplicationProperties.APPLICATION_VERSION_PROPERTY;
-
 /**
- * Adds the configured application version to another correlation data provider.
+ * Adds the platform task identity to another correlation data provider.
  */
-public final class ApplicationVersionCorrelationDataProvider implements CorrelationDataProvider {
+public final class TaskIdCorrelationDataProvider implements CorrelationDataProvider {
     private final CorrelationDataProvider delegate;
-    private final String applicationVersion;
+    private final String taskId;
 
     /**
-     * Decorates the given provider when {@code fluxzero.application.version} is configured. Returns the original
-     * provider unchanged when the property is absent or blank.
+     * Decorates the given provider when {@code FLUXZERO_TASK_ID} is configured. Returns the original provider unchanged
+     * when the property and its legacy alias are absent or blank.
      *
      * @param delegate provider that supplies the existing correlation data
-     * @param propertySource source that may contain the application version
-     * @return the decorated provider, or {@code delegate} when no version is configured
+     * @param propertySource source that may contain the platform task ID
+     * @return the decorated provider, or {@code delegate} when no task ID is configured
      */
     public static CorrelationDataProvider decorate(CorrelationDataProvider delegate, PropertySource propertySource) {
         Objects.requireNonNull(delegate, "delegate");
         Objects.requireNonNull(propertySource, "propertySource");
-        String configuredVersion = propertySource.get(APPLICATION_VERSION_PROPERTY);
-        return configuredVersion == null || configuredVersion.isBlank()
-                ? delegate : new ApplicationVersionCorrelationDataProvider(delegate, configuredVersion.strip());
+        String taskId = ApplicationProperties.getTaskId(propertySource);
+        return taskId == null ? delegate : new TaskIdCorrelationDataProvider(delegate, taskId);
     }
 
-    private ApplicationVersionCorrelationDataProvider(CorrelationDataProvider delegate, String applicationVersion) {
+    private TaskIdCorrelationDataProvider(CorrelationDataProvider delegate, String taskId) {
         this.delegate = delegate;
-        this.applicationVersion = applicationVersion;
+        this.taskId = taskId;
     }
 
     @Override
     public Map<String, String> getCorrelationData(@Nullable DeserializingMessage currentMessage) {
-        return addApplicationVersion(delegate.getCorrelationData(currentMessage));
+        return addTaskId(delegate.getCorrelationData(currentMessage));
     }
 
     @Override
     public Map<String, String> getCorrelationData(@Nullable Client client, @Nullable SerializedMessage currentMessage,
                                                   @Nullable MessageType messageType) {
-        return addApplicationVersion(delegate.getCorrelationData(client, currentMessage, messageType));
+        return addTaskId(delegate.getCorrelationData(client, currentMessage, messageType));
     }
 
     boolean decoratesDefaultProvider() {
-        return delegate == DefaultCorrelationDataProvider.INSTANCE;
+        return delegate == DefaultCorrelationDataProvider.INSTANCE
+               || delegate instanceof ApplicationVersionCorrelationDataProvider applicationVersionProvider
+                  && applicationVersionProvider.decoratesDefaultProvider();
     }
 
-    private Map<String, String> addApplicationVersion(Map<String, String> correlationData) {
-        Map<String, String> result = decoratesDefaultProvider()
-                ? correlationData : new HashMap<>(correlationData);
-        result.put(getApplicationVersionKey(), applicationVersion);
+    private Map<String, String> addTaskId(Map<String, String> correlationData) {
+        Map<String, String> result = decoratesDefaultProvider() ? correlationData : new HashMap<>(correlationData);
+        result.put(getTaskIdKey(), taskId);
         return result;
     }
 

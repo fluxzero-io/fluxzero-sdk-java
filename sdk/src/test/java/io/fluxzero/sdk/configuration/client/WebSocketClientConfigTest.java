@@ -22,13 +22,76 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 
+import static io.fluxzero.sdk.configuration.ApplicationProperties.CLIENT_ID_PROPERTY;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.LEGACY_CLIENT_ID_PROPERTY;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.LEGACY_TASK_ID_PROPERTY;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.TASK_ID_PROPERTY;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebSocketClientConfigTest {
+
+    @Test
+    void taskIdentityPrefixesUniqueClientInstanceIds() {
+        withProperties(Map.of(TASK_ID_PROPERTY, "task-123"), () -> {
+            WebSocketClient.ClientConfig first = clientConfig();
+            WebSocketClient.ClientConfig second = clientConfig();
+
+            assertTrue(first.getId().startsWith("task-123_"));
+            assertTrue(second.getId().startsWith("task-123_"));
+            assertNotEquals(first.getId(), second.getId());
+            assertDoesNotThrow(() -> UUID.fromString(first.getId().substring("task-123_".length())));
+        });
+    }
+
+    @Test
+    void legacyTaskIdentityAlsoPrefixesClientInstanceId() {
+        withProperties(Map.of(LEGACY_TASK_ID_PROPERTY, "legacy-task"),
+                       () -> assertTrue(clientConfig().getId().startsWith("legacy-task_")));
+    }
+
+    @Test
+    void configuredClientIdTakesPrecedenceOverTaskIdentity() {
+        withProperties(Map.of(CLIENT_ID_PROPERTY, " client-instance ", TASK_ID_PROPERTY, "task-123"),
+                       () -> assertEquals("client-instance", clientConfig().getId()));
+    }
+
+    @Test
+    void legacyConfiguredClientIdTakesPrecedenceOverTaskIdentity() {
+        withProperties(Map.of(LEGACY_CLIENT_ID_PROPERTY, "legacy-client", TASK_ID_PROPERTY, "task-123"),
+                       () -> assertEquals("legacy-client", clientConfig().getId()));
+    }
+
+    @Test
+    void blankConfiguredClientIdFallsBackToTaskPrefixedIdentity() {
+        withProperties(Map.of(CLIENT_ID_PROPERTY, " \t ", TASK_ID_PROPERTY, "task-123"),
+                       () -> assertTrue(clientConfig().getId().startsWith("task-123_")));
+    }
+
+    @Test
+    void explicitBuilderClientIdTakesPrecedenceOverConfiguredIdentity() {
+        withProperties(Map.of(CLIENT_ID_PROPERTY, "configured", TASK_ID_PROPERTY, "task-123"),
+                       () -> assertEquals("explicit", clientConfigBuilder().id("explicit").build().getId()));
+    }
+
+    @Test
+    void derivedConfigurationRetainsClientInstanceId() {
+        withProperties(Map.of(TASK_ID_PROPERTY, "task-123"), () -> {
+            WebSocketClient.ClientConfig original = clientConfig();
+
+            assertEquals(original.getId(), original.toBuilder().namespace("other").build().getId());
+        });
+    }
+
+    @Test
+    void generatesUuidWithoutConfiguredClientOrTaskIdentity() {
+        withProperties(Map.of(), () -> assertDoesNotThrow(() -> UUID.fromString(clientConfig().getId())));
+    }
 
     @Test
     void defaultsToBoundedRuntimeWebSocketCapacity() {

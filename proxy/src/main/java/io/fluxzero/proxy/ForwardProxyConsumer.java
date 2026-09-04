@@ -385,8 +385,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     private ActiveRequest handleAsync(SerializedMessage request, URI uri, WebRequestSettings settings,
                                       ScheduledRequest scheduledRequest) {
         Instant start = Instant.now();
-        Map<String, String> correlationData = DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
-                client, request, MessageType.WEBREQUEST);
+        Map<String, String> correlationData = scheduledRequest == null
+                ? captureCorrelationData(request) : scheduledRequest.correlationData();
         Instant deadline = IndexUtils.timestampFromIndex(request.getIndex())
                 .plus(Optional.ofNullable(settings.getTimeout()).orElse(MAX_TIMEOUT));
         CancellableResponseFuture execution = new CancellableResponseFuture();
@@ -678,8 +678,11 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     }
 
     protected void sendResponse(WebResponse response, SerializedMessage request) {
-        sendResponseAsync(response, request, DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
-                client, request, MessageType.WEBREQUEST));
+        sendResponseAsync(response, request, captureCorrelationData(request));
+    }
+
+    private Map<String, String> captureCorrelationData(SerializedMessage request) {
+        return DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(client, request, MessageType.WEBREQUEST);
     }
 
     private CompletableFuture<Void> sendResponseAsync(WebResponse response, SerializedMessage request,
@@ -842,6 +845,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         private final WebRequestSettings settings;
         private final Throwable initialFailure;
         private final int segment;
+        // A queued request may start on its predecessor's completion thread, after the tracker context has gone.
+        private final Map<String, String> correlationData;
         private final AtomicReference<RequestState> state = new AtomicReference<>(RequestState.QUEUED);
         private final AtomicReference<CancellableResponseFuture> execution = new AtomicReference<>();
         private final CompletableFuture<Void> completion = new CompletableFuture<>();
@@ -852,6 +857,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             this.settings = settings;
             this.initialFailure = null;
             this.segment = requestSegment(request);
+            this.correlationData = captureCorrelationData(request);
         }
 
         private ScheduledRequest(SerializedMessage request, Throwable initialFailure) {
@@ -860,6 +866,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             this.settings = null;
             this.initialFailure = initialFailure;
             this.segment = requestSegment(request);
+            this.correlationData = captureCorrelationData(request);
         }
 
         private int requestSegment(SerializedMessage request) {
@@ -907,9 +914,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             CompletableFuture<Void> publication;
             try {
                 publication = sendResponseAsync(
-                        asWebResponse(initialFailure), request,
-                        DefaultCorrelationDataProvider.INSTANCE.getCorrelationData(
-                                client, request, MessageType.WEBREQUEST));
+                        asWebResponse(initialFailure), request, correlationData);
             } catch (Throwable e) {
                 publication = CompletableFuture.failedFuture(e);
             }
@@ -982,6 +987,10 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
         private SerializedMessage request() {
             return request;
+        }
+
+        private Map<String, String> correlationData() {
+            return correlationData;
         }
     }
 
