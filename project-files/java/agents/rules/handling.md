@@ -515,7 +515,9 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   It may also document fields, parameters, record components, and type arguments such as
   `List<@ApiDoc(description = "Connection item") Connection>`; prefer this over OpenAPI-specific array annotations.
   For dependency-free schema metadata, use its optional `type`, `format`, `example`, `defaultValue`, `minimum`,
-  `maximum`, `allowableValues`, `required`, and `implementation` attributes instead of Swagger `@Schema`.
+  `maximum`, `allowableValues`, `required`, `implementation`, `oneOf`, and `additionalProperties` attributes instead
+  of Swagger `@Schema`. Use `additionalProperties = ApiDoc.AdditionalProperties.DENY` only when runtime
+  deserialization rejects unknown fields, and close every alternative of a `oneOf` union separately.
 - Use repeatable `@ApiDocResponse` annotations for additional status/error responses, or to describe an inferred
   response without repeating its body type. Use `ref = "error"` to reference `#/components/responses/error`.
 - Use `@ApiDocExclude` to exclude package/class/method endpoints or model fields/record components/parameters from
@@ -532,7 +534,8 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   Renderer assets are referenced by URL and are not bundled by the SDK; use `apiReferenceScriptUrl` and
   `apiReferenceStylesheetUrl` for self-hosted assets.
 - Jakarta validation annotations on endpoint parameters and model fields/record components are reflected in schemas
-  where possible, including required flags, numeric bounds, sizes, patterns, and email format.
+  where possible, including required flags, numeric bounds, sizes, patterns, and email format. `@Size` maps to
+  length constraints for text, item constraints for arrays/collections, and property constraints for maps.
 - Array properties in response models are required by default; array properties in input models must be made required
   explicitly with validation or `@ApiDoc(required = true)`.
 - Render JSON with `OpenApiRenderer.render(...)`, `renderJson(...)`, or `renderPrettyJson(...)` and configure global

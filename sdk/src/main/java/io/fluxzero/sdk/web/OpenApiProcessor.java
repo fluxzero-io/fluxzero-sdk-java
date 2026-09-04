@@ -1022,7 +1022,8 @@ public class OpenApiProcessor extends AbstractProcessor {
     private ObjectNode objectSchema(TypeElement type, Set<String> visiting, SchemaContext schemaContext,
                                     boolean responseSchema) {
         ObjectNode node = object().put("type", "object");
-        applySchemaMetadata(node, metadata(type), schemaContext);
+        SchemaMetadata typeMetadata = metadata(type);
+        applySchemaMetadata(node, typeMetadata, schemaContext);
         ObjectNode properties = node.putObject("properties");
         ArrayNode required = JSON.arrayNode();
         if (isRecord(type)) {
@@ -1041,6 +1042,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                 }
             }
             addRequired(node, required);
+            addOneOf(node, type, typeMetadata.oneOf(), visiting, schemaContext, responseSchema);
             addPolymorphism(node, type, visiting, schemaContext, responseSchema);
             return node;
         }
@@ -1088,6 +1090,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                 allOf.add(propertySchema);
             }
         }
+        addOneOf(node, type, typeMetadata.oneOf(), visiting, schemaContext, responseSchema);
         addPolymorphism(node, type, visiting, schemaContext, responseSchema);
         return node;
     }
@@ -1237,15 +1240,17 @@ public class OpenApiProcessor extends AbstractProcessor {
             ObjectNode discriminator = schema.putObject("discriminator").put("propertyName", propertyName);
             mapping = discriminator.putObject("mapping");
         }
-        ArrayNode oneOf = schema.putArray("oneOf");
+        ArrayNode oneOf = schema.withArray("oneOf");
+        boolean hasSubtype = false;
         for (AnnotationMirror value : values) {
             TypeMirror subTypeMirror = typeValue(annotationValues(value).get("value"));
             TypeElement subType = asTypeElement(subTypeMirror);
             if (subType == null || types.isSameType(types.erasure(subType.asType()), types.erasure(type.asType()))) {
                 continue;
             }
+            hasSubtype = true;
             ObjectNode reference = schemaContext.ref(subType, visiting, responseSchema);
-            oneOf.add(reference);
+            addUnique(oneOf, reference);
             if (mapping != null) {
                 String name = stringValue(annotationValues(value).get("name"));
                 if (isBlank(name)) {
@@ -1254,10 +1259,40 @@ public class OpenApiProcessor extends AbstractProcessor {
                 mapping.put(name, reference.path("$ref").asText());
             }
         }
+        if (!hasSubtype) {
+            schema.remove("discriminator");
+            if (oneOf.isEmpty()) {
+                schema.remove("oneOf");
+            }
+        }
+    }
+
+    private void addOneOf(ObjectNode schema, TypeElement owner, List<TypeMirror> alternatives, Set<String> visiting,
+                          SchemaContext schemaContext, boolean responseSchema) {
+        if (alternatives.isEmpty()) {
+            return;
+        }
+        ArrayNode oneOf = schema.withArray("oneOf");
+        for (TypeMirror alternative : alternatives) {
+            TypeElement alternativeType = asTypeElement(alternative);
+            if (alternativeType == null
+                || types.isSameType(types.erasure(alternative), types.erasure(owner.asType()))) {
+                continue;
+            }
+            addUnique(oneOf, schemaContext.ref(alternativeType, visiting, responseSchema));
+        }
         if (oneOf.isEmpty()) {
             schema.remove("oneOf");
-            schema.remove("discriminator");
         }
+    }
+
+    private void addUnique(ArrayNode values, ObjectNode candidate) {
+        for (JsonNode value : values) {
+            if (value.equals(candidate)) {
+                return;
+            }
+        }
+        values.add(candidate);
     }
 
     private void applyParameterMetadata(ObjectNode node, Element element) {
@@ -1331,12 +1366,13 @@ public class OpenApiProcessor extends AbstractProcessor {
         putDecimal(schema, "minimum", metadata.minimum());
         putDecimal(schema, "maximum", metadata.maximum());
         if (metadata.minSize() != null) {
-            schema.put("array".equals(schema.path("type").asText()) ? "minItems" : "minLength",
-                       metadata.minSize());
+            schema.put(sizeKeyword(schema, "min"), metadata.minSize());
         }
         if (metadata.maxSize() != null) {
-            schema.put("array".equals(schema.path("type").asText()) ? "maxItems" : "maxLength",
-                       metadata.maxSize());
+            schema.put(sizeKeyword(schema, "max"), metadata.maxSize());
+        }
+        if (metadata.additionalProperties() != null) {
+            schema.put("additionalProperties", metadata.additionalProperties());
         }
         if (metadata.uniqueItems()) {
             schema.put("uniqueItems", true);
@@ -1349,10 +1385,19 @@ public class OpenApiProcessor extends AbstractProcessor {
         }
     }
 
+    private String sizeKeyword(ObjectNode schema, String prefix) {
+        return switch (schemaType(schema)) {
+            case "array" -> prefix + "Items";
+            case "object" -> prefix + "Properties";
+            default -> prefix + "Length";
+        };
+    }
+
     private boolean hasReferenceSiblingMetadata(SchemaMetadata metadata) {
         return !isBlank(metadata.description()) || !isBlank(metadata.example()) || !isBlank(metadata.defaultValue())
                || !isBlank(metadata.minimum()) || !isBlank(metadata.maximum()) || metadata.minSize() != null
-               || metadata.maxSize() != null || metadata.uniqueItems() || !isBlank(metadata.pattern())
+               || metadata.maxSize() != null || metadata.additionalProperties() != null || metadata.uniqueItems()
+               || !isBlank(metadata.pattern())
                || metadata.deprecated();
     }
 
@@ -1670,6 +1715,21 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private TypeMirror typeValue(AnnotationValue value) {
         return value != null && value.getValue() instanceof TypeMirror type ? type : null;
+    }
+
+    private List<TypeMirror> typeList(AnnotationValue value) {
+        if (value == null || !(value.getValue() instanceof List<?> list)) {
+            TypeMirror type = typeValue(value);
+            return type == null ? List.of() : List.of(type);
+        }
+        List<TypeMirror> result = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof AnnotationValue annotationValue
+                && annotationValue.getValue() instanceof TypeMirror type) {
+                result.add(type);
+            }
+        }
+        return result;
     }
 
     private List<AnnotationMirror> annotationList(AnnotationValue value) {
@@ -2170,6 +2230,8 @@ public class OpenApiProcessor extends AbstractProcessor {
             boolean uniqueItems,
             String pattern,
             List<String> allowableValues,
+            Boolean additionalProperties,
+            List<TypeMirror> oneOf,
             boolean required,
             boolean deprecated,
             boolean hidden,
@@ -2194,6 +2256,8 @@ public class OpenApiProcessor extends AbstractProcessor {
         private boolean uniqueItems;
         private String pattern = "";
         private final List<String> allowableValues = new ArrayList<>();
+        private Boolean additionalProperties;
+        private final List<TypeMirror> oneOf = new ArrayList<>();
         private boolean required;
         private boolean deprecated;
         private boolean hidden;
@@ -2214,6 +2278,9 @@ public class OpenApiProcessor extends AbstractProcessor {
                 maximum(stringValue(values.get("maximum")));
                 allowableValues.addAll(stringList(values.get("allowableValues")).stream()
                                                .filter(value -> !isBlank(value)).toList());
+                additionalProperties(values.get("additionalProperties"));
+                oneOf.addAll(typeList(values.get("oneOf")).stream()
+                                     .filter(value -> !isNoResponseType(value)).toList());
                 required(booleanValue(values.get("required")));
                 deprecated(booleanValue(values.get("deprecated")));
                 TypeMirror implementationValue = typeValue(values.get("implementation"));
@@ -2232,6 +2299,9 @@ public class OpenApiProcessor extends AbstractProcessor {
             maximum(stringValue(values.get("maximum")));
             allowableValues.addAll(stringList(values.get("allowableValues")).stream()
                                            .filter(value -> !isBlank(value)).toList());
+            additionalProperties(values.get("additionalProperties"));
+            oneOf.addAll(typeList(values.get("oneOf")).stream()
+                                 .filter(value -> !isNoResponseType(value)).toList());
             String requiredMode = stringValue(values.get("requiredMode"));
             required(requiredMode.endsWith("REQUIRED") || booleanValue(values.get("required")));
             deprecated(booleanValue(values.get("deprecated")));
@@ -2340,6 +2410,15 @@ public class OpenApiProcessor extends AbstractProcessor {
             }
         }
 
+        void additionalProperties(AnnotationValue value) {
+            String policy = stringValue(value);
+            if (policy.endsWith("ALLOW") || policy.endsWith("TRUE")) {
+                additionalProperties = true;
+            } else if (policy.endsWith("DENY") || policy.endsWith("FALSE")) {
+                additionalProperties = false;
+            }
+        }
+
         void required(boolean value) {
             required = required || value;
         }
@@ -2354,8 +2433,9 @@ public class OpenApiProcessor extends AbstractProcessor {
 
         SchemaMetadata build() {
             return new SchemaMetadata(description, type, format, example, defaultValue, minimum, maximum,
-                                      minSize, maxSize, uniqueItems, pattern, List.copyOf(allowableValues), required,
-                                      deprecated, hidden, implementation);
+                                      minSize, maxSize, uniqueItems, pattern, List.copyOf(allowableValues),
+                                      additionalProperties, List.copyOf(oneOf), required, deprecated, hidden,
+                                      implementation);
         }
     }
 

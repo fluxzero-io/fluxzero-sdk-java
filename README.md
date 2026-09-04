@@ -2457,8 +2457,12 @@ schema hints that cannot be inferred. It can also be placed on fields, parameter
 arguments, for example
 `List<@ApiDoc(description = "Connection item") Connection>` to document array items without OpenAPI-specific
 annotations. Optional schema hints include `type`, `format`, `example`, `defaultValue`, `minimum`, `maximum`,
-`allowableValues`, `required`, and `implementation`. Jakarta validation annotations such as `@NotNull`, `@Min`,
-`@Size`, `@Pattern`, and `@Email` are reflected in endpoint parameter and model schemas when present. Use repeatable
+`allowableValues`, `required`, `implementation`, `oneOf`, and `additionalProperties`. Use
+`@ApiDoc(additionalProperties = ApiDoc.AdditionalProperties.DENY)` when a value object's runtime deserializer rejects
+unknown fields. Combine that on each alternative with `@ApiDoc(oneOf = {First.class, Second.class})` on the shared type
+to publish an exclusive, closed union. Jakarta validation annotations such as `@NotNull`, `@Min`, `@Size`, `@Pattern`,
+and `@Email` are reflected in endpoint parameter and model schemas when present; `@Size` uses `minLength`/`maxLength`
+for text, `minItems`/`maxItems` for arrays and collections, and `minProperties`/`maxProperties` for maps. Use repeatable
 `@ApiDocResponse` annotations for additional error/status responses, or to describe an inferred response without
 repeating its body type; `@ApiDocResponse(status = 400, ref = "error")` references
 `#/components/responses/error`. Array properties in response models are documented as required by default; input models

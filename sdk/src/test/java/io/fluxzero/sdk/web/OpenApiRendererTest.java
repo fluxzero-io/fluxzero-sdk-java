@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -212,6 +213,12 @@ class OpenApiRendererTest {
         assertEquals(7, properties.path("ranged").path("maximum").asInt());
         assertEquals(3, properties.path("lengthLimited").path("minLength").asInt());
         assertEquals(12, properties.path("lengthLimited").path("maxLength").asInt());
+        assertEquals(5, properties.path("sizedText").path("minLength").asInt());
+        assertEquals(8, properties.path("sizedText").path("maxLength").asInt());
+        assertEquals(2, properties.path("sizedTags").path("minItems").asInt());
+        assertEquals(4, properties.path("sizedTags").path("maxItems").asInt());
+        assertFalse(properties.path("sizedTags").has("minLength"));
+        assertFalse(properties.path("sizedTags").has("maxLength"));
         assertEquals("uri", properties.path("homepage").path("format").asText());
         assertEquals("uuid", properties.path("externalId").path("format").asText());
         assertTrue(properties.path("uniqueTags").path("uniqueItems").asBoolean());
@@ -220,6 +227,28 @@ class OpenApiRendererTest {
         assertTrue(contains(required, "status"));
         assertTrue(contains(required, "aliases"));
         assertFalse(document.path("components").path("schemas").has("JsonValueId"));
+    }
+
+    @Test
+    void rendersClosedOneOfAndMapSizeConstraints() {
+        JsonNode schemas = OpenApiRenderer.render(ApiDocExtractor.extract(EmailHandler.class))
+                .path("components").path("schemas");
+
+        JsonNode alternatives = schemas.path("EmailValue").path("oneOf");
+        assertEquals(3, alternatives.size());
+        assertEquals("#/components/schemas/LiteralEmail", alternatives.get(0).path("$ref").asText());
+        assertEquals("#/components/schemas/TemplateEmail", alternatives.get(1).path("$ref").asText());
+        assertEquals("#/components/schemas/LocalizedEmail", alternatives.get(2).path("$ref").asText());
+        assertFalse(schemas.path("LiteralEmail").path("additionalProperties").asBoolean(true));
+        assertFalse(schemas.path("TemplateEmail").path("additionalProperties").asBoolean(true));
+        assertFalse(schemas.path("LocalizedEmail").path("additionalProperties").asBoolean(true));
+        assertFalse(schemas.path("EmailEnvelope").has("additionalProperties"));
+
+        JsonNode translations = schemas.path("LocalizedEmail").path("properties").path("translations");
+        assertEquals(1, translations.path("minProperties").asInt());
+        assertEquals(3, translations.path("maxProperties").asInt());
+        assertFalse(translations.has("minLength"));
+        assertFalse(translations.has("maxLength"));
     }
 
     @ApiDoc(description = "Meter endpoints", tags = "Meters")
@@ -274,6 +303,13 @@ class OpenApiRendererTest {
         }
     }
 
+    @ApiDoc
+    static class EmailHandler {
+        @HandlePost("/email")
+        void send(EmailEnvelope body) {
+        }
+    }
+
     @ApiDocInfo(
             openApiVersion = "3.1.0",
             title = "Annotated API",
@@ -318,6 +354,27 @@ class OpenApiRendererTest {
     record ConnectionDto(String id) {
     }
 
+    record EmailEnvelope(EmailValue value) {
+    }
+
+    @ApiDoc(oneOf = {LiteralEmail.class, TemplateEmail.class, LocalizedEmail.class})
+    interface EmailValue {
+    }
+
+    @ApiDoc(additionalProperties = ApiDoc.AdditionalProperties.DENY)
+    record LiteralEmail(@jakarta.validation.constraints.NotNull String text) implements EmailValue {
+    }
+
+    @ApiDoc(additionalProperties = ApiDoc.AdditionalProperties.DENY)
+    record TemplateEmail(@jakarta.validation.constraints.NotNull String template) implements EmailValue {
+    }
+
+    @ApiDoc(additionalProperties = ApiDoc.AdditionalProperties.DENY)
+    record LocalizedEmail(
+            @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(min = 1, max = 3)
+            Map<String, String> translations) implements EmailValue {
+    }
+
     static class AccessorDto {
         String id;
         @ApiDoc(description = "Lombok-generated getter should keep field ApiDoc.")
@@ -337,6 +394,10 @@ class OpenApiRendererTest {
         int ranged;
         @Length(min = 3, max = 12)
         String lengthLimited;
+        @jakarta.validation.constraints.Size(min = 5, max = 8)
+        String sizedText;
+        @jakarta.validation.constraints.Size(min = 2, max = 4)
+        List<String> sizedTags;
         @URL
         String homepage;
         @UUID
