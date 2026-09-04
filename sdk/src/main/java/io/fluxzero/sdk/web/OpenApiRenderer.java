@@ -642,8 +642,8 @@ public final class OpenApiRenderer {
         return new SchemaMetadata(
                 metadata.description(), "array", "", metadata.example(), metadata.defaultValue(),
                 metadata.minimum(), metadata.maximum(), metadata.minSize(), metadata.maxSize(),
-                metadata.uniqueItems(), metadata.pattern(), metadata.allowableValues(), metadata.required(),
-                metadata.deprecated(), metadata.hidden(), null);
+                metadata.uniqueItems(), metadata.pattern(), metadata.allowableValues(), null, List.of(),
+                metadata.required(), metadata.deprecated(), metadata.hidden(), null);
     }
 
     private static void putGraphPath(ObjectNode schema, String path, ObjectNode property, boolean required) {
@@ -944,7 +944,8 @@ public final class OpenApiRenderer {
     private static ObjectNode objectSchema(Class<?> type, Set<Type> visiting, SchemaContext schemaContext,
                                            boolean responseSchema) {
         ObjectNode node = object().put("type", "object");
-        applySchemaMetadata(node, metadata(type), schemaContext);
+        SchemaMetadata typeMetadata = metadata(type);
+        applySchemaMetadata(node, typeMetadata, schemaContext);
         ObjectNode properties = node.putObject("properties");
         ArrayNode required = JSON.arrayNode();
         if (type.isRecord()) {
@@ -964,6 +965,7 @@ public final class OpenApiRenderer {
             }
             addMethodProperties(methods(type), properties, required, visiting, schemaContext, responseSchema);
             addRequired(node, required);
+            addOneOf(node, type, typeMetadata.oneOf, visiting, schemaContext, responseSchema);
             addPolymorphism(node, type, visiting, schemaContext, responseSchema);
             return node;
         }
@@ -998,6 +1000,7 @@ public final class OpenApiRenderer {
                 allOf.add(propertySchema);
             }
         }
+        addOneOf(node, type, typeMetadata.oneOf, visiting, schemaContext, responseSchema);
         addPolymorphism(node, type, visiting, schemaContext, responseSchema);
         return node;
     }
@@ -1182,9 +1185,10 @@ public final class OpenApiRenderer {
         if (!isBlank(propertyName)) {
             schema.putObject("discriminator").put("propertyName", propertyName);
         }
-        ArrayNode oneOf = schema.putArray("oneOf");
+        ArrayNode oneOf = schema.withArray("oneOf");
         ObjectNode mapping = schema.has("discriminator")
                 ? (ObjectNode) schema.path("discriminator").withObject("/mapping") : null;
+        boolean hasSubtype = false;
         for (Object value : values) {
             if (!(value instanceof Annotation subType)) {
                 continue;
@@ -1193,8 +1197,9 @@ public final class OpenApiRenderer {
             if (subTypeClass == null || type.equals(subTypeClass)) {
                 continue;
             }
+            hasSubtype = true;
             ObjectNode reference = schemaContext.ref(subTypeClass, visiting, responseSchema);
-            oneOf.add(reference);
+            addUnique(oneOf, reference);
             if (mapping != null) {
                 String name = stringValue(annotationValue(subType, "name"));
                 if (isBlank(name)) {
@@ -1203,10 +1208,35 @@ public final class OpenApiRenderer {
                 mapping.put(name, reference.path("$ref").asText());
             }
         }
+        if (!hasSubtype) {
+            schema.remove("discriminator");
+            if (oneOf.isEmpty()) {
+                schema.remove("oneOf");
+            }
+        }
+    }
+
+    private static void addOneOf(ObjectNode schema, Class<?> owner, List<Class<?>> alternatives, Set<Type> visiting,
+                                 SchemaContext schemaContext, boolean responseSchema) {
+        if (alternatives.isEmpty()) {
+            return;
+        }
+        ArrayNode oneOf = schema.withArray("oneOf");
+        alternatives.stream().filter(alternative -> !owner.equals(alternative))
+                .map(alternative -> schemaContext.ref(alternative, visiting, responseSchema))
+                .forEach(reference -> addUnique(oneOf, reference));
         if (oneOf.isEmpty()) {
             schema.remove("oneOf");
-            schema.remove("discriminator");
         }
+    }
+
+    private static void addUnique(ArrayNode values, ObjectNode candidate) {
+        for (JsonNode value : values) {
+            if (value.equals(candidate)) {
+                return;
+            }
+        }
+        values.add(candidate);
     }
 
     private static void applyParameterMetadata(ObjectNode node, Parameter parameter) {
@@ -1283,10 +1313,13 @@ public final class OpenApiRenderer {
         putDecimal(schema, "minimum", metadata.minimum);
         putDecimal(schema, "maximum", metadata.maximum);
         if (metadata.minSize != null) {
-            schema.put("array".equals(schema.path("type").asText()) ? "minItems" : "minLength", metadata.minSize);
+            schema.put(sizeKeyword(schema, "min"), metadata.minSize);
         }
         if (metadata.maxSize != null) {
-            schema.put("array".equals(schema.path("type").asText()) ? "maxItems" : "maxLength", metadata.maxSize);
+            schema.put(sizeKeyword(schema, "max"), metadata.maxSize);
+        }
+        if (metadata.additionalProperties != null) {
+            schema.put("additionalProperties", metadata.additionalProperties);
         }
         if (metadata.uniqueItems) {
             schema.put("uniqueItems", true);
@@ -1299,10 +1332,19 @@ public final class OpenApiRenderer {
         }
     }
 
+    private static String sizeKeyword(ObjectNode schema, String prefix) {
+        return switch (schemaType(schema)) {
+            case "array" -> prefix + "Items";
+            case "object" -> prefix + "Properties";
+            default -> prefix + "Length";
+        };
+    }
+
     private static boolean hasReferenceSiblingMetadata(SchemaMetadata metadata) {
         return !isBlank(metadata.description) || !isBlank(metadata.example) || !isBlank(metadata.defaultValue)
                || !isBlank(metadata.minimum) || !isBlank(metadata.maximum) || metadata.minSize != null
-               || metadata.maxSize != null || metadata.uniqueItems || !isBlank(metadata.pattern)
+               || metadata.maxSize != null || metadata.additionalProperties != null || metadata.uniqueItems
+               || !isBlank(metadata.pattern)
                || metadata.deprecated;
     }
 
@@ -1851,6 +1893,8 @@ public final class OpenApiRenderer {
             boolean uniqueItems,
             String pattern,
             List<String> allowableValues,
+            Boolean additionalProperties,
+            List<Class<?>> oneOf,
             boolean required,
             boolean deprecated,
             boolean hidden,
@@ -1873,6 +1917,8 @@ public final class OpenApiRenderer {
             private boolean uniqueItems;
             private String pattern = "";
             private final List<String> allowableValues = new ArrayList<>();
+            private Boolean additionalProperties;
+            private final List<Class<?>> oneOf = new ArrayList<>();
             private boolean required;
             private boolean deprecated;
             private boolean hidden;
@@ -1889,6 +1935,11 @@ public final class OpenApiRenderer {
                 Object allowable = annotationValue(schema, "allowableValues");
                 if (allowable instanceof String[] values) {
                     allowableValues.addAll(List.of(values).stream().filter(v -> !isBlank(v)).toList());
+                }
+                additionalProperties(annotationValue(schema, "additionalProperties"));
+                Object alternatives = annotationValue(schema, "oneOf");
+                if (alternatives instanceof Class<?>[] values) {
+                    oneOf.addAll(Arrays.stream(values).filter(value -> !Void.class.equals(value)).toList());
                 }
                 String requiredMode = stringValue(annotationValue(schema, "requiredMode"));
                 required(requiredMode.endsWith("REQUIRED") || Boolean.TRUE.equals(annotationValue(schema, "required")));
@@ -1910,6 +1961,8 @@ public final class OpenApiRenderer {
                 maximum(apiDoc.maximum());
                 allowableValues.addAll(List.of(apiDoc.allowableValues()).stream()
                                                .filter(value -> !isBlank(value)).toList());
+                additionalProperties(apiDoc.additionalProperties());
+                oneOf.addAll(Arrays.stream(apiDoc.oneOf()).filter(value -> !Void.class.equals(value)).toList());
                 required(apiDoc.required());
                 deprecated(apiDoc.deprecated());
                 hidden(apiDoc.exclude());
@@ -2020,6 +2073,15 @@ public final class OpenApiRenderer {
                 }
             }
 
+            void additionalProperties(Object value) {
+                String policy = stringValue(value);
+                if (policy.endsWith("ALLOW") || policy.endsWith("TRUE")) {
+                    additionalProperties = true;
+                } else if (policy.endsWith("DENY") || policy.endsWith("FALSE")) {
+                    additionalProperties = false;
+                }
+            }
+
             void required(boolean value) {
                 required = required || value;
             }
@@ -2034,8 +2096,9 @@ public final class OpenApiRenderer {
 
             SchemaMetadata build() {
                 return new SchemaMetadata(description, type, format, example, defaultValue, minimum, maximum,
-                                          minSize, maxSize, uniqueItems, pattern, List.copyOf(allowableValues), required,
-                                          deprecated, hidden, implementation);
+                                          minSize, maxSize, uniqueItems, pattern, List.copyOf(allowableValues),
+                                          additionalProperties, List.copyOf(oneOf), required, deprecated, hidden,
+                                          implementation);
             }
         }
     }

@@ -39,6 +39,9 @@ import java.lang.annotation.Target;
  * used as a final description fallback after explicit {@code @ApiDoc} metadata and OpenAPI {@code @Schema} metadata.
  * Javadoc from already compiled dependency classes is not available to javac processors; use {@code @ApiDoc} when schema
  * documentation must cross module boundaries.
+ * Use {@link #oneOf()} for exclusive schema alternatives. When those alternatives reject unknown fields at runtime,
+ * mark each alternative with {@code additionalProperties = AdditionalProperties.DENY} so generated clients see the
+ * same closed union.
  * </p>
  * <p>
  * The annotation can also be nested in {@link io.fluxzero.sdk.modeling.Parent} to describe the list property that
@@ -143,6 +146,20 @@ public @interface ApiDoc {
     Class<?> implementation() default Void.class;
 
     /**
+     * Optional exclusive alternatives for this schema. Each type is rendered as a component reference in an OpenAPI
+     * {@code oneOf}, meaning an input must match exactly one alternative.
+     */
+    Class<?>[] oneOf() default {};
+
+    /**
+     * Controls whether an object schema accepts properties that are not explicitly documented.
+     * <p>
+     * Leave this at {@link AdditionalProperties#DEFAULT} to retain OpenAPI's default behavior. Use
+     * {@link AdditionalProperties#DENY} for value objects whose runtime deserializer rejects unknown fields.
+     */
+    AdditionalProperties additionalProperties() default AdditionalProperties.DEFAULT;
+
+    /**
      * Marks generated operations as deprecated.
      */
     boolean deprecated() default false;
@@ -154,4 +171,16 @@ public @interface ApiDoc {
      * {@code oauth2=read,write} for scoped schemes.
      */
     String[] security() default {};
+
+    /**
+     * Policy for properties that are not explicitly declared by an object schema.
+     */
+    enum AdditionalProperties {
+        /** Retain OpenAPI's default behavior. */
+        DEFAULT,
+        /** Emit {@code additionalProperties: true}. */
+        ALLOW,
+        /** Emit {@code additionalProperties: false}. */
+        DENY
+    }
 }
