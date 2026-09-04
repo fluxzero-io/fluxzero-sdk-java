@@ -63,7 +63,7 @@ import static io.fluxzero.common.tracking.DefaultTrackingStrategy.DEFAULT_INITIA
  * <ul>
  *   <li>Simulates gateway clients for all {@link MessageType}s</li>
  *   <li>Provides in-memory implementations of event store, scheduling, key-value, and search clients</li>
- *   <li>Uses the {@code FLUXZERO_TASK_ID} environment property or the JVM process name as the client ID</li>
+ *   <li>Uses the {@code FLUXZERO_TASK_ID} environment property or the JVM process name as its local-only ID</li>
  *   <li>Reads {@code FLUXZERO_APPLICATION_NAME} and {@code FLUXZERO_APPLICATION_ID} from environment or system properties</li>
  * </ul>
  *

@@ -29,6 +29,7 @@ import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.tracking.BatchProcessingException;
 import io.fluxzero.sdk.tracking.ConsumerConfiguration;
 import io.fluxzero.sdk.tracking.IndexUtils;
+import io.fluxzero.sdk.tracking.Tracker;
 import io.fluxzero.sdk.web.RedirectPolicy;
 import io.fluxzero.sdk.web.WebRequest;
 import io.fluxzero.sdk.web.WebRequestSettings;
@@ -584,6 +585,111 @@ class ForwardProxyConsumerTest {
     }
 
     @Test
+    void directScheduledRequestPublishesFullTrackerContext() {
+        Client client = mockForwardingClient();
+        GatewayClient responseGateway = client.getGatewayClient(MessageType.WEBRESPONSE);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        Tracker tracker = tracker("direct-consumer", "direct-tracker");
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenReturn(CompletableFuture.completedFuture(response));
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 4, Duration.ZERO);
+
+        SerializedMessage request = serializedRequest("direct", CONSUMER_NAME);
+        request.setMetadata(request.getMetadata().withTrace("origin", "direct"));
+        withTracker(tracker, () -> consumer.accept(List.of(request)));
+
+        ArgumentCaptor<SerializedMessage> forwarded = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(responseGateway).append(eq(STORED), forwarded.capture());
+        assertForwardCorrelation(forwarded.getValue(), request, "direct-consumer", "direct-tracker", "direct");
+        assertTrue(Tracker.current().isEmpty());
+    }
+
+    @Test
+    void sameSegmentRequestRetainsTrackerContextWhenStartedFromCompletionThread() throws Exception {
+        Client client = mockForwardingClient();
+        GatewayClient responseGateway = client.getGatewayClient(MessageType.WEBRESPONSE);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        CompletableFuture<HttpResponse<byte[]>> firstAttempt = new CompletableFuture<>();
+        Tracker tracker = tracker("serial-consumer", "serial-tracker");
+        AtomicInteger attempt = new AtomicInteger();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(invocation -> {
+            return attempt.getAndIncrement() == 0
+                    ? firstAttempt : CompletableFuture.completedFuture(response);
+        });
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 4, Duration.ZERO);
+        SerializedMessage first = serializedRequest("serial-first", CONSUMER_NAME);
+        first.setSegment(17);
+        first.setMetadata(first.getMetadata().withTrace("origin", "serial-first"));
+        SerializedMessage second = serializedRequest("serial-second", CONSUMER_NAME);
+        second.setSegment(17);
+        second.setMetadata(second.getMetadata().withTrace("origin", "serial-second"));
+
+        withTracker(tracker, () -> consumer.accept(List.of(first, second)));
+        firstAttempt.complete(response);
+        consumer.awaitActiveRequests();
+
+        ArgumentCaptor<SerializedMessage> forwarded = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(responseGateway, times(2)).append(eq(STORED), forwarded.capture());
+        assertForwardCorrelation(
+                forwarded.getAllValues().get(0), first, "serial-consumer", "serial-tracker", "serial-first");
+        assertForwardCorrelation(
+                forwarded.getAllValues().get(1), second, "serial-consumer", "serial-tracker", "serial-second");
+    }
+
+    @Test
+    void delayedRequestContextDoesNotReplaceCompletionThreadOrIndependentRequestContext() throws Exception {
+        Client client = mockForwardingClient();
+        GatewayClient responseGateway = client.getGatewayClient(MessageType.WEBRESPONSE);
+        HttpClient httpClient = mock(HttpClient.class);
+        HttpResponse<byte[]> response = httpResponse(200, "ok");
+        CompletableFuture<HttpResponse<byte[]>> firstAttempt = new CompletableFuture<>();
+        Tracker firstTracker = tracker("first-consumer", "first-tracker");
+        Tracker secondTracker = tracker("second-consumer", "second-tracker");
+        Tracker completionTracker = tracker("completion-consumer", "completion-tracker");
+        AtomicInteger attempt = new AtomicInteger();
+        AtomicReference<Tracker> delayedExecutionContext = new AtomicReference<>();
+        when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(invocation -> {
+            if (attempt.getAndIncrement() == 0) {
+                return firstAttempt;
+            }
+            delayedExecutionContext.set(Tracker.current().orElse(null));
+            return CompletableFuture.completedFuture(response);
+        });
+        ForwardProxyConsumer consumer = new ForwardProxyConsumer(
+                client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(),
+                1, 4, Duration.ZERO);
+        SerializedMessage first = serializedRequest("isolated-first", CONSUMER_NAME);
+        first.setSegment(1);
+        first.setMetadata(first.getMetadata().withTrace("origin", "isolated-first"));
+        SerializedMessage second = serializedRequest("isolated-second", CONSUMER_NAME);
+        second.setSegment(2);
+        second.setMetadata(second.getMetadata().withTrace("origin", "isolated-second"));
+
+        withTracker(firstTracker, () -> consumer.accept(List.of(first)));
+        withTracker(secondTracker, () -> consumer.accept(List.of(second)));
+        withTracker(completionTracker, () -> {
+            firstAttempt.complete(response);
+            assertEquals(completionTracker, Tracker.current().orElseThrow());
+        });
+        consumer.awaitActiveRequests();
+
+        assertEquals(completionTracker, delayedExecutionContext.get());
+        ArgumentCaptor<SerializedMessage> forwarded = ArgumentCaptor.forClass(SerializedMessage.class);
+        verify(responseGateway, times(2)).append(eq(STORED), forwarded.capture());
+        assertForwardCorrelation(
+                forwarded.getAllValues().get(0), first, "first-consumer", "first-tracker", "isolated-first");
+        assertForwardCorrelation(
+                forwarded.getAllValues().get(1), second, "second-consumer", "second-tracker", "isolated-second");
+        assertTrue(Tracker.current().isEmpty());
+    }
+
+    @Test
     void softBatchCompletionKeepsLateRequestInGlobalCapacity() throws Exception {
         Client client = mockForwardingClient();
         HttpClient httpClient = mock(HttpClient.class);
@@ -940,6 +1046,39 @@ class ForwardProxyConsumerTest {
         when(requestGateway.append(eq(STORED), any(SerializedMessage[].class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
         return client;
+    }
+
+    private static Tracker tracker(String consumer, String trackerId) {
+        return new Tracker(trackerId, MessageType.WEBREQUEST, null,
+                           ConsumerConfiguration.builder().name(consumer).build(), null);
+    }
+
+    private static void assertForwardCorrelation(SerializedMessage response, SerializedMessage request,
+                                                 String consumer, String tracker, String traceOrigin) {
+        Metadata metadata = response.getMetadata();
+        assertEquals("client", metadata.get("$clientId"));
+        assertEquals("proxy", metadata.get("$clientName"));
+        assertEquals(consumer, metadata.get("$consumer"));
+        assertEquals(tracker, metadata.get("$tracker"));
+        assertEquals(request.getIndex().toString(), metadata.get("$correlationId"));
+        assertEquals(request.getIndex().toString(), metadata.get("$traceId"));
+        assertEquals(request.getData().getType(), metadata.get("$trigger"));
+        assertEquals(MessageType.WEBREQUEST.name(), metadata.get("$triggerType"));
+        assertEquals(traceOrigin, metadata.get("$trace.origin"));
+    }
+
+    private static void withTracker(Tracker tracker, Runnable task) {
+        Tracker previous = Tracker.current.get();
+        Tracker.current.set(tracker);
+        try {
+            task.run();
+        } finally {
+            if (previous == null) {
+                Tracker.current.remove();
+            } else {
+                Tracker.current.set(previous);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

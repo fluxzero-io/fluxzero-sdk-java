@@ -5805,6 +5805,19 @@ when a custom `CorrelationDataProvider` is configured. Applications that omit th
 correlation behavior without the extra entry. Calling `disableMessageCorrelation()` disables this metadata together
 with the other automatic correlation fields.
 
+### Task and Client Identity
+
+`FLUXZERO_TASK_ID` identifies the platform task or pod that hosts an application. When present, Fluxzero publishes its
+value as authoritative `$taskId` correlation metadata on every outgoing message, including when a custom
+`CorrelationDataProvider` is configured. A caller-supplied `$taskId` cannot override the platform value. Calling
+`disableMessageCorrelation()` disables this field together with the other automatic correlation metadata.
+
+The WebSocket client ID identifies one concrete client/process incarnation and must remain unique across process
+restarts. Configure it explicitly with `FLUXZERO_CLIENT_ID` (`FLUX_CLIENT_ID` is the legacy alias), or let the SDK
+generate it. With a task ID, the generated form is `<taskId>_<random UUID>`; without a task ID it is a random UUID. The
+generated ID remains stable for normal WebSocket reconnects and namespace-specific clients derived from the same
+application client.
+
 ### Example Usage
 
 ```java
@@ -6389,7 +6402,7 @@ Key options include:
 | `runtimeBaseUrl` | Base URL for all subsystems, e.g. `wss://my.flux.host` | `FLUXZERO_BASE_URL` or `FLUX_BASE_URL` |
 | `name` | Name of the application | `FLUXZERO_APPLICATION_NAME` or `FLUX_APPLICATION_NAME` |
 | `applicationId` | Optional application ID | `FLUXZERO_APPLICATION_ID` or `FLUX_APPLICATION_ID` |
-| `id` | Unique client instance ID | `FLUXZERO_TASK_ID`, `FLUX_TASK_ID`, or UUID |
+| `id` | Unique client/process instance ID | `FLUXZERO_CLIENT_ID`, legacy alias; otherwise task-ID-prefixed UUID or UUID |
 | `supportedCompressionAlgorithms` | Preferred and fallback compression algorithms | ZSTD, then LZ4 |
 | `pingDelay` / `pingTimeout` | Heartbeat intervals for WebSocket health | 10s / 15s |
 | `maxConcurrentRuntimeWebSocketMessages` | Runtime messages decoded or waiting for completion-dispatcher admission per session | `fluxzero.runtime.ingress.maxConcurrency` or `3` |

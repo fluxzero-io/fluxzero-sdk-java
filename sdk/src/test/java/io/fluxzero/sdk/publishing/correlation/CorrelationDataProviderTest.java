@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static io.fluxzero.sdk.configuration.ApplicationProperties.APPLICATION_VERSION_PROPERTY;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.TASK_ID_PROPERTY;
 import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.METADATA_KEY;
 import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.NAMESPACE_METADATA_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -136,11 +137,59 @@ class CorrelationDataProviderTest {
     }
 
     @Test
+    void configuredTaskIdIsAvailableThroughEveryCorrelationDataPath() {
+        var builder = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        TASK_ID_PROPERTY, " task-123 ")))
+                .replaceCorrelationDataProvider(ignored -> testProvider);
+
+        try (Fluxzero fluxzero = builder.build(LocalClient.newInstance())) {
+            CorrelationDataProvider provider = fluxzero.correlationDataProvider();
+            for (MessageType messageType : MessageType.values()) {
+                Map<String, String> correlationData = provider.getCorrelationData(
+                        fluxzero.client(), null, messageType);
+                assertEquals("task-123", correlationData.get(provider.getTaskIdKey()));
+                assertEquals("bar", correlationData.get("foo"));
+            }
+            assertEquals("task-123", provider.getCorrelationData((DeserializingMessage) null)
+                    .get(provider.getTaskIdKey()));
+            assertEquals("task-123", fluxzero.configuration().correlationDataProvider()
+                    .getCorrelationData((DeserializingMessage) null).get(provider.getTaskIdKey()));
+        }
+    }
+
+    @Test
+    void configuredTaskIdIsAuthoritativeOnPublishedMessages() {
+        String metadataKey = defaultProvider.getTaskIdKey();
+        String versionKey = defaultProvider.getApplicationVersionKey();
+        var command = new Message("bla").addMetadata(
+                metadataKey, "caller-supplied", versionKey, "caller-supplied");
+        var builder = DefaultFluxzero.builder().replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                TASK_ID_PROPERTY, "task-123", APPLICATION_VERSION_PROPERTY, "1.2.3")));
+
+        TestFixture.create(builder, new CommandHandler())
+                .whenExecuting(fc -> fc.commandGateway().sendAndForget(command))
+                .expectCommands((Predicate<Message>) message ->
+                        "task-123".equals(message.getMetadata().get(metadataKey))
+                        && "1.2.3".equals(message.getMetadata().get(versionKey)))
+                .<Message>expectEvent(message -> "task-123".equals(message.getMetadata().get(metadataKey))
+                                                && "1.2.3".equals(message.getMetadata().get(versionKey)));
+    }
+
+    @Test
     void absentOrBlankApplicationVersionDoesNotDecorateCorrelationData() {
         assertSame(testProvider, ApplicationVersionCorrelationDataProvider.decorate(
                 testProvider, new SimplePropertySource(Map.of())));
         assertSame(testProvider, ApplicationVersionCorrelationDataProvider.decorate(
                 testProvider, new SimplePropertySource(Map.of(APPLICATION_VERSION_PROPERTY, " \t "))));
+    }
+
+    @Test
+    void absentOrBlankTaskIdDoesNotDecorateCorrelationData() {
+        assertSame(testProvider, TaskIdCorrelationDataProvider.decorate(
+                testProvider, new SimplePropertySource(Map.of())));
+        assertSame(testProvider, TaskIdCorrelationDataProvider.decorate(
+                testProvider, new SimplePropertySource(Map.of(TASK_ID_PROPERTY, " \t "))));
     }
 
     @Test
