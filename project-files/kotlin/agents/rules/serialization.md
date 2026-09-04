@@ -180,7 +180,10 @@ You can verify upcasters in a `TestFixture` by providing the old serialized form
 `@class` is used as `Data.type` and `@revision` as `Data.revision`; both markers are removed before the payload enters
 the upcaster chain. Always use `@revision` for serialization metadata. A field named `revision` without the `@` prefix
 is normal payload data. Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls return the same
-`Data<JsonNode>` representation, while explicitly typed overloads keep their declared return type.
+`Data<JsonNode>` representation, while explicitly typed overloads keep their declared return type. Untyped root arrays
+and multiple root values (NDJSON) return an `ArrayList` whose elements or records are each resolved independently with
+the same `@class` and `@revision` rules. A `.ndjson` or `.jsonl` resource always returns an `ArrayList`, including for
+one record; array failures report the zero-based element index and NDJSON failures report the source line.
 
 **Example: Upcaster Test**
 

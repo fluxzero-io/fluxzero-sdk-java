@@ -26,11 +26,14 @@ import lombok.Value;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_16LE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -92,6 +95,134 @@ class JsonUtilsTest {
                 """);
 
         assertEquals(new SamplePayload(42, "test"), payload);
+    }
+
+    @Test
+    void untypedRootArrayDeserializesEveryElementInOrder() {
+        List<?> result = JsonUtils.fromJson("""
+                [
+                  {
+                    "@class": "io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload",
+                    "revision": 42,
+                    "value": "current"
+                  },
+                  {
+                    "@class": "com.example.LegacyEvent",
+                    "@revision": 2,
+                    "value": "legacy"
+                  }
+                ]
+                """);
+
+        assertInstanceOf(ArrayList.class, result);
+        assertEquals(new SamplePayload(42, "current"), result.getFirst());
+        Data<?> revisioned = assertInstanceOf(Data.class, result.get(1));
+        assertEquals("com.example.LegacyEvent", revisioned.getType());
+        assertEquals(2, revisioned.getRevision());
+        assertEquals("legacy", ((JsonNode) revisioned.getValue()).get("value").textValue());
+    }
+
+    @Test
+    void untypedSingleElementRootArrayIsStillAnArrayList() {
+        List<?> result = JsonUtils.fromJson("""
+                [{
+                  "@class": "io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload",
+                  "revision": 42,
+                  "value": "test"
+                }]
+                """);
+
+        assertInstanceOf(ArrayList.class, result);
+        assertEquals(List.of(new SamplePayload(42, "test")), result);
+    }
+
+    @Test
+    void untypedRootArrayBytesUseTheSameElementSemantics() {
+        List<?> result = JsonUtils.fromJson("""
+                [{
+                  "@class": "io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload",
+                  "revision": 42,
+                  "value": "test"
+                }]
+                """.getBytes());
+
+        assertInstanceOf(ArrayList.class, result);
+        assertEquals(List.of(new SamplePayload(42, "test")), result);
+    }
+
+    @Test
+    void untypedNdjsonDeserializesEveryRecordInOrder() {
+        List<?> result = JsonUtils.fromJson("""
+                {"@class":"io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload","revision":1,"value":"first"}
+                {"@class":"com.example.LegacyEvent","@revision":2,"value":"second"}
+                """);
+
+        assertInstanceOf(ArrayList.class, result);
+        assertEquals(new SamplePayload(1, "first"), result.getFirst());
+        Data<?> revisioned = assertInstanceOf(Data.class, result.get(1));
+        assertEquals("second", ((JsonNode) revisioned.getValue()).get("value").textValue());
+    }
+
+    @Test
+    void singleRecordNdjsonResourceIsStillAnArrayList() {
+        List<?> result = assertInstanceOf(ArrayList.class, JsonUtils.fromFile("single-payload.ndjson"));
+        List<?> jsonLinesResult = assertInstanceOf(ArrayList.class, JsonUtils.fromFile("single-payload.jsonl"));
+
+        assertEquals(List.of(new SamplePayload(42, "test")), result);
+        assertEquals(result, jsonLinesResult);
+    }
+
+    @Test
+    void untypedRootArrayFailureIdentifiesElementIndex() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> JsonUtils.fromJson("""
+                [
+                  {"@class":"io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload","revision":1,"value":"first"},
+                  {"revision":2,"value":"missing type"}
+                ]
+                """));
+
+        assertTrue(exception.getMessage().contains("index 1"));
+    }
+
+    @Test
+    void untypedRootArrayInvalidClassIdentifiesElementIndex() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> JsonUtils.fromJson("""
+                [{"@class":42,"revision":1,"value":"invalid type"}]
+                """));
+
+        assertTrue(exception.getMessage().contains("index 0"));
+    }
+
+    @Test
+    void untypedRootArrayInvalidRevisionIdentifiesElementIndex() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> JsonUtils.fromJson("""
+                [
+                  {"@class":"io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload","revision":1,"value":"first"},
+                  {"@class":"com.example.LegacyEvent","@revision":"old","value":"legacy"}
+                ]
+                """));
+
+        assertTrue(exception.getMessage().contains("index 1"));
+    }
+
+    @Test
+    void untypedNdjsonFailureIdentifiesSourceLine() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> JsonUtils.fromJson("""
+                {"@class":"io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload","revision":1,"value":"first"}
+                {"revision":2,"value":"missing type"}
+                """));
+
+        assertTrue(exception.getMessage().contains("line 2"));
+    }
+
+    @Test
+    void untypedNdjsonInvalidRevisionIdentifiesSourceLine() {
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> JsonUtils.fromJson("""
+                {"@class":"io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload","revision":1,"value":"first"}
+                {"@class":"com.example.LegacyEvent","@revision":"old","value":"legacy"}
+                """));
+
+        assertTrue(exception.getMessage().contains("line 2"));
     }
 
     @Test

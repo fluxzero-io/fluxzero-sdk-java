@@ -178,9 +178,11 @@ import static java.util.stream.Stream.empty;
  * </ul>
  *
  * <p>
- * JSON files may be used in any {@code givenXyz(...)} or {@code whenXyz(...)} methods. Any string argument ending in {@code ".json"}
- * will be resolved as a resource, loaded and deserialized using {@link JsonUtils}.
- * <br> The JSON must include an {@code @class} declaration to indicate the object type to deserialize.
+ * JSON files may be used in any {@code givenXyz(...)} or {@code whenXyz(...)} methods. Any string argument ending in
+ * {@code ".json"}, {@code ".ndjson"}, or {@code ".jsonl"} will be resolved as a resource, loaded and deserialized
+ * using {@link JsonUtils}. Untyped root arrays and NDJSON resources supplied to a multi-value {@code givenXyz(...)}
+ * method are expanded in source order.
+ * <br> Each JSON object must include an {@code @class} declaration to indicate the object type to deserialize.
  * <br> JSON resources may also {@code @extends} another file to support inheritance and override behavior.
  * <p>
  * To test upcasting from an older payload revision without declaring a full {@link Data} wrapper, add an
@@ -1920,7 +1922,9 @@ public class TestFixture implements Given<TestFixture>, When {
             Object parsed = parseObject(c, callerClass);
             return parsed == null ? empty()
                     : parsed instanceof Collection<?> ? ((Collection<?>) parsed).stream()
+                            .map(element -> parseObject(element, callerClass)).filter(Objects::nonNull)
                     : parsed.getClass().isArray() ? Arrays.stream((Object[]) parsed)
+                            .map(element -> parseObject(element, callerClass)).filter(Objects::nonNull)
                     : Stream.of(parsed);
         }).map(Message::asMessage);
     }
@@ -2016,8 +2020,8 @@ public class TestFixture implements Given<TestFixture>, When {
         if (object instanceof Message message) {
             return (T) message.withPayload(parseObject(message.getPayload(), callerClass));
         }
-        if (object instanceof String && ((String) object).endsWith(".json")) {
-            object = JsonUtils.fromFile(callerClass, (String) object);
+        if (object instanceof String resource && isJsonResource(resource)) {
+            object = JsonUtils.fromFile(callerClass, resource);
         }
         if (object instanceof SerializedMessage s) {
             object = fluxzero.serializer().deserializeMessage(s, EVENT).toMessage();
@@ -2028,6 +2032,10 @@ public class TestFixture implements Given<TestFixture>, When {
             object = fluxzero.serializer().deserialize(eventBytes);
         }
         return (T) object;
+    }
+
+    private static boolean isJsonResource(String value) {
+        return value.endsWith(".json") || value.endsWith(".ndjson") || value.endsWith(".jsonl");
     }
 
     protected Optional<Object> lastResultValue() {

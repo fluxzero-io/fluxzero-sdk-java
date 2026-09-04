@@ -44,11 +44,12 @@ import java.time.Instant;
  * This interface extends {@link When}, allowing you to skip directly to the {@code when} phase if no prior activity is
  * required.
  * <p>
- * In all {@code givenXyz(...)} methods, any argument that is a {@link String} and ends with {@code .json} is
- * interpreted as the location of a JSON resource (e.g., {@code "/user/create-user.json"}). The resource will be loaded
- * and deserialized using {@link JsonUtils}.
+ * In all {@code givenXyz(...)} methods, any argument that is a {@link String} and ends with {@code .json},
+ * {@code .ndjson}, or {@code .jsonl} is interpreted as the location of a JSON resource (e.g.,
+ * {@code "/user/create-user.json"}). The resource will be loaded and deserialized using {@link JsonUtils}. Root arrays
+ * and newline-delimited resources are expanded into individual values in source order.
  * <p>
- * The JSON file must include a {@code @class} property to indicate the fully qualified class name of the object to
+ * Every JSON object must include a {@code @class} property to indicate the fully qualified class name of the object to
  * deserialize:
  * <pre>{@code
  * {
@@ -100,7 +101,8 @@ public interface Given<Self extends Given<Self>> extends When {
      * Each command can be a raw {@link Message} or a plain object. If the value is not a {@code Message}, it will be
      * wrapped with default metadata and used as the message payload.
      * <p>
-     * You may also pass a {@code String} ending in {@code .json} to load a payload from a resource file.
+     * You may also pass a {@code String} ending in {@code .json}, {@code .ndjson}, or {@code .jsonl} to load one or
+     * more payloads from a resource file. A root array or newline-delimited resource is expanded in source order.
      */
     Self givenCommands(Object... commands);
 
@@ -111,7 +113,7 @@ public interface Given<Self extends Given<Self>> extends When {
      * resolve it to a {@code User}.
      * <p>
      * Each command can be a raw {@link Message} or a plain object. If not a {@code Message}, it will be wrapped as a
-     * payload.
+     * payload. JSON arrays and newline-delimited resources are expanded before the same user is added to every command.
      */
     Self givenCommandsByUser(Object user, Object... commands);
 

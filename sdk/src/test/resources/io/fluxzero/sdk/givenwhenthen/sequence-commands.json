@@ -1,0 +1,11 @@
+[
+  {
+    "@class": "io.fluxzero.sdk.givenwhenthen.TestFixtureResourceSequenceTest$SequenceCommand",
+    "value": "current"
+  },
+  {
+    "@class": "io.fluxzero.sdk.givenwhenthen.TestFixtureResourceSequenceTest$SequenceCommand",
+    "@revision": 0,
+    "legacyValue": "legacy"
+  }
+]
