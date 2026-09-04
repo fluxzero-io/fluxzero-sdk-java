@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Record",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "additionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata.additionalProperties",
+    "type" : "java.lang.Boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "allowableValues",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata.allowableValues",
     "type" : "java.util.List<java.lang.String>",
@@ -101,6 +109,14 @@
     "name" : "minimum",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata.minimum",
     "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "oneOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata.oneOf",
+    "type" : "java.util.List<javax.lang.model.type.TypeMirror>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -205,6 +221,16 @@
       "varArgs" : false,
       "annotations" : [ ]
     }, {
+      "name" : "additionalProperties",
+      "type" : "java.lang.Boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "oneOf",
+      "type" : "java.util.List<javax.lang.model.type.TypeMirror>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
       "name" : "required",
       "type" : "boolean",
       "varArgs" : false,
@@ -230,6 +256,17 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "additionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata#additionalProperties",
+    "returnType" : "java.lang.Boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "allowableValues",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata#allowableValues",
     "returnType" : "java.util.List<java.lang.String>",
@@ -400,6 +437,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "oneOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata#oneOf",
+    "returnType" : "java.util.List<javax.lang.model.type.TypeMirror>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "pattern",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadata#pattern",
     "returnType" : "java.lang.String",
@@ -457,6 +505,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ {
+    "name" : "additionalProperties",
+    "type" : "java.lang.Boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
     "name" : "allowableValues",
     "type" : "java.util.List<java.lang.String>",
     "annotations" : [ ],
@@ -514,6 +567,11 @@
   }, {
     "name" : "minimum",
     "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "oneOf",
+    "type" : "java.util.List<javax.lang.model.type.TypeMirror>",
     "annotations" : [ ],
     "documentation" : null
   }, {

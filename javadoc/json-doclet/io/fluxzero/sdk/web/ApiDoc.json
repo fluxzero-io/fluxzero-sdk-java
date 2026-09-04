@@ -18,13 +18,24 @@
     "annotationType" : "java.lang.annotation.Documented",
     "values" : {}
   } ],
-  "documentation" : " Adds optional human-readable API documentation metadata to generated API docs.\n <p>\n Generated endpoint documentation is opt-in. Place {@code @ApiDoc} on a package, handler type, or handler method to\n include the matching web endpoints; an empty annotation is enough when route, parameter, request, and response\n information can be inferred from the existing web handler annotations. Use populated {@code @ApiDoc} values only for\n metadata that cannot be inferred reliably, such as descriptions, tags, or a stable operation id. The annotation can\n also be used on fields, parameters, record components, and type uses; for example\n {@code List<@ApiDoc(description = \"Connection item\") Connection>} documents array items without requiring\n OpenAPI-specific array annotations. Schema hints such as {@link #type()}, {@link #format()}, {@link #example()},\n {@link #defaultValue()}, and {@link #allowableValues()} provide an SDK-native alternative for the common\n documentation metadata that projects often express with OpenAPI-specific annotations.\n <p>\n When using the annotation processor, source Javadoc on schema types and properties in the same javac compilation is\n used as a final description fallback after explicit {@code @ApiDoc} metadata and OpenAPI {@code @Schema} metadata.\n Javadoc from already compiled dependency classes is not available to javac processors; use {@code @ApiDoc} when schema\n documentation must cross module boundaries.\n </p>\n\n @see ApiDocExtractor\n @see OpenApiProcessor\n @see ApiDocInfo\n @see ApiDocResponse\n @see ApiDocExclude\n",
+  "documentation" : " Adds optional human-readable API documentation metadata to generated API docs.\n <p>\n Generated endpoint documentation is opt-in. Place {@code @ApiDoc} on a package, handler type, or handler method to\n include the matching web endpoints; an empty annotation is enough when route, parameter, request, and response\n information can be inferred from the existing web handler annotations. Use populated {@code @ApiDoc} values only for\n metadata that cannot be inferred reliably, such as descriptions, tags, or a stable operation id. The annotation can\n also be used on fields, parameters, record components, and type uses; for example\n {@code List<@ApiDoc(description = \"Connection item\") Connection>} documents array items without requiring\n OpenAPI-specific array annotations. Schema hints such as {@link #type()}, {@link #format()}, {@link #example()},\n {@link #defaultValue()}, and {@link #allowableValues()} provide an SDK-native alternative for the common\n documentation metadata that projects often express with OpenAPI-specific annotations.\n <p>\n When using the annotation processor, source Javadoc on schema types and properties in the same javac compilation is\n used as a final description fallback after explicit {@code @ApiDoc} metadata and OpenAPI {@code @Schema} metadata.\n Javadoc from already compiled dependency classes is not available to javac processors; use {@code @ApiDoc} when schema\n documentation must cross module boundaries.\n Use {@link #oneOf()} for exclusive schema alternatives. When those alternatives reject unknown fields at runtime,\n mark each alternative with {@code additionalProperties = AdditionalProperties.DENY} so generated clients see the\n same closed union.\n </p>\n\n @see ApiDocExtractor\n @see OpenApiProcessor\n @see ApiDocInfo\n @see ApiDocResponse\n @see ApiDocExclude\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "java.lang.annotation.Annotation" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "additionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#additionalProperties",
+    "returnType" : "io.fluxzero.sdk.web.ApiDoc.AdditionalProperties",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Controls whether an object schema accepts properties that are not explicitly documented.\n <p>\n Leave this at {@link AdditionalProperties#DEFAULT} to retain OpenAPI's default behavior. Use\n {@link AdditionalProperties#DENY} for value objects whose runtime deserializer rejects unknown fields.\n"
+  }, {
     "name" : "allowableValues",
     "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#allowableValues",
     "returnType" : "java.lang.String[]",
@@ -124,6 +135,17 @@
     "varArgs" : false,
     "documentation" : " Optional inclusive numeric minimum.\n"
   }, {
+    "name" : "oneOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#oneOf",
+    "returnType" : "java.lang.Class<?>[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional exclusive alternatives for this schema. Each type is rendered as a component reference in an OpenAPI\n {@code oneOf}, meaning an input must match exactly one alternative.\n"
+  }, {
     "name" : "operationId",
     "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#operationId",
     "returnType" : "java.lang.String",
@@ -192,5 +214,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "AdditionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
 }

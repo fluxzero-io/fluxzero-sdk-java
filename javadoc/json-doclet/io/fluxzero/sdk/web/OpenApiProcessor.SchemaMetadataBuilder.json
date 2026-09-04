@@ -10,6 +10,14 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "additionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.additionalProperties",
+    "type" : "java.lang.Boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "allowableValues",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.allowableValues",
     "type" : "java.util.List<java.lang.String>",
@@ -106,6 +114,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "oneOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.oneOf",
+    "type" : "java.util.List<javax.lang.model.type.TypeMirror>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "pattern",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder.pattern",
     "type" : "java.lang.String",
@@ -150,6 +166,22 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "additionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#additionalProperties",
+    "returnType" : "void",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "javax.lang.model.element.AnnotationValue",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "apply",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiProcessor$SchemaMetadataBuilder#apply",
     "returnType" : "void",

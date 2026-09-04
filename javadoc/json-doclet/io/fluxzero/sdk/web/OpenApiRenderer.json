@@ -64,6 +64,47 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "addOneOf",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#addOneOf",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "owner",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "alternatives",
+      "type" : "java.util.List<java.lang.Class<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "visiting",
+      "type" : "java.util.Set<java.lang.reflect.Type>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "schemaContext",
+      "type" : "io.fluxzero.sdk.web.OpenApiRenderer.SchemaContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseSchema",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "addPolymorphism",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#addPolymorphism",
     "returnType" : "void",
@@ -114,6 +155,27 @@
     }, {
       "name" : "required",
       "type" : "com.fasterxml.jackson.databind.node.ArrayNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "addUnique",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#addUnique",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "com.fasterxml.jackson.databind.node.ArrayNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "candidate",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1378,6 +1440,27 @@
     "parameters" : [ {
       "name" : "type",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sizeKeyword",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#sizeKeyword",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "prefix",
+      "type" : "java.lang.String",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

@@ -10,6 +10,11 @@
     "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc",
     "kind" : "annotation_type"
   }, {
+    "file" : "ApiDoc.AdditionalProperties.json",
+    "name" : "ApiDoc.AdditionalProperties",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc$AdditionalProperties",
+    "kind" : "enum"
+  }, {
     "file" : "ApiDocCatalog.json",
     "name" : "ApiDocCatalog",
     "qualifiedName" : "io.fluxzero.sdk.web.ApiDocCatalog",
