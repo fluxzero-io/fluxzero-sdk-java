@@ -332,8 +332,10 @@ fixture
 For tests that require complex setup, issuing many `givenCommands` can become verbose.
 
 - **JSON Inheritance**: Use `@extends` to build on top of base scenarios.
-- **Fixture Commands**: Group setup commands into a single JSON array file and load it using
-  `givenCommands("/setup/baseline.json")`.
+- **Fixture Commands**: Group setup commands into a root JSON array or a newline-delimited `.ndjson`/`.jsonl` resource
+  and load it using `givenCommands("/setup/baseline.json")`. Each element or record needs its own `@class`, may carry
+  its own `@revision`, and is executed in source order. `givenCommandsByUser(...)` adds the same user to every loaded
+  command. Invalid metadata identifies the zero-based array index or NDJSON source line.
 - **Chained setup**: You can chain multiple `given` methods.
 - **Manual JSON loading**: For custom setup code, use `JsonUtils` to map JSON resources to typed Java/Kotlin objects.
 

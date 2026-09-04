@@ -17,6 +17,8 @@ package io.fluxzero.common.serialization;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.AnnotationIntrospector;
 import com.fasterxml.jackson.databind.JavaType;
@@ -42,6 +44,7 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.net.URI;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -79,6 +82,7 @@ import static com.fasterxml.jackson.databind.cfg.JsonNodeFeature.STRIP_TRAILING_
  *   <li>Configurable {@link JsonMapper} for serialization ({@code writer}) and deserialization ({@code reader})</li>
  *   <li>Convenience methods for reading from resource files, merging JSON trees, and converting between types</li>
  *   <li>Support for deserializing JSON using a {@code @class} field containing fully qualified class or simple class name</li>
+ *   <li>Untyped JSON arrays and newline-delimited JSON (NDJSON), deserialized per element or record</li>
  *   <li>Support for extending JSON files using a {@code @extends} field</li>
  *   <li>Handles file and URI-based input</li>
  * </ul>
@@ -117,6 +121,13 @@ import static com.fasterxml.jackson.databind.cfg.JsonNodeFeature.STRIP_TRAILING_
  * }
  * }</pre>
  * This representation can be passed to a serializer so that normal upcasting takes place before deserialization.
+ *
+ * <h2>JSON sequences</h2>
+ * Untyped methods deserialize a root JSON array into an {@link ArrayList}, resolving every element independently.
+ * Multiple root JSON values are interpreted as NDJSON and returned in an {@code ArrayList} in source order. Resource
+ * names ending in {@code .ndjson} or {@code .jsonl} always return an {@code ArrayList}, including when they contain one
+ * record. Every object in a sequence has the same {@code @class} and {@code @revision} behavior as a standalone JSON
+ * object. Explicitly typed overloads retain their declared target type and ordinary Jackson input semantics.
  *
  * <h2>File Inheritance via @extends</h2>
  * JSON files can extend other JSON files using the {@code @extends} attribute. This allows the reuse of base
@@ -222,8 +233,9 @@ public class JsonUtils {
     private static final Pattern extendsPattern = Pattern.compile("(\"@extends?\"\\s*:\\s*\"([^\"]+)\"\\s*,?)");
 
     /**
-     * Loads and deserializes a JSON file located relative to the calling class. Automatically supports {@code @extends}
-     * inheritance for configuration reuse.
+     * Loads and deserializes a JSON file located relative to the calling class. Untyped root arrays return an
+     * {@link ArrayList}; {@code .ndjson} and {@code .jsonl} resources return an {@code ArrayList} of records, including
+     * for one record. Automatically supports {@code @extends} inheritance for configuration reuse.
      */
     @SneakyThrows
     public static Object fromFile(String fileName) {
@@ -240,14 +252,15 @@ public class JsonUtils {
     }
 
     /**
-     * Loads and deserializes a JSON file located relative to the reference point into an object. Automatically supports
-     * {@code @extends} inheritance for configuration reuse.
+     * Loads and deserializes a JSON file located relative to the reference point into an object. Untyped root arrays
+     * return an {@link ArrayList}; {@code .ndjson} and {@code .jsonl} resources return an {@code ArrayList} of records,
+     * including for one record. Automatically supports {@code @extends} inheritance for configuration reuse.
      */
     @SuppressWarnings({"unchecked"})
     @SneakyThrows
     public static <T> T fromFile(Class<?> referencePoint, String fileName) {
         String content = getContent(referencePoint, fileName);
-        return fromJson(content);
+        return isNdjsonResource(fileName) ? (T) fromJsonSequence(content) : fromJson(content);
     }
 
     @SneakyThrows
@@ -364,14 +377,28 @@ public class JsonUtils {
     }
 
     /**
-     * Deserializes JSON without a caller-provided target type. If the root object contains {@code @revision}, this
-     * returns revisioned {@link Data} instead of immediately deserializing the declared {@code @class}.
+     * Deserializes JSON without a caller-provided target type. A root array is returned as an {@link ArrayList}, with
+     * every element deserialized independently. Multiple root values are treated as NDJSON records and returned as an
+     * {@code ArrayList} in source order. If an object contains {@code @revision}, that object becomes revisioned
+     * {@link Data} instead of immediately deserializing its declared {@code @class}.
      */
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public static <T> T fromJson(String json) {
-        if (json != null && (json.contains(revisionMarker) || json.contains(escapedAsciiMarker))) {
-            JsonNode tree = reader.readTree(json);
+        boolean mayContainRevision = json != null
+                && (json.contains(revisionMarker) || json.contains(escapedAsciiMarker));
+        try (JsonParser parser = reader.createParser(json)) {
+            JsonToken firstToken = parser.nextToken();
+            if (firstToken == JsonToken.START_ARRAY) {
+                return (T) deserializeArray(parser);
+            }
+            if (firstToken != null && !mayContainRevision) {
+                return (T) deserializeValueOrSequence(parser);
+            }
+            JsonNode tree = firstToken == null ? null : reader.readTree(parser);
+            if (tree != null && parser.nextToken() != null) {
+                return (T) deserializeSequence(reader.createParser(json));
+            }
             if (tree instanceof ObjectNode objectNode && objectNode.has(revisionProperty)) {
                 return (T) deserializeRevisioned(objectNode);
             }
@@ -421,20 +448,135 @@ public class JsonUtils {
     }
 
     /**
-     * Deserializes a JSON byte array without a caller-provided target type. If the root object contains
-     * {@code @revision}, this returns revisioned {@link Data} instead of immediately deserializing the declared
-     * {@code @class}.
+     * Deserializes a JSON byte array without a caller-provided target type. A root array is returned as an
+     * {@link ArrayList}, with every element deserialized independently. Multiple root values are treated as NDJSON
+     * records. If an object contains {@code @revision}, that object becomes revisioned {@link Data} instead of
+     * immediately deserializing its declared {@code @class}.
      */
     @SuppressWarnings("unchecked")
     @SneakyThrows
     public static <T> T fromJson(byte[] json) {
-        if (containsMarker(json, revisionMarker) || containsMarker(json, escapedAsciiMarker)) {
-            JsonNode tree = reader.readTree(json);
+        boolean mayContainRevision = containsMarker(json, revisionMarker)
+                || containsMarker(json, escapedAsciiMarker);
+        try (JsonParser parser = reader.createParser(json)) {
+            JsonToken firstToken = parser.nextToken();
+            if (firstToken == JsonToken.START_ARRAY) {
+                return (T) deserializeArray(parser);
+            }
+            if (firstToken != null && !mayContainRevision) {
+                return (T) deserializeValueOrSequence(parser);
+            }
+            JsonNode tree = firstToken == null ? null : reader.readTree(parser);
+            if (tree != null && parser.nextToken() != null) {
+                return (T) deserializeSequence(reader.createParser(json));
+            }
             if (tree instanceof ObjectNode objectNode && objectNode.has(revisionProperty)) {
                 return (T) deserializeRevisioned(objectNode);
             }
         }
         return (T) reader.readValue(json, Object.class);
+    }
+
+    @SneakyThrows
+    private static List<Object> fromJsonSequence(String json) {
+        return deserializeSequence(reader.createParser(json));
+    }
+
+    private static List<Object> deserializeArray(JsonParser parser) throws Exception {
+        if (parser.currentToken() != JsonToken.START_ARRAY) {
+            throw new IllegalArgumentException("Expected a JSON root array");
+        }
+        List<Object> result = new ArrayList<>();
+        int index = 0;
+        while (true) {
+            try {
+                if (parser.nextToken() == JsonToken.END_ARRAY) {
+                    return result;
+                }
+                result.add(deserializeUntypedNode(reader.readTree(parser)));
+            } catch (Exception e) {
+                throw sequenceFailure("JSON array element at index " + index, e);
+            }
+            index++;
+        }
+    }
+
+    private static Object deserializeValueOrSequence(JsonParser parser) throws Exception {
+        Object firstValue = reader.readValue(parser, Object.class);
+        JsonToken token;
+        try {
+            token = parser.nextToken();
+        } catch (JsonProcessingException e) {
+            throw sequenceFailure("NDJSON record at line " + e.getLocation().getLineNr(), e);
+        }
+        if (token == null) {
+            return firstValue;
+        }
+        List<Object> result = new ArrayList<>();
+        result.add(firstValue);
+        do {
+            int line = parser.currentTokenLocation().getLineNr();
+            try {
+                result.add(reader.readValue(parser, Object.class));
+            } catch (Exception e) {
+                throw sequenceFailure("NDJSON record at line " + line, e);
+            }
+            try {
+                token = parser.nextToken();
+            } catch (JsonProcessingException e) {
+                throw sequenceFailure("NDJSON record at line " + e.getLocation().getLineNr(), e);
+            }
+        } while (token != null);
+        return result;
+    }
+
+    private static List<Object> deserializeSequence(JsonParser parser) throws Exception {
+        try (parser) {
+            List<Object> result = new ArrayList<>();
+            while (true) {
+                JsonToken token;
+                try {
+                    token = parser.nextToken();
+                } catch (JsonProcessingException e) {
+                    throw sequenceFailure("NDJSON record at line " + e.getLocation().getLineNr(), e);
+                }
+                if (token == null) {
+                    return result;
+                }
+                int line = parser.currentTokenLocation().getLineNr();
+                try {
+                    result.add(deserializeUntypedNode(reader.readTree(parser)));
+                } catch (Exception e) {
+                    throw sequenceFailure("NDJSON record at line " + line, e);
+                }
+            }
+        }
+    }
+
+    private static Object deserializeUntypedNode(JsonNode node) throws Exception {
+        if (node instanceof ObjectNode objectNode && objectNode.has(revisionProperty)) {
+            return deserializeRevisioned(objectNode);
+        }
+        if (node.isArray()) {
+            List<Object> result = new ArrayList<>(node.size());
+            for (JsonNode element : node) {
+                result.add(deserializeUntypedNode(element));
+            }
+            return result;
+        }
+        return reader.treeToValue(node, Object.class);
+    }
+
+    private static IllegalArgumentException sequenceFailure(String location, Exception cause) {
+        String detail = cause.getMessage();
+        if (detail == null || detail.isBlank()) {
+            detail = cause.getClass().getSimpleName();
+        }
+        return new IllegalArgumentException("Could not deserialize %s: %s".formatted(location, detail), cause);
+    }
+
+    private static boolean isNdjsonResource(String fileName) {
+        return fileName.endsWith(".ndjson") || fileName.endsWith(".jsonl");
     }
 
     private static boolean containsMarker(byte[] json, String marker) {

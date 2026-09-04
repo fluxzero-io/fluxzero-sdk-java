@@ -1890,7 +1890,8 @@ Test fixtures support loading inputs from external JSON resources. This allows y
 structured input data.
 
 Any `givenXyz(...)`, `whenXzy(...)`, or `expectXyz(...)` method argument that is a `String` ending with `.json` will be
-interpreted as a **classpath resource path**, and deserialized accordingly.
+interpreted as a **classpath resource path**, and deserialized accordingly. The `givenXyz(...)` methods also accept
+newline-delimited resources ending with `.ndjson` or `.jsonl`.
 
 For example:
 
@@ -1938,6 +1939,45 @@ Or partial paths:
 ```
 
 > This enables readable and concise references while still resolving to the correct type.
+
+#### Loading Multiple Fixture Inputs
+
+To execute multiple setup messages from one resource, use either a root JSON array or newline-delimited JSON. Every
+array element or NDJSON record is deserialized independently and processed in source order:
+
+```json
+[
+  {
+    "@class": "org.example.CreateUser",
+    "userId": "user-123"
+  },
+  {
+    "@class": "org.example.ConfirmUser",
+    "userId": "user-123"
+  }
+]
+```
+
+The equivalent `setup.ndjson` resource contains one complete JSON object per line:
+
+```json
+{"@class":"org.example.CreateUser","userId":"user-123"}
+{"@class":"org.example.ConfirmUser","userId":"user-123"}
+```
+
+```java
+fixture.givenCommands("/users/setup.json");
+fixture.givenCommands("/users/setup.ndjson");
+fixture.givenCommandsByUser("user-123", "/users/setup.json");
+```
+
+`givenCommandsByUser(...)` adds the specified user to every loaded command. An `@revision` may be added to any
+individual element or record; it remains serialization metadata and invokes the normal upcaster chain. Invalid type or
+revision metadata reports the relevant zero-based array index or NDJSON source line.
+
+Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` use the same behavior and return root arrays or multiple
+root values as an `ArrayList`. A resource ending with `.ndjson` or `.jsonl` returns an `ArrayList` even when it contains
+only one record. Explicitly typed `JsonUtils` overloads keep their declared target type and ordinary Jackson semantics.
 
 For Kotlin projects, use `kapt` to run the Java annotation processor. Because Kotlin typically does not use
 `package-info.java`, you can register a whole package with a marker type:
