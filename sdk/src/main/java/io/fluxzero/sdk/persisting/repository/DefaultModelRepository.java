@@ -411,17 +411,16 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 .thenApply(result -> {
                     if (result.getCascade()
                         == ModelDeletionCascade.DESCENDANTS) {
-                        modelCache.clear();
                         if (modelCacheTracker != null) {
                             modelCacheTracker.forgetAll();
                         }
+                        modelCache.clear();
                     } else {
-                        modelCache.remove(
-                                request.getModelId());
                         if (modelCacheTracker != null) {
                             modelCacheTracker.forget(
                                     request.getModelId());
                         }
+                        modelCache.remove(request.getModelId());
                     }
                     return result;
                 });
@@ -1271,10 +1270,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
      */
     public void invalidateModels(Iterable<String> modelIds) {
         modelIds.forEach(modelId -> {
-            modelCache.remove(modelId);
             if (modelCacheTracker != null) {
                 modelCacheTracker.forget(modelId);
             }
+            modelCache.remove(modelId);
         });
     }
 

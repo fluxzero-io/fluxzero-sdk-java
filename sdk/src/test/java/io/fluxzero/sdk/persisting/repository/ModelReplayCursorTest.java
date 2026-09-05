@@ -16,9 +16,15 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.ModelCommitStep;
+import io.fluxzero.common.api.modeling.ModelCommitTarget;
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.GetModelEventsResult;
 import io.fluxzero.common.api.modeling.GetModelGraphResult;
@@ -28,21 +34,33 @@ import io.fluxzero.common.api.modeling.ModelEventStream;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
+import io.fluxzero.common.caching.NoOpCache;
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
+import io.fluxzero.sdk.configuration.DefaultFluxzero;
+import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.DocumentProjection;
+import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.EntityId;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.MutationPlan;
+import io.fluxzero.sdk.persisting.caching.DefaultCache;
+import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.LocalEventStoreClient;
 import io.fluxzero.sdk.persisting.search.Searchable;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,9 +68,12 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -67,6 +88,223 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ModelReplayCursorTest {
+
+    private static final ThreadLocal<String> replayContextMarker = ThreadLocalContext.create();
+
+    @Test
+    void parallelReplayPreservesApplicationAndParticipatingContext() {
+        verifyParallelReplayContext(false);
+    }
+
+    @Test
+    void parallelReplayCorrectsContextChangedByAnEarlierModelInTheSameChunk() {
+        verifyParallelReplayContext(true);
+    }
+
+    private void verifyParallelReplayContext(boolean changeContext) {
+        AtomicReference<Fluxzero> expectedApplication = new AtomicReference<>();
+        AtomicInteger inspectedPayloads = new AtomicInteger();
+        JacksonSerializer serializer = new JacksonSerializer() {
+            @Override
+            public Class<?> serializedClassWithoutUpcasting(SerializedObject<?> serializedObject) {
+                if (ReplayContextCreated.class.getName().equals(serializedObject.getType())) {
+                    assertSame(expectedApplication.get(), Fluxzero.get());
+                    assertEquals("replay-context", replayContextMarker.get());
+                    inspectedPayloads.incrementAndGet();
+                }
+                return super.serializedClassWithoutUpcasting(serializedObject);
+            }
+        };
+        Instant now = Instant.parse("2026-09-05T12:00:00Z");
+        try (Fluxzero application = DefaultFluxzero.builder()
+                .disableKeepalive().disableShutdownHook()
+                .replaceSerializer(serializer).build(LocalClient.newInstance(null))) {
+            expectedApplication.set(application);
+            application.withClock(Clock.fixed(now, ZoneOffset.UTC));
+            List<String> ids = IntStream.range(0, 64).mapToObj(index -> "context-" + index).toList();
+            List<ModelCommitStep> steps = ids.stream().map(id -> ModelCommitStep.builder()
+                    .event(new Message(new ReplayContextCreated(id, changeContext)).serialize(serializer))
+                    .targets(List.of(ModelCommitTarget.builder()
+                                             .modelId(id).modelType(ReplayContextModel.class.getSimpleName())
+                                             .storeEvent(true).updateState(true).relationships(List.of()).build()))
+                    .build()).toList();
+            application.client().getEventStoreClient().commitModels(new CommitModels(
+                    "replay-context", -1L, ids, steps, ModelConflictPolicy.ACCEPT,
+                    Guarantee.STORED, true)).join();
+            replayContextMarker.set("replay-context");
+            Runnable replay = () -> application.execute(current -> {
+                // The smaller load is a control for the existing sequential path.
+                for (int size : changeContext ? List.of(64) : List.of(31, 64)) {
+                    var loaded = current.modelRepository().loadAll(ids.subList(0, size), ReplayContextModel.class);
+                    assertEquals(size, loaded.size());
+                    for (var model : loaded) {
+                        assertEquals(now, model.get().timestamp());
+                        assertEquals("replay-context", model.get().context());
+                    }
+                    assertSame(application, Fluxzero.get());
+                    assertEquals("replay-context", replayContextMarker.get());
+                }
+            });
+            if (changeContext) {
+                // Guarantee multiple models per chunk independently of the test machine's processor count.
+                try (ForkJoinPool pool = new ForkJoinPool(2)) {
+                    pool.submit(ThreadLocalContext.capture().wrap(replay)).join();
+                }
+            } else {
+                replay.run();
+            }
+            assertTrue(inspectedPayloads.get() >= (changeContext ? 64 : 95));
+        } finally {
+            replayContextMarker.remove();
+        }
+    }
+
+    @Test
+    void directReplayWithHistoricalFallbackKeepsSessionViewsSequential() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        List<String> ids = IntStream.range(0, 64).mapToObj(index -> "historical-" + index).toList();
+        AtomicInteger historicalReads = new AtomicInteger();
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> {
+            GetModelEvents request = invocation.getArgument(0);
+            if (Long.valueOf(-1L).equals(request.getBoundary().stateIndex())) {
+                historicalReads.incrementAndGet();
+                return emptyResponse(request, -1L);
+            }
+            List<ModelEventPayload> payloads = new ArrayList<>();
+            List<ModelEventStream> streams = new ArrayList<>();
+            for (var requested : request.getRequests()) {
+                String id = requested.getModelId();
+                int ordinal = ids.indexOf(id);
+                long first = ordinal * 2L;
+                List<ModelEventMembership> memberships = new ArrayList<>();
+                for (int revision = 0; revision < 2; revision++) {
+                    if (revision <= requested.getLastSequenceNumber()) {
+                        continue;
+                    }
+                    long stateIndex = first + revision;
+                    payloads.add(new ModelEventPayload(stateIndex,
+                                                       new Message(new HistoricalReplace(id, revision))
+                                                               .serialize(serializer)));
+                    // Stored histories supplied by an EventStoreClient may require an earlier view even for
+                    // direct applies. Different commits deliberately do not qualify for same-commit reuse.
+                    memberships.add(new ModelEventMembership(
+                            revision, stateIndex, -1L, "replace-" + stateIndex, 0));
+                }
+                streams.add(new ModelEventStream(id,
+                                                 new ModelHeadState(id, HistoricalModel.class.getSimpleName(),
+                                                                    1L, first + 1L, true, false), memberships));
+            }
+            return new GetModelEventsResult(request.getRequestId(), 127L, payloads, streams);
+        });
+        ModelReplayCursor loader = new ModelReplayCursor(
+                client, serializer, mock(EntityHelper.class), new MutationPlan.Compiler(List.of()),
+                NoOpCache.INSTANCE, null, null, mock(ModelRepository.class));
+        List<MutationPlan.ResolvedModel> targets = ids.stream()
+                .map(id -> new MutationPlan.ResolvedModel(
+                        id, HistoricalModel.class, MutationPlan.Access.READ_ONLY, List.of("id"))).toList();
+
+        var loaded = loader.session().reconstruct(targets, ModelReadBoundary.current());
+
+        assertEquals(64, historicalReads.get());
+        for (var entity : loaded.entities().values()) {
+            HistoricalModel value = (HistoricalModel) entity.get();
+            assertEquals(1, value.revision());
+            assertEquals(Thread.currentThread().getName(), value.replayThread());
+        }
+    }
+
+    @Test
+    void eventRefreshStagesItsCacheWriteUntilTheTrackerCanCheckEntryIdentity() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        LocalClient client = LocalClient.newInstance(null);
+        try (DefaultCache cache = new DefaultCache()) {
+            String id = "deferred-replay";
+            client.getEventStoreClient().commitModels(new CommitModels(
+                    "deferred", -1L, List.of(id),
+                    List.of(ModelCommitStep.builder()
+                                    .event(new Message(new CachedCreated(id)).serialize(serializer))
+                                    .targets(List.of(ModelCommitTarget.builder().modelId(id)
+                                                             .modelType(CachedReplayModel.class.getSimpleName())
+                                                             .storeEvent(true).updateState(true)
+                                                             .relationships(List.of()).build())).build()),
+                    ModelConflictPolicy.ACCEPT, Guarantee.STORED, true)).join();
+            ModelReplayCursor cursor = new ModelReplayCursor(
+                    client.getEventStoreClient(), serializer, mock(EntityHelper.class),
+                    new MutationPlan.Compiler(List.of()), cache, null, null, null);
+
+            ModelCacheTracker.RefreshedBatch refreshed = cursor.refresh(Map.of(id, CachedReplayModel.class), 0L);
+
+            assertNull(cache.get(id));
+            assertEquals(new CachedReplayModel(id), refreshed.cacheUpdates().get(id).get());
+            // Ordinary reconstruction keeps its existing immediate cache publication path.
+            cursor.session().reconstruct(List.of(new MutationPlan.ResolvedModel(
+                    id, CachedReplayModel.class, MutationPlan.Access.READ_ONLY, List.of("id"))),
+                                         ModelReadBoundary.current());
+            assertEquals(new CachedReplayModel(id), ((io.fluxzero.sdk.modeling.Entity<?>) cache.get(id)).get());
+        } finally {
+            client.shutDown();
+        }
+    }
+
+    @Test
+    void eventRefreshStagesMissingHeadRemovalUntilTheTrackerCanCheckEntryIdentity() {
+        EventStoreClient client = mock(EventStoreClient.class);
+        when(client.getModelEvents(any())).thenAnswer(invocation -> emptyResponse(invocation.getArgument(0), 1L));
+        try (DefaultCache cache = new DefaultCache()) {
+            String id = "deleted-replay";
+            var current = ImmutableModelRoot.<CachedReplayModel>builder().id(id).type(CachedReplayModel.class)
+                    .value(new CachedReplayModel(id)).stateIndex(0L).sequenceNumber(0L).build();
+            cache.put(id, current);
+            ModelReplayCursor cursor = new ModelReplayCursor(
+                    client, new JacksonSerializer(), mock(EntityHelper.class),
+                    new MutationPlan.Compiler(List.of()), cache, null, null, null);
+
+            ModelCacheTracker.RefreshedBatch refreshed = cursor.refresh(Map.of(id, CachedReplayModel.class), 1L);
+
+            assertSame(current, cache.get(id));
+            assertTrue(refreshed.cacheUpdates().containsKey(id));
+            assertNull(refreshed.cacheUpdates().get(id));
+        }
+    }
+
+    @Model
+    private record CachedReplayModel(@EntityId String id) {
+        @Apply
+        static CachedReplayModel create(CachedCreated event) {
+            return new CachedReplayModel(event.id());
+        }
+    }
+
+    private record CachedCreated(String id) {
+    }
+
+    @Model(cached = false)
+    private record HistoricalModel(@EntityId String id, int revision, String replayThread) {
+        @Apply
+        static HistoricalModel replace(HistoricalReplace event) {
+            return new HistoricalModel(event.id(), event.revision(), Thread.currentThread().getName());
+        }
+    }
+
+    private record HistoricalReplace(String id, int revision) {
+    }
+
+    @Model(cached = false)
+    private record ReplayContextModel(@EntityId String id, Instant timestamp, String context) {
+        @Apply
+        static ReplayContextModel create(ReplayContextCreated event) {
+            ReplayContextModel model = new ReplayContextModel(
+                    event.id(), Fluxzero.currentTime(), replayContextMarker.get());
+            if (event.changeContext()) {
+                replayContextMarker.set("changed-by-" + event.id());
+            }
+            return model;
+        }
+    }
+
+    private record ReplayContextCreated(String id, boolean changeContext) {
+    }
 
     @Test
     void exactContextUsesUnchangedAuthoritativeDocumentWhenHistoryIsIncomplete() {

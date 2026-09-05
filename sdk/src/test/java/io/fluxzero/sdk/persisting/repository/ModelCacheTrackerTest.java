@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.api.modeling.ModelCommitTargetResult;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
@@ -24,7 +25,11 @@ import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.DocumentProjection;
 import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.modeling.EntityId;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.persisting.caching.DefaultCache;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
@@ -42,9 +47,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
@@ -55,6 +63,499 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ModelCacheTrackerTest {
+
+    @Test
+    void restoresHealthOnlyAfterAValidRecoveryPageHasBeenProcessed() throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
+        Cache cache = new DefaultCache();
+        Entity<?> cached = entity(SampleModel.class);
+        cache.put("sample-1", cached);
+        CountDownLatch processing = new CountDownLatch(1);
+        CountDownLatch continueProcessing = new CountDownLatch(1);
+        try (ModelCacheTracker tracker = new ModelCacheTracker(
+                eventStore, cache,
+                (ignored, boundary) -> new ModelCacheTracker.RefreshedBatch(boundary, Map.of()))) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> first = awaitNext(polls);
+            assertSame(cached, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            first.completeExceptionally(new IllegalStateException("temporary transport failure"));
+            CompletableFuture<TrackModelUpdatesResult> recovery = awaitNext(polls);
+            assertNull(tracker.current("sample-1", SampleModel.class));
+            assertNull(tracker.safeDocumentBoundary());
+
+            // An empty page cannot claim that it processed an update beyond the request cursor.
+            recovery.complete(new TrackModelUpdatesResult(1L, 11L, 11L, 11L, List.of()));
+            CompletableFuture<TrackModelUpdatesResult> valid = awaitNext(polls);
+            assertNull(tracker.current("sample-1", SampleModel.class));
+            List<ModelCommitTargetResult> blockingTargets = new AbstractList<>() {
+                @Override
+                public ModelCommitTargetResult get(int index) {
+                    processing.countDown();
+                    awaitLatch(continueProcessing);
+                    return new ModelCommitTargetResult("unrelated", 0L, true);
+                }
+
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+            valid.complete(new TrackModelUpdatesResult(
+                    2L, 11L, 20L, 20L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "recovered", 0,
+                                            11L, null, blockingTargets))));
+            assertTrue(processing.await(5, TimeUnit.SECONDS));
+            assertNull(tracker.current("sample-1", SampleModel.class));
+            assertNull(tracker.safeDocumentBoundary());
+            continueProcessing.countDown();
+            awaitNext(polls);
+
+            ModelCacheTracker.CurrentModel current = tracker.currentVersion("sample-1", SampleModel.class);
+            assertNotNull(current);
+            assertSame(cached, current.entity());
+            assertEquals(11L, current.validThrough(), "Only the processed prefix is a cache proof");
+            assertEquals(20L, tracker.safeDocumentBoundary());
+        } finally {
+            continueProcessing.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void forgettingOneModelReleasesItsReaderAndDiscardsLateRefreshPublication() throws Exception {
+        forgetDuringRefresh(false);
+    }
+
+    @Test
+    void forgettingAllModelsReleasesTheirReadersAndDiscardsLateRefreshPublication() throws Exception {
+        forgetDuringRefresh(true);
+    }
+
+    private void forgetDuringRefresh(boolean all) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
+        ConcurrentLinkedQueue<Runnable> evictions = new ConcurrentLinkedQueue<>();
+        Cache cache = new SoftReferenceCache(100, evictions::add, null);
+        Entity<?> cached = entity(SampleModel.class);
+        cache.put("sample-1", cached);
+        CountDownLatch refreshStarted = new CountDownLatch(1);
+        CountDownLatch continueRefresh = new CountDownLatch(1);
+        CountDownLatch nextRefresh = new CountDownLatch(1);
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, (targets, boundary) -> {
+            if (targets.containsKey("sample-1")) {
+                refreshStarted.countDown();
+                awaitLatch(continueRefresh);
+                // Reconstruction finishes after deletion invalidated the entry that initiated this refresh.
+            } else {
+                nextRefresh.countDown();
+            }
+            return new ModelCacheTracker.RefreshedBatch(
+                    boundary, targets.containsKey("sample-1") ? Map.of("sample-1", cached) : Map.of());
+        })) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> first = awaitNext(polls);
+            assertSame(cached, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            first.complete(new TrackModelUpdatesResult(
+                    1L, 11L, 11L, 11L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "remote", 0, 11L, null,
+                                            List.of(new ModelCommitTargetResult("sample-1", 1L, true))))));
+            assertTrue(refreshStarted.await(5, TimeUnit.SECONDS));
+            CompletableFuture<Entity<?>> lookup = new CompletableFuture<>();
+            Thread reader = Thread.ofVirtual().start(() -> {
+                try {
+                    lookup.complete(tracker.current("sample-1", SampleModel.class));
+                } catch (Throwable failure) {
+                    lookup.completeExceptionally(failure);
+                }
+            });
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (reader.getState() != Thread.State.WAITING && System.nanoTime() < deadline) {
+                Thread.onSpinWait();
+            }
+            assertEquals(Thread.State.WAITING, reader.getState());
+            if (all) {
+                cache.clear();
+                tracker.forgetAll();
+            } else {
+                cache.remove("sample-1");
+                tracker.forget("sample-1");
+            }
+            evictions.forEach(Runnable::run);
+            assertNull(lookup.get(1, TimeUnit.SECONDS));
+
+            // A second refresh is a completion barrier for the first refresh's publication on the serial executor.
+            cache.put("other", entity(SampleModel.class));
+            tracker.loaded("other", SampleModel.class, 11L);
+            awaitNext(polls).complete(new TrackModelUpdatesResult(
+                    2L, 12L, 12L, 12L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "other-update", 0, 12L, null,
+                                            List.of(new ModelCommitTargetResult("other", 1L, true))))));
+            awaitNext(polls);
+            continueRefresh.countDown();
+            assertTrue(nextRefresh.await(5, TimeUnit.SECONDS));
+            assertNull(cache.get("sample-1"), "An invalidated refresh must not write the discarded value");
+            assertNull(tracker.current("sample-1", SampleModel.class),
+                       "An invalidated refresh must not publish a new cache proof");
+        } finally {
+            continueRefresh.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void synchronousEvictionDoesNotWaitForAnInProgressCacheRead() throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
+        CountDownLatch reading = new CountDownLatch(1);
+        CountDownLatch continueReading = new CountDownLatch(1);
+        AtomicBoolean pauseRead = new AtomicBoolean();
+        Cache cache = new SoftReferenceCache(10, Runnable::run, null) {
+            @Override
+            public <T> T get(Object id) {
+                if (pauseRead.compareAndSet(true, false)) {
+                    reading.countDown();
+                    awaitLatch(continueReading);
+                }
+                return super.get(id);
+            }
+        };
+        Entity<?> cached = entity(SampleModel.class);
+        cache.put("sample-1", cached);
+        try (ModelCacheTracker tracker = new ModelCacheTracker(
+                eventStore, cache,
+                (ignored, boundary) -> new ModelCacheTracker.RefreshedBatch(boundary, Map.of()))) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            awaitNext(polls);
+            assertSame(cached, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            pauseRead.set(true);
+            CompletableFuture<Entity<?>> reader = CompletableFuture.supplyAsync(
+                    () -> tracker.current("sample-1", SampleModel.class),
+                    task -> Thread.ofVirtual().start(task));
+            assertTrue(reading.await(5, TimeUnit.SECONDS));
+            // A synchronous cache listener must not wait for the tracker read: a custom cache may be holding
+            // its own lock while notifying listeners, and that read may need the same cache lock to finish.
+            CompletableFuture<Void> eviction = CompletableFuture.runAsync(
+                    () -> cache.remove("sample-1"), task -> Thread.ofVirtual().start(task));
+            eviction.get(1, TimeUnit.SECONDS);
+            continueReading.countDown();
+            assertNull(reader.get(1, TimeUnit.SECONDS));
+            assertNull(tracker.current("sample-1", SampleModel.class));
+        } finally {
+            continueReading.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void lateDocumentRefreshDoesNotOverwriteANewerLocalCommit() throws Exception {
+        documentRefreshRace(false, false, false);
+    }
+
+    @Test
+    void lateHeadlessDocumentRefreshDoesNotOverwriteANewerLocalCommit() throws Exception {
+        documentRefreshRace(false, false, true);
+    }
+
+    @Test
+    void lateDocumentRefreshCannotRepopulateAHardDeletedModel() throws Exception {
+        documentRefreshRace(true, false, false);
+    }
+
+    @Test
+    void lateDocumentRefreshCannotReplaceANewlyLoadedAbsenceAfterHardDelete() throws Exception {
+        documentRefreshRace(true, true, false);
+    }
+
+    @Test
+    void lateDocumentRefreshPreservesAHardDeletedAndRecreatedModel() throws Exception {
+        documentRefreshRace(true, true, true);
+    }
+
+    private void documentRefreshRace(boolean hardDelete, boolean reload, boolean alternateValue) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
+        CountDownLatch readStarted = new CountDownLatch(1);
+        CountDownLatch continueRead = new CountDownLatch(1);
+        CountDownLatch cacheUpdated = new CountDownLatch(1);
+        Cache cache = new SoftReferenceCache(100, Runnable::run, null) {
+            @Override
+            public <U, T> void updateAll(
+                    Iterable<? extends U> updates, Function<? super U, ?> keyFunction,
+                    BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+                super.updateAll(updates, keyFunction, updateFunction);
+                cacheUpdated.countDown();
+            }
+        };
+        Entity<?> initial = documentEntity(10L, "initial");
+        boolean headlessRead = !hardDelete && alternateValue;
+        Entity<?> older = documentEntity(headlessRead ? -1L : 11L, headlessRead ? null : "older");
+        ModelHeadState oldHead = headlessRead ? null
+                : new ModelHeadState("document-1", TrackedDocument.class.getSimpleName(), 1L, 11L, false, false);
+        ModelReplayCursor.DocumentReader reader = (id, type, migration) -> {
+            readStarted.countDown();
+            awaitLatch(continueRead);
+            return new ModelReplayCursor.DocumentVersion(older, oldHead);
+        };
+        ModelReplayCursor cursor = new ModelReplayCursor(
+                eventStore, null, null, null, cache, null, reader, null);
+        cache.put("document-1", initial);
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, cursor::refresh)) {
+            tracker.loaded("document-1", TrackedDocument.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> update = awaitNext(polls);
+            assertSame(initial, awaitCurrent(tracker, "document-1", TrackedDocument.class));
+            update.complete(new TrackModelUpdatesResult(
+                    1L, 11L, 11L, 11L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "remote-document", 0, 11L, null,
+                                            List.of(new ModelCommitTargetResult("document-1", 1L, false))))));
+            assertTrue(readStarted.await(5, TimeUnit.SECONDS));
+            Entity<?> expected;
+            if (hardDelete) {
+                awaitNext(polls).complete(new TrackModelUpdatesResult(
+                        2L, 12L, 12L, 12L,
+                        List.of(new ModelUpdate(ModelUpdateKind.HARD_DELETE, "delete-document", 0, 12L,
+                                                null, List.of()))));
+                awaitNext(polls);
+                expected = reload ? documentEntity(alternateValue ? 13L : -1L,
+                                                   alternateValue ? "recreated" : null) : null;
+                if (reload) {
+                    cache.put("document-1", expected);
+                    tracker.loaded("document-1", TrackedDocument.class, alternateValue ? 13L : 12L);
+                }
+            } else {
+                expected = documentEntity(12L, "newer-local-commit");
+                cache.put("document-1", expected);
+                tracker.committed("document-1", TrackedDocument.class, 12L);
+            }
+            continueRead.countDown();
+            assertTrue(cacheUpdated.await(5, TimeUnit.SECONDS));
+            assertSame(expected, cache.get("document-1"));
+            if (expected != null) {
+                assertSame(expected, awaitCurrent(tracker, "document-1", TrackedDocument.class));
+            } else {
+                assertNull(tracker.current("document-1", TrackedDocument.class));
+            }
+        } finally {
+            continueRead.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void explicitInvalidationWaitsForACacheUpdateThatAlreadySelectedItsValue() throws Exception {
+        invalidationDuringCachePublication(false, false);
+    }
+
+    @Test
+    void explicitInvalidationWaitsForAPublicationDetachedByAnEvictionListener() throws Exception {
+        invalidationDuringCachePublication(true, false);
+    }
+
+    @Test
+    void reentrantInvalidationDoesNotWaitForItsOwnCachePublication() throws Exception {
+        invalidationDuringCachePublication(false, true);
+    }
+
+    @Test
+    void retirementCleansItsOwnLateWriteAfterAnEarlierCacheRemoval() throws Exception {
+        invalidationDuringCachePublication(true, false, false);
+    }
+
+    private void invalidationDuringCachePublication(boolean detach, boolean reentrant) throws Exception {
+        invalidationDuringCachePublication(detach, reentrant, true);
+    }
+
+    private void invalidationDuringCachePublication(boolean detach, boolean reentrant, boolean clearAfter)
+            throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
+        CountDownLatch candidateSelected = new CountDownLatch(1);
+        CountDownLatch continuePublication = new CountDownLatch(1);
+        CountDownLatch publicationComplete = new CountDownLatch(1);
+        AtomicReference<ModelCacheTracker> trackerReference = new AtomicReference<>();
+        Cache cache = new SoftReferenceCache(100, Runnable::run, null) {
+            @Override
+            public <U, T> void updateAll(
+                    Iterable<? extends U> updates, Function<? super U, ?> keyFunction,
+                    BiFunction<? super U, ? super T, ? extends T> updateFunction) {
+                super.<U, T>updateAll(updates, keyFunction, (update, current) -> {
+                    T selected = updateFunction.apply(update, current);
+                    if (detach) {
+                        // The listener removes the entry after its publication check, while compute is still active.
+                        remove(keyFunction.apply(update));
+                    }
+                    if (reentrant) {
+                        trackerReference.get().forgetAll();
+                        clear();
+                    }
+                    candidateSelected.countDown();
+                    awaitLatch(continuePublication);
+                    return selected;
+                });
+            }
+
+            @Override
+            public <T> T remove(Object id) {
+                T removed = super.remove(id);
+                if (continuePublication.getCount() == 0) {
+                    publicationComplete.countDown();
+                }
+                return removed;
+            }
+        };
+        Entity<?> initial = modelEntity(10L);
+        Entity<?> updated = modelEntity(11L);
+        cache.put("sample-1", initial);
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache,
+                (targets, boundary) -> new ModelCacheTracker.RefreshedBatch(
+                        boundary, Map.of("sample-1", updated)))) {
+            trackerReference.set(tracker);
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> update = awaitNext(polls);
+            assertSame(initial, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            update.complete(new TrackModelUpdatesResult(
+                    1L, 11L, 11L, 11L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "update", 0, 11L, null,
+                                            List.of(new ModelCommitTargetResult("sample-1", 1L, true))))));
+            assertTrue(candidateSelected.await(5, TimeUnit.SECONDS));
+            CompletableFuture<Void> invalidated = new CompletableFuture<>();
+            if (!reentrant) {
+                Thread invalidator = Thread.ofVirtual().start(() -> {
+                    try {
+                        tracker.forgetAll();
+                        if (clearAfter) {
+                            cache.clear();
+                        }
+                        invalidated.complete(null);
+                    } catch (Throwable failure) {
+                        invalidated.completeExceptionally(failure);
+                    }
+                });
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                while (invalidator.getState() != Thread.State.WAITING && invalidator.isAlive()
+                       && System.nanoTime() < deadline) {
+                    Thread.onSpinWait();
+                }
+                assertEquals(Thread.State.WAITING, invalidator.getState(),
+                             "Invalidation must wait until the already selected cache write completes");
+            }
+            continuePublication.countDown();
+            if (reentrant) {
+                assertTrue(publicationComplete.await(5, TimeUnit.SECONDS));
+            } else {
+                invalidated.get(5, TimeUnit.SECONDS);
+            }
+            assertNull(cache.get("sample-1"));
+            assertNull(tracker.current("sample-1", SampleModel.class));
+        } finally {
+            continuePublication.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void lateMissingEventHeadDoesNotRemoveANewerLocalCommit() throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
+        CountDownLatch readStarted = new CountDownLatch(1);
+        CountDownLatch continueRead = new CountDownLatch(1);
+        CountDownLatch nextRefresh = new CountDownLatch(1);
+        Cache cache = new DefaultCache();
+        Entity<?> initial = modelEntity(10L);
+        Entity<?> newer = modelEntity(12L);
+        cache.put("sample-1", initial);
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, (targets, boundary) -> {
+            if (targets.containsKey("sample-1")) {
+                readStarted.countDown();
+                awaitLatch(continueRead);
+                Map<String, Entity<?>> absent = new java.util.HashMap<>();
+                absent.put("sample-1", null);
+                return new ModelCacheTracker.RefreshedBatch(boundary, absent);
+            }
+            nextRefresh.countDown();
+            return new ModelCacheTracker.RefreshedBatch(boundary, Map.of());
+        })) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> update = awaitNext(polls);
+            assertSame(initial, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            update.complete(new TrackModelUpdatesResult(
+                    1L, 11L, 11L, 11L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "update", 0, 11L, null,
+                                            List.of(new ModelCommitTargetResult("sample-1", 1L, true))))));
+            assertTrue(readStarted.await(5, TimeUnit.SECONDS));
+            cache.put("sample-1", newer);
+            tracker.committed("sample-1", SampleModel.class, 12L);
+            cache.put("other", entity(SampleModel.class));
+            tracker.loaded("other", SampleModel.class, 11L);
+            awaitNext(polls).complete(new TrackModelUpdatesResult(
+                    2L, 12L, 12L, 12L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "other-update", 0, 12L, null,
+                                            List.of(new ModelCommitTargetResult("other", 1L, true))))));
+            awaitNext(polls);
+            continueRead.countDown();
+            assertTrue(nextRefresh.await(5, TimeUnit.SECONDS));
+            assertSame(newer, cache.get("sample-1"));
+            assertSame(newer, tracker.current("sample-1", SampleModel.class));
+        } finally {
+            continueRead.countDown();
+            cache.close();
+        }
+    }
+
+    @Test
+    void headlessDocumentRefreshReplacesACachedValueOlderThanItsSafeBoundary() throws Exception {
+        headlessDocumentRefresh(false);
+    }
+
+    @Test
+    void headlessDocumentAbsenceReplacesACachedValueOlderThanItsSafeBoundary() throws Exception {
+        headlessDocumentRefresh(true);
+    }
+
+    private void headlessDocumentRefresh(boolean absent) throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
+        Entity<?> initial = documentEntity(10L, "old");
+        Entity<?> refreshed = documentEntity(-1L, absent ? null : "refreshed-without-head");
+        Cache cache = new DefaultCache();
+        ModelReplayCursor cursor = new ModelReplayCursor(
+                eventStore, null, null, null, cache, null,
+                (id, type, migration) -> new ModelReplayCursor.DocumentVersion(refreshed, null), null);
+        cache.put("document-1", initial);
+        try (ModelCacheTracker tracker = new ModelCacheTracker(eventStore, cache, cursor::refresh)) {
+            tracker.loaded("document-1", TrackedDocument.class, 10L);
+            CompletableFuture<TrackModelUpdatesResult> update = awaitNext(polls);
+            assertSame(initial, awaitCurrent(tracker, "document-1", TrackedDocument.class));
+            update.complete(new TrackModelUpdatesResult(
+                    1L, 11L, 11L, 11L,
+                    List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "update", 0, 11L, null,
+                                            List.of(new ModelCommitTargetResult("document-1", 1L, false))))));
+            awaitNext(polls);
+            assertSame(refreshed, awaitCurrent(tracker, "document-1", TrackedDocument.class));
+        } finally {
+            cache.close();
+        }
+    }
+
+    private static Entity<?> documentEntity(long stateIndex, String value) {
+        return ImmutableModelRoot.<TrackedDocument>builder()
+                .id("document-1").type(TrackedDocument.class)
+                .value(value == null ? null : new TrackedDocument("document-1", value))
+                .stateIndex(stateIndex).sequenceNumber(stateIndex < 0L ? -1L : stateIndex - 10L).build();
+    }
+
+    @Model(persistence = ModelPersistence.DOCUMENT, document = @DocumentProjection(collection = "trackedDocuments"))
+    private record TrackedDocument(@EntityId String id, String value) {
+    }
+
+    private static void awaitLatch(CountDownLatch latch) {
+        try {
+            assertTrue(latch.await(5, TimeUnit.SECONDS));
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(failure);
+        }
+    }
 
     @Test
     void bootstrapDoesNotBlockTheLoadingCallback() throws Exception {
@@ -89,7 +590,7 @@ class ModelCacheTrackerTest {
                              (ignored, safeStateIndex) ->
                                      new ModelCacheTracker
                                              .RefreshedBatch(
-                                                     safeStateIndex))) {
+                                                     safeStateIndex, Map.of()))) {
             assertTimeoutPreemptively(
                     Duration.ofSeconds(1L),
                     () -> tracker.loaded(
@@ -161,7 +662,7 @@ class ModelCacheTrackerTest {
                              (ignored, safeStateIndex) ->
                                      new ModelCacheTracker
                                              .RefreshedBatch(
-                                                     safeStateIndex))) {
+                                                     safeStateIndex, Map.of()))) {
             Long boundary =
                     tracker.safeDocumentBoundary();
             assertNull(boundary);
@@ -247,7 +748,7 @@ class ModelCacheTrackerTest {
                                  refreshCount.incrementAndGet();
                                  refreshed.countDown();
                                  return new ModelCacheTracker
-                                         .RefreshedBatch(11L);
+                                         .RefreshedBatch(11L, Map.of());
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -329,7 +830,7 @@ class ModelCacheTrackerTest {
                                      throw new RuntimeException(failure);
                                  }
                                  return new ModelCacheTracker
-                                         .RefreshedBatch(safeStateIndex);
+                                         .RefreshedBatch(safeStateIndex, Map.of());
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -422,7 +923,7 @@ class ModelCacheTrackerTest {
                              (ignored, safeStateIndex) ->
                                      new ModelCacheTracker
                                              .RefreshedBatch(
-                                                     safeStateIndex))) {
+                                                     safeStateIndex, Map.of()))) {
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,
@@ -505,7 +1006,7 @@ class ModelCacheTrackerTest {
                                  refreshed.countDown();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(
-                                                 safeStateIndex);
+                                                 safeStateIndex, Map.of());
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -582,7 +1083,7 @@ class ModelCacheTrackerTest {
                                  refreshCount.incrementAndGet();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(
-                                                 safeStateIndex);
+                                                 safeStateIndex, Map.of());
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -647,7 +1148,7 @@ class ModelCacheTrackerTest {
                                          .incrementAndGet();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(
-                                                 safeStateIndex);
+                                                 safeStateIndex, Map.of());
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -738,7 +1239,7 @@ class ModelCacheTrackerTest {
                              eventStore, cache,
                              (ignored, safeStateIndex) -> {
                                  refreshCount.incrementAndGet();
-                                 return new ModelCacheTracker.RefreshedBatch(safeStateIndex);
+                                 return new ModelCacheTracker.RefreshedBatch(safeStateIndex, Map.of());
                              })) {
             tracker.loaded("sample-1", SampleModel.class, 10L);
             CompletableFuture<TrackModelUpdatesResult> poll = awaitNext(polls);
@@ -789,7 +1290,7 @@ class ModelCacheTrackerTest {
                              eventStore, cache,
                              (ignored, safeStateIndex) ->
                                      new ModelCacheTracker.RefreshedBatch(
-                                             safeStateIndex))) {
+                                             safeStateIndex, Map.of()))) {
             tracker.loaded("sample-1", SampleModel.class, 10L);
             completeNext(
                     polls,
@@ -856,7 +1357,7 @@ class ModelCacheTrackerTest {
                      new ModelCacheTracker(
                              eventStore, cache,
                              (ignored, safeStateIndex) ->
-                                     new ModelCacheTracker.RefreshedBatch(safeStateIndex))) {
+                                     new ModelCacheTracker.RefreshedBatch(safeStateIndex, Map.of()))) {
             tracker.loaded("sample-1", SampleModel.class, 10L);
             CompletableFuture<TrackModelUpdatesResult> poll = awaitNext(polls);
             poll.complete(
@@ -904,7 +1405,7 @@ class ModelCacheTrackerTest {
                                          .incrementAndGet();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(
-                                                 safeStateIndex);
+                                                 safeStateIndex, Map.of());
                              })) {
             tracker.prepare();
             CompletableFuture<TrackModelUpdatesResult>
@@ -979,7 +1480,7 @@ class ModelCacheTrackerTest {
                                  refreshed.countDown();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(
-                                                 safeStateIndex);
+                                                 safeStateIndex, Map.of());
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -1038,7 +1539,7 @@ class ModelCacheTrackerTest {
                              (ignored, safeStateIndex) ->
                                      new ModelCacheTracker
                                              .RefreshedBatch(
-                                                     safeStateIndex))) {
+                                                     safeStateIndex, Map.of()))) {
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,
@@ -1126,7 +1627,7 @@ class ModelCacheTrackerTest {
                                      throw new RuntimeException(failure);
                                  }
                                  return new ModelCacheTracker.RefreshedBatch(
-                                         safeStateIndex);
+                                         safeStateIndex, Map.of());
                              })) {
             tracker.loaded("sample-1", SampleModel.class, 10L);
             completeNext(
@@ -1200,7 +1701,7 @@ class ModelCacheTrackerTest {
                         (ignored, safeStateIndex) ->
                                 new ModelCacheTracker
                                         .RefreshedBatch(
-                                                safeStateIndex));
+                                                safeStateIndex, Map.of()));
         try {
             tracker.loaded(
                     "sample-1",
@@ -1243,7 +1744,7 @@ class ModelCacheTrackerTest {
                              (ignored, safeStateIndex) ->
                                      new ModelCacheTracker
                                              .RefreshedBatch(
-                                                     safeStateIndex))) {
+                                                     safeStateIndex, Map.of()))) {
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,
@@ -1290,7 +1791,7 @@ class ModelCacheTrackerTest {
                              (ignored, safeStateIndex) ->
                                      new ModelCacheTracker
                                              .RefreshedBatch(
-                                                     safeStateIndex))) {
+                                                     safeStateIndex, Map.of()))) {
             tracker.loaded(
                     "sample-1",
                     SampleModel.class,

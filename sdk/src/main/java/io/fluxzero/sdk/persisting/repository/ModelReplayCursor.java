@@ -32,6 +32,7 @@ import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.TrackModelUpdates;
 import io.fluxzero.common.api.modeling.TrackModelUpdatesResult;
 import io.fluxzero.common.caching.Cache;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.UnknownTypeStrategy;
@@ -72,12 +73,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.EVENT;
@@ -207,12 +211,16 @@ final class ModelReplayCursor {
     }
 
     Session session() {
+        return session(null);
+    }
+
+    private Session session(Map<String, Entity<?>> deferredCacheUpdates) {
         if (serializer == null || entityHelper == null || modelDefinitionCompiler == null
             || modelCache == null) {
             throw new EventSourcingException(
                     "Event-sourced model reconstruction requires a configured serializer and model entity helper");
         }
-        return new Session();
+        return new Session(deferredCacheUpdates);
     }
 
     private GetModelEventsResult getModelEvents(GetModelEvents request) {
@@ -1029,8 +1037,9 @@ final class ModelReplayCursor {
                     List.of(metadata.entityId().orElseThrow().name()));
             (metadata.rootConfiguration().orElseThrow().eventSourced() ? replayTargets : documentTargets).add(target);
         });
+        Map<String, Entity<?>> cacheUpdates = new LinkedHashMap<>();
         if (!replayTargets.isEmpty()) {
-            long reconstructedStateIndex = session().reconstruct(
+            long reconstructedStateIndex = session(cacheUpdates).reconstruct(
                     replayTargets, ModelReadBoundary.CURRENT).stateIndex();
             if (reconstructedStateIndex < safeStateIndex) {
                 throw new EventSourcingException(
@@ -1038,10 +1047,10 @@ final class ModelReplayCursor {
                                 .formatted(reconstructedStateIndex, safeStateIndex));
             }
         }
-        documentTargets.forEach(target -> modelCache.put(
+        documentTargets.forEach(target -> cacheUpdates.put(
                 target.modelId(), documentReader.load(
                         target.modelId(), target.modelType(), false).entity()));
-        return new ModelCacheTracker.RefreshedBatch(safeStateIndex);
+        return new ModelCacheTracker.RefreshedBatch(safeStateIndex, cacheUpdates);
     }
 
     /** Returns a coherent current cache projection, or {@code null} when replay must establish the boundary. */
@@ -1524,6 +1533,12 @@ final class ModelReplayCursor {
     }
 
     final class Session {
+        private final Map<String, Entity<?>> deferredCacheUpdates;
+
+        private Session(Map<String, Entity<?>> deferredCacheUpdates) {
+            this.deferredCacheUpdates = deferredCacheUpdates;
+        }
+
         private final Map<ViewKey, Entity<?>> reconstructed =
                 new LinkedHashMap<>(128, 0.75f, true) {
                     @Override
@@ -1613,7 +1628,11 @@ final class ModelReplayCursor {
                 if (cacheable) {
                     cacheCandidates.put(resolvedTarget.modelId(), entity);
                 } else if (!window.prefix() && head == null) {
-                    modelCache.remove(target.modelId());
+                    if (deferredCacheUpdates == null) {
+                        modelCache.remove(target.modelId());
+                    } else {
+                        deferredCacheUpdates.put(target.modelId(), null);
+                    }
                 }
                 result.put(target.modelId(), entity);
                 if (!window.prefix()) {
@@ -1621,14 +1640,19 @@ final class ModelReplayCursor {
                             target, loaded.stateIndex()), entity);
                 }
             }
-            modelCache.mergeAll(
-                    cacheCandidates,
-                    (current, candidate) ->
-                            current != null
-                            && stateIndex(current)
-                               >= stateIndex(candidate)
-                                    ? current
-                                    : candidate);
+            if (deferredCacheUpdates == null) {
+                modelCache.mergeAll(
+                        cacheCandidates,
+                        (current, candidate) ->
+                                current != null
+                                && stateIndex(current)
+                                   >= stateIndex(candidate)
+                                        ? current
+                                        : candidate);
+            } else {
+                // Background refresh publication must check the tracker entry that initiated this read.
+                deferredCacheUpdates.putAll(cacheCandidates);
+            }
             return new ReconstructionBatch(loaded.stateIndex(), result);
         }
 
@@ -1727,18 +1751,29 @@ final class ModelReplayCursor {
                     stream -> resolveTarget(
                             stream.getModelId(), stream.getHead(), states));
             PayloadLookup payloads = page.payloads();
-            boolean independent =
-                    response.getStreams().size() >= 32
-                    && response.getStreams().parallelStream()
-                            .allMatch(stream -> stream.getMemberships().stream()
-                                    .filter(window::includes)
-                                    .allMatch(membership -> directReplayPlan(
-                                            payloads.getRequired(membership.getStateIndex()),
-                                            states.get(stream.getModelId()).target.modelType()) != null));
-            Stream<ModelEventStream> streams = independent
-                    ? response.getStreams().parallelStream()
-                    : response.getStreams().stream();
-            streams.forEach(stream -> {
+            List<ModelEventStream> streams = response.getStreams();
+            ThreadLocalContext.Snapshot replayContext = streams.size() >= 32 ? ThreadLocalContext.capture() : null;
+            ForkJoinPool pool = replayContext == null ? null : ForkJoinTask.getPool();
+            int parallelism = replayContext == null ? 1
+                    : pool == null ? ForkJoinPool.getCommonPoolParallelism() : pool.getParallelism();
+            int chunkSize = Math.max(1, (streams.size() + parallelism * 4 - 1) / (parallelism * 4));
+            int chunkCount = (streams.size() + chunkSize - 1) / chunkSize;
+            boolean independent = replayContext != null
+                                  && IntStream.range(0, chunkCount).parallel().allMatch(chunk -> {
+                                      try (var context = ThreadLocalContext.openActivation()) {
+                                          int end = Math.min(streams.size(), (chunk + 1) * chunkSize);
+                                          for (int index = chunk * chunkSize; index < end; index++) {
+                                              context.use(replayContext);
+                                              ModelEventStream stream = streams.get(index);
+                                              if (!canReplayIndependently(
+                                                      stream, states.get(stream.getModelId()), payloads, window)) {
+                                                  return false;
+                                              }
+                                          }
+                                          return true;
+                                      }
+                                  });
+            Consumer<ModelEventStream> replayStream = stream -> {
                 MutableReconstruction state = states.get(stream.getModelId());
                 if (state == null) {
                     throw new EventSourcingException(
@@ -1771,10 +1806,46 @@ final class ModelReplayCursor {
                                                 .formatted(
                                                         membership.getStateIndex(),
                                                         current.target.modelId()), error));
-            });
+            };
+            if (independent) {
+                // Activate once per chunk. Reusing the same snapshot is free of context switches unless a
+                // serializer or apply handler changed participating values while replaying the previous model.
+                IntStream.range(0, chunkCount).parallel().forEach(chunk -> {
+                    try (var context = ThreadLocalContext.openActivation()) {
+                        int end = Math.min(streams.size(), (chunk + 1) * chunkSize);
+                        for (int index = chunk * chunkSize; index < end; index++) {
+                            context.use(replayContext);
+                            replayStream.accept(streams.get(index));
+                        }
+                    }
+                });
+            } else {
+                streams.forEach(replayStream);
+            }
             if (deserializedEvents.size() > 1_024) {
                 deserializedEvents.clear();
             }
+        }
+
+        private boolean canReplayIndependently(
+                ModelEventStream stream,
+                MutableReconstruction state,
+                PayloadLookup payloads,
+                ReplayWindow window) {
+            ModelEventMembership previous = state.previous;
+            Iterator<ModelEventMembership> memberships = window.memberships(stream);
+            while (memberships.hasNext()) {
+                ModelEventMembership membership = memberships.next();
+                // Historical fallback reuses the session's ordered view caches and may reconstruct dependencies.
+                // Keep that path sequential even when its immediate apply method qualifies for direct invocation.
+                if (!state.followsCurrent(membership, previous)
+                    || directReplayPlan(payloads.getRequired(membership.getStateIndex()),
+                                        state.target.modelType()) == null) {
+                    return false;
+                }
+                previous = membership;
+            }
+            return true;
         }
 
         private void resolveTarget(
@@ -1921,14 +1992,7 @@ final class ModelReplayCursor {
                     StoredEvent storedEvent,
                     List<PreparedReplay> prepared) {
                 ModelEventMembership membership = storedEvent.membership();
-                boolean followsCurrent = previous == null
-                        ? base == null
-                          || membership.getReadStateIndex() >= stateIndex(base)
-                        : membership.getReadStateIndex() >= previous.getStateIndex()
-                          || sameEarlierCommit(
-                                  previous,
-                                  membership);
-                Entity<?> begin = followsCurrent
+                Entity<?> begin = followsCurrent(membership, previous)
                         ? current
                         : viewAt(
                                 target, membership.getReadStateIndex(),
@@ -1942,6 +2006,15 @@ final class ModelReplayCursor {
                                 prepared);
                 previous = membership;
                 rememberCheckpoint(target, current);
+            }
+
+            private boolean followsCurrent(
+                    ModelEventMembership membership,
+                    ModelEventMembership previous) {
+                return previous == null
+                        ? base == null || membership.getReadStateIndex() >= stateIndex(base)
+                        : membership.getReadStateIndex() >= previous.getStateIndex()
+                          || sameEarlierCommit(previous, membership);
             }
 
             private void applyCompiled(
