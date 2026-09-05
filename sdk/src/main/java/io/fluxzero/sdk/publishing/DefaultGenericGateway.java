@@ -23,6 +23,7 @@ import io.fluxzero.sdk.common.AbstractNamespaced;
 import io.fluxzero.sdk.common.AsyncCompletionScope;
 import io.fluxzero.sdk.common.HasMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.exception.FluxzeroErrors;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -322,16 +323,17 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                              PARALLEL_SERIALIZATION_THRESHOLD));
         int chunkSize = Math.ceilDiv(messages.size(), workers);
         CompletableFuture<?>[] tasks = new CompletableFuture<?>[workers];
+        ThreadLocalContext.Snapshot context = ThreadLocalContext.capture();
         for (int worker = 0; worker < workers; worker++) {
             int from = worker * chunkSize;
             int until = Math.min(
                     messages.size(), from + chunkSize);
-            tasks[worker] = CompletableFuture.runAsync(() -> {
+            tasks[worker] = CompletableFuture.runAsync(() -> context.run(() -> {
                 for (int index = from; index < until; index++) {
                     result[index] = messages.get(index)
                             .serialize(serializer);
                 }
-            });
+            }));
         }
         CompletableFuture.allOf(tasks).join();
         return java.util.Arrays.asList(result);

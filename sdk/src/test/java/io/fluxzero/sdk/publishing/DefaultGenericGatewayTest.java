@@ -24,10 +24,16 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -36,7 +42,9 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -45,6 +53,77 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DefaultGenericGatewayTest {
+
+    @ParameterizedTest
+    @ValueSource(ints = {255, 256, 512, 8193})
+    void sendAndForgetPreservesSerializationContext(int batchSize) {
+        assertSerializationContext(batchSize, false);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {255, 256, 512, 8193})
+    void sendForMessagesPreservesSerializationContext(int batchSize) {
+        assertSerializationContext(batchSize, true);
+    }
+
+    private void assertSerializationContext(int batchSize, boolean requestResults) {
+        Client client = mock(Client.class);
+        when(client.forNamespace(null)).thenReturn(client);
+        GatewayClient gatewayClient = mock(GatewayClient.class);
+        List<SerializedMessage> published = new ArrayList<>();
+        when(gatewayClient.append(any(Guarantee.class), any(SerializedMessage[].class))).thenAnswer(invocation -> {
+            published.addAll(Arrays.asList((SerializedMessage[]) invocation.getRawArguments()[1]));
+            return CompletableFuture.completedFuture(null);
+        });
+        RequestHandler requestHandler = mock(RequestHandler.class);
+        SerializedMessage response = new Message("ok").serialize(new JacksonSerializer());
+        when(requestHandler.sendRequests(anyList(), any())).thenAnswer(invocation -> {
+            List<SerializedMessage> requests = invocation.getArgument(0);
+            published.addAll(requests);
+            return requests.stream().map(ignored -> CompletableFuture.completedFuture(response)).toList();
+        });
+        DefaultGenericGateway gateway = new DefaultGenericGateway(
+                client, gatewayClient, requestHandler, new JacksonSerializer(), DispatchInterceptor.noOp,
+                MessageType.COMMAND, null, HandlerRegistry.noOp(), mock(ResponseMapper.class));
+        Message[] batch = IntStream.range(0, batchSize).mapToObj(ignored -> new Message(new ContextPayload()))
+                .toArray(Message[]::new);
+        User user = new User() {
+            @Override
+            public String getName() {
+                return "tenant-a";
+            }
+
+            @Override
+            public boolean hasRole(String role) {
+                return false;
+            }
+        };
+        Runnable send = () -> {
+            if (requestResults) {
+                gateway.sendForMessages(batch).forEach(CompletableFuture::join);
+            } else {
+                gateway.sendAndForget(Guarantee.STORED, batch).join();
+            }
+        };
+
+        user.run(send::run);
+        assertEquals(batchSize, published.size());
+        published.forEach(message -> assertEquals("{\"user\":\"tenant-a\"}",
+                                                 new String(message.getData().getValue(), StandardCharsets.UTF_8)));
+        assertNull(User.getCurrent());
+        published.clear();
+        send.run();
+        assertEquals(batchSize, published.size());
+        published.forEach(message -> assertEquals("{\"user\":\"none\"}",
+                                                 new String(message.getData().getValue(), StandardCharsets.UTF_8)));
+    }
+
+    static class ContextPayload {
+        public String getUser() {
+            User user = User.getCurrent();
+            return user == null ? "none" : user.getName();
+        }
+    }
 
     @Test
     void parallelSendAndForgetRetainsChunkBoundariesAndOrder() {

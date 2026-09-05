@@ -153,6 +153,11 @@ public final class DefaultRequestHandlerCompletionBenchmark {
                 int until = Math.min(window, from + BATCH_SIZE);
                 handler.handleResults(responses.subList(from, until));
             }
+            // Independent request callbacks need not complete in arrival order. Drain the entire window before
+            // reusing its request envelopes or checking the caller bookkeeping.
+            for (int i = 0; i < window; i++) {
+                callerFutures[i].join();
+            }
             blackhole = callerFutures[window - 1].join();
             completionNanos += System.nanoTime() - completionStarted;
             completed += window;
@@ -208,7 +213,7 @@ public final class DefaultRequestHandlerCompletionBenchmark {
 
     private static List<SerializedMessage> envelopeMessages(int count, Data<byte[]> data) {
         SerializedMessage source = new SerializedMessage(data, RESULT_METADATA, "result", 0L);
-        int size = Math.toIntExact(source.getBytes());
+        int size = BinaryWire.nestedEnvelopeSize(source);
         BinaryWire.Writer writer = new BinaryWire.Writer(size, size);
         writer.writeEnvelope(source);
         byte[] template = writer.toExactByteArray();

@@ -21,20 +21,27 @@ import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.WebsocketGatewayClient;
+import io.fluxzero.sdk.tracking.RetryingErrorHandler;
 import io.fluxzero.sdk.tracking.handling.DefaultResponseMapper;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,6 +50,8 @@ import static io.fluxzero.common.MessageType.RESULT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -50,6 +59,141 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class DefaultResultGatewayTest {
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void preservesPreparationErrorHandlerCompletionContract(int outcome) throws Exception {
+        IllegalStateException preparationFailure = new IllegalStateException("preparation failure");
+        IllegalArgumentException recoveryFailure = new IllegalArgumentException("recovery failure");
+        DefaultResultGateway gateway = gateway(new DefaultResponseMapper(), (message, type, topic) -> {
+            throw preparationFailure;
+        }, invocation -> CompletableFuture.completedFuture(null));
+        try {
+            CompletableFuture<Void> publication = gateway.respondBatched("failed", "sender", 1, (failure, retry) -> {
+                assertSame(preparationFailure, failure);
+                return switch (outcome) {
+                    case 0 -> null;
+                    case 1 -> throw recoveryFailure;
+                    default -> CompletableFuture.failedFuture(recoveryFailure);
+                };
+            });
+            if (outcome == 0) {
+                publication.get(2, TimeUnit.SECONDS);
+            } else {
+                ExecutionException failure = assertThrows(ExecutionException.class,
+                                                          () -> publication.get(2, TimeUnit.SECONDS));
+                assertSame(recoveryFailure, failure.getCause());
+            }
+        } finally {
+            gateway.close();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 32})
+    @SuppressWarnings("unchecked")
+    void builtInRetriesCanDrainTheResponseBacklog(int responseCount) throws Exception {
+        ThreadLocal<String> context = ThreadLocalContext.create();
+        Map<String, AtomicInteger> attempts = new ConcurrentHashMap<>();
+        List<String> published = Collections.synchronizedList(new ArrayList<>());
+        DispatchInterceptor interceptor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType type, String topic) {
+                String payload = message.getPayload();
+                assertEquals(payload, context.get());
+                if (attempts.computeIfAbsent(payload, ignored -> new AtomicInteger()).incrementAndGet() == 1) {
+                    throw new IllegalStateException("temporary preparation failure");
+                }
+                return message;
+            }
+        };
+        DefaultResultGateway gateway = gateway(new DefaultResponseMapper(), interceptor, invocation -> {
+            messages(invocation).forEach(message -> published.add(
+                    new String(message.getData().getValue(), StandardCharsets.UTF_8)));
+            return CompletableFuture.completedFuture(null);
+        });
+        RetryingErrorHandler errorHandler = new RetryingErrorHandler(1, Duration.ZERO, ignored -> true, true, false);
+        List<CompletableFuture<Void>> publications = new ArrayList<>();
+        try {
+            for (int i = 0; i < responseCount; i++) {
+                String payload = "response-" + i;
+                context.set(payload);
+                publications.add(gateway.respondBatched(payload, "sender", i, (failure, retry) -> {
+                    assertEquals(payload, context.get());
+                    return (CompletionStage<Void>) errorHandler.handleError(
+                            failure, "retry response", (Callable<Object>) retry::get);
+                }));
+            }
+            context.remove();
+            CompletableFuture.allOf(publications.toArray(CompletableFuture[]::new)).get(3, TimeUnit.SECONDS);
+            assertEquals(responseCount, published.size());
+            assertEquals(responseCount, published.stream().distinct().count());
+            attempts.values().forEach(count -> assertEquals(2, count.get()));
+        } finally {
+            context.remove();
+            gateway.close();
+        }
+    }
+
+    @Test
+    void slowRecoveryLeavesUnrelatedResponsesFreeToPublish() throws Exception {
+        CountDownLatch recovering = new CountDownLatch(1);
+        CountDownLatch releaseRecovery = new CountDownLatch(1);
+        DispatchInterceptor interceptor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, io.fluxzero.common.MessageType type, String topic) {
+                if ("failed".equals(message.getPayload())) {
+                    throw new IllegalStateException("preparation failure");
+                }
+                return message;
+            }
+        };
+        DefaultResultGateway gateway = gateway(new DefaultResponseMapper(), interceptor,
+                                               invocation -> CompletableFuture.completedFuture(null));
+        CompletableFuture<Void> failed = gateway.respondBatched("failed", "sender", 1, (failure, retry) -> {
+            recovering.countDown();
+            try {
+                releaseRecovery.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return CompletableFuture.failedFuture(e);
+            }
+            return CompletableFuture.completedFuture(null);
+        });
+        try {
+            assertTrue(recovering.await(2, TimeUnit.SECONDS));
+            gateway.respondBatched("independent", "sender", 2).get(2, TimeUnit.SECONDS);
+            assertFalse(failed.isDone());
+        } finally {
+            releaseRecovery.countDown();
+            failed.get(2, TimeUnit.SECONDS);
+            gateway.close();
+        }
+    }
+
+    @Test
+    void closeCompletesPendingAsynchronousRecovery() throws Exception {
+        CountDownLatch recovering = new CountDownLatch(1);
+        CompletableFuture<Void> recovery = new CompletableFuture<>();
+        DefaultResultGateway gateway = gateway(new DefaultResponseMapper(), (message, type, topic) -> {
+            throw new IllegalStateException("preparation failure");
+        }, invocation -> CompletableFuture.completedFuture(null));
+        CompletableFuture<Void> publication = gateway.respondBatched("failed", "sender", 1, (failure, retry) -> {
+            recovering.countDown();
+            return recovery;
+        });
+        try {
+            assertTrue(recovering.await(2, TimeUnit.SECONDS));
+            gateway.close();
+            ExecutionException failure = assertThrows(ExecutionException.class,
+                                                      () -> publication.get(2, TimeUnit.SECONDS));
+            assertTrue(failure.getCause() instanceof IllegalStateException);
+            assertThrows(IllegalStateException.class, () -> gateway.respondBatched("later", "sender", 2));
+        } finally {
+            recovery.complete(null);
+            gateway.close();
+        }
+    }
 
     @Test
     void batchedResponseUsesCapturedContextAndCompletesWithAppend() throws Exception {

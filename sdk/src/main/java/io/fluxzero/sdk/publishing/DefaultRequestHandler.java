@@ -332,6 +332,7 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         private final CompletableFuture<SerializedMessage> finalCallback;
         private List<SerializedMessage> intermediates;
         private CompletableFuture<Void> processingChain;
+        private boolean terminalReceived;
 
         ResponseCallback(Consumer<SerializedMessage> intermediateCallback,
                          CompletableFuture<SerializedMessage> finalCallback) {
@@ -340,15 +341,27 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         }
 
         synchronized void process(SerializedMessage response, Executor executor) {
-            if (processingChain == null && response.lastChunk()) {
-                process(response, true);
+            if (terminalReceived || finalCallback.isDone()) {
+                return;
+            }
+            boolean lastChunk = response.lastChunk();
+            terminalReceived = lastChunk;
+            if (processingChain == null && lastChunk) {
+                // Completing a future invokes caller continuations inline. Keep those off the batch drain so one
+                // caller can wait for another request without preventing that request's response from being released.
+                // The common single-response case needs no per-request CompletableFuture processing chain.
+                try {
+                    executor.execute(() -> process(response, true));
+                } catch (RuntimeException failure) {
+                    finalCallback.completeExceptionally(failure);
+                }
                 return;
             }
             if (processingChain == null) {
                 processingChain = CompletableFuture.completedFuture(null);
             }
             processingChain = processingChain.exceptionally(e -> null)
-                    .thenRunAsync(() -> process(response), executor);
+                    .thenRunAsync(() -> process(response, lastChunk), executor);
         }
 
         CompletableFuture<SerializedMessage> finalCallback() {
@@ -357,10 +370,6 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
 
         boolean completeExceptionally(Throwable error) {
             return finalCallback.completeExceptionally(error);
-        }
-
-        private void process(SerializedMessage response) {
-            process(response, response.lastChunk());
         }
 
         private void process(SerializedMessage response, boolean lastChunk) {

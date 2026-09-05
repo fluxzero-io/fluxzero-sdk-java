@@ -38,14 +38,19 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static io.fluxzero.common.MessageType.RESULT;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 
 /**
@@ -74,6 +79,10 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     private final DispatchInterceptor dispatchInterceptor;
     private final ResponseMapper responseMapper;
     private final AtomicLong responseQueueDepth = new AtomicLong();
+    private final AtomicBoolean closed = new AtomicBoolean();
+    private final Set<CompletableFuture<Void>> recoveries = ConcurrentHashMap.newKeySet();
+    @Getter(lazy = true, value = lombok.AccessLevel.PRIVATE)
+    private final ExecutorService recoveryExecutor = newWorkerPool("result-recovery", 4);
     @Getter(lazy = true)
     private final GatewayClient gatewayClient = client.getGatewayClient(RESULT);
     @Getter(lazy = true)
@@ -280,6 +289,9 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
     }
 
     private void enqueue(PreparedResponse response) {
+        if (closed.get()) {
+            throw new IllegalStateException("Result gateway has closed");
+        }
         responseQueueDepth.incrementAndGet();
         try {
             getResponseBacklog().addUntracked(response);
@@ -339,18 +351,47 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
             complete(response, failure);
             return;
         }
+        CompletableFuture<Void> completion = new CompletableFuture<>();
+        completion.whenComplete((ignored, recoveryFailure) -> {
+            recoveries.remove(completion);
+            complete(response, recoveryFailure);
+        });
+        synchronized (this) {
+            if (closed.get()) {
+                completion.completeExceptionally(new IllegalStateException("Result gateway has closed"));
+                return;
+            }
+            recoveries.add(completion);
+            try {
+                // Built-in retry handlers wait for their retry future. The retry is published by the response
+                // backlog, so recovery must run on independently owned workers and leave that backlog free to drain.
+                getRecoveryExecutor().execute(() -> recoverResponse(response, failure, completion));
+            } catch (RuntimeException schedulingFailure) {
+                completion.completeExceptionally(schedulingFailure);
+            }
+        }
+    }
+
+    private void recoverResponse(PreparedResponse response, Throwable failure, CompletableFuture<Void> completion) {
+        if (completion.isDone()) {
+            return;
+        }
         try {
             CompletionStage<Void> recovery = response.context().supply(() -> response.errorHandler().handle(
                     failure, () -> enqueueRetry(response)));
             if (recovery == null) {
-                complete(response, null);
+                completion.complete(null);
             } else {
                 recovery.whenComplete((ignored, recoveryFailure) -> {
-                    complete(response, recoveryFailure);
+                    if (recoveryFailure == null) {
+                        completion.complete(null);
+                    } else {
+                        completion.completeExceptionally(recoveryFailure);
+                    }
                 });
             }
         } catch (Throwable e) {
-            complete(response, e);
+            completion.completeExceptionally(e);
         }
     }
 
@@ -409,6 +450,16 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
 
     @Override
     public void close() {
+        List<CompletableFuture<Void>> pendingRecoveries;
+        synchronized (this) {
+            if (!closed.compareAndSet(false, true)) {
+                return;
+            }
+            pendingRecoveries = List.copyOf(recoveries);
+        }
+        getRecoveryExecutor().shutdownNow();
+        pendingRecoveries.forEach(recovery -> recovery.completeExceptionally(
+                new IllegalStateException("Result gateway has closed")));
         super.close();
         getResponseBacklog().shutDown();
     }
