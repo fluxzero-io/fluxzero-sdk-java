@@ -845,6 +845,7 @@ final class ModelReplayCursor {
 
         Map<String, Entity<?>> loaded = new LinkedHashMap<>();
         long stateIndex;
+        Map<String, ModelCache.Stamp> cachePublications = new LinkedHashMap<>();
         if (replayTargets.isEmpty()) {
             CurrentProjection current = !historicalBoundary && ancestorStateIndex == null
                     ? currentProjection(documentTargets, cacheTracker)
@@ -870,6 +871,7 @@ final class ModelReplayCursor {
                 ReconstructionBatch batch = session().reconstruct(replayTargets, boundary);
                 stateIndex = batch.stateIndex();
                 loaded.putAll(batch.entities());
+                cachePublications.putAll(batch.cachePublications());
             } else {
                 stateIndex = current.stateIndex();
                 loaded.putAll(current.entities());
@@ -887,6 +889,9 @@ final class ModelReplayCursor {
         for (MutationPlan.ResolvedModel target : documentTargets) {
             EntityMetadata metadata = EntityMetadata.validate(
                     target.modelType());
+            ModelCache.ReadToken readToken = documentCacheBoundary != null && modelCache instanceof ModelCache guarded
+                    ? guarded.beginRead(target.modelId()) : null;
+            try {
             DocumentVersion document = documentReader.load(
                     target.modelId(), target.modelType(), migration);
             Entity<?> entity = document.entity();
@@ -917,6 +922,10 @@ final class ModelReplayCursor {
                 String resolvedId = head == null
                         ? target.modelId() : head.getModelId();
                 if (!resolvedId.equals(target.modelId())) {
+                    if (readToken != null) {
+                        readToken.close();
+                        readToken = ((ModelCache) modelCache).beginRead(resolvedId);
+                    }
                     document = documentReader.load(
                             resolvedId, target.modelType(), migration);
                     entity = document.entity();
@@ -928,12 +937,25 @@ final class ModelReplayCursor {
                 && documentCacheBoundary != null) {
                 String resolvedId = entity.isPresent() && entity.id() != null
                         ? entity.id().toString() : target.modelId();
-                modelCache.put(resolvedId, entity);
+                if (modelCache instanceof ModelCache guarded) {
+                    ModelCache.Stamp stamp = readToken.forId(resolvedId)
+                            ? guarded.publish(readToken, entity, documentCacheBoundary) : null;
+                    if (stamp != null) {
+                        cachePublications.put(resolvedId, stamp);
+                    }
+                } else {
+                    modelCache.put(resolvedId, entity);
+                }
             }
             if (requireBoundary && replayTargets.isEmpty()
                 && ancestorStateIndex == null
                 && document.head() != null) {
                 stateIndex = Math.max(stateIndex, document.head().getStateIndex());
+            }
+            } finally {
+                if (readToken != null) {
+                    readToken.close();
+                }
             }
         }
         boolean writesEventSourcedModel = resolution.models().stream().anyMatch(
@@ -995,10 +1017,12 @@ final class ModelReplayCursor {
                     continue;
                 }
                 if (configuration.eventSourced()) {
-                    cacheTracker.loaded(target.modelId(), target.modelType(), stateIndex);
+                    cacheTracker.loaded(target.modelId(), target.modelType(), stateIndex,
+                                        cachePublications.get(target.modelId()));
                 } else if (documentCacheBoundary != null) {
                     cacheTracker.loaded(
-                            target.modelId(), target.modelType(), documentCacheBoundary);
+                            target.modelId(), target.modelType(), documentCacheBoundary,
+                            cachePublications.get(target.modelId()));
                 }
             }
         }
@@ -1588,8 +1612,16 @@ final class ModelReplayCursor {
                         Map.of(), window.boundary(),
                         ignored -> {
                         }).stateIndex();
-                return new ReconstructionBatch(stateBoundary, Map.of());
+                return new ReconstructionBatch(stateBoundary, Map.of(), Map.of());
             }
+            Map<String, ModelCache.ReadToken> readTokens = new LinkedHashMap<>();
+            if (deferredCacheUpdates == null && modelCache instanceof ModelCache guarded
+                && cacheAtBoundary && !window.prefix()) {
+                targets.stream().filter(target -> EntityMetadata.of(target.modelType())
+                        .rootConfiguration().orElseThrow().cached()).forEach(
+                        target -> readTokens.put(target.modelId(), guarded.beginRead(target.modelId())));
+            }
+            try {
             LinkedHashMap<String, MutableReconstruction> states =
                     new LinkedHashMap<>();
             LinkedHashMap<String, Long> cursors = new LinkedHashMap<>();
@@ -1629,7 +1661,11 @@ final class ModelReplayCursor {
                     cacheCandidates.put(resolvedTarget.modelId(), entity);
                 } else if (!window.prefix() && head == null) {
                     if (deferredCacheUpdates == null) {
-                        modelCache.remove(target.modelId());
+                        if (modelCache instanceof ModelCache) {
+                            cacheCandidates.put(target.modelId(), null);
+                        } else {
+                            modelCache.remove(target.modelId());
+                        }
                     } else {
                         deferredCacheUpdates.put(target.modelId(), null);
                     }
@@ -1640,7 +1676,21 @@ final class ModelReplayCursor {
                             target, loaded.stateIndex()), entity);
                 }
             }
-            if (deferredCacheUpdates == null) {
+            Map<String, ModelCache.Stamp> publications = new LinkedHashMap<>();
+            if (deferredCacheUpdates == null && modelCache instanceof ModelCache guarded) {
+                cacheCandidates.keySet().retainAll(readTokens.keySet());
+                guarded.<Map.Entry<String, Entity<?>>, Entity<?>>updateAll(cacheCandidates.entrySet(), Map.Entry::getKey, (candidate, current) -> {
+                    Entity<?> next = candidate.getValue();
+                    return current != null && stateIndex(current) > loaded.stateIndex() ? current
+                            : next == null ? null
+                            : current != null && stateIndex(current) >= stateIndex(next) ? current : next;
+                }, readTokens, loaded.stateIndex());
+                readTokens.forEach((id, token) -> {
+                    if (token.published() != null) {
+                        publications.put(id, token.published());
+                    }
+                });
+            } else if (deferredCacheUpdates == null) {
                 modelCache.mergeAll(
                         cacheCandidates,
                         (current, candidate) ->
@@ -1653,7 +1703,10 @@ final class ModelReplayCursor {
                 // Background refresh publication must check the tracker entry that initiated this read.
                 deferredCacheUpdates.putAll(cacheCandidates);
             }
-            return new ReconstructionBatch(loaded.stateIndex(), result);
+            return new ReconstructionBatch(loaded.stateIndex(), result, publications);
+            } finally {
+                readTokens.values().forEach(ModelCache.ReadToken::close);
+            }
         }
 
         private Entity<?> reconstructionBase(
@@ -2396,7 +2449,7 @@ final class ModelReplayCursor {
     }
 
     record ReconstructionBatch(
-            long stateIndex, Map<String, Entity<?>> entities) {
+            long stateIndex, Map<String, Entity<?>> entities, Map<String, ModelCache.Stamp> cachePublications) {
     }
 
     private record StoredEvent(

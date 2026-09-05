@@ -197,7 +197,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 migrationReadBarrierConfiguration, "migrationReadBarrierConfiguration");
         this.cacheSource = Objects.requireNonNull(cache, "cache");
         this.modelCache = cache == NoOpCache.INSTANCE
-                ? cache : new RepositoryCache(cache, "$Model", client.namespace());
+                ? cache : ModelCache.shared(cache, client.namespace());
         this.snapshotStore = snapshotSerializer == null
                 ? null : new ModelSnapshotStore(documentStore, snapshotSerializer);
         EventStoreClient eventStoreClient = Objects.requireNonNull(
@@ -211,11 +211,13 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 ? null
                 : new ModelCacheTracker(
                         eventStoreClient,
-                        modelCache,
+                        (ModelCache) modelCache,
                         this::refreshCurrentModels);
         if (modelCacheTracker != null) {
-            client.beforeShutdown(
-                    modelCacheTracker::close);
+            client.beforeShutdown(() -> {
+                modelCacheTracker.close();
+                ((ModelCache) modelCache).releaseShared();
+            });
         }
     }
 

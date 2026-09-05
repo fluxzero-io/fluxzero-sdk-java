@@ -68,7 +68,7 @@ class ModelCacheTrackerTest {
     void restoresHealthOnlyAfterAValidRecoveryPageHasBeenProcessed() throws Exception {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> cached = entity(SampleModel.class);
         cache.put("sample-1", cached);
         CountDownLatch processing = new CountDownLatch(1);
@@ -136,7 +136,7 @@ class ModelCacheTrackerTest {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
         ConcurrentLinkedQueue<Runnable> evictions = new ConcurrentLinkedQueue<>();
-        Cache cache = new SoftReferenceCache(100, evictions::add, null);
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, evictions::add, null));
         Entity<?> cached = entity(SampleModel.class);
         cache.put("sample-1", cached);
         CountDownLatch refreshStarted = new CountDownLatch(1);
@@ -210,7 +210,7 @@ class ModelCacheTrackerTest {
         CountDownLatch reading = new CountDownLatch(1);
         CountDownLatch continueReading = new CountDownLatch(1);
         AtomicBoolean pauseRead = new AtomicBoolean();
-        Cache cache = new SoftReferenceCache(10, Runnable::run, null) {
+        ModelCache cache = new ModelCache(new SoftReferenceCache(10, Runnable::run, null) {
             @Override
             public <T> T get(Object id) {
                 if (pauseRead.compareAndSet(true, false)) {
@@ -219,7 +219,7 @@ class ModelCacheTrackerTest {
                 }
                 return super.get(id);
             }
-        };
+        });
         Entity<?> cached = entity(SampleModel.class);
         cache.put("sample-1", cached);
         try (ModelCacheTracker tracker = new ModelCacheTracker(
@@ -278,7 +278,7 @@ class ModelCacheTrackerTest {
         CountDownLatch readStarted = new CountDownLatch(1);
         CountDownLatch continueRead = new CountDownLatch(1);
         CountDownLatch cacheUpdated = new CountDownLatch(1);
-        Cache cache = new SoftReferenceCache(100, Runnable::run, null) {
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, Runnable::run, null) {
             @Override
             public <U, T> void updateAll(
                     Iterable<? extends U> updates, Function<? super U, ?> keyFunction,
@@ -286,7 +286,7 @@ class ModelCacheTrackerTest {
                 super.updateAll(updates, keyFunction, updateFunction);
                 cacheUpdated.countDown();
             }
-        };
+        });
         Entity<?> initial = documentEntity(10L, "initial");
         boolean headlessRead = !hardDelete && alternateValue;
         Entity<?> older = documentEntity(headlessRead ? -1L : 11L, headlessRead ? null : "older");
@@ -342,12 +342,12 @@ class ModelCacheTrackerTest {
     }
 
     @Test
-    void explicitInvalidationWaitsForACacheUpdateThatAlreadySelectedItsValue() throws Exception {
+    void explicitInvalidationMasksACacheUpdateThatAlreadySelectedItsValue() throws Exception {
         invalidationDuringCachePublication(false, false);
     }
 
     @Test
-    void explicitInvalidationWaitsForAPublicationDetachedByAnEvictionListener() throws Exception {
+    void explicitInvalidationMasksAPublicationDetachedByAnEvictionListener() throws Exception {
         invalidationDuringCachePublication(true, false);
     }
 
@@ -373,7 +373,8 @@ class ModelCacheTrackerTest {
         CountDownLatch continuePublication = new CountDownLatch(1);
         CountDownLatch publicationComplete = new CountDownLatch(1);
         AtomicReference<ModelCacheTracker> trackerReference = new AtomicReference<>();
-        Cache cache = new SoftReferenceCache(100, Runnable::run, null) {
+        AtomicReference<ModelCache> cacheReference = new AtomicReference<>();
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, Runnable::run, null) {
             @Override
             public <U, T> void updateAll(
                     Iterable<? extends U> updates, Function<? super U, ?> keyFunction,
@@ -386,12 +387,13 @@ class ModelCacheTrackerTest {
                     }
                     if (reentrant) {
                         trackerReference.get().forgetAll();
-                        clear();
+                        cacheReference.get().clear();
                     }
                     candidateSelected.countDown();
                     awaitLatch(continuePublication);
                     return selected;
                 });
+                publicationComplete.countDown();
             }
 
             @Override
@@ -402,7 +404,8 @@ class ModelCacheTrackerTest {
                 }
                 return removed;
             }
-        };
+        });
+        cacheReference.set(cache);
         Entity<?> initial = modelEntity(10L);
         Entity<?> updated = modelEntity(11L);
         cache.put("sample-1", initial);
@@ -431,13 +434,9 @@ class ModelCacheTrackerTest {
                         invalidated.completeExceptionally(failure);
                     }
                 });
-                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
-                while (invalidator.getState() != Thread.State.WAITING && invalidator.isAlive()
-                       && System.nanoTime() < deadline) {
-                    Thread.onSpinWait();
-                }
-                assertEquals(Thread.State.WAITING, invalidator.getState(),
-                             "Invalidation must wait until the already selected cache write completes");
+                invalidated.get(5, TimeUnit.SECONDS);
+                assertNull(cache.get("sample-1"), "The active physical write must already be invisible");
+                assertNull(tracker.current("sample-1", SampleModel.class));
             }
             continuePublication.countDown();
             if (reentrant) {
@@ -460,7 +459,7 @@ class ModelCacheTrackerTest {
         CountDownLatch readStarted = new CountDownLatch(1);
         CountDownLatch continueRead = new CountDownLatch(1);
         CountDownLatch nextRefresh = new CountDownLatch(1);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> initial = modelEntity(10L);
         Entity<?> newer = modelEntity(12L);
         cache.put("sample-1", initial);
@@ -517,7 +516,7 @@ class ModelCacheTrackerTest {
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
         Entity<?> initial = documentEntity(10L, "old");
         Entity<?> refreshed = documentEntity(-1L, absent ? null : "refreshed-without-head");
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         ModelReplayCursor cursor = new ModelReplayCursor(
                 eventStore, null, null, null, cache, null,
                 (id, type, migration) -> new ModelReplayCursor.DocumentVersion(refreshed, null), null);
@@ -580,7 +579,7 @@ class ModelCacheTrackerTest {
                     polls.add(poll);
                     return poll;
                 });
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> loaded =
                 entity(SampleModel.class);
         cache.put("sample-1", loaded);
@@ -655,7 +654,7 @@ class ModelCacheTrackerTest {
                     longPoll.set(request);
                     return pending;
                 });
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         try (ModelCacheTracker tracker =
                      new ModelCacheTracker(
                              eventStore, cache,
@@ -714,7 +713,7 @@ class ModelCacheTrackerTest {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> before = entity(SampleModel.class);
         Entity<?> after = entity(SampleModel.class);
         cache.put("sample-1", before);
@@ -742,13 +741,10 @@ class ModelCacheTrackerTest {
                                  assertSame(
                                          application,
                                          Fluxzero.get());
-                                 cache.put(
-                                         "sample-1",
-                                         after);
                                  refreshCount.incrementAndGet();
                                  refreshed.countDown();
                                  return new ModelCacheTracker
-                                         .RefreshedBatch(11L, Map.of());
+                                         .RefreshedBatch(11L, Map.of("sample-1", after));
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -812,7 +808,7 @@ class ModelCacheTrackerTest {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> before = entity(SampleModel.class);
         cache.put("sample-1", before);
         CountDownLatch refreshStarted = new CountDownLatch(1);
@@ -905,7 +901,7 @@ class ModelCacheTrackerTest {
                 polls = polls(eventStore);
         AtomicBoolean missing = new AtomicBoolean();
         CountDownLatch missObserved = new CountDownLatch(1);
-        Cache cache = new AdaptiveObjectCache() {
+        ModelCache cache = new ModelCache(new AdaptiveObjectCache() {
             @Override
             public boolean containsKey(Object id) {
                 if (missing.get()) {
@@ -914,7 +910,7 @@ class ModelCacheTrackerTest {
                 }
                 return super.containsKey(id);
             }
-        };
+        });
         Entity<?> before = entity(SampleModel.class);
         cache.put("sample-1", before);
         try (ModelCacheTracker tracker =
@@ -981,7 +977,7 @@ class ModelCacheTrackerTest {
                 mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> before =
                 entity(SampleModel.class);
         Entity<?> after =
@@ -998,15 +994,12 @@ class ModelCacheTrackerTest {
                                  assertEquals(
                                          11L,
                                          safeStateIndex);
-                                 cache.put(
-                                         "sample-1",
-                                         after);
                                  refreshCount
                                          .incrementAndGet();
                                  refreshed.countDown();
                                  return new ModelCacheTracker
                                          .RefreshedBatch(
-                                                 safeStateIndex, Map.of());
+                                                 safeStateIndex, Map.of("sample-1", after));
                              })) {
             tracker.loaded(
                     "sample-1",
@@ -1055,9 +1048,7 @@ class ModelCacheTrackerTest {
                             TimeUnit.SECONDS));
             assertSame(
                     after,
-                    tracker.current(
-                            "sample-1",
-                            SampleModel.class));
+                    awaitCurrent(tracker, "sample-1", SampleModel.class));
         } finally {
             cache.close();
         }
@@ -1070,7 +1061,7 @@ class ModelCacheTrackerTest {
                 mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> committed =
                 entity(SampleModel.class);
         cache.put("sample-1", committed);
@@ -1134,10 +1125,10 @@ class ModelCacheTrackerTest {
                 mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
-        Entity<?> committed =
-                entity(SampleModel.class);
-        cache.put("sample-1", committed);
+        ModelCache cache = new ModelCache(new DefaultCache());
+        Entity<?> before = modelEntity(10L);
+        Entity<?> committed = modelEntity(11L);
+        cache.put("sample-1", before);
         AtomicInteger refreshCount =
                 new AtomicInteger();
         try (ModelCacheTracker tracker =
@@ -1154,7 +1145,7 @@ class ModelCacheTrackerTest {
                     "sample-1",
                     SampleModel.class,
                     10L);
-            assertSame(committed, awaitCurrent(
+            assertSame(before, awaitCurrent(
                     tracker, "sample-1",
                     SampleModel.class));
             Runnable localCommitComplete =
@@ -1184,6 +1175,7 @@ class ModelCacheTrackerTest {
                             SampleModel.class)));
             assertEquals(0, refreshCount.get());
 
+            cache.put("sample-1", committed);
             tracker.committed(
                     "sample-1",
                     SampleModel.class,
@@ -1208,7 +1200,7 @@ class ModelCacheTrackerTest {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls =
                 polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> initial = modelEntity(10L);
         Entity<?> committed = modelEntity(20L);
         cache.put("sample-1", initial);
@@ -1282,7 +1274,7 @@ class ModelCacheTrackerTest {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls =
                 polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> cached = modelEntity(10L);
         cache.put("sample-1", cached);
         try (ModelCacheTracker tracker =
@@ -1329,7 +1321,7 @@ class ModelCacheTrackerTest {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls =
                 polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> cached = modelEntity(10L);
         cache.put("sample-1", cached);
         CountDownLatch processing = new CountDownLatch(1);
@@ -1392,7 +1384,7 @@ class ModelCacheTrackerTest {
                 mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> committed =
                 modelEntity(11L);
         AtomicInteger refreshCount =
@@ -1467,7 +1459,7 @@ class ModelCacheTrackerTest {
                 mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         cache.put(
                 "sample-1",
                 entity(SampleModel.class));
@@ -1526,7 +1518,7 @@ class ModelCacheTrackerTest {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         cache.put(
                 "sample-1",
                 entity(SampleModel.class));
@@ -1609,8 +1601,8 @@ class ModelCacheTrackerTest {
                 polls = polls(eventStore);
         ConcurrentLinkedQueue<Runnable> evictionNotifications =
                 new ConcurrentLinkedQueue<>();
-        Cache cache = new SoftReferenceCache(
-                100, evictionNotifications::add, null);
+        ModelCache cache = new ModelCache(new SoftReferenceCache(
+                100, evictionNotifications::add, null));
         cache.put("sample-1", entity(SampleModel.class));
         CountDownLatch refreshStarted = new CountDownLatch(1);
         CountDownLatch continueRefresh = new CountDownLatch(1);
@@ -1691,7 +1683,7 @@ class ModelCacheTrackerTest {
                 mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         cache.put(
                 "sample-1",
                 entity(SampleModel.class));
@@ -1734,7 +1726,7 @@ class ModelCacheTrackerTest {
                         CompletableFuture.failedFuture(
                                 new UnsupportedOperationException(
                                         "old runtime")));
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> cached =
                 entity(SampleModel.class);
         cache.put("sample-1", cached);
@@ -1779,7 +1771,7 @@ class ModelCacheTrackerTest {
                 mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>>
                 polls = polls(eventStore);
-        Cache cache = new DefaultCache();
+        ModelCache cache = new ModelCache(new DefaultCache());
         Entity<?> initial =
                 modelEntity(10L);
         Entity<?> committed =

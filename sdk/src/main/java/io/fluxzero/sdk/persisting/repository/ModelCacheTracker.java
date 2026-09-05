@@ -69,7 +69,7 @@ final class ModelCacheTracker implements AutoCloseable {
     private static final int REFRESH_BATCH_SIZE = 1_024;
 
     private final EventStoreClient eventStoreClient;
-    private final Cache cache;
+    private final ModelCache cache;
     private final Refresher refresher;
     private final ConcurrentHashMap<String, Entry> entries =
             new ConcurrentHashMap<>();
@@ -104,11 +104,10 @@ final class ModelCacheTracker implements AutoCloseable {
             pendingTrack;
     private volatile CompletableFuture<Void> processingPage;
     private volatile Thread trackerThread;
-    private volatile CachePublication cachePublication;
 
     ModelCacheTracker(
             EventStoreClient eventStoreClient,
-            Cache cache,
+            ModelCache cache,
             Refresher refresher) {
         this.eventStoreClient =
                 Objects.requireNonNull(
@@ -202,6 +201,9 @@ final class ModelCacheTracker implements AutoCloseable {
         if (entry == null) {
             return null;
         }
+        if (cache.publishing(modelId)) {
+            return null;
+        }
         if (entry.stale) {
             if (entry.latestUpdate
                 > materializedCursor) {
@@ -235,9 +237,9 @@ final class ModelCacheTracker implements AutoCloseable {
             if (entry.stale || entry.retired) {
                 return null;
             }
-            Entity<?> cached = cache.get(modelId);
+            long observedCursor = cursor;
+            Entity<?> cached = cache.get(modelId, entry.cacheStamp);
             if (cached == null) {
-                discardEntry(modelId, entry);
                 return null;
             }
             if (!modelType.equals(cached.type())) {
@@ -261,7 +263,7 @@ final class ModelCacheTracker implements AutoCloseable {
              * already observed history.
              */
             entry.validThrough = Math.max(
-                    entry.validThrough, cursor);
+                    entry.validThrough, observedCursor);
             if (sink != null) {
                 sink.accept(
                         cached,
@@ -297,9 +299,11 @@ final class ModelCacheTracker implements AutoCloseable {
      * Publishes a freshly loaded current value and its inclusive runtime read boundary.
      */
     void loaded(String modelId, Class<?> modelType, long readStateIndex) {
-        publish(
-                modelId, modelType,
-                readStateIndex, true);
+        loaded(modelId, modelType, readStateIndex, cache.stamp(modelId));
+    }
+
+    void loaded(String modelId, Class<?> modelType, long readStateIndex, ModelCache.Stamp stamp) {
+        publish(modelId, modelType, readStateIndex, true, null, stamp);
     }
 
     private Entry publish(
@@ -307,7 +311,7 @@ final class ModelCacheTracker implements AutoCloseable {
             Class<?> modelType,
             long readStateIndex,
             boolean requireGlobalBoundary) {
-        return publish(modelId, modelType, readStateIndex, requireGlobalBoundary, null);
+        return publish(modelId, modelType, readStateIndex, requireGlobalBoundary, null, cache.stamp(modelId));
     }
 
     private Entry publish(
@@ -316,7 +320,12 @@ final class ModelCacheTracker implements AutoCloseable {
             long readStateIndex,
             boolean requireGlobalBoundary,
             Entry expectedEntry) {
-        if (closed.get() || unsupported) {
+        return publish(modelId, modelType, readStateIndex, requireGlobalBoundary, expectedEntry, cache.stamp(modelId));
+    }
+
+    private Entry publish(String modelId, Class<?> modelType, long readStateIndex, boolean requireGlobalBoundary,
+                          Entry expectedEntry, ModelCache.Stamp stamp) {
+        if (closed.get() || unsupported || !cache.isCurrent(stamp)) {
             return null;
         }
         if (!started.get()) {
@@ -337,7 +346,7 @@ final class ModelCacheTracker implements AutoCloseable {
                                 modelId,
                                 modelType,
                                 readStateIndex,
-                                requireGlobalBoundary);
+                                requireGlobalBoundary, expectedEntry, stamp);
                     }
                 });
             }
@@ -355,9 +364,10 @@ final class ModelCacheTracker implements AutoCloseable {
         CompletableFuture<Void> completedRefresh = null;
         boolean refreshNeeded = false;
         synchronized (entry) {
-            if (entry.retired || closed.get()) {
+            if (entry.retired || closed.get() || !cache.isCurrent(stamp)) {
                 return null;
             }
+            entry.cacheStamp = stamp;
             entry.modelType = modelType;
             entry.loaded = true;
             entry.validThrough =
@@ -365,8 +375,8 @@ final class ModelCacheTracker implements AutoCloseable {
                             entry.validThrough,
                             readStateIndex);
             entry.stale =
-                    entry.latestUpdate
-                    > entry.validThrough
+                    entry.latestUpdate > readStateIndex
+                    || entry.latestLocalCommit > readStateIndex
                     || (requireGlobalBoundary
                         || created)
                        && started.get()
@@ -411,11 +421,16 @@ final class ModelCacheTracker implements AutoCloseable {
          * load after this authoritative local commit. A newly created entry keeps the global-boundary fence because
          * it may have missed an update for this model before it was registered.
          */
+        ModelCache.Stamp stamp = cache.stamp(modelId);
+        if (stamp == null || stamp.boundary < stateIndex) {
+            return;
+        }
         if (!closed.get() && !unsupported) {
             Entry current = entries.get(modelId);
             if (current != null) {
                 synchronized (current) {
-                    if (current.loaded && !current.stale && !current.retired) {
+                    if (current.loaded && !current.stale && !current.retired && cache.isCurrent(stamp)) {
+                        current.cacheStamp = stamp;
                         current.modelType = modelType;
                         current.validThrough = Math.max(
                                 current.validThrough, stateIndex);
@@ -428,7 +443,7 @@ final class ModelCacheTracker implements AutoCloseable {
         }
         Entry entry = publish(
                 modelId, modelType,
-                stateIndex, false);
+                stateIndex, false, null, stamp);
         if (entry != null) {
             entry.latestLocalCommit = Math.max(
                     entry.latestLocalCommit, stateIndex);
@@ -532,32 +547,13 @@ final class ModelCacheTracker implements AutoCloseable {
     }
 
     void forget(String modelId) {
+        cache.invalidate(modelId);
         discardEntry(modelId, entries.get(modelId));
-        // Inspect publication after retirement: a write that passed its retirement check must already be visible
-        // here. Eviction may have removed that entry from entries while its cache update was still in progress.
-        CachePublication publication = cachePublication;
-        if (publication != null && publication.entries.containsKey(modelId)) {
-            discardEntry(modelId, publication.entries.get(modelId));
-            if (publication.owner == Thread.currentThread()) {
-                publication.invalidatedOnOwner = true;
-            } else {
-                publication.completed.join();
-            }
-        }
     }
 
     void forgetAll() {
-        // A separate snapshot followed by clear() can discard a newly published entry without releasing its waiter.
+        cache.invalidateAll();
         entries.forEach(this::discardEntry);
-        CachePublication publication = cachePublication;
-        if (publication != null) {
-            publication.entries.forEach(this::discardEntry);
-            if (publication.owner == Thread.currentThread()) {
-                publication.invalidatedOnOwner = true;
-            } else {
-                publication.completed.join();
-            }
-        }
     }
 
     /**
@@ -872,6 +868,7 @@ final class ModelCacheTracker implements AutoCloseable {
         Map<String, Class<?>> targets =
                 new LinkedHashMap<>();
         Map<String, Entry> targetEntries = new LinkedHashMap<>();
+        Map<String, ModelCache.ReadToken> tokens = new LinkedHashMap<>();
         long refreshBoundary =
                 Math.min(
                         cursor,
@@ -908,6 +905,7 @@ final class ModelCacheTracker implements AutoCloseable {
                         && entry.modelType != null) {
                         targets.put(modelId, entry.modelType);
                         targetEntries.put(modelId, entry);
+                        tokens.put(modelId, cache.beginRead(modelId));
                         ensureRefreshWaiter(entry);
                         if (targets.size() == REFRESH_BATCH_SIZE) {
                             fullBatch = true;
@@ -926,15 +924,23 @@ final class ModelCacheTracker implements AutoCloseable {
                             "Model cache refresh advanced beyond its safe tracking boundary "
                             + refreshBoundary);
                 }
-                publishCacheUpdates(refreshed, targetEntries);
-                targets.forEach(
-                        (modelId, modelType) ->
-                                publish(
-                                        modelId,
-                                        modelType,
-                                        refreshed
-                                                .readStateIndex(),
-                                        false, targetEntries.get(modelId)));
+                publishCacheUpdates(refreshed, targetEntries, tokens);
+                targets.forEach((modelId, modelType) -> {
+                    Entry expected = targetEntries.get(modelId);
+                    if (publish(modelId, modelType, refreshed.readStateIndex(), false, expected,
+                                tokens.get(modelId).published()) == null) {
+                        // A successful read can lose its publication race. Readers waiting on this attempt must
+                        // still be released to take the ordinary cache-miss path.
+                        CompletableFuture<Void> waiter;
+                        synchronized (expected) {
+                            waiter = expected.refresh;
+                            expected.refresh = null;
+                        }
+                        if (waiter != null) {
+                            waiter.complete(null);
+                        }
+                    }
+                });
             }
             if (fullBatch) {
                 refreshRequested.set(true);
@@ -950,6 +956,7 @@ final class ModelCacheTracker implements AutoCloseable {
                                 .toNanos(100L));
             }
         } finally {
+            tokens.values().forEach(ModelCache.ReadToken::close);
             if (refreshFailure != null) {
                 Throwable failure =
                         refreshFailure;
@@ -969,57 +976,24 @@ final class ModelCacheTracker implements AutoCloseable {
         }
     }
 
-    private void publishCacheUpdates(RefreshedBatch refreshed, Map<String, Entry> targetEntries) {
-        CachePublication publication = new CachePublication(targetEntries);
-        // No store I/O runs while publication is active. Explicit invalidation waits only for this bounded cache
-        // operation; eviction callbacks retire entries without waiting or acquiring an entry monitor.
-        cachePublication = publication;
-        try {
-            cache.updateAll(
-                    refreshed.cacheUpdates().entrySet(),
-                    Map.Entry::getKey,
-                    (update, current) -> {
-                        Entry expected = targetEntries.get(update.getKey());
-                        if (expected == null || expected.retired || closed.get()) {
-                            return current;
-                        }
-                        // A newer foreground load or local commit may have completed during the store read.
-                        long currentState = current instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
-                        Entity<?> candidate = update.getValue();
-                        if (candidate == null) {
-                            return currentState > refreshed.readStateIndex() ? current : null;
-                        }
-                        long candidateState = candidate instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
-                        if (candidateState < 0L) {
-                            // Headless document responses carry no ordering proof. They may represent a newer
-                            // value or erasure, but cannot replace a revision accepted after this refresh boundary.
-                            return currentState > refreshed.readStateIndex() ? current : candidate;
-                        }
-                        return currentState >= candidateState ? current : candidate;
-                    });
-        } finally {
-            try {
-                // A reentrant cache listener can invalidate on this publication thread and cannot wait for itself.
-                // Remove any retired candidates after updateAll has finished writing them, before releasing waiters.
-                targetEntries.forEach((modelId, entry) -> {
-                    if (entry.retired) {
-                        if (publication.invalidatedOnOwner) {
-                            cache.remove(modelId);
-                        } else {
-                            Entity<?> candidate = refreshed.cacheUpdates().get(modelId);
-                            if (candidate != null) {
-                                // An explicit invalidation may follow an earlier cache removal. Clean only this
-                                // delayed write, preserving a concurrently loaded replacement or absence.
-                                cache.compute(modelId, (ignored, current) -> current == candidate ? null : current);
-                            }
-                        }
-                    }
-                });
-            } finally {
-                publication.completed.complete(null);
-                cachePublication = null;
+    private void publishCacheUpdates(RefreshedBatch refreshed, Map<String, Entry> targetEntries,
+                                     Map<String, ModelCache.ReadToken> tokens) {
+        cache.updateAll(refreshed.cacheUpdates().entrySet(), Map.Entry::getKey, (update, current) -> {
+            Entry expected = targetEntries.get(update.getKey());
+            if (expected == null || expected.retired || closed.get()) {
+                return current;
             }
-        }
+            long currentState = current instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
+            Entity<?> candidate = update.getValue();
+            if (candidate == null) {
+                return currentState > refreshed.readStateIndex() ? current : null;
+            }
+            long candidateState = candidate instanceof ModelRoot<?> model ? model.stateIndex() : -1L;
+            if (candidateState < 0L) {
+                return currentState > refreshed.readStateIndex() ? current : candidate;
+            }
+            return currentState >= candidateState ? current : candidate;
+        }, tokens, refreshed.readStateIndex());
     }
 
     private RefreshedBatch refresh(
@@ -1122,18 +1096,8 @@ final class ModelCacheTracker implements AutoCloseable {
     private static final CurrentModel SUPPLIED =
             new CurrentModel(null, -1L, -1L);
 
-    private static final class CachePublication {
-        private final Map<String, Entry> entries;
-        private final CompletableFuture<Void> completed = new CompletableFuture<>();
-        private final Thread owner = Thread.currentThread();
-        private boolean invalidatedOnOwner;
-
-        private CachePublication(Map<String, Entry> entries) {
-            this.entries = entries;
-        }
-    }
-
     private static final class Entry {
+        private ModelCache.Stamp cacheStamp;
         private volatile Class<?> modelType;
         private volatile boolean loaded;
         // Eviction listeners retire without taking this entry's monitor. The flag also avoids another map
