@@ -124,15 +124,20 @@ class ModelCacheTrackerTest {
 
     @Test
     void forgettingOneModelReleasesItsReaderAndDiscardsLateRefreshPublication() throws Exception {
-        forgetDuringRefresh(false);
+        forgetDuringRefresh(false, false);
     }
 
     @Test
     void forgettingAllModelsReleasesTheirReadersAndDiscardsLateRefreshPublication() throws Exception {
-        forgetDuringRefresh(true);
+        forgetDuringRefresh(true, false);
     }
 
-    private void forgetDuringRefresh(boolean all) throws Exception {
+    @Test
+    void unsupportedTrackingReleasesWaitingReadersAndPreservesCachedValues() throws Exception {
+        forgetDuringRefresh(false, true);
+    }
+
+    private void forgetDuringRefresh(boolean all, boolean unsupported) throws Exception {
         EventStoreClient eventStore = mock(EventStoreClient.class);
         ConcurrentLinkedQueue<CompletableFuture<TrackModelUpdatesResult>> polls = polls(eventStore);
         ConcurrentLinkedQueue<Runnable> evictions = new ConcurrentLinkedQueue<>();
@@ -146,7 +151,7 @@ class ModelCacheTrackerTest {
             if (targets.containsKey("sample-1")) {
                 refreshStarted.countDown();
                 awaitLatch(continueRefresh);
-                // Reconstruction finishes after deletion invalidated the entry that initiated this refresh.
+                // Reconstruction finishes after the tracking entry that initiated this refresh was retired.
             } else {
                 nextRefresh.countDown();
             }
@@ -174,7 +179,9 @@ class ModelCacheTrackerTest {
                 Thread.onSpinWait();
             }
             assertEquals(Thread.State.WAITING, reader.getState());
-            if (all) {
+            if (unsupported) {
+                awaitNext(polls).completeExceptionally(new UnsupportedOperationException("old runtime"));
+            } else if (all) {
                 cache.clear();
                 tracker.forgetAll();
             } else {
@@ -183,6 +190,11 @@ class ModelCacheTrackerTest {
             }
             evictions.forEach(Runnable::run);
             assertNull(lookup.get(1, TimeUnit.SECONDS));
+            if (unsupported) {
+                assertSame(cached, cache.get("sample-1"));
+                assertNull(tracker.current("sample-1", SampleModel.class));
+                return;
+            }
 
             // A second refresh is a completion barrier for the first refresh's publication on the serial executor.
             cache.put("other", entity(SampleModel.class));
@@ -1718,48 +1730,22 @@ class ModelCacheTrackerTest {
     }
 
     @Test
-    void unsupportedTrackingDisablesTheFastPath() {
-        EventStoreClient eventStore =
-                mock(EventStoreClient.class);
-        when(eventStore.trackModelUpdates(any()))
-                .thenReturn(
-                        CompletableFuture.failedFuture(
-                                new UnsupportedOperationException(
-                                        "old runtime")));
+    void unsupportedTrackingDisablesTheFastPath() throws Exception {
+        EventStoreClient eventStore = mock(EventStoreClient.class);
+        when(eventStore.trackModelUpdates(any())).thenReturn(
+                CompletableFuture.failedFuture(new UnsupportedOperationException("old runtime")));
         ModelCache cache = new ModelCache(new DefaultCache());
-        Entity<?> cached =
-                entity(SampleModel.class);
+        Entity<?> cached = entity(SampleModel.class);
         cache.put("sample-1", cached);
-        try (ModelCacheTracker tracker =
-                     new ModelCacheTracker(
-                             eventStore, cache,
-                             (ignored, safeStateIndex) ->
-                                     new ModelCacheTracker
-                                             .RefreshedBatch(
-                                                     safeStateIndex, Map.of()))) {
-            tracker.loaded(
-                    "sample-1",
-                    SampleModel.class,
-                    10L);
-            long deadline =
-                    System.nanoTime()
-                    + TimeUnit.SECONDS
-                            .toNanos(5L);
-            while (tracker.current(
-                    "sample-1",
-                    SampleModel.class) != null
-                   && System.nanoTime()
-                      < deadline) {
-                Thread.onSpinWait();
-            }
+        try (ModelCacheTracker tracker = new ModelCacheTracker(
+                eventStore, cache,
+                (ignored, safeStateIndex) -> new ModelCacheTracker.RefreshedBatch(safeStateIndex, Map.of()))) {
+            tracker.loaded("sample-1", SampleModel.class, 10L);
+            // current() is already unavailable during bootstrap. Await the unsupported response itself.
+            assertFalse(tracker.readiness().get(5, TimeUnit.SECONDS));
 
-            assertNull(
-                    tracker.current(
-                            "sample-1",
-                            SampleModel.class));
-            assertSame(
-                    cached,
-                    cache.get("sample-1"));
+            assertNull(tracker.current("sample-1", SampleModel.class));
+            assertSame(cached, cache.get("sample-1"));
         } finally {
             cache.close();
         }

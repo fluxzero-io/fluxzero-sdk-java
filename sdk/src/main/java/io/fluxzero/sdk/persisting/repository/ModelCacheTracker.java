@@ -646,7 +646,8 @@ final class ModelCacheTracker implements AutoCloseable {
             if (cause
                 instanceof UnsupportedOperationException) {
                 unsupported = true;
-                forgetAll();
+                // Stop tracking proofs and release readers, but retain values for ordinary validated loads.
+                entries.forEach(this::discardEntry);
                 log.debug(
                         "Model update tracking is not supported by this event store");
             } else if (!closed.get()) {
@@ -722,7 +723,7 @@ final class ModelCacheTracker implements AutoCloseable {
                 if (cause
                     instanceof UnsupportedOperationException) {
                     unsupported = true;
-                    forgetAll();
+                    entries.forEach(this::discardEntry);
                     log.debug(
                             "Model update tracking is not supported by this event store");
                     return;
