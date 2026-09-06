@@ -37,6 +37,70 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class BacklogTest {
 
     @Test
+    void shutdownDrainWaitsForQueuedConsumersAndContinuesAfterFailure() throws Exception {
+        BlockingQueue<CompletableFuture<Void>> dispatched = new LinkedBlockingQueue<>();
+        List<CompletableFuture<Void>> results = List.of(
+                new CompletableFuture<>(), new CompletableFuture<>(), new CompletableFuture<>());
+        Backlog<Integer> subject = Backlog.forAsyncConsumer(batch -> {
+            CompletableFuture<Void> result = results.get(batch.getFirst() - 1);
+            dispatched.add(result);
+            return result;
+        }, 1, 1);
+        try {
+            CompletableFuture<Void> submission = subject.add(List.of(1, 2, 3));
+            CompletableFuture<Void> first = dispatched.poll(2, TimeUnit.SECONDS);
+            assertTrue(first != null);
+            CompletableFuture<Void> drain = subject.shutDownAsync().toCompletableFuture();
+            assertFalse(drain.isDone());
+            first.completeExceptionally(new IllegalStateException("expected"));
+            for (int i = 0; i < 2; i++) {
+                CompletableFuture<Void> next = dispatched.poll(2, TimeUnit.SECONDS);
+                assertTrue(next != null);
+                assertFalse(drain.isDone());
+                next.complete(null);
+            }
+            drain.get(2, TimeUnit.SECONDS);
+            assertThrows(Exception.class, () -> submission.get(2, TimeUnit.SECONDS));
+        } finally {
+            results.forEach(result -> result.complete(null));
+            subject.shutDown();
+        }
+    }
+
+    @Test
+    void shutdownConsumerDrainDoesNotWaitForProducerContinuations() throws Exception {
+        CompletableFuture<Void> storage = new CompletableFuture<>();
+        CountDownLatch dispatched = new CountDownLatch(1);
+        CountDownLatch callbackStarted = new CountDownLatch(1);
+        CountDownLatch releaseCallback = new CountDownLatch(1);
+        Backlog<Integer> subject = Backlog.forAsyncConsumer(batch -> {
+            dispatched.countDown();
+            return storage;
+        }, 1, 1);
+        CompletableFuture<Void> producer = subject.add(1).thenRun(() -> {
+            callbackStarted.countDown();
+            try {
+                releaseCallback.await();
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        assertTrue(dispatched.await(2, TimeUnit.SECONDS));
+        CompletableFuture<Void> drain = subject.shutDownAsync().toCompletableFuture();
+        Thread completion = Thread.startVirtualThread(() -> storage.complete(null));
+        try {
+            drain.get(2, TimeUnit.SECONDS);
+            assertTrue(callbackStarted.await(2, TimeUnit.SECONDS));
+            assertFalse(producer.isDone());
+        } finally {
+            releaseCallback.countDown();
+            completion.join(2_000);
+            subject.shutDown();
+        }
+        producer.get(2, TimeUnit.SECONDS);
+    }
+
+    @Test
     void capsInitialBatchCapacity() {
         assertEquals(8, Backlog.initialBatchCapacity(8));
         assertEquals(16, Backlog.initialBatchCapacity(512));

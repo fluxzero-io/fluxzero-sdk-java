@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutorService;
@@ -87,6 +88,7 @@ public class Backlog<T> implements Monitored<List<T>> {
     private final AtomicBoolean flushing = new AtomicBoolean();
     private final AtomicInteger inFlightBatches = new AtomicInteger();
     private final AtomicBoolean shutdownRequested = new AtomicBoolean();
+    private final CompletableFuture<Void> drained = new CompletableFuture<>();
 
     private final Collection<Consumer<List<T>>> monitors = new CopyOnWriteArraySet<>();
 
@@ -603,11 +605,7 @@ public class Backlog<T> implements Monitored<List<T>> {
      */
     public void shutDown() {
         try {
-            shutdownRequested.set(true);
-            if (!queue.isEmpty()) {
-                flushIfNotFlushing(false);
-            }
-            tryShutdownExecutor();
+            shutDownAsync();
             try {
                 executorService.awaitTermination(1L, SECONDS);
             } catch (InterruptedException e) {
@@ -619,9 +617,27 @@ public class Backlog<T> implements Monitored<List<T>> {
         }
     }
 
+    /**
+     * Requests shutdown and completes when all queued batches have finished their consumer work.
+     * Producers must stop adding work before requesting shutdown. Consumer failures remain attached
+     * to their individual submissions; they do not prevent the remaining queue from draining.
+     * This future does not wait for arbitrary producer continuations or executor termination.
+     *
+     * @return a completion stage for the consumer drain
+     */
+    public CompletionStage<Void> shutDownAsync() {
+        shutdownRequested.set(true);
+        if (!queue.isEmpty()) {
+            flushIfNotFlushing(false);
+        }
+        tryShutdownExecutor();
+        return drained.minimalCompletionStage();
+    }
+
     private void tryShutdownExecutor() {
         if (shutdownRequested.get() && queue.isEmpty() && inFlightBatches.get() == 0 && !flushing.get()) {
             executorService.shutdown();
+            drained.complete(null);
         }
     }
 
