@@ -21,11 +21,13 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.tracking.handling.Invocation;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,6 +159,7 @@ public final class ModelBatchScope {
     /**
      * Releases the pending Model commit attached to the current message and returns its existing completion. A context
      * without pending changes completes immediately and never opens transport.
+     * Required predecessor commits are released and their pending transport is flushed before awaiting durability.
      */
     public static CompletableFuture<Void> commitCurrent() {
         DeserializingMessage message = DeserializingMessage.getCurrent();
@@ -476,8 +479,9 @@ public final class ModelBatchScope {
         private final Batch batch;
         private volatile boolean claimed;
         private volatile boolean cancelled;
-        private volatile boolean explicitlyCommitted;
-        private volatile Set<CommitCoordination> dependencies;
+        private volatile boolean progressRequested;
+        /** Values record whether a progress walker has taken responsibility for the producer. */
+        private volatile ConcurrentHashMap<CommitCoordination, Boolean> dependencies;
         volatile Set<String> modelIds;
         volatile ModelCommitBatchingClient.ModelCommitBatch transport;
         volatile int slot = -1;
@@ -523,12 +527,7 @@ public final class ModelBatchScope {
         }
 
         CompletableFuture<Void> commitCurrent() {
-            if (batch == null) {
-                release();
-                flushTransport();
-            } else {
-                batch.commit(this);
-            }
+            requestProgress(List.of(this));
             return attempt.completionResult();
         }
 
@@ -538,15 +537,15 @@ public final class ModelBatchScope {
         }
 
         void dependsOn(CommitCoordination producer) {
-            Set<CommitCoordination> current = dependencies;
+            ConcurrentHashMap<CommitCoordination, Boolean> current = dependencies;
             if (current == null) {
                 synchronized (this) {
                     if ((current = dependencies) == null) {
-                        dependencies = current = ConcurrentHashMap.newKeySet();
+                        dependencies = current = new ConcurrentHashMap<>();
                     }
                 }
             }
-            current.add(producer);
+            current.putIfAbsent(producer, false);
         }
 
         boolean hasDependencies() {
@@ -558,13 +557,100 @@ public final class ModelBatchScope {
         }
 
         CompletableFuture<Void> dependenciesComplete() {
-            return !hasDependencies() ? COMPLETED : CompletableFuture.allOf(
-                    dependencies.stream().map(CommitCoordination::attempt).map(CommitAttempt::completion)
-                            .toArray(CompletableFuture[]::new));
+            if (!hasDependencies()) {
+                return COMPLETED;
+            }
+            Collection<CommitCoordination> awaited = dependencies.keySet();
+            if (!batched() || progressRequested) {
+                while (true) {
+                    List<CommitCoordination> snapshot = List.copyOf(awaited);
+                    List<CommitCoordination> pending = claimDependenciesForProgress(snapshot);
+                    if (pending != null) {
+                        requestProgress(pending);
+                    }
+                    // Flush callbacks can discover additional producers. Claim precisely the set
+                    // whose futures will be awaited, and repeat if that callback grew the set.
+                    if (snapshot.size() == dependencyCount()) {
+                        awaited = snapshot;
+                        break;
+                    }
+                }
+            }
+            return CompletableFuture.allOf(awaited.stream()
+                    .map(CommitCoordination::attempt).map(CommitAttempt::completion)
+                    .toArray(CompletableFuture[]::new));
+        }
+
+        private List<CommitCoordination> newDependenciesForProgress() {
+            ConcurrentHashMap<CommitCoordination, Boolean> current = dependencies;
+            return current == null ? null : claimDependenciesForProgress(current.keySet());
+        }
+
+        private List<CommitCoordination> claimDependenciesForProgress(Iterable<CommitCoordination> candidates) {
+            List<CommitCoordination> pending = null;
+            for (CommitCoordination producer : candidates) {
+                if (Boolean.FALSE.equals(dependencies.get(producer))
+                    && dependencies.replace(producer, false, true)) {
+                    if (pending == null) {
+                        pending = new ArrayList<>();
+                    }
+                    pending.add(producer);
+                }
+            }
+            return pending;
+        }
+
+        private static void requestProgress(Collection<CommitCoordination> roots) {
+            ArrayDeque<CommitCoordination> pending = new ArrayDeque<>(roots);
+            Set<CommitCoordination> visited = new HashSet<>();
+            Set<CommitCoordination> preparedForRelease = new HashSet<>();
+            List<CommitCoordination> selected = new ArrayList<>();
+            Map<Batch, Batch.Ordering> ordering = new HashMap<>();
+            while (!pending.isEmpty()) {
+                CommitCoordination entry = pending.removeLast();
+                if (!visited.add(entry) || entry.attempt.completion().isDone()) {
+                    continue;
+                }
+                if (entry.batch == null) {
+                    entry.progressRequested = true;
+                } else if (entry.batch.prepareProgress(entry, ordering)) {
+                    preparedForRelease.add(entry);
+                }
+                selected.add(entry);
+                List<CommitCoordination> dependencies = entry.newDependenciesForProgress();
+                if (dependencies != null) {
+                    pending.addAll(dependencies);
+                }
+            }
+            // Prepare the entire closure before completing futures: callbacks may immediately ask
+            // for the same dependencies again. Actual durability, including failure, still orders actions.
+            try {
+                for (int index = selected.size() - 1; index >= 0; index--) {
+                    CommitCoordination entry = selected.get(index);
+                    if (preparedForRelease.contains(entry)) {
+                        entry.release();
+                    }
+                    entry.flushTransport();
+                }
+            } catch (RuntimeException | Error failure) {
+                for (CommitCoordination entry : selected) {
+                    try {
+                        entry.fail(failure);
+                    } catch (Throwable cleanupFailure) {
+                        if (cleanupFailure != failure) {
+                            failure.addSuppressed(cleanupFailure);
+                        }
+                    }
+                }
+                throw failure;
+            }
         }
 
         void submit(Function<Boolean, CompletableFuture<Object>> action) {
             claimed = true;
+            if (progressRequested) {
+                requestProgress(List.of(this));
+            }
             attempt.submit(() -> execute(action));
         }
 
@@ -608,10 +694,13 @@ public final class ModelBatchScope {
         }
 
         void fail(Throwable failure) {
-            initialized.completeExceptionally(failure);
-            release.completeExceptionally(failure);
-            settleTransport();
-            attempt.fail(failure);
+            try {
+                initialized.completeExceptionally(failure);
+                release.completeExceptionally(failure);
+                settleTransport();
+            } finally {
+                attempt.fail(failure);
+            }
         }
 
         void release() {
@@ -671,31 +760,106 @@ public final class ModelBatchScope {
             return entry;
         }
 
-        private void commit(CommitCoordination entry) {
-            synchronized (this) {
-                if (entry.explicitlyCommitted) {
+        private synchronized boolean prepareProgress(CommitCoordination entry, Map<Batch, Ordering> plans) {
+            entry.progressRequested = true;
+            // An already running producer only needs its existing prerequisites and transport flush.
+            // Retrospective ordering cannot change its completion and could start unrelated deferred work.
+            if (entry.release.isDone() || !entry.claimed) {
+                return false;
+            }
+            Ordering ordering = plans.computeIfAbsent(this, ignored -> new Ordering());
+            if (ordering.unclaimed.contains(entry)) {
+                // A concurrent initializer claimed this entry after the earlier prefix snapshot.
+                // Its ordering can now use the actual initialized scope.
+                ordering = new Ordering();
+                plans.put(this, ordering);
+            }
+            while (!ordering.dependencies.containsKey(entry) && ordering.next < entries.size()) {
+                CommitCoordination candidate = entries.get(ordering.next++);
+                ordering.add(candidate);
+            }
+            ordering.dependencies.getOrDefault(entry, Set.of()).forEach(entry::dependsOn);
+            Ordering.Prefix unscoped = ordering.unscopedDependencies.get(entry);
+            if (unscoped != null) {
+                for (int index = 0; index < unscoped.size(); index++) {
+                    entry.dependsOn(unscoped.entries().get(index));
+                }
+            }
+            return true;
+        }
+
+        /** Plans each required prefix once per progress request; unselected entries keep their original dependencies. */
+        private static final class Ordering {
+            private int next;
+            private boolean sequential;
+            private final Set<CommitCoordination> frontier = new HashSet<>();
+            private List<CommitCoordination> unscoped = new ArrayList<>();
+            private final Map<String, Set<CommitCoordination>> tails = new HashMap<>();
+            private final Map<CommitCoordination, Set<CommitCoordination>> dependencies = new HashMap<>();
+            private final Map<CommitCoordination, Prefix> unscopedDependencies = new HashMap<>();
+            private final Set<CommitCoordination> unclaimed = new HashSet<>();
+
+            private void add(CommitCoordination entry) {
+                if (entry.cancelled) {
+                    dependencies.put(entry, Set.of());
                     return;
                 }
-                entry.explicitlyCommitted = true;
-                int index = entries.indexOf(entry);
-                if (index > 0) {
-                    List<CommitCoordination> predecessors = entries.subList(0, index);
-                    if (!entry.policy.async()
-                        || predecessors.stream().anyMatch(previous -> !previous.policy.async())) {
-                        predecessors.forEach(entry::dependsOn);
-                    } else if (entry.modelIds == null) {
-                        predecessors.forEach(entry::dependsOn);
-                    } else {
-                        predecessors.stream()
-                                .filter(previous -> previous.modelIds == null
-                                                    || previous.modelIds.stream()
-                                                            .anyMatch(entry.modelIds::contains))
-                                .forEach(entry::dependsOn);
-                    }
+                sequential |= !entry.policy.async();
+                boolean deferred = !entry.release.isDone();
+                boolean claimed = entry.claimed;
+                // Cancellation can complete an unclaimed entry without awaiting its predecessors.
+                // Such an entry cannot replace those predecessors in another commit's ordering.
+                boolean joinsPredecessors = deferred && claimed;
+                Set<CommitCoordination> predecessors = joinsPredecessors ? new HashSet<>() : Set.of();
+                dependencies.put(entry, predecessors);
+                if (!claimed) {
+                    unclaimed.add(entry);
                 }
-                entry.release();
+                if (joinsPredecessors) {
+                    if (sequential || entry.modelIds == null) {
+                        predecessors.addAll(frontier);
+                        frontier.clear();
+                        tails.clear();
+                        unscoped = new ArrayList<>();
+                        unscoped.add(entry);
+                    } else {
+                        if (!unscoped.isEmpty()) {
+                            // Share the append-only prefix; copying it into every independent planned
+                            // entry would be quadratic while many earlier scopes are still unknown.
+                            unscopedDependencies.put(entry, new Prefix(unscoped, unscoped.size()));
+                        }
+                        entry.modelIds.forEach(id -> {
+                            Set<CommitCoordination> tail = tails.get(id);
+                            if (tail != null) {
+                                predecessors.addAll(tail);
+                            }
+                        });
+                    }
+                } else if (entry.modelIds == null) {
+                    unscoped.add(entry);
+                }
+                if (claimed && entry.dependencies != null) {
+                    frontier.removeAll(entry.dependencies.keySet());
+                }
+                if (joinsPredecessors) {
+                    frontier.removeAll(predecessors);
+                }
+                frontier.add(entry);
+                if (!sequential && entry.modelIds != null) {
+                    entry.modelIds.forEach(id -> {
+                        Set<CommitCoordination> tail = tails.computeIfAbsent(id, ignored -> new HashSet<>());
+                        if (joinsPredecessors) {
+                            tail.clear();
+                        } else if (claimed && entry.dependencies != null) {
+                            tail.removeAll(entry.dependencies.keySet());
+                        }
+                        tail.add(entry);
+                    });
+                }
             }
-            entry.flushTransport();
+
+            private record Prefix(List<CommitCoordination> entries, int size) {
+            }
         }
 
         private void close(Throwable failure) {
@@ -732,7 +896,11 @@ public final class ModelBatchScope {
                             .toArray(CompletableFuture[]::new)));
         }
 
-        private synchronized void release(
+        private void release(List<CommitCoordination> all, List<CommitCoordination> deferred) {
+            prepareRelease(all, deferred).forEach(CommitCoordination::release);
+        }
+
+        private synchronized List<CommitCoordination> prepareRelease(
                 List<CommitCoordination> all,
                 List<CommitCoordination> deferred) {
             for (CommitCoordination entry : all) {
@@ -743,13 +911,13 @@ public final class ModelBatchScope {
                 }
             }
             if (deferred.isEmpty()) {
-                return;
+                return List.of();
             }
             deferred = deferred.stream()
-                    .filter(entry -> !entry.explicitlyCommitted)
+                    .filter(entry -> !entry.progressRequested)
                     .toList();
             if (deferred.isEmpty()) {
-                return;
+                return List.of();
             }
             boolean sequential = all.stream().anyMatch(entry -> !entry.policy.async());
             Map<String, CommitCoordination> tails = new HashMap<>();
@@ -774,17 +942,22 @@ public final class ModelBatchScope {
             for (int index = 0; index < deferred.size(); index++) {
                 deferred.get(index).transport(transport, index);
             }
-            deferred.forEach(CommitCoordination::release);
+            return deferred;
         }
 
-        private synchronized void settleTransport(Throwable failure) {
-            if (!transportSettled && readyTransport != null) {
-                transportSettled = true;
-                if (failure == null) {
-                    readyTransport.flush();
-                } else {
-                    readyTransport.fail(failure);
+        private void settleTransport(Throwable failure) {
+            ModelCommitBatchingClient.ModelCommitBatch transport;
+            synchronized (this) {
+                if (transportSettled || readyTransport == null) {
+                    return;
                 }
+                transportSettled = true;
+                transport = readyTransport;
+            }
+            if (failure == null) {
+                transport.flush();
+            } else {
+                transport.fail(failure);
             }
         }
     }

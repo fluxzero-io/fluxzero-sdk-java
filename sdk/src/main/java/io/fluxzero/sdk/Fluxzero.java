@@ -594,6 +594,8 @@ public interface Fluxzero extends AutoCloseable {
      * <p>
      * This is an optional early flush of the existing Model commit, not a separate mutation or commit path. The
      * returned future is the existing durable commit completion and therefore carries the same success or failure.
+     * Required predecessor commits are also released and flushed, so their ordinary batch boundary cannot prevent
+     * the current commit from completing. Independent deferred commits keep their normal commit boundary.
      * When the current context has no pending Model changes, the method returns an already completed future and sends
      * nothing to the Runtime. Automatic committing remains active and observes the same completion.
      *
