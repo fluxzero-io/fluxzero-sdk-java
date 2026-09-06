@@ -23,6 +23,8 @@ import io.fluxzero.common.api.RequestResult;
 import io.fluxzero.common.api.ResultBatch;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.common.websocket.WebSocketTransportCodecs;
+import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -33,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -229,6 +232,52 @@ class ModelCommitWireCodecTest {
         assertEquals(
                 second.getUpdates().getFirst().getStateIndex(),
                 decodedSecond.getUpdates().getFirst().getStateIndex());
+    }
+
+    @Test
+    void retainedTransportContextDoesNotChangeWireBytesOrDecodedCorrelation() throws Exception {
+        CommitModels request = commit("transport", false);
+        RequestResult owned = ModelCommitWireCodec.compactAcceptedResult(request, 101L, 501L, 7L, true);
+        RequestResult scalar = ModelCommitWireCodec.compactAcceptedResult(
+                request.getRequestId(), 101L, 501L, 7L, true);
+
+        assertArrayEquals(ModelCommitWireCodec.tryEncode(scalar), ModelCommitWireCodec.tryEncode(owned));
+        ResultBatch decoded = assertInstanceOf(ResultBatch.class,
+                ModelCommitWireCodec.tryDecode(ModelCommitWireCodec.tryEncode(owned)));
+        RequestResult received = decoded.getResults().getFirst();
+        assertThrows(IllegalStateException.class, () -> ModelCommitWireCodec.materializeTransportResult(received));
+        CommitModelsResult restored = assertInstanceOf(CommitModelsResult.class,
+                ModelCommitWireCodec.restoreResultContext(received, request));
+        assertEquals(request.getCommitId(), restored.getCommitId());
+        assertEquals(request.singleTarget().getModelId(),
+                restored.getUpdates().getFirst().getTargets().getFirst().getModelId());
+        assertSame(restored, ModelCommitWireCodec.materializeTransportResult(restored));
+    }
+
+    @Test
+    void materializesRuntimeResultForOrdinaryTransportsWithIdentityAndTiming() throws Exception {
+        CommitModels request = commit("transport", false);
+        RequestResult compact = ModelCommitWireCodec.compactAcceptedResult(request, 101L, 501L, 7L, true);
+        compact.setRequestReceivedTimestamp(10L);
+        compact.setResponseQueuedTimestamp(20L);
+        compact.setResponseSendStartTimestamp(30L);
+
+        RequestResult expanded = ModelCommitWireCodec.materializeTransportResult(compact);
+        for (WebSocketTransportFormat format : List.of(WebSocketTransportFormat.JSON, WebSocketTransportFormat.CBOR)) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            CommitModelsResult result = assertInstanceOf(CommitModelsResult.class, codec.decode(codec.encode(expanded)));
+            assertEquals(request.getRequestId(), result.getRequestId());
+            assertEquals(request.getCommitId(), result.getCommitId());
+            assertEquals(101L, result.getUpdates().getFirst().getStateIndex());
+            assertEquals(501L, result.getUpdates().getFirst().getEventIndex());
+            assertEquals(request.singleTarget().getModelId(),
+                    result.getUpdates().getFirst().getTargets().getFirst().getModelId());
+            assertEquals(7L, result.getUpdates().getFirst().getTargets().getFirst().getSequenceNumber());
+            assertTrue(result.getUpdates().getFirst().getTargets().getFirst().isHistoryComplete());
+            assertEquals(10L, result.getRequestReceivedTimestamp());
+            assertEquals(20L, result.getResponseQueuedTimestamp());
+            assertEquals(30L, result.getResponseSendStartTimestamp());
+        }
     }
 
     @Test

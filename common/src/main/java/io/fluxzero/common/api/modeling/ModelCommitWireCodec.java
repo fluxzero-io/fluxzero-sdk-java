@@ -120,12 +120,35 @@ public final class ModelCommitWireCodec {
             throw new IllegalStateException(
                     "Compact model commit result requires a single-target request");
         }
+        return materializeResult(result, request.getCommitId(), target.getModelId());
+    }
+
+    /**
+     * Expands a Runtime-owned compact result for an ordinary JSON or CBOR transport, including
+     * when delivery moves to another session. Results already in ordinary form are unchanged.
+     * Decoded compact results must instead use {@link #restoreResultContext(RequestResult, CommitModels)}
+     * because their identities are owned by the correlated request, not by the wire payload.
+     *
+     * @throws IllegalStateException if a compact result has no retained Runtime identities
+     */
+    public static RequestResult materializeTransportResult(RequestResult candidate) {
+        if (!(candidate instanceof CompactSingleTargetResult result)) {
+            return candidate;
+        }
+        if (result.commitId == null || result.modelId == null) {
+            throw new IllegalStateException("Compact model commit result has no retained transport context");
+        }
+        return materializeResult(result, result.commitId, result.modelId);
+    }
+
+    private static CommitModelsResult materializeResult(
+            CompactSingleTargetResult result, String commitId, String modelId) {
         CommitModelsResult restored = CommitModelsResult.acceptedSingleTarget(
                 result.requestId,
-                request.getCommitId(),
+                commitId,
                 result.stateIndex,
                 result.eventIndex,
-                target.getModelId(),
+                modelId,
                 result.sequenceNumber,
                 result.historyComplete);
         restored.setRequestReceivedTimestamp(result.getRequestReceivedTimestamp());
@@ -146,7 +169,24 @@ public final class ModelCommitWireCodec {
             long sequenceNumber,
             boolean historyComplete) {
         return new CompactSingleTargetResult(
-                requestId, stateIndex, eventIndex, sequenceNumber, historyComplete);
+                requestId, stateIndex, eventIndex, sequenceNumber, historyComplete, null, null);
+    }
+
+    /**
+     * Creates a compact Runtime result retaining only the commit and model identity references
+     * needed for delivery through another transport. No request or payload is retained, and the
+     * identities are omitted from the compact wire representation.
+     */
+    public static RequestResult compactAcceptedResult(
+            CommitModels request, long stateIndex, Long eventIndex,
+            long sequenceNumber, boolean historyComplete) {
+        ModelCommitTarget target = request.singleTarget();
+        if (target == null) {
+            throw new IllegalStateException("Compact model commit result requires a single-target request");
+        }
+        return new CompactSingleTargetResult(
+                request.getRequestId(), stateIndex, eventIndex, sequenceNumber, historyComplete,
+                request.getCommitId(), target.getModelId());
     }
 
     /** Returns whether a decoded transport result still needs its correlated request context. */
@@ -364,7 +404,7 @@ public final class ModelCommitWireCodec {
                     input.readLong(),
                     input.readNullableLong(),
                     input.readLong(),
-                    input.readBoolean());
+                    input.readBoolean(), null, null);
             result.setRequestReceivedTimestamp(input.readLong());
             result.setResponseQueuedTimestamp(input.readLong());
             result.setResponseSendStartTimestamp(input.readLong());
@@ -382,6 +422,8 @@ public final class ModelCommitWireCodec {
         Long eventIndex;
         long sequenceNumber;
         boolean historyComplete;
+        String commitId;
+        String modelId;
         long timestamp = System.currentTimeMillis();
 
         @Override
