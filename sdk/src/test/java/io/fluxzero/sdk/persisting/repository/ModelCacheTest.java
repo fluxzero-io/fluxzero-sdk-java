@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,6 +37,46 @@ import java.util.function.Function;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ModelCacheTest {
+    @Test
+    void delayedRemovalNotificationFencesAReadThatStartedAfterPhysicalRemoval() {
+        var notifications = new ConcurrentLinkedQueue<Runnable>();
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, notifications::add, null));
+        try {
+            cache.put("id", "old");
+            cache.remove("id");
+            assertEquals(1, notifications.size());
+            try (var read = cache.beginRead("id")) {
+                notifications.remove().run();
+                assertNull(cache.publish(read, "reconstructed", 10));
+                assertNull(cache.get("id"));
+            }
+            try (var read = cache.beginRead("id")) {
+                assertNotNull(cache.publish(read, "reconstructed", 10));
+                assertEquals("reconstructed", cache.get("id"));
+            }
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void drainedRemovalNotificationDoesNotFenceTheNextRead() {
+        var notifications = new ConcurrentLinkedQueue<Runnable>();
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, notifications::add, null));
+        try {
+            cache.put("id", "old");
+            cache.remove("id");
+            assertEquals(1, notifications.size());
+            notifications.remove().run();
+            try (var read = cache.beginRead("id")) {
+                assertNotNull(cache.publish(read, "reconstructed", 10));
+                assertEquals("reconstructed", cache.get("id"));
+            }
+        } finally {
+            cache.close();
+        }
+    }
+
     @Test
     void serializingCacheDoesNotRequireEntityIdentity() {
         JacksonSerializer serializer = new JacksonSerializer();

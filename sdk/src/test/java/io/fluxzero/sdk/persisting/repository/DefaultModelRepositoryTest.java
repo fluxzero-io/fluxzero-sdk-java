@@ -2031,7 +2031,10 @@ class DefaultModelRepositoryTest {
                      DefaultFluxzero.builder()
                              .disableKeepalive()
                              .disableShutdownHook()
+                             .withModelCache(testCache())
                              .build(client))) {
+            assertTrue(((DefaultModelRepository) fluxzero.modelRepository())
+                               .cacheTrackingReadiness().join());
             fluxzero.commandGateway().send(
                     new CreateGraphRoot(
                             rootId, "root"))
@@ -2075,7 +2078,7 @@ class DefaultModelRepositoryTest {
                     requests.stream()
                             .allMatch(request ->
                                               request.getLastSequenceNumber()
-                                              >= 0L));
+                                              >= 0L), requests::toString);
         }
     }
 
