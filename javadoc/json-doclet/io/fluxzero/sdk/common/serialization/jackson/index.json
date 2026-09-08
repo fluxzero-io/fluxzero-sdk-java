@@ -19,6 +19,11 @@
     "name" : "JacksonSerializer",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer",
     "kind" : "class"
+  }, {
+    "file" : "JacksonSerializer.TypeAliasingJsonParser.json",
+    "name" : "JacksonSerializer.TypeAliasingJsonParser",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser",
+    "kind" : "class"
   } ],
   "subdirectories" : [ ]
 }

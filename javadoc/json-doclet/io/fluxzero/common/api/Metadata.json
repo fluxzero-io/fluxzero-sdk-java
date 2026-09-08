@@ -13,6 +13,33 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "CLASS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata.CLASS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "@class"
+  }, {
+    "name" : "classNameMapper",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata.classNameMapper",
+    "type" : "java.util.function.UnaryOperator<java.lang.String>",
+    "modifiers" : [ "transient" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "value" : "NONE"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "entries",
     "qualifiedName" : "io.fluxzero.common.api.Metadata.entries",
     "type" : "java.util.Map<java.lang.String,java.lang.String>",
@@ -47,6 +74,26 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Constructs a new Metadata instance with the specified map of entries. The entries map defines the key-value pairs\n for this Metadata object.\n\n @param entries a map containing key-value pairs representing the metadata. Keys and values must be non-null and\n                of type String.\n"
+  }, {
+    "name" : "Metadata",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata#Metadata",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entries",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "classNameMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "methods" : [ {
     "name" : "addIfAbsent",
@@ -85,6 +132,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Adds all entries from the specified map to the current {@code Metadata}, ignoring keys that already exist. If a\n key in the provided map already exists in this {@code Metadata}, it will be excluded from the operation.\n\n @param map the map containing entries to be added, unless the keys already exist in this {@code Metadata}\n @return a new {@code Metadata} instance with the combined entries from the original and the provided map,\n excluding entries with duplicate keys\n"
+  }, {
+    "name" : "classNameMappingParser",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata#classNameMappingParser",
+    "returnType" : "com.fasterxml.jackson.core.JsonParser",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "contains",
     "qualifiedName" : "io.fluxzero.common.api.Metadata#contains",
@@ -617,6 +680,25 @@
     "varArgs" : false,
     "documentation" : " Returns a new Metadata instance that includes all the current entries and the mappings provided in the given map.\n If a key in the given map already exists in the current entries, its value will be overwritten.\n\n @param values a map containing the key-value pairs to be added or updated in the metadata\n @return a new Metadata instance with the updated entries\n"
   }, {
+    "name" : "withClassNameMapper",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata#withClassNameMapper",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "classNameMapper",
+      "type" : "java.util.function.@lombok.NonNull UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns metadata that applies the supplied mapper to {@code @class} values when a JSON-encoded entry is read as\n an object. Raw string access and JSON serialization retain the original entry values.\n\n @param classNameMapper maps serialized class names before Jackson resolves them\n @return this instance when the mapper is already attached, otherwise a copy with the mapper attached\n"
+  }, {
     "name" : "withNull",
     "qualifiedName" : "io.fluxzero.common.api.Metadata#withNull",
     "returnType" : "io.fluxzero.common.api.Metadata",
@@ -723,5 +805,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "ClassNameMappingJsonParser",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata$ClassNameMappingJsonParser",
+    "kind" : "class",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ]
+  } ]
 }

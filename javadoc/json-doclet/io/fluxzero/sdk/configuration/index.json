@@ -20,6 +20,11 @@
     "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder",
     "kind" : "class"
   }, {
+    "file" : "DefaultFluxzero.Builder.ConfiguredTypeAliases.json",
+    "name" : "DefaultFluxzero.Builder.ConfiguredTypeAliases",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.DefaultFluxzero$Builder$ConfiguredTypeAliases",
+    "kind" : "record"
+  }, {
     "file" : "FluxzeroBuilder.json",
     "name" : "FluxzeroBuilder",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",

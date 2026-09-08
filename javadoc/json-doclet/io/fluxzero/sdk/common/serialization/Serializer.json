@@ -384,6 +384,48 @@
     "varArgs" : true,
     "documentation" : " Registers one or more downcaster candidates.\n\n @param casterCandidates beans with downcasting logic\n @return a registration handle\n"
   }, {
+    "name" : "registerPackageAlias",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#registerPackageAlias",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "oldPackage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "newPackage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers an alias from a legacy package and all its subpackages to a current package.\n <p>\n Implementations that support package aliases should preserve the class-name suffix and prefer the longest\n matching package prefix when multiple aliases match.\n\n @param oldPackage the legacy package name, without a trailing wildcard\n @param newPackage the current package name, without a trailing wildcard\n @return a registration handle\n"
+  }, {
+    "name" : "registerTypeAlias",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#registerTypeAlias",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "oldType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "newType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers an exact alias from a serialized type name to its current type name.\n <p>\n This is the preferred name for {@link #registerTypeCaster(String, String)}. Multiple aliases may be registered\n and chained. Exact aliases take precedence over package aliases.\n\n @param oldType the legacy serialized type name\n @param newType the current type name\n @return a registration handle\n"
+  }, {
     "name" : "registerTypeCaster",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#registerTypeCaster",
     "returnType" : "io.fluxzero.common.Registration",

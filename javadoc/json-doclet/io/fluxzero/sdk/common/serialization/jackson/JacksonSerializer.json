@@ -13,6 +13,14 @@
   "superClass" : "io.fluxzero.sdk.common.serialization.AbstractSerializer<com.fasterxml.jackson.databind.JsonNode>",
   "interfaces" : [ "io.fluxzero.sdk.persisting.search.DocumentSerializer" ],
   "fields" : [ {
+    "name" : "CLASS_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.CLASS_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "@class"
+  }, {
     "name" : "contentFilter",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer.contentFilter",
     "type" : "io.fluxzero.sdk.common.serialization.ContentFilter",
@@ -219,6 +227,27 @@
     "varArgs" : false,
     "documentation" : " Fallback handler for deserialization of unknown types. Attempts best-effort conversion using Jackson.\n"
   }, {
+    "name" : "deserializeWithAliases",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#deserializeWithAliases",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parser",
+      "type" : "com.fasterxml.jackson.core.JsonParser",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "com.fasterxml.jackson.databind.JavaType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "doClone",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#doClone",
     "returnType" : "java.lang.Object",
@@ -399,6 +428,38 @@
     "varArgs" : false,
     "documentation" : " Determines whether the given type is known to the Jackson type system.\n"
   }, {
+    "name" : "mayContainClassProperty",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#mayContainClassProperty",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mayContainClassProperty",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#mayContainClassProperty",
+    "returnType" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "toDocument",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#toDocument",
     "returnType" : "io.fluxzero.common.api.search.SerializedDocument",
@@ -445,5 +506,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "TypeAliasingJsonParser",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser",
+    "kind" : "class",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ]
+  } ]
 }

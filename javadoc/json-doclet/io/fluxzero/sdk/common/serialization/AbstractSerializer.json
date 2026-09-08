@@ -32,8 +32,32 @@
     "documentation" : null,
     "constantValue" : null
   }, {
-    "name" : "typeCasters",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.typeCasters",
+    "name" : "packageAliases",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.packageAliases",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "typeAliasMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.typeAliasMonitor",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "typeAliasResolver",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.typeAliasResolver",
+    "type" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.TypeAliasResolver",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "typeAliases",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer.typeAliases",
     "type" : "java.util.Map<java.lang.String,java.lang.String>",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
@@ -106,6 +130,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Converts a {@link Type} to a readable string name.\n"
+  }, {
+    "name" : "attachClassNameMapper",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#attachClassNameMapper",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "clone",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#clone",
@@ -514,6 +554,17 @@
     "varArgs" : false,
     "documentation" : " Resolves the effective string representation of an object's type, including generic parameters if applicable.\n"
   }, {
+    "name" : "hasTypeAliases",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#hasTypeAliases",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether exact or package aliases are currently registered.\n"
+  }, {
     "name" : "isKnownType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#isKnownType",
     "returnType" : "boolean",
@@ -554,6 +605,32 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "registerAlias",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#registerAlias",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aliases",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "registerDowncasters",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#registerDowncasters",
     "returnType" : "io.fluxzero.common.Registration",
@@ -572,6 +649,54 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : " Registers custom downcasters for transforming newer object states to older revisions.\n"
+  }, {
+    "name" : "registerPackageAlias",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#registerPackageAlias",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "oldPackage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "newPackage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerTypeAlias",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#registerTypeAlias",
+    "returnType" : "io.fluxzero.common.Registration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "oldType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "newType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   }, {
     "name" : "registerTypeCaster",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#registerTypeCaster",
@@ -681,9 +806,47 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Resolves the current type from a potentially chained upcast mapping.\n"
+    "documentation" : " Resolves the current type from potentially chained exact and package aliases.\n"
+  }, {
+    "name" : "updateTypeAliasResolver",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#updateTypeAliasResolver",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validatePackageName",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#validatePackageName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameterName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "TypeAliasResolver",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer$TypeAliasResolver",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

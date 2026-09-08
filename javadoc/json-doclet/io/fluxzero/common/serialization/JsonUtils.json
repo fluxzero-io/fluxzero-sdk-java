@@ -279,6 +279,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializeArrayWithTypeMapper",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeArrayWithTypeMapper",
+    "returnType" : "java.util.List<java.lang.Object>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parser",
+      "type" : "com.fasterxml.jackson.core.JsonParser",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserializeRevisioned",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeRevisioned",
     "returnType" : "java.lang.Object",
@@ -311,6 +332,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializeSequenceWithTypeMapper",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeSequenceWithTypeMapper",
+    "returnType" : "java.util.List<java.lang.Object>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parser",
+      "type" : "com.fasterxml.jackson.core.JsonParser",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserializeUntypedNode",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeUntypedNode",
     "returnType" : "java.lang.Object",
@@ -327,6 +369,27 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "deserializeUntypedNode",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeUntypedNode",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "deserializeValueOrSequence",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeValueOrSequence",
     "returnType" : "java.lang.Object",
@@ -336,6 +399,32 @@
     "parameters" : [ {
       "name" : "parser",
       "type" : "com.fasterxml.jackson.core.JsonParser",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deserializeWithTypeMapper",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#deserializeWithTypeMapper",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "content",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ndjson",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -619,6 +708,40 @@
     "varArgs" : false,
     "documentation" : " Loads and deserializes a JSON file located relative to the calling class, applies property replacements, and\n returns the resulting object. The method supports updating specific properties of the deserialized object using\n the provided replacement values.\n"
   }, {
+    "name" : "fromFileWithTypeMapper",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromFileWithTypeMapper",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "referencePoint",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads an untyped JSON fixture while mapping every non-revisioned {@code @class} value before Jackson resolves\n it. Revisioned roots retain their declared serialized type so an external caster can apply aliases after\n upcasting.\n\n @param referencePoint the class used to resolve the resource\n @param fileName the JSON, JSONL, or NDJSON resource name\n @param typeMapper maps serialized type identifiers to their effective names\n @return the deserialized object, or a list for a root array or newline-delimited resource\n"
+  }, {
     "name" : "fromJson",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJson",
     "returnType" : "T",
@@ -878,6 +1001,35 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "fromJsonWithTypeMapper",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#fromJsonWithTypeMapper",
+    "returnType" : "T",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    }, {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "json",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Deserializes untyped JSON while mapping every non-revisioned {@code @class} value before Jackson resolves it.\n Revisioned roots retain their declared serialized type so an external caster can apply aliases after upcasting.\n\n @param json JSON content to deserialize\n @param typeMapper maps serialized type identifiers to their effective names\n @return the deserialized object, or a list for a root array or newline-delimited content\n"
+  }, {
     "name" : "getContent",
     "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#getContent",
     "returnType" : "java.lang.String",
@@ -946,6 +1098,27 @@
     "parameters" : [ {
       "name" : "fileName",
       "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mapClassProperties",
+    "qualifiedName" : "io.fluxzero.common.serialization.JsonUtils#mapClassProperties",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "node",
+      "type" : "com.fasterxml.jackson.databind.JsonNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "typeMapper",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],

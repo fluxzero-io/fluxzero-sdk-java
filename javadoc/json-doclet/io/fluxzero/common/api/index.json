@@ -70,6 +70,11 @@
     "qualifiedName" : "io.fluxzero.common.api.Metadata",
     "kind" : "class"
   }, {
+    "file" : "Metadata.ClassNameMappingJsonParser.json",
+    "name" : "Metadata.ClassNameMappingJsonParser",
+    "qualifiedName" : "io.fluxzero.common.api.Metadata$ClassNameMappingJsonParser",
+    "kind" : "class"
+  }, {
     "file" : "Request.json",
     "name" : "Request",
     "qualifiedName" : "io.fluxzero.common.api.Request",

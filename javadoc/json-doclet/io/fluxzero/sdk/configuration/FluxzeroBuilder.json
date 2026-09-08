@@ -9,7 +9,15 @@
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "io.fluxzero.sdk.configuration.FluxzeroConfiguration" ],
-  "fields" : [ ],
+  "fields" : [ {
+    "name" : "TYPE_ALIASES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder.TYPE_ALIASES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : " Property containing comma-, semicolon-, or newline-separated type aliases in {@code source=target} form.\n Package aliases use a trailing {@code .*} on both sides.\n The conventional environment-variable name is {@code FLUXZERO_SERIALIZATION_TYPE_ALIASES}.\n",
+    "constantValue" : "fluxzero.serialization.typeAliases"
+  } ],
   "constructors" : [ ],
   "methods" : [ {
     "name" : "addBatchInterceptor",
@@ -117,6 +125,43 @@
     "varArgs" : true,
     "documentation" : " Adds a {@link HandlerInterceptor} for given message types.\n <p>\n You can use {@link io.fluxzero.sdk.common.Order @Order} on the interceptor class to influence\n ordering. Lower values have higher priority. Interceptors with a negative order value run in the high-priority\n slot, while zero, positive, or missing values run in the regular slot. Interceptors registered via Java's\n {@link java.util.ServiceLoader} are also picked up automatically and participate in the same ordering.\n"
   }, {
+    "name" : "addPackageAlias",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addPackageAlias",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "oldPackage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "newPackage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds an alias from a legacy package and all its subpackages to a current package.\n <p>\n Package names are supplied without a trailing wildcard. When aliases overlap, the longest matching package\n prefix wins; an exact type alias always takes precedence.\n"
+  }, {
+    "name" : "addPackageAliases",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addPackageAliases",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aliases",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adds multiple package-prefix aliases. "
+  }, {
     "name" : "addParameterResolver",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addParameterResolver",
     "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
@@ -148,6 +193,43 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Adds a {@link PropertySource} to the configuration chain.\n"
+  }, {
+    "name" : "addTypeAlias",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addTypeAlias",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "oldType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "newType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Adds an exact alias from a legacy serialized type name to its current type name.\n <p>\n Multiple aliases may be added. Programmatic aliases take precedence over aliases for the same source configured\n through {@link #TYPE_ALIASES_PROPERTY}.\n"
+  }, {
+    "name" : "addTypeAliases",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#addTypeAliases",
+    "returnType" : "io.fluxzero.sdk.configuration.FluxzeroBuilder",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aliases",
+      "type" : "java.util.Map<java.lang.String,java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adds multiple exact aliases from legacy serialized type names to their current type names. "
   }, {
     "name" : "build",
     "qualifiedName" : "io.fluxzero.sdk.configuration.FluxzeroBuilder#build",

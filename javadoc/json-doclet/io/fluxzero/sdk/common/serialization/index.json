@@ -10,6 +10,26 @@
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer",
     "kind" : "class"
   }, {
+    "file" : "AbstractSerializer.TypeAliasResolver.json",
+    "name" : "AbstractSerializer.TypeAliasResolver",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer$TypeAliasResolver",
+    "kind" : "class"
+  }, {
+    "file" : "AbstractSerializer.TypeAliasResolver.MutablePrefixNode.json",
+    "name" : "AbstractSerializer.TypeAliasResolver.MutablePrefixNode",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer$TypeAliasResolver$MutablePrefixNode",
+    "kind" : "class"
+  }, {
+    "file" : "AbstractSerializer.TypeAliasResolver.PackageAlias.json",
+    "name" : "AbstractSerializer.TypeAliasResolver.PackageAlias",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer$TypeAliasResolver$PackageAlias",
+    "kind" : "record"
+  }, {
+    "file" : "AbstractSerializer.TypeAliasResolver.PrefixNode.json",
+    "name" : "AbstractSerializer.TypeAliasResolver.PrefixNode",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer$TypeAliasResolver$PrefixNode",
+    "kind" : "record"
+  }, {
     "file" : "ChunkedDeserializingMessage.json",
     "name" : "ChunkedDeserializingMessage",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage",
