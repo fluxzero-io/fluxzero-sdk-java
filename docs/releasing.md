@@ -33,7 +33,7 @@ Do not disable immutability to republish rebuilt files or regenerated signatures
 
 Fluxzero Packages trusts branch and tag workflows in the `fluxzero-io` organization
 via GitHub OIDC. The publishing job needs `id-token: write` and requests audience
-`https://packages.fluxzero.io/maven` immediately before deployment. Its Maven server
+`https://packages.fluxzero.io/publish/maven` immediately before deployment. Its Maven server
 has ID `fluxzero`, username `github-actions` and the short-lived token as password.
 There is no long-lived package upload secret. The existing GPG secrets are still
 needed for signatures, and the Central job retains its own existing credentials.

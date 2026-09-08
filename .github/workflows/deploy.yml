@@ -204,7 +204,7 @@ jobs:
         run: |
           set +x
           token=$(curl --fail --silent --show-error --get \
-            --data-urlencode 'audience=https://packages.fluxzero.io/maven' \
+            --data-urlencode 'audience=https://packages.fluxzero.io/publish/maven' \
             --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -er '.value')
           echo "::add-mask::$token"
