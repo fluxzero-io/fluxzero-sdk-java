@@ -513,8 +513,8 @@ final class ModelPipeline {
                 : admissionSession.submit(
                         () -> admissionScope(namespace, evaluation, prepared),
                         batch, batchSlot,
-                        (effectiveBatch, effectiveSlot) -> repositoryCommit.commitPrepared(
-                                prepared, effectiveBatch, effectiveSlot));
+                        (effectiveBatch, effectiveSlot) -> context.supply(() -> repositoryCommit.commitPrepared(
+                                prepared, effectiveBatch, effectiveSlot)));
         return submission
                 .thenCompose(optional -> {
                     if (optional.isEmpty()) {
@@ -540,7 +540,7 @@ final class ModelPipeline {
                                             result, evaluation),
                                     "Model commit reevaluation returned null",
                                     asynchronousReevaluation))
-                            .thenCompose(next -> {
+                            .thenCompose(context.wrap(next -> {
                                 if (retry.accepting()
                                     && !validRebaseBoundary(
                                             evaluation, result.getRebaseStateIndex(),
@@ -565,7 +565,7 @@ final class ModelPipeline {
                                         context, attempts + 1, null, -1,
                                         asynchronousReevaluation,
                                         admissionSession, namespace);
-                            });
+                            }));
                 });
     }
 

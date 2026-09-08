@@ -17,7 +17,9 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.ModelCommitConflict;
@@ -54,6 +56,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -1232,6 +1237,111 @@ class DefaultModelRepositoryCommitTest {
     }
 
     @Test
+    void asynchronousRebasePreservesPreparationAndSubmissionContext() throws Exception {
+        assertRetryPreparationContext(true, true);
+        assertRetryPreparationContext(true, false);
+    }
+
+    @Test
+    void asynchronousConflictRetryPreservesPreparationAndSubmissionContext() throws Exception {
+        assertRetryPreparationContext(false, true);
+        assertRetryPreparationContext(false, false);
+    }
+
+    private void assertRetryPreparationContext(boolean accepting, boolean completedEvaluation) throws Exception {
+        Fluxzero expected = mock(Fluxzero.class);
+        Fluxzero callbackContext = mock(Fluxzero.class);
+        List<String> contextChecks = new CopyOnWriteArrayList<>();
+        JacksonSerializer contextSerializer = new JacksonSerializer() {
+            @Override
+            public Data<byte[]> serialize(Object value, String format) {
+                if (value instanceof ContextModel) {
+                    assertSame(expected, Fluxzero.instance.get(), "snapshot serialization context");
+                    contextChecks.add("snapshot");
+                }
+                return super.serialize(value, format);
+            }
+
+            @Override
+            public SerializedDocument toDocument(Object value, String id, String collection,
+                                                 Instant timestamp, Instant end, Metadata metadata) {
+                assertSame(expected, Fluxzero.instance.get(), "document serialization context");
+                contextChecks.add("document");
+                return super.toDocument(value, id, collection, timestamp, end, metadata);
+            }
+        };
+        DispatchInterceptor interceptor = new DispatchInterceptor() {
+            @Override
+            public Message interceptDispatch(Message message, MessageType type, String topic) {
+                return message;
+            }
+
+            @Override
+            public SerializedMessage modifySerializedMessage(SerializedMessage serialized, Message message,
+                                                             MessageType type, String topic) {
+                assertSame(expected, Fluxzero.instance.get(), "event dispatch context");
+                contextChecks.add("event");
+                return serialized;
+            }
+        };
+        EventStoreClient client = mock(EventStoreClient.class);
+        Commit contextProtocol = repository.new Commit(client, contextSerializer, contextSerializer,
+                interceptor, "client", contextSerializer, GraphProjectionCompletion.ASYNC);
+        ContextModel stale = new ContextModel("context-model", "stale");
+        ContextModel merged = new ContextModel("context-model", "merged");
+        var original = contextEvaluation(41L, null, stale);
+        var rebased = contextEvaluation(51L, stale, merged);
+        CompletableFuture<CommitModelsResult> first = new CompletableFuture<>();
+        CompletableFuture<CommitAttempt> deferredEvaluation = new CompletableFuture<>();
+        CountDownLatch evaluated = new CountDownLatch(1);
+        AtomicInteger attempts = new AtomicInteger();
+        when(client.commitModels(any())).thenAnswer(invocation -> {
+            assertSame(expected, Fluxzero.instance.get(), "submission context");
+            return attempts.getAndIncrement() == 0 ? first
+                    : CompletableFuture.completedFuture(result(invocation.getArgument(0)));
+        });
+        ModelPipeline.RetryEvaluator evaluator = (response, attempt) -> {
+            assertSame(expected, Fluxzero.instance.get(), "evaluation context");
+            evaluated.countDown();
+            return completedEvaluation ? CompletableFuture.completedFuture(rebased) : deferredEvaluation;
+        };
+        CompletableFuture<Optional<CommitModelsResult>> completion;
+        Fluxzero.instance.set(expected);
+        try {
+            completion = ModelPipeline.commit(contextProtocol, "context", original,
+                    accepting ? ModelConflictPolicy.ACCEPT : ModelConflictPolicy.RETRY,
+                    accepting ? ModelPipeline.Retry.accepting(evaluator)
+                            : ModelPipeline.Retry.conflicts(ignored -> ModelConflictResolver.Resolution.RETRY, 1, evaluator),
+                    null, -1, true);
+        } finally {
+            Fluxzero.instance.remove();
+        }
+        Fluxzero.instance.set(callbackContext);
+        try {
+            first.complete(accepting
+                    ? CommitModelsResult.rebase(1L, "context", List.of(new ModelCommitConflict("context-model", 51L, -1L)), 51L)
+                    : CommitModelsResult.conflict(1L, "context", List.of(new ModelCommitConflict("context-model", 51L, -1L)), true));
+            assertTrue(evaluated.await(5, TimeUnit.SECONDS));
+            deferredEvaluation.complete(rebased);
+            assertTrue(completion.orTimeout(5, TimeUnit.SECONDS).join().orElseThrow().isAccepted());
+            assertSame(callbackContext, Fluxzero.instance.get(), "caller context must be restored");
+        } finally {
+            Fluxzero.instance.remove();
+        }
+        assertEquals(2, attempts.get());
+        for (String phase : List.of("event", "document", "snapshot")) {
+            assertEquals(2L, contextChecks.stream().filter(phase::equals).count(), phase);
+        }
+    }
+
+    private static CommitAttempt contextEvaluation(long boundary, ContextModel before, ContextModel after)
+            throws Exception {
+        return evaluation(boundary, List.of(after.id()), Map.of(after.id(), ContextModel.class),
+                List.of(substep(new UpdateContextModel(), transition(after.id(), ContextModel.class, before, after,
+                        UpdateContextModel.class, "apply", ContextModel.class))), Map.of(after.id(), after));
+    }
+
+    @Test
     void neverPublicationUpdatesStateAndDirectDocumentWithoutCreatingEvent() throws Exception {
         PrivateDocumentId id = new PrivateDocumentId("1");
         PrivateDocument after = new PrivateDocument(
@@ -1642,6 +1752,17 @@ class DefaultModelRepositoryCommitTest {
     @Model(snapshotPeriod = 2, maxSnapshotCount = 3)
     private record SnapshotModel(
             @EntityId SnapshotId id, String value) {
+    }
+
+    @Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}, snapshotPeriod = 1)
+    private record ContextModel(@EntityId String id, String value) {
+    }
+
+    private record UpdateContextModel() {
+        @Apply
+        ContextModel apply(ContextModel current) {
+            return current;
+        }
     }
 
     private static class SnapshotId
