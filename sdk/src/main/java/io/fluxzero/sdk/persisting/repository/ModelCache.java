@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,17 +156,65 @@ final class ModelCache implements Cache {
             return new ReadToken(new State(id), -1L, epoch);
         }
         try {
-            ReadToken[] result = new ReadToken[1];
-            states.compute(id, (key, current) -> {
-                State state = current == null ? new State(key) : current;
-                state.readers++;
-                result[0] = new ReadToken(state, state.version, epoch);
-                return state;
-            });
-            return result[0];
+            return registerRead(id);
         } finally {
             exitOperation();
         }
+    }
+
+    /** Registers independent read fences under one short cache-view admission. */
+    Map<String, ReadToken> beginReads(Collection<String> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, ReadToken> result = LinkedHashMap.newLinkedHashMap(ids.size());
+        boolean admitted = enterOperation();
+        Throwable primaryFailure = null;
+        try {
+            for (String id : ids) {
+                Objects.requireNonNull(id);
+                if (!result.containsKey(id)) {
+                    result.put(id, admitted ? registerRead(id) : new ReadToken(new State(id), -1L, epoch));
+                }
+            }
+            return result;
+        } catch (RuntimeException | Error failure) {
+            primaryFailure = failure;
+            for (ReadToken token : result.values()) {
+                try {
+                    token.close();
+                } catch (RuntimeException | Error cleanupFailure) {
+                    if (cleanupFailure != failure) {
+                        failure.addSuppressed(cleanupFailure);
+                    }
+                }
+            }
+            throw failure;
+        } finally {
+            if (admitted) {
+                try {
+                    exitOperation();
+                } catch (RuntimeException | Error exitFailure) {
+                    if (primaryFailure == null) {
+                        throw exitFailure;
+                    }
+                    if (exitFailure != primaryFailure) {
+                        primaryFailure.addSuppressed(exitFailure);
+                    }
+                }
+            }
+        }
+    }
+
+    private ReadToken registerRead(Object id) {
+        ReadToken[] result = new ReadToken[1];
+        states.compute(id, (key, current) -> {
+            State state = current == null ? new State(key) : current;
+            state.readers++;
+            result[0] = new ReadToken(state, state.version, epoch);
+            return state;
+        });
+        return result[0];
     }
 
     /** Publishes only if no writer or invalidation superseded this read after it began. */

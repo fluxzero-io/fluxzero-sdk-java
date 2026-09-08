@@ -13,12 +13,16 @@
  */
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.Registration;
+import io.fluxzero.common.caching.CacheEviction;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
 import io.fluxzero.sdk.persisting.caching.SoftReferenceCache;
 import org.junit.jupiter.api.Test;
 
+import java.util.AbstractList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -26,6 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -400,6 +405,185 @@ class ModelCacheTest {
             assertEquals(0, trackedKeys(first));
         } finally {
             register.countDown();
+            physical.close();
+        }
+    }
+
+    @Test
+    void bulkReadTokensDeduplicateIdsAndKeepIndependentInvalidationFences() throws Exception {
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, Runnable::run, null));
+        try {
+            var tokens = cache.beginReads(List.of("first", "second", "first"));
+            try {
+                assertEquals(List.of("first", "second"), List.copyOf(tokens.keySet()));
+                cache.invalidate("first");
+                assertNull(cache.publish(tokens.get("first"), "obsolete", 10));
+                assertNotNull(cache.publish(tokens.get("second"), "current", 10));
+            } finally {
+                tokens.values().forEach(ModelCache.ReadToken::close);
+                tokens.values().forEach(ModelCache.ReadToken::close);
+            }
+            assertNull(cache.get("first"));
+            assertEquals("current", cache.get("second"));
+            assertEquals(1, trackedKeys(cache));
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void failedBulkReadRegistrationReleasesAlreadyAcquiredTokens() throws Exception {
+        SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
+        try {
+            ModelCache first = ModelCache.shared(physical, "namespace");
+            assertThrows(NullPointerException.class, () -> first.beginReads(Arrays.asList("first", null, "last")));
+            assertEquals(0, trackedKeys(first));
+            first.releaseShared();
+            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            try {
+                assertNotSame(first, replacement);
+            } finally {
+                replacement.releaseShared();
+            }
+        } finally {
+            physical.close();
+        }
+    }
+
+    @Test
+    void bulkRegistrationPinsTheViewBeforeTheFirstTokenBecomesVisible() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1), register = new CountDownLatch(1);
+        SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
+        try {
+            ModelCache first = ModelCache.shared(physical, "namespace");
+            List<String> ids = new AbstractList<>() {
+                @Override
+                public String get(int index) {
+                    entered.countDown();
+                    await(register);
+                    return "id";
+                }
+                @Override
+                public int size() {
+                    return 1;
+                }
+            };
+            var pending = async(() -> first.beginReads(ids));
+            await(entered);
+            first.releaseShared();
+            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            try {
+                assertSame(first, replacement);
+                register.countDown();
+                pending.get(5, TimeUnit.SECONDS).values().forEach(ModelCache.ReadToken::close);
+            } finally {
+                replacement.releaseShared();
+            }
+            assertEquals(0, trackedKeys(first));
+        } finally {
+            register.countDown();
+            physical.close();
+        }
+    }
+
+    @Test
+    void bulkTokensCaptureTheEpochOfEachRegistration() {
+        ModelCache cache = new ModelCache(new SoftReferenceCache(100, Runnable::run, null));
+        try {
+            var tokens = cache.beginReads(new AbstractList<>() {
+                @Override
+                public String get(int index) {
+                    if (index == 1) {
+                        cache.invalidateAll();
+                    }
+                    return index == 0 ? "before" : "after";
+                }
+                @Override
+                public int size() {
+                    return 2;
+                }
+            });
+            try {
+                assertNull(cache.publish(tokens.get("before"), "obsolete", 10));
+                assertNotNull(cache.publish(tokens.get("after"), "current", 10));
+                assertEquals("current", cache.get("after"));
+            } finally {
+                tokens.values().forEach(ModelCache.ReadToken::close);
+            }
+        } finally {
+            cache.close();
+        }
+    }
+
+    @Test
+    void retiredViewCannotPublishWithBulkReadTokens() throws Exception {
+        SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null);
+        try {
+            ModelCache retired = ModelCache.shared(physical, "namespace");
+            retired.releaseShared();
+            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            try {
+                replacement.put("id", "current");
+                var tokens = retired.beginReads(List.of("id"));
+                try {
+                    assertNull(retired.publish(tokens.get("id"), "obsolete", 10));
+                } finally {
+                    tokens.values().forEach(ModelCache.ReadToken::close);
+                }
+                assertEquals("current", replacement.get("id"));
+                assertEquals(0, trackedKeys(retired));
+            } finally {
+                replacement.releaseShared();
+            }
+        } finally {
+            physical.close();
+        }
+    }
+
+    @Test
+    void bulkRegistrationKeepsItsOriginalFailureWhenRetirementCleanupAlsoFails() throws Exception {
+        IllegalStateException original = new IllegalStateException("registration failed");
+        IllegalArgumentException cleanup = new IllegalArgumentException("listener cancellation failed");
+        AtomicBoolean failCancellation = new AtomicBoolean();
+        SoftReferenceCache physical = new SoftReferenceCache(100, Runnable::run, null) {
+            @Override
+            public Registration registerEvictionListener(Consumer<CacheEviction> listener) {
+                Registration registration = super.registerEvictionListener(listener);
+                return () -> {
+                    registration.cancel();
+                    if (failCancellation.compareAndSet(true, false)) {
+                        throw cleanup;
+                    }
+                };
+            }
+        };
+        try {
+            ModelCache cache = ModelCache.shared(physical, "namespace");
+            List<String> ids = new AbstractList<>() {
+                @Override
+                public String get(int index) {
+                    if (index == 1) {
+                        cache.releaseShared();
+                        failCancellation.set(true);
+                        throw original;
+                    }
+                    return "first";
+                }
+                @Override
+                public int size() {
+                    return 2;
+                }
+            };
+            assertSame(original, assertThrows(IllegalStateException.class, () -> cache.beginReads(ids)));
+            assertArrayEquals(new Throwable[]{cleanup}, original.getSuppressed());
+            assertEquals(0, trackedKeys(cache));
+            ModelCache replacement = ModelCache.shared(physical, "namespace");
+            try {
+                assertNotSame(cache, replacement);
+            } finally {
+                replacement.releaseShared();
+            }
+        } finally {
             physical.close();
         }
     }
