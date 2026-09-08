@@ -66,6 +66,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -308,6 +309,98 @@ class ModelCommitHandlerRegistryTest {
             verify(repository).invalidateModels(
                     List.of("retry-boundary"));
         } finally {
+            subject.close();
+        }
+    }
+
+    @Test
+    void overlappingAcceptCommitsAcrossTrackingBatchesCannotOvertake() {
+        BatchParentId id = new BatchParentId("cross-batch-accept");
+        AtomicReference<BatchParent> durable = new AtomicReference<>(new BatchParent(id, 0));
+        AtomicLong durableStateIndex = new AtomicLong();
+        DefaultModelRepository repository = mock(DefaultModelRepository.class);
+        org.mockito.stubbing.Answer<CommitAttempt> load = invocation -> {
+            MutationPlan.Resolution resolution = invocation.getArgument(0);
+            Long requestedBoundary = invocation.getArgument(1);
+            BatchParent value = durable.get();
+            MutationPlan.ResolvedModel target = resolution.models().getFirst();
+            Entity<?> entity = ImmutableModelRoot.<BatchParent>builder()
+                    .id(target.modelId())
+                    .type(BatchParent.class)
+                    .idProperty("id")
+                    .value(value)
+                    .sequenceNumber(value.version())
+                    .stateIndex(requestedBoundary == null
+                                        ? durableStateIndex.get() : requestedBoundary)
+                    .build();
+            return CommitAttempt.create(
+                    requestedBoundary == null
+                            ? durableStateIndex.get() : requestedBoundary,
+                    resolution, Map.of(target.modelId(), entity));
+        };
+        when(repository.loadContext(
+                any(MutationPlan.Resolution.class), nullable(Long.class),
+                anyMap(), anyBoolean())).thenAnswer(load);
+        when(repository.loadRebaseContext(
+                any(MutationPlan.Resolution.class), nullable(Long.class),
+                anyMap(), anyBoolean(), anyBoolean())).thenAnswer(load);
+        when(repository.beginLocalCommit(any())).thenReturn(() -> {
+        });
+        doAnswer(invocation -> {
+            List<Commit.Outcome> outcomes = invocation.getArgument(0);
+            outcomes.stream().flatMap(outcome -> outcome.changes().stream())
+                    .filter(change -> id.toString().equals(change.modelId()))
+                    .forEach(change -> durable.set((BatchParent) change.after()));
+            return null;
+        }).when(repository).updateAfterCommit(any());
+
+        EventStoreClient eventStoreClient = mock(EventStoreClient.class);
+        AtomicInteger physicalAttempts = new AtomicInteger();
+        AtomicReference<CommitModels> firstRequest = new AtomicReference<>();
+        CompletableFuture<CommitModelsResult> firstResponse = new CompletableFuture<>();
+        when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
+            CommitModels request = invocation.getArgument(0);
+            int attempt = physicalAttempts.getAndIncrement();
+            if (attempt == 0) {
+                firstRequest.set(request);
+                return firstResponse;
+            }
+            long boundary = durableStateIndex.get();
+            if (request.getReadStateIndex() < boundary) {
+                return CompletableFuture.completedFuture(CommitModelsResult.rebase(
+                        request.getRequestId(), request.getCommitId(),
+                        List.of(new ModelCommitConflict(
+                                id.toString(), boundary, durable.get().version())),
+                        boundary));
+            }
+            long acceptedBoundary = durableStateIndex.incrementAndGet();
+            return CompletableFuture.completedFuture(acceptedResult(
+                    request, acceptedBoundary, durable.get().version() + 1L));
+        });
+        ModelCommitHandlerRegistry subject = subject(repository, eventStoreClient);
+        BATCH_INCREMENT_OBSERVATIONS.clear();
+
+        try {
+            CompletableFuture<Void> first = subject.assertAndApply(
+                    new Message(new IncrementBatchParent(id, 0)));
+            CompletableFuture<Void> second = subject.assertAndApply(
+                    new Message(new IncrementBatchParent(id, 0)));
+
+            assertEquals(1, physicalAttempts.get());
+            assertFalse(first.isDone());
+            assertFalse(second.isDone());
+            long firstBoundary = durableStateIndex.incrementAndGet();
+            firstResponse.complete(acceptedResult(firstRequest.get(), firstBoundary, 1L));
+
+            first.join();
+            second.join();
+            assertEquals(new BatchParent(id, 2), durable.get());
+            assertEquals(3, physicalAttempts.get(),
+                         "the queued stale request should need one apply-only rebase");
+            assertEquals(List.of(0, 0), List.copyOf(BATCH_INCREMENT_OBSERVATIONS));
+            verify(repository, never()).invalidateModels(any());
+        } finally {
+            BATCH_INCREMENT_OBSERVATIONS.clear();
             subject.close();
         }
     }
@@ -2002,11 +2095,16 @@ class ModelCommitHandlerRegistryTest {
     }
 
     private static CommitModelsResult acceptedResult(CommitModels commit) {
+        return acceptedResult(commit, 1L, 0L);
+    }
+
+    private static CommitModelsResult acceptedResult(
+            CommitModels commit, long stateIndex, long sequenceNumber) {
         String modelId = commit.getSubsteps().getFirst()
                 .getTargets().getFirst().getModelId();
         return CommitModelsResult.acceptedSingleTarget(
                 commit.getRequestId(), commit.getCommitId(),
-                1L, 1L, modelId, 0L, true);
+                stateIndex, stateIndex, modelId, sequenceNumber, true);
     }
 
     private static DeserializingMessage message(Object payload) {

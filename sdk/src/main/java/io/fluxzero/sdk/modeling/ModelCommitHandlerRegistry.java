@@ -273,5 +273,6 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
 
     @Override
     public void close() {
+        pipeline.close();
     }
 }

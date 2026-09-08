@@ -1536,6 +1536,17 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 DeserializingMessage message,
                 boolean migration,
                 Supplier<CompletableFuture<Optional<CommitModelsResult>>> operation) {
+            return trackLocalCommit(attempt, message, migration, operation, () -> {
+            });
+        }
+
+        /** Releases process-local commit ordering after cache/tracker publication and before optional Graph waiting. */
+        public CompletableFuture<Optional<CommitModelsResult>> trackLocalCommit(
+                CommitAttempt attempt,
+                DeserializingMessage message,
+                boolean migration,
+                Supplier<CompletableFuture<Optional<CommitModelsResult>>> operation,
+                Runnable afterCommit) {
             GraphProjectionCommit projections = migration
                     ? GraphProjectionCommit.EMPTY
                     : graphProjections(attempt);
@@ -1551,11 +1562,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             ? trackLocalChanges(attempt, operation)
                             : registrations.thenCompose(message.captureContext().wrap(
                                     ignored -> trackLocalChanges(attempt, operation)));
+            CompletableFuture<Optional<CommitModelsResult>> released =
+                    committed.whenComplete((ignored, failure) -> afterCommit.run());
             return projections.awaitedTargets().isEmpty()
-                    ? committed
-                    : committed.thenCompose(result ->
+                    ? released
+                    : released.thenCompose(result ->
                             awaitGraphProjections(projections.awaitedTargets(), result));
         }
+
 
         private CompletableFuture<Optional<CommitModelsResult>> trackLocalChanges(
                 CommitAttempt attempt,

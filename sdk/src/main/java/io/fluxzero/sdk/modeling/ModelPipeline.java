@@ -71,6 +71,7 @@ final class ModelPipeline {
     private final Serializer serializer;
     private final Function<Class<?>, MutationPlan> definitions;
     private final java.util.function.BooleanSupplier localHandlingEnabled;
+    private final ModelCommitAdmission commitAdmission = new ModelCommitAdmission();
 
     ModelPipeline(
             DefaultModelRepository repository,
@@ -427,16 +428,29 @@ final class ModelPipeline {
                 : Retry.conflicts(
                         conflictResolver, maxConflictRetries,
                         (conflict, current) -> reload(message, current, conflict));
-        CompletableFuture<Optional<CommitModelsResult>> committed =
-                repositoryCommit.trackLocalCommit(
-                        evaluation,
-                        message,
-                        migration,
-                        () -> commit(
-                                repositoryCommit, message.getMessageId(), evaluation,
-                                effectiveConflictPolicy, retry,
-                                migration, existingEvent, transportBatch, transportSlot,
-                                !localHandlingEnabled.getAsBoolean()));
+        ModelCommitAdmission.Session admissionSession =
+                effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
+                        ? commitAdmission.open() : null;
+        CompletableFuture<Optional<CommitModelsResult>> committed;
+        try {
+            committed = Objects.requireNonNull(
+                    repositoryCommit.trackLocalCommit(
+                            evaluation,
+                            message,
+                            migration,
+                            () -> commit(
+                                    repositoryCommit, message.getMessageId(), evaluation,
+                                    effectiveConflictPolicy, retry,
+                                    migration, existingEvent, transportBatch, transportSlot,
+                                    !localHandlingEnabled.getAsBoolean(),
+                                    admissionSession,
+                                    ModelBatchScope.namespace(message)),
+                            () -> commitAdmission.release(admissionSession)),
+                    "Tracked model commit returned null");
+        } catch (Throwable failure) {
+            commitAdmission.release(admissionSession);
+            committed = CompletableFuture.failedFuture(failure);
+        }
         return committed.handle((commitResult, failure) ->
                 finishEvaluation(evaluation, effectiveConflictPolicy, failure));
     }
@@ -453,7 +467,7 @@ final class ModelPipeline {
         return commit(
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 retry, false, false, batch, batchSlot,
-                asynchronousReevaluation);
+                asynchronousReevaluation, null, null);
     }
 
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
@@ -466,7 +480,9 @@ final class ModelPipeline {
             boolean existingEvent,
             ModelCommitBatchingClient.ModelCommitBatch batch,
             int batchSlot,
-            boolean asynchronousReevaluation) {
+            boolean asynchronousReevaluation,
+            ModelCommitAdmission.Session admissionSession,
+            String namespace) {
         Objects.requireNonNull(retry, "retry");
         Commit.Outcome original = repositoryCommit.prepare(
                 commitId, evaluation, conflictPolicy, migration, existingEvent);
@@ -474,7 +490,7 @@ final class ModelPipeline {
                 repositoryCommit, commitId, evaluation, conflictPolicy,
                 original, original, retry,
                 ThreadLocalContext.capture(), 0, batch, batchSlot,
-                asynchronousReevaluation);
+                asynchronousReevaluation, admissionSession, namespace);
     }
 
     private static CompletableFuture<Optional<CommitModelsResult>> commit(
@@ -489,8 +505,17 @@ final class ModelPipeline {
             int attempts,
             ModelCommitBatchingClient.ModelCommitBatch batch,
             int batchSlot,
-            boolean asynchronousReevaluation) {
-        return repositoryCommit.commitPrepared(prepared, batch, batchSlot)
+            boolean asynchronousReevaluation,
+            ModelCommitAdmission.Session admissionSession,
+            String namespace) {
+        CompletableFuture<Optional<CommitModelsResult>> submission = admissionSession == null
+                ? repositoryCommit.commitPrepared(prepared, batch, batchSlot)
+                : admissionSession.submit(
+                        () -> admissionScope(namespace, evaluation, prepared),
+                        batch, batchSlot,
+                        (effectiveBatch, effectiveSlot) -> repositoryCommit.commitPrepared(
+                                prepared, effectiveBatch, effectiveSlot));
+        return submission
                 .thenCompose(optional -> {
                     if (optional.isEmpty()) {
                         return CompletableFuture.completedFuture(optional);
@@ -538,9 +563,60 @@ final class ModelPipeline {
                                         repositoryCommit, commitId, next, conflictPolicy,
                                         original, nextPrepared, retry,
                                         context, attempts + 1, null, -1,
-                                        asynchronousReevaluation);
+                                        asynchronousReevaluation,
+                                        admissionSession, namespace);
                             });
                 });
+    }
+
+    private static ModelCommitAdmission.Scope admissionScope(
+            String namespace,
+            CommitAttempt evaluation,
+            Commit.Outcome prepared) {
+        ModelCommitAdmission.Scope.Builder accesses = ModelCommitAdmission.Scope.builder();
+        evaluation.readModelIds().forEach(modelId -> accesses.add(
+                new ModelCommitAdmission.Key(namespace, modelId, false), false));
+        if (prepared.commit() != null) {
+            prepared.commit().getSubsteps().forEach(step -> step.getTargets().forEach(target -> {
+                accesses.add(new ModelCommitAdmission.Key(namespace, target.getModelId(), false), true);
+                if (target.isDelete() || target.isCascadeDelete()) {
+                    accesses.add(new ModelCommitAdmission.Key(namespace, target.getModelId(), true), true);
+                }
+            }));
+        }
+        prepared.changes().forEach(change -> {
+            if (change.metadata().parentReferences().isEmpty()) {
+                return;
+            }
+            LinkedHashSet<String> before = parentIds(change, change.before());
+            LinkedHashSet<String> after = parentIds(change, change.after());
+            if (!before.equals(after)) {
+                before.forEach(parent -> markRelationshipWrite(accesses, namespace, parent));
+                after.forEach(parent -> markRelationshipWrite(accesses, namespace, parent));
+            }
+        });
+        evaluation.cascadeRootIds().forEach(modelId -> accesses.add(
+                new ModelCommitAdmission.Key(namespace, modelId, true), true));
+        return accesses.build();
+    }
+
+    private static LinkedHashSet<String> parentIds(Change change, Object value) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        change.metadata().parentRelationships(change.modelId(), value)
+                .forEach(relationship -> result.add(relationship.parentId()));
+        return result;
+    }
+
+    private static void markRelationshipWrite(
+            ModelCommitAdmission.Scope.Builder accesses,
+            String namespace,
+            String parentId) {
+        accesses.add(new ModelCommitAdmission.Key(namespace, parentId, false), true);
+        accesses.add(new ModelCommitAdmission.Key(namespace, parentId, true), true);
+    }
+
+    void close() {
+        commitAdmission.close();
     }
 
     private static boolean validRebaseBoundary(
