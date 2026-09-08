@@ -41,6 +41,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set release timestamp
+        run: echo "RELEASE_TIMESTAMP=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
       - name: Verify repository normalization
         run: |
           git add --renormalize .
@@ -138,7 +141,7 @@ jobs:
 
       - name: Build and test
         id: maven-build
-        run: ./mvnw -B install
+        run: ./mvnw -B install -Dproject.build.outputTimestamp="$RELEASE_TIMESTAMP"
 
       - name: Reserve release tag
         env:
@@ -209,7 +212,7 @@ jobs:
             "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -er '.value')
           echo "::add-mask::$token"
           export MAVEN_DEPLOY_TOKEN="$token"
-          ./mvnw -P sign -B deploy -DskipTests
+          ./mvnw -P sign -B deploy -DskipTests -Dproject.build.outputTimestamp="$RELEASE_TIMESTAMP"
 
   repair-main-ci:
     name: Repair failed main build
@@ -235,6 +238,9 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
+
+      - name: Set release timestamp
+        run: echo "RELEASE_TIMESTAMP=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
 
       - name: Install Java and Maven
         uses: actions/setup-java@v6
@@ -263,7 +269,7 @@ jobs:
           deployment_log="$(mktemp)"
           trap 'rm -f "$deployment_log"' EXIT
 
-          maven_arguments=(-P "sign,central" -B deploy -DskipTests)
+          maven_arguments=(-P "sign,central" -B deploy -DskipTests "-Dproject.build.outputTimestamp=$RELEASE_TIMESTAMP")
           if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
             # A previous attempt may have completed the immutable publication
             # after losing its final status response.
