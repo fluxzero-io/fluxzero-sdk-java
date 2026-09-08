@@ -199,7 +199,25 @@ This works for any stored data — not just messages, but also snapshots, key-va
 ## Type aliases
 
 Use a type alias when serialized data contains an old Java/Kotlin type name, but its payload and revision do not need
-to change. You can register multiple exact aliases and package aliases together:
+to change. For most applications, configure all exact aliases and package aliases together in
+`application.properties`:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+For deployment configuration, use the conventional environment-variable name. Quote the value so the shell does not
+interpret the `*` characters:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+The compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also accepted. Environment variables follow the normal
+property resolution order and take precedence over system and application properties. The selected property value is
+the complete comma-, semicolon-, or newline-separated alias list. Add `.*` on both sides to identify a package alias.
+
+Use `FluxzeroBuilder` when the aliases are intentionally owned by application code or a test:
 
 <Tabs>
   <TabItem label="Java">
@@ -224,13 +242,6 @@ A package alias includes the package itself and all its subpackages while preser
 Package boundaries are respected: `host.example` does not match `host.examples.SomeType`. Exact aliases take
 precedence over package aliases, and the longest matching package prefix wins when package aliases overlap. Aliases
 may chain, but cycles are rejected during registration.
-
-The same configuration can be supplied as a comma-, semicolon-, or newline-separated application property. Add `.*`
-on both sides to identify a package alias:
-
-```properties
-fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
-```
 
 Programmatic aliases take precedence over property aliases with the same source. Aliases are configured on the
 primary and snapshot serializers and on a serializer-backed document serializer. A custom `Serializer` may support
@@ -310,9 +321,10 @@ fixture.whenUpcasting("/users/create-user-revision-0.json")
 
 The `@class` value is used as `Data.type`, so the upcaster is selected by the same type-and-revision pair as stored
 data. Both control markers are removed before upcasting. Registered exact and package aliases are then applied to the
-resulting type before deserialization. Configure them on `FluxzeroBuilder`, through
-`fluxzero.serialization.typeAliases`, or directly on the fixture with `registerTypeAlias(...)` and
-`registerPackageAlias(...)`. A property named `revision` without the `@` prefix is always ordinary payload data.
+resulting type before deserialization. Configure them through `fluxzero.serialization.typeAliases` or
+`FLUXZERO_SERIALIZATION_TYPE_ALIASES`, on `FluxzeroBuilder`, or directly on the fixture with
+`registerTypeAlias(...)` and `registerPackageAlias(...)`. A property named `revision` without the `@` prefix is always
+ordinary payload data.
 
 Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls expose the same representation as
 `Data<JsonNode>`, making revisioned JSON useful outside `TestFixture` as well. Explicitly typed `JsonUtils` overloads

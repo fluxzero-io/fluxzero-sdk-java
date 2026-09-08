@@ -199,8 +199,9 @@ To ensure reliable type resolution, always use the full class path in the `@clas
 [//]: # (@formatter:on)
 
 When a class or package has moved, `@class` may retain its historical FQN if an exact or package type alias is
-registered. Configure aliases through `FluxzeroBuilder`, `fluxzero.serialization.typeAliases`, or the fixture's
-`registerTypeAlias(...)` and `registerPackageAlias(...)` helpers. Alias resolution runs after revision upcasting.
+registered. Prefer `fluxzero.serialization.typeAliases` or `FLUXZERO_SERIALIZATION_TYPE_ALIASES` for application-wide
+configuration; use `FluxzeroBuilder` or the fixture's `registerTypeAlias(...)` and `registerPackageAlias(...)` helpers
+for programmatic test configuration. Alias resolution runs after revision upcasting.
 
 ### Testing Older Revisions (`@revision`)
 

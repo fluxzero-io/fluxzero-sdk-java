@@ -61,6 +61,7 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     /**
      * Property containing comma-, semicolon-, or newline-separated type aliases in {@code source=target} form.
      * Package aliases use a trailing {@code .*} on both sides.
+     * The conventional environment-variable name is {@code FLUXZERO_SERIALIZATION_TYPE_ALIASES}.
      */
     String TYPE_ALIASES_PROPERTY = "fluxzero.serialization.typeAliases";
 

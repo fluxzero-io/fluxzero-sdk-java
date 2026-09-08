@@ -294,9 +294,9 @@ Or partial paths:
 </Aside>
 
 Registered exact and package type aliases apply to `@class`, so existing fixtures can retain a legacy fully qualified
-name after a class or package move. Configure aliases on `FluxzeroBuilder`, with
-`fluxzero.serialization.typeAliases`, or directly on the fixture using `registerTypeAlias(...)` and
-`registerPackageAlias(...)`.
+name after a class or package move. Prefer `fluxzero.serialization.typeAliases` or
+`FLUXZERO_SERIALIZATION_TYPE_ALIASES` for application-wide configuration. A builder or the fixture's
+`registerTypeAlias(...)` and `registerPackageAlias(...)` methods can provide programmatic test configuration.
 
 ### Testing older revisions with @revision
 
