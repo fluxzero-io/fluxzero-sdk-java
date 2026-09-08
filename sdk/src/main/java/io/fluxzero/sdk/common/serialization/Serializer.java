@@ -307,6 +307,34 @@ public interface Serializer extends ContentFilter {
     Registration registerTypeCaster(String oldType, String newType);
 
     /**
+     * Registers an exact alias from a serialized type name to its current type name.
+     * <p>
+     * This is the preferred name for {@link #registerTypeCaster(String, String)}. Multiple aliases may be registered
+     * and chained. Exact aliases take precedence over package aliases.
+     *
+     * @param oldType the legacy serialized type name
+     * @param newType the current type name
+     * @return a registration handle
+     */
+    default Registration registerTypeAlias(String oldType, String newType) {
+        return registerTypeCaster(oldType, newType);
+    }
+
+    /**
+     * Registers an alias from a legacy package and all its subpackages to a current package.
+     * <p>
+     * Implementations that support package aliases should preserve the class-name suffix and prefer the longest
+     * matching package prefix when multiple aliases match.
+     *
+     * @param oldPackage the legacy package name, without a trailing wildcard
+     * @param newPackage the current package name, without a trailing wildcard
+     * @return a registration handle
+     */
+    default Registration registerPackageAlias(String oldPackage, String newPackage) {
+        throw new UnsupportedOperationException("This Serializer does not support package aliases");
+    }
+
+    /**
      * Returns the upcasted type name for a legacy type identifier.
      *
      * @param type the original type

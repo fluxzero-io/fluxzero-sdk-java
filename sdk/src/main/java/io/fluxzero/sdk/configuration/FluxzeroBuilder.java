@@ -44,6 +44,7 @@ import io.fluxzero.sdk.web.LocalServerConfig;
 import io.fluxzero.sdk.web.WebResponseMapper;
 
 import java.time.Clock;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -56,6 +57,12 @@ import java.util.function.UnaryOperator;
  * integrations.
  */
 public interface FluxzeroBuilder extends FluxzeroConfiguration {
+
+    /**
+     * Property containing comma-, semicolon-, or newline-separated type aliases in {@code source=target} form.
+     * Package aliases use a trailing {@code .*} on both sides.
+     */
+    String TYPE_ALIASES_PROPERTY = "fluxzero.serialization.typeAliases";
 
     /**
      * Update the default consumer configuration for the specified message type.
@@ -240,6 +247,40 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Replaces the default serializer used for events, commands, snapshots, and documents.
      */
     FluxzeroBuilder replaceSerializer(Serializer serializer);
+
+    /**
+     * Adds an exact alias from a legacy serialized type name to its current type name.
+     * <p>
+     * Multiple aliases may be added. Programmatic aliases take precedence over aliases for the same source configured
+     * through {@link #TYPE_ALIASES_PROPERTY}.
+     */
+    default FluxzeroBuilder addTypeAlias(String oldType, String newType) {
+        serializer().registerTypeAlias(oldType, newType);
+        return this;
+    }
+
+    /** Adds multiple exact aliases from legacy serialized type names to their current type names. */
+    default FluxzeroBuilder addTypeAliases(Map<String, String> aliases) {
+        aliases.forEach(this::addTypeAlias);
+        return this;
+    }
+
+    /**
+     * Adds an alias from a legacy package and all its subpackages to a current package.
+     * <p>
+     * Package names are supplied without a trailing wildcard. When aliases overlap, the longest matching package
+     * prefix wins; an exact type alias always takes precedence.
+     */
+    default FluxzeroBuilder addPackageAlias(String oldPackage, String newPackage) {
+        serializer().registerPackageAlias(oldPackage, newPackage);
+        return this;
+    }
+
+    /** Adds multiple package-prefix aliases. */
+    default FluxzeroBuilder addPackageAliases(Map<String, String> aliases) {
+        aliases.forEach(this::addPackageAlias);
+        return this;
+    }
 
     /**
      * Replaces the {@link CorrelationDataProvider} used to attach correlation data to messages.

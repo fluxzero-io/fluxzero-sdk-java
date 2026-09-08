@@ -4957,6 +4957,38 @@ Returning `Metadata` still requires message input because non-message data has n
 
 ---
 
+### Type Aliases
+
+Use type aliases when serialized data contains an old Java type name but the payload itself does not need to change.
+Multiple exact and package aliases can be configured together:
+
+```java
+Fluxzero fluxzero = DefaultFluxzero.builder()
+        .addTypeAlias("host.example.LegacyCommand", "io.example.CurrentCommand")
+        .addPackageAlias("host.example.events", "io.example.events")
+        .build();
+```
+
+A package alias applies to the package and all its subpackages while preserving the remaining class-name suffix.
+Exact aliases take precedence, and the longest package prefix wins when package aliases overlap. Aliases may also
+chain, for example from an exact legacy name into an aliased package. Package boundaries are respected, so an alias for
+`host.example` does not match `host.examples.SomeType`.
+
+The same aliases can be supplied as a comma-, semicolon-, or newline-separated property. Add `.*` on both sides to
+identify package aliases:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+Programmatic aliases override property aliases with the same source. Alias resolution runs after revision upcasters,
+so existing `@Upcast` handlers continue to select the serialized type and may themselves change it before aliases are
+applied. It is used by the primary and snapshot serializers, by serializer-backed document serializers, and by
+`@class` values in JSON files loaded by `TestFixture`. Fixtures can additionally call `registerTypeAlias(...)` or
+`registerPackageAlias(...)` directly.
+
+---
+
 ### Testing Upcasters from JSON
 
 Use `@class` and `@revision` to pass an older serialized payload through the normal upcaster chain:
