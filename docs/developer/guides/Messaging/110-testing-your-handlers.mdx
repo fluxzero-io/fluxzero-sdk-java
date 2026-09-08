@@ -293,10 +293,14 @@ Or partial paths:
     `"@class": "io.fluxzero.yourapp.user.command.CreateUser"`
 </Aside>
 
-Registered exact and package type aliases apply to `@class`, so existing fixtures can retain a legacy fully qualified
-name after a class or package move. Prefer `fluxzero.serialization.typeAliases` or
+Registered exact and package type aliases apply to root and nested `@class` values, so existing fixtures can retain a
+legacy fully qualified name after a class or package move. Prefer `fluxzero.serialization.typeAliases` or
 `FLUXZERO_SERIALIZATION_TYPE_ALIASES` for application-wide configuration. A builder or the fixture's
 `registerTypeAlias(...)` and `registerPackageAlias(...)` methods can provide programmatic test configuration.
+
+`TestFixture` supplies its serializer automatically. Code that reads an untyped resource directly with `JsonUtils`
+can opt into the same behavior with
+`JsonUtils.fromFileWithTypeMapper(referenceClass, resource, serializer::upcastType)`.
 
 ### Testing older revisions with @revision
 

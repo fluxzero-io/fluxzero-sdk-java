@@ -141,6 +141,12 @@ The compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also accepted by `A
 value takes precedence over system and application properties and supplies the complete list. Entries may be separated
 by commas, semicolons, or newlines; a package alias has a trailing `.*` on both sides.
 
+Aliases apply to the top-level serialized type, to polymorphic `@class` values nested anywhere in Jackson JSON, and to
+JSON-encoded message metadata read through a typed `Metadata#get`. Raw metadata strings remain unchanged.
+`TestFixture` resolves non-revisioned fixture `@class` values before Jackson class loading; revisioned fixture roots
+keep the historical type until their upcasters have run. For direct untyped `JsonUtils` resource reads outside a
+fixture, pass the configured serializer's `upcastType` to `JsonUtils.fromFileWithTypeMapper` explicitly.
+
 Use the builder only when aliases are intentionally owned by application code or a test:
 
 [//]: # (@formatter:off)

@@ -4989,7 +4989,10 @@ Fluxzero fluxzero = DefaultFluxzero.builder()
 A package alias applies to the package and all its subpackages while preserving the remaining class-name suffix.
 Exact aliases take precedence, and the longest package prefix wins when package aliases overlap. Aliases may also
 chain, for example from an exact legacy name into an aliased package. Package boundaries are respected, so an alias for
-`host.example` does not match `host.examples.SomeType`.
+`host.example` does not match `host.examples.SomeType`. Jackson deserialization also applies aliases to polymorphic
+`@class` values at any depth in the JSON and in JSON-encoded message metadata read through a typed `Metadata#get`.
+`TestFixture` applies the same aliases before resolving non-revisioned fixture types, while revisioned fixture roots
+retain their old type until their upcasters have run.
 
 Programmatic aliases override property aliases with the same source. Alias resolution runs after revision upcasters,
 so existing `@Upcast` handlers continue to select the serialized type and may themselves change it before aliases are

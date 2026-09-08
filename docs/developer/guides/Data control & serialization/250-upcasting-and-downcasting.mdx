@@ -217,6 +217,11 @@ The compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also accepted. Envi
 property resolution order and take precedence over system and application properties. The selected property value is
 the complete comma-, semicolon-, or newline-separated alias list. Add `.*` on both sides to identify a package alias.
 
+Aliases apply to the top-level serialized type, to polymorphic `@class` values nested anywhere in Jackson JSON, and to
+JSON-encoded message metadata when it is read as an object through `Metadata#get`. Raw metadata strings remain
+unchanged. `TestFixture` also resolves a legacy root `@class` in a non-revisioned fixture. A revisioned fixture keeps
+its declared old type through the upcaster chain and applies the alias afterwards.
+
 Use `FluxzeroBuilder` when the aliases are intentionally owned by application code or a test:
 
 <Tabs>
