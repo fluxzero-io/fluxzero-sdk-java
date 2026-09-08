@@ -1617,9 +1617,22 @@ final class ModelReplayCursor {
             Map<String, ModelCache.ReadToken> readTokens = Map.of();
             if (deferredCacheUpdates == null && modelCache instanceof ModelCache guarded
                 && cacheAtBoundary && !window.prefix()) {
-                List<String> cachedIds = targets.stream().filter(target -> EntityMetadata.of(target.modelType())
-                        .rootConfiguration().orElseThrow().cached()).map(MutationPlan.ResolvedModel::modelId).toList();
-                readTokens = guarded.beginReads(cachedIds);
+                MutationPlan.ResolvedModel first = targets.getFirst();
+                if (targets.size() == 1) {
+                    if (EntityMetadata.of(first.modelType())
+                            .rootConfiguration().orElseThrow().cached()) {
+                        readTokens = Map.of(first.modelId(), guarded.beginRead(first.modelId()));
+                    }
+                } else {
+                    List<String> cachedIds = new ArrayList<>(targets.size());
+                    for (MutationPlan.ResolvedModel target : targets) {
+                        if (EntityMetadata.of(target.modelType())
+                                .rootConfiguration().orElseThrow().cached()) {
+                            cachedIds.add(target.modelId());
+                        }
+                    }
+                    readTokens = guarded.beginReads(cachedIds);
+                }
             }
             try {
             LinkedHashMap<String, MutableReconstruction> states =
