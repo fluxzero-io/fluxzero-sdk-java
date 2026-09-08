@@ -501,7 +501,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         CompletableFuture<SerializedMessage> result = request.timeout() == null
                 ? requestHandler.sendRequest(message, m -> gatewayClient.append(SENT, m))
                 : requestHandler.sendRequest(message, m -> gatewayClient.append(SENT, m), request.timeout());
-        return trackCallback(message.getMessageId(), result.thenCompose(this::deserializeResponse));
+        return trackCallback(message.getMessageId(), result.thenApply(this::deserializeResponse));
     }
 
     private List<CompletableFuture<Message>> sendRequests(List<PendingRequest> requests) {
@@ -539,7 +539,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         for (int i = 0; i < results.size(); i++) {
             SerializedMessage request = serializedMessages.get(i);
             mappedResults.add(trackCallback(
-                    request.getMessageId(), results.get(i).thenCompose(this::deserializeResponse)));
+                    request.getMessageId(), results.get(i).thenApply(this::deserializeResponse)));
         }
         return mappedResults;
     }
@@ -566,22 +566,28 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return error instanceof CompletionException && error.getCause() != null ? error.getCause() : error;
     }
 
-    private CompletableFuture<Message> deserializeResponse(SerializedMessage m) {
+    private Message deserializeResponse(SerializedMessage m) {
         Object result;
         try {
             result = serializer.deserialize(m);
         } catch (Exception e) {
             log.error("Failed to deserialize result with id {}", m.getMessageId(), e);
-            return CompletableFuture.failedFuture(e);
+            return failedResponse(e);
         }
-        if (result instanceof Throwable) {
-            return CompletableFuture.failedFuture((Throwable) result);
+        if (result instanceof Throwable failure) {
+            return failedResponse(failure);
         }
         Message message = new Message(result, m.getMetadata());
         if (messageType == MessageType.WEBREQUEST) {
             message = new WebResponse(message);
         }
-        return CompletableFuture.completedFuture(message);
+        return message;
+    }
+
+    private static Message failedResponse(Throwable failure) {
+        // Preserve CompletableFuture's relay wrapping, including cancellation and JDK-specific
+        // handling of a Throwable whose toString() fails. Successful responses need no extra future.
+        return CompletableFuture.<Message>failedFuture(failure).copy().join();
     }
 
     private CompletableFuture<Message> trackCallback(String messageId, CompletableFuture<Message> future) {
