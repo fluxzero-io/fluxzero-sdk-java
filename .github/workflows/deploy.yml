@@ -212,7 +212,19 @@ jobs:
             "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -er '.value')
           echo "::add-mask::$token"
           export MAVEN_DEPLOY_TOKEN="$token"
-          ./mvnw -P sign -B deploy -DskipTests
+          set -o pipefail
+          ./mvnw -P sign -B deploy -DskipTests | tee "$RUNNER_TEMP/packages-deploy.log"
+
+      - name: Collect exact Maven release assets from Packages
+        run: python3 .github/scripts/collect-maven-assets.py --deploy-log "$RUNNER_TEMP/packages-deploy.log"
+
+      - name: Retain Maven release assets for the GitHub release
+        uses: actions/upload-artifact@v7
+        with:
+          name: maven-release-assets
+          path: maven-release-assets/*
+          if-no-files-found: error
+          retention-days: 1
 
   repair-main-ci:
     name: Repair failed main build
@@ -312,6 +324,8 @@ jobs:
   github-release:
     needs: build-and-test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
@@ -322,6 +336,12 @@ jobs:
           name: project-files
           path: release-assets
 
+      - name: Download complete Maven release assets
+        uses: actions/download-artifact@v8
+        with:
+          name: maven-release-assets
+          path: maven-release-assets
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
@@ -329,7 +349,9 @@ jobs:
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
+          fail_on_unmatched_files: true
           files: |
+            maven-release-assets/*
             release-assets/project-java.zip
             release-assets/project-kotlin.zip
 
