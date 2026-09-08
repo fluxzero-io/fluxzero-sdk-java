@@ -1,0 +1,5 @@
+{
+  "@class": "host.example.TestFixtureResourceSequenceTest$SequenceCommand",
+  "@revision": 1,
+  "value": "aliased"
+}

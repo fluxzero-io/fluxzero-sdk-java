@@ -183,6 +183,9 @@ import static java.util.stream.Stream.empty;
  * using {@link JsonUtils}. Untyped root arrays and NDJSON resources supplied to a multi-value {@code givenXyz(...)}
  * method are expanded in source order.
  * <br> Each JSON object must include an {@code @class} declaration to indicate the object type to deserialize.
+ * Registered exact and package type aliases are applied to this value before deserialization. Aliases may be
+ * configured on the fixture using {@link #registerTypeAlias(String, String)} or
+ * {@link #registerPackageAlias(String, String)}, or on the {@link FluxzeroBuilder} used to create it.
  * <br> JSON resources may also {@code @extends} another file to support inheritance and override behavior.
  * <p>
  * To test upcasting from an older payload revision without declaring a full {@link Data} wrapper, add an
@@ -900,6 +903,22 @@ public class TestFixture implements Given<TestFixture>, When {
      */
     public TestFixture registerCasters(Object... casterCandidates) {
         return modifyFixture(fixture -> fixture.getFluxzero().serializer().registerCasters(casterCandidates));
+    }
+
+    /**
+     * Registers an exact alias for serialized type names, including {@code @class} values in JSON fixture resources.
+     */
+    public TestFixture registerTypeAlias(String oldType, String newType) {
+        return modifyFixture(fixture -> fixture.getFluxzero().serializer().registerTypeAlias(oldType, newType));
+    }
+
+    /**
+     * Registers an alias for a legacy package and all its subpackages, including {@code @class} values in JSON fixture
+     * resources.
+     */
+    public TestFixture registerPackageAlias(String oldPackage, String newPackage) {
+        return modifyFixture(
+                fixture -> fixture.getFluxzero().serializer().registerPackageAlias(oldPackage, newPackage));
     }
 
     @Override
