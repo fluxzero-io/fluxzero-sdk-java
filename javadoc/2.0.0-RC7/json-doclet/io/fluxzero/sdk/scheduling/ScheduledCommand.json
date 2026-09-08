@@ -1,0 +1,39 @@
+{
+  "name" : "ScheduledCommand",
+  "qualifiedName" : "io.fluxzero.sdk.scheduling.ScheduledCommand",
+  "packageName" : "io.fluxzero.sdk.scheduling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Wrapper for a serialized command message scheduled for deferred execution.\n <p>\n This class is used by the {@link io.fluxzero.sdk.scheduling.ScheduledCommandHandler} to encapsulate a\n {@link SerializedMessage} representing a command that should be dispatched at a future point in time.\n\n <p>Instances of this class are typically created by the\n {@link MessageScheduler} via helper methods like {@link io.fluxzero.sdk.Fluxzero#scheduleCommand}.\n\n @see io.fluxzero.sdk.scheduling.ScheduledCommandHandler\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "command",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.ScheduledCommand.command",
+    "type" : "io.fluxzero.common.api.SerializedMessage",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " A serialized representation of the original command scheduled for execution at a later time.\n <p>\n This field encapsulates a {@link SerializedMessage}, containing the full payload, metadata, and other details\n necessary for transmitting or persisting the command. It is used to ensure the command can be accurately\n reconstituted and dispatched when it is due for execution.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ScheduledCommand",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.ScheduledCommand#ScheduledCommand",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

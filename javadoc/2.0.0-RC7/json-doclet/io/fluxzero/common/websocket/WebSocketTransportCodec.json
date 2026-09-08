@@ -1,0 +1,61 @@
+{
+  "name" : "WebSocketTransportCodec",
+  "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodec",
+  "packageName" : "io.fluxzero.common.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Encodes and decodes Fluxzero websocket transport payloads after format negotiation and before compression.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "decode",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodec#decode",
+    "returnType" : "io.fluxzero.common.api.JsonType",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Decodes transport bytes into a protocol object.\n"
+  }, {
+    "name" : "encode",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodec#encode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Encodes a protocol object into transport bytes.\n"
+  }, {
+    "name" : "format",
+    "qualifiedName" : "io.fluxzero.common.websocket.WebSocketTransportCodec#format",
+    "returnType" : "io.fluxzero.common.websocket.WebSocketTransportFormat",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The negotiated format handled by this codec.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

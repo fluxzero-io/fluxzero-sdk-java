@@ -1,0 +1,908 @@
+{
+  "name" : "MutationPlan",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Registered and compiled knowledge for one reachable model mutation payload.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "automatic",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan.automatic",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan.commit",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "commitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan.commitPolicy",
+    "type" : "io.fluxzero.sdk.modeling.ModelCommitPolicy",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "reducer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan.reducer",
+    "type" : "io.fluxzero.sdk.modeling.ModelReducer",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan.targets",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.TargetPlan",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "MutationPlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#MutationPlan",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "reducer",
+      "type" : "io.fluxzero.sdk.modeling.ModelReducer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targets",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.TargetPlan",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitPolicy",
+      "type" : "io.fluxzero.sdk.modeling.ModelCommitPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commit",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "automatic",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "acceptsExplicitTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#acceptsExplicitTarget",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "explicitType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyResults",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#applyResults",
+    "returnType" : "java.util.List<?>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applyTargetType",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#applyTargetType",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "resultIndex",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertAfterHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#assertAfterHandler",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "assertionPriority",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#assertionPriority",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "automatic",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#automatic",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "bind",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#bind",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ExecutableParameters",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "bindsExplicitTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#bindsExplicitTarget",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "explicitType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#commit",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commitPolicy",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#commitPolicy",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelCommitPolicy",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compareAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#compareAssertions",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compareHandlers",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#compareHandlers",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "left",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "right",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compatibleExplicit",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#compatibleExplicit",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidate",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "explicit",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compile",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#compile",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Payload",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "slots",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Slot>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deferred",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Deferred>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ancestors",
+      "type" : "java.util.Set<io.fluxzero.sdk.modeling.MutationPlan.PlannedAncestor>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "compile",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#compile",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.TargetPlan",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.Collection<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compiles one target accessor plan for a payload and its selected handlers. "
+  }, {
+    "name" : "direct",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#direct",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "directReferences",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#directReferences",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "directSingleTargetApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#directSingleTargetApply",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.DirectSingleTargetApply",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "empty",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#empty",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ids",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#ids",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "raw",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "property",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invalidId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#invalidId",
+    "returnType" : "java.lang.IllegalArgumentException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "property",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.RuntimeException",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "merge",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#merge",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targets",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.modeling.MutationPlan.ResolvedModel>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "addition",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.ResolvedModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Merges access to one identity and rejects incompatible global-ID claims. "
+  }, {
+    "name" : "metadataContains",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#metadataContains",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.ModelParameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nullId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#nullId",
+    "returnType" : "java.lang.IllegalArgumentException",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Slot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "payload",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#payload",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "plan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#plan",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.TargetPlan",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handlers",
+      "type" : "java.util.Collection<io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Compiles and validates a target plan without an explicit target override. "
+  }, {
+    "name" : "reducer",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#reducer",
+    "returnType" : "io.fluxzero.sdk.modeling.ModelReducer",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "referencedModelTypes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#referencedModelTypes",
+    "returnType" : "java.util.List<java.lang.Class<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns independent model types referenced by typed ID properties. "
+  }, {
+    "name" : "repositoryId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#repositoryId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "slot",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Slot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "repositoryId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#repositoryId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "id",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "property",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveReferencedModels",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#resolveReferencedModels",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.ResolvedModel>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "targets",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#targets",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.TargetPlan",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateApplyResult",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#validateApplyResult",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "writeSlot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan#writeSlot",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payload",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Payload",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerMethod",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "slots",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Slot>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deferred",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.Deferred>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Access",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Access",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "AncestorDependency",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$AncestorDependency",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CachedDefinition",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CachedDefinition",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Catalog",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Catalog",
+    "kind" : "class",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "CompiledHandler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$CompiledHandler",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Compiler",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Compiler",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Deferred",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Deferred",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DeferredWriteTarget",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DeferredWriteTarget",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DirectReferences",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "DirectSingleTargetApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectSingleTargetApply",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "EffectOverrides",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$EffectOverrides",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "HandlerPhase",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "HandlerPlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPlan",
+    "kind" : "record",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Payload",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Payload",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PlanTraits",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$PlanTraits",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PlannedAncestor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$PlannedAncestor",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Property",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Property",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Resolution",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Resolution",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ResolvedModel",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$ResolvedModel",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "Slot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$Slot",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "TargetPlan",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$TargetPlan",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

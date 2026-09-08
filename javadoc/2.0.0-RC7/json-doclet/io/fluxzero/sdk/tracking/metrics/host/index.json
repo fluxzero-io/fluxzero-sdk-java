@@ -1,0 +1,30 @@
+{
+  "package" : {
+    "name" : "host",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "HostMetricsCollector.json",
+    "name" : "HostMetricsCollector",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsCollector",
+    "kind" : "class"
+  }, {
+    "file" : "HostMetricsConfiguration.json",
+    "name" : "HostMetricsConfiguration",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration",
+    "kind" : "class"
+  }, {
+    "file" : "HostMetricsConfiguration.HostMetricsConfigurationBuilder.json",
+    "name" : "HostMetricsConfiguration.HostMetricsConfigurationBuilder",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.metrics.host.HostMetricsConfiguration$HostMetricsConfigurationBuilder",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ {
+    "name" : "collectors",
+    "path" : "collectors"
+  }, {
+    "name" : "events",
+    "path" : "events"
+  } ]
+}

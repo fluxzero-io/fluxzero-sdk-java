@@ -1,0 +1,71 @@
+{
+  "name" : "SilentErrorHandler",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.SilentErrorHandler",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " An {@link ErrorHandler} implementation that suppresses all processing errors and allows message tracking to\n continue.\n <p>\n This handler is ideal for non-critical consumers where message loss or failure should not disrupt the application,\n such as:\n <ul>\n     <li>Metrics collection</li>\n     <li>Auditing or logging projections</li>\n     <li>Replays for observability/debugging</li>\n </ul>\n\n <p><strong>Logging Behavior:</strong>\n <ul>\n     <li>If {@link #maxLevel} is specified, all errors are logged at that level (e.g., {@code WARN}, {@code DEBUG}).</li>\n     <li>If {@code maxLevel} is {@code null}, errors are completely silent—nothing is logged.</li>\n     <li>All logs include the error context and exception stack trace (if any).</li>\n </ul>\n\n <p><strong>Control Flow:</strong>\n <ul>\n     <li>The error is returned as-is, meaning it may be published as a {@code Result} message but does not halt processing.</li>\n     <li>The original {@code retryFunction} is not invoked.</li>\n     <li>No exceptions are thrown—tracking always continues.</li>\n </ul>\n\n <p><strong>Usage:</strong> Can be registered via {@link Consumer#errorHandler()} or programmatically via {@link ConsumerConfiguration}.\n\n <pre>{@code\n @Consumer(name = \"audit\", errorHandler = SilentErrorHandler.class)\n public class AuditProjection {\n     @HandleEvent\n     void on(UserLoggedIn event) {\n         // Failure to write to audit log won't affect tracking\n     }\n }\n }</pre>\n\n @see ErrorHandler\n @see ThrowingErrorHandler\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.ErrorHandler" ],
+  "fields" : [ {
+    "name" : "maxLevel",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.SilentErrorHandler.maxLevel",
+    "type" : "org.slf4j.event.Level",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " The maximum logging level to use when an error occurs. If {@code null}, no logging is performed.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SilentErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.SilentErrorHandler#SilentErrorHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code SilentErrorHandler} that does not log any errors.\n"
+  } ],
+  "methods" : [ {
+    "name" : "handleError",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.SilentErrorHandler#handleError",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorMessage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retryFunction",
+      "type" : "java.util.concurrent.Callable<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Handles the given error by optionally logging it and then returning it without retry or propagation.\n\n @param error         the {@link Throwable} encountered during message processing\n @param errorMessage  context about the failure\n @param retryFunction the operation that was attempted (ignored in this implementation)\n @return the original error object (may be published as a {@code Result} message)\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

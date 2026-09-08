@@ -1,0 +1,143 @@
+{
+  "name" : "SpringBeanParameterResolver",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver",
+  "packageName" : "io.fluxzero.sdk.configuration.spring",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.RequiredArgsConstructor",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  } ],
+  "documentation" : " Resolves handler method parameters annotated with {@link Autowired} from the Spring application context.\n <p>\n This resolver allows dependency injection of Spring-managed beans directly into handler methods. It supports both\n type-based and {@link Qualifier}-based resolution, and will prioritize beans marked as {@code @Primary}.\n <p>\n If no bean can be resolved unambiguously (e.g., multiple candidates and no qualifier or primary), the parameter is\n not injected and a warning is logged.\n\n <p>Example:\n <pre>{@code\n @HandleCommand\n public void handle(MyCommand command, @Autowired MyService myService) {\n     myService.performAction();\n }\n }</pre>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.handling.ParameterResolver<java.lang.Object>" ],
+  "fields" : [ {
+    "name" : "applicationContext",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver.applicationContext",
+    "type" : "org.springframework.context.ApplicationContext",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "resolverFunction",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver.resolverFunction",
+    "type" : "java.util.function.Function<java.lang.reflect.Parameter,java.util.function.UnaryOperator<java.lang.Object>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "SpringBeanParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver#SpringBeanParameterResolver",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "computeParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver#computeParameterResolver",
+    "returnType" : "java.util.function.UnaryOperator<java.lang.Object>",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "mayApply",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver#mayApply",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.SpringBeanParameterResolver#resolve",
+    "returnType" : "java.util.function.UnaryOperator<java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "p",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "methodAnnotation",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

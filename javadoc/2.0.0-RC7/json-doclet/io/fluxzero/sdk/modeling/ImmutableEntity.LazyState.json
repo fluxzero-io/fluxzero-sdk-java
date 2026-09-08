@@ -1,0 +1,100 @@
+{
+  "name" : "LazyState",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "aliases",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState.aliases",
+    "type" : "java.util.Collection<?>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "descendantTargetMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState.descendantTargetMetadata",
+    "type" : "io.fluxzero.sdk.modeling.ImmutableEntity.DescendantTargetMetadata",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "entities",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState.entities",
+    "type" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LazyState",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState#LazyState",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "aliases",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState#aliases",
+    "returnType" : "java.util.Collection<?>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "owner",
+      "type" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "descendantTargetMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState#descendantTargetMetadata",
+    "returnType" : "io.fluxzero.sdk.modeling.ImmutableEntity.DescendantTargetMetadata",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "owner",
+      "type" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "entities",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.ImmutableEntity$LazyState#entities",
+    "returnType" : "java.util.Collection<? extends io.fluxzero.sdk.modeling.Entity<?>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "owner",
+      "type" : "io.fluxzero.sdk.modeling.ImmutableEntity<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

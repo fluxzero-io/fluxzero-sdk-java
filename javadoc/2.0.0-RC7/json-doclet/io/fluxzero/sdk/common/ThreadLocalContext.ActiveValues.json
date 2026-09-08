@@ -1,0 +1,179 @@
+{
+  "name" : "ActiveValues",
+  "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "dirty",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues.dirty",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "participants",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues.participants",
+    "type" : "java.lang.ThreadLocal<?>[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "size",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues.size",
+    "type" : "int",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "snapshot",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues.snapshot",
+    "type" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues.values",
+    "type" : "java.lang.Object[]",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ActiveValues",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues#ActiveValues",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "capture",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues#capture",
+    "returnType" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "ensureCapacity",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues#ensureCapacity",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "required",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "put",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues#put",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "participant",
+      "type" : "java.lang.ThreadLocal<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "putRestored",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues#putRestored",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "participant",
+      "type" : "java.lang.ThreadLocal<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "remove",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues#remove",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "participant",
+      "type" : "java.lang.ThreadLocal<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "restore",
+    "qualifiedName" : "io.fluxzero.sdk.common.ThreadLocalContext$ActiveValues#restore",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "previous",
+      "type" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "next",
+      "type" : "io.fluxzero.sdk.common.ThreadLocalContext.Snapshot",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "sameParticipants",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

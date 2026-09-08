@@ -1,0 +1,44 @@
+{
+  "name" : "WebsocketConnector",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnector",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Creates low-level websocket sessions for Fluxzero runtime clients.\n\n <p>This interface is intentionally smaller than Jakarta's container API. Fluxzero clients only need a binary\n message transport with handshake metadata, ping support, lifecycle callbacks, and session state.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "connect",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnector#connect",
+    "returnType" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "endpoint",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketEndpoint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "uri",
+      "type" : "java.net.URI",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : " Opens a WebSocket connection to the given URI.\n\n @param endpoint endpoint callbacks for the new session\n @param options  connection options; implementations may accept {@code null} as default options\n @param uri      target WebSocket URI\n @return an open WebSocket session\n @throws Exception when the connection cannot be established\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

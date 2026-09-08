@@ -1,0 +1,34 @@
+{
+  "package" : {
+    "name" : "jackson",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "GraphJsonSerializer.json",
+    "name" : "GraphJsonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer",
+    "kind" : "class"
+  }, {
+    "file" : "JacksonContentFilter.json",
+    "name" : "JacksonContentFilter",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter",
+    "kind" : "class"
+  }, {
+    "file" : "JacksonContentFilter.FilteringSerializer.json",
+    "name" : "JacksonContentFilter.FilteringSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$FilteringSerializer",
+    "kind" : "class"
+  }, {
+    "file" : "JacksonContentFilter.GraphParameterResolver.json",
+    "name" : "JacksonContentFilter.GraphParameterResolver",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonContentFilter$GraphParameterResolver",
+    "kind" : "class"
+  }, {
+    "file" : "JacksonSerializer.json",
+    "name" : "JacksonSerializer",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

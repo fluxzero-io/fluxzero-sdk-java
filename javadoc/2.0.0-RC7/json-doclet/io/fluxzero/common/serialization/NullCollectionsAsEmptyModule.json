@@ -1,0 +1,47 @@
+{
+  "name" : "NullCollectionsAsEmptyModule",
+  "qualifiedName" : "io.fluxzero.common.serialization.NullCollectionsAsEmptyModule",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A custom Jackson module that configures deserialization behavior to treat null collections as empty collections. This\n module sets up serialization and deserialization rules for common collection types such as {@code List}, {@code Set},\n {@code Map}, and their variants, ensuring null values are handled consistently.\n <p>\n This module overrides Jackson's default behavior by: 1. Configuring the deserializer to replace null values with\n empty collections when setting property values. 2. Ensuring that null values are always included during\n serialization.\n <p>\n Supported collection types include: - {@code Collection} - {@code SequencedCollection} - {@code List} - {@code Set},\n {@code SortedSet}, {@code SequencedSet} - {@code Map}, {@code SortedMap}, {@code SequencedMap}\n\n <p>\n This module is enabled by default in {@link JsonUtils} and hence in {@code JacksonSerializer}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "com.fasterxml.jackson.databind.module.SimpleModule",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "NullCollectionsAsEmptyModule",
+    "qualifiedName" : "io.fluxzero.common.serialization.NullCollectionsAsEmptyModule#NullCollectionsAsEmptyModule",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "setupModule",
+    "qualifiedName" : "io.fluxzero.common.serialization.NullCollectionsAsEmptyModule#setupModule",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "context",
+      "type" : "com.fasterxml.jackson.databind.Module.SetupContext",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

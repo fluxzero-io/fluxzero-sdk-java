@@ -1,0 +1,146 @@
+{
+  "name" : "LookAheadConstraint",
+  "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint",
+  "packageName" : "io.fluxzero.common.api.search.constraints",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {
+      "access" : "PRIVATE"
+    }
+  } ],
+  "documentation" : " A constraint that supports search-as-you-type functionality by matching terms or phrases that start with a given\n input string.\n <p>\n For example, the input {@code \"hat\"} will match documents containing terms like {@code \"hatter\"} or phrases like\n {@code \"the cat with the hat\"}.\n <p>\n The constraint delegates matching to an equivalent {@link ContainsConstraint} created via {@link #decompose()}.\n <p>\n If no paths are provided, the constraint will match across all paths in the document.\n\n @see QueryConstraint\n @see ContainsConstraint\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.search.constraints.PathConstraint",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "decompose",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint.decompose",
+    "type" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    } ],
+    "documentation" : " Decomposes this constraint into an equivalent {@link ContainsConstraint} with:\n <ul>\n     <li>case-insensitive matching</li>\n     <li>word and phrase start matching enabled</li>\n     <li>value normalization applied</li>\n </ul>\n",
+    "constantValue" : null
+  }, {
+    "name" : "lookAhead",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint.lookAhead",
+    "type" : "java.lang.@lombok.NonNull String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.NonNull",
+      "values" : {}
+    } ],
+    "documentation" : " The look-ahead string used for matching. This acts as a prefix for partial term or phrase matching.\n",
+    "constantValue" : null
+  }, {
+    "name" : "paths",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint.paths",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.With",
+      "values" : {}
+    } ],
+    "documentation" : " Field paths where the search should be applied. If no paths are specified, all fields are considered.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LookAheadConstraint",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint#LookAheadConstraint",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "lookAhead",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint#lookAhead",
+    "returnType" : "io.fluxzero.common.api.search.Constraint",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "lookAhead",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "paths",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Creates a {@code LookAheadConstraint} that matches any terms or phrases starting with the given input string.\n <p>\n If the input is blank or {@code null}, this returns a {@link NoOpConstraint}.\n\n @param lookAhead the search prefix\n @param paths     optional field paths to restrict the search to\n @return a {@code LookAheadConstraint} or {@link NoOpConstraint}\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Evaluates whether this constraint matches the given {@link Document}. This implementation delegates to the result\n of {@link #decompose()}.\n\n @param document the document to test\n @return {@code true} if the document matches, otherwise {@code false}\n"
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.search.constraints.LookAheadConstraint#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "entry",
+      "type" : "io.fluxzero.common.search.Document.Entry",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "document",
+      "type" : "io.fluxzero.common.search.Document",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Not supported for this constraint type, as this constraint relies on higher-level document decomposition.\n\n @throws UnsupportedOperationException always\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

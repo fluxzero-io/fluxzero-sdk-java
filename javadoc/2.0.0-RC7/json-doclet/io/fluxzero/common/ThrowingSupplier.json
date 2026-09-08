@@ -1,0 +1,32 @@
+{
+  "name" : "ThrowingSupplier",
+  "qualifiedName" : "io.fluxzero.common.ThrowingSupplier",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Equivalent of {@link java.util.function.Supplier} whose {@link #get()} method may throw a checked\n {@link Exception}.\n <p>\n This interface helps to avoid depending on framework-specific throwing functional interfaces in Fluxzero APIs.\n\n @param <T> the type of supplied results\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.ThrowingSupplier#get",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ "java.lang.Exception" ],
+    "varArgs" : false,
+    "documentation" : " Gets a result.\n\n @return a result\n @throws Exception if unable to supply a result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

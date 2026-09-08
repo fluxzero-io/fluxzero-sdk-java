@@ -1,0 +1,39 @@
+{
+  "name" : "RefreshingUserProvider",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshingUserProvider",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Optional extension for refreshing an already resolved {@link User}.\n <p>\n This hook is useful for contexts that keep using a previously established user identity, but still need a fresh\n view of its roles, claims, or active/disabled status before authorization. For example, a websocket session can pin\n the user that was accepted when the session opened, then ask this provider to refresh that user for later socket\n messages without re-authenticating every frame from request headers or payload data.\n <p>\n Implementations should treat the supplied user as the trusted identity and return the current authoritative\n representation of that same identity. Returning {@code null} is interpreted as no authenticated user.\n\n @param <U> the concrete user type managed by this provider\n",
+  "typeParameters" : [ "U" ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.authentication.UserProvider" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "refreshUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.RefreshingUserProvider#refreshUser",
+    "returnType" : "U",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "user",
+      "type" : "U",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Refreshes an already resolved user for the current message context.\n\n @param user    the previously resolved user identity\n @param message the message being authorized or handled\n @return the refreshed user, or {@code null} if the user is no longer available\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

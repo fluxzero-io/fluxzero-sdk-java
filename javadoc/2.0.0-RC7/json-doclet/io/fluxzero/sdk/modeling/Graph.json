@@ -1,0 +1,1247 @@
+{
+  "name" : "Graph",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.Graph",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "com.fasterxml.jackson.databind.annotation.JsonSerialize",
+    "values" : {
+      "using" : "io.fluxzero.sdk.common.serialization.jackson.GraphJsonSerializer"
+    }
+  } ],
+  "documentation" : " A typed view of one independently stored model and its lazily available relationship context.\n <p>\n Merely resolving a detached graph by ID does not load its model value. A typed ancestor can be resolved directly\n from relationship identities without loading either the source or intermediate parents. The source value, children,\n history and update context are loaded only when requested, at one pinned model-state boundary. Every returned child\n is itself a graph view, so root, parent, history and update operations remain available without exposing the\n persistence-only {@link Entity} wrapper.\n <p>\n As the sole parameter of an event or notification handler, a graph subscribes to durable changes of that root and\n any descendant. The handler runs once per affected root. {@link #previous()} then returns the complete graph directly\n before the change; a child move therefore invokes the handler once for the old root and once for the new root. One\n handler object may declare separate sole-parameter methods for different {@code Graph<T>} root types; each changed\n root is routed to its matching typed method.\n <p>\n A materialized graph retains the serialized type and revision of every root and descendant placement. The ordinary\n serializer upcasts each node independently and lazily when its value is accessed; there is no graph-wide revision or\n separate graph-upcaster contract. Returning a complete materialized graph from a\n {@link io.fluxzero.sdk.tracking.handling.HandleDocument @HandleDocument}{@code (modelGraph = ...)} handler can\n persist those evolved node schemas into the derived projection without changing the authoritative Models or\n relationships.\n\n @param <T> model value type at the current graph placement\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "aliases",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#aliases",
+    "returnType" : "java.util.Collection<?>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the model aliases without loading relationship context. "
+  }, {
+    "name" : "ancestor",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#ancestor",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<A>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "A" ],
+    "parameters" : [ {
+      "name" : "ancestorType",
+      "type" : "java.lang.Class<A>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the closest ancestor, including the current graph, assignable to the requested type. The concrete graph\n placement is searched before alternate parent branches.\n"
+  }, {
+    "name" : "ancestorModel",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#ancestorModel",
+    "returnType" : "java.util.Optional<A>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "A" ],
+    "parameters" : [ {
+      "name" : "ancestorType",
+      "type" : "java.lang.Class<A>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the value of the closest ancestor, including the current model, assignable to the requested type. "
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies a complete message. "
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "io.fluxzero.sdk.common.serialization.DeserializingMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies a deserializing message. "
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies one update to this graph's current model and returns the staged resulting graph. "
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies one update with explicit metadata. "
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : "Applies the supplied updates in order. "
+  }, {
+    "name" : "apply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#apply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies the supplied updates in order. "
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#assertAndApply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Verifies and applies the supplied update. For an independent {@link Model}, this enters the regular model\n pipeline and returns after the selected model commit is durable; payload IDs do not replace this graph's explicit\n identity. Interceptor payload transformations retain that identity, while returning an explicit\n {@link io.fluxzero.sdk.common.Message} starts a separately routed update. Aggregate-backed graphs retain their\n surrounding aggregate lifecycle.\n"
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#assertAndApply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Verifies and applies the supplied update with explicit metadata. "
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#assertAndApply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : "Verifies and applies the supplied updates in order. "
+  }, {
+    "name" : "assertAndApply",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#assertAndApply",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "updates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Verifies and applies the supplied updates in order. "
+  }, {
+    "name" : "assertLegal",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#assertLegal",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "E" ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "E" ],
+    "varArgs" : false,
+    "documentation" : "Verifies that the supplied update is legal and returns this graph. "
+  }, {
+    "name" : "atStateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#atStateIndex",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the same model graph reconstructed at the requested durable state boundary. "
+  }, {
+    "name" : "childModels",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#childModels",
+    "returnType" : "java.util.List<C>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "C" ],
+    "parameters" : [ {
+      "name" : "childType",
+      "type" : "java.lang.Class<C>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns direct child values of the requested type. "
+  }, {
+    "name" : "childModels",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#childModels",
+    "returnType" : "java.util.List<C>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "C" ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "childType",
+      "type" : "java.lang.Class<C>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns direct child values placed at the requested explicit relationship path. "
+  }, {
+    "name" : "childPaths",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#childPaths",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the declared serialized child paths in deterministic order, including paths that currently have no\n children. Pathless relationships are deliberately absent because they are graph context rather than JSON\n structure.\n"
+  }, {
+    "name" : "children",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#children",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns all direct children in deterministic relationship-path order. "
+  }, {
+    "name" : "children",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#children",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<C>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "C" ],
+    "parameters" : [ {
+      "name" : "childType",
+      "type" : "java.lang.Class<C>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns direct children of the requested type. "
+  }, {
+    "name" : "children",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#children",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<C>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "C" ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "childType",
+      "type" : "java.lang.Class<C>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns direct children placed at the requested explicit relationship path. "
+  }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#commit",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Explicitly commits staged changes. Normal handler processing commits automatically. "
+  }, {
+    "name" : "context",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#context",
+    "returnType" : "java.util.Optional<C>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "C" ],
+    "parameters" : [ {
+      "name" : "contextType",
+      "type" : "java.lang.Class<C>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns response context assignable to the requested type, if attached to this graph view. "
+  }, {
+    "name" : "delete",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#delete",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Marks this model as deleted and returns the staged resulting graph. Return it from model handling so it joins the\n surrounding commit, or call {@link #commit()} for an explicit graph operation.\n"
+  }, {
+    "name" : "descendantModels",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#descendantModels",
+    "returnType" : "java.util.List<D>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "D" ],
+    "parameters" : [ {
+      "name" : "descendantType",
+      "type" : "java.lang.Class<D>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns all descendant values assignable to the requested type. "
+  }, {
+    "name" : "descendantModels",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#descendantModels",
+    "returnType" : "java.util.List<D>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "D" ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "descendantType",
+      "type" : "java.lang.Class<D>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns descendant values reached through the requested relationship path. "
+  }, {
+    "name" : "descendants",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#descendants",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<D>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "D" ],
+    "parameters" : [ {
+      "name" : "descendantType",
+      "type" : "java.lang.Class<D>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns all descendants assignable to the requested type in deterministic graph order. "
+  }, {
+    "name" : "descendants",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#descendants",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<D>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "D" ],
+    "parameters" : [ {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "descendantType",
+      "type" : "java.lang.Class<D>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns descendants reached through the requested relationship path. "
+  }, {
+    "name" : "filterBranches",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#filterBranches",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.sdk.modeling.Graph<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an immutable response view containing every matching placement, its complete descendant branch and the\n ancestors needed to preserve its serialized path. This is useful for selecting independently addressed branches:\n matching a parent retains its whole subtree, while matching a leaf retains only that leaf and its ancestors.\n The graph is traversed once; retained model values are shared and never copied.\n"
+  }, {
+    "name" : "filterGraph",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#filterGraph",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.sdk.modeling.Graph<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns this graph when it matches the supplied condition. "
+  }, {
+    "name" : "filterNodes",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#filterNodes",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.sdk.modeling.Graph<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns an immutable, lazy view whose model values are retained only when the supplied predicate accepts their\n graph placement. Rejected descendants remain structurally addressable as empty graphs but are omitted during\n graph serialization; accepted values are shared and never copied. A caller that retains a deep descendant should\n also retain its serialized ancestors.\n"
+  }, {
+    "name" : "filterPresent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#filterPresent",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns this graph only when its current model value is present. "
+  }, {
+    "name" : "find",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#find",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "idOrAlias",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Finds a graph by exact persisted identity or alias. Exact identities take precedence over aliases throughout\n the complete graph, even when an earlier graph owns a colliding alias.\n"
+  }, {
+    "name" : "find",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#find",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<M>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "idOrAlias",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Finds a graph by functional identity or alias and expected model type. The expected type applies the same\n {@link EntityId} and nested {@link Id} affixes as a typed model load.\n"
+  }, {
+    "name" : "find",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#find",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<M>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "idOrAlias",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupPolicy",
+      "type" : "io.fluxzero.sdk.modeling.GraphLookupPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Finds a graph by functional identity or alias and expected model type using the supplied ambiguity policy.\n Exact identities take precedence over aliases throughout the complete graph.\n"
+  }, {
+    "name" : "find",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#find",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "predicate",
+      "type" : "java.util.function.Predicate<? super io.fluxzero.sdk.modeling.Graph<?>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Finds the first graph in deterministic graph order matching the supplied condition. "
+  }, {
+    "name" : "functionalId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#functionalId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the public functional identity from the current model value or, for a deleted model, its latest\n available historical value.\n <p>\n This deliberately differs from {@link #id()}, which can contain an {@link EntityId} prefix, postfix or\n parent scope used only for durable repository identity. A model that has never existed has no functional\n identity and returns {@code null}.\n"
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#get",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the current model value, or {@code null} for a missing or deleted model. "
+  }, {
+    "name" : "hasChanged",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#hasChanged",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "selector",
+      "type" : "java.util.function.Function<? super T,?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether the selected value differs from the preceding revision. "
+  }, {
+    "name" : "highestEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#highestEventIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the newest event index retained by this graph's revision history. "
+  }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#id",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the exact collision-safe repository identity of this model. "
+  }, {
+    "name" : "ifPresent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#ifPresent",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "operation",
+      "type" : "java.util.function.UnaryOperator<io.fluxzero.sdk.modeling.Graph<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Applies a graph operation only when a current model value is present. "
+  }, {
+    "name" : "isEmpty",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#isEmpty",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether this graph currently represents a missing or deleted model. "
+  }, {
+    "name" : "isPresent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#isPresent",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether this graph currently contains a model value. "
+  }, {
+    "name" : "isRoot",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#isRoot",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether this graph is the outer root of its current graph view. "
+  }, {
+    "name" : "lastEventId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#lastEventId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the last globally published event identifier visible to this model revision. "
+  }, {
+    "name" : "lastEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#lastEventIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the last globally published event index visible to this model revision. "
+  }, {
+    "name" : "map",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#map",
+    "returnType" : "java.util.Optional<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "mapper",
+      "type" : "java.util.function.Function<? super T,? extends R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Maps the current model value when present without loading relationship context. "
+  }, {
+    "name" : "mapGraph",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#mapGraph",
+    "returnType" : "java.util.Optional<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "mapper",
+      "type" : "java.util.function.Function<? super io.fluxzero.sdk.modeling.Graph<T>,? extends R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Maps this graph itself without loading relationship context. "
+  }, {
+    "name" : "mapIfPresent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#mapIfPresent",
+    "returnType" : "java.util.Optional<R>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "R" ],
+    "parameters" : [ {
+      "name" : "mapper",
+      "type" : "java.util.function.Function<? super io.fluxzero.sdk.modeling.Graph<T>,? extends R>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Maps this graph only when its current model value is present. "
+  }, {
+    "name" : "matchesAlias",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#matchesAlias",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "graph",
+      "type" : "io.fluxzero.sdk.modeling.Graph<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requested",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "optional",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#optional",
+    "returnType" : "java.util.Optional<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the current model value as an optional without loading relationship context. "
+  }, {
+    "name" : "orElse",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#orElse",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fallback",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the current model value or the supplied fallback. "
+  }, {
+    "name" : "orElseGet",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#orElseGet",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fallback",
+      "type" : "java.util.function.Supplier<? extends T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the current model value or obtains a fallback lazily. "
+  }, {
+    "name" : "orElseThrow",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#orElseThrow",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the current model value or throws when this graph is empty. "
+  }, {
+    "name" : "orElseThrow",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#orElseThrow",
+    "returnType" : "T",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "X" ],
+    "parameters" : [ {
+      "name" : "exceptionSupplier",
+      "type" : "java.util.function.Supplier<? extends X>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "X" ],
+    "varArgs" : false,
+    "documentation" : "Returns the current model value or throws the supplied exception when this graph is empty. "
+  }, {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#parent",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the parent of this concrete graph placement, if one exists. "
+  }, {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#parent",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<P>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "P" ],
+    "parameters" : [ {
+      "name" : "parentType",
+      "type" : "java.lang.Class<P>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the closest parent assignable to the requested type. "
+  }, {
+    "name" : "parentModel",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#parentModel",
+    "returnType" : "java.util.Optional<P>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "P" ],
+    "parameters" : [ {
+      "name" : "parentType",
+      "type" : "java.lang.Class<P>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the value of the closest parent assignable to the requested type. "
+  }, {
+    "name" : "parents",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#parents",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns all direct parents of this model. A concrete placement normally has one parent, while a directly loaded\n model may expose multiple declared {@link Parent} relationships.\n"
+  }, {
+    "name" : "playBackToCondition",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#playBackToCondition",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "condition",
+      "type" : "java.util.function.Predicate<io.fluxzero.sdk.modeling.Graph<T>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Plays back to the first retained revision matching the supplied condition. "
+  }, {
+    "name" : "playBackToEvent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#playBackToEvent",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "eventIndex",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Plays back to the first retained revision matching the supplied event boundary. "
+  }, {
+    "name" : "previous",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#previous",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the preceding model revision as a lazy graph, or {@code null} when none is retained.\n Surrounding models and relationships are resolved immediately before the current revision became effective.\n This keeps children added after the preceding root revision visible while excluding changes made by the update\n whose before-state is being observed.\n"
+  }, {
+    "name" : "previousValue",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#previousValue",
+    "returnType" : "V",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ "V" ],
+    "parameters" : [ {
+      "name" : "selector",
+      "type" : "java.util.function.Function<? super T,V>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the selected value from the preceding revision, or {@code null} when unavailable. "
+  }, {
+    "name" : "relationshipPath",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#relationshipPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the parent-relative relationship path, or {@code null} for a pathless, standalone, or root view. "
+  }, {
+    "name" : "revisionStateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#revisionStateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the namespace-wide state boundary at which this concrete model revision became current.\n <p>\n Unlike {@link #stateIndex()}, which describes the pinned boundary shared by the complete graph, this value can\n differ between nodes and therefore provides a stable ordering for otherwise ambiguous functional-ID lookups.\n"
+  }, {
+    "name" : "revisions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#revisions",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.modeling.Graph<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns current and retained preceding revisions, newest first. "
+  }, {
+    "name" : "root",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#root",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the outer graph root. On a root graph this returns {@code this}. "
+  }, {
+    "name" : "selectLookupMatch",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#selectLookupMatch",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<M>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "existing",
+      "type" : "io.fluxzero.sdk.modeling.Graph<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "candidate",
+      "type" : "io.fluxzero.sdk.modeling.Graph<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectPaths",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#selectPaths",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "paths",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Returns an immutable graph view containing only the selected serialized relationship paths and their ancestors.\n Model values and graph nodes are shared with this graph; no models are copied or loaded merely by creating the\n view. An empty selection returns this complete graph.\n"
+  }, {
+    "name" : "selectPaths",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#selectPaths",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "paths",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "See {@link #selectPaths(String...)}. "
+  }, {
+    "name" : "sequenceNumber",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#sequenceNumber",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the model-local sequence number. "
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#stateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the pinned namespace-wide model-state boundary. "
+  }, {
+    "name" : "stream",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#stream",
+    "returnType" : "java.util.stream.Stream<io.fluxzero.sdk.modeling.Graph<?>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Lazily traverses this graph in deterministic pre-order, including this graph itself. Relationship context is\n loaded only when the returned stream is consumed.\n"
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#timestamp",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the timestamp of this model revision. "
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#type",
+    "returnType" : "java.lang.Class<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns the concrete model type. "
+  }, {
+    "name" : "update",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#update",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "update",
+      "type" : "java.util.function.UnaryOperator<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Updates the current value directly. When returned by an apply interceptor, the staged update joins that\n interceptor's atomic model commit and is replayed against fresh state after an accepted conflict. The operator\n must therefore be deterministic and free of external side effects. Prefer {@link #apply(Object)} for domain\n updates whose apply-specific event publication settings should govern the transition.\n"
+  }, {
+    "name" : "validateLookupAmbiguity",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#validateLookupAmbiguity",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "matches",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requested",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lookupPolicy",
+      "type" : "io.fluxzero.sdk.modeling.GraphLookupPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withContext",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph#withContext",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "values",
+      "type" : "java.lang.Object[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : " Returns an immutable graph view carrying typed response context for graph-derived properties.\n <p>\n Context is shared by the complete graph view, including its parents, children and historical revisions. It does\n not become part of model state and is not loaded or persisted by the SDK. This makes it suitable for one\n response-wide, already-batched lookup that several {@link GraphProperty @GraphProperty} methods consume without\n introducing per-node I/O.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Options",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.Graph$Options",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

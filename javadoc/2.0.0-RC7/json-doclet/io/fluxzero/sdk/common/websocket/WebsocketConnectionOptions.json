@@ -1,0 +1,198 @@
+{
+  "name" : "WebsocketConnectionOptions",
+  "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions",
+  "packageName" : "io.fluxzero.sdk.common.websocket",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Connection settings for the low-level runtime websocket connector.\n\n <p>The collections passed to this record are defensively copied. Header names are passed through unchanged because\n the underlying connector forwards them to the runtime handshake as supplied.</p>\n\n @param headers        request headers to add to the WebSocket opening handshake\n @param userProperties mutable session metadata that should be available to endpoint callbacks after the session opens\n @param connectTimeout optional timeout for establishing the WebSocket connection\n @param subprotocols   optional WebSocket subprotocols to advertise, ordered by preference\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "connectTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions.connectTimeout",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "headers",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions.headers",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "subprotocols",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions.subprotocols",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "userProperties",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions.userProperties",
+    "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebsocketConnectionOptions",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#WebsocketConnectionOptions",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "headers",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "userProperties",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "connectTimeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "subprotocols",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "connectTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#connectTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "copyHeaders",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#copyHeaders",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "source",
+      "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "headers",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#headers",
+    "returnType" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "subprotocols",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#subprotocols",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "userProperties",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.WebsocketConnectionOptions#userProperties",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "connectTimeout",
+    "type" : "java.time.Duration",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "headers",
+    "type" : "java.util.Map<java.lang.String,java.util.List<java.lang.String>>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "subprotocols",
+    "type" : "java.util.List<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "userProperties",
+    "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

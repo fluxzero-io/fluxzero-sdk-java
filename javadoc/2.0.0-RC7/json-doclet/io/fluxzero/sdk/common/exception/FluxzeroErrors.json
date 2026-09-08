@@ -1,0 +1,430 @@
+{
+  "name" : "FluxzeroErrors",
+  "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors",
+  "packageName" : "io.fluxzero.sdk.common.exception",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Factory methods for human-readable SDK errors.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "FluxzeroErrors",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#FluxzeroErrors",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "article",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#article",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "causeDescription",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#causeDescription",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "display",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#display",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fluxzeroInstanceMissing",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#fluxzeroInstanceMissing",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when code calls Fluxzero without an active instance.\n"
+  }, {
+    "name" : "handlerInvocationFailed",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#handlerInvocationFailed",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlerDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when a handler failed while processing a message.\n"
+  }, {
+    "name" : "messageDispatchFailed",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#messageDispatchFailed",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageCount",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when a message cannot be dispatched.\n"
+  }, {
+    "name" : "periodicScheduleAnnotationMissing",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#periodicScheduleAnnotationMissing",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when code asks Fluxzero to schedule a value periodically without @Periodic.\n"
+  }, {
+    "name" : "periodicScheduleInvalid",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#periodicScheduleInvalid",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadType",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when a periodic schedule is not valid.\n"
+  }, {
+    "name" : "requestTimedOut",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#requestTimedOut",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when a request does not receive a response in time.\n"
+  }, {
+    "name" : "requestTimeoutException",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#requestTimeoutException",
+    "returnType" : "java.util.concurrent.TimeoutException",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "responseDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "timeout",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a {@link TimeoutException} with a human-readable Fluxzero error report as its message.\n"
+  }, {
+    "name" : "responseDispatchFailed",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#responseDispatchFailed",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "responseDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "target",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "requestId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when Fluxzero cannot dispatch a response.\n"
+  }, {
+    "name" : "safeCauseMessage",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#safeCauseMessage",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "threadInterrupted",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#threadInterrupted",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "operationDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "payloadType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when a blocking wait is interrupted.\n"
+  }, {
+    "name" : "trackingConfigurationInvalid",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#trackingConfigurationInvalid",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "title",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "whatHappened",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "howToFix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "consumer",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when tracking cannot be configured or started.\n"
+  }, {
+    "name" : "trackingNotSupported",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#trackingNotSupported",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when tracking is requested for an unsupported message type.\n"
+  }, {
+    "name" : "trackingRuntimeFailed",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#trackingRuntimeFailed",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "operationDescription",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "tracker",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "segment",
+      "type" : "int[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "index",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cause",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when a tracker fails while managing its runtime state.\n"
+  }, {
+    "name" : "userProviderMissing",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.FluxzeroErrors#userProviderMissing",
+    "returnType" : "io.fluxzero.sdk.common.exception.FluxzeroErrorReport",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates the report used when a message cannot attach user metadata.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

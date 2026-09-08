@@ -1,0 +1,426 @@
+{
+  "name" : "ConstraintViolation",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.validation",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Structured validation failure exposed by the Fluxzero validation API.\n <p>\n The SDK keeps this type independent from Jakarta Validation so custom {@link Validator} implementations do not have\n to expose provider-specific violation objects. The default validator still records the most useful metadata: message,\n template, property path, invalid value, root bean, constraint type, and constraint attributes.\n\n @param message         interpolated violation message\n @param messageTemplate original message template\n @param propertyPath    full path to the invalid property or executable value\n @param formattedPath   compact path used by Fluxzero's formatted {@link ValidationException} messages\n @param invalidValue    value that failed validation\n @param rootBean        root object that was validated\n @param rootBeanClass   root object type\n @param constraint      fully qualified annotation type name of the violated constraint, when available\n @param attributes      constraint annotation attributes, excluding provider-specific descriptor objects\n @param <T>             root bean type\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "attributes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.attributes",
+    "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "constraint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.constraint",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "formattedPath",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.formattedPath",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "invalidValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.invalidValue",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.message",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "messageTemplate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.messageTemplate",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "propertyPath",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.propertyPath",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "rootBean",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.rootBean",
+    "type" : "T",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "rootBeanClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation.rootBeanClass",
+    "type" : "java.lang.Class<T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ConstraintViolation",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#ConstraintViolation",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageTemplate",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "propertyPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "formattedPath",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "invalidValue",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootBean",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "rootBeanClass",
+      "type" : "java.lang.Class<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraint",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "attributes",
+      "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a structured validation failure.\n"
+  } ],
+  "methods" : [ {
+    "name" : "attributes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#attributes",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "constraint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#constraint",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "formattedPath",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#formattedPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getAttributes",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getAttributes",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return constraint annotation attributes\n"
+  }, {
+    "name" : "getConstraint",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getConstraint",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return fully qualified annotation type name of the violated constraint, when available\n"
+  }, {
+    "name" : "getFormattedPath",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getFormattedPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return compact path used by Fluxzero's formatted validation exception messages\n"
+  }, {
+    "name" : "getInvalidValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getInvalidValue",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return value that failed validation\n"
+  }, {
+    "name" : "getMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getMessage",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return interpolated violation message\n"
+  }, {
+    "name" : "getMessageTemplate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getMessageTemplate",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return original message template\n"
+  }, {
+    "name" : "getPropertyPath",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getPropertyPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return full path to the invalid property or executable value\n"
+  }, {
+    "name" : "getRootBean",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getRootBean",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return root object that was validated\n"
+  }, {
+    "name" : "getRootBeanClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#getRootBeanClass",
+    "returnType" : "java.lang.Class<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return root object type\n"
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "invalidValue",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#invalidValue",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "message",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#message",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "messageTemplate",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#messageTemplate",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "propertyPath",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#propertyPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rootBean",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#rootBean",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "rootBeanClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#rootBeanClass",
+    "returnType" : "java.lang.Class<T>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.ConstraintViolation#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "attributes",
+    "type" : "java.util.Map<java.lang.String,java.lang.Object>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "constraint",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "formattedPath",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "invalidValue",
+    "type" : "java.lang.Object",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "message",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "messageTemplate",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "propertyPath",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "rootBean",
+    "type" : "T",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "rootBeanClass",
+    "type" : "java.lang.Class<T>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}
