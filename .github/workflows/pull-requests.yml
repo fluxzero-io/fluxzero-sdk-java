@@ -38,3 +38,19 @@ jobs:
 
       - name: Run Maven build
         run: ./mvnw -B install
+
+      - name: Verify standard Maven publication and release attachments
+        run: |
+          repository="$RUNNER_TEMP/maven-publication"
+          ./mvnw -B -Dgpg.skip -DskipTests deploy \
+            "-DaltDeploymentRepository=fluxzero::file://$repository"
+          for artifact in fluxzero-sdk-java fluxzero-bom common sdk test-server proxy; do
+            test -d "$repository/io/fluxzero/$artifact"
+          done
+          for artifact in common sdk test-server proxy; do
+            test "$(find "$repository/io/fluxzero/$artifact" -name '*-sources.jar' | wc -l)" -gt 0
+            test "$(find "$repository/io/fluxzero/$artifact" -name '*-javadoc.jar' | wc -l)" -gt 0
+          done
+          for artifact in annotation-processor-tests java-downstream-project kotlin-downstream-project; do
+            test ! -e "$repository/io/fluxzero/$artifact"
+          done

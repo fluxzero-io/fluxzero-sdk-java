@@ -102,7 +102,7 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Full PR-equivalent verification is `./mvnw -B install`.
 - For focused work, prefer targeted Maven runs such as `./mvnw -pl sdk -am test` or `./mvnw -pl proxy -am -Dtest=ProxyServerTest test`.
 - Apply the Regression Safety workflow for code changes and run checks proportionate to the affected modules, execution paths, and downstream projects.
-- Run `./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy` before changes that affect release packaging, generated artifacts, or Maven Central metadata.
+- Before changes that affect release packaging, generated artifacts, or Maven Central metadata, run `./mvnw -B install` and qualify `./mvnw -B -Dgpg.skip -DskipTests deploy -DaltDeploymentRepository=fluxzero::file:///absolute/path/to/temporary-repository`. Sources and Javadoc are built by default; the `sign` profile adds signatures. Never use the public destination for a packaging check.
 - Javadoc/site work should be checked with `./mvnw -B site -Pjavadoc`.
 
 ## Coding Guidelines
