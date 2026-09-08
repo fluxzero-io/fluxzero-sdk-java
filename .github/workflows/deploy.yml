@@ -41,6 +41,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set release timestamp
+        run: echo "RELEASE_TIMESTAMP=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
       - name: Verify repository normalization
         run: |
           git add --renormalize .
@@ -235,6 +238,9 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
+
+      - name: Set release timestamp
+        run: echo "RELEASE_TIMESTAMP=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
 
       - name: Install Java and Maven
         uses: actions/setup-java@v6
