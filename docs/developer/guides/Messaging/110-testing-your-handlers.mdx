@@ -293,6 +293,11 @@ Or partial paths:
     `"@class": "io.fluxzero.yourapp.user.command.CreateUser"`
 </Aside>
 
+Registered exact and package type aliases apply to `@class`, so existing fixtures can retain a legacy fully qualified
+name after a class or package move. Configure aliases on `FluxzeroBuilder`, with
+`fluxzero.serialization.typeAliases`, or directly on the fixture using `registerTypeAlias(...)` and
+`registerPackageAlias(...)`.
+
 ### Testing older revisions with @revision
 
 Add a root-level `@revision` next to `@class` to represent an older serialized payload without writing a full `Data`
@@ -308,7 +313,8 @@ wrapper:
 ```
 
 `@class` becomes the serialized data type and `@revision` becomes its revision. Both markers are removed before the
-payload enters the upcaster chain; the regular `revision` field remains part of the payload. This works in
+payload enters the upcaster chain; type aliases are applied after that chain, and the regular `revision` field remains
+part of the payload. This works in
 `TestFixture` JSON inputs and in untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls. Explicitly typed
 `JsonUtils` overloads keep their declared return type.
 

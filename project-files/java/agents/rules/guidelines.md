@@ -113,6 +113,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
         - [Data protection (@ProtectData, @DropProtectedData)](validation.md#data-protection)
 - **"I need to handle versioning or schema evolution"**
     - → [Serialization](serialization.md)
+        - [Aliasing renamed classes or packages](serialization.md#type-aliases)
         - [Payload Upcasting (ObjectNode)](serialization.md#payload-upcasting)
         - [Data Upcasting (Full message)](serialization.md#data-upcasting)
         - [Incrementing revisions (@Revision)](serialization.md#revision)
@@ -155,7 +156,7 @@ Use this tree to find the correct manual for your current task, ordered by the r
 | [Testing](testing.md)                         | Writing fast, reliable tests with `TestFixture`.             |
 | [Local Development](development.md)           | Version-aligned CLI and dev-server configuration guidance.   |
 | [Validation](validation.md)                   | Authorization, access control, and payload validation.       |
-| [Serialization](serialization.md)             | Versioning, upcasting, and schema evolution.                 |
+| [Serialization](serialization.md)             | Versioning, type aliases, upcasting, and schema evolution.   |
 | [Configuration](configuration.md)             | Setting up and tuning your Fluxzero application.             |
 | [Troubleshooting](troubleshooting.md)         | Resolving common issues and errors.                          |
 

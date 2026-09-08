@@ -42,6 +42,9 @@ revision number to determine whether any transformation is required.
 
 Upcasting transforms a serialized object from an older revision to a newer one.
 
+If only the fully qualified type or package name changed and the JSON structure stayed compatible, use a
+[type alias](#type-aliases) instead of an upcaster.
+
 <Aside type="note">
 Upcasters operate on top-level serialized objects (payloads, documents, snapshots, key-value entries), not on nested
 types in isolation. If a nested model change affects multiple top-level payload/document types, add upcasters (and new
@@ -193,6 +196,54 @@ This works for any stored data — not just messages, but also snapshots, key-va
 
 ---
 
+## Type aliases
+
+Use a type alias when serialized data contains an old Java/Kotlin type name, but its payload and revision do not need
+to change. You can register multiple exact aliases and package aliases together:
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    Fluxzero fluxzero = DefaultFluxzero.builder()
+            .addTypeAlias("host.example.LegacyCommand", "io.example.CurrentCommand")
+            .addPackageAlias("host.example.events", "io.example.events")
+            .build(client);
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    val fluxzero = DefaultFluxzero.builder()
+        .addTypeAlias("host.example.LegacyCommand", "io.example.CurrentCommand")
+        .addPackageAlias("host.example.events", "io.example.events")
+        .build(client)
+    ```
+  </TabItem>
+</Tabs>
+
+A package alias includes the package itself and all its subpackages while preserving the remainder of the class name.
+Package boundaries are respected: `host.example` does not match `host.examples.SomeType`. Exact aliases take
+precedence over package aliases, and the longest matching package prefix wins when package aliases overlap. Aliases
+may chain, but cycles are rejected during registration.
+
+The same configuration can be supplied as a comma-, semicolon-, or newline-separated application property. Add `.*`
+on both sides to identify a package alias:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+Programmatic aliases take precedence over property aliases with the same source. Aliases are configured on the
+primary and snapshot serializers and on a serializer-backed document serializer. A custom `Serializer` may support
+exact aliases through `registerTypeAlias(...)` while opting out of package aliases.
+
+<Aside type="note">
+Upcasters run before aliases. An `@Upcast` method must therefore select the serialized source type, even when an alias
+ultimately resolves that type to its current class name. Use an upcaster when the payload or revision changes; use an
+alias for a pure type or package rename. They can be combined when both are needed.
+</Aside>
+
+---
+
 ## Upcasting flow
 
 When a stored data object is deserialized, Fluxzero uses the object’s **type** and **revision** to traverse the tree of registered upcasters. Each upcaster specifies which type+revision it can handle, and may:
@@ -202,12 +253,14 @@ When a stored data object is deserialized, Fluxzero uses the object’s **type**
 - Split the object into multiple new ones,
 - Or drop it entirely.
 
-The traversal continues until no upcasters match the current type+revision, at which point the data is deserialized into a Java/Kotlin object.
+The traversal continues until no upcasters match the current type+revision. Fluxzero then resolves exact and package
+aliases before deserializing the data into a Java/Kotlin object.
 
 ```mermaid
 graph TD
     RAW["Serialized data (type, revision)"] --> FIND{Find matching upcasters}
-    FIND -->|None found| DESERIALIZE[Ready for deserialization]
+    FIND -->|None found| ALIAS[Resolve type aliases]
+    ALIAS --> DESERIALIZE[Ready for deserialization]
     FIND -->|Upcaster found| APPLY[Apply upcaster]
 
     APPLY --> ACTION{Upcaster result}
@@ -256,8 +309,10 @@ fixture.whenUpcasting("/users/create-user-revision-0.json")
 </Tabs>
 
 The `@class` value is used as `Data.type`, so the upcaster is selected by the same type-and-revision pair as stored
-data. Both control markers are removed before upcasting. A property named `revision` without the `@` prefix is always
-ordinary payload data.
+data. Both control markers are removed before upcasting. Registered exact and package aliases are then applied to the
+resulting type before deserialization. Configure them on `FluxzeroBuilder`, through
+`fluxzero.serialization.typeAliases`, or directly on the fixture with `registerTypeAlias(...)` and
+`registerPackageAlias(...)`. A property named `revision` without the `@` prefix is always ordinary payload data.
 
 Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls expose the same representation as
 `Data<JsonNode>`, making revisioned JSON useful outside `TestFixture` as well. Explicitly typed `JsonUtils` overloads
@@ -346,6 +401,7 @@ Outside of Spring, register them manually:
 - On deserialization:
   - Fluxzero detects the revision of the stored object
   - Applies all applicable `@Upcast` methods (in order)
+  - Resolves exact and package type aliases
   - Then deserializes into the latest version
 
 - On serialization:
@@ -359,6 +415,7 @@ All casting occurs in your application, not in the Fluxzero Runtime. Stored mess
 ## Best practices
 
 - Use `@Revision` to version any payloads that are stored or transmitted
+- Use type or package aliases for pure fully qualified name changes that do not alter the payload or revision
 - Use `ObjectNode` for simple structural changes, or `Data<ObjectNode>` to modify metadata
 - Chain upcasters one revision at a time (`v0 → v1`, `v1 → v2`, etc.)
 - Ensure upcasters are side-effect free and deterministic

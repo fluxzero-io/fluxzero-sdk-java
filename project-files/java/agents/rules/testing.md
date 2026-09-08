@@ -198,6 +198,10 @@ To ensure reliable type resolution, always use the full class path in the `@clas
 ```
 [//]: # (@formatter:on)
 
+When a class or package has moved, `@class` may retain its historical FQN if an exact or package type alias is
+registered. Configure aliases through `FluxzeroBuilder`, `fluxzero.serialization.typeAliases`, or the fixture's
+`registerTypeAlias(...)` and `registerPackageAlias(...)` helpers. Alias resolution runs after revision upcasting.
+
 ### Testing Older Revisions (`@revision`)
 
 Use a root-level `@revision` next to `@class` when a JSON resource should represent older serialized data:
@@ -213,9 +217,10 @@ Use a root-level `@revision` next to `@class` when a JSON resource should repres
 ```
 [//]: # (@formatter:on)
 
-The fixture uses `@class` as `Data.type` and `@revision` as `Data.revision`, removes both markers, and invokes the normal
-upcaster chain. Never use a plain `revision` field as serialization metadata; it always remains payload data. The same
-interpretation is available through untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls.
+The fixture uses `@class` as `Data.type` and `@revision` as `Data.revision`, removes both markers, invokes the normal
+upcaster chain, and then resolves registered type aliases. Never use a plain `revision` field as serialization metadata;
+it always remains payload data. The same interpretation is available through untyped `JsonUtils.fromFile(...)` and
+`JsonUtils.fromJson(...)` calls.
 
 ### Extending JSON (@extends)
 
