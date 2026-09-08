@@ -11,6 +11,7 @@ use [Local Development](development.md) and obtain the current schema with `fz d
 ## Quick Navigation
 
 - [Property Resolution](#property-resolution)
+- [Serialization Type Aliases](#serialization-type-aliases)
 - [Core Properties](#core-properties)
 - [Client Configuration](#client-configuration)
     - [In-Memory (LocalClient)](#local-client)
@@ -42,6 +43,30 @@ val name: String = ApplicationProperties.getProperty("app.name", "DefaultApp")
 val enabled: Boolean = ApplicationProperties.getBooleanProperty("feature.toggle", true)
 val maxItems: Int = ApplicationProperties.getIntegerProperty("limit.items", 100)
 ```
+
+---
+
+<a name="serialization-type-aliases"></a>
+
+## Serialization Type Aliases
+
+Prefer application or deployment configuration for serialized class and package renames. Put all aliases in one
+property value:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+Or use the conventional environment variable:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+`ApplicationProperties` also accepts the compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling. The selected property
+source supplies the complete comma-, semicolon-, or newline-separated list; package aliases use `.*` on both sides.
+Use builder methods only for aliases intentionally owned by application code or tests. See
+[Serialization](serialization.md#type-aliases) for precedence, upcaster ordering, and fixture behavior.
 
 ---
 

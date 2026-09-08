@@ -53,6 +53,17 @@ package aliases require a trailing `.*` on both sides:
 fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
 ```
 
+For deployment configuration, set the conventional environment variable. Quote its value so the shell leaves package
+wildcards unchanged:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+`FLUXZERO_SERIALIZATION_TYPEALIASES` is accepted as a compact alternative. Following the normal property resolution
+order, the environment variable takes precedence over system properties and `application*.properties`. The selected
+property source supplies the complete alias list; entries are not merged across property sources.
+
 Exact aliases take precedence over package aliases, and the longest matching package prefix wins. An alias configured
 through `FluxzeroBuilder.addTypeAlias(...)` or `addPackageAlias(...)` overrides a property alias with the same source.
 Aliases run after revision upcasters and also apply to `@class` values in JSON test fixtures. See

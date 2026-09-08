@@ -92,10 +92,11 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
 
 - `replaceSerializer(...)` changes the default JSON serializer (e.g., for Jackson customizations).
 - `replaceDocumentSerializer(...)` lets you influence how document fields are indexed and stored for search.
-- `addTypeAlias(...)` and `addTypeAliases(...)` map one or more legacy serialized type names to current type names.
-- `addPackageAlias(...)` and `addPackageAliases(...)` migrate a package prefix and all its subpackages while preserving
-  the remaining class-name suffix. The same aliases can be configured with
-  `fluxzero.serialization.typeAliases`; programmatic aliases take precedence for the same source.
+- Prefer `fluxzero.serialization.typeAliases` or `FLUXZERO_SERIALIZATION_TYPE_ALIASES` to configure the complete list
+  of exact and package aliases per deployment.
+- `addTypeAlias(...)`, `addTypeAliases(...)`, `addPackageAlias(...)`, and `addPackageAliases(...)` provide
+  programmatic configuration when aliases are intentionally owned by application code. These aliases take precedence
+  over property configuration for the same source.
 
 See [Upcasting and downcasting](/docs/guides/data-control-and-serialization/upcasting-and-downcasting#type-aliases) for
 the alias syntax, resolution order, and `TestFixture` behavior.

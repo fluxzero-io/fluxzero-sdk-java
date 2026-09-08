@@ -4960,7 +4960,24 @@ Returning `Metadata` still requires message input because non-message data has n
 ### Type Aliases
 
 Use type aliases when serialized data contains an old Java type name but the payload itself does not need to change.
-Multiple exact and package aliases can be configured together:
+For most applications, configure all exact and package aliases together in `application.properties`:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+In deployment configuration, use the conventional environment-variable name. Quote the value so the shell does not
+interpret the `*` characters:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+The compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also accepted. Environment variables follow the normal
+property resolution order and take precedence over system and application properties. The selected property value is
+the complete comma-, semicolon-, or newline-separated alias list; add `.*` on both sides to identify package aliases.
+
+Use the builder when the aliases are intentionally owned by application code or a test:
 
 ```java
 Fluxzero fluxzero = DefaultFluxzero.builder()
@@ -4973,13 +4990,6 @@ A package alias applies to the package and all its subpackages while preserving 
 Exact aliases take precedence, and the longest package prefix wins when package aliases overlap. Aliases may also
 chain, for example from an exact legacy name into an aliased package. Package boundaries are respected, so an alias for
 `host.example` does not match `host.examples.SomeType`.
-
-The same aliases can be supplied as a comma-, semicolon-, or newline-separated property. Add `.*` on both sides to
-identify package aliases:
-
-```properties
-fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
-```
 
 Programmatic aliases override property aliases with the same source. Alias resolution runs after revision upcasters,
 so existing `@Upcast` handlers continue to select the serialized type and may themselves change it before aliases are

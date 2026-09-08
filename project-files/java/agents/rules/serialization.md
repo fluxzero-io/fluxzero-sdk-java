@@ -124,7 +124,24 @@ Fluxzero then injects `null`. Without `@Nullable`, missing message metadata caus
 ## Type Aliases
 
 Use aliases when historical serialized data names an old class or package, but the JSON payload and revision remain
-compatible with the current type. Multiple exact aliases and package aliases can be configured together:
+compatible with the current type. Prefer application or deployment configuration. Put the complete list in
+`application.properties`:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+Or supply the same value through the conventional environment variable:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+The compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also accepted by `ApplicationProperties`. An environment
+value takes precedence over system and application properties and supplies the complete list. Entries may be separated
+by commas, semicolons, or newlines; a package alias has a trailing `.*` on both sides.
+
+Use the builder only when aliases are intentionally owned by application code or a test:
 
 [//]: # (@formatter:off)
 ```java
@@ -134,13 +151,6 @@ Fluxzero fluxzero = DefaultFluxzero.builder()
         .build(client);
 ```
 [//]: # (@formatter:on)
-
-The equivalent application property accepts comma-, semicolon-, or newline-separated entries. A package alias has a
-trailing `.*` on both sides:
-
-```properties
-fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
-```
 
 Follow these rules:
 
@@ -228,8 +238,9 @@ You can verify upcasters in a `TestFixture` by providing the old serialized form
 
 `@class` is used as `Data.type` and `@revision` as `Data.revision`; both markers are removed before the payload enters
 the upcaster chain. Exact and package aliases are applied to the resulting type before deserialization. Configure them
-on the builder, through `fluxzero.serialization.typeAliases`, or directly on the fixture. Always use `@revision` for
-serialization metadata. A field named `revision` without the `@` prefix is normal payload data. Untyped
+through `fluxzero.serialization.typeAliases` or `FLUXZERO_SERIALIZATION_TYPE_ALIASES`, on the builder, or directly on
+the fixture. Always use `@revision` for serialization metadata. A field named `revision` without the `@` prefix is
+normal payload data. Untyped
 `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls return the same
 `Data<JsonNode>` representation, while explicitly typed overloads keep their declared return type. Untyped root arrays
 and multiple root values (NDJSON) return an `ArrayList` whose elements or records are each resolved independently with
