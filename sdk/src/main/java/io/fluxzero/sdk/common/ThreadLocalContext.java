@@ -255,10 +255,20 @@ public final class ThreadLocalContext {
                 return snapshot;
             }
             int active = 0;
+            boolean unchanged = true;
             for (int i = 0; i < size; i++) {
                 if (values[i] != null) {
+                    unchanged = unchanged && active < snapshot.values.length
+                                && participants[i] == snapshot.participants[active]
+                                && values[i] == snapshot.values[active];
                     active++;
                 }
+            }
+            if (unchanged && active == snapshot.values.length) {
+                // Entering and restoring an event context often marks the values dirty without changing
+                // their final identities. Keep that common round trip allocation-free.
+                dirty = false;
+                return snapshot;
             }
             if (active == 0) {
                 snapshot = Snapshot.empty();
