@@ -28,6 +28,15 @@
         <maven.surefire.version>3.6.0</maven.surefire.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>fluxzero</id>
+            <url>https://packages.fluxzero.io/maven</url>
+            <releases><enabled>true</enabled><checksumPolicy>fail</checksumPolicy></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+    </repositories>
+
     <dependencyManagement>
         <dependencies>
             <dependency>

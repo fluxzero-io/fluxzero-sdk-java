@@ -357,7 +357,7 @@ jobs:
           - Do not push, commit, or open a PR; the workflow will do that.
           - If there is no safe minimal fix, leave the worktree unchanged and explain why.
           - Prefer fixing tests only when the evidence shows a test race rather than a production defect.
-          - Do not run the full deploy command yourself. The workflow will run ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy after Codex exits with repository changes.
+          - Do not run the full deploy command yourself. The workflow will run ./mvnw -B install after Codex exits with repository changes.
 
           Efficiency guidance:
           - Use the pre-collected failure context before spending tokens or time on broad log searches.
@@ -482,7 +482,7 @@ jobs:
 
       - name: Verify changed worktree
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' && steps.changes.outputs.has_changes == 'true'
-        run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
+        run: ./mvnw -B install
 
       - name: Commit and push repair branch
         if: steps.gate.outputs.skip != 'true' && steps.duplicate.outputs.exists == 'false' && steps.changes.outputs.has_changes == 'true'

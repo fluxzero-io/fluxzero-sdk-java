@@ -19,6 +19,21 @@ functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
 ### Maven Users
 
+Add the Fluxzero repository to your POM to receive releases as soon as they are published:
+
+```xml
+<repositories>
+    <repository>
+        <id>fluxzero</id>
+        <url>https://packages.fluxzero.io/maven</url>
+        <releases><enabled>true</enabled></releases>
+        <snapshots><enabled>false</enabled></snapshots>
+    </repository>
+</repositories>
+```
+
+Releases are published here before Maven Central. Existing Maven coordinates stay the same.
+
 Import the [Fluxzero BOM](https://mvnrepository.com/artifact/io.fluxzero/fluxzero-bom) in your
 `dependencyManagement` section to centralize version management:
 
@@ -79,6 +94,10 @@ automatically:
 <summary><strong>Kotlin DSL (build.gradle.kts)</strong></summary>
 
 ```kotlin
+repositories {
+    maven { url = uri("https://packages.fluxzero.io/maven") }
+    mavenCentral()
+}
 dependencies {
     implementation(platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}"))
     implementation("io.fluxzero:java-client")
@@ -94,6 +113,10 @@ dependencies {
 <summary><strong>Groovy DSL (build.gradle)</strong></summary>
 
 ```groovy
+repositories {
+    maven { url 'https://packages.fluxzero.io/maven' }
+    mavenCentral()
+}
 dependencies {
     implementation platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}")
     implementation 'io.fluxzero:java-client'
@@ -6085,3 +6108,7 @@ Then generate both HTML and JSON docs locally with:
 
 The json-doclet output lands in `target/json-docs`; the `publish-javadoc` workflow copies it to the GitHub Pages
 site on release.
+
+## Publishing SDK releases
+
+See [releasing the SDK](docs/releasing.md) for Maven deployment commands and GitHub OIDC publication.
