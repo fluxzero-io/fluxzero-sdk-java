@@ -410,7 +410,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             WebResponse result = response;
             if (error != null) {
                 Throwable failure = unwrap(error);
-                if (scheduledRequest == null || !scheduledRequest.isRequeuing()) {
+                if (scheduledRequest == null || !scheduledRequest.isRequeuingOrRequeued()) {
                     log.error("Failed to handle external request. Returning error.. ", failure);
                 }
                 result = asWebResponse(failure);
@@ -850,6 +850,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
         private final AtomicReference<RequestState> state = new AtomicReference<>(RequestState.QUEUED);
         private final AtomicReference<CancellableResponseFuture> execution = new AtomicReference<>();
         private final CompletableFuture<Void> completion = new CompletableFuture<>();
+        private volatile boolean executionCancellationRequested;
 
         private ScheduledRequest(SerializedMessage request, URI uri, WebRequestSettings settings) {
             this.request = request;
@@ -901,7 +902,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             }
             ActiveRequest activeRequest = handleAsync(request, uri, settings, this);
             execution.set(activeRequest.execution());
-            if (state.get() == RequestState.REQUEUING) {
+            if (executionCancellationRequested) {
                 activeRequest.execution().cancel(true);
             }
             activeRequest.completion().whenComplete((ignored, error) -> finishNormally(error));
@@ -964,11 +965,13 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             }
         }
 
-        private boolean isRequeuing() {
-            return state.get() == RequestState.REQUEUING;
+        private boolean isRequeuingOrRequeued() {
+            RequestState current = state.get();
+            return current == RequestState.REQUEUING || current == RequestState.REQUEUED;
         }
 
         private void cancelExecution() {
+            executionCancellationRequested = true;
             ofNullable(execution.get()).ifPresent(active -> active.cancel(true));
         }
 

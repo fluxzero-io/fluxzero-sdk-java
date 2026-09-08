@@ -954,11 +954,13 @@ class ForwardProxyConsumerTest {
             }
         };
         CompletableFuture<Duration> observedDelay = new CompletableFuture<>();
+        CompletableFuture<Void> allowRetryDelayRegistration = new CompletableFuture<>();
         when(httpClient.sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(CompletableFuture.failedFuture(new IOException("retry")));
         ForwardProxyConsumer consumer = new ForwardProxyConsumer(
                 client, CONSUMER_NAME, 0L, true, false, httpClient, new AtomicBoolean(), 1, delay -> {
             observedDelay.complete(delay);
+            allowRetryDelayRegistration.join();
             return retryDelay;
         });
         WebRequestSettings settings = WebRequestSettings.builder().consumer(CONSUMER_NAME)
@@ -969,8 +971,9 @@ class ForwardProxyConsumerTest {
 
         consumer.forceActiveRequests();
 
-        batch.get(1, TimeUnit.SECONDS);
-        assertTrue(retryDelayCancelled.get(1, TimeUnit.SECONDS));
+        allowRetryDelayRegistration.complete(null);
+        batch.get(5, TimeUnit.SECONDS);
+        assertTrue(retryDelayCancelled.get(5, TimeUnit.SECONDS));
         assertTrue(retryDelay.isCancelled());
         verify(httpClient, times(1)).sendAsync(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
         verify(httpClient).shutdownNow();
