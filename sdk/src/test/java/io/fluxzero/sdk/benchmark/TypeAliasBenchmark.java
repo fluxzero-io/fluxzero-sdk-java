@@ -17,21 +17,30 @@
 package io.fluxzero.sdk.benchmark;
 
 import com.sun.management.ThreadMXBean;
+import io.fluxzero.common.api.Data;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-/** Measures exact and package type-alias resolution independently from deserialization. */
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+/** Measures exact and package type-alias resolution, including the no-match deserialization path. */
 public class TypeAliasBenchmark {
     private static final int iterations = Integer.getInteger("iterations", 20_000_000);
     private static final int warmupIterations = Integer.getInteger("warmupIterations", 2_000_000);
+    private static final int deserializationIterations = Integer.getInteger("deserializationIterations", 1_000_000);
+    private static final int deserializationWarmupIterations =
+            Integer.getInteger("deserializationWarmupIterations", 100_000);
     private static final int warmups = Integer.getInteger("warmups", 3);
     private static final String[] currentTypes = createTypes("io.fluxzero.current");
     private static final String[] legacyTypes = createTypes("host.example.legacy");
     private static final ThreadMXBean allocationBean = allocationBean();
+    private static final Data<byte[]> serializedValue = new Data<>(
+            "{\"value\":\"test\"}".getBytes(UTF_8), BenchmarkValue.class.getName(), 0, Data.JSON_FORMAT);
     private static volatile int blackhole;
+    private static volatile Object objectBlackhole;
 
     public static void main(String[] args) {
         JacksonSerializer noAliases = new JacksonSerializer();
@@ -52,6 +61,8 @@ public class TypeAliasBenchmark {
             run(packageAliases, currentTypes, warmupIterations);
             run(sameInitialPackageAliases, currentTypes, warmupIterations);
             run(matchingPackageAlias, legacyTypes, warmupIterations);
+            runDeserialize(noAliases, deserializationWarmupIterations);
+            runDeserialize(matchingPackageAlias, deserializationWarmupIterations);
         }
 
         System.out.printf("config iterations=%d warmups=%d packageAliasesSupported=%s%n",
@@ -63,7 +74,10 @@ public class TypeAliasBenchmark {
             measure("eight-package-aliases-same-initial-no-match", sameInitialPackageAliases, currentTypes);
             measure("package-alias-match", matchingPackageAlias, legacyTypes);
         }
+        measureDeserialize("deserialize-no-aliases", noAliases);
+        measureDeserialize("deserialize-package-alias-no-match", matchingPackageAlias);
         System.out.println("blackhole=" + blackhole);
+        System.out.println("objectBlackhole=" + objectBlackhole);
     }
 
     private static void measure(String name, JacksonSerializer serializer, String[] types) {
@@ -84,6 +98,27 @@ public class TypeAliasBenchmark {
             result += serializer.upcastType(types[i & (types.length - 1)]).hashCode();
         }
         blackhole = result;
+    }
+
+    private static void measureDeserialize(String name, JacksonSerializer serializer) {
+        long threadId = Thread.currentThread().threadId();
+        long allocatedBefore = allocationBean == null ? 0L : allocationBean.getThreadAllocatedBytes(threadId);
+        long started = System.nanoTime();
+        runDeserialize(serializer, deserializationIterations);
+        long elapsed = System.nanoTime() - started;
+        long allocated = allocationBean == null ? 0L
+                : allocationBean.getThreadAllocatedBytes(threadId) - allocatedBefore;
+        System.out.printf("%-54s %8.3f ns/op %8.3f bytes/op%n", name,
+                          (double) elapsed / deserializationIterations,
+                          (double) allocated / deserializationIterations);
+    }
+
+    private static void runDeserialize(JacksonSerializer serializer, int count) {
+        Object result = null;
+        for (int i = 0; i < count; i++) {
+            result = serializer.deserialize(serializedValue);
+        }
+        objectBlackhole = result;
     }
 
     private static String[] createTypes(String packageName) {
@@ -126,5 +161,8 @@ public class TypeAliasBenchmark {
             bean.setThreadAllocatedMemoryEnabled(true);
         }
         return bean;
+    }
+
+    private record BenchmarkValue(String value) {
     }
 }

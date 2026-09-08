@@ -14,9 +14,13 @@
 
 package io.fluxzero.sdk.common.serialization;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -43,6 +47,48 @@ class TypeAliasTest {
         CurrentType result = serializer.deserialize(data(LEGACY_TYPE, 1, "{\"value\":\"test\"}"));
 
         assertEquals(new CurrentType("test"), result);
+    }
+
+    @Test
+    void appliesPackageAliasToNestedClassMetadata() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        serializer.registerPackageAlias(LEGACY_PACKAGE, CURRENT_PACKAGE);
+
+        Container result = serializer.deserialize(data(Container.class.getName(), 0, """
+                {"value":{"@class":"%s.TypeAliasTest$NestedType","value":"test"}}
+                """.formatted(LEGACY_PACKAGE)));
+
+        assertEquals(new NestedType("test"), result.value());
+    }
+
+    @Test
+    void nestedClassMetadataStillUsesTheOriginalPathWhenAliasesDoNotMatch() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        serializer.registerPackageAlias("other.legacy", "other.current");
+
+        Container result = serializer.deserialize(data(Container.class.getName(), 0, """
+                {"value":{"@class":"%s","value":"test"}}
+                """.formatted(NestedType.class.getName())));
+
+        assertEquals(new NestedType("test"), result.value());
+    }
+
+    @Test
+    void appliesPackageAliasToClassMetadataInsideMessageMetadata() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        serializer.registerPackageAlias(LEGACY_PACKAGE, CURRENT_PACKAGE);
+        Metadata metadata = Metadata.of("typedValue", """
+                {"@class":"%s.TypeAliasTest$NestedType","value":"test"}
+                """.formatted(LEGACY_PACKAGE));
+        SerializedMessage serializedMessage = new SerializedMessage(
+                data(CURRENT_TYPE, 1, "{\"value\":\"payload\"}"), metadata, "message-id", 0L);
+
+        Metadata result = serializer.deserializeMessage(serializedMessage, MessageType.EVENT).getMetadata();
+
+        assertEquals(new NestedType("test"), result.get("typedValue", NestedValue.class));
+        assertEquals(new NestedType("test"), result.with("other", "value")
+                .get("typedValue", NestedValue.class));
+        assertEquals(metadata.get("typedValue"), result.get("typedValue"));
     }
 
     @Test
@@ -152,6 +198,16 @@ class TypeAliasTest {
 
     @Revision(1)
     private record CurrentType(String value) {
+    }
+
+    private record Container(NestedValue value) {
+    }
+
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+    private interface NestedValue {
+    }
+
+    private record NestedType(String value) implements NestedValue {
     }
 
     private static class LegacyUpcaster {

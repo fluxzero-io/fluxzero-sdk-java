@@ -67,9 +67,9 @@ class TestFixtureResourceSequenceTest {
         RecordingHandler handler = new RecordingHandler();
 
         fixture(handler).registerPackageAlias("host.example", "io.fluxzero.sdk.givenwhenthen")
-                .givenCommands("aliased-sequence-command.json")
+                .givenCommands("aliased-current-command.json")
                 .whenQuery(new HandledCommands())
-                .expectResult(List.of("aliased"));
+                .expectResult(List.of("aliased current"));
     }
 
     @Test

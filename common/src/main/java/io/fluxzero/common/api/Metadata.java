@@ -18,12 +18,19 @@ package io.fluxzero.common.api;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.util.JsonParserDelegate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.serialization.NullCollectionsAsEmptyModule;
+import lombok.AccessLevel;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
+import lombok.ToString;
 import lombok.Value;
 
 import java.io.IOException;
@@ -37,6 +44,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS;
@@ -71,12 +79,19 @@ import static java.util.stream.Collectors.toMap;
  */
 @Value
 public class Metadata {
+    private static final String CLASS_PROPERTY = "@class";
+
     public static JsonMapper objectMapper = JsonMapper.builder()
             .findAndAddModules().addModule(new NullCollectionsAsEmptyModule())
             .disable(FAIL_ON_EMPTY_BEANS).disable(FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
 
     Map<String, String> entries;
+
+    @Getter(AccessLevel.NONE)
+    @EqualsAndHashCode.Exclude
+    @ToString.Exclude
+    transient UnaryOperator<String> classNameMapper;
 
     /**
      * Retrieves a map of entries where the keys and values are strings.
@@ -141,7 +156,23 @@ public class Metadata {
      */
     @JsonCreator
     private Metadata(Map<String, String> entries) {
+        this(entries, null);
+    }
+
+    private Metadata(Map<String, String> entries, UnaryOperator<String> classNameMapper) {
         this.entries = entries;
+        this.classNameMapper = classNameMapper;
+    }
+
+    /**
+     * Returns metadata that applies the supplied mapper to {@code @class} values when a JSON-encoded entry is read as
+     * an object. Raw string access and JSON serialization retain the original entry values.
+     *
+     * @param classNameMapper maps serialized class names before Jackson resolves them
+     * @return this instance when the mapper is already attached, otherwise a copy with the mapper attached
+     */
+    public Metadata withClassNameMapper(@NonNull UnaryOperator<String> classNameMapper) {
+        return this.classNameMapper == classNameMapper ? this : new Metadata(entries, classNameMapper);
     }
 
     /**
@@ -169,7 +200,7 @@ public class Metadata {
     public Metadata with(Map<?, ?> values) {
         Map<String, String> map = new HashMap<>(entries);
         values.forEach((key, value) -> with(key, value, map));
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /**
@@ -182,7 +213,7 @@ public class Metadata {
     public Metadata with(Metadata metadata) {
         Map<String, String> map = new HashMap<>(entries);
         map.putAll(metadata.entries);
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper != null ? classNameMapper : metadata.classNameMapper);
     }
 
     /**
@@ -204,7 +235,7 @@ public class Metadata {
         for (int i = 0; i < keyValues.length; i += 2) {
             with(keyValues[i].toString(), keyValues[i + 1], map);
         }
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /**
@@ -221,7 +252,7 @@ public class Metadata {
      */
     @SneakyThrows
     public Metadata with(Object key, Object value) {
-        return new Metadata(with(key, value, new HashMap<>(entries)));
+        return new Metadata(with(key, value, new HashMap<>(entries)), classNameMapper);
     }
 
     /**
@@ -234,7 +265,7 @@ public class Metadata {
     public Metadata withNull(Object key) {
         var map = new HashMap<>(entries);
         map.put(key.toString(), objectMapper.writeValueAsString(null));
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /**
@@ -318,7 +349,7 @@ public class Metadata {
      */
     @SneakyThrows
     public Metadata withTrace(Object key, Object value) {
-        return new Metadata(withTrace(key, value, new HashMap<>(entries)));
+        return new Metadata(withTrace(key, value, new HashMap<>(entries)), classNameMapper);
     }
 
     /*
@@ -335,7 +366,7 @@ public class Metadata {
     public Metadata without(Object key) {
         Map<String, String> map = new HashMap<>(entries);
         map.remove(key.toString());
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /**
@@ -354,7 +385,7 @@ public class Metadata {
                 iterator.remove();
             }
         });
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /*
@@ -426,7 +457,12 @@ public class Metadata {
             return (T) Enum.valueOf((Class<Enum>) type, value);
         }
         try {
-            return objectMapper.readValue(value, type);
+            if (classNameMapper == null) {
+                return objectMapper.readValue(value, type);
+            }
+            try (JsonParser parser = classNameMappingParser(value)) {
+                return objectMapper.readValue(parser, type);
+            }
         } catch (IOException e) {
             throw new IllegalStateException(format("Failed to deserialize value %s to a %s for key %s",
                                                    value, type.getSimpleName(), key), e);
@@ -458,7 +494,13 @@ public class Metadata {
         }
         JsonNode tree;
         try {
-            tree = objectMapper.reader().with(FAIL_ON_TRAILING_TOKENS).readTree(value);
+            if (classNameMapper == null) {
+                tree = objectMapper.reader().with(FAIL_ON_TRAILING_TOKENS).readTree(value);
+            } else {
+                try (JsonParser parser = classNameMappingParser(value)) {
+                    tree = objectMapper.reader().with(FAIL_ON_TRAILING_TOKENS).readTree(parser);
+                }
+            }
         } catch (IOException e) {
             return stringMapper.apply(value);
         }
@@ -500,7 +542,12 @@ public class Metadata {
             return null;
         }
         try {
-            return objectMapper.readValue(value, type);
+            if (classNameMapper == null) {
+                return objectMapper.readValue(value, type);
+            }
+            try (JsonParser parser = classNameMappingParser(value)) {
+                return objectMapper.readValue(parser, type);
+            }
         } catch (IOException e) {
             throw new IllegalStateException(format("Failed to deserialize value %s to a %s for key %s",
                                                    value, type, key), e);
@@ -518,6 +565,36 @@ public class Metadata {
      */
     public <T> Optional<T> getOptionally(Object key, TypeReference<T> type) {
         return Optional.ofNullable(get(key, type));
+    }
+
+    private JsonParser classNameMappingParser(String value) throws IOException {
+        return new ClassNameMappingJsonParser(objectMapper.createParser(value));
+    }
+
+    private class ClassNameMappingJsonParser extends JsonParserDelegate {
+        private ClassNameMappingJsonParser(JsonParser delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public String getText() throws IOException {
+            return mapClassName(super.getText());
+        }
+
+        @Override
+        public String getValueAsString() throws IOException {
+            return mapClassName(super.getValueAsString());
+        }
+
+        @Override
+        public String getValueAsString(String defaultValue) throws IOException {
+            return mapClassName(super.getValueAsString(defaultValue));
+        }
+
+        private String mapClassName(String value) throws IOException {
+            return currentToken() == JsonToken.VALUE_STRING && CLASS_PROPERTY.equals(currentName())
+                    ? classNameMapper.apply(value) : value;
+        }
     }
 
     /**

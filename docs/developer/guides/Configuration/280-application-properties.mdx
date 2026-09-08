@@ -66,7 +66,8 @@ property source supplies the complete alias list; entries are not merged across 
 
 Exact aliases take precedence over package aliases, and the longest matching package prefix wins. An alias configured
 through `FluxzeroBuilder.addTypeAlias(...)` or `addPackageAlias(...)` overrides a property alias with the same source.
-Aliases run after revision upcasters and also apply to `@class` values in JSON test fixtures. See
+Aliases run after revision upcasters and also apply to polymorphic `@class` values at any depth in JSON, JSON-encoded
+message metadata read as an object, and root `@class` values in JSON test fixtures. See
 [Upcasting and downcasting](/docs/guides/data-control-and-serialization/upcasting-and-downcasting#type-aliases) for the
 complete behavior.
 

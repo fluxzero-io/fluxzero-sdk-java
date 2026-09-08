@@ -14,6 +14,9 @@
 
 package io.fluxzero.sdk.common.serialization.jackson;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.util.JsonParserDelegate;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,6 +39,7 @@ import lombok.SneakyThrows;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.time.Instant;
 import java.util.Collection;
@@ -65,6 +69,7 @@ import static java.lang.String.format;
  */
 @Slf4j
 public class JacksonSerializer extends AbstractSerializer<JsonNode> implements DocumentSerializer {
+    private static final String CLASS_PROPERTY = "@class";
     /**
      * Default {@link JsonMapper} instance used for JSON serialization and deserialization.
      * <p>
@@ -148,14 +153,87 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
      */
     @Override
     protected Object doDeserialize(Data<?> data, String type) throws Exception {
-        return switch (data.getValue()) {
+        Object value = data.getValue();
+        if (hasTypeAliases() && mayContainClassProperty(value)) {
+            JavaType javaType = typeCache.apply(type);
+            return switch (value) {
+                case JsonNode v -> deserializeWithAliases(objectMapper.treeAsTokens(v), javaType);
+                case byte[] v -> deserializeWithAliases(objectMapper.createParser(v), javaType);
+                case String v -> deserializeWithAliases(objectMapper.createParser(v), javaType);
+                case null -> null;
+                default ->
+                        throw new IllegalArgumentException("Incompatible data value type: " + value.getClass());
+            };
+        }
+        return switch (value) {
             case JsonNode v -> objectMapper.convertValue(v, typeCache.apply(type));
             case byte[] v -> objectMapper.readValue(v, typeCache.apply(type));
             case String v -> objectMapper.readValue(v, typeCache.apply(type));
             case null -> null;
             default ->
-                    throw new IllegalArgumentException("Incompatible data value type: " + data.getValue().getClass());
+                    throw new IllegalArgumentException("Incompatible data value type: " + value.getClass());
         };
+    }
+
+    private boolean mayContainClassProperty(Object value) {
+        return switch (value) {
+            case JsonNode ignored -> true;
+            case byte[] bytes -> mayContainClassProperty(bytes);
+            case String string -> string.contains(CLASS_PROPERTY) || string.contains("\\u");
+            case null -> false;
+            default -> true;
+        };
+    }
+
+    private boolean mayContainClassProperty(byte[] input) {
+        for (int i = 0; i < input.length; i++) {
+            byte current = input[i];
+            if (current == '\\' && i + 1 < input.length && input[i + 1] == 'u') {
+                return true;
+            }
+            if (current == '@' && i + CLASS_PROPERTY.length() <= input.length) {
+                int j = 1;
+                while (j < CLASS_PROPERTY.length() && input[i + j] == CLASS_PROPERTY.charAt(j)) {
+                    j++;
+                }
+                if (j == CLASS_PROPERTY.length()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private Object deserializeWithAliases(JsonParser parser, JavaType type) throws IOException {
+        try (JsonParser aliasingParser = new TypeAliasingJsonParser(parser)) {
+            return objectMapper.readValue(aliasingParser, type);
+        }
+    }
+
+    private class TypeAliasingJsonParser extends JsonParserDelegate {
+        private TypeAliasingJsonParser(JsonParser delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public String getText() throws IOException {
+            return resolveTypeAlias(super.getText());
+        }
+
+        @Override
+        public String getValueAsString() throws IOException {
+            return resolveTypeAlias(super.getValueAsString());
+        }
+
+        @Override
+        public String getValueAsString(String defaultValue) throws IOException {
+            return resolveTypeAlias(super.getValueAsString(defaultValue));
+        }
+
+        private String resolveTypeAlias(String value) throws IOException {
+            return currentToken() == JsonToken.VALUE_STRING && CLASS_PROPERTY.equals(currentName())
+                    ? upcastType(value) : value;
+        }
     }
 
     /**

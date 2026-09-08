@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -261,6 +262,25 @@ public class JsonUtils {
     public static <T> T fromFile(Class<?> referencePoint, String fileName) {
         String content = getContent(referencePoint, fileName);
         return isNdjsonResource(fileName) ? (T) fromJsonSequence(content) : fromJson(content);
+    }
+
+    /**
+     * Loads an untyped JSON fixture while mapping every non-revisioned {@code @class} value before Jackson resolves
+     * it. Revisioned roots retain their declared serialized type so an external caster can apply aliases after
+     * upcasting.
+     *
+     * @param referencePoint the class used to resolve the resource
+     * @param fileName the JSON, JSONL, or NDJSON resource name
+     * @param typeMapper maps serialized type identifiers to their effective names
+     * @return the deserialized object, or a list for a root array or newline-delimited resource
+     */
+    @SuppressWarnings("unchecked")
+    @SneakyThrows
+    public static <T> T fromFileWithTypeMapper(Class<?> referencePoint, String fileName,
+                                               UnaryOperator<String> typeMapper) {
+        Objects.requireNonNull(typeMapper, "typeMapper");
+        String content = getContent(referencePoint, fileName);
+        return (T) deserializeWithTypeMapper(content, isNdjsonResource(fileName), typeMapper);
     }
 
     @SneakyThrows
@@ -565,6 +585,96 @@ public class JsonUtils {
             return result;
         }
         return reader.treeToValue(node, Object.class);
+    }
+
+    private static Object deserializeWithTypeMapper(String content, boolean ndjson, UnaryOperator<String> typeMapper)
+            throws Exception {
+        if (ndjson) {
+            return deserializeSequenceWithTypeMapper(reader.createParser(content), typeMapper);
+        }
+        try (JsonParser parser = reader.createParser(content)) {
+            JsonToken firstToken = parser.nextToken();
+            if (firstToken == null) {
+                return null;
+            }
+            if (firstToken == JsonToken.START_ARRAY) {
+                return deserializeArrayWithTypeMapper(parser, typeMapper);
+            }
+            JsonNode first = reader.readTree(parser);
+            if (parser.nextToken() == null) {
+                return deserializeUntypedNode(first, typeMapper);
+            }
+        }
+        return deserializeSequenceWithTypeMapper(reader.createParser(content), typeMapper);
+    }
+
+    private static List<Object> deserializeArrayWithTypeMapper(JsonParser parser, UnaryOperator<String> typeMapper)
+            throws Exception {
+        List<Object> result = new ArrayList<>();
+        int index = 0;
+        while (true) {
+            try {
+                if (parser.nextToken() == JsonToken.END_ARRAY) {
+                    return result;
+                }
+                result.add(deserializeUntypedNode(reader.readTree(parser), typeMapper));
+            } catch (Exception e) {
+                throw sequenceFailure("JSON array element at index " + index, e);
+            }
+            index++;
+        }
+    }
+
+    private static List<Object> deserializeSequenceWithTypeMapper(JsonParser parser, UnaryOperator<String> typeMapper)
+            throws Exception {
+        try (parser) {
+            List<Object> result = new ArrayList<>();
+            while (true) {
+                JsonToken token;
+                try {
+                    token = parser.nextToken();
+                } catch (JsonProcessingException e) {
+                    throw sequenceFailure("NDJSON record at line " + e.getLocation().getLineNr(), e);
+                }
+                if (token == null) {
+                    return result;
+                }
+                int line = parser.currentTokenLocation().getLineNr();
+                try {
+                    result.add(deserializeUntypedNode(reader.readTree(parser), typeMapper));
+                } catch (Exception e) {
+                    throw sequenceFailure("NDJSON record at line " + line, e);
+                }
+            }
+        }
+    }
+
+    private static Object deserializeUntypedNode(JsonNode node, UnaryOperator<String> typeMapper) throws Exception {
+        if (node instanceof ObjectNode objectNode && objectNode.has(revisionProperty)) {
+            return deserializeRevisioned(objectNode);
+        }
+        if (node.isArray()) {
+            List<Object> result = new ArrayList<>(node.size());
+            for (JsonNode element : node) {
+                result.add(deserializeUntypedNode(element, typeMapper));
+            }
+            return result;
+        }
+        mapClassProperties(node, typeMapper);
+        return reader.treeToValue(node, Object.class);
+    }
+
+    private static void mapClassProperties(JsonNode node, UnaryOperator<String> typeMapper) {
+        if (node instanceof ObjectNode objectNode) {
+            JsonNode type = objectNode.get(classProperty);
+            if (type != null && type.isTextual()) {
+                String mappedType = typeMapper.apply(type.textValue());
+                if (!Objects.equals(type.textValue(), mappedType)) {
+                    objectNode.put(classProperty, mappedType);
+                }
+            }
+        }
+        node.forEach(child -> mapClassProperties(child, typeMapper));
     }
 
     private static IllegalArgumentException sequenceFailure(String location, Exception cause) {

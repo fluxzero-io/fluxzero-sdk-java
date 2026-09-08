@@ -18,6 +18,7 @@ package io.fluxzero.sdk.common.serialization;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -50,6 +51,7 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
@@ -225,7 +227,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
     public <S extends SerializedObject<byte[]>> Stream<DeserializingObject<byte[], S>> deserialize(
             Stream<S> dataStream, UnknownTypeStrategy unknownTypeStrategy) {
         return upcasterChain.cast((Stream<SerializedObject<byte[]>>) dataStream)
-                .map(s -> {
+                .map(input -> {
+                    SerializedObject<byte[]> s = (SerializedObject<byte[]>) attachClassNameMapper(input);
                     String type = s.data().getType();
                     String upcastedType = upcastType(type);
                     return Objects.equals(type, upcastedType) ? s : s.withData((Data) s.data().withType(upcastedType));
@@ -274,6 +277,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
         if (casted == null) {
             return null;
         }
+        casted = attachClassNameMapper(casted);
         DeserializingObject<byte[], ?> object = deserializeFirstObject(casted, UnknownTypeStrategy.AS_INTERMEDIATE);
         if (object == null) {
             return null;
@@ -401,6 +405,26 @@ public abstract class AbstractSerializer<I> implements Serializer {
             return type;
         }
         return resolver.hasPackageAliases() ? resolver.resolve(type) : resolver.resolveExact(type);
+    }
+
+    /**
+     * Indicates whether exact or package aliases are currently registered.
+     */
+    protected boolean hasTypeAliases() {
+        return !typeAliasResolver.isEmpty();
+    }
+
+    private SerializedObject<?> attachClassNameMapper(SerializedObject<?> input) {
+        TypeAliasResolver resolver = typeAliasResolver;
+        if (resolver.isEmpty() || !(input instanceof SerializedMessage message)) {
+            return input;
+        }
+        Metadata metadata = message.getMetadata();
+        if (metadata == null) {
+            return input;
+        }
+        UnaryOperator<String> mapper = resolver.hasPackageAliases() ? resolver::resolve : resolver::resolveExact;
+        return message.withMetadata(metadata.withClassNameMapper(mapper));
     }
 
     private Registration registerAlias(Map<String, String> aliases, String source, String target) {
