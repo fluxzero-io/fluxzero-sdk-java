@@ -327,12 +327,13 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
         return executor;
     }
 
-    protected static class ResponseCallback {
+    protected static class ResponseCallback implements Runnable {
         private final Consumer<SerializedMessage> intermediateCallback;
         private final CompletableFuture<SerializedMessage> finalCallback;
         private List<SerializedMessage> intermediates;
         private CompletableFuture<Void> processingChain;
         private boolean terminalReceived;
+        private SerializedMessage terminalResponse;
 
         ResponseCallback(Consumer<SerializedMessage> intermediateCallback,
                          CompletableFuture<SerializedMessage> finalCallback) {
@@ -350,9 +351,11 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
                 // Completing a future invokes caller continuations inline. Keep those off the batch drain so one
                 // caller can wait for another request without preventing that request's response from being released.
                 // The common single-response case needs no per-request CompletableFuture processing chain.
+                terminalResponse = response;
                 try {
-                    executor.execute(() -> process(response, true));
+                    executor.execute(this);
                 } catch (RuntimeException failure) {
+                    terminalResponse = null;
                     finalCallback.completeExceptionally(failure);
                 }
                 return;
@@ -362,6 +365,15 @@ public class DefaultRequestHandler extends AbstractNamespaced<RequestHandler> im
             }
             processingChain = processingChain.exceptionally(e -> null)
                     .thenRunAsync(() -> process(response, lastChunk), executor);
+        }
+
+        @Override
+        public void run() {
+            SerializedMessage response = terminalResponse;
+            terminalResponse = null;
+            if (response != null) {
+                process(response, true);
+            }
         }
 
         CompletableFuture<SerializedMessage> finalCallback() {

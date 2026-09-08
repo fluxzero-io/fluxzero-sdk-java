@@ -30,11 +30,15 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -54,6 +58,96 @@ class DefaultRequestHandlerResponseCallbackTest {
         }
 
         assertSame(first, result.join());
+    }
+
+    @Test
+    void cancelledResponseKeepsItsQueuedWorkerIndependent() {
+        CompletableFuture<SerializedMessage> cancelled = new CompletableFuture<>();
+        CompletableFuture<SerializedMessage> other = new CompletableFuture<>();
+        ArrayDeque<Runnable> work = new ArrayDeque<>();
+        DefaultRequestHandler.ResponseCallback callback = new DefaultRequestHandler.ResponseCallback(null, cancelled);
+        callback.process(message("cancelled"), work::add);
+        new DefaultRequestHandler.ResponseCallback(null, other).process(message("other"), work::add);
+
+        assertTrue(cancelled.cancel(false));
+        callback.process(message("late"), work::add);
+        assertEquals(2, work.size());
+        work.removeFirst().run();
+        assertTrue(cancelled.isCancelled());
+        assertFalse(other.isDone());
+        work.removeFirst().run();
+        assertEquals("other", other.join().getMessageId());
+    }
+
+    @Test
+    void rejectedTerminalWorkerCompletesExceptionally() {
+        CompletableFuture<SerializedMessage> result = new CompletableFuture<>();
+        DefaultRequestHandler.ResponseCallback callback = new DefaultRequestHandler.ResponseCallback(null, result);
+        RejectedExecutionException failure = new RejectedExecutionException("closed");
+        callback.process(message("rejected"), ignored -> { throw failure; });
+
+        assertSame(failure, assertThrows(java.util.concurrent.CompletionException.class, result::join).getCause());
+        callback.process(message("late"), ignored -> { throw new AssertionError("already terminal"); });
+    }
+
+    @Test
+    void executorFailureAfterSubmissionCannotPublishAnEmptyResponse() {
+        ArrayDeque<Runnable> work = new ArrayDeque<>();
+        CompletableFuture<SerializedMessage> result = new CompletableFuture<>() {
+            @Override
+            public boolean completeExceptionally(Throwable error) {
+                // A decorating executor can fail after its delegate has already accepted the task.
+                work.removeFirst().run();
+                return super.completeExceptionally(error);
+            }
+        };
+        SerializedMessage response = message("submitted");
+        DefaultRequestHandler.ResponseCallback callback = new DefaultRequestHandler.ResponseCallback(null, result);
+        RejectedExecutionException failure = new RejectedExecutionException("after submission");
+        callback.process(response, task -> {
+            work.add(task);
+            throw failure;
+        });
+
+        if (result.isCompletedExceptionally()) {
+            assertSame(failure, assertThrows(java.util.concurrent.CompletionException.class, result::join).getCause());
+        } else {
+            assertSame(response, result.join());
+        }
+        assertTrue(work.isEmpty());
+    }
+
+    @Test
+    void terminalWorkerPreservesTheBatchAndCallbackContextBoundaries() throws Exception {
+        InheritableThreadLocal<Integer> inherited = new InheritableThreadLocal<>() {
+            @Override
+            protected Integer childValue(Integer parentValue) {
+                return parentValue == null ? null : parentValue + 1;
+            }
+        };
+        ThreadLocal<String> ordinary = new ThreadLocal<>();
+        ExecutorService executor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
+        DefaultRequestHandler handler = new DefaultRequestHandler(
+                mock(Client.class), MessageType.RESULT, Duration.ofSeconds(-1), "context", executor);
+        try {
+            inherited.set(10);
+            ordinary.set("caller");
+            SerializedMessage response = message("context");
+            CompletableFuture<SerializedMessage> result = handler.prepareRequest(response, null, null);
+            CompletableFuture<Integer> observed = result.thenApply(ignored -> {
+                assertNull(ordinary.get());
+                assertTrue(Thread.currentThread().isVirtual());
+                return inherited.get();
+            });
+            handler.handleResults(List.of(response));
+
+            assertEquals(12, observed.get(2, TimeUnit.SECONDS));
+        } finally {
+            inherited.remove();
+            ordinary.remove();
+            handler.close();
+            executor.shutdownNow();
+        }
     }
 
     @ParameterizedTest
