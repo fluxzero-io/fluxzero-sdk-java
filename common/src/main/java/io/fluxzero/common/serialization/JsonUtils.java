@@ -427,6 +427,21 @@ public class JsonUtils {
     }
 
     /**
+     * Deserializes untyped JSON while mapping every non-revisioned {@code @class} value before Jackson resolves it.
+     * Revisioned roots retain their declared serialized type so an external caster can apply aliases after upcasting.
+     *
+     * @param json JSON content to deserialize
+     * @param typeMapper maps serialized type identifiers to their effective names
+     * @return the deserialized object, or a list for a root array or newline-delimited content
+     */
+    @SuppressWarnings("unchecked")
+    @SneakyThrows
+    public static <T> T fromJsonWithTypeMapper(String json, UnaryOperator<String> typeMapper) {
+        Objects.requireNonNull(typeMapper, "typeMapper");
+        return (T) deserializeWithTypeMapper(json, false, typeMapper);
+    }
+
+    /**
      * Converts a JSON string to an object of the given class type.
      */
     @SneakyThrows
