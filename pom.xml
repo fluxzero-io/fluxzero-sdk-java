@@ -37,7 +37,7 @@
     <distributionManagement>
         <repository>
             <id>fluxzero</id>
-            <url>https://packages.fluxzero.io/maven</url>
+            <url>https://packages.fluxzero.io/publish/maven</url>
         </repository>
     </distributionManagement>
 

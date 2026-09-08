@@ -1,7 +1,8 @@
 # Releasing the SDK
 
-The `Deploy` workflow publishes each release to `https://packages.fluxzero.io/maven`
-first, then starts Maven Central publication. Release versions, GitHub tags and
+The `Deploy` workflow uploads each release to `https://packages.fluxzero.io/publish/maven`
+first, then starts Maven Central publication. Public downloads remain at
+`https://packages.fluxzero.io/maven`. Release versions, GitHub tags and
 container publication retain their existing configuration. Sources, Javadoc and
 GPG signatures remain part of both Maven publications.
 The existing build job publishes to Fluxzero Packages as its last step. The existing
