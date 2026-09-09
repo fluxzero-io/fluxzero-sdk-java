@@ -154,12 +154,12 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     @Override
     protected Object doDeserialize(Data<?> data, String type) throws Exception {
         Object value = data.getValue();
-        if (hasTypeAliases() && mayContainClassProperty(value)) {
+        if (mayContainClassProperty(value)) {
             JavaType javaType = typeCache.apply(type);
             return switch (value) {
-                case JsonNode v -> deserializeWithAliases(objectMapper.treeAsTokens(v), javaType);
-                case byte[] v -> deserializeWithAliases(objectMapper.createParser(v), javaType);
-                case String v -> deserializeWithAliases(objectMapper.createParser(v), javaType);
+                case JsonNode v -> deserializeWithTypeResolution(objectMapper.treeAsTokens(v), javaType);
+                case byte[] v -> deserializeWithTypeResolution(objectMapper.createParser(v), javaType);
+                case String v -> deserializeWithTypeResolution(objectMapper.createParser(v), javaType);
                 case null -> null;
                 default ->
                         throw new IllegalArgumentException("Incompatible data value type: " + value.getClass());
@@ -204,35 +204,35 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
         return false;
     }
 
-    private Object deserializeWithAliases(JsonParser parser, JavaType type) throws IOException {
-        try (JsonParser aliasingParser = new TypeAliasingJsonParser(parser)) {
-            return objectMapper.readValue(aliasingParser, type);
+    private Object deserializeWithTypeResolution(JsonParser parser, JavaType type) throws IOException {
+        try (JsonParser resolvingParser = new TypeResolvingJsonParser(parser)) {
+            return objectMapper.readValue(resolvingParser, type);
         }
     }
 
-    private class TypeAliasingJsonParser extends JsonParserDelegate {
-        private TypeAliasingJsonParser(JsonParser delegate) {
+    private class TypeResolvingJsonParser extends JsonParserDelegate {
+        private TypeResolvingJsonParser(JsonParser delegate) {
             super(delegate);
         }
 
         @Override
         public String getText() throws IOException {
-            return resolveTypeAlias(super.getText());
+            return resolveTypeIdentifier(super.getText());
         }
 
         @Override
         public String getValueAsString() throws IOException {
-            return resolveTypeAlias(super.getValueAsString());
+            return resolveTypeIdentifier(super.getValueAsString());
         }
 
         @Override
         public String getValueAsString(String defaultValue) throws IOException {
-            return resolveTypeAlias(super.getValueAsString(defaultValue));
+            return resolveTypeIdentifier(super.getValueAsString(defaultValue));
         }
 
-        private String resolveTypeAlias(String value) throws IOException {
+        private String resolveTypeIdentifier(String value) throws IOException {
             return currentToken() == JsonToken.VALUE_STRING && CLASS_PROPERTY.equals(currentName())
-                    ? upcastType(value) : value;
+                    ? resolveTypeName(value) : value;
         }
     }
 
@@ -286,10 +286,10 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     }
 
     /**
-     * Resolves a canonical {@link JavaType} for the given string-based type name.
+     * Resolves a canonical or registered simple/partial {@link JavaType} for the given string-based type name.
      */
     protected JavaType getJavaType(String type) {
-        return objectMapper.getTypeFactory().constructFromCanonical(type);
+        return objectMapper.getTypeFactory().constructFromCanonical(resolveTypeName(type));
     }
 
     /**

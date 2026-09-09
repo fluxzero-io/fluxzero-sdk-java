@@ -83,7 +83,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(SpringExtension.class)
 @ContextConfiguration(classes = FluxzeroSpringConfigTest.Config.class)
-@TestPropertySource(properties = {"existingProperty=test", "emptyProperty="})
+@TestPropertySource(properties = {
+        "existingProperty=test", "emptyProperty=",
+        "fluxzero.serialization.typeAliases=legacy.spring.*=current.spring.*"
+})
 @Slf4j
 public class FluxzeroSpringConfigTest {
     private static final User mockUser = mock(User.class);
@@ -161,6 +164,11 @@ public class FluxzeroSpringConfigTest {
     void testPropertySetUsingCustomizer() {
         assertEquals("firstCustomizerValue", fluxzero.apply(fc -> ApplicationProperties.getProperty("bar")));
         assertEquals("secondCustomizerValue", fluxzero.apply(fc -> ApplicationProperties.getProperty("foo")));
+    }
+
+    @Test
+    void typeAliasesCanBeConfiguredThroughSpringEnvironment() {
+        assertEquals("current.spring.Type", fluxzero.serializer().upcastType("legacy.spring.Type"));
     }
 
     @Test

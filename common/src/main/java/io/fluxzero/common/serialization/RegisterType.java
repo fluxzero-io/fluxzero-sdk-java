@@ -34,6 +34,9 @@ import java.lang.annotation.Target;
  * Types or packages marked with {@code @RegisterType} are discovered and indexed during annotation processing. This
  * means that they must be available on the classpath at compile time, and annotation processing must be enabled for the
  * type registry to function correctly.
+ * Generated indexes from separate classpath modules are discovered automatically, including modules packaged as nested
+ * jars in a Spring Boot executable. Custom uber-jar builds must preserve and combine the generated
+ * {@code META-INF/io.fluxzero.common.serialization.TypeRegistry} resources.
  *
  * <h2>Usage</h2>
  * Registered types can be referenced by:
@@ -50,9 +53,8 @@ import java.lang.annotation.Target;
  * }
  * }</pre>
  * <p>
- * If multiple classes have the same simple name, Fluxzero will attempt to resolve the type using the shortest suffix
- * that still uniquely identifies it (e.g., {@code "billing.Foo"} vs. {@code "shipping.Foo"}). If conflicts remain,
- * the returned type is unpredictable.
+ * If multiple classes have the same simple name, include enough trailing package segments to identify the type uniquely
+ * (e.g., {@code "billing.Foo"} vs. {@code "shipping.Foo"}). An ambiguous name is not resolved.
  *
  * <h2>Filtering using {@link #contains()}</h2>
  * You can restrict which types are registered by specifying patterns to match against the class name:

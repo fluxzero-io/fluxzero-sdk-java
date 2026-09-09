@@ -115,6 +115,10 @@ the alias syntax, resolution order, and `TestFixture` behavior.
   props > application.properties).
 - Integrates with `ApplicationProperties` for encrypted or templated config values.
 
+`ApplicationProperties` merges every `application.properties` resource visible as a separate classpath resource,
+including resources in Spring Boot nested JARs. A custom uber-JAR build that collapses equal resource names must merge
+those files in its own packaging configuration.
+
 ### Task scheduling and execution
 
 - `replaceTaskScheduler(...)` to inject a custom scheduler for async or delayed task execution.

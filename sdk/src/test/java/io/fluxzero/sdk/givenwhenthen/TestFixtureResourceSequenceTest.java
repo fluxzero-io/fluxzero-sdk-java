@@ -73,6 +73,15 @@ class TestFixtureResourceSequenceTest {
     }
 
     @Test
+    void classMetadataInJsonResourceUsesRegisteredSimpleName() {
+        RecordingHandler handler = new RecordingHandler();
+
+        fixture(handler).givenCommands("registered-simple-command.json")
+                .whenQuery(new HandledCommands())
+                .expectResult(List.of("registered simple"));
+    }
+
+    @Test
     void classMetadataInJsonResourceUsesPackageAliasFromProperty() {
         RecordingHandler handler = new RecordingHandler();
         var builder = DefaultFluxzero.builder()

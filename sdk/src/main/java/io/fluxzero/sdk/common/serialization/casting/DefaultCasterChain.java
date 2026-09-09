@@ -30,7 +30,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static java.lang.String.format;
@@ -79,7 +81,21 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
 
     public static <BEFORE, INTERNAL> CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> createUpcaster(
             Collection<?> casterCandidates, Converter<BEFORE, INTERNAL> converter) {
-        return create(casterCandidates, converter, false);
+        return createUpcaster(casterCandidates, converter, UnaryOperator.identity());
+    }
+
+    /**
+     * Creates an upcaster chain that normalizes serialized type identifiers before selecting a content upcaster.
+     *
+     * @param casterCandidates candidate objects containing upcaster methods
+     * @param converter converter between serialized and intermediate data
+     * @param inputTypeResolver resolver applied to each incoming serialized type
+     * @return the configured upcaster chain
+     */
+    public static <BEFORE, INTERNAL> CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> createUpcaster(
+            Collection<?> casterCandidates, Converter<BEFORE, INTERNAL> converter,
+            UnaryOperator<String> inputTypeResolver) {
+        return create(casterCandidates, converter, false, inputTypeResolver);
     }
 
     public static <T, S extends SerializedObject<T>> CasterChain<S, S> createUpcaster(
@@ -94,8 +110,15 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
 
     protected static <BEFORE, INTERNAL> CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> create(
             Collection<?> casterCandidates, Converter<BEFORE, INTERNAL> converter, boolean down) {
+        return create(casterCandidates, converter, down, UnaryOperator.identity());
+    }
+
+    protected static <BEFORE, INTERNAL> CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> create(
+            Collection<?> casterCandidates, Converter<BEFORE, INTERNAL> converter, boolean down,
+            UnaryOperator<String> inputTypeResolver) {
         return new ConvertingCasterChain<>(
-                new DefaultCasterChain<>(casterCandidates, converter.getOutputType(), down), converter);
+                new DefaultCasterChain<>(casterCandidates, converter.getOutputType(), down), converter,
+                inputTypeResolver);
     }
 
     protected static <T, S extends SerializedObject<T>> CasterChain<S, S> create(
@@ -179,29 +202,33 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
             implements CasterChain<SerializedObject<BEFORE>, SerializedObject<?>> {
         private final DefaultCasterChain<INTERNAL, ConvertingSerializedObject<BEFORE, INTERNAL>> delegate;
         private final Converter<BEFORE, INTERNAL> converter;
+        private final UnaryOperator<String> inputTypeResolver;
 
         private ConvertingCasterChain(
                 DefaultCasterChain<INTERNAL, ConvertingSerializedObject<BEFORE, INTERNAL>> delegate,
-                Converter<BEFORE, INTERNAL> converter) {
+                Converter<BEFORE, INTERNAL> converter, UnaryOperator<String> inputTypeResolver) {
             this.delegate = delegate;
             this.converter = converter;
+            this.inputTypeResolver = Objects.requireNonNull(inputTypeResolver);
         }
 
         @Override
         public Stream<? extends SerializedObject<?>> cast(Stream<? extends SerializedObject<BEFORE>> inputStream,
                                                           Integer rev) {
             return inputStream.flatMap(input -> {
-                if (delegate.canSkipCast(input, rev)) {
-                    return Stream.of(convertFormat(input));
+                SerializedObject<BEFORE> resolvedInput = resolveInputType(input);
+                if (delegate.canSkipCast(resolvedInput, rev)) {
+                    return Stream.of(convertFormat(resolvedInput));
                 }
                 ConvertingSerializedObject<BEFORE, INTERNAL> converting =
-                        new ConvertingSerializedObject<>(input, converter);
+                        new ConvertingSerializedObject<>(resolvedInput, converter);
                 return delegate.cast(Stream.of(converting), rev).map(ConvertingSerializedObject::getResult);
             });
         }
 
         @Override
         public SerializedObject<?> castFirstOrNull(SerializedObject<BEFORE> input, Integer rev) {
+            input = resolveInputType(input);
             if (delegate.canSkipCast(input, rev)) {
                 return convertFormat(input);
             }
@@ -213,6 +240,14 @@ public class DefaultCasterChain<T, S extends SerializedObject<T>> implements Cas
         @Override
         public Registration registerCasterCandidates(Object... candidates) {
             return delegate.registerCasterCandidates(candidates);
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private SerializedObject<BEFORE> resolveInputType(SerializedObject<BEFORE> input) {
+            String type = input.getType();
+            String resolvedType = inputTypeResolver.apply(type);
+            return Objects.equals(type, resolvedType) ? input
+                    : input.withData((Data) input.data().withType(resolvedType));
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})

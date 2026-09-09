@@ -24,9 +24,20 @@ Properties are resolved in the following order of precedence:
 
 1. `EnvironmentVariablesSource` – e.g. `export MY_SETTING=value`
 2. `SystemPropertiesSource` – e.g. `-Dmy.setting=value`
-3. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
-4. `ApplicationPropertiesSource` – base fallback (`application.properties`)
-5. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+3. `FluxzeroAdditionalPropertiesSource` – locations configured with `FLUXZERO_CONFIG_LOCATIONS`
+4. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
+5. `ApplicationPropertiesSource` – base fallback (`application.properties`)
+6. `FluxzeroPropertiesSource` – SDK defaults (`fluxzero.properties` or `fluxzero.json`)
+7. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+
+`ApplicationPropertiesSource` merges every `application.properties` resource visible on the application classpath.
+A shared module can therefore own common defaults once; each executable that depends on that module inherits them.
+Do not repeat the same key with different values across modules: the SDK logs a warning because class-loader ordering
+would make that value ambiguous. Put intentional overrides in an environment variable, system property,
+environment-specific file, or another higher-priority source.
+Spring Boot nested JARs remain separate classpath resources and are discovered automatically. A custom uber-JAR build
+that collapses equal resource names must merge overlapping `application.properties` files in its own packaging
+configuration.
 
 To specify the environment (`dev`, `prod`, etc.), define:
 

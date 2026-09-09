@@ -51,7 +51,6 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.asClass;
@@ -108,7 +107,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
      * @param format           the default serialization format name (e.g., "json")
      */
     protected AbstractSerializer(Collection<?> casterCandidates, Converter<byte[], I> converter, String format) {
-        this.upcasterChain = DefaultCasterChain.createUpcaster(casterCandidates, converter);
+        this.upcasterChain = DefaultCasterChain.createUpcaster(
+                casterCandidates, converter, this::resolveRegisteredTypeBeforeUpcasting);
         this.downcasterChain = DefaultCasterChain.createDowncaster(casterCandidates, converter.getOutputType());
         this.format = format;
     }
@@ -414,6 +414,18 @@ public abstract class AbstractSerializer<I> implements Serializer {
         return !typeAliasResolver.isEmpty();
     }
 
+    private String resolveRegisteredTypeBeforeUpcasting(String type) {
+        if (type == null || type.contains("<")) {
+            return type;
+        }
+        Class<?> resolvedType = ReflectionUtils.classForName(type, null);
+        String resolvedName = resolvedType == null ? type : resolvedType.getName();
+        if (Objects.equals(type, resolvedName) || !Objects.equals(type, upcastType(type))) {
+            return type;
+        }
+        return resolvedName;
+    }
+
     private SerializedObject<?> attachClassNameMapper(SerializedObject<?> input) {
         TypeAliasResolver resolver = typeAliasResolver;
         if (resolver.isEmpty() || !(input instanceof SerializedMessage message)) {
@@ -423,8 +435,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
         if (metadata == null) {
             return input;
         }
-        UnaryOperator<String> mapper = resolver.hasPackageAliases() ? resolver::resolve : resolver::resolveExact;
-        return message.withMetadata(metadata.withClassNameMapper(mapper));
+        return message.withMetadata(metadata.withClassNameMapper(this::resolveTypeName));
     }
 
     private Registration registerAlias(Map<String, String> aliases, String source, String target) {

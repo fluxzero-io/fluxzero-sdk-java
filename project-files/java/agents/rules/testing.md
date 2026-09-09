@@ -33,8 +33,8 @@ mocks, databases, or complex framework wiring.
 
 1. **Logic-First Testing**: Focus tests on the core domain (Commands, Queries, Events).
 2. **External JSON**: Use JSON files for all complex inputs and expectations to keep tests readable.
-3. **FQN in JSON**: Always use Fully Qualified Names (e.g., `io.fluxzero.app.api.CreateOrder`) for the `@class` property
-   in JSON resources.
+3. **Type names in JSON**: Prefer a simple or distinguishing suffix for types covered by `@RegisterType`; otherwise use
+   the fully qualified name in `@class`.
 4. **No Spring/Mocks**: Avoid `@SpringBootTest` or Mockito. Use `TestFixture.create()` for lightweight, isolated tests.
 
 ---
@@ -184,9 +184,22 @@ fixture.whenCommand(new CloseProject(projectId))
 
 JSON files are stored in `src/test/resources` and should mirror your domain package structure.
 
-### Using FQN
+### Resolving `@class`
 
-To ensure reliable type resolution, always use the full class path in the `@class` property.
+For a class or package indexed by `@RegisterType`, prefer its simple name when unique:
+
+[//]: # (@formatter:off)
+```json
+{
+  "@class": "CreateOrder",
+  "orderId": "ORD-123",
+  "amount": 50.0
+}
+```
+[//]: # (@formatter:on)
+
+Use a distinguishing suffix such as `orders.CreateOrder` if registered simple names collide. When the type is not
+registered, use its full class path:
 
 [//]: # (@formatter:off)
 ```json

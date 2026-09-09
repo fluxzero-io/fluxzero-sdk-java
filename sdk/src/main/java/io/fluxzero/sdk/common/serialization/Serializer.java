@@ -19,6 +19,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
+import io.fluxzero.common.reflection.ReflectionUtils;
 
 import java.lang.reflect.Type;
 import java.util.List;
@@ -341,6 +342,23 @@ public interface Serializer extends ContentFilter {
      * @return the remapped (or unchanged) type name
      */
     String upcastType(String type);
+
+    /**
+     * Resolves a serialized type identifier after applying historical aliases. Fully qualified and canonical type names
+     * remain valid, while unique simple or partial names registered through
+     * {@link io.fluxzero.common.serialization.RegisterType} resolve to their fully qualified class name.
+     *
+     * @param type the serialized type identifier
+     * @return the current resolvable type name, or the unchanged identifier if it is unknown
+     */
+    default String resolveTypeName(String type) {
+        String currentType = upcastType(type);
+        if (currentType == null || currentType.contains("<")) {
+            return currentType;
+        }
+        Class<?> resolvedType = ReflectionUtils.classForName(currentType, null);
+        return resolvedType == null ? currentType : resolvedType.getName();
+    }
 
     /**
      * Downcasts the given object to a previous revision.

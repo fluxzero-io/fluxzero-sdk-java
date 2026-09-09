@@ -21,6 +21,7 @@ import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
@@ -74,6 +75,17 @@ class TypeAliasTest {
     }
 
     @Test
+    void nestedClassMetadataUsesRegisteredSimpleNameWithoutAliases() {
+        JacksonSerializer serializer = new JacksonSerializer();
+
+        Container result = serializer.deserialize(data(Container.class.getName(), 0, """
+                {"value":{"@class":"NestedType","value":"test"}}
+                """));
+
+        assertEquals(new NestedType("test"), result.value());
+    }
+
+    @Test
     void appliesPackageAliasToClassMetadataInsideMessageMetadata() {
         JacksonSerializer serializer = new JacksonSerializer();
         serializer.registerPackageAlias(LEGACY_PACKAGE, CURRENT_PACKAGE);
@@ -102,6 +114,22 @@ class TypeAliasTest {
         assertEquals(CURRENT_TYPE, serializer.upcastType("legacy.First"));
         assertEquals(CURRENT_TYPE + "$Nested", serializer.upcastType("legacy.one.TypeAliasTest$CurrentType$Nested"));
         assertEquals(CURRENT_TYPE, serializer.upcastType("legacy.two.TypeAliasTest$CurrentType"));
+    }
+
+    @Test
+    void resolvesAliasTargetThroughRegisteredTypeName() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        serializer.registerTypeAlias("legacy.NestedType", "NestedType");
+
+        assertEquals(NestedType.class.getName(), serializer.resolveTypeName("legacy.NestedType"));
+    }
+
+    @Test
+    void leavesCanonicalGenericTypeNameUnchanged() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        String type = "java.util.List<java.lang.String>";
+
+        assertSame(type, serializer.resolveTypeName(type));
     }
 
     @Test
@@ -146,6 +174,15 @@ class TypeAliasTest {
         serializer.registerPackageAlias(LEGACY_PACKAGE, CURRENT_PACKAGE);
 
         CurrentType result = serializer.deserialize(data(LEGACY_TYPE, 0, "{\"oldValue\":\"test\"}"));
+
+        assertEquals(new CurrentType("test"), result);
+    }
+
+    @Test
+    void resolvesRegisteredSimpleTypeBeforeContentUpcasting() {
+        JacksonSerializer serializer = new JacksonSerializer(List.of(new CurrentTypeUpcaster()));
+
+        CurrentType result = serializer.deserialize(data("CurrentType", 0, "{\"oldValue\":\"test\"}"));
 
         assertEquals(new CurrentType("test"), result);
     }
@@ -196,6 +233,7 @@ class TypeAliasTest {
         return new Data<>(json.getBytes(UTF_8), type, revision, Data.JSON_FORMAT);
     }
 
+    @RegisterType
     @Revision(1)
     private record CurrentType(String value) {
     }
@@ -207,11 +245,19 @@ class TypeAliasTest {
     private interface NestedValue {
     }
 
+    @RegisterType
     private record NestedType(String value) implements NestedValue {
     }
 
     private static class LegacyUpcaster {
         @Upcast(type = LEGACY_TYPE, revision = 0)
+        ObjectNode upcast(ObjectNode input) {
+            return input.set("value", input.remove("oldValue"));
+        }
+    }
+
+    private static class CurrentTypeUpcaster {
+        @Upcast(type = CURRENT_TYPE, revision = 0)
         ObjectNode upcast(ObjectNode input) {
             return input.set("value", input.remove("oldValue"));
         }

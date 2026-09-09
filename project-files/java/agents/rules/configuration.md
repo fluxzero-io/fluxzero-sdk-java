@@ -30,9 +30,20 @@ order of precedence:
 
 1. **Environment Variables**: e.g., `export FLUXZERO_BASE_URL=...`
 2. **System Properties**: e.g., `-Dfluxzero.base-url=...`
-3. **Environment-Specific Properties**: `application-{environment}.properties` (set `ENVIRONMENT` variable)
-4. **Base Properties**: `application.properties`
-5. **Spring Environment**: (If Spring is active)
+3. **Additional Config Locations**: files configured with `FLUXZERO_CONFIG_LOCATIONS`
+4. **Environment-Specific Properties**: `application-{environment}.properties` (set `ENVIRONMENT` variable)
+5. **Base Properties**: `application.properties`
+6. **Fluxzero SDK Defaults**: `fluxzero.properties` or `fluxzero.json`
+7. **Spring Environment**: (If Spring is active)
+
+All classpath `application.properties` resources are merged. Put shared defaults in one common module and let dependent
+executables inherit them; do not copy the same key into every executable. If different modules define conflicting
+values for one key, resolution depends on class-loader order and Fluxzero logs a warning. Use a higher-priority source
+for intentional overrides. Always resolve feature configuration through `ApplicationProperties` or, at a builder or
+configuration boundary, the component's configured `PropertySource`; never read environment variables, system
+properties, or files directly and never introduce a feature-specific property utility.
+Custom uber-JAR packaging that collapses equal resource names must merge overlapping `application.properties` files
+itself; Spring integration cannot recover a resource removed during packaging.
 
 ### Typed Access
 

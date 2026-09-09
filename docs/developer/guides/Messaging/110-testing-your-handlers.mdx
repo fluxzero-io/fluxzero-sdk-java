@@ -270,7 +270,7 @@ Each JSON file must include a `@class` property to enable deserialization:
 }
 ```
 
-If your classes or packages are annotated with `@RegisterType`, you can even use simple class names *in Java*:
+If your classes or packages are annotated with `@RegisterType`, you can use simple class names:
 
 ```json
 {
@@ -286,12 +286,15 @@ Or partial paths:
 }
 ```
 
-<Aside type="note">
-    Deserialization using just a simple class name is sufficient in Java projects, but not yet in Kotlin,
-    which requires the fully qualified name, e.g.:
+For Kotlin, run the annotation processor with `kapt` and annotate a marker type with the package root:
 
-    `"@class": "io.fluxzero.yourapp.user.command.CreateUser"`
-</Aside>
+```kotlin
+@RegisterType(root = "io.fluxzero.yourapp.user")
+object TypeRegistryMarker
+```
+
+The registry is also used for messages from frontends and other external producers. Simple names are safe when unique;
+otherwise include enough trailing package segments to disambiguate them. Fully qualified names remain supported.
 
 Registered exact and package type aliases apply to root and nested `@class` values, so existing fixtures can retain a
 legacy fully qualified name after a class or package move. Prefer `fluxzero.serialization.typeAliases` or
@@ -300,7 +303,7 @@ legacy fully qualified name after a class or package move. Prefer `fluxzero.seri
 
 `TestFixture` supplies its serializer automatically. Code that reads an untyped resource directly with `JsonUtils`
 can opt into the same behavior with
-`JsonUtils.fromFileWithTypeMapper(referenceClass, resource, serializer::upcastType)`.
+`JsonUtils.fromFileWithTypeMapper(referenceClass, resource, serializer::resolveTypeName)`.
 
 ### Testing older revisions with @revision
 

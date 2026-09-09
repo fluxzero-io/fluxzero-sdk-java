@@ -2040,7 +2040,7 @@ public class TestFixture implements Given<TestFixture>, When {
             return (T) message.withPayload(parseObject(message.getPayload(), callerClass));
         }
         if (object instanceof String resource && isJsonResource(resource)) {
-            object = JsonUtils.fromFileWithTypeMapper(callerClass, resource, fluxzero.serializer()::upcastType);
+            object = JsonUtils.fromFileWithTypeMapper(callerClass, resource, fluxzero.serializer()::resolveTypeName);
         }
         if (object instanceof SerializedMessage s) {
             object = fluxzero.serializer().deserializeMessage(s, EVENT).toMessage();

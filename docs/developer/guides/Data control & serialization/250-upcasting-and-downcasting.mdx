@@ -15,6 +15,62 @@ The serializer is fully pluggable, and you can supply your own by implementing o
 
 ---
 
+## Registered simple type names
+
+Use `@RegisterType` when a frontend or another external producer should not need to send a Java/Kotlin fully qualified
+name. The annotation processor indexes a type or package at compile time.
+
+<Tabs>
+  <TabItem label="Java">
+    ```java
+    @RegisterType
+    package com.example.api;
+    ```
+  </TabItem>
+  <TabItem label="Kotlin">
+    ```kotlin
+    @RegisterType(root = "com.example.api")
+    object TypeRegistryMarker
+    ```
+  </TabItem>
+</Tabs>
+
+The producer can then use `CreateUser`, or a distinguishing suffix such as `user.CreateUser`, as the serialized
+envelope type. This is not limited to commands and queries: events, documents, snapshots, and other serialized payloads
+use the same resolution. Root and nested JSON `@class` values use the same registry:
+
+```json
+{
+  "@class": "CreateUser",
+  "userId": "user-123"
+}
+```
+
+Simple names must be unique across the registered types. When names collide, send enough trailing package segments to
+distinguish the intended class. Annotation processing must run in every module that contributes registered types;
+Kotlin uses `kapt`.
+
+Separate classpath entries and Spring Boot nested JARs retain the generated module indexes automatically. A custom
+uber-JAR is responsible for combining the fixed registry resource itself. With Maven Shade, for example:
+
+```xml
+<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+    <resource>META-INF/io.fluxzero.common.serialization.TypeRegistry</resource>
+</transformer>
+```
+
+Fully qualified names continue to work. Use [type aliases](#type-aliases) for old FQNs that may already be stored or
+queued after a package move; use registered simple names to keep current producers independent of backend package
+layout.
+
+Resolution first applies historical exact or package aliases and then resolves the resulting unique registered name.
+Canonical generic type declarations and unknown identifiers retain Jackson's existing behavior.
+For incoming envelope types, registered names are normalized before revision upcasters are selected. Older revisions
+therefore use the same upcaster as their fully qualified type. Historical aliases intentionally remain a post-upcast
+compatibility step, allowing an upcaster for the old type to run before its package is mapped.
+
+---
+
 ## Revisions
 
 To track changes in your data model, annotate your class with `@Revision`. When deserializing, Fluxzero will use this

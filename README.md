@@ -4882,6 +4882,50 @@ The serializer is fully pluggable, and you can supply your own by implementing o
 
 ---
 
+### Registered Simple Type Names
+
+Annotate a message type or a root package with `@RegisterType` when external producers should not need to know its
+Java/Kotlin package. The annotation processor indexes the selected types at compile time:
+
+```java
+@RegisterType
+package com.example.api;
+```
+
+The frontend or another producer can then send `CreateUser` (or a distinguishing suffix such as
+`user.CreateUser`) as the serialized envelope type instead of `com.example.api.CreateUser`. This applies to every
+serialized payload, including commands, queries, events, documents, and snapshots. The same resolver handles root and
+nested JSON `@class` values:
+
+```json
+{
+  "@class": "CreateUser",
+  "userId": "user-123"
+}
+```
+
+Use a simple name only when it is unique across the registered types. If two packages contain the same class name,
+include enough trailing package segments to distinguish them. Annotation processing must be enabled in every module
+that contributes registered types. Kotlin projects can annotate a marker type with
+`@RegisterType(root = "com.example.api")` through `kapt`.
+
+Registered envelope names are normalized before revision upcasters are selected, so older revisions sent with a
+simple or partial name follow the same upcasting path as the fully qualified type.
+
+Separate classpath entries and Spring Boot nested JARs retain the per-module indexes automatically. A custom uber-JAR
+is responsible for combining the fixed registry resource itself. With Maven Shade, for example:
+
+```xml
+<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+    <resource>META-INF/io.fluxzero.common.serialization.TypeRegistry</resource>
+</transformer>
+```
+
+Fully qualified names remain supported. Use [type aliases](#type-aliases) for historical FQNs already stored or queued
+after a class or package move; simple registered names are intended for current producers.
+
+---
+
 ### Revisions
 
 To track changes in your data model, annotate your class with `@Revision`. When deserializing, Flux will use this
@@ -5227,9 +5271,19 @@ Properties are resolved in the following order of precedence:
 
 1. `EnvironmentVariablesSource` – e.g. `export MY_SETTING=value`
 2. `SystemPropertiesSource` – e.g. `-Dmy.setting=value`
-3. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
-4. `ApplicationPropertiesSource` – base fallback (`application.properties`)
-5. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+3. `FluxzeroAdditionalPropertiesSource` – locations configured with `FLUXZERO_CONFIG_LOCATIONS`
+4. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
+5. `ApplicationPropertiesSource` – base fallback (`application.properties`)
+6. `FluxzeroPropertiesSource` – SDK defaults (`fluxzero.properties` or `fluxzero.json`)
+7. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+
+`ApplicationPropertiesSource` merges every `application.properties` resource visible on the application classpath.
+This lets a shared module provide defaults once: every executable that depends on that module sees those properties
+without copying them into its own resources. Avoid defining the same key with different values in multiple modules;
+the SDK warns about that ambiguity. Use an environment variable, system property, environment-specific file, or other
+higher-priority source for an intentional override.
+Custom uber-JAR builds that collapse multiple classpath resources into one file must merge overlapping
+`application.properties` resources in their own packaging configuration.
 
 To specify the environment (`dev`, `prod`, etc.), define:
 

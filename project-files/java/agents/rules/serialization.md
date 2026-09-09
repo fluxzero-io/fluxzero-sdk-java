@@ -13,6 +13,7 @@ code.
 - [Upcasting (@Upcast)](#upcasting)
     - [Payload Upcasters (ObjectNode)](#payload-upcasting)
     - [Data Upcasters (Full Message)](#data-upcasting)
+- [Registered Simple Type Names](#registered-type-names)
 - [Type Aliases](#type-aliases)
 - [Downcasting (@Downcast)](#downcasting)
 - [Testing Upcasters](#testing-upcasters)
@@ -116,6 +117,26 @@ Upcasting also runs for non-message data such as snapshots, key-value entries, a
 supports those inputs, annotate its `Metadata` parameter with any runtime annotation whose simple name is `Nullable`;
 Fluxzero then injects `null`. Without `@Nullable`, missing message metadata causes deserialization to fail. Returning
 `Metadata` always requires message input because non-message data has nowhere to store it.
+
+---
+
+<a name="registered-type-names"></a>
+
+## Registered Simple Type Names
+
+Use `@RegisterType` on a message class or root package when a frontend or other producer should send a stable simple
+type such as `CreateOrder` instead of a Java FQN. The generated registry resolves serialized envelope types for
+messages, documents, snapshots, and other data, plus root or nested JSON `@class` values. A partial suffix such as
+`orders.CreateOrder` can disambiguate equal simple names. Do not use an ambiguous simple name. Type aliases resolve
+before registered names; use `Serializer.resolveTypeName` when passing the resolver to `JsonUtils`.
+Registered envelope names are normalized before revision upcasters are selected. Historical aliases remain post-upcast
+so an upcaster declared for the old type still runs before the type is mapped.
+
+Annotation processing must run in every module that contributes registered types. Separate classpath entries and Spring
+Boot nested JARs retain the generated indexes automatically. A custom uber-JAR must combine every
+`META-INF/io.fluxzero.common.serialization.TypeRegistry` resource in its own packaging configuration (for Maven Shade,
+use `AppendingTransformer`). FQNs remain valid. Use aliases for historical FQNs already stored or queued after a
+package move, not as a substitute for current simple-name producers.
 
 ---
 
