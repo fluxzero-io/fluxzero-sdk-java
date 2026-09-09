@@ -2440,7 +2440,12 @@ String openApiJson = OpenApiRenderer.renderPrettyJson(
 ```
 
 When annotation processing is enabled, Fluxzero also generates `META-INF/fluxzero/openapi.json` during compilation if
-the module contains web handlers opted in with `@ApiDoc`. Configure global document metadata with javac options such as
+the module contains web handlers opted in with `@ApiDoc`. At runtime, every resource with that path is discovered in a
+stable order and combined. Distinct object members such as paths and named components are merged; exact duplicates are
+accepted. Conflicting document metadata, route operations, operation ids, components, or ordered values such as arrays
+fail with the resource names and JSON path during handler registration. A manually maintained document can use the
+same resource path and follows the same rules; disable processor generation for that module when the manual document
+is intended to replace it rather than contribute to it. Configure global document metadata with javac options such as
 `-Afluxzero.openapi.title="Meters API"`, `-Afluxzero.openapi.version=1.0.0`, and
 `-Afluxzero.openapi.servers=https://api.example.com`. The generated path can be changed with
 `-Afluxzero.openapi.output=...`, the OpenAPI version with `-Afluxzero.openapi.specVersion=3.1.0`, and generation can
@@ -2474,8 +2479,10 @@ Set `serveOpenApi = true` on `@ApiDocInfo` to expose the generated document thro
 endpoint is `openapi.json` relative to the `@Path` value on the same package or handler type, so a package annotated
 with `@Path("/v1")` serves `/v1/openapi.json`. Override this with `openApiPath`; absolute paths start at the
 application root. The generated endpoint is registered internally and uses `@NoUserRequired`. For class-based handler
-registration it can serve the compiled `META-INF/fluxzero/openapi.json` resource when available; for handler instances
-it renders the document from the runtime handler scope.
+registration it serves the combined `META-INF/fluxzero/openapi.json` resources when any are available, otherwise it
+renders the document from the runtime handler scope. Spring Boot nested JARs work through normal classloader resource
+enumeration. Applications that build a classic shaded JAR remain responsible for preserving overlapping resources;
+Maven Shade's `AppendingTransformer` can concatenate this resource and Fluxzero will read each appended JSON document.
 
 Set `serveApiReference = true` to expose a small HTML API reference page for the same document. The default endpoint is
 `docs` relative to the same `@Path`, so `@Path("/v1")` serves `/v1/docs` and automatically also serves
