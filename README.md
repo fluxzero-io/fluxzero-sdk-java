@@ -5,7 +5,7 @@
 # Fluxzero Java SDK
 
 [![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
-[![Maven Central](https://img.shields.io/maven-central/v/io.fluxzero/fluxzero-sdk-java)](https://central.sonatype.com/artifact/io.fluxzero/fluxzero-sdk-java?smo=true)
+[![Packages](https://img.shields.io/badge/packages-releases-blue)](https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-bom/)
 [![Javadoc](https://img.shields.io/badge/javadoc-main-blue)](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/)
 [![Cheatsheet](https://img.shields.io/badge/cheatsheet-PDF-red.svg)](https://raw.githubusercontent.com/fluxzero-io/fluxzero-sdk-java/refs/heads/main/docs/cheatsheet.pdf)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](https://www.apache.org/licenses/LICENSE-2.0)
@@ -19,22 +19,32 @@ functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
 ### Maven Users
 
-Add the Fluxzero repository to your POM to receive releases as soon as they are published:
+Add Fluxzero Packages to your `pom.xml`, inside `<project>`. Merge these entries
+with any existing repository sections. Dependencies and Maven build plugins
+use separate repository lists:
 
 ```xml
 <repositories>
     <repository>
         <id>fluxzero</id>
         <url>https://packages.fluxzero.io/maven</url>
-        <releases><enabled>true</enabled></releases>
         <snapshots><enabled>false</enabled></snapshots>
     </repository>
 </repositories>
+<pluginRepositories>
+    <pluginRepository>
+        <id>fluxzero-plugins</id>
+        <url>https://packages.fluxzero.io/maven</url>
+        <snapshots><enabled>false</enabled></snapshots>
+    </pluginRepository>
+</pluginRepositories>
 ```
 
-Releases are published here before Maven Central. Existing Maven coordinates stay the same.
+Downloads are public and require no account or credentials. Existing artifacts
+remain on Maven Central; from **1 October 2026**, new Fluxzero releases will be
+published only at [Fluxzero Packages](https://packages.fluxzero.io/).
 
-Import the [Fluxzero BOM](https://mvnrepository.com/artifact/io.fluxzero/fluxzero-bom) in your
+Import the [Fluxzero BOM](https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-bom/) in your
 `dependencyManagement` section to centralize version management:
 
 ```xml
@@ -44,7 +54,7 @@ Import the [Fluxzero BOM](https://mvnrepository.com/artifact/io.fluxzero/fluxzer
         <dependency>
             <groupId>io.fluxzero</groupId>
             <artifactId>fluxzero-bom</artifactId>
-            <version>${fluxzero.version}</version> <!-- See version badge above -->
+            <version>${fluxzero.version}</version> <!-- Choose a release from the BOM directory -->
             <type>pom</type>
             <scope>import</scope>
         </dependency>
@@ -59,11 +69,11 @@ Then declare only the dependencies you actually need (no version required):
 <dependencies>
     <dependency>
         <groupId>io.fluxzero</groupId>
-        <artifactId>java-client</artifactId>
+        <artifactId>sdk</artifactId>
     </dependency>
     <dependency>
         <groupId>io.fluxzero</groupId>
-        <artifactId>java-client</artifactId>
+        <artifactId>sdk</artifactId>
         <classifier>tests</classifier>
         <scope>test</scope>
     </dependency>
@@ -87,6 +97,27 @@ Then declare only the dependencies you actually need (no version required):
 
 ### Gradle Users
 
+Add the Packages repository before Maven Central in `build.gradle.kts` or
+`build.gradle`. Maven Central remains available for other libraries. If your
+build centralizes repositories in `settings.gradle(.kts)`, put these entries in
+`dependencyResolutionManagement.repositories` instead.
+
+For Fluxzero Gradle plugins used through `plugins {}`, also add Packages in
+`pluginManagement.repositories` in `settings.gradle.kts`, before the Plugin Portal:
+
+```kotlin
+pluginManagement {
+    repositories {
+        maven { url = uri("https://packages.fluxzero.io/maven") }
+        gradlePluginPortal()
+    }
+}
+```
+
+Keep `pluginManagement` at the start of the settings file. It is only needed for
+Gradle plugin resolution, not for using the SDK as a dependency. The same
+repository declarations work in Groovy settings with single-quoted strings.
+
 Use [platform BOM support](https://docs.gradle.org/current/userguide/platforms.html) to align dependency versions
 automatically:
 
@@ -98,10 +129,13 @@ repositories {
     maven { url = uri("https://packages.fluxzero.io/maven") }
     mavenCentral()
 }
+
 dependencies {
     implementation(platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}"))
-    implementation("io.fluxzero:java-client")
-    testImplementation("io.fluxzero:java-client", classifier = "tests")
+    implementation("io.fluxzero:sdk")
+    testImplementation("io.fluxzero:sdk") {
+        artifact { classifier = "tests" }
+    }
     testImplementation("io.fluxzero:test-server")
     testImplementation("io.fluxzero:proxy")
 }
@@ -114,14 +148,15 @@ dependencies {
 
 ```groovy
 repositories {
-    maven { url 'https://packages.fluxzero.io/maven' }
+    maven { url = uri('https://packages.fluxzero.io/maven') }
     mavenCentral()
 }
+
 dependencies {
     implementation platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}")
-    implementation 'io.fluxzero:java-client'
-    testImplementation('io.fluxzero:java-client') {
-        classifier = 'tests'
+    implementation 'io.fluxzero:sdk'
+    testImplementation('io.fluxzero:sdk') {
+        artifact { classifier = 'tests' }
     }
     testImplementation 'io.fluxzero:test-server'
     testImplementation 'io.fluxzero:proxy'

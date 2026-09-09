@@ -5,13 +5,13 @@ sidebar:
    order: 120
 ---
 
-**Last update:** July 2026
+**Last update:** September 2026
 
-At Fluxzero, your privacy matters. This page explains how the public Fluxzero website and documentation use cookies and similar browser technologies.
+At Fluxzero, your privacy matters. This page explains how the public Fluxzero website, documentation and package repository use cookies and similar browser technologies.
 
 ## Summary
 
-The public Fluxzero website and documentation only use cookies when they are necessary for the website to work or for functionality you explicitly use, such as signing in with GitHub to submit documentation feedback.
+The public Fluxzero website, documentation and package repository only use cookies when they are necessary for the website to work or for functionality you explicitly use, such as signing in with GitHub to submit documentation feedback.
 
 We do not use optional cookies on the public website. That means we do not currently show a cookie banner.
 
@@ -22,6 +22,26 @@ Cookies are small text files stored on your device when you visit a website. The
 Similar browser technologies, such as local storage and session storage, can store small pieces of information in your browser without using cookies.
 
 ## Cookies We Use
+
+### Public Package Repository
+
+Browsing and downloading from https://packages.fluxzero.io requires no sign-in.
+The repository pages do not set application cookies or store preferences in
+local storage or session storage. Pagination uses the page URL fragment.
+
+Cloudflare provides security for this service. If a security challenge is shown,
+a `cf_clearance` cookie can record that it has been completed, so the browser does
+not have to repeat it during the configured challenge-passage period.
+
+Cloudflare's standard error pages can load a favicon from `cloudflare.com`.
+That request can set Cloudflare's `__cf_bm` bot-protection cookie on that domain;
+it expires after 30 minutes of inactivity. It is separate from the normal
+repository pages. See [Cloudflare's cookie documentation](https://developers.cloudflare.com/fundamentals/reference/policies-compliances/cloudflare-cookies/).
+
+Browsers may send technical network-error reports to Cloudflare. These reports
+do not use a repository cookie or browser storage for tracking; see our
+[Privacy Notice](/docs/about/privacy/) for the purpose and processing of these
+requests.
 
 ### GitHub Feedback Login Cookies
 
