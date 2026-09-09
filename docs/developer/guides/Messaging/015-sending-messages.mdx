@@ -238,6 +238,10 @@ All configured `DispatchInterceptor`s run first. They may:
 
 If a local handler matches the message type/topic, it’s invoked immediately. Otherwise, the message is forwarded.
 
+An `@LocalOnly` command or query is the fail-closed exception: it requires exactly one result-producing local handler.
+Invalid selection throws `LocalOnlyDispatchException` before monitoring, serialization, or forwarding, including for
+async and bulk calls.
+
 <Aside type="tip">
   Local handlers with <code>@LocalHandler(logMessage = true)</code> allow messages to be both handled and forwarded.
 </Aside>
@@ -263,6 +267,7 @@ graph TD
     START[Message dispatched] --> PRE[Pre-serialization dispatch interceptors]
     PRE --> PRE_BLOCK{Dispatch blocked?}
     PRE_BLOCK -->|No| HANDLERS{Local handler available?}
+    HANDLERS -->|Invalid @LocalOnly selection| FAIL_LOCAL[Throw LocalOnlyDispatchException]
     HANDLERS -->|Yes| LOCAL[Invoke local handler]
     HANDLERS -->|No| SERIALIZE[Serialize message with metadata]
     LOCAL --> PASSIVE{Passive?}

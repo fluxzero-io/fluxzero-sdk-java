@@ -46,6 +46,55 @@ class SomeLocalHandler {
   By default, handler metrics are disabled for local handlers. To enable, use <code>logMetrics = true</code> to track performance metrics even for local handlers.
 </Aside>
 
+## Require local handling
+
+Local handling normally preserves location transparency: if no local handler matches, a command or query is forwarded
+to the Runtime. Add `@LocalOnly` to a payload type when forwarding must never be used as a fallback.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+@LocalOnly
+public record ReadLocalSecret(SecretId secretId) {
+}
+
+@LocalHandler
+public class LocalSecretHandler {
+    @HandleQuery
+    Secret handle(ReadLocalSecret query) {
+        return secretStore.get(query.secretId());
+    }
+}
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+@LocalOnly
+data class ReadLocalSecret(val secretId: SecretId)
+
+@LocalHandler
+class LocalSecretHandler {
+    @HandleQuery
+    fun handle(query: ReadLocalSecret): Secret = secretStore.get(query.secretId)
+}
+```
+
+</TabItem>
+</Tabs>
+
+Exactly one result-producing local handler must match. No match, multiple matches, a custom registry that cannot prove
+exact selection, or a matching `@LocalHandler(logMessage = true)` causes a `LocalOnlyDispatchException` before
+dispatch monitoring, serialization, or external publication. Passive local observers may accompany the one
+result-producing handler. Configuration errors are thrown directly by sync, async, fire-and-forget, and bulk gateway
+calls; they are not returned as an asynchronously failed future.
+
+The restriction remains active if a `DispatchInterceptor` replaces a marked payload, and it becomes active if the
+replacement is marked. Returning `null` from the interceptor still suppresses dispatch. `@LocalOnly` supports commands
+and queries; unmarked payloads keep the default Runtime fallback.
+
 ## Self-handling messages
 
 Instead of defining message handlers externally, you can embed handler logic directly in the message payload. This is often useful for queries or simple commands.

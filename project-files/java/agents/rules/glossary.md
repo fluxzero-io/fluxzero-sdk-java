@@ -85,6 +85,11 @@ specific type of message.
 
 A handler that executes synchronously in the same thread as the message publication. This is common for Queries.
 
+### Local-only payload (@LocalOnly)
+
+A command or query payload that must be handled by exactly one result-producing local handler. Invalid selection fails
+before monitoring, serialization, or external publication; ordinary payloads still fall back to the Runtime.
+
 ### Message
 
 The fundamental unit of communication in Fluxzero. Every interaction is a message consisting of a **Payload** (the

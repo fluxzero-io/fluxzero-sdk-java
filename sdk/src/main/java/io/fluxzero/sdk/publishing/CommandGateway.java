@@ -40,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
  * {@link HasLocalHandlers}.
  *
  * @see io.fluxzero.sdk.tracking.handling.HandleCommand
+ * @see LocalOnly
  */
 public interface CommandGateway extends Namespaced<CommandGateway>, HasLocalHandlers {
 

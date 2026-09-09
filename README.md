@@ -919,6 +919,35 @@ public class SomeLocalHandler {
 
 > 💡 Use logMetrics = true to track performance metrics even for local handlers.
 
+### Fail-closed local commands and queries
+
+Local handlers normally retain location transparency: if no local handler matches, Fluxzero forwards the command or
+query to the Runtime. Mark a payload type with `@LocalOnly` when forwarding must never be an acceptable fallback:
+
+```java
+@LocalOnly
+public record ReadLocalSecret(SecretId secretId) {
+}
+
+@LocalHandler
+public class LocalSecretHandler {
+    @HandleQuery
+    Secret handle(ReadLocalSecret query) {
+        return secretStore.get(query.secretId());
+    }
+}
+```
+
+An `@LocalOnly` command or query requires exactly one result-producing local handler. Zero or multiple matches, a
+custom handler registry that cannot prove exact selection, and `@LocalHandler(logMessage = true)` all cause a
+`LocalOnlyDispatchException` before dispatch monitoring, serialization, or external publication. Passive local
+observers may run alongside the one result-producing handler. The exception is thrown directly, including by async and
+bulk gateway calls, so do not expect a returned future for a configuration failure.
+
+The restriction survives a `DispatchInterceptor` replacement: a marked original remains local-only, and an unmarked
+original becomes local-only when its replacement is marked. An interceptor may still suppress the message by returning
+`null`. `@LocalOnly` is supported for commands and queries; ordinary payloads keep the default Runtime fallback.
+
 ### Self-handling messages
 
 Instead of defining message handlers externally, you can embed handler logic directly in the message payload. This is
@@ -1723,6 +1752,8 @@ invoked **locally**.
 - If the handler is annotated with `@LocalHandler(logMessage = true)`, the message is still forwarded to the 
   Fluxzero Runtime.
 - If the handler **fully consumes** the message, it won't be forwarded.
+- An `@LocalOnly` command or query requires exactly one result-producing local handler and otherwise throws
+  `LocalOnlyDispatchException` before monitoring, serialization, or forwarding.
 
 #### 3. **Serialization**
 

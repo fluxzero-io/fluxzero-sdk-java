@@ -35,6 +35,7 @@ import io.fluxzero.sdk.tracking.handling.HandlerDecorator;
 import io.fluxzero.sdk.tracking.handling.HandlerFactory;
 import io.fluxzero.sdk.tracking.handling.HandlerInterceptor;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
+import io.fluxzero.sdk.tracking.handling.LocalHandlerSelection;
 
 import java.lang.reflect.Parameter;
 import java.time.Instant;
@@ -257,6 +258,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     @Override
     public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
         return !localHandlingEnabled;
+    }
+
+    @Override
+    public LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
+        return canHandle(message)
+                ? LocalHandlerSelection.selected(() -> handleResult(message))
+                : LocalHandlerSelection.noMatch();
     }
 
     @Override

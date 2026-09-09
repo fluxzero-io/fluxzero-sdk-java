@@ -172,6 +172,16 @@ class UserQueryHandler {
 ```
 [//]: # (@formatter:on)
 
+Use `@LocalOnly` on a command or query payload when falling back to the Runtime would violate a security or
+application boundary. It requires exactly one result-producing local handler. No match, multiple matches, a custom
+registry that cannot prove exact selection, or `@LocalHandler(logMessage = true)` throws
+`LocalOnlyDispatchException` before monitoring, serialization, or external publication. Passive local observers do not
+count as request handlers. The failure is thrown directly even from async and bulk gateway methods.
+
+The rule survives dispatch-interceptor replacement in both directions: a marked original remains local-only and a
+marked replacement makes the dispatch local-only. Interceptor suppression still returns normally. Use this only for
+commands and queries; ordinary messages retain external fallback.
+
 > **Passive Listening**: All requests (commands, queries, web requests) can be handled passively using e.g.
 `@HandleQuery(passive = true)`, meaning results won't be published. This is useful for auditing or logging without
 > interfering with the primary request flow.

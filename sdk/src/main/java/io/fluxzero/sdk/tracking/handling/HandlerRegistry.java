@@ -134,6 +134,20 @@ public interface HandlerRegistry extends HasLocalHandlers {
     }
 
     /**
+     * Selects exactly one result-producing local handler without invoking it.
+     *
+     * <p>This method backs fail-closed local-only dispatch. Custom registries must override it before they can accept
+     * local-only payloads; the default rejects the dispatch because adapting {@link #handle(DeserializingMessage)}
+     * cannot prove uniqueness without invoking a handler.</p>
+     *
+     * @param message the message to inspect
+     * @return an exact local handler selection
+     */
+    default LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
+        return LocalHandlerSelection.unsupported();
+    }
+
+    /**
      * Attempts payload-first local handling and writes the outcome into the reusable execution frame.
      * Implementations that cannot preserve the lazy input return {@code false}, causing the caller to use the
      * canonical message-based path.
@@ -221,6 +235,12 @@ public interface HandlerRegistry extends HasLocalHandlers {
         }
 
         @Override
+        public LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
+            return LocalHandlerSelection.merge(first.selectSingleHandler(message),
+                                               second.selectSingleHandler(message));
+        }
+
+        @Override
         public Registration registerHandler(Object target) {
             return first.registerHandler(target).merge(second.registerHandler(target));
         }
@@ -261,6 +281,11 @@ public interface HandlerRegistry extends HasLocalHandlers {
         @Override
         public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
             return true;
+        }
+
+        @Override
+        public LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
+            return LocalHandlerSelection.noMatch();
         }
 
         @Override
