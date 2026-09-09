@@ -32,6 +32,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static io.fluxzero.common.ObjectUtils.asStream;
 
@@ -126,6 +127,15 @@ public final class ModelReducer {
             CommitAttempt beginState,
             boolean applyHandlers,
             boolean assertions) {
+        return apply(message, beginState, applyHandlers, assertions, null);
+    }
+
+    private List<Change> apply(
+            DeserializingMessage message,
+            CommitAttempt beginState,
+            boolean applyHandlers,
+            boolean assertions,
+            Set<String> applyReads) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
         if (directApply != null && applyHandlers) {
@@ -147,7 +157,7 @@ public final class ModelReducer {
         beginState.attachTo(message);
         try {
             return message.apply(ignored -> applyInContext(
-                    message, beginState, applyHandlers, assertions));
+                    message, beginState, applyHandlers, assertions, applyReads));
         } finally {
             beginState.attachTo(message);
         }
@@ -157,7 +167,8 @@ public final class ModelReducer {
             DeserializingMessage message,
             CommitAttempt beginState,
             boolean applyHandlers,
-            boolean assertions) {
+            boolean assertions,
+            Set<String> applyReads) {
         if (assertions) {
             invokeAll(handlers.payload().beforeAssertions(), message, beginState);
             invokeAll(handlers.model().beforeAssertions(), message, beginState);
@@ -167,13 +178,13 @@ public final class ModelReducer {
         }
 
         Map<String, AppliedValue> payloadValues = applyPhase(
-                handlers.payload().applies(), message, beginState, null);
+                handlers.payload().applies(), message, beginState, null, applyReads);
         Map<String, AppliedValue> modelValues = null;
         if (!handlers.model().applies().isEmpty()) {
             CommitAttempt modelState = payloadValues == null
                     ? beginState : withValues(beginState, payloadValues);
             modelValues = applyPhase(
-                    handlers.model().applies(), message, modelState, payloadValues);
+                    handlers.model().applies(), message, modelState, payloadValues, applyReads);
         }
         if (payloadValues == null && modelValues == null) {
             return List.of();
@@ -200,6 +211,20 @@ public final class ModelReducer {
             List<MutationPlan.CompiledHandler> applies,
             DeserializingMessage message,
             CommitAttempt context,
+            Map<String, AppliedValue> previousPhase,
+            Set<String> applyReads) {
+        Set<String> previous = context.collectReads(applyReads);
+        try {
+            return applyPhase(applies, message, context, previousPhase);
+        } finally {
+            context.collectReads(previous);
+        }
+    }
+
+    private Map<String, AppliedValue> applyPhase(
+            List<MutationPlan.CompiledHandler> applies,
+            DeserializingMessage message,
+            CommitAttempt context,
             Map<String, AppliedValue> previousPhase) {
         LinkedHashMap<String, AppliedValue> results = null;
         for (MutationPlan.CompiledHandler compiledHandler : applies) {
@@ -209,6 +234,15 @@ public final class ModelReducer {
             }
             if (skipIndependentModelWriter(handler, context, previousPhase)) {
                 continue;
+            }
+            // An indirect parameter is selected through the loaded context roots. Reparenting a
+            // root can change that selection even when the selected ancestor itself did not change.
+            // Include these roots before matching so a currently missing ancestor is protected too.
+            for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
+                if (context.references(parameter) == null) {
+                    context.entities();
+                    break;
+                }
             }
             HandlerInvoker invoker = invoker(
                     compiledHandler, message, context);
@@ -664,6 +698,7 @@ public final class ModelReducer {
 
             Map<String, Object> stagedValues = new LinkedHashMap<>();
             LinkedHashSet<String> readModelIds = new LinkedHashSet<>();
+            LinkedHashSet<String> applyReadModelIds = new LinkedHashSet<>();
             Map<String, Class<?>> readModelTypes =
                     new LinkedHashMap<>();
             List<CommitAttempt.Step> steps = new ArrayList<>();
@@ -718,6 +753,7 @@ public final class ModelReducer {
                                     graphMutation.modelId()));
                     stagedValues.put(
                             change.modelId(), change.after());
+                    applyReadModelIds.add(change.modelId());
                     mergeDirectMutation(steps, current.message(), change);
                     continue;
                 }
@@ -744,9 +780,10 @@ public final class ModelReducer {
 
                 List<Change> transitions = resolved.reducer().apply(
                         current.message(), context,
-                        mode.applyHandlers, mode.assertions);
+                        mode.applyHandlers, mode.assertions, applyReadModelIds);
                 for (Change transition : transitions) {
                     stagedValues.put(transition.modelId(), transition.after());
+                    applyReadModelIds.add(transition.modelId());
                     if (!readModelTypes.containsKey(transition.modelId())) {
                         readModelIds.add(transition.modelId());
                         readModelTypes.putIfAbsent(
@@ -757,7 +794,7 @@ public final class ModelReducer {
                 steps.add(new CommitAttempt.Step(current.message(), transitions));
             }
             attempt.evaluated(
-                    readStateIndex, readModelIds, readModelTypes,
+                    readStateIndex, readModelIds, applyReadModelIds, readModelTypes,
                     steps);
             return attempt;
         } finally {

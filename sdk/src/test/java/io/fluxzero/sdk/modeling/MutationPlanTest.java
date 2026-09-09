@@ -32,11 +32,55 @@ import static io.fluxzero.sdk.modeling.MutationPlan.Access.READ_WRITE;
 import static io.fluxzero.sdk.modeling.MutationPlan.Access.WRITE_ONLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MutationPlanTest {
+
+    @Test
+    void routingUsesTheSameCanonicalReceiverIdWithoutLoading() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                RenameAffixed.class, EntityMetadata.of(Affixed.class).handlerMethods());
+        Message message = new Message(new RenameAffixed(new AffixedId("route")));
+
+        assertEquals("move-affixed-route", plan.routingTarget(message));
+        assertEquals(plan.resolve(message).models().getFirst().modelId(), plan.routingTarget(message));
+    }
+
+    @Test
+    void routingKeepsParentScopesDistinct() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                CreateScopedChild.class, EntityMetadata.of(CreateScopedChild.class).handlerMethods());
+        for (String parent : List.of("first", "second")) {
+            CreateScopedChild command = new CreateScopedChild("same-child", new ParentIdValue(parent));
+            assertEquals(EntityMetadata.of(ScopedChild.class).repositoryId("same-child", command),
+                         plan.routingTarget(new Message(command)));
+        }
+        org.junit.jupiter.api.Assertions.assertNotEquals(
+                plan.routingTarget(new Message(new CreateScopedChild("same-child", new ParentIdValue("first")))),
+                plan.routingTarget(new Message(new CreateScopedChild("same-child", new ParentIdValue("second")))));
+    }
+
+    @Test
+    void routingDoesNotInventAnIdForAnAbsentTarget() {
+        MutationPlan.TargetPlan plan = MutationPlan.compile(
+                RenameAffixed.class, EntityMetadata.of(Affixed.class).handlerMethods());
+        assertNull(plan.routingTarget(new Message(new RenameAffixed(null))));
+    }
+
+    @Model
+    private record ScopedChild(@EntityId(parentScoped = true) String childId,
+                               @io.fluxzero.sdk.modeling.Parent ParentIdValue parentId) {
+    }
+
+    private record CreateScopedChild(String childId, ParentIdValue parentId) {
+        @Apply
+        ScopedChild apply() {
+            return new ScopedChild(childId, parentId);
+        }
+    }
 
     @Test
     void parameterPlansUseTheCentralClassMetadataCache() {

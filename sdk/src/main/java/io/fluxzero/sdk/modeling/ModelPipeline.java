@@ -64,6 +64,7 @@ final class ModelPipeline {
     private final DefaultModelRepository repository;
     private final Commit repositoryCommit;
     private final ModelConflictPolicy conflictPolicy;
+    private final ModelConflictPolicy creationConflictPolicy;
     private final ModelConflictResolver conflictResolver;
     private final int maxConflictRetries;
     private final ModelBatchScope.BatchLifecycle batchLifecycle;
@@ -82,6 +83,7 @@ final class ModelPipeline {
             DispatchInterceptor eventDispatchInterceptor,
             String source,
             ModelConflictPolicy conflictPolicy,
+            ModelConflictPolicy creationConflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             GraphProjectionCompletion graphProjectionCompletion,
@@ -91,6 +93,7 @@ final class ModelPipeline {
         this.serializer = Objects.requireNonNull(serializer, "serializer");
         Objects.requireNonNull(eventStoreClient, "eventStoreClient");
         this.conflictPolicy = ModelConflictPolicy.resolve(conflictPolicy);
+        this.creationConflictPolicy = ModelConflictPolicy.resolve(creationConflictPolicy);
         this.conflictResolver = Objects.requireNonNull(conflictResolver, "conflictResolver");
         if (maxConflictRetries < 0) {
             throw new IllegalArgumentException("Maximum model conflict retries must not be negative");
@@ -415,7 +418,7 @@ final class ModelPipeline {
             boolean migration,
             boolean existingEvent) {
         ModelConflictPolicy effectiveConflictPolicy =
-                evaluation.conflictPolicy(conflictPolicy);
+                evaluation.conflictPolicy(conflictPolicy, creationConflictPolicy);
         Retry retry = effectiveConflictPolicy == ModelConflictPolicy.ACCEPT
                 ? Retry.accepting((result, current) -> {
                     try {
@@ -574,7 +577,7 @@ final class ModelPipeline {
             CommitAttempt evaluation,
             Commit.Outcome prepared) {
         ModelCommitAdmission.Scope.Builder accesses = ModelCommitAdmission.Scope.builder();
-        evaluation.readModelIds().forEach(modelId -> accesses.add(
+        evaluation.readModelIds(ModelConflictPolicy.ACCEPT).forEach(modelId -> accesses.add(
                 new ModelCommitAdmission.Key(namespace, modelId, false), false));
         if (prepared.commit() != null) {
             prepared.commit().getSubsteps().forEach(step -> step.getTargets().forEach(target -> {
@@ -864,15 +867,18 @@ final class ModelPipeline {
         steps.add(new CommitAttempt.Step(cascadeMessage, transitions));
         LinkedHashSet<String> readModelIds =
                 new LinkedHashSet<>(evaluation.readModelIds());
+        LinkedHashSet<String> applyReadModelIds =
+                new LinkedHashSet<>(evaluation.readModelIds(ModelConflictPolicy.ACCEPT));
         Map<String, Class<?>> readModelTypes =
                 new LinkedHashMap<>(evaluation.readModelTypes());
         transitions.forEach(transition -> {
             readModelIds.add(transition.modelId());
+            applyReadModelIds.add(transition.modelId());
             readModelTypes.putIfAbsent(
                     transition.modelId(), transition.modelType());
         });
         evaluation.evaluated(
-                evaluation.readStateIndex(), readModelIds,
+                evaluation.readStateIndex(), readModelIds, applyReadModelIds,
                 readModelTypes, steps);
         evaluation.cascadeRoots(explicitlyDeleted);
         return evaluation;

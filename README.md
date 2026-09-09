@@ -3768,6 +3768,26 @@ even if the earlier commit is still in flight. Direct `loadModel`/`loadModels` c
 waiting for storage. A graph that moves into a root retains its already durable descendants. Explicit historical
 `loadGraphAt` calls remain fixed to their requested boundary and never include pending state.
 
+With `fluxzero.defaults.version >= 2026.09.09`, Model updates default to `RETRY`: the Runtime validates all Models
+resolved during evaluation, including assertions and interceptors, and a conflict triggers a bounded fresh Model
+evaluation. Conflict-free commits use the same cached-head/atomic-boundary optimization as `ACCEPT` when eligible.
+Implicit first creations still fail on conflict, preserving create-if-absent. Explicit `@Apply`, `@Model`, builder
+or `fluxzero.model.conflictPolicy` settings take precedence; an explicit `RETRY` can deliberately reevaluate a create
+and needs a create-only assertion if overwriting must remain forbidden. Without a defaults version, `ACCEPT` remains
+the compatibility default. `ACCEPT` preserves the original event: only apply dependencies and written targets require
+rebasing, not Models read solely by assertions or interceptors. `FAIL` and `RETRY` retain the complete evaluation readset.
+The loaded roots used to select an apply ancestor also count as apply dependencies, including nullable missing ancestors.
+This validation does not turn arbitrary external searches or unrelated repository reads into transactional reads.
+
+With `fluxzero.defaults.version >= 2026.09.10`, or `fluxzero.model.automaticRouting=true`, a command with one statically
+unambiguous, non-collection Model apply gets a routing fallback based on its canonical Model ID, including typed-ID
+affixes and parent scope. No Model is loaded and no apply is executed to find that ID. Intercepted, dynamic and
+multi-apply commands do not receive this inferred route. An event affecting exactly one Model gets the corresponding
+fallback from its actual committed target. Explicit segments, `@RoutingKey` fields and type-level metadata/property
+declarations win, including declarations whose value is absent. Multiple targets never select an arbitrary first ID.
+Set `fluxzero.model.automaticRouting=false` to disable both fallbacks. Aggregate routing is unchanged. A command's
+segment is not blindly inherited: external producers or interceptors may have assigned it for a different key.
+
 Explicit `assertAndApply` operations and stored-event applies started while handling that batch participate in the same
 view. They keep their own commit boundary, but expose their staged output to later messages and wait/re-evaluate when
 they consume an earlier pending value.
@@ -5883,6 +5903,8 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
 | `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
+| `>= 2026.09.09` | `fluxzero.model.conflictPolicy = RETRY` | Model updates validate all evaluation dependencies and retry conflicts with fresh evaluation; implicit first creations still fail on conflict. Explicit policies override this choice. Compatibility mode retains `ACCEPT`. |
+| `>= 2026.09.10` | `fluxzero.model.automaticRouting = true` | Single, statically unambiguous Model-apply commands and single-Model events use the canonical Model ID when explicit routing is absent. Set `false` to retain compatibility routing. |
 
 For example:
 

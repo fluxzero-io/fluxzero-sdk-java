@@ -456,6 +456,13 @@ properties. Public policies are:
 
 If multiple applies request different policies, the stricter applicable policy wins; failure is not weakened by retry.
 
+The implicit update policy is `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
+`fluxzero.model.conflictPolicy` and explicit builder/Model/Apply settings override it. Implicit first creations still
+fail on conflict: the new default must not turn create-if-absent into an upsert. Explicit RETRY also reevaluates creation
+and requires create-only assertions when appropriate. ACCEPT validates apply dependencies and writes, excluding
+assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
+commits use the same cached-head/atomic-boundary optimization regardless of policy.
+
 ## Deletion
 
 - Returning `null` from `@Apply` is logical deletion and preserves history.

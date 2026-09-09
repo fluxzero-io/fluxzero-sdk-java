@@ -61,7 +61,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final HandlerDecorator handlerDecorator;
     private volatile boolean localHandlingEnabled;
 
-    /** Creates the automatic model registration facade and its single execution pipeline. */
+    /**
+     * Creates the automatic model registration facade and its single execution pipeline.
+     * {@code creationConflictPolicy} is the inherited policy for targets first created by an attempt;
+     * explicit Model/Apply policies still take precedence.
+     */
     public ModelCommitHandlerRegistry(
             DefaultModelRepository repository,
             EventStoreClient eventStoreClient,
@@ -73,6 +77,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerDecorator handlerDecorator,
             ModelConflictPolicy conflictPolicy,
+            ModelConflictPolicy creationConflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             AutomaticModelHandling automaticHandling,
@@ -86,7 +91,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         this.pipeline = new ModelPipeline(
                 repository, eventStoreClient, serializer, snapshotSerializer,
                 documentSerializer, eventDispatchInterceptor, source,
-                conflictPolicy, conflictResolver, maxConflictRetries,
+                conflictPolicy, creationConflictPolicy, conflictResolver, maxConflictRetries,
                 graphProjectionCompletion, definitions::get,
                 () -> localHandlingEnabled);
         this.decoratedHandler = handlerDecorator.wrap(pipeline.handler(null));
@@ -95,6 +100,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     /** Returns the repository shared by automatic handling and public model loads. */
     public DefaultModelRepository repository() {
         return repository;
+    }
+
+    /** Returns the canonical target of a statically unambiguous single-Model apply, or {@code null}. */
+    public String routingTarget(Message message) {
+        return definitions.get(message.getPayloadClass()).targets().routingTarget(message);
     }
 
     /** Returns the model types registered as handlers in this application. */

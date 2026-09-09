@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
@@ -78,6 +79,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.NonNull;
 
@@ -143,6 +145,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
+    private boolean automaticModelRouting;
 
     public DefaultModelRepository(
             Client client,
@@ -230,6 +233,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 snapshotSerializer, cacheSource, modelDefinitionCompiler,
                 migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName);
         result.configureModelTypes(modelTypes);
+        result.configureAutomaticModelRouting(automaticModelRouting);
         return result;
     }
 
@@ -589,6 +593,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         this.modelTypes = Objects.requireNonNull(
                 modelTypes, "Model types");
         modelTypes.get().forEach(this::modelName);
+    }
+
+    /** Configures the single-Model event-routing fallback before this repository starts handling commits. */
+    public void configureAutomaticModelRouting(boolean enabled) {
+        automaticModelRouting = enabled;
     }
 
     @Override
@@ -1743,7 +1752,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 if (direct && !graphPublished.isEmpty()
                     && !ordinaryEventIds.contains(message.getMessageId())) {
                     SerializedMessage publication = serialize(
-                            message, commitId, protocolSteps.size(), false);
+                            message, commitId, protocolSteps.size(), false,
+                            routingTarget(graphPublished, List.of()));
                     publication.setSource(source);
                     publication = BinaryWire.prepareEnvelope(publication);
                     Change anchor = graphPublished.getFirst();
@@ -1768,7 +1778,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 message, committedTransitions, commitId, protocolSteps.size())
                         : serialize(
                                 message, commitId, protocolSteps.size(),
-                                transitions.stream().anyMatch(Change::cascadedDeletion));
+                                transitions.stream().anyMatch(Change::cascadedDeletion),
+                                routingTarget(transitions, graphPublished));
                 if (event != null) {
                     event.setSource(source);
                     event = BinaryWire.prepareEnvelope(event);
@@ -1789,7 +1800,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 return new Outcome(null, preparedChanges, existingEvent);
             }
             CommitModels commit = new CommitModels(
-                    commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
+                    commitId, evaluation.readStateIndex(), evaluation.readModelIds(conflictPolicy),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
                     possibleDuplicate, migration);
             return new Outcome(commit, preparedChanges, existingEvent);
@@ -1909,7 +1920,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 DeserializingMessage message,
                 String commitId,
                 int substep,
-                boolean internalLifecycleEvent) {
+                boolean internalLifecycleEvent,
+                String routingTarget) {
             SerializedMessage source = message.getSerializedObject(serializer);
             io.fluxzero.sdk.common.Message logicalMessage =
                     message.toMessage();
@@ -1940,10 +1952,32 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         "Serialized model event was suppressed after @Apply evaluation; "
                         + "logical event suppression must happen before model applies");
             }
+            if (!internalLifecycleEvent && routingTarget != null && serialized.getSegment() == null
+                && !MessageRoutingInterceptor.hasExplicitRouting(logicalMessage)) {
+                serialized.setSegment(ConsistentHashing.computeSegment(routingTarget));
+            }
             serialized.setMetadata(serialized.getMetadata().with(
                     ModelEventMetadata.COMMIT_ID, commitId,
                     ModelEventMetadata.SUBSTEP, substep));
             return serialized;
+        }
+
+        private String routingTarget(List<Change> changes, List<Change> graphChanges) {
+            if (!automaticModelRouting || changes.isEmpty()) {
+                return null;
+            }
+            String modelId = changes.getFirst().modelId();
+            for (Change change : changes) {
+                if (!modelId.equals(change.modelId())) {
+                    return null;
+                }
+            }
+            for (Change change : graphChanges) {
+                if (!modelId.equals(change.modelId())) {
+                    return null;
+                }
+            }
+            return modelId;
         }
 
         private static Long existingEventIndex(
@@ -1977,7 +2011,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             logical.getMessageId() + "$direct-model-update",
                             logical.getTimestamp()),
                     EVENT, null, serializer);
-            return serialize(direct, commitId, substep, true);
+            return serialize(direct, commitId, substep, true, null);
         }
 
         private static boolean possibleDuplicate(
