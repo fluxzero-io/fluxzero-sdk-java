@@ -164,6 +164,13 @@ public class ApplicationProperties {
      *         redirects explicitly.</td>
      *     </tr>
      *     <tr>
+     *         <td>{@code >= 2026.09.09}</td>
+     *         <td>{@code fluxzero.websocket.reconnectBackoff.enabled = true}</td>
+     *         <td>WebSocket reconnects use equal jitter over a capped exponential delay instead of retrying every
+     *         second. Existing applications can retain the fixed interval with
+     *         {@code fluxzero.websocket.reconnectBackoff.enabled = false}.</td>
+     *     </tr>
+     *     <tr>
      *         <td>{@code >= 2026.09.10}</td>
      *         <td>{@code fluxzero.eventsourcing.maxFetchBytes = 104857600}</td>
      *         <td>Aggregate-history pages request at most 100 MiB of serialized event payload. Existing applications

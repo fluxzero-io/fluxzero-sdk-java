@@ -143,6 +143,12 @@ Fluxzero fluxzero = DefaultFluxzero.builder()
 ```
 [//]: # (@formatter:on)
 
+Compatibility mode retries failed WebSocket connections every second. Enable capped exponential equal-jitter retry
+with `fluxzero.websocket.reconnectBackoff.enabled=true` or `fluxzero.defaults.version >= 2026.09.09`; use the explicit
+property with `false` to retain fixed retries. The environment-variable form is
+`FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`. Transport diagnostics are single-flight per client on a dedicated,
+timeboxed worker, so metric failure cannot build a queue on result-completion workers.
+
 <a name="advanced-builder-patterns"></a>
 
 ### Advanced Builder Patterns
