@@ -554,6 +554,12 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   contain web handlers opted in with `@ApiDoc`. Configure it with javac options like `-Afluxzero.openapi.title=...`,
   `-Afluxzero.openapi.version=...`, `-Afluxzero.openapi.servers=...`, `-Afluxzero.openapi.specVersion=3.1.0`, or
   disable it with `-Afluxzero.openapi.enabled=false`.
+- The automatic endpoint discovers every `META-INF/fluxzero/openapi.json` visible to the handler classloader and merges
+  compatible paths, components, and metadata in stable resource order. Exact duplicates are accepted; conflicting
+  values and duplicate operation ids fail during handler registration with source and JSON-path context. A manual
+  document at the same path follows these rules. Spring Boot nested JARs are discovered normally. A classic shaded JAR
+  must preserve overlapping resources itself; an application-configured Maven Shade `AppendingTransformer` is
+  supported because consecutive JSON documents are read separately.
 - If route paths depend on runtime `@Path` properties, use `ApiDocExtractor.extract(handlerInstance)` for exact runtime
   docs; the compile-time processor can only see static annotation values.
 

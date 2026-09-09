@@ -307,6 +307,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
         if (messageType == MessageType.WEBREQUEST) {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(targetClass, target)) {
                 if (openApiDocumentEndpoints.add(endpoint)) {
+                    endpoint.validateResources();
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
                 }
             }
