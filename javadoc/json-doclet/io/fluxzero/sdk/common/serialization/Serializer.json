@@ -463,6 +463,22 @@
     "varArgs" : true,
     "documentation" : " Registers one or more upcaster candidates.\n\n @param casterCandidates beans with upcasting logic\n @return a registration handle\n"
   }, {
+    "name" : "resolveTypeName",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#resolveTypeName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a serialized type identifier after applying historical aliases. Fully qualified and canonical type names\n remain valid, while unique simple or partial names registered through\n {@link io.fluxzero.common.serialization.RegisterType} resolve to their fully qualified class name.\n\n @param type the serialized type identifier\n @return the current resolvable type name, or the unchanged identifier if it is unknown\n"
+  }, {
     "name" : "serialize",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.Serializer#serialize",
     "returnType" : "io.fluxzero.common.api.Data<byte[]>",

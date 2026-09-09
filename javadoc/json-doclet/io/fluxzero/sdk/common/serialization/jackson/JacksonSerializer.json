@@ -227,8 +227,8 @@
     "varArgs" : false,
     "documentation" : " Fallback handler for deserialization of unknown types. Attempts best-effort conversion using Jackson.\n"
   }, {
-    "name" : "deserializeWithAliases",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#deserializeWithAliases",
+    "name" : "deserializeWithTypeResolution",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#deserializeWithTypeResolution",
     "returnType" : "java.lang.Object",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
@@ -407,7 +407,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Resolves a canonical {@link JavaType} for the given string-based type name.\n"
+    "documentation" : " Resolves a canonical or registered simple/partial {@link JavaType} for the given string-based type name.\n"
   }, {
     "name" : "isKnownType",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer#isKnownType",
@@ -507,8 +507,8 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
-    "name" : "TypeAliasingJsonParser",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser",
+    "name" : "TypeResolvingJsonParser",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeResolvingJsonParser",
     "kind" : "class",
     "modifiers" : [ "private" ],
     "annotations" : [ ]

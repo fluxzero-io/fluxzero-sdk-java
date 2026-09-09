@@ -1,6 +1,6 @@
 {
-  "name" : "TypeAliasingJsonParser",
-  "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser",
+  "name" : "TypeResolvingJsonParser",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeResolvingJsonParser",
   "packageName" : "io.fluxzero.sdk.common.serialization.jackson",
   "kind" : "class",
   "modifiers" : [ "private" ],
@@ -11,8 +11,8 @@
   "interfaces" : [ ],
   "fields" : [ ],
   "constructors" : [ {
-    "name" : "TypeAliasingJsonParser",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser#TypeAliasingJsonParser",
+    "name" : "TypeResolvingJsonParser",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeResolvingJsonParser#TypeResolvingJsonParser",
     "modifiers" : [ "private" ],
     "annotations" : [ ],
     "typeParameters" : [ ],
@@ -28,7 +28,7 @@
   } ],
   "methods" : [ {
     "name" : "getText",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser#getText",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeResolvingJsonParser#getText",
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -42,7 +42,7 @@
     "documentation" : null
   }, {
     "name" : "getValueAsString",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser#getValueAsString",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeResolvingJsonParser#getValueAsString",
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -56,7 +56,7 @@
     "documentation" : null
   }, {
     "name" : "getValueAsString",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser#getValueAsString",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeResolvingJsonParser#getValueAsString",
     "returnType" : "java.lang.String",
     "modifiers" : [ "public" ],
     "annotations" : [ {
@@ -74,8 +74,8 @@
     "varArgs" : false,
     "documentation" : null
   }, {
-    "name" : "resolveTypeAlias",
-    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeAliasingJsonParser#resolveTypeAlias",
+    "name" : "resolveTypeIdentifier",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer$TypeResolvingJsonParser#resolveTypeIdentifier",
     "returnType" : "java.lang.String",
     "modifiers" : [ "private" ],
     "annotations" : [ ],

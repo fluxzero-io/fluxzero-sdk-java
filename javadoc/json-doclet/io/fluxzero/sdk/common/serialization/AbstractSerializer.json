@@ -741,6 +741,22 @@
     "varArgs" : true,
     "documentation" : " Registers custom upcasters for handling older serialized formats.\n"
   }, {
+    "name" : "resolveRegisteredTypeBeforeUpcasting",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#resolveRegisteredTypeBeforeUpcasting",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "type",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "serialize",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.AbstractSerializer#serialize",
     "returnType" : "io.fluxzero.common.api.Data<byte[]>",

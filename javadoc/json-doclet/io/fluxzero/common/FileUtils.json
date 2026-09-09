@@ -318,6 +318,30 @@
     "varArgs" : false,
     "documentation" : " Loads properties from the classpath, merging from all available matching resources.\n <p>\n If the same key appears in multiple modules, a warning is logged.\n\n @param fileName resource path to a properties file\n @return merged properties across all modules\n"
   }, {
+    "name" : "loadProperties",
+    "qualifiedName" : "io.fluxzero.common.FileUtils#loadProperties",
+    "returnType" : "java.util.Properties",
+    "modifiers" : [ "static" ],
+    "annotations" : [ {
+      "annotationType" : "lombok.SneakyThrows",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "fileName",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "classLoader",
+      "type" : "java.lang.ClassLoader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "safeResolve",
     "qualifiedName" : "io.fluxzero.common.FileUtils#safeResolve",
     "returnType" : "java.net.URI",

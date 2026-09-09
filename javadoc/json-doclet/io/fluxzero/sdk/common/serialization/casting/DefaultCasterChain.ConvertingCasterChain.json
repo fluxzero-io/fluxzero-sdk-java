@@ -25,6 +25,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "inputTypeResolver",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain.inputTypeResolver",
+    "type" : "java.util.function.UnaryOperator<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   } ],
   "constructors" : [ {
     "name" : "ConvertingCasterChain",
@@ -40,6 +48,11 @@
     }, {
       "name" : "converter",
       "type" : "io.fluxzero.common.serialization.Converter<BEFORE,INTERNAL>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inputTypeResolver",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -134,6 +147,27 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "resolveInputType",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain$ConvertingCasterChain#resolveInputType",
+    "returnType" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\",\"rawtypes\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.SerializedObject<BEFORE>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
     "documentation" : null
   } ],
   "enumConstants" : [ ],

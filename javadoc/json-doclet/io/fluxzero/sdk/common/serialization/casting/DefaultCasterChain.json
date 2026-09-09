@@ -158,6 +158,37 @@
   }, {
     "name" : "create",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain#create",
+    "returnType" : "io.fluxzero.sdk.common.serialization.casting.CasterChain<io.fluxzero.common.api.SerializedObject<BEFORE>,io.fluxzero.common.api.SerializedObject<?>>",
+    "modifiers" : [ "protected", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "BEFORE", "INTERNAL" ],
+    "parameters" : [ {
+      "name" : "casterCandidates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "converter",
+      "type" : "io.fluxzero.common.serialization.Converter<BEFORE,INTERNAL>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "down",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inputTypeResolver",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "create",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain#create",
     "returnType" : "io.fluxzero.sdk.common.serialization.casting.CasterChain<S,S>",
     "modifiers" : [ "protected", "static" ],
     "annotations" : [ ],
@@ -223,6 +254,32 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "createUpcaster",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain#createUpcaster",
+    "returnType" : "io.fluxzero.sdk.common.serialization.casting.CasterChain<io.fluxzero.common.api.SerializedObject<BEFORE>,io.fluxzero.common.api.SerializedObject<?>>",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "BEFORE", "INTERNAL" ],
+    "parameters" : [ {
+      "name" : "casterCandidates",
+      "type" : "java.util.Collection<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "converter",
+      "type" : "io.fluxzero.common.serialization.Converter<BEFORE,INTERNAL>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "inputTypeResolver",
+      "type" : "java.util.function.UnaryOperator<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates an upcaster chain that normalizes serialized type identifiers before selecting a content upcaster.\n\n @param casterCandidates candidate objects containing upcaster methods\n @param converter converter between serialized and intermediate data\n @param inputTypeResolver resolver applied to each incoming serialized type\n @return the configured upcaster chain\n"
   }, {
     "name" : "createUpcaster",
     "qualifiedName" : "io.fluxzero.sdk.common.serialization.casting.DefaultCasterChain#createUpcaster",

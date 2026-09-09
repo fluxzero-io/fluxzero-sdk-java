@@ -4,10 +4,7 @@
   "packageName" : "io.fluxzero.common.serialization",
   "kind" : "class",
   "modifiers" : [ "public" ],
-  "annotations" : [ {
-    "annotationType" : "lombok.extern.slf4j.Slf4j",
-    "values" : {}
-  } ],
+  "annotations" : [ ],
   "documentation" : null,
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
