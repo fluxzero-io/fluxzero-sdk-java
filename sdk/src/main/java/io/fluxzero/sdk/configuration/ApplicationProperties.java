@@ -181,6 +181,13 @@ public class ApplicationProperties {
      *         JDK redirects with {@code fluxzero.web.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables
      *         redirects explicitly.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.09}</td>
+     *         <td>{@code fluxzero.websocket.reconnectBackoff.enabled = true}</td>
+     *         <td>WebSocket reconnects use equal jitter over a capped exponential delay instead of retrying every
+     *         second. Existing applications can retain the fixed interval with
+     *         {@code fluxzero.websocket.reconnectBackoff.enabled = false}.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with

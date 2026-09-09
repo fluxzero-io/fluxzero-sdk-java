@@ -77,6 +77,12 @@ authoritative `$taskId` correlation metadata. The generated client ID remains st
 a newly constructed client receives a new UUID suffix. Set `FLUXZERO_CLIENT_ID` only when supplying an explicitly
 unique client-instance ID; `FLUX_CLIENT_ID` remains available as a legacy alias.
 
+In compatibility mode, failed WebSocket connections retry every second. Set
+`fluxzero.websocket.reconnectBackoff.enabled=true`, or use `fluxzero.defaults.version >= 2026.09.09`, to use equal
+jitter over capped exponential ceilings of 1, 2, 4, 8, 16, then 30 seconds. A successful connection resets the retry
+cycle. Set the dedicated property to `false` to keep fixed retries on a newer defaults profile. The conventional
+environment-variable name is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
+
 ---
 
 ## Runtime ingress flow control
@@ -154,6 +160,10 @@ Set `fluxzero.websocket.transportMetrics.enabled=true` to publish sparse transpo
 `RUNTIME_INGRESS_BACKPRESSURED`, `RUNTIME_INGRESS_STALLED`, `RUNTIME_INGRESS_RECOVERED`,
 `RUNTIME_INGRESS_OVERFLOW`, `RUNTIME_EXECUTOR_REJECTED`, and `PING_TIMEOUT`. This diagnostic is disabled by default.
 Diagnostics report the effective transport and completion worker modes and both configured concurrency bounds.
+At most one transport-metric publication per client runs on its dedicated worker. Additional diagnostics are dropped
+while that publication is occupied, and its one-second deadline releases metric ordering gates and requests worker
+interruption. A non-cooperative publisher can occupy only that single slot; it cannot queue more metric work, consume
+result-completion workers, or delay client shutdown.
 Increase retained messages to absorb verified bursts of small responses. A wider retained window does not add
 runtime-message workers, but can improve burst throughput by reducing receive-demand pauses and keeping existing
 workers supplied.

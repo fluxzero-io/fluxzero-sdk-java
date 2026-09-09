@@ -5914,6 +5914,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
 | `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
+| `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 
 For example:
 
@@ -5926,7 +5927,7 @@ redirects plus all earlier versioned defaults. To choose one behavior explicitly
 set the dedicated property directly. Existing applications that omit `fluxzero.defaults.version` keep compatibility
 behavior: unconfigured handlers share the application default consumer, implicit
 `@Periodic(initialDelay = -1)` is treated as an immediate first run, user metadata contains serialized users, and
-native outbound requests allow normal JDK redirects.
+native outbound requests allow normal JDK redirects, and WebSocket reconnects use a fixed one-second interval.
 
 ### Encrypted Values
 
@@ -6492,6 +6493,14 @@ Key options include:
 
 ### Runtime Data Dispatch Isolation
 
+WebSocket connection retries use the historical fixed one-second interval in compatibility mode. With
+`fluxzero.defaults.version >= 2026.09.09`, or an explicit
+`fluxzero.websocket.reconnectBackoff.enabled=true`, consecutive failures instead use a capped exponential ceiling of
+1, 2, 4, 8, 16, then 30 seconds and select each actual delay with equal jitter between half and all of that ceiling.
+This spreads independently failing clients while bounding prolonged outages. A successful connection starts a fresh
+retry cycle. Set the dedicated property to `false` to retain fixed retries on a newer defaults profile. Its conventional
+environment-variable form is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
+
 SDK clients route complete runtime messages through a bounded, transport-neutral ingress controller. With the default
 `JdkWebsocketConnector`, its executor is separate from the JDK WebSocket protocol callback workers. Protocol ingress
 remains ordered, while up to three complete messages from one session may be processed concurrently. That per-session
@@ -6591,6 +6600,10 @@ opt-in stall-close timeout and last inbound age, but no session or ping IDs. Tra
 completion clocks or historical high-watermark bookkeeping.
 Enabling this diagnostic also records the last native inbound activity using monotonic time; the default listener
 performs no corresponding clock reads. Ping-timeout close starts before best-effort metric publication is dispatched.
+Each client admits at most one transport-metric publication at a time on a dedicated worker; further diagnostics are
+dropped while that publication is occupied. A one-second publication deadline releases ordering gates and interrupts
+the dedicated worker. A publisher that does not respond to interruption can therefore occupy that one slot, but cannot
+accumulate queued publications or consume result-completion workers, and client shutdown does not wait for it.
 Transport metrics follow
 `disableMetrics` and are suppressed on the metrics WebSocket itself to avoid recursive publication.
 

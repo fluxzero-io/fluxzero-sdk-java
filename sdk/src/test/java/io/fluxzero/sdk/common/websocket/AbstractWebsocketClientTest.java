@@ -65,12 +65,14 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.serialization.compression.CompressionAlgorithm.GZIP;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -967,6 +969,122 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void connectionRetryBackoffIsVersionedAndExplicitlyOverridable() {
+        assertAll(
+                () -> assertFalse(AbstractWebsocketClient.reconnectBackoffEnabled(
+                        new SimplePropertySource(Map.of()))),
+                () -> assertFalse(AbstractWebsocketClient.reconnectBackoffEnabled(
+                        new SimplePropertySource(Map.of("fluxzero.defaults.version", "2026.09.08")))),
+                () -> assertTrue(AbstractWebsocketClient.reconnectBackoffEnabled(
+                        new SimplePropertySource(Map.of("fluxzero.defaults.version", "2026.09.09")))),
+                () -> assertTrue(AbstractWebsocketClient.reconnectBackoffEnabled(
+                        new SimplePropertySource(Map.of("fluxzero.defaults.version", "2027.01.01")))),
+                () -> assertTrue(AbstractWebsocketClient.reconnectBackoffEnabled(
+                        new SimplePropertySource(Map.of(
+                                "fluxzero.defaults.version", "invalid",
+                                AbstractWebsocketClient.RECONNECT_BACKOFF_ENABLED_PROPERTY, "true")))),
+                () -> assertFalse(AbstractWebsocketClient.reconnectBackoffEnabled(
+                        new SimplePropertySource(Map.of(
+                                "fluxzero.defaults.version", "2027.01.01",
+                                AbstractWebsocketClient.RECONNECT_BACKOFF_ENABLED_PROPERTY, "false")))),
+                () -> assertThrows(IllegalArgumentException.class,
+                                   () -> AbstractWebsocketClient.reconnectBackoffEnabled(
+                                           new SimplePropertySource(Map.of(
+                                                   "fluxzero.defaults.version", "invalid")))));
+    }
+
+    @Test
+    void connectionRetryBackoffGrowsWithEqualJitterAndRemainsCappedDuringLongOutage() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        LoggingObservingClient client = new LoggingObservingClient(
+                mock(WebsocketConnector.class), clientConfig,
+                new SimplePropertySource(Map.of(
+                        AbstractWebsocketClient.RECONNECT_BACKOFF_ENABLED_PROPERTY, "true")), 0.5);
+
+        try {
+            RetryConfiguration configuration = client.retryConfiguration(
+                    URI.create("ws://localhost"), Duration.ofSeconds(1));
+
+            assertAll(
+                    () -> assertEquals(Duration.ofMillis(750),
+                                       configuration.resolveDelay(retryStatus(configuration, 0))),
+                    () -> assertEquals(Duration.ofMillis(1_500),
+                                       configuration.resolveDelay(retryStatus(configuration, 1))),
+                    () -> assertEquals(Duration.ofSeconds(3),
+                                       configuration.resolveDelay(retryStatus(configuration, 2))),
+                    () -> assertEquals(Duration.ofSeconds(12),
+                                       configuration.resolveDelay(retryStatus(configuration, 4))),
+                    () -> assertEquals(Duration.ofMillis(22_500),
+                                       configuration.resolveDelay(retryStatus(configuration, 5))),
+                    () -> assertEquals(Duration.ofMillis(22_500),
+                                       configuration.resolveDelay(retryStatus(configuration, 1_000))),
+                    () -> assertTrue(configuration.getErrorTest().test(new IOException("unreachable"))));
+
+            client.close();
+            assertFalse(configuration.getErrorTest().test(new IOException("cancelled")));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void connectionRetryCompatibilityModeKeepsFixedDelay() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        LoggingObservingClient client = new LoggingObservingClient(
+                mock(WebsocketConnector.class), clientConfig,
+                new SimplePropertySource(Map.of()), 0.5);
+
+        try {
+            RetryConfiguration configuration = client.retryConfiguration(
+                    URI.create("ws://localhost"), Duration.ofSeconds(1));
+
+            assertAll(
+                    () -> assertEquals(Duration.ofSeconds(1),
+                                       configuration.resolveDelay(retryStatus(configuration, 0))),
+                    () -> assertEquals(Duration.ofSeconds(1),
+                                       configuration.resolveDelay(retryStatus(configuration, 1_000))));
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void connectionRetryBackoffResetsAndSpreadsClientsAfterRecovery() {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        List<Double> jitterFractions = List.of(0.0, 0.2, 0.4, 0.6, 0.8);
+        List<Duration> firstRetryDelays = jitterFractions.stream().map(jitter -> {
+            LoggingObservingClient client = new LoggingObservingClient(
+                    mock(WebsocketConnector.class), clientConfig,
+                    new SimplePropertySource(Map.of(
+                            AbstractWebsocketClient.RECONNECT_BACKOFF_ENABLED_PROPERTY, "true")), jitter);
+            try {
+                RetryConfiguration configuration = client.retryConfiguration(
+                        URI.create("ws://localhost"), Duration.ofSeconds(1));
+                Duration firstCycle = configuration.resolveDelay(retryStatus(configuration, 0));
+                Duration recoveredCycle = configuration.resolveDelay(retryStatus(configuration, 0));
+                assertEquals(firstCycle, recoveredCycle);
+                return firstCycle;
+            } finally {
+                client.close();
+            }
+        }).toList();
+
+        assertEquals(jitterFractions.size(), Set.copyOf(firstRetryDelays).size());
+        assertTrue(firstRetryDelays.stream().allMatch(
+                delay -> delay.compareTo(Duration.ofMillis(500)) >= 0
+                         && delay.compareTo(Duration.ofSeconds(1)) < 0));
+    }
+
+    @Test
     void connectionRetryConfigurationLogsReconnectSuccessWithRetryCount() {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -1336,8 +1454,8 @@ class AbstractWebsocketClientTest {
             assertTrue(metricsPublished.await(1, TimeUnit.SECONDS));
             assertEquals(List.of(WebsocketTransportMetric.Event.RUNTIME_INGRESS_STALLED,
                                  WebsocketTransportMetric.Event.RUNTIME_INGRESS_RECOVERED), events);
-            assertEquals(1, taskScheduler.pendingTaskCount(),
-                         "Remaining retained work should start a fresh progress deadline");
+            assertTrue(taskScheduler.awaitPendingTaskCount(1, Duration.ofSeconds(1)),
+                       "Remaining retained work should start a fresh progress deadline");
             verify(session, never()).closeAsync(any());
         } finally {
             client.close();
@@ -1492,7 +1610,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void runtimeIngressOverflowPublishesSparseTransportMetric() {
+    void runtimeIngressOverflowPublishesSparseTransportMetric() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -1511,6 +1629,7 @@ class AbstractWebsocketClientTest {
         try {
             client.handleError(session, overflow);
 
+            assertTrue(client.transportMetricPublished.await(1, TimeUnit.SECONDS));
             WebsocketTransportMetric metric = client.transportMetric.get();
             assertEquals(WebsocketTransportMetric.Event.RUNTIME_INGRESS_OVERFLOW, metric.event());
             assertEquals(2, metric.retainedMessages());
@@ -1576,7 +1695,7 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
-    void runtimeExecutorRejectionPublishesSparseTransportMetric() {
+    void runtimeExecutorRejectionPublishesSparseTransportMetric() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
                 .name("test-client")
@@ -1592,6 +1711,7 @@ class AbstractWebsocketClientTest {
         try {
             client.handleError(session, rejection);
 
+            assertTrue(client.transportMetricPublished.await(1, TimeUnit.SECONDS));
             WebsocketTransportMetric metric = client.transportMetric.get();
             assertEquals(WebsocketTransportMetric.Event.RUNTIME_EXECUTOR_REJECTED, metric.event());
             assertEquals(1, metric.retainedMessages());
@@ -1750,6 +1870,141 @@ class AbstractWebsocketClientTest {
     }
 
     @Test
+    void transportMetricPublicationIsSingleFlightTimeboxedAndIndependentFromResultHandling() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        AtomicInteger publicationAttempts = new AtomicInteger();
+        CountDownLatch metricStarted = new CountDownLatch(1);
+        CountDownLatch metricInterrupted = new CountDownLatch(1);
+        CountDownLatch releaseMetric = new CountDownLatch(1);
+        CountDownLatch metricStopped = new CountDownLatch(1);
+        CountDownLatch pongHandled = new CountDownLatch(1);
+        AtomicBoolean metricWorkerIsDaemon = new AtomicBoolean();
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), taskScheduler) {
+            @Override
+            void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+                publicationAttempts.incrementAndGet();
+                metricWorkerIsDaemon.set(Thread.currentThread().isDaemon());
+                metricStarted.countDown();
+                try {
+                    while (true) {
+                        try {
+                            releaseMetric.await();
+                            break;
+                        } catch (InterruptedException e) {
+                            metricInterrupted.countDown();
+                            // Deliberately model a non-cooperative publisher until explicitly released.
+                        }
+                    }
+                } finally {
+                    metricStopped.countDown();
+                }
+            }
+
+            @Override
+            protected void handlePong(WebsocketSession session) {
+                pongHandled.countDown();
+            }
+        };
+        WebsocketSession session = mockSession("client123_runtime456");
+
+        try {
+            client.emitTransportMetricAsync(
+                    WebsocketTransportMetric.Event.PING_TIMEOUT, session, runtimeDataState(0, 0L, 0, 0));
+            assertTrue(metricStarted.await(1, TimeUnit.SECONDS));
+            assertTrue(metricWorkerIsDaemon.get());
+
+            for (int i = 0; i < 1_000; i++) {
+                client.emitTransportMetricAsync(
+                        WebsocketTransportMetric.Event.RUNTIME_INGRESS_OVERFLOW, session,
+                        runtimeDataState(1, 1L, 0, 1));
+            }
+            assertEquals(1, publicationAttempts.get());
+
+            client.onPong(ByteBuffer.allocate(0), session);
+            assertTrue(pongHandled.await(1, TimeUnit.SECONDS));
+
+            assertEquals(1, taskScheduler.pendingTaskCount());
+            taskScheduler.advance(client.transportMetricPublicationTimeout());
+            taskScheduler.dequeue().run();
+            assertTrue(metricInterrupted.await(1, TimeUnit.SECONDS));
+
+            for (int i = 0; i < 1_000; i++) {
+                client.emitTransportMetricAsync(
+                        WebsocketTransportMetric.Event.RUNTIME_EXECUTOR_REJECTED, session,
+                        runtimeDataState(1, 1L, 0, 1));
+            }
+            assertEquals(1, publicationAttempts.get());
+            assertTimeout(Duration.ofMillis(500), () -> client.close());
+        } finally {
+            releaseMetric.countDown();
+            assertTrue(metricStopped.await(1, TimeUnit.SECONDS));
+            client.close();
+        }
+    }
+
+    @Test
+    void transportMetricPublicationResumesAfterTimedOutWorkerStops() throws Exception {
+        WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
+                .runtimeBaseUrl("ws://localhost")
+                .name("test-client")
+                .build();
+        ManuallyTriggeredTaskScheduler taskScheduler = new ManuallyTriggeredTaskScheduler();
+        AtomicInteger publicationAttempts = new AtomicInteger();
+        CountDownLatch firstMetricStarted = new CountDownLatch(1);
+        CountDownLatch firstMetricStopped = new CountDownLatch(1);
+        CountDownLatch secondMetricPublished = new CountDownLatch(1);
+        TransportMetricObservingClient client = new TransportMetricObservingClient(
+                clientConfig, true, transportMetricsProperties(), taskScheduler) {
+            @Override
+            void publishTransportMetric(WebsocketTransportMetric metric, Metadata metadata) {
+                if (publicationAttempts.incrementAndGet() == 1) {
+                    firstMetricStarted.countDown();
+                    try {
+                        new CountDownLatch(1).await();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        firstMetricStopped.countDown();
+                    }
+                } else {
+                    secondMetricPublished.countDown();
+                }
+            }
+        };
+        WebsocketSession session = mockSession("client123_runtime456");
+        ExecutorService observer = Executors.newSingleThreadExecutor();
+
+        try {
+            client.emitTransportMetricAsync(
+                    WebsocketTransportMetric.Event.PING_TIMEOUT, session, runtimeDataState(0, 0L, 0, 0));
+            assertTrue(firstMetricStarted.await(1, TimeUnit.SECONDS));
+
+            taskScheduler.advance(client.transportMetricPublicationTimeout());
+            taskScheduler.dequeue().run();
+            assertTrue(firstMetricStopped.await(1, TimeUnit.SECONDS));
+            observer.submit(() -> {
+                while (client.transportMetricPublicationInFlight()) {
+                    Thread.onSpinWait();
+                }
+            }).get(1, TimeUnit.SECONDS);
+
+            client.emitTransportMetricAsync(
+                    WebsocketTransportMetric.Event.RUNTIME_INGRESS_RECOVERED, session,
+                    runtimeDataState(0, 0L, 0, 0));
+            assertTrue(secondMetricPublished.await(1, TimeUnit.SECONDS));
+            assertEquals(2, publicationAttempts.get());
+        } finally {
+            observer.shutdownNow();
+            client.close();
+        }
+    }
+
+    @Test
     void onPongIsHandledAsynchronously() throws Exception {
         WebSocketClient.ClientConfig clientConfig = WebSocketClient.ClientConfig.builder()
                 .runtimeBaseUrl("ws://localhost")
@@ -1858,6 +2113,13 @@ class AbstractWebsocketClientTest {
             super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
                   true, Duration.ofSeconds(1), defaultObjectMapper, 1,
                   new SimplePropertySource(Map.of()), (client, numberOfSessions) -> pingScheduler);
+        }
+
+        TestClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig,
+                   SimplePropertySource propertySource) {
+            super(container, URI.create("ws://localhost"), WebSocketClient.newInstance(clientConfig),
+                  true, Duration.ofSeconds(1), defaultObjectMapper, 1, propertySource,
+                  (client, numberOfSessions) -> new ManuallyTriggeredTaskScheduler());
         }
 
         void publishTestMetric(Append append) {
@@ -2035,19 +2297,33 @@ class AbstractWebsocketClientTest {
         public synchronized Registration schedule(long deadline, ThrowingRunnable task) {
             ScheduledTask scheduledTask = new ScheduledTask(deadline, task);
             scheduledTasks.add(scheduledTask);
+            notifyAll();
             return () -> {
                 synchronized (ManuallyTriggeredTaskScheduler.this) {
                     scheduledTasks.remove(scheduledTask);
+                    ManuallyTriggeredTaskScheduler.this.notifyAll();
                 }
             };
         }
 
         synchronized ThrowingRunnable dequeue() {
-            return scheduledTasks.remove().task();
+            ThrowingRunnable result = scheduledTasks.remove().task();
+            notifyAll();
+            return result;
         }
 
         synchronized int pendingTaskCount() {
             return scheduledTasks.size();
+        }
+
+        synchronized boolean awaitPendingTaskCount(int expected, Duration timeout) throws InterruptedException {
+            long remainingNanos = timeout.toNanos();
+            long deadline = System.nanoTime() + remainingNanos;
+            while (scheduledTasks.size() != expected && remainingNanos > 0) {
+                TimeUnit.NANOSECONDS.timedWait(this, remainingNanos);
+                remainingNanos = deadline - System.nanoTime();
+            }
+            return scheduledTasks.size() == expected;
         }
 
         synchronized long nextDeadline() {
@@ -2071,6 +2347,7 @@ class AbstractWebsocketClientTest {
         @Override
         public synchronized void shutdown() {
             scheduledTasks.clear();
+            notifyAll();
         }
 
         private record ScheduledTask(long deadline, ThrowingRunnable task) {
@@ -2080,9 +2357,16 @@ class AbstractWebsocketClientTest {
     private static class LoggingObservingClient extends TestClient {
         private final List<RetryStatus> loggedFailures = new java.util.concurrent.CopyOnWriteArrayList<>();
         private final List<RetryStatus> loggedSuccesses = new java.util.concurrent.CopyOnWriteArrayList<>();
+        private double reconnectJitter = 0.5;
 
         LoggingObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig) {
             super(container, clientConfig);
+        }
+
+        LoggingObservingClient(WebsocketConnector container, WebSocketClient.ClientConfig clientConfig,
+                               SimplePropertySource propertySource, double reconnectJitter) {
+            super(container, clientConfig, propertySource);
+            this.reconnectJitter = reconnectJitter;
         }
 
         RetryConfiguration retryConfiguration(URI endpointUri, Duration reconnectDelay) {
@@ -2100,6 +2384,11 @@ class AbstractWebsocketClientTest {
         @Override
         protected void logSuccessfulReconnect(URI endpointUri, RetryStatus status) {
             loggedSuccesses.add(status);
+        }
+
+        @Override
+        protected double nextReconnectJitter() {
+            return reconnectJitter;
         }
 
         List<Integer> loggedFailureRetryCounts() {
