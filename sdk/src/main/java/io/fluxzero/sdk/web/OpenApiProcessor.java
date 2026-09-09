@@ -2042,7 +2042,8 @@ public class OpenApiProcessor extends AbstractProcessor {
 
     private List<TypeMirror> typeList(AnnotationValue value) {
         if (value == null || !(value.getValue() instanceof List<?> list)) {
-            return List.of();
+            TypeMirror type = typeValue(value);
+            return type == null ? List.of() : List.of(type);
         }
         List<TypeMirror> result = new ArrayList<>();
         for (Object item : list) {

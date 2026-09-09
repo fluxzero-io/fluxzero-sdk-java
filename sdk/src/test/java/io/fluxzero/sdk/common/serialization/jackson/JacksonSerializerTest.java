@@ -32,6 +32,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.search.SearchExclude;
 import io.fluxzero.common.search.SearchInclude;
 import io.fluxzero.common.serialization.JsonUtils;
+import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.serialization.DeserializationException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -132,6 +133,24 @@ class JacksonSerializerTest {
                 new Data<>(view, TYPE, 3, Data.JSON_FORMAT));
 
         assertEquals(new RevisedObject("range", 42), result);
+    }
+
+    @Test
+    void deserializesRegisteredSimpleTypeName() throws JsonProcessingException {
+        RegisteredPayload expected = new RegisteredPayload("test");
+        Data<byte[]> data = new Data<>(objectMapper.writeValueAsBytes(expected), "RegisteredPayload", 0,
+                                      Data.JSON_FORMAT);
+
+        assertEquals(expected, serializer.deserialize(data));
+    }
+
+    @Test
+    void deserializesRegisteredPartialTypeName() throws JsonProcessingException {
+        RegisteredPayload expected = new RegisteredPayload("test");
+        Data<byte[]> data = new Data<>(objectMapper.writeValueAsBytes(expected),
+                                      "JacksonSerializerTest$RegisteredPayload", 0, Data.JSON_FORMAT);
+
+        assertEquals(expected, serializer.deserialize(data));
     }
 
     @Test
@@ -527,6 +546,12 @@ class JacksonSerializerTest {
     private static class RevisedObject {
         String name;
         int someInteger;
+    }
+
+    @RegisterType
+    @Value
+    static class RegisteredPayload {
+        String value;
     }
 
     @Revision(1)

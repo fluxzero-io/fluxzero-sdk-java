@@ -34,22 +34,31 @@
         <module>kotlin-downstream-project</module>
     </modules>
 
+    <distributionManagement>
+        <repository>
+            <id>fluxzero</id>
+            <url>https://packages.fluxzero.io/publish/maven</url>
+        </repository>
+    </distributionManagement>
+
     <name>Fluxzero Java SDK</name>
     <description>Fluxzero provides messaging-as-a-service for distributed applications.</description>
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <properties>
+        <project.build.outputTimestamp>${env.RELEASE_TIMESTAMP}</project.build.outputTimestamp>
+        <updateBuildOutputTimestampPolicy>never</updateBuildOutputTimestampPolicy>
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <jetty.version>12.1.12</jetty.version>
+        <jetty.version>12.1.13</jetty.version>
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
         <jakarta.validation.version>3.1.1</jakarta.validation.version>
         <kotlin.version>2.4.10</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
-        <slf4j.version>2.0.18</slf4j.version>
+        <slf4j.version>2.0.19</slf4j.version>
         <fluxzero.maven.plugin.version>1.17.3</fluxzero.maven.plugin.version>
         <fluxzero.package.channel-tag>latest</fluxzero.package.channel-tag>
         <fluxzero.package.base-image>gcr.io/distroless/java25-debian13:nonroot@sha256:9ccf2b8bce700d9f450523e2055afabe4d4ee795e6d69a0647a2dcd6e180e411</fluxzero.package.base-image>
@@ -215,6 +224,10 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-deploy-plugin</artifactId>
                     <version>3.1.4</version>
+                    <configuration>
+                        <deployAtEnd>true</deployAtEnd>
+                        <retryFailedDeploymentCount>3</retryFailedDeploymentCount>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -470,6 +483,20 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
         </plugins>
     </build>
 
@@ -502,23 +529,9 @@
 
     <profiles>
         <profile>
-            <id>deploy</id>
+            <id>sign</id>
             <build>
                 <plugins>
-                    <plugin>
-                        <artifactId>maven-source-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>attach-sources</id>
-                                <goals>
-                                    <goal>jar-no-fork</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
@@ -535,6 +548,13 @@
                             </execution>
                         </executions>
                     </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>central</id>
+            <build>
+                <plugins>
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>

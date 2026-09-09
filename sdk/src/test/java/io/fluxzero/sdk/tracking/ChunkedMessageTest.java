@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.HasMetadata;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
+import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.ChunkedDeserializingMessage;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -199,6 +200,22 @@ class ChunkedMessageTest {
     }
 
     @Test
+    void resolvesRegisteredSimpleTypeBeforeChunkedHandlerSelection() {
+        TestFixture.create().whenApplying(fc -> {
+            Data<byte[]> data = fc.serializer().serialize(new LargePayload("hello", 42))
+                    .withType("LargePayload");
+            SerializedMessage firstChunk = chunk(fc, data, 0, data.getValue().length, null, true, true, 0);
+
+            ChunkedDeserializingMessage message =
+                    new ChunkedDeserializingMessage(firstChunk, MessageType.EVENT, null, fc.serializer());
+
+            assertEquals(LargePayload.class, message.getPayloadClass());
+            assertEquals(new LargePayload("hello", 42), message.getPayload());
+            return null;
+        });
+    }
+
+    @Test
     void recoversFirstChunkFromPagedEarlierRangeWhenContinuationArrivesAfterRestart() throws Exception {
         TestFixture.create().whenApplying(fc -> {
             long timestamp = 1_764_000_000_000L;
@@ -292,6 +309,7 @@ class ChunkedMessageTest {
         return message;
     }
 
+    @RegisterType
     private record LargePayload(String value, int count) {
     }
 }

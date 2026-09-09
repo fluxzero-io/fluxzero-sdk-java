@@ -33,8 +33,8 @@ mocks, databases, or complex framework wiring.
 
 1. **Logic-First Testing**: Focus tests on the core domain (Commands, Queries, Events).
 2. **External JSON**: Use JSON files for all complex inputs and expectations to keep tests readable.
-3. **FQN in JSON**: Always use Fully Qualified Names (e.g., `io.fluxzero.app.api.CreateOrder`) for the `@class` property
-   in JSON resources.
+3. **Type names in JSON**: Prefer a simple or distinguishing suffix for types covered by `@RegisterType`; otherwise use
+   the fully qualified name in `@class`.
 4. **No Spring/Mocks**: Avoid `@SpringBootTest` or Mockito. Use `TestFixture.create()` for lightweight, isolated tests.
 
 ---
@@ -184,9 +184,22 @@ fixture.whenCommand(CloseProject(projectId))
 
 JSON files are stored in `src/test/resources` and should mirror your domain package structure.
 
-### Using FQN
+### Resolving `@class`
 
-To ensure reliable type resolution, always use the full class path in the `@class` property.
+For a class or package indexed through `kapt` by `@RegisterType`, prefer its simple name when unique:
+
+[//]: # (@formatter:off)
+```json
+{
+  "@class": "CreateOrder",
+  "orderId": "ORD-123",
+  "amount": 50.0
+}
+```
+[//]: # (@formatter:on)
+
+Use a distinguishing suffix such as `orders.CreateOrder` if registered simple names collide. When the type is not
+registered, use its full class path:
 
 [//]: # (@formatter:off)
 ```json
@@ -197,6 +210,12 @@ To ensure reliable type resolution, always use the full class path in the `@clas
 }
 ```
 [//]: # (@formatter:on)
+
+When a class or package has moved, root and nested `@class` values may retain their historical FQN if an exact or
+package type alias is registered. Prefer `fluxzero.serialization.typeAliases` or
+`FLUXZERO_SERIALIZATION_TYPE_ALIASES` for application-wide configuration; use `FluxzeroBuilder` or the fixture's
+`registerTypeAlias(...)` and `registerPackageAlias(...)` helpers for programmatic test configuration. Alias resolution
+runs after revision upcasting.
 
 ### Testing Older Revisions (`@revision`)
 
@@ -213,9 +232,10 @@ Use a root-level `@revision` next to `@class` when a JSON resource should repres
 ```
 [//]: # (@formatter:on)
 
-The fixture uses `@class` as `Data.type` and `@revision` as `Data.revision`, removes both markers, and invokes the normal
-upcaster chain. Never use a plain `revision` field as serialization metadata; it always remains payload data. The same
-interpretation is available through untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls.
+The fixture uses `@class` as `Data.type` and `@revision` as `Data.revision`, removes both markers, invokes the normal
+upcaster chain, and then resolves registered type aliases. Never use a plain `revision` field as serialization metadata;
+it always remains payload data. The same interpretation is available through untyped `JsonUtils.fromFile(...)` and
+`JsonUtils.fromJson(...)` calls.
 
 ### Extending JSON (@extends)
 

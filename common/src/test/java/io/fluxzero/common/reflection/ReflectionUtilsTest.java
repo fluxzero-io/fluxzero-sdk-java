@@ -52,11 +52,51 @@ import static io.fluxzero.common.reflection.ReflectionUtils.writeProperty;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReflectionUtilsTest {
+
+    private static final AtomicInteger genericInitializations = new AtomicInteger();
+
+    @Test
+    void cachedClassLookupPreservesCanonicalUnknownAndGenericNames() {
+        String canonical = new String(String.class.getName());
+        String unknown = new String("unknown.serialization.Type");
+        String generic = List.class.getName() + "<java.lang.String>";
+        for (int i = 0; i < 2; i++) {
+            assertSame(canonical, ReflectionUtils.resolveRegisteredTypeName(canonical));
+            assertSame(String.class, ReflectionUtils.classForName(canonical));
+            assertTrue(ReflectionUtils.classExists(canonical));
+            assertSame(unknown, ReflectionUtils.resolveRegisteredTypeName(unknown));
+            assertSame(Object.class, ReflectionUtils.classForName(unknown, Object.class));
+            assertFalse(ReflectionUtils.classExists(unknown));
+            assertThrows(ClassNotFoundException.class, () -> ReflectionUtils.classForName(unknown));
+            assertSame(generic, ReflectionUtils.resolveRegisteredTypeName(generic));
+            assertSame(List.class, ReflectionUtils.classForName(generic));
+        }
+        assertNull(ReflectionUtils.resolveRegisteredTypeName(null));
+        assertThrows(NullPointerException.class, () -> ReflectionUtils.classForName(null));
+    }
+
+    @Test
+    void normalizingAGenericSignatureDoesNotInitializeItsRawClass() {
+        String signature = ReflectionUtilsTest.class.getName() + "$ColdGenericType<java.lang.String>";
+
+        assertSame(signature, ReflectionUtils.resolveRegisteredTypeName(signature));
+        assertEquals(0, genericInitializations.get());
+        assertSame(ColdGenericType.class, ReflectionUtils.classForName(signature));
+        assertEquals(1, genericInitializations.get());
+        assertSame(signature, ReflectionUtils.resolveRegisteredTypeName(signature));
+    }
+
+    private static class ColdGenericType<T> {
+        static {
+            genericInitializations.incrementAndGet();
+        }
+    }
 
     private final MockObject someObject =
             MockObject.builder().propertyWithGetter("thisHasGetter").propertyWithoutGetter("thisHasNoGetter")

@@ -20,6 +20,7 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.modeling.AutomaticModelHandling;
@@ -217,6 +218,68 @@ public class FluxzeroConfigTest {
         DefaultFluxzero.builder()
                 .addConsumerConfiguration(config1, QUERY)
                 .addConsumerConfiguration(config2, COMMAND);
+    }
+
+    @Test
+    void typeAliasesCanBeConfiguredOnBuilder() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .addTypeAliases(Map.of("legacy.First", "current.First", "legacy.Second", "current.Second"))
+                .addPackageAliases(Map.of("host.example", "io.example", "old.example", "new.example"))
+                .build(LocalClient.newInstance())) {
+            assertEquals("current.First", fluxzero.serializer().upcastType("legacy.First"));
+            assertEquals("current.Second", fluxzero.serializer().upcastType("legacy.Second"));
+            assertEquals("io.example.Type", fluxzero.serializer().upcastType("host.example.Type"));
+            assertEquals("new.example.Type", fluxzero.serializer().upcastType("old.example.Type"));
+        }
+    }
+
+    @Test
+    void typeAliasesCanBeConfiguredByProperty() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        FluxzeroBuilder.TYPE_ALIASES_PROPERTY,
+                        "legacy.Type=current.Type, host.example.*=io.example.*")))
+                .build(LocalClient.newInstance())) {
+            assertEquals("current.Type", fluxzero.serializer().upcastType("legacy.Type"));
+            assertEquals("io.example.sub.Type", fluxzero.serializer().upcastType("host.example.sub.Type"));
+        }
+    }
+
+    @Test
+    void builderTypeAliasOverridesPropertyAlias() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        FluxzeroBuilder.TYPE_ALIASES_PROPERTY, "legacy.Type=property.Type")))
+                .addTypeAlias("legacy.Type", "builder.Type")
+                .build(LocalClient.newInstance())) {
+            assertEquals("builder.Type", fluxzero.serializer().upcastType("legacy.Type"));
+        }
+    }
+
+    @Test
+    void typeAliasesApplyToDistinctConfiguredSerializers() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        JacksonSerializer snapshotSerializer = new JacksonSerializer();
+        JacksonSerializer documentSerializer = new JacksonSerializer();
+        try (Fluxzero ignored = DefaultFluxzero.builder()
+                .replaceSerializer(serializer)
+                .replaceSnapshotSerializer(snapshotSerializer)
+                .replaceDocumentSerializer(documentSerializer)
+                .addPackageAlias("host.example", "io.example")
+                .build(LocalClient.newInstance())) {
+            assertEquals("io.example.Type", serializer.upcastType("host.example.Type"));
+            assertEquals("io.example.Type", snapshotSerializer.upcastType("host.example.Type"));
+            assertEquals("io.example.Type", documentSerializer.upcastType("host.example.Type"));
+        }
+    }
+
+    @Test
+    void invalidTypeAliasPropertyFailsDuringBuild() {
+        var builder = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        FluxzeroBuilder.TYPE_ALIASES_PROPERTY, "host.example.*=io.example.Type")));
+
+        assertThrows(IllegalArgumentException.class, () -> builder.build(LocalClient.newInstance()));
     }
 
     @Test

@@ -58,6 +58,21 @@ public interface CasterChain<I, O> extends Caster<I, O> {
     }
 
     /**
+     * Prepares an input for direct deserialization when no content caster can transform, split or drop it.
+     * Implementations may normalize its type identifier, but must not execute content casters or converters.
+     *
+     * <p>Returns the prepared input, or {@code null} when the ordinary casting path is required. The default is
+     * deliberately conservative, including for intercepted chains whose callbacks may transform their input.</p>
+     *
+     * @param input the input value
+     * @param rev the target revision number (nullable)
+     * @return the input with any required type normalization, or {@code null} if casting cannot safely be skipped
+     */
+    default I prepareForSkippingCast(I input, Integer rev) {
+        return null;
+    }
+
+    /**
      * Registers one or more objects that may contain casting logic (e.g. annotated methods or implementations).
      * These candidates are inspected and included into the chain if applicable.
      *

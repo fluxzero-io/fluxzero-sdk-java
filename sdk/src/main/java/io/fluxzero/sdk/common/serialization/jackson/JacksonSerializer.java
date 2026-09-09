@@ -14,6 +14,9 @@
 
 package io.fluxzero.sdk.common.serialization.jackson;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.core.util.JsonParserDelegate;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -36,7 +39,11 @@ import lombok.SneakyThrows;
 import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.lang.reflect.Type;
+import java.nio.ByteOrder;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
@@ -67,6 +74,9 @@ import static java.lang.String.format;
 @Slf4j
 public class JacksonSerializer extends AbstractSerializer<JsonNode> implements DocumentSerializer {
     private static final byte[] NULL_BYTES = new byte[]{'n', 'u', 'l', 'l'};
+    private static final String CLASS_PROPERTY = "@class";
+    private static final VarHandle BYTE_WORDS =
+            MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     /**
      * Default {@link JsonMapper} instance used for JSON serialization and deserialization.
      * <p>
@@ -84,6 +94,7 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
 
     @Getter
     private final ObjectMapper objectMapper;
+    private final boolean singlePassLargePayloads;
     @Delegate
     private final ContentFilter contentFilter;
     private final Function<String, JavaType> typeCache = memoize(this::getJavaType);
@@ -124,6 +135,7 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     public JacksonSerializer(JsonMapper objectMapper, Collection<?> casterCandidates, JacksonInverter inverter) {
         super(casterCandidates, inverter, Data.JSON_FORMAT);
         this.objectMapper = objectMapper;
+        this.singlePassLargePayloads = objectMapper.getClass() == JsonMapper.class;
         this.contentFilter = new JacksonContentFilter(objectMapper);
         this.inverter = inverter;
     }
@@ -161,9 +173,24 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
                                      NULL_BYTES, 0, NULL_BYTES.length)) {
                 return null;
             }
+            if (mayContainClassProperty(bytes, offset, length)) {
+                return deserializeWithTypeResolution(objectMapper.createParser(bytes, offset, length),
+                                                     typeCache.apply(type));
+            }
             return objectMapper.readValue(bytes, offset, length, typeCache.apply(type));
         }
         Object value = data.getValue();
+        if (mayContainClassProperty(value)) {
+            JavaType javaType = typeCache.apply(type);
+            return switch (value) {
+                case JsonNode v -> deserializeWithTypeResolution(objectMapper.treeAsTokens(v), javaType);
+                case byte[] v -> deserializeWithTypeResolution(objectMapper.createParser(v), javaType);
+                case String v -> deserializeWithTypeResolution(objectMapper.createParser(v), javaType);
+                case null -> null;
+                default ->
+                        throw new IllegalArgumentException("Incompatible data value type: " + value.getClass());
+            };
+        }
         return switch (value) {
             case JsonNode v -> objectMapper.convertValue(v, typeCache.apply(type));
             case byte[] v when Void.class.getName().equals(type) && Arrays.equals(v, NULL_BYTES) -> null;
@@ -173,6 +200,86 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
             default ->
                     throw new IllegalArgumentException("Incompatible data value type: " + value.getClass());
         };
+    }
+
+    private boolean mayContainClassProperty(Object value) {
+        return switch (value) {
+            case JsonNode ignored -> true;
+            case byte[] bytes -> mayContainClassProperty(bytes, 0, bytes.length);
+            case String string -> string.contains(CLASS_PROPERTY) || string.contains("\\u");
+            case null -> false;
+            default -> true;
+        };
+    }
+
+    private boolean mayContainClassProperty(byte[] input, int offset, int length) {
+        // Large payloads are cheaper to parse once with type resolution than to scan before parsing.
+        // Keep custom JsonMapper subclasses on their existing byte-array readValue overload for marker-free input.
+        if (length >= 64 && singlePassLargePayloads) {
+            return true;
+        }
+        int end = offset + length;
+        int i = offset;
+        // Skip eight ordinary bytes at once. Endianness is irrelevant: the masks test every byte equally.
+        // A possible '@' or escape falls back to the exact scan, including candidates spanning two words.
+        for (; i <= end - Long.BYTES; i += Long.BYTES) {
+            long word = (long) BYTE_WORDS.get(input, i);
+            if (hasZeroByte(word ^ 0x4040404040404040L) || hasZeroByte(word ^ 0x5c5c5c5c5c5c5c5cL)) {
+                break;
+            }
+        }
+        for (; i < end; i++) {
+            byte current = input[i];
+            if (current == '\\' && i + 1 < end && input[i + 1] == 'u') {
+                return true;
+            }
+            if (current == '@' && i <= end - CLASS_PROPERTY.length()) {
+                int j = 1;
+                while (j < CLASS_PROPERTY.length() && input[i + j] == CLASS_PROPERTY.charAt(j)) {
+                    j++;
+                }
+                if (j == CLASS_PROPERTY.length()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasZeroByte(long value) {
+        return ((value - 0x0101010101010101L) & ~value & 0x8080808080808080L) != 0;
+    }
+
+    private Object deserializeWithTypeResolution(JsonParser parser, JavaType type) throws IOException {
+        try (JsonParser resolvingParser = new TypeResolvingJsonParser(parser)) {
+            return objectMapper.readValue(resolvingParser, type);
+        }
+    }
+
+    private class TypeResolvingJsonParser extends JsonParserDelegate {
+        private TypeResolvingJsonParser(JsonParser delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public String getText() throws IOException {
+            return resolveTypeIdentifier(super.getText());
+        }
+
+        @Override
+        public String getValueAsString() throws IOException {
+            return resolveTypeIdentifier(super.getValueAsString());
+        }
+
+        @Override
+        public String getValueAsString(String defaultValue) throws IOException {
+            return resolveTypeIdentifier(super.getValueAsString(defaultValue));
+        }
+
+        private String resolveTypeIdentifier(String value) throws IOException {
+            return currentToken() == JsonToken.VALUE_STRING && CLASS_PROPERTY.equals(currentName())
+                    ? resolveTypeName(value) : value;
+        }
     }
 
     /**
@@ -225,10 +332,10 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     }
 
     /**
-     * Resolves a canonical {@link JavaType} for the given string-based type name.
+     * Resolves a canonical or registered simple/partial {@link JavaType} for the given string-based type name.
      */
     protected JavaType getJavaType(String type) {
-        return objectMapper.getTypeFactory().constructFromCanonical(type);
+        return objectMapper.getTypeFactory().constructFromCanonical(resolveTypeName(type));
     }
 
     /**

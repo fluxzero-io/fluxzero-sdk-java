@@ -165,7 +165,7 @@ public class ChunkedDeserializingMessage extends DeserializingMessage {
         if (InputStream.class.getName().equals(representativeChunk.getType())) {
             return InputStream.class;
         }
-        return ReflectionUtils.classForName(serializer.upcastType(representativeChunk.getType()), Void.class);
+        return ReflectionUtils.classForName(serializer.resolveTypeName(representativeChunk.getType()), Void.class);
     }
 
     @Override

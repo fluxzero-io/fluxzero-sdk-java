@@ -251,6 +251,19 @@ class JsonUtilsTest {
     }
 
     @Test
+    void mapsClassValuesWhenDeserializingUntypedJson() {
+        ParserSensitivePayload payload = JsonUtils.fromJsonWithTypeMapper("""
+                {
+                  "@class": "legacy.ParserSensitivePayload",
+                  "number": 42
+                }
+                """, type -> type.equals("legacy.ParserSensitivePayload")
+                ? ParserSensitivePayload.class.getName() : type);
+
+        assertEquals("42", payload.number().value());
+    }
+
+    @Test
     void untypedJsonBytesRecognizeRevisionMetadata() {
         Data<JsonNode> data = JsonUtils.fromJson("""
                 {
