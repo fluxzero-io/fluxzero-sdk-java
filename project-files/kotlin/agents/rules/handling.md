@@ -206,6 +206,16 @@ class UserQueryHandler {
 ```
 [//]: # (@formatter:on)
 
+Use `@LocalOnly` on a command or query payload when falling back to the Runtime would violate a security or
+application boundary. It requires exactly one result-producing local handler. No match, multiple matches, a custom
+registry that cannot prove exact selection, or `@LocalHandler(logMessage = true)` throws
+`LocalOnlyDispatchException` before monitoring, serialization, or external publication. Passive local observers do not
+count as request handlers. The failure is thrown directly even from async and bulk gateway methods.
+
+The rule survives dispatch-interceptor replacement in both directions: a marked original remains local-only and a
+marked replacement makes the dispatch local-only. Interceptor suppression still returns normally. Use this only for
+commands and queries; ordinary messages retain external fallback.
+
 > **Expired Requests**: `skipExpiredRequests` controls whether an indexed request may be skipped when its effective
 > timeout already expired before handler invocation. Commands default to `false`; queries and HTTP web handlers default
 > to `true`. Skipped requests publish `IgnoreMessageEvent` metrics instead of handler metrics.
