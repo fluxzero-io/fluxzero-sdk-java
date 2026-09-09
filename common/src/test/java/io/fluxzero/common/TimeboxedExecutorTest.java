@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -33,6 +34,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TimeboxedExecutorTest {
+
+    @Test
+    void defaultExecutorUsesVirtualThreadsAndClosesOwnedExecutor() throws Exception {
+        TimeboxedExecutor executor = new TimeboxedExecutor();
+        try {
+            Thread worker = executor.callAndWait(Thread::currentThread, Duration.ofSeconds(5));
+            assertTrue(worker.isVirtual());
+            assertTrue(worker.getName().startsWith("timeboxed-"));
+        } finally {
+            executor.close();
+        }
+        assertThrows(RejectedExecutionException.class,
+                     () -> executor.callAndWait(() -> "closed", Duration.ofSeconds(5)));
+    }
 
     @Test
     void callAndWaitInterruptsAnActiveTaskOnTimeout() throws Exception {

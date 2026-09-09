@@ -304,8 +304,7 @@ public class WebSocketClient extends AbstractClient {
         /**
          * Maximum number of runtime request results whose SDK completion logic and synchronous customer future
          * continuations may run concurrently per client. Large result batches are submitted incrementally and share
-         * this bound with individual responses. The existing worker policy uses virtual threads on Java 25 and newer
-         * and a lazily populated fixed platform-thread pool on Java 21 through 24. Defaults to
+         * this bound with individual responses. Each admitted completion runs on its own virtual thread. Defaults to
          * {@code fluxzero.runtime.ingress.maxCompletionConcurrency}, or {@code 8} when unset.
          */
         @Default

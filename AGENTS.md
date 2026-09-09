@@ -103,7 +103,7 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 ## Build And Test
 
 - Use the Maven wrapper: `./mvnw`.
-- The project compiles with `maven.compiler.release=21`; CI and Docker images currently run on Temurin/Distroless Java 25.
+- SDK v2 requires Java 25 or newer and compiles with `maven.compiler.release=25`; CI and Docker images use Java 25.
 - Full PR-equivalent verification is `./mvnw -B install`.
 - For focused work, prefer targeted Maven runs such as `./mvnw -pl sdk -am test` or `./mvnw -pl proxy -am -Dtest=ProxyServerTest test`.
 - Apply the Regression Safety workflow for code changes and run checks proportionate to the affected modules, execution paths, and downstream projects.

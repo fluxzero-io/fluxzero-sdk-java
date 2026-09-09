@@ -13,7 +13,7 @@
     <description>External Kotlin downstream project for Fluxzero public Maven artifacts.</description>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <jackson.version>2.22.2</jackson.version>
@@ -128,7 +128,7 @@
                                     <version>[3.9.0,)</version>
                                 </requireMavenVersion>
                                 <requireJavaVersion>
-                                    <version>[21,)</version>
+                                    <version>[25,)</version>
                                 </requireJavaVersion>
                             </rules>
                         </configuration>

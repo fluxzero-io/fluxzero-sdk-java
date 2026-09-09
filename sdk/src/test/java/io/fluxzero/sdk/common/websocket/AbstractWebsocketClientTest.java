@@ -1537,9 +1537,7 @@ class AbstractWebsocketClientTest {
             assertEquals(0L, metric.stallCloseTimeoutMillis());
             assertEquals(Runtime.version().feature(), metric.javaFeatureVersion());
             assertEquals("custom-connector", metric.workerMode());
-            assertEquals(Runtime.version().feature() >= 25
-                                 ? "sdk-default-virtual-thread-per-task"
-                                 : "sdk-default-fixed-platform-pool",
+            assertEquals("sdk-default-virtual-thread-per-task",
                          metric.completionWorkerMode());
             assertEquals("9.8.7", metric.runtimeVersion());
         } finally {

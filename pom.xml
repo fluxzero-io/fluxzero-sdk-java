@@ -39,7 +39,7 @@
     <url>https://github.com/fluxzero-io/fluxzero-sdk-java</url>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <jetty.version>12.1.12</jetty.version>
@@ -429,7 +429,7 @@
                                     <version>[3.9.0,)</version>
                                 </requireMavenVersion>
                                 <requireJavaVersion>
-                                    <version>[21,)</version>
+                                    <version>[25,)</version>
                                 </requireJavaVersion>
                             </rules>
                         </configuration>

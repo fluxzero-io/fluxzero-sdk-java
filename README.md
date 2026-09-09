@@ -6565,10 +6565,9 @@ concurrency raises simultaneous decode and allocation, while result-completion c
 work-group pressure. Tune from the
 sparse pressure diagnostics and load-test the resulting aggregate across all configured sessions.
 
-The worker model is unchanged by these limits. On Java 25 and newer, completion tasks use one virtual thread per task.
-On Java 21 through 24, they use the existing lazily populated fixed platform-thread pool, sized to the configured
-completion concurrency. Both routes default to eight. Explicit configuration still wins when an application has
-measured headroom; for example, Java 25 applications can opt into 32 virtual completion workers.
+Completion tasks use one virtual thread per task, with admission limited separately to eight concurrent completions
+by default. Explicit configuration still wins when an application has measured headroom; for example, applications
+can opt into 32 concurrent completions. Using virtual threads does not remove the configured resource limits.
 
 The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
 explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied
@@ -6668,8 +6667,10 @@ application upcasters.
 
 ### Java Version
 
-Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 25** and remains
-compatible with recent versions.
+Fluxzero SDK **2.x requires JDK 25 or higher** to compile and run, including its common, test-server and proxy artifacts.
+Java and Kotlin projects must target JVM 25 or newer. SDK v2 artifacts are compiled for Java 25, and the SDK build
+rejects older JDKs before compilation. CI and container images use Java 25; no preview features are required.
+This requirement does not change the Java baseline of the SDK 1.x release line.
 
 ---
 

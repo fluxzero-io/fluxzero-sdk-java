@@ -2184,11 +2184,11 @@ public class OpenApiProcessor extends AbstractProcessor {
     }
 
     private boolean isRecord(TypeElement type) {
-        return "RECORD".equals(type.getKind().name());
+        return type.getKind() == ElementKind.RECORD;
     }
 
     private boolean isRecordComponent(Element element) {
-        return "RECORD_COMPONENT".equals(element.getKind().name());
+        return element.getKind() == ElementKind.RECORD_COMPONENT;
     }
 
     private String location(WebParameterSource source) {
