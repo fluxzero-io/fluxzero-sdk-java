@@ -68,6 +68,7 @@ Key options include:
 | `maxRetainedRuntimeWebSocketBytes`           | Total compressed runtime wire bytes retained per session                        | 64 MiB                                   |
 | `maxConcurrentRuntimeResultCompletions`      | Admitted groups and result completions/continuations per client                  | `8`                                      |
 | `runtimeIngressStallCloseTimeout`            | Optional close delay after ingress is diagnosed as stalled                      | Disabled                                 |
+| `aggregateHistoryMaxFetchBytes`              | Serialized event-payload bytes requested per aggregate-history page             | Count-only in compatibility mode; 100 MiB from defaults version 2026.09.10 |
 | `disableMetrics`                             | Whether to suppress all outgoing metrics                                         | `false`                                  |
 | `typeFilter`                                 | Optional message type restriction                                                | `null`                                   |
 
@@ -76,6 +77,15 @@ present, the SDK uses it as the recognizable prefix of a generated client ID and
 authoritative `$taskId` correlation metadata. The generated client ID remains stable across WebSocket reconnects, but
 a newly constructed client receives a new UUID suffix. Set `FLUXZERO_CLIENT_ID` only when supplying an explicitly
 unique client-instance ID; `FLUX_CLIENT_ID` remains available as a legacy alias.
+
+Aggregate histories use count-bounded pages of at most 8,192 events. Set
+`fluxzero.eventsourcing.maxFetchBytes` or `ClientConfig.aggregateHistoryMaxFetchBytes(...)` to add a cumulative
+serialized payload-byte bound per page; `fluxzero.defaults.version >= 2026.09.10` selects 100 MiB when neither is set.
+The property accepts `0` to retain count-only paging and is also available as
+`FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES`. Metadata, the response envelope, and WebSocket compression are outside this
+payload measure. One individually oversized event still flows on its own, and the client continues after short
+byte-limited pages until the Runtime returns an empty page. A Runtime from before this protocol extension ignores the
+optional byte request and remains count-bounded only; the SDK still reads its pages correctly.
 
 ---
 

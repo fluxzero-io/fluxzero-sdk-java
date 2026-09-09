@@ -16,6 +16,9 @@
 package io.fluxzero.sdk.configuration.client;
 
 import io.fluxzero.common.MessageType;
+import io.fluxzero.common.application.DecryptingPropertySource;
+import io.fluxzero.common.application.DefaultPropertySource;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
 import io.fluxzero.common.websocket.WebSocketTransportFormat;
 import io.fluxzero.sdk.common.websocket.WebsocketSession;
@@ -40,6 +43,7 @@ import lombok.NonNull;
 import lombok.Value;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -58,6 +62,7 @@ import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.schedulingUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.searchUrl;
 import static io.fluxzero.sdk.common.websocket.ServiceUrlBuilder.trackingUrl;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.createClientId;
+import static io.fluxzero.sdk.configuration.ApplicationProperties.defaultsVersionAtLeast;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static java.util.stream.Collectors.toMap;
@@ -186,6 +191,10 @@ public class WebSocketClient extends AbstractClient {
         static final int DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS = 8;
         static final int DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES = 128;
         static final long DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES = 64L * 1024 * 1024;
+        static final long DEFAULT_AGGREGATE_HISTORY_MAX_FETCH_BYTES = 100L * 1024 * 1024;
+        static final String AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY =
+                "fluxzero.eventsourcing.maxFetchBytes";
+        static final LocalDate AGGREGATE_HISTORY_MAX_FETCH_BYTES_DEFAULTS_VERSION = LocalDate.of(2026, 9, 10);
         static final String MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY =
                 "fluxzero.runtime.ingress.maxConcurrency";
         static final String MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY =
@@ -208,6 +217,48 @@ public class WebSocketClient extends AbstractClient {
                 "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_MESSAGES";
         static final String MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY =
                 "FLUXZERO_WEBSOCKET_RUNTIME_MAX_RETAINED_BYTES";
+
+        /**
+         * Creates a configuration whose property-backed defaults are resolved from the supplied application-local
+         * source. The source must contain the required Runtime base URL and application name. Use {@code toBuilder()}
+         * to apply programmatic overrides to the result.
+         */
+        public static ClientConfig fromProperties(PropertySource propertySource) {
+            Objects.requireNonNull(propertySource, "propertySource");
+            PropertySource source = propertySource instanceof DecryptingPropertySource
+                    ? propertySource : new DecryptingPropertySource(propertySource);
+            return builder()
+                    .runtimeBaseUrl(Objects.requireNonNull(
+                            firstProperty(source, "FLUXZERO_BASE_URL", "FLUX_BASE_URL"),
+                            "Property FLUXZERO_BASE_URL is required"))
+                    .name(Objects.requireNonNull(
+                            firstProperty(source, "FLUXZERO_APPLICATION_NAME", "FLUX_APPLICATION_NAME"),
+                            "Property FLUXZERO_APPLICATION_NAME is required"))
+                    .applicationId(firstProperty(source, "FLUXZERO_APPLICATION_ID", "FLUX_APPLICATION_ID"))
+                    .id(createClientId(source))
+                    .maxInFlightWebSocketBytes(firstIntegerProperty(
+                            source, DEFAULT_MAX_IN_FLIGHT_WEBSOCKET_BYTES, MAX_IN_FLIGHT_WEBSOCKET_BYTES_PROPERTY))
+                    .maxConcurrentRuntimeWebSocketMessages(firstIntegerProperty(
+                            source, DEFAULT_MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES,
+                            MAX_CONCURRENT_RUNTIME_MESSAGES_PROPERTY, MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_ALIAS,
+                            MAX_CONCURRENT_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY))
+                    .maxRetainedRuntimeWebSocketMessages(firstIntegerProperty(
+                            source, DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES,
+                            MAX_RETAINED_RUNTIME_MESSAGES_PROPERTY, MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_ALIAS,
+                            MAX_RETAINED_RUNTIME_WEBSOCKET_MESSAGES_PROPERTY))
+                    .maxRetainedRuntimeWebSocketBytes(firstLongProperty(
+                            source, DEFAULT_MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES,
+                            MAX_RETAINED_RUNTIME_BYTES_PROPERTY, MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_ALIAS,
+                            MAX_RETAINED_RUNTIME_WEBSOCKET_BYTES_PROPERTY))
+                    .maxConcurrentRuntimeResultCompletions(firstIntegerProperty(
+                            source, DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS,
+                            MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS_PROPERTY))
+                    .runtimeIngressStallCloseTimeout(firstDurationProperty(
+                            source, Duration.ZERO, RUNTIME_INGRESS_STALL_CLOSE_TIMEOUT_PROPERTY))
+                    .aggregateHistoryMaxFetchBytes(defaultAggregateHistoryMaxFetchBytes(source))
+                    .namespace(firstProperty(source, "FLUXZERO_NAMESPACE", "FLUXZERO_PROJECT_ID", "FLUX_PROJECT_ID"))
+                    .build();
+        }
 
         /**
          * The base URL for all Fluxzero Runtime services, typically starting with {@code wss://}. Defaults to property
@@ -350,6 +401,15 @@ public class WebSocketClient extends AbstractClient {
         int eventSourcingSessions = 2;
 
         /**
+         * Maximum cumulative serialized event-payload bytes requested per aggregate-history page. {@code 0} disables
+         * the byte limit. Compatibility defaults leave this disabled; {@code fluxzero.defaults.version >= 2026.09.10}
+         * defaults it to 100 MiB. Configure {@code fluxzero.eventsourcing.maxFetchBytes} or this builder field to
+         * override either default explicitly.
+         */
+        @Default
+        long aggregateHistoryMaxFetchBytes = defaultAggregateHistoryMaxFetchBytes();
+
+        /**
          * Number of WebSocket sessions allocated for the key-value store subsystem. Defaults to {@code 2}.
          */
         @Default
@@ -446,10 +506,35 @@ public class WebSocketClient extends AbstractClient {
             if (runtimeIngressStallCloseTimeout == null || runtimeIngressStallCloseTimeout.isNegative()) {
                 throw new IllegalArgumentException("runtimeIngressStallCloseTimeout must not be negative");
             }
+            if (aggregateHistoryMaxFetchBytes < 0) {
+                throw new IllegalArgumentException("aggregateHistoryMaxFetchBytes must not be negative");
+            }
+        }
+
+        private static long defaultAggregateHistoryMaxFetchBytes() {
+            return defaultAggregateHistoryMaxFetchBytes(
+                    new DecryptingPropertySource(DefaultPropertySource.getInstance()));
+        }
+
+        private static long defaultAggregateHistoryMaxFetchBytes(PropertySource propertySource) {
+            String configured = firstProperty(propertySource, AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY);
+            return configured != null ? Long.parseLong(configured.trim())
+                    : defaultsVersionAtLeast(propertySource, AGGREGATE_HISTORY_MAX_FETCH_BYTES_DEFAULTS_VERSION)
+                            ? DEFAULT_AGGREGATE_HISTORY_MAX_FETCH_BYTES : 0L;
+        }
+
+        private static String firstProperty(PropertySource propertySource, String... names) {
+            return Arrays.stream(names).map(propertySource::get)
+                    .filter(Objects::nonNull).findFirst().orElse(null);
         }
 
         private static int firstIntegerProperty(int defaultValue, String... names) {
             String value = getFirstAvailableProperty(names);
+            return value == null ? defaultValue : Integer.parseInt(value.trim());
+        }
+
+        private static int firstIntegerProperty(PropertySource propertySource, int defaultValue, String... names) {
+            String value = firstProperty(propertySource, names);
             return value == null ? defaultValue : Integer.parseInt(value.trim());
         }
 
@@ -458,8 +543,19 @@ public class WebSocketClient extends AbstractClient {
             return value == null ? defaultValue : Long.parseLong(value.trim());
         }
 
+        private static long firstLongProperty(PropertySource propertySource, long defaultValue, String... names) {
+            String value = firstProperty(propertySource, names);
+            return value == null ? defaultValue : Long.parseLong(value.trim());
+        }
+
         private static Duration firstDurationProperty(Duration defaultValue, String... names) {
             String value = getFirstAvailableProperty(names);
+            return value == null ? defaultValue : Duration.parse(value.trim());
+        }
+
+        private static Duration firstDurationProperty(
+                PropertySource propertySource, Duration defaultValue, String... names) {
+            String value = firstProperty(propertySource, names);
             return value == null ? defaultValue : Duration.parse(value.trim());
         }
 

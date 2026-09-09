@@ -207,6 +207,9 @@ Use advanced toggles conservatively:
 - `fluxzero.tracking.maxFetchBytes` changes the default serialized payload byte limit per consumer fetch. Use bytes,
   for example `104857600` for 100 MiB; omit a consumer's `maxFetchBytes` or set it to `-1` to inherit that default,
   and set it to `0` only when an unbounded fetch is intentional.
+- `fluxzero.eventsourcing.maxFetchBytes` bounds serialized event payload per aggregate-history page. Compatibility mode
+  is count-only; `fluxzero.defaults.version >= 2026.09.10` selects 100 MiB. Use `0` to retain count-only pages. One
+  oversized event is still returned so aggregate loading cannot stall. Older Runtimes ignore the optional byte limit.
 
 ---
 

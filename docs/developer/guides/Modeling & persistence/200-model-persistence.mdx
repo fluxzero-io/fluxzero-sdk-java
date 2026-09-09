@@ -24,6 +24,12 @@ By default, Fluxzero stores aggregates as a series of updates (events) that were
 When an event-sourced aggregate is loaded, Fluxzero replays applied updates to rebuild current state. During this process, each event is re-applied
 to the aggregate. See [Entity loading](/docs/guides/modeling-and-persistence/entity-loading/) for more information.
 
+For remote Runtimes, the SDK pages long histories by event count. Applications using
+`fluxzero.defaults.version >= 2026.09.10` also request a 100 MiB serialized payload limit per page; configure
+`fluxzero.eventsourcing.maxFetchBytes` explicitly to tune it or use `0` for count-only compatibility behavior. A single
+larger event is allowed through to guarantee progress, and later pages resume at the exact next aggregate sequence.
+Runtimes predating this optional request field ignore it and continue to return count-only pages.
+
 <Aside type="tip" title="Real-world analogy">
 Think of event sourcing like a smart home's activity log. Instead of just knowing "the living room light is on", you have a complete history:
 

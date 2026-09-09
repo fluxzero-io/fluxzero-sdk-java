@@ -163,6 +163,12 @@ public class ApplicationProperties {
      *         JDK redirects with {@code fluxzero.web.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables
      *         redirects explicitly.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.10}</td>
+     *         <td>{@code fluxzero.eventsourcing.maxFetchBytes = 104857600}</td>
+     *         <td>Aggregate-history pages request at most 100 MiB of serialized event payload. Existing applications
+     *         can retain count-only pages with {@code fluxzero.eventsourcing.maxFetchBytes = 0}.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with
