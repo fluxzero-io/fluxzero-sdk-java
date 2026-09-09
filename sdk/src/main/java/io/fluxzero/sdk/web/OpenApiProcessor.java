@@ -82,7 +82,10 @@ import static io.fluxzero.common.ObjectUtils.isBlank;
  * Generates an OpenAPI document from Fluxzero web handler annotations during Java compilation.
  * <p>
  * The processor is intentionally lightweight: it only inspects source elements in the current javac round, never scans
- * the runtime classpath, and writes a single resource when at least one documented HTTP endpoint is found.
+ * the runtime classpath, and writes a single resource when at least one documented HTTP endpoint is found. Validation
+ * annotations on map values are retained. String-compatible map-key constraints are rendered as
+ * {@code propertyNames} in OpenAPI 3.1 and omitted in OpenAPI 3.0, where that keyword is unsupported. Required metadata
+ * on a body or body/form parameter also marks the OpenAPI Request Body Object as required.
  * </p>
  *
  * <h2>Compiler Options</h2>
@@ -830,7 +833,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             BodyInfo body = requestBodies.getFirst();
             ObjectNode schema = schema(body.type(), schemaContext);
             applySchemaMetadata(schema, metadata(body.element()), schemaContext);
-            return requestBody(inferMediaType(body.type()), schema);
+            return requestBody(inferMediaType(body.type()), schema, isRequired(body.element()));
         }
         ObjectNode schema = object().put("type", "object");
         ObjectNode properties = schema.putObject("properties");
@@ -846,7 +849,7 @@ public class OpenApiProcessor extends AbstractProcessor {
         if (!required.isEmpty()) {
             schema.set("required", required);
         }
-        return requestBody("application/json", schema);
+        return requestBody("application/json", schema, !required.isEmpty());
     }
 
     private ObjectNode parameterObjectRequestBody(String mediaType, List<ParameterInfo> parameters,
@@ -865,11 +868,14 @@ public class OpenApiProcessor extends AbstractProcessor {
         if (!required.isEmpty()) {
             schema.set("required", required);
         }
-        return requestBody(mediaType, schema);
+        return requestBody(mediaType, schema, !required.isEmpty());
     }
 
-    private ObjectNode requestBody(String mediaType, ObjectNode schema) {
+    private ObjectNode requestBody(String mediaType, ObjectNode schema, boolean required) {
         ObjectNode requestBody = object();
+        if (required) {
+            requestBody.put("required", true);
+        }
         ObjectNode content = requestBody.putObject("content");
         content.putObject(mediaType).set("schema", schema);
         return requestBody;
@@ -1254,6 +1260,13 @@ public class OpenApiProcessor extends AbstractProcessor {
             TypeMirror valueType = declaredType.getTypeArguments().size() > 1
                     ? declaredType.getTypeArguments().get(1) : objectType();
             node.set("additionalProperties", schema(valueType, visiting, schemaContext, responseSchema));
+            if (OpenApiOptions.isOpenApi31(schemaContext.openApiVersion())
+                && !declaredType.getTypeArguments().isEmpty()
+                && isStringCompatibleMapKey(declaredType.getTypeArguments().getFirst())) {
+                propertyNamesSchema(schema(declaredType.getTypeArguments().getFirst(), visiting, schemaContext,
+                                           responseSchema))
+                        .ifPresent(propertyNames -> node.set("propertyNames", propertyNames));
+            }
             applySchemaMetadata(node, metadata(type), schemaContext);
             return node;
         }
@@ -1280,6 +1293,7 @@ public class OpenApiProcessor extends AbstractProcessor {
                     values.add(enclosed.getSimpleName().toString());
                 }
             }
+            applySchemaMetadata(node, metadata(type), schemaContext);
             return node;
         }
         if ("java.lang.Object".equals(qualifiedName) || qualifiedName.startsWith("java.")) {
@@ -1557,7 +1571,7 @@ public class OpenApiProcessor extends AbstractProcessor {
             return;
         }
         AnnotationMirror typeInfo = findAnnotation(type, JACKSON_TYPE_INFO);
-        String propertyName = typeInfo == null ? "" : stringValue(annotationValues(typeInfo).get("property"));
+        String propertyName = discriminatorProperty(typeInfo);
         ObjectNode mapping = null;
         if (!isBlank(propertyName)) {
             ObjectNode discriminator = schema.putObject("discriminator").put("propertyName", propertyName);
@@ -1588,6 +1602,15 @@ public class OpenApiProcessor extends AbstractProcessor {
                 schema.remove("oneOf");
             }
         }
+    }
+
+    private String discriminatorProperty(AnnotationMirror typeInfo) {
+        if (typeInfo == null) {
+            return "";
+        }
+        Map<String, AnnotationValue> values = annotationValues(typeInfo);
+        String id = stringValue(values.get("use"));
+        return id.endsWith("DEDUCTION") || id.endsWith("NONE") ? "" : stringValue(values.get("property"));
     }
 
     private void addOneOf(ObjectNode schema, TypeElement owner, List<TypeMirror> alternatives, Set<String> visiting,
@@ -1714,6 +1737,32 @@ public class OpenApiProcessor extends AbstractProcessor {
             case "object" -> prefix + "Properties";
             default -> prefix + "Length";
         };
+    }
+
+    private Optional<ObjectNode> propertyNamesSchema(ObjectNode keySchema) {
+        if (!"string".equals(schemaType(keySchema))) {
+            return Optional.empty();
+        }
+        ObjectNode result = object().put("type", "string");
+        List.of("enum", "const", "format", "minLength", "maxLength", "pattern")
+                .forEach(keyword -> {
+                    if (keySchema.has(keyword)) {
+                        result.set(keyword, keySchema.get(keyword));
+                    }
+                });
+        return result.size() > 1 ? Optional.of(result) : Optional.empty();
+    }
+
+    private boolean isStringCompatibleMapKey(TypeMirror keyType) {
+        TypeElement type = asTypeElement(keyType);
+        if (type == null) {
+            return false;
+        }
+        if (type.getKind() == ElementKind.ENUM) {
+            return true;
+        }
+        ObjectNode knownSchema = knownSchema(qualifiedName(type), keyType);
+        return knownSchema != null && "string".equals(schemaType(knownSchema));
     }
 
     private boolean hasReferenceSiblingMetadata(SchemaMetadata metadata) {

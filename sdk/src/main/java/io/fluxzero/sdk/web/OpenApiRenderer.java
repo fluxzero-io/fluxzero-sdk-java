@@ -81,7 +81,9 @@ import static io.fluxzero.common.ObjectUtils.isBlank;
  * <p>
  * The renderer intentionally uses a small inline schema generator instead of binding the SDK API to an OpenAPI-specific
  * model library. The generated schemas cover common Java primitives, enums, records, arrays, collections, maps, and
- * simple field-based POJOs.
+ * simple field-based POJOs. Validation annotations on map values are retained. String-compatible map-key constraints
+ * are rendered as {@code propertyNames} in OpenAPI 3.1 and omitted in OpenAPI 3.0, where that keyword is unsupported.
+ * Required metadata on a body or body/form parameter also marks the OpenAPI Request Body Object as required.
  * </p>
  *
  * @see OpenApiProcessor
@@ -387,18 +389,25 @@ public final class OpenApiRenderer {
     private static ObjectNode fullRequestBody(List<ApiDocRequestBody> requestBodies, SchemaContext schemaContext) {
         if (requestBodies.size() == 1) {
             ApiDocRequestBody body = requestBodies.getFirst();
-            ObjectNode schema = schema(body.type(), schemaContext);
+            ObjectNode schema = schema(body.parameter().getAnnotatedType(), schemaContext);
             applySchemaMetadata(schema, metadata(body.parameter()), schemaContext);
-            return requestBody(inferMediaType(body.type()), schema);
+            return requestBody(inferMediaType(body.type()), schema, isRequired(body.parameter()));
         }
         ObjectNode schema = object().put("type", "object");
         ObjectNode properties = schema.putObject("properties");
+        ArrayNode required = JSON.arrayNode();
         for (ApiDocRequestBody body : requestBodies) {
             ObjectNode property = schema(body.parameter().getAnnotatedType(), schemaContext);
             applySchemaMetadata(property, metadata(body.parameter()), schemaContext);
             properties.set(parameterName(body.parameter()), property);
+            if (isRequired(body.parameter())) {
+                required.add(parameterName(body.parameter()));
+            }
         }
-        return requestBody("application/json", schema);
+        if (!required.isEmpty()) {
+            schema.set("required", required);
+        }
+        return requestBody("application/json", schema, !required.isEmpty());
     }
 
     private static ObjectNode parameterObjectRequestBody(String mediaType, List<ApiDocParameter> parameters,
@@ -419,11 +428,14 @@ public final class OpenApiRenderer {
         if (!required.isEmpty()) {
             schema.set("required", required);
         }
-        return requestBody(mediaType, schema);
+        return requestBody(mediaType, schema, !required.isEmpty());
     }
 
-    private static ObjectNode requestBody(String mediaType, ObjectNode schema) {
+    private static ObjectNode requestBody(String mediaType, ObjectNode schema, boolean required) {
         ObjectNode requestBody = object();
+        if (required) {
+            requestBody.put("required", true);
+        }
         ObjectNode content = requestBody.putObject("content");
         content.putObject(mediaType).set("schema", schema);
         return requestBody;
@@ -798,6 +810,11 @@ public final class OpenApiRenderer {
                 schema.set("additionalProperties", arguments.length > 1
                         ? schema(arguments[1], visiting, schemaContext, responseSchema)
                         : schema(valueType, visiting, schemaContext, responseSchema));
+                if (OpenApiOptions.isOpenApi31(schemaContext.openApiVersion()) && arguments.length > 0
+                    && isStringCompatibleMapKey(arguments[0])) {
+                    propertyNamesSchema(schema(arguments[0], visiting, schemaContext, responseSchema))
+                            .ifPresent(propertyNames -> schema.set("propertyNames", propertyNames));
+                }
                 applySchemaMetadata(schema, metadata(annotatedType), schemaContext);
                 return schema;
             }
@@ -1181,7 +1198,7 @@ public final class OpenApiRenderer {
             return;
         }
         Annotation typeInfo = annotation(type, "com.fasterxml.jackson.annotation.JsonTypeInfo");
-        String propertyName = stringValue(annotationValue(typeInfo, "property"));
+        String propertyName = discriminatorProperty(typeInfo);
         if (!isBlank(propertyName)) {
             schema.putObject("discriminator").put("propertyName", propertyName);
         }
@@ -1214,6 +1231,12 @@ public final class OpenApiRenderer {
                 schema.remove("oneOf");
             }
         }
+    }
+
+    private static String discriminatorProperty(Annotation typeInfo) {
+        String id = stringValue(annotationValue(typeInfo, "use"));
+        return id.endsWith("DEDUCTION") || id.endsWith("NONE")
+                ? "" : stringValue(annotationValue(typeInfo, "property"));
     }
 
     private static void addOneOf(ObjectNode schema, Class<?> owner, List<Class<?>> alternatives, Set<Type> visiting,
@@ -1338,6 +1361,31 @@ public final class OpenApiRenderer {
             case "object" -> prefix + "Properties";
             default -> prefix + "Length";
         };
+    }
+
+    private static Optional<ObjectNode> propertyNamesSchema(ObjectNode keySchema) {
+        if (!"string".equals(schemaType(keySchema))) {
+            return Optional.empty();
+        }
+        ObjectNode result = object().put("type", "string");
+        List.of("enum", "const", "format", "minLength", "maxLength", "pattern")
+                .forEach(keyword -> {
+                    if (keySchema.has(keyword)) {
+                        result.set(keyword, keySchema.get(keyword));
+                    }
+                });
+        return result.size() > 1 ? Optional.of(result) : Optional.empty();
+    }
+
+    private static boolean isStringCompatibleMapKey(AnnotatedType keyType) {
+        Class<?> type = rawClass(keyType.getType());
+        return type != null && (String.class.equals(type) || CharSequence.class.isAssignableFrom(type)
+                                || Character.class.equals(type) || char.class.equals(type) || UUID.class.equals(type)
+                                || URI.class.equals(type) || URL.class.equals(type) || LocalDate.class.equals(type)
+                                || LocalTime.class.equals(type) || ZoneId.class.equals(type)
+                                || Date.class.isAssignableFrom(type) || Instant.class.equals(type)
+                                || LocalDateTime.class.equals(type) || OffsetDateTime.class.equals(type)
+                                || ZonedDateTime.class.equals(type) || type.isEnum());
     }
 
     private static boolean hasReferenceSiblingMetadata(SchemaMetadata metadata) {

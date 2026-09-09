@@ -2496,7 +2496,13 @@ annotations. Optional schema hints include `type`, `format`, `example`, `default
 unknown fields. Combine that on each alternative with `@ApiDoc(oneOf = {First.class, Second.class})` on the shared type
 to publish an exclusive, closed union. Jakarta validation annotations such as `@NotNull`, `@Min`, `@Size`, `@Pattern`,
 and `@Email` are reflected in endpoint parameter and model schemas when present; `@Size` uses `minLength`/`maxLength`
-for text, `minItems`/`maxItems` for arrays and collections, and `minProperties`/`maxProperties` for maps. Use repeatable
+for text, `minItems`/`maxItems` for arrays and collections, and `minProperties`/`maxProperties` for maps.
+`@ApiDoc(required = true)` and required validation metadata on a body or body/form parameter also set
+`requestBody.required: true`; bodies without such metadata remain optional. Constraints on map value type arguments are
+applied to `additionalProperties`. OpenAPI 3.1 additionally expresses string-compatible map-key constraints through
+`propertyNames`; OpenAPI 3.0 omits them because that keyword is not part of its supported Schema Object subset.
+Jackson polymorphism with a real type property retains its discriminator and mapping, while `Id.DEDUCTION` is described
+only by its alternatives because it has no discriminator property. Use repeatable
 `@ApiDocResponse` annotations for additional error/status responses, or to describe an inferred response without
 repeating its body type; `@ApiDocResponse(status = 400, ref = "error")` references
 `#/components/responses/error`. Array properties in response models are documented as required by default; input models
