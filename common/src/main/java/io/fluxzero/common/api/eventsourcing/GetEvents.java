@@ -14,16 +14,19 @@
 
 package io.fluxzero.common.api.eventsourcing;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.fluxzero.common.api.Request;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
+
+import java.beans.ConstructorProperties;
 
 /**
  * A request to fetch stored events for a specific aggregate in an event-sourced system.
  * <p>
  * This class is used by the Fluxzero Runtime to retrieve historical events from the event store associated with a given
- * aggregate. It supports pagination via {@code lastSequenceNumber} and {@code batchSize} to efficiently load large
- * event streams.
+ * aggregate. It supports pagination via {@code lastSequenceNumber}, {@code batchSize}, and {@code maxBytes} to
+ * efficiently load large event streams.
  *
  * <h2>Usage</h2>
  * Typically used when:
@@ -34,7 +37,7 @@ import lombok.Value;
  *
  * <h2>Example</h2>
  * <pre>{@code
- * GetEvents request = new GetEvents("order-123", 50L, 100);
+ * GetEvents request = new GetEvents("order-123", 50L, 100, 104_857_600L);
  * }</pre>
  *
  * @see io.fluxzero.common.api.SerializedMessage
@@ -61,4 +64,27 @@ public class GetEvents extends Request {
      * The maximum number of events to return in this request.
      */
     int batchSize;
+
+    /**
+     * The maximum cumulative number of serialized event-payload bytes to return. The first event is returned even when
+     * it individually exceeds this value, so pagination can always make progress. A value of {@code 0} disables the
+     * byte limit. Older Runtimes ignore this optional request field and retain count-only pagination.
+     */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    long maxBytes;
+
+    @ConstructorProperties({"aggregateId", "lastSequenceNumber", "batchSize", "maxBytes"})
+    public GetEvents(String aggregateId, Long lastSequenceNumber, int batchSize, long maxBytes) {
+        this.aggregateId = aggregateId;
+        this.lastSequenceNumber = lastSequenceNumber;
+        this.batchSize = batchSize;
+        this.maxBytes = maxBytes;
+    }
+
+    /**
+     * Creates a count-bounded request without a payload-byte limit.
+     */
+    public GetEvents(String aggregateId, Long lastSequenceNumber, int batchSize) {
+        this(aggregateId, lastSequenceNumber, batchSize, 0L);
+    }
 }

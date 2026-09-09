@@ -87,8 +87,10 @@ import static io.fluxzero.common.ObjectUtils.iterate;
  *   <li>Maintaining aggregate/entity relationships</li>
  * </ul>
  *
- * <p>The {@code fetchBatchSize} setting controls how many events are fetched per paginated request when loading
- * an aggregate's event history. This ensures efficient memory usage while still supporting large aggregates.
+ * <p>The {@code fetchBatchSize} setting controls how many events are fetched per paginated request when loading an
+ * aggregate's event history. The aggregate-history byte setting in {@link WebSocketClient.ClientConfig} independently
+ * bounds the cumulative serialized event-payload bytes requested per page. An individually oversized first event is
+ * still returned so paging can advance.
  *
  * <p>End users rarely interact with this client directly. Instead, they typically use higher-level abstractions
  * such as {@link io.fluxzero.sdk.persisting.eventsourcing.EventStore} or
@@ -105,6 +107,8 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
             1, Integer.getInteger("fluxzero.readyModelCommitBatchSize", 256));
 
     private final int fetchBatchSize;
+    private final long maxFetchBytes;
+
     @Override
     protected List<? extends WebSocketPayloadCodec> payloadCodecs() {
         return List.of(ModelWebSocketCodec.INSTANCE);
@@ -140,7 +144,6 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
         return results.stream().allMatch(TrackModelUpdatesResult.class::isInstance)
                 ? "MODEL_UPDATE" : "RESULT";
     }
-
     /**
      * Creates a new {@code WebSocketEventStoreClient} with a default batch size of 8192.
      *
@@ -174,6 +177,7 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
                                      boolean sendMetrics) {
         super(endPointUri, client, sendMetrics, client.getClientConfig().getEventSourcingSessions());
         this.fetchBatchSize = fetchBatchSize;
+        this.maxFetchBytes = client.getClientConfig().getAggregateHistoryMaxFetchBytes();
     }
 
     /**
@@ -530,26 +534,57 @@ public class WebSocketEventStoreClient extends AbstractWebsocketClient
      */
     @Override
     public AggregateEventStream<SerializedMessage> getEvents(String aggregateId, long lastSequenceNumber, int maxSize) {
-        return getEvents(aggregateId, lastSequenceNumber, maxSize, fetchBatchSize, this::sendAndWait);
+        return getEvents(aggregateId, lastSequenceNumber, maxSize, fetchBatchSize, maxFetchBytes, this::sendAndWait);
     }
 
     static AggregateEventStream<SerializedMessage> getEvents(
             String aggregateId, long lastSequenceNumber, int maxSize, int fetchBatchSize,
+            long maxFetchBytes,
             Function<GetEvents, GetEventsResult> fetchEvents) {
         AtomicReference<Long> highestSequenceNumber = new AtomicReference<>();
-        GetEventsResult firstBatch = fetchEvents.apply(new GetEvents(
-                aggregateId, lastSequenceNumber, maxSize <= 0 ? fetchBatchSize : maxSize));
+        int pageSize = Math.max(1, fetchBatchSize);
+        int requestedTotal = maxSize > 0 ? maxSize : Integer.MAX_VALUE;
+        EventPage firstPage = fetchPage(aggregateId, lastSequenceNumber, requestedTotal, pageSize, maxFetchBytes,
+                                        fetchEvents);
         Stream<SerializedMessage> eventStream = iterate(
-                firstBatch,
-                r -> fetchEvents.apply(new GetEvents(aggregateId, r.getLastSequenceNumber(), fetchBatchSize)),
-                r -> maxSize > 0 || r.getEventBatch().getSize() < fetchBatchSize)
-                .flatMap(r -> {
-                    if (!r.getEventBatch().isEmpty()) {
-                        highestSequenceNumber.set(r.getLastSequenceNumber());
+                firstPage,
+                page -> fetchPage(aggregateId, page.result().getLastSequenceNumber(), page.remaining(), pageSize,
+                                  maxFetchBytes, fetchEvents),
+                EventPage::terminal)
+                .flatMap(page -> {
+                    GetEventsResult result = page.result();
+                    if (!result.getEventBatch().isEmpty()) {
+                        highestSequenceNumber.set(result.getLastSequenceNumber());
                     }
-                    return r.getEventBatch().getEvents().stream();
+                    return result.getEventBatch().getEvents().stream();
                 });
         return new AggregateEventStream<>(eventStream, aggregateId, highestSequenceNumber::get);
+    }
+
+    private static EventPage fetchPage(
+            String aggregateId, long lastSequenceNumber, int remaining, int pageSize, long maxFetchBytes,
+            Function<GetEvents, GetEventsResult> fetchEvents) {
+        int requestedSize = Math.min(pageSize, remaining);
+        GetEventsResult result = fetchEvents.apply(
+                new GetEvents(aggregateId, lastSequenceNumber, requestedSize, maxFetchBytes));
+        int resultSize = result.getEventBatch().getSize();
+        if (resultSize > requestedSize) {
+            throw new IllegalStateException(
+                    "Runtime returned %d aggregate events while at most %d were requested"
+                            .formatted(resultSize, requestedSize));
+        }
+        if (resultSize > 0 && result.getLastSequenceNumber() <= lastSequenceNumber) {
+            throw new IllegalStateException(
+                    "Aggregate event pagination did not advance beyond sequence %d"
+                            .formatted(lastSequenceNumber));
+        }
+        int nextRemaining = remaining - resultSize;
+        boolean terminal = resultSize == 0 || nextRemaining == 0
+                           || (maxFetchBytes <= 0 && resultSize < requestedSize);
+        return new EventPage(result, nextRemaining, terminal);
+    }
+
+    private record EventPage(GetEventsResult result, int remaining, boolean terminal) {
     }
 
     /**

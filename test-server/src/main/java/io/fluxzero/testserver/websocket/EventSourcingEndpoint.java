@@ -55,6 +55,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+import static io.fluxzero.common.ObjectUtils.limitByCumulativeWeight;
+
 @Slf4j
 @AllArgsConstructor
 public class EventSourcingEndpoint extends WebsocketEndpoint {
@@ -85,11 +87,34 @@ public class EventSourcingEndpoint extends WebsocketEndpoint {
 
     @Handle
     GetEventsResult handle(GetEvents getEvents) {
+        if (getEvents.getMaxBytes() < 0L) {
+            throw new IllegalArgumentException("maxBytes must not be negative");
+        }
         AggregateEventStream<SerializedMessage> stream = eventStore
-                .getEvents(getEvents.getAggregateId(), getEvents.getLastSequenceNumber());
-        long lastSequenceNumber = stream.getLastSequenceNumber().orElse(-1L);
+                .getEvents(getEvents.getAggregateId(), getEvents.getLastSequenceNumber(), getEvents.getBatchSize());
+        var completePage = stream.collect(Collectors.toList());
+        var page = limitByCumulativeWeight(completePage, getEvents.getMaxBytes(), SerializedMessage::getBytes);
+        long lastSequenceNumber = lastSequenceNumber(getEvents, stream, completePage, page);
         return new GetEventsResult(getEvents.getRequestId(), new EventBatch(
-                getEvents.getAggregateId(), stream.collect(Collectors.toList()), false), lastSequenceNumber);
+                getEvents.getAggregateId(), page, false), lastSequenceNumber);
+    }
+
+    private long lastSequenceNumber(GetEvents request, AggregateEventStream<SerializedMessage> completeStream,
+                                    List<SerializedMessage> completePage, List<SerializedMessage> page) {
+        if (page.isEmpty()) {
+            return -1L;
+        }
+        if (page.size() == completePage.size()) {
+            return completeStream.getLastSequenceNumber().orElse(-1L);
+        }
+        AggregateEventStream<SerializedMessage> prefixStream = eventStore.getEvents(
+                request.getAggregateId(), request.getLastSequenceNumber(), page.size());
+        List<SerializedMessage> exactPrefix = prefixStream.toList();
+        if (!exactPrefix.equals(page)) {
+            throw new IllegalStateException("Event store returned an inconsistent aggregate-history prefix");
+        }
+        return prefixStream.getLastSequenceNumber().orElseThrow(
+                () -> new IllegalStateException("Event store did not report the sequence number of a non-empty page"));
     }
 
     @Handle

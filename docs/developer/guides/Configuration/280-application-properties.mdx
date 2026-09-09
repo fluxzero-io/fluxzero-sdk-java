@@ -76,17 +76,19 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
+| `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
 
 For example:
 
 ```properties
-fluxzero.defaults.version=2026.09.09
+fluxzero.defaults.version=2026.09.10
 ```
 
-This enables the package-scoped consumer default, the newer reconnect policy and all earlier versioned defaults. To
-choose one behavior explicitly without changing the defaults version, set the dedicated property directly. Existing
-applications that omit `fluxzero.defaults.version` retain the original shared application consumer, immediate implicit
-periodic start and fixed one-second WebSocket reconnect interval.
+This enables the package-scoped consumer default, the newer reconnect policy, byte-bounded aggregate-history pages and
+all earlier versioned defaults. To choose one behavior explicitly without changing the defaults version, set the
+dedicated property directly. Existing applications that omit `fluxzero.defaults.version` retain the original shared
+application consumer, immediate implicit periodic start, fixed one-second WebSocket reconnect interval and count-only
+aggregate-history paging.
 
 ---
 

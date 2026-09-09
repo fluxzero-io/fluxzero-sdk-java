@@ -4540,6 +4540,14 @@ Fluxzero will attempt to resolve the **current state** of the aggregate or entit
 Each event is **deserialized** and routed to the corresponding `@Apply` method to reconstruct the aggregate's entity
 graph.
 
+Remote histories are fetched in pages. Compatibility mode limits each request to 8,192 events. With
+`fluxzero.defaults.version >= 2026.09.10`, each page is also limited to 100 MiB of serialized event payload before
+WebSocket compression and envelope overhead. Set `fluxzero.eventsourcing.maxFetchBytes` to another non-negative byte
+count, or to `0` for count-only pages; its conventional environment-variable form is
+`FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES`. An individually oversized event is returned alone so loading can continue,
+and a byte-limited short page is followed by the next sequence without skipping or duplicating events. Runtimes from
+before this protocol extension ignore the optional byte request and retain count-only pages.
+
 - If no such method exists for a given event, the event is silently **ignored**.
 - However, if the **event class itself is missing**, deserialization will fail unless `ignoreUnknownEvents = true` is
   set on the aggregate. For better ways to deal with this, see [Upcasting](#upcasting).
@@ -5915,19 +5923,21 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
 | `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
+| `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
 
 For example:
 
 ```properties
-fluxzero.defaults.version=2026.08.26
+fluxzero.defaults.version=2026.09.10
 ```
 
-This enables package-scoped consumer defaults, natural periodic initial delays, user-ID metadata and same-origin
-redirects plus all earlier versioned defaults. To choose one behavior explicitly without changing the defaults version,
-set the dedicated property directly. Existing applications that omit `fluxzero.defaults.version` keep compatibility
-behavior: unconfigured handlers share the application default consumer, implicit
-`@Periodic(initialDelay = -1)` is treated as an immediate first run, user metadata contains serialized users, and
-native outbound requests allow normal JDK redirects, and WebSocket reconnects use a fixed one-second interval.
+This enables package-scoped consumer defaults, natural periodic initial delays, user-ID metadata, same-origin redirects,
+jittered WebSocket reconnects and byte-bounded aggregate-history pages, plus all earlier versioned defaults. To choose
+one behavior explicitly without changing the defaults version, set the dedicated property directly. Existing
+applications that omit `fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the
+application default consumer, implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run, user
+metadata contains serialized users, native outbound requests allow normal JDK redirects, WebSocket reconnects use a
+fixed one-second interval, and aggregate-history pages are count-bounded only.
 
 ### Encrypted Values
 

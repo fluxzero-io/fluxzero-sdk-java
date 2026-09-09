@@ -36,6 +36,12 @@ record Account(@EntityId AccountId accountId, Money balance) {
 Each applied update is stored in this account's model stream. Loading reconstructs the account by replaying its
 `@Apply` methods, optionally starting at a snapshot or checkpoint.
 
+For remote Runtimes, the SDK pages aggregate histories by event count. Applications using
+`fluxzero.defaults.version >= 2026.09.10` also request a 100 MiB serialized payload limit per page; configure
+`fluxzero.eventsourcing.maxFetchBytes` explicitly to tune it or use `0` for count-only compatibility behavior. A single
+larger event is allowed through to guarantee progress, and later pages resume at the exact next aggregate sequence.
+Runtimes predating this optional request field ignore it and continue to return count-only pages.
+
 The set supports exactly the meaningful combinations:
 
 - `{EVENT_SOURCED}` reconstructs from events without a current document;
