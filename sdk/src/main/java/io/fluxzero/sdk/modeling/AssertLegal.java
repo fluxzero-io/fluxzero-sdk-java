@@ -81,6 +81,17 @@ import java.lang.annotation.Target;
  * If an {@code @AssertLegal} method returns a non-null object, Fluxzero will also inspect that return value for further
  * {@code @AssertLegal} methods or properties. This allows for deep, composable validation logic.
  *
+ * <h2>Interaction with intercepted updates</h2>
+ * {@link io.fluxzero.sdk.persisting.eventsourcing.InterceptApply @InterceptApply} resolves the effective update or
+ * updates first. Assertions therefore run for a retained update, do not run for a suppressed update, and run only for
+ * the replacement when the original update is replaced. Expanded updates are processed in encounter order: each
+ * update's immediate assertions run before its apply methods and see state produced by earlier updates. Assertions
+ * configured with {@link #afterHandler()} remain deferred until handler completion.
+ *
+ * <p>If a rule must also hold after an interceptor replaces the original payload, define that rule for the effective
+ * replacement or place it in shared/entity-side assertion logic that matches the replacement. An assertion that only
+ * matches the original payload is intentionally not invoked after replacement.</p>
+ *
  * <h2>Ordering</h2>
  * Multiple legality methods may be invoked. Their execution order is determined by {@link #priority()},
  * with higher values taking precedence. Methods with the same priority are invoked in deterministic order by method
