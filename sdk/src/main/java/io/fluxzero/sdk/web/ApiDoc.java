@@ -120,7 +120,7 @@ public @interface ApiDoc {
     String[] allowableValues() default {};
 
     /**
-     * Marks a schema property or parameter as required in generated docs.
+     * Marks a schema property, endpoint parameter, or request body as required in generated docs.
      */
     boolean required() default false;
 

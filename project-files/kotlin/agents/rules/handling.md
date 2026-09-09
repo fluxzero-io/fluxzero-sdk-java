@@ -548,6 +548,11 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
 - Jakarta validation annotations on endpoint parameters and model fields/record components are reflected in schemas
   where possible, including required flags, numeric bounds, sizes, patterns, and email format. `@Size` maps to
   length constraints for text, item constraints for arrays/collections, and property constraints for maps.
+- Required metadata on a body or body/form parameter sets `requestBody.required: true`; a body without such metadata
+  remains optional. Map-value type-use constraints apply to `additionalProperties`. OpenAPI 3.1 also emits supported
+  string-compatible map-key constraints as `propertyNames`; OpenAPI 3.0 omits that unsupported keyword.
+- Jackson polymorphism with a real type property retains its discriminator and mapping. `Id.DEDUCTION` is represented
+  only by its `oneOf` alternatives and never by a synthetic discriminator.
 - Array properties in response models are required by default; array properties in input models must be made required
   explicitly with validation or `@ApiDoc(required = true)`.
 - Render JSON with `OpenApiRenderer.render(...)`, `renderJson(...)`, or `renderPrettyJson(...)` and configure global
