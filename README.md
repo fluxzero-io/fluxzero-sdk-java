@@ -2522,6 +2522,8 @@ ancestors of each selected path are included automatically, while sibling and de
 explicitly. Exclusion and path selection affect documentation only, not the graph returned at runtime.
 `ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
 metadata with the model types registered in the current application, so child models may live in another Maven module.
+Model types recorded in the generated schemas remain available even when the runtime registry is only partially
+populated. Serving a generated graph therefore does not depend on those models having been used earlier in the process.
 
 #### Request Cookies
 

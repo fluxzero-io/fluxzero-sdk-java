@@ -352,6 +352,68 @@ class OpenApiRendererTest {
     }
 
     @Test
+    void retainsCompiledModelGraphTypesWhenTheRuntimeRegistryIsPartial() {
+        ObjectNode generated = generatedModelGraph(true, "locations/infrastructure/connections");
+        List<Class<?>> runtimeTypes = List.of(ContractModel.class);
+
+        JsonNode document = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated.toString(), runtimeTypes, getClass().getClassLoader()),
+                JsonNode.class);
+
+        JsonNode schemas = document.path("components").path("schemas");
+        assertEquals("#/components/schemas/LocationModel", schemas.path("OrganisationModel").path("properties")
+                .path("locations").path("items").path("$ref").asText());
+        assertEquals("#/components/schemas/ConnectionModel", schemas.path("LocationModel").path("properties")
+                .path("infrastructure").path("properties").path("connections").path("items").path("$ref").asText());
+        assertEquals(List.of(ContractModel.class), runtimeTypes);
+        assertFalse(document.toString().contains("x-fluxzero-java-type"));
+        assertFalse(document.toString().contains("x-fluxzero-model-graph"));
+    }
+
+    @Test
+    void runtimeModelGraphEnrichmentStaysLocalToItsDocument() {
+        String generated = generatedModelGraph(false, null).toString();
+        JsonNode expanded = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated, List.of(ConnectionModel.class), getClass().getClassLoader()),
+                JsonNode.class);
+        JsonNode independent = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated, List.of(ContractModel.class), getClass().getClassLoader()),
+                JsonNode.class);
+
+        assertTrue(expanded.path("components").path("schemas").path("LocationModel")
+                .path("properties").has("infrastructure"));
+        assertFalse(independent.path("components").path("schemas").path("LocationModel")
+                .path("properties").has("infrastructure"));
+    }
+
+    @Test
+    void compiledModelEvidenceDoesNotHideUnknownSelectedPaths() {
+        String generated = generatedModelGraph(true, "locations/missing").toString();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> OpenApiRenderer.enrichModelGraphs(
+                        generated, List.of(ContractModel.class), getClass().getClassLoader()));
+
+        assertTrue(failure.getMessage().contains("locations/missing"));
+    }
+
+    private static ObjectNode generatedModelGraph(boolean includeConnections, String selectedPath) {
+        List<Class<?>> compiledTypes = includeConnections
+                ? List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class)
+                : List.of(OrganisationModel.class, LocationModel.class);
+        ObjectNode generated = OpenApiRenderer.render(new ApiDocCatalog(
+                ApiDocExtractor.extract(ModelGraphHandler.class).endpoints(), compiledTypes));
+        ObjectNode response = (ObjectNode) generated.path("paths").path("/organisations/{id}").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        response.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, OrganisationModel.class.getName());
+        if (selectedPath != null) {
+            response.putArray(OpenApiRenderer.MODEL_GRAPH_PATHS_EXTENSION).add(selectedPath);
+        }
+        compiledTypes.forEach(type -> ((ObjectNode) generated.path("components").path("schemas")
+                .path(type.getSimpleName())).put(OpenApiRenderer.JAVA_TYPE_EXTENSION, type.getName()));
+        return generated;
+    }
+
+    @Test
     void excludesGraphPropertiesFromRequestSchemas() {
         JsonNode document = OpenApiRenderer.render(ApiDocExtractor.extract(ModelGraphRequestHandler.class));
 

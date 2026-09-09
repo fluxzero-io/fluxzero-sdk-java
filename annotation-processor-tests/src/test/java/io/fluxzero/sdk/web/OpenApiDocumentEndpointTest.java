@@ -41,6 +41,8 @@ class OpenApiDocumentEndpointTest {
                            && "application/json".equals(response.getContentType())
                            && document.path("paths").has("/packageAuto/items")
                            && document.path("paths").has("/packageAuto/second")
+                           && document.at("/components/schemas/SelectedRoot/properties").has("children")
+                           && document.at("/components/schemas/SelectedChild/properties").has("leaves")
                            && !document.path("paths").has("/packageAuto/hidden");
                 });
     }
