@@ -4076,6 +4076,20 @@ The update lifecycle flows as follows:
 This allows you to rewrite or suppress updates *before* they’re validated or stored — a powerful tool for protecting
 data integrity and simplifying update logic.
 
+Interception determines which payloads reach the assertion phase:
+
+| Interceptor outcome | Assertions and application |
+|---------------------|----------------------------|
+| Retain the payload | Its matching immediate `@AssertLegal` methods run before `@Apply` |
+| Suppress the payload | Neither its assertions nor its apply methods run |
+| Replace the payload | Only the replacement's matching assertions and apply methods run |
+| Split the payload | Each part's immediate assertions and apply run in order; later parts see earlier changes |
+
+This means an assertion declared only for the original payload is intentionally skipped when that payload is
+suppressed or replaced. Put invariants that must survive a rewrite on the effective replacement, or in shared or
+entity-side assertion logic that also matches it. `@AssertLegal(afterHandler = true)` keeps its documented deferred
+timing.
+
 ### Return Values
 
 `@InterceptApply` supports flexible return types:

@@ -38,7 +38,8 @@ is violated, an exception is thrown and the command is rejected.
 
 A pre-processing hook that runs before `@AssertLegal` and `@Apply`. It can suppress an update (`null`/`Unit`), keep it
 as-is (`this`), rewrite it (return a different payload), or expand it (return `Collection`/`Stream`/`Optional`).
-Interceptors are applied recursively until they no longer transform the update.
+Interceptors are applied recursively until they no longer transform the update. Assertions run only for the resulting
+payloads: none for suppression, replacement assertions after rewriting, and per-part assertions in order after a split.
 
 ### Command
 
