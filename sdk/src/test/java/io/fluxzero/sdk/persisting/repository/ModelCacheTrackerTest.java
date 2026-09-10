@@ -1296,6 +1296,9 @@ class ModelCacheTrackerTest {
                                      new ModelCacheTracker.RefreshedBatch(
                                              safeStateIndex, Map.of()))) {
             tracker.loaded("sample-1", SampleModel.class, 10L);
+            // Loading publishes asynchronously during bootstrap. Establish the cached proof before advancing
+            // the tracker; otherwise a delayed load correctly requires a refresh at the newer cursor.
+            assertSame(cached, awaitCurrent(tracker, "sample-1", SampleModel.class));
             completeNext(
                     polls,
                     new TrackModelUpdatesResult(
