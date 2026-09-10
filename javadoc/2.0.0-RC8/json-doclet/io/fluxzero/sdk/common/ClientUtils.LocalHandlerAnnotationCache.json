@@ -1,0 +1,97 @@
+{
+  "name" : "LocalHandlerAnnotationCache",
+  "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "class",
+  "modifiers" : [ "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "classAnnotation",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache.classAnnotation",
+    "type" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.LocalHandler>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "computer",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache.computer",
+    "type" : "java.util.function.Function<java.lang.reflect.Executable,java.util.Optional<io.fluxzero.sdk.tracking.handling.LocalHandler>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "methodAnnotations",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache.methodAnnotations",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Executable,java.util.Optional<io.fluxzero.sdk.tracking.handling.LocalHandler>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "target",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache.target",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LocalHandlerAnnotationCache",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache#LocalHandlerAnnotationCache",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "target",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "compute",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache#compute",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.LocalHandler>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.sdk.common.ClientUtils$LocalHandlerAnnotationCache#get",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.tracking.handling.LocalHandler>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

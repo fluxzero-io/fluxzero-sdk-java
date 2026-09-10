@@ -1,0 +1,110 @@
+{
+  "name" : "LocalHandlerInput",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Gives Fluxzero handling extensions access to a local invocation whose full message is created only when needed.\n\n <p>This is an infrastructure interface. Applications normally receive the payload, metadata, user, or message as\n handler parameters and do not implement or invoke this interface directly.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.serialization.DeserializingMessage>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "containsMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput#containsMetadata",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "key",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Tests already available metadata without forcing deferred metadata creation.\n\n @param key the metadata key to look up\n @return {@code true} if already available metadata contains the key\n"
+  }, {
+    "name" : "getIndex",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput#getIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the message index when the local input represents a stored message.\n\n @return the message index, or {@code null} for a newly dispatched local message\n"
+  }, {
+    "name" : "getMessageType",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput#getMessageType",
+    "returnType" : "io.fluxzero.common.MessageType",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the type of message being handled.\n\n @return the current message type\n"
+  }, {
+    "name" : "getMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput#getMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the local message metadata, computing deferred metadata changes when necessary.\n\n @return the current metadata\n"
+  }, {
+    "name" : "getUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput#getUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "provider",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.UserProvider",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the user selected for this local dispatch.\n\n @param provider the configured provider whose user is requested\n @return the resolved user, or {@code null} if the dispatch has no user\n"
+  }, {
+    "name" : "hasResolvedUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput#hasResolvedUser",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether user resolution has already completed for this input.\n\n @return {@code true} when {@link #getUser(UserProvider)} can be used without materializing the message\n"
+  }, {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalHandlerInput#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.handling.HandlerMethodPlan<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Invokes a prepared handler plan while installing the required local handling context.\n\n @param plan the handler plan to invoke\n @return the handler result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,124 @@
+{
+  "name" : "GraphProjectionRegistration",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "configuration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration.configuration",
+    "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "future",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration.future",
+    "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "GraphProjectionRegistration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration#GraphProjectionRegistration",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "future",
+      "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "configuration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration#configuration",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "future",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration#future",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$GraphProjectionRegistration#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "configuration",
+    "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "future",
+    "type" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

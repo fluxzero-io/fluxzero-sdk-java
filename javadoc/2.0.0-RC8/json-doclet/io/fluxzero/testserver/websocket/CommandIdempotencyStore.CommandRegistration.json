@@ -1,0 +1,124 @@
+{
+  "name" : "CommandRegistration",
+  "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration",
+  "packageName" : "io.fluxzero.testserver.websocket",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "newCommand",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration.newCommand",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration.result",
+    "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandResult",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CommandRegistration",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration#CommandRegistration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "newCommand",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "newCommand",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration#newCommand",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration#result",
+    "returnType" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore$CommandRegistration#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "newCommand",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "result",
+    "type" : "io.fluxzero.testserver.websocket.CommandIdempotencyStore.CommandResult",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

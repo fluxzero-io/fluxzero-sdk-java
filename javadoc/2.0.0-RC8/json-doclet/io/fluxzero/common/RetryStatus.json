@@ -1,0 +1,98 @@
+{
+  "name" : "RetryStatus",
+  "qualifiedName" : "io.fluxzero.common.RetryStatus",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.Builder",
+    "values" : {
+      "toBuilder" : "true"
+    }
+  } ],
+  "documentation" : " Represents the current status of a retry operation.\n <p>\n {@code RetryStatus} is used internally by retry utilities (e.g., in {@link TimingUtils}) to track\n the retry attempt count, the last encountered exception, and timing metadata. It is passed to\n logging callbacks in {@link RetryConfiguration} for both success and failure cases.\n\n @see RetryConfiguration\n @see TimingUtils#retryOnFailure(java.util.concurrent.Callable, RetryConfiguration)\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "exception",
+    "qualifiedName" : "io.fluxzero.common.RetryStatus.exception",
+    "type" : "java.lang.Throwable",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The most recent exception that caused a retry attempt.\n",
+    "constantValue" : null
+  }, {
+    "name" : "initialErrorTimestamp",
+    "qualifiedName" : "io.fluxzero.common.RetryStatus.initialErrorTimestamp",
+    "type" : "java.time.Instant",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The timestamp of when the first retryable exception occurred.\n",
+    "constantValue" : null
+  }, {
+    "name" : "numberOfTimesRetried",
+    "qualifiedName" : "io.fluxzero.common.RetryStatus.numberOfTimesRetried",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " The number of times the task has been retried (not including the initial attempt).\n",
+    "constantValue" : null
+  }, {
+    "name" : "retryConfiguration",
+    "qualifiedName" : "io.fluxzero.common.RetryStatus.retryConfiguration",
+    "type" : "io.fluxzero.common.RetryConfiguration",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The configuration used to govern the retry behavior, including delay, retry limits, and error filters.\n",
+    "constantValue" : null
+  }, {
+    "name" : "task",
+    "qualifiedName" : "io.fluxzero.common.RetryStatus.task",
+    "type" : "java.lang.Object",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The task being retried. Typically a {@link java.util.concurrent.Callable} or {@link Runnable}.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RetryStatus",
+    "qualifiedName" : "io.fluxzero.common.RetryStatus#RetryStatus",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "afterRetry",
+    "qualifiedName" : "io.fluxzero.common.RetryStatus#afterRetry",
+    "returnType" : "io.fluxzero.common.RetryStatus",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "exception",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Produces a new {@code RetryStatus} based on this one, incrementing the retry count and updating the exception.\n\n @param exception the new exception encountered during retry\n @return a new {@code RetryStatus} instance with updated retry count and exception\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

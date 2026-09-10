@@ -1,0 +1,65 @@
+{
+  "name" : "Phase",
+  "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase",
+  "packageName" : "io.fluxzero.common.api",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : " Runtime lifecycle phases that are published as metrics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.api.RuntimeLifecycleEvent.Phase>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "Phase",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase#Phase",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase#valueOf",
+    "returnType" : "io.fluxzero.common.api.RuntimeLifecycleEvent.Phase",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase#values",
+    "returnType" : "io.fluxzero.common.api.RuntimeLifecycleEvent.Phase[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "STARTED",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase.STARTED",
+    "annotations" : [ ],
+    "documentation" : " The runtime has started and is ready to accept traffic.\n"
+  }, {
+    "name" : "STOPPING",
+    "qualifiedName" : "io.fluxzero.common.api.RuntimeLifecycleEvent$Phase.STOPPING",
+    "annotations" : [ ],
+    "documentation" : " The runtime is about to stop accepting traffic and shut down.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

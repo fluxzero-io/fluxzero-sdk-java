@@ -1,0 +1,764 @@
+{
+  "name" : "ModelRepository",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Repository for loading independently stored {@link Model models}.\n <p>\n Model identity combines the repository representation of its {@code @EntityId} value with any explicit\n {@link io.fluxzero.sdk.modeling.EntityId#prefix() prefix} and\n {@link io.fluxzero.sdk.modeling.EntityId#postfix() postfix}. Loads first match that primary identity and then, when\n no such model exists, a current value declared with {@link Alias @Alias}.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.persisting.repository.ModelRepository>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "adoptModelMigrations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#adoptModelMigrations",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Integer>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Verifies and adopts every staged direct Model migration known to this application.\n Materialized Graph projections declared by the application are rebuilt after every staged document has been\n adopted. The accepted normalized source remains isolated from later staging until the first ordinary Model write,\n so another legacy boundary can be re-adopted without exposing unverified state. Repeating the operation is also a\n safe way to resume projection rebuilds after a failure.\n\n @return the number of staged Model documents adopted by this invocation\n @see io.fluxzero.sdk.configuration.PublishedEventModelMigration\n"
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionPlan",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes a previously confirmed hard-deletion plan with a new durable idempotency key.\n"
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Hard-deletes exactly one model.\n <p>\n Passing {@link ModelDeletionCascade#DESCENDANTS} without a confirmed plan is rejected. Use\n {@link #deleteModel(ModelDeletionPlan)} for descendant cascades.\n"
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deletionId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "plan",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionPlan",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes or resumes a confirmed plan using an explicit durable idempotency key.\n"
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deletionId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Executes or resumes an exact-model hard deletion using an explicit durable idempotency key.\n Descendant deletion still requires a confirmed plan.\n"
+  }, {
+    "name" : "followPublishedEventMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#followPublishedEventMigration",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "migrationName",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Coordinates legacy-event Model and Graph reads with a published-event migration consumer.\n\n <p>A mapped event remains a single ordinary Model read. Only when an event boundary had to fall back to current\n state does the repository wait for the durable migration-consumer position and retry the exact same read. If the\n consumer has processed the event but no mapping becomes visible, the read fails instead of exposing stale or\n future state.</p>\n\n @param migrationName stable consumer name used by {@link\n                      io.fluxzero.sdk.configuration.PublishedEventModelMigration}\n @return this repository\n"
+  }, {
+    "name" : "followPublishedEventMigration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#followPublishedEventMigration",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "migrationName",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "maxWait",
+      "type" : "java.time.@lombok.NonNull Duration",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Coordinates legacy-event reads with a migration consumer using a bounded wait before normal handler retry takes\n over.\n\n @param migrationName stable durable migration-consumer name\n @param maxWait maximum time one read waits for the migration consumer to reach its event\n @return this repository\n"
+  }, {
+    "name" : "forNamespace",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#forNamespace",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.ModelRepository",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns this repository scoped to the requested namespace.\n <p>\n Custom repositories that are not namespace-aware retain their behavior by returning the same instance.\n"
+  }, {
+    "name" : "graphProjectionStatus",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#graphProjectionStatus",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelGraphProjectionStatus",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns current graph-projection freshness for the supplied model type.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "io.fluxzero.sdk.modeling.@lombok.NonNull Id<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a model using the type carried by a typed identifier.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@jakarta.validation.constraints.NotNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.validation.constraints.NotNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a model by ID, inferring its requested type when the ID is typed.\n <p>\n An untyped ID requests {@link Object}. Its concrete type is resolved from the durable model head. If no model\n exists, an empty {@link Entity} of type {@link Object} is returned.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "parentId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "parentType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a parent-scoped model by its functional child ID and explicit parent type.\n <p>\n Ordinary model types ignore the parent and retain their normal identity. A parent-scoped model uses the same\n collision-safe persisted identity as automatic apply handling.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a model using the string representation of the supplied ID, resolving a current model alias when no primary\n model has that identity.\n"
+  }, {
+    "name" : "load",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#load",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads a model by primary ID or current alias and expected type. A primary model ID always takes precedence over\n an alias with the same value.\n\n @param modelId   persisted model key or current alias; never decorated with model type metadata\n @param modelType expected model type, or {@link Object} when it should be resolved from storage\n"
+  }, {
+    "name" : "loadAll",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadAll",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.Entity<T>>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.@lombok.NonNull List<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads several models at one coherent state boundary, preserving input order.\n\n <p>Repositories without coherent multi-model reconstruction reject this capability instead of emulating it with\n independent reads at different boundaries.</p>\n"
+  }, {
+    "name" : "loadContext",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadContext",
+    "returnType" : "io.fluxzero.sdk.modeling.CommitAttempt",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resolution",
+      "type" : "io.fluxzero.sdk.modeling.MutationPlan.Resolution",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads all model parameters for one selected message handler at one repository boundary.\n <p>\n Event and notification handlers carrying model-commit metadata must be reconstructed at that exact commit\n boundary. Other handlers use one current load context. Implementations should batch direct targets and ancestor\n traversal rather than loading each parameter independently.\n"
+  }, {
+    "name" : "loadCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadCurrent",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads the latest model state without inheriting an event or notification handler's historical read boundary.\n <p>\n This is intended for flows that synchronously perform another Model write and then deliberately need its updated\n state. Ordinary handler reads should use {@link #load(Object, Class)} so they remain coherent with the message\n being handled.\n"
+  }, {
+    "name" : "loadCurrent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadCurrent",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads the latest model state by exact persisted identity. Custom repositories without contextual historical\n reads retain their normal behavior by delegating to {@link #load(String, Class)}.\n"
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "io.fluxzero.sdk.modeling.@lombok.NonNull Id<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a model and every related descendant at one state boundary. Pathless relationships participate in\n typed traversal but remain absent from serialized graph documents.\n Pending changes from earlier messages in the same ordered tracking segment are included. Use\n {@link #loadGraphAt(Id, long)} when an exact durable historical boundary is required.\n"
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs one model graph at the supplied current, state, commit, event, or before boundary.\n"
+  }, {
+    "name" : "loadGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadGraph",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a model graph using exact persisted identity, root type, and optional caller-imposed limits.\n Pending changes from earlier messages in the same ordered tracking segment are included.\n"
+  }, {
+    "name" : "loadGraphAt",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadGraphAt",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "io.fluxzero.sdk.modeling.@lombok.NonNull Id<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a model graph at an inclusive historical model-state boundary.\n"
+  }, {
+    "name" : "loadGraphAt",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadGraphAt",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "io.fluxzero.sdk.modeling.@lombok.NonNull Id<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a model graph at an inclusive historical model-state boundary with optional caller-imposed limits.\n"
+  }, {
+    "name" : "loadGraphAt",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadGraphAt",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs a model graph using exact persisted identity, root type, an inclusive historical boundary, and\n optional caller-imposed limits.\n"
+  }, {
+    "name" : "loadGraphBefore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#loadGraphBefore",
+    "returnType" : "io.fluxzero.sdk.modeling.Graph<T>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.@lombok.NonNull String",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rootType",
+      "type" : "java.lang.@lombok.NonNull Class<T>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "options",
+      "type" : "io.fluxzero.sdk.modeling.Graph.Options",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Reconstructs the model graph that was current immediately before an opaque state boundary.\n"
+  }, {
+    "name" : "planDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#planDeletion",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelDeletionPlan",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.@lombok.NonNull ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a bounded, non-mutating plan for an explicit model hard deletion.\n <p>\n A descendant cascade must be planned and confirmed before execution. The returned published-event count makes\n clear that globally published events are outside the model-stream erasure boundary.\n"
+  }, {
+    "name" : "registerGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#registerGraphProjection",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers a changed graph definition and rebuilds all current roots.\n"
+  }, {
+    "name" : "registerGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelRepository#registerGraphProjection",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelType",
+      "type" : "java.lang.@lombok.NonNull Class<?>",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "rebuild",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Registers the graph projection declared by the supplied model type.\n\n @param modelType model carrying an enabled graph projection\n @param rebuild whether all current roots should be scanned even if the definition is unchanged\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

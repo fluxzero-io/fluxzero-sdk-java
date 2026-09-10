@@ -1,0 +1,1495 @@
+{
+  "name" : "InMemoryEventStore",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " An implementation of the {@link EventStoreClient} interface that provides an in-memory event storage solution. This\n class extends {@link InMemoryMessageStore} to inherit message store functionality and provides additional\n capabilities for storing, retrieving, updating, and managing aggregate event streams and relationships in memory.\n <p>\n It is designed for use cases where events and relationships are stored and maintained in the application memory,\n which makes it lightweight but volatile. The stored data will not persist beyond the lifetime of the application\n process and is typically used in test scenarios or for development purposes.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.sdk.tracking.client.InMemoryMessageStore",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient" ],
+  "fields" : [ {
+    "name" : "appliedEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.appliedEvents",
+    "type" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.common.api.SerializedMessage>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "currentModelRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.currentModelRelationships",
+    "type" : "java.util.Map<java.lang.String,java.util.LinkedHashMap<io.fluxzero.common.api.modeling.ModelRelationship,io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.MutableModelRelationship>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "deferModelCommitNotification",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.deferModelCommitNotification",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "erasedModelTokens",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.erasedModelTokens",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelAliases",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelAliases",
+    "type" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelCommitMaterializations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelCommitMaterializations",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.PendingModelMaterialization>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelCommitMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelCommitMaterializer",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelCommitMaterializer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelCommits",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelCommits",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelDeletions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelDeletions",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionDrainActive",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionDrainActive",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionFailures",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionFailures",
+    "type" : "java.util.Map<java.lang.String,java.lang.Throwable>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionMaterializer",
+    "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionMaterializer",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionPositions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionPositions",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionRebuilds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionRebuilds",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionSignals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionSignals",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionSignal>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjectionWaiters",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjectionWaiters",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionWaiter>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelGraphProjections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelGraphProjections",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelHeadHistory",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelHeadHistory",
+    "type" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelStreamHead>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelHeads",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelHeads",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelStreamHead>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelMaterializationPublicationActive",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelMaterializationPublicationActive",
+    "type" : "boolean",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelMaterializationPublications",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelMaterializationPublications",
+    "type" : "java.util.ArrayDeque<java.lang.Runnable>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelRelationStateIndices",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelRelationStateIndices",
+    "type" : "java.util.Map<java.lang.String,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelRelationshipHistory",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelRelationshipHistory",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.MutableModelRelationship>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelStateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelStateIndex",
+    "type" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelStateIndicesByEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelStateIndicesByEventIndex",
+    "type" : "java.util.Map<java.lang.Long,java.lang.Long>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelStateTimeIndexSupplier",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelStateTimeIndexSupplier",
+    "type" : "java.util.function.LongSupplier",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelStreams",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelStreams",
+    "type" : "java.util.Map<java.lang.String,java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelStreamMembership>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelUpdateGeneration",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelUpdateGeneration",
+    "type" : "java.util.concurrent.atomic.AtomicLong",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelUpdateMonitor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelUpdateMonitor",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelUpdates",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.modelUpdates",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelUpdate>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "protectedModelDescendants",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.protectedModelDescendants",
+    "type" : "java.util.Map<java.lang.String,java.util.Set<java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "relationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.relationships",
+    "type" : "java.util.Map<java.lang.String,java.util.Map<java.lang.String,java.lang.String>>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InMemoryEventStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#InMemoryEventStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryEventStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#InMemoryEventStore",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageExpiration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InMemoryEventStore",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#InMemoryEventStore",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messageExpiration",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelStateTimeIndexSupplier",
+      "type" : "java.util.function.LongSupplier",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "affectedProjectionRoots",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#affectedProjectionRoots",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "signal",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionSignal",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "awaitModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#awaitModelGraphProjection",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cascadeConflict",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#cascadeConflict",
+    "returnType" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "description",
+      "type" : "io.fluxzero.common.modeling.ModelCommitAssignment.Description",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "cascadeDeletedModelRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#cascadeDeletedModelRelationships",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "deletedParentIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commitModels",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#commitModels",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commitModelsSynchronized",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#commitModelsSynchronized",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelCommitOutcome",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeModelCommitMaterialization",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#completeModelCommitMaterialization",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeModelGraphProjectionWaiters",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#completeModelGraphProjectionWaiters",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "completed",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionWaiterCompletion>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentParentIds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#currentParentIds",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "childId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "currentProjectionRoots",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#currentProjectionRoots",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "configuration",
+      "type" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#deleteEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deleteModel",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#deleteModel",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelDeletionResult>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.DeleteModel",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deletedRelationshipsByParents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#deletedRelationshipsByParents",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.MutableModelRelationship>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "deletionFingerprint",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#deletionFingerprint",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "cascade",
+      "type" : "io.fluxzero.common.api.modeling.ModelDeletionCascade",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "orderedIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "drainModelGraphProjections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#drainModelGraphProjections",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "drainModelGraphProjections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#drainModelGraphProjections",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "publishNotifications",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "existingEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#existingEvents",
+    "returnType" : "java.util.Map<java.lang.Long,io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getAggregateIds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getAggregateIds",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetAggregateIds",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getEvents",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.AggregateEventStream<io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelChange",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelChange",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelChangeResult",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelChange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelEvents",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEvents",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelGraph",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelGraph",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraph",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "exactBoundary",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "before",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getModelGraphProjectionStatus",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getModelGraphProjectionStatus",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelGraphProjectionStatus",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#getRelationships",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.Relationship>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "materializedModelStateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#materializedModelStateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelAncestorsAt",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#modelAncestorsAt",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelBoundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#modelBoundary",
+    "returnType" : "io.fluxzero.common.modeling.ModelRelationshipQueries.ResolvedBoundary",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelGraphProjectionStatus",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#modelGraphProjectionStatus",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelGraphProjectionStatus",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "collection",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelHeadAt",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#modelHeadAt",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelStreamHead",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelUpdates",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#modelUpdates",
+    "returnType" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult",
+    "modifiers" : [ "private", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.TrackModelUpdates",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextModelStateIndex",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#nextModelStateIndex",
+    "returnType" : "long",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "notifyMonitors",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#notifyMonitors",
+    "returnType" : "void",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "messages",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "planModelDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#planModelDeletion",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelDeletionPlan",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.PlanModelDeletion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "protectedToken",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#protectedToken",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "publishModelMaterializationNotifications",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#publishModelMaterializationNotifications",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "registerModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#registerModelGraphProjection",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.ModelGraphProjectionStatus>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.RegisterModelGraphProjection",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "relationshipsByChildren",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#relationshipsByChildren",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.MutableModelRelationship>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "childIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "relationshipsByParents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#relationshipsByParents",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.MutableModelRelationship>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "parentIds",
+      "type" : "java.util.Collection<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "before",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "repairRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#repairRelationships",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.RepairRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveCurrentGraph",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#resolveCurrentGraph",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootModelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "composition",
+      "type" : "io.fluxzero.common.api.search.ModelGraphComposition",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves explicitly placed current child edges for one page of root search results.\n"
+  }, {
+    "name" : "resolveDeletionIds",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#resolveDeletionIds",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "rootId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "boundary",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxDepth",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxModels",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveModelDocumentCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#resolveModelDocumentCollections",
+    "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves the exact current-document collection for each requested model.\n"
+  }, {
+    "name" : "resolveModelId",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#resolveModelId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestedModelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "resolveRelatedModels",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#resolveRelatedModels",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public", "synchronized" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "relatedModelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraint",
+      "type" : "io.fluxzero.common.api.search.ModelRelationConstraint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves target model IDs from related document matches at the current relationship boundary.\n"
+  }, {
+    "name" : "sanitizeModelCommitResults",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#sanitizeModelCommitResults",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "selected",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "selectPayloads",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#selectPayloads",
+    "returnType" : "java.util.LinkedHashMap<java.lang.Long,io.fluxzero.common.api.SerializedMessage>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "candidates",
+      "type" : "java.util.TreeMap<java.lang.Long,io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "setModelCommitMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelCommitMaterializer",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "materializer",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelCommitMaterializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Links the SDK-only event store to the direct in-memory model materializer.\n"
+  }, {
+    "name" : "setModelGraphProjectionMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#setModelGraphProjectionMaterializer",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "materializer",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionMaterializer",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Links the SDK-only event store to its in-memory search materializer.\n"
+  }, {
+    "name" : "storeEvents",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#storeEvents",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "events",
+      "type" : "java.util.List<io.fluxzero.common.api.SerializedMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "storeOnly",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "takeCompletedModelGraphProjectionWaiters",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#takeCompletedModelGraphProjectionWaiters",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore.ModelGraphProjectionWaiterCompletion>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "trackModelUpdates",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#trackModelUpdates",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.TrackModelUpdatesResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.TrackModelUpdates",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateModelRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#updateModelRelationships",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "readStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "change",
+      "type" : "io.fluxzero.common.modeling.ModelCommitAssignment.RelationshipChange",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitRelationshipView",
+      "type" : "java.util.Map<java.lang.String,java.util.Set<io.fluxzero.common.api.modeling.ModelRelationship>>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "updateRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#updateRelationships",
+    "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.UpdateRelationships",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateCommitRelationships",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#validateCommitRelationships",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "description",
+      "type" : "io.fluxzero.common.modeling.ModelCommitAssignment.Description",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateExistingEventDuplicate",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore#validateExistingEventDuplicate",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stored",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "ModelCommitMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelCommitMaterializer",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "ModelCommitOutcome",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelCommitOutcome",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelGraphProjectionMaterializer",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionMaterializer",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  }, {
+    "name" : "ModelGraphProjectionSignal",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionSignal",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelGraphProjectionWaiter",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWaiter",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelGraphProjectionWaiterCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWaiterCompletion",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelGraphProjectionWork",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelGraphProjectionWork",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelStreamHead",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelStreamHead",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelStreamMembership",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$ModelStreamMembership",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "MutableModelRelationship",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$MutableModelRelationship",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "PendingModelMaterialization",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.InMemoryEventStore$PendingModelMaterialization",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

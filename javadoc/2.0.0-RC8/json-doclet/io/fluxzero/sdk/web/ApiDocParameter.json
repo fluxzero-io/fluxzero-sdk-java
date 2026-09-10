@@ -1,0 +1,194 @@
+{
+  "name" : "ApiDocParameter",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Describes an API parameter inferred from a route path or a web parameter annotation.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter.name",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "parameter",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter.parameter",
+    "type" : "java.lang.reflect.Parameter",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "source",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter.source",
+    "type" : "io.fluxzero.sdk.web.WebParameterSource",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter.type",
+    "type" : "java.lang.reflect.Type",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ApiDocParameter",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#ApiDocParameter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "source",
+      "type" : "io.fluxzero.sdk.web.WebParameterSource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "type",
+      "type" : "java.lang.reflect.Type",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parameter",
+      "type" : "java.lang.reflect.Parameter",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "jakarta.annotation.Nullable",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "name",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#name",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parameter",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#parameter",
+    "returnType" : "java.lang.reflect.Parameter",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "source",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#source",
+    "returnType" : "io.fluxzero.sdk.web.WebParameterSource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocParameter#type",
+    "returnType" : "java.lang.reflect.Type",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "name",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "parameter",
+    "type" : "java.lang.reflect.Parameter",
+    "annotations" : [ {
+      "annotationType" : "jakarta.annotation.Nullable",
+      "values" : {}
+    } ],
+    "documentation" : null
+  }, {
+    "name" : "source",
+    "type" : "io.fluxzero.sdk.web.WebParameterSource",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "type",
+    "type" : "java.lang.reflect.Type",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

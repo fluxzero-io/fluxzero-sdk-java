@@ -1,0 +1,34 @@
+{
+  "name" : "HandlerMethodPlan",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlan",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " A reusable plan for invoking one already selected handler method.\n\n <p>A plan contains the method, its argument-resolution strategy, and either a fixed handler target or a strategy for\n obtaining that target from the current {@link HandlerInput}. For example, a self-handling payload plan obtains its\n target from {@link HandlerInput#getPayload()} on every invocation. Implementations must be immutable and safe for\n concurrent use.</p>\n\n @param <M> the message type used by the handling pipeline\n",
+  "typeParameters" : [ "M" ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.common.handling.HandlerDescriptor" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "invoke",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerMethodPlan#invoke",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Invokes the selected handler method using the supplied input.\n\n @param input the current input; it must satisfy the cache conditions under which this plan was prepared\n @return the handler method's result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

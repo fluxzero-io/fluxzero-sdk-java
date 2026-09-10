@@ -1,0 +1,33 @@
+{
+  "name" : "ServiceException",
+  "qualifiedName" : "io.fluxzero.sdk.common.exception.ServiceException",
+  "packageName" : "io.fluxzero.sdk.common.exception",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " Exception thrown when a {@link io.fluxzero.common.api.Request} fails and an {@link ErrorResult} is returned by\n the Fluxzero Runtime.\n <p>\n This exception is used to complete the {@link CompletableFuture} of a failed request with the message from the\n associated {@code ErrorResult}.\n </p>\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.RuntimeException",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ServiceException",
+    "qualifiedName" : "io.fluxzero.sdk.common.exception.ServiceException#ServiceException",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new exception with the specified error message.\n\n @param message the message describing the failure\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

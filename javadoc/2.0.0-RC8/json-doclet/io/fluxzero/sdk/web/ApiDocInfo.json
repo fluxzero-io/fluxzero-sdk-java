@@ -1,0 +1,284 @@
+{
+  "name" : "ApiDocInfo",
+  "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo",
+  "packageName" : "io.fluxzero.sdk.web",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "PACKAGE,TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  } ],
+  "documentation" : " Adds top-level metadata to generated API documentation.\n <p>\n Place this annotation on a package or handler type to describe the generated API document itself. Compiler options\n such as {@code -Afluxzero.openapi.title=...} can still override the same values for annotation-processor output.\n </p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "apiReferencePath",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#apiReferencePath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Path where the generated API reference HTML page is served when {@link #serveApiReference()} is enabled.\n <p>\n Relative paths are resolved against the {@link Path} value at the same package or handler type where this\n annotation is placed. Absolute paths start at the application root.\n"
+  }, {
+    "name" : "apiReferenceRenderer",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#apiReferenceRenderer",
+    "returnType" : "io.fluxzero.sdk.web.ApiReferenceRenderer",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Renderer used for the generated API reference HTML page.\n"
+  }, {
+    "name" : "apiReferenceScriptUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#apiReferenceScriptUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional renderer script URL. Leave empty to use the SDK default for {@link #apiReferenceRenderer()}.\n <p>\n Set this to a self-hosted URL when CDN access is not desired.\n"
+  }, {
+    "name" : "apiReferenceStylesheetUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#apiReferenceStylesheetUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional renderer stylesheet URL. Leave empty to use the SDK default for {@link #apiReferenceRenderer()} when it\n has one.\n <p>\n This is mainly useful for Swagger UI.\n"
+  }, {
+    "name" : "components",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#components",
+    "returnType" : "io.fluxzero.sdk.web.ApiDocComponent[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Extra OpenAPI components such as shared responses or security schemes. Component paths are relative to the\n OpenAPI {@code components} object, for example {@code responses.error}.\n"
+  }, {
+    "name" : "contactEmail",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#contactEmail",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Contact email address.\n"
+  }, {
+    "name" : "contactName",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#contactName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Contact name.\n"
+  }, {
+    "name" : "contactUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#contactUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Contact URL.\n"
+  }, {
+    "name" : "description",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#description",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " API description. Markdown is allowed by OpenAPI tooling.\n"
+  }, {
+    "name" : "extensions",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#extensions",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Top-level OpenAPI vendor extensions as {@code name=json} entries, for example\n {@code x-code-samples-enabled=true}. Values are parsed as JSON when possible and otherwise rendered as strings.\n"
+  }, {
+    "name" : "licenseName",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#licenseName",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " License name.\n"
+  }, {
+    "name" : "licenseUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#licenseUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " License URL.\n"
+  }, {
+    "name" : "logoAltText",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#logoAltText",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional logo alt text, rendered as {@code info.x-logo.altText}.\n"
+  }, {
+    "name" : "logoUrl",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#logoUrl",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optional logo URL, rendered as the common {@code info.x-logo.url} vendor extension.\n"
+  }, {
+    "name" : "openApiPath",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#openApiPath",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Path where the generated OpenAPI document is served when {@link #serveOpenApi()} is enabled.\n <p>\n This endpoint is also served when {@link #serveApiReference()} is enabled, because the generated HTML reference\n page needs an OpenAPI document to render.\n <p>\n Relative paths are resolved against the {@link Path} value at the same package or handler type where this\n annotation is placed. Absolute paths start at the application root.\n"
+  }, {
+    "name" : "openApiVersion",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#openApiVersion",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " OpenAPI document version. Defaults to {@code 3.0.1}; set {@code 3.1.0} when a consumer requires OpenAPI 3.1.\n"
+  }, {
+    "name" : "security",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#security",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Top-level OpenAPI security requirements.\n <p>\n Values are rendered as security requirement objects. Use {@code bearerAuth} for a scheme without scopes, or\n {@code oauth2=read,write} for scoped schemes. Define the actual schemes through {@link #components()} with paths\n such as {@code securitySchemes.bearerAuth}.\n"
+  }, {
+    "name" : "serveApiReference",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#serveApiReference",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, a small HTML API reference endpoint is served for the generated OpenAPI document.\n <p>\n The endpoint uses {@link #apiReferenceRenderer()} and references externally hosted or self-hosted renderer assets.\n The SDK does not bundle Redoc, Scalar, Swagger UI, or other frontend assets.\n"
+  }, {
+    "name" : "serveOpenApi",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#serveOpenApi",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " If {@code true}, the generated OpenAPI document is served as an automatic web endpoint.\n <p>\n The endpoint is only registered for handlers in the annotated package or type. Use {@link #openApiPath()} to\n avoid route conflicts with application endpoints.\n"
+  }, {
+    "name" : "servers",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#servers",
+    "returnType" : "io.fluxzero.sdk.web.ApiDocServer[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " API servers.\n"
+  }, {
+    "name" : "termsOfService",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#termsOfService",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Terms of service URL.\n"
+  }, {
+    "name" : "title",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#title",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " API title.\n"
+  }, {
+    "name" : "version",
+    "qualifiedName" : "io.fluxzero.sdk.web.ApiDocInfo#version",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " API version.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

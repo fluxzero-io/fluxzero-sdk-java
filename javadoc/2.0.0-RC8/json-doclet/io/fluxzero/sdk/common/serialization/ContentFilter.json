@@ -1,0 +1,39 @@
+{
+  "name" : "ContentFilter",
+  "qualifiedName" : "io.fluxzero.sdk.common.serialization.ContentFilter",
+  "packageName" : "io.fluxzero.sdk.common.serialization",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Represents an interface for filtering content before it is passed to a specified viewer. It allows for the\n modification or transformation of the given value based on the logic implemented in the filter and considering the\n viewer's details.\n\n @see FilterContent\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "filterContent",
+    "qualifiedName" : "io.fluxzero.sdk.common.serialization.ContentFilter#filterContent",
+    "returnType" : "T",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "T" ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "T",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "viewer",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Filters the given value based on the current viewer (user) context. If a {@link FilterContent} handler exists\n in the object's class, it will be invoked to produce a user-specific view of the data.\n\n @param value  the original object\n @param viewer the user viewing the content\n @param <T>    the type of the content object\n @return the filtered version of the object, or the original object if filtering failed or was not applicable\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

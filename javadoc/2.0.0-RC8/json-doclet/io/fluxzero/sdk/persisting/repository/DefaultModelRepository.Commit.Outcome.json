@@ -1,0 +1,189 @@
+{
+  "name" : "Outcome",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "class",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "The one repository-owned carrier from prepared request through authoritative accepted result. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "changes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome.changes",
+    "type" : "java.util.Map<io.fluxzero.common.api.modeling.ModelCommitTarget,io.fluxzero.sdk.modeling.Change>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome.commit",
+    "type" : "io.fluxzero.common.api.modeling.CommitModels",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "existingEvent",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome.existingEvent",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome.result",
+    "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "revisions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome.revisions",
+    "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CommittedRevision>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Outcome",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#Outcome",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "changes",
+      "type" : "java.util.Map<io.fluxzero.common.api.modeling.ModelCommitTarget,io.fluxzero.sdk.modeling.Change>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "existingEvent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "Outcome",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#Outcome",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "changes",
+      "type" : "java.util.Map<io.fluxzero.common.api.modeling.ModelCommitTarget,io.fluxzero.sdk.modeling.Change>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "revisions",
+      "type" : "java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CommittedRevision>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "existingEvent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "accepted",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#accepted",
+    "returnType" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit.Outcome",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "accepted",
+      "type" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "changes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#changes",
+    "returnType" : "java.util.Collection<io.fluxzero.sdk.modeling.Change>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "commit",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#commit",
+    "returnType" : "io.fluxzero.common.api.modeling.CommitModels",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hasCascadedDeletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#hasCascadedDeletion",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "result",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#result",
+    "returnType" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "revisions",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.DefaultModelRepository$Commit$Outcome#revisions",
+    "returnType" : "java.util.List<io.fluxzero.sdk.persisting.repository.DefaultModelRepository.CommittedRevision>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

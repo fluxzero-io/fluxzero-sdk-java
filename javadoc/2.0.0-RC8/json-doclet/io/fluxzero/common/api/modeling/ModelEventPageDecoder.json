@@ -1,0 +1,144 @@
+{
+  "name" : "ModelEventPageDecoder",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Expands the persisted blocks in a canonical model-event page into its logical payloads and stream memberships.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ModelEventPageDecoder",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder#ModelEventPageDecoder",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "decodePayloadBlock",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder#decodePayloadBlock",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder.DecodedPayloadBlock",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "block",
+      "type" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "expand",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder#expand",
+    "returnType" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEvents",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the logical page for a request. Already expanded pages are returned unchanged.\n"
+  }, {
+    "name" : "expandMemberships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder#expandMemberships",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventStream>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "request",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEvents",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "result",
+      "type" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "blocks",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventDataBlock>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selectedStateIndices",
+      "type" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder.LongSet",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "expandPayloads",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder#expandPayloads",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "payloadBlocks",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventPayloadBlock>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "eventIndices",
+      "type" : "long[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "stateIndices",
+      "type" : "long[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "selectedStates",
+      "type" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder.LongSet",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "expanded",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventPayload>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "DecodedPayloadBlock",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder$DecodedPayloadBlock",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "LongSet",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder$LongSet",
+    "kind" : "class",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
+}

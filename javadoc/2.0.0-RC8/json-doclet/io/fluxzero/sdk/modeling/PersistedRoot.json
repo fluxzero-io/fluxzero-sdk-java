@@ -1,0 +1,145 @@
+{
+  "name" : "PersistedRoot",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Shared revision contract for an independently persisted Aggregate or Model root.\n\n @param <T> underlying domain value type\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : null,
+  "interfaces" : [ "io.fluxzero.sdk.modeling.Entity<T>" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "lastEventId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#lastEventId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "lastEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#lastEventIndex",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#parent",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<?>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "previous",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#previous",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sequenceNumber",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#sequenceNumber",
+    "returnType" : "long",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#timestamp",
+    "returnType" : "java.time.Instant",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withEventIndex",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#withEventIndex",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "index",
+      "type" : "java.lang.Long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "withSequenceNumber",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.PersistedRoot#withSequenceNumber",
+    "returnType" : "io.fluxzero.sdk.modeling.Entity<T>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "sequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

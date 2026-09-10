@@ -1,0 +1,61 @@
+{
+  "name" : "Converter",
+  "qualifiedName" : "io.fluxzero.common.serialization.Converter",
+  "packageName" : "io.fluxzero.common.serialization",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Interface for converting {@link Data} objects from one format or representation to another.\n <p>\n Converters are typically used to transform serialized data—e.g., for encoding changes, compression, encryption, or\n changing the representation format (such as JSON to binary).\n\n @param <I> the input data format type\n @param <O> the output data format type\n",
+  "typeParameters" : [ "I", "O" ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "convert",
+    "qualifiedName" : "io.fluxzero.common.serialization.Converter#convert",
+    "returnType" : "io.fluxzero.common.api.Data<O>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "io.fluxzero.common.api.Data<I>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Converts the given {@link Data} from input type {@code I} to output type {@code O}.\n\n @param data the input data\n @return the converted data\n"
+  }, {
+    "name" : "convertFormat",
+    "qualifiedName" : "io.fluxzero.common.serialization.Converter#convertFormat",
+    "returnType" : "io.fluxzero.common.api.Data<?>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "data",
+      "type" : "io.fluxzero.common.api.Data<I>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Optionally converts the structure or format (e.g.: application/json) of the input data without modifying its core\n content.\n <p>\n This method is used in scenarios where only a format change is required (e.g., wrapping metadata differently),\n and may return the original input or a modified version depending on the implementation.\n\n @param data the input data\n @return the format-converted data, or the original input (default implementation)\n"
+  }, {
+    "name" : "getOutputType",
+    "qualifiedName" : "io.fluxzero.common.serialization.Converter#getOutputType",
+    "returnType" : "java.lang.Class<O>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " @return the target output type this converter produces\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

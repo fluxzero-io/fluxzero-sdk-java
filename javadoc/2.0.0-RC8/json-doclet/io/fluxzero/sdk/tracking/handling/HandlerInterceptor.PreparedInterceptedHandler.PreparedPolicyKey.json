@@ -1,0 +1,124 @@
+{
+  "name" : "PreparedPolicyKey",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "method",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey.method",
+    "type" : "java.lang.reflect.Executable",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "targetClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey.targetClass",
+    "type" : "java.lang.Class<?>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "PreparedPolicyKey",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey#PreparedPolicyKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "targetClass",
+      "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "method",
+      "type" : "java.lang.reflect.Executable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "method",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey#method",
+    "returnType" : "java.lang.reflect.Executable",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "targetClass",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey#targetClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedInterceptedHandler$PreparedPolicyKey#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "method",
+    "type" : "java.lang.reflect.Executable",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "targetClass",
+    "type" : "java.lang.Class<?>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,196 @@
+{
+  "name" : "DirectReferences",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelIds",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences.modelIds",
+    "type" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "present",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences.present",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DirectReferences",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#DirectReferences",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "present",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#collection",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "missing",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#missing",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#modelId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "modelIds",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#modelIds",
+    "returnType" : "java.util.List<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "present",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#present",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scalar",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#scalar",
+    "returnType" : "io.fluxzero.sdk.modeling.MutationPlan.DirectReferences",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$DirectReferences#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "modelId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelIds",
+    "type" : "java.util.List<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "present",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

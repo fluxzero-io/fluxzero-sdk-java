@@ -1,0 +1,213 @@
+{
+  "name" : "WebSocketModelCommitBatch",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "class",
+  "modifiers" : [ "final", "private" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitBatch" ],
+  "fields" : [ {
+    "name" : "SKIPPED",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch.SKIPPED",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "completed",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch.completed",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "remaining",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch.remaining",
+    "type" : "java.util.concurrent.atomic.AtomicInteger",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "requests",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch.requests",
+    "type" : "java.util.concurrent.atomic.AtomicReferenceArray<java.lang.Object>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "WebSocketModelCommitBatch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#WebSocketModelCommitBatch",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "capacity",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#add",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "add",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#add",
+    "returnType" : "java.util.concurrent.CompletableFuture<io.fluxzero.common.api.modeling.CommitModelsResult>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "completion",
+      "type" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitCompletion",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fail",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#fail",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "finish",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#finish",
+    "returnType" : "java.util.List<io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.PreparedRequest<io.fluxzero.common.api.modeling.CommitModelsResult>>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"unchecked\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "flush",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#flush",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "skip",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#skip",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "slotSettled",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#slotSettled",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "validateSlot",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$WebSocketModelCommitBatch#validateSlot",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "slot",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

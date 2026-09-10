@@ -1,0 +1,63 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Compact result summary used for metrics.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "auditTrailCount",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric.auditTrailCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Number of audit trails.\n",
+    "constantValue" : null
+  }, {
+    "name" : "collectionCount",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric.collectionCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Number of regular collections.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Timestamp when the collection names were retrieved.\n",
+    "constantValue" : null
+  }, {
+    "name" : "unknownCount",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric.unknownCount",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Number of collections whose type is unknown to this SDK version.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetSearchCollectionsResult$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

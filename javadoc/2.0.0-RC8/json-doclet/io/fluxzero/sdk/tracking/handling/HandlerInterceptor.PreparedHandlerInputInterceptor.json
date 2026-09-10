@@ -1,0 +1,55 @@
+{
+  "name" : "PreparedHandlerInputInterceptor",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInputInterceptor",
+  "packageName" : "io.fluxzero.sdk.tracking.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Intercepts one prepared local invocation using a lazy {@link HandlerInput}.\n\n <p>Implementations are cached and may be invoked concurrently. Calling {@link HandlerInput#getMessage()} is\n supported, but creates the complete message and forfeits the allocation benefit for that invocation.</p>\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "noOp",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInputInterceptor.noOp",
+    "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputInterceptor",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ],
+    "documentation" : "A policy that immediately proceeds to the next interceptor or handler. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "interceptHandling",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor$PreparedHandlerInputInterceptor#interceptHandling",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.handling.HandlerInput<io.fluxzero.sdk.common.serialization.DeserializingMessage>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "handler",
+      "type" : "io.fluxzero.common.handling.HandlerDescriptor",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "next",
+      "type" : "io.fluxzero.sdk.tracking.handling.HandlerInterceptor.PreparedHandlerInputFunction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts one local handler invocation.\n\n @param input the current lazy handler input\n @param handler stable information about the selected handler method\n @param next the remaining interceptor chain and handler invocation\n @return the handling result\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

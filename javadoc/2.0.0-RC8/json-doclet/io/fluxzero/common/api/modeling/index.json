@@ -1,0 +1,429 @@
+{
+  "package" : {
+    "name" : "modeling",
+    "qualifiedName" : "io.fluxzero.common.api.modeling",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "AwaitModelGraphProjection.json",
+    "name" : "AwaitModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.AwaitModelGraphProjection",
+    "kind" : "class"
+  }, {
+    "file" : "CommitModels.json",
+    "name" : "CommitModels",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels",
+    "kind" : "class"
+  }, {
+    "file" : "CommitModels.Metric.json",
+    "name" : "CommitModels.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModels$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "CommitModelsResult.json",
+    "name" : "CommitModelsResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsResult",
+    "kind" : "class"
+  }, {
+    "file" : "CommitModelsResult.Metric.json",
+    "name" : "CommitModelsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "DeleteModel.json",
+    "name" : "DeleteModel",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel",
+    "kind" : "class"
+  }, {
+    "file" : "DeleteModel.Metric.json",
+    "name" : "DeleteModel.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.DeleteModel$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetAggregateIds.json",
+    "name" : "GetAggregateIds",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIds",
+    "kind" : "class"
+  }, {
+    "file" : "GetAggregateIdsResult.json",
+    "name" : "GetAggregateIdsResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetAggregateIdsResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelChange.json",
+    "name" : "GetModelChange",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelChange",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelChange.Metric.json",
+    "name" : "GetModelChange.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelChange$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelChangeResult.json",
+    "name" : "GetModelChangeResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelChangeResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelChangeResult.Metric.json",
+    "name" : "GetModelChangeResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelChangeResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelEvents.json",
+    "name" : "GetModelEvents",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelEvents.Metric.json",
+    "name" : "GetModelEvents.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEvents$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelEventsResult.json",
+    "name" : "GetModelEventsResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelEventsResult.Metric.json",
+    "name" : "GetModelEventsResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelEventsResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelGraph.json",
+    "name" : "GetModelGraph",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelGraph.Metric.json",
+    "name" : "GetModelGraph.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelGraph.TraversalDirection.json",
+    "name" : "GetModelGraph.TraversalDirection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraph$TraversalDirection",
+    "kind" : "enum"
+  }, {
+    "file" : "GetModelGraphProjectionStatus.json",
+    "name" : "GetModelGraphProjectionStatus",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelGraphResult.json",
+    "name" : "GetModelGraphResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraphResult",
+    "kind" : "class"
+  }, {
+    "file" : "GetModelGraphResult.Metric.json",
+    "name" : "GetModelGraphResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetModelGraphResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "GetRelationships.json",
+    "name" : "GetRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationships",
+    "kind" : "class"
+  }, {
+    "file" : "GetRelationshipsResult.json",
+    "name" : "GetRelationshipsResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.GetRelationshipsResult",
+    "kind" : "class"
+  }, {
+    "file" : "ModelChangeTarget.json",
+    "name" : "ModelChangeTarget",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelChangeTarget",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitConflict.json",
+    "name" : "ModelCommitConflict",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitConflict",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitStep.json",
+    "name" : "ModelCommitStep",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitStep",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitTarget.json",
+    "name" : "ModelCommitTarget",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTarget",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitTargetResult.json",
+    "name" : "ModelCommitTargetResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitTargetResult",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitValidator.json",
+    "name" : "ModelCommitValidator",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitValidator",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitValidator.RelationshipKey.json",
+    "name" : "ModelCommitValidator.RelationshipKey",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitValidator$RelationshipKey",
+    "kind" : "record"
+  }, {
+    "file" : "ModelCommitWireCodec.json",
+    "name" : "ModelCommitWireCodec",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitWireCodec.CompactSingleTargetResult.json",
+    "name" : "ModelCommitWireCodec.CompactSingleTargetResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$CompactSingleTargetResult",
+    "kind" : "class"
+  }, {
+    "file" : "ModelCommitWireCodec.RequestBatchDescriptor.json",
+    "name" : "ModelCommitWireCodec.RequestBatchDescriptor",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$RequestBatchDescriptor",
+    "kind" : "record"
+  }, {
+    "file" : "ModelCommitWireCodec.RequestEncodingPlan.json",
+    "name" : "ModelCommitWireCodec.RequestEncodingPlan",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelCommitWireCodec$RequestEncodingPlan",
+    "kind" : "record"
+  }, {
+    "file" : "ModelConflictPolicy.json",
+    "name" : "ModelConflictPolicy",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "kind" : "enum"
+  }, {
+    "file" : "ModelDeletionCascade.json",
+    "name" : "ModelDeletionCascade",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionCascade",
+    "kind" : "enum"
+  }, {
+    "file" : "ModelDeletionPlan.json",
+    "name" : "ModelDeletionPlan",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan",
+    "kind" : "class"
+  }, {
+    "file" : "ModelDeletionPlan.Metric.json",
+    "name" : "ModelDeletionPlan.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionPlan$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "ModelDeletionResult.json",
+    "name" : "ModelDeletionResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionResult",
+    "kind" : "class"
+  }, {
+    "file" : "ModelDeletionResult.Metric.json",
+    "name" : "ModelDeletionResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDeletionResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "ModelDocumentMutation.json",
+    "name" : "ModelDocumentMutation",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelDocumentMutation",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventDataBlock.json",
+    "name" : "ModelEventDataBlock",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventDataBlock",
+    "kind" : "record"
+  }, {
+    "file" : "ModelEventMembership.json",
+    "name" : "ModelEventMembership",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventMetadata.json",
+    "name" : "ModelEventMetadata",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMetadata",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventPageDecoder.json",
+    "name" : "ModelEventPageDecoder",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventPageDecoder.DecodedPayloadBlock.json",
+    "name" : "ModelEventPageDecoder.DecodedPayloadBlock",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder$DecodedPayloadBlock",
+    "kind" : "record"
+  }, {
+    "file" : "ModelEventPageDecoder.LongSet.json",
+    "name" : "ModelEventPageDecoder.LongSet",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPageDecoder$LongSet",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventPayload.json",
+    "name" : "ModelEventPayload",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayload",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventPayloadBlock.json",
+    "name" : "ModelEventPayloadBlock",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventPayloadBlock",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventStream.json",
+    "name" : "ModelEventStream",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventStream",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventStreamRequest.json",
+    "name" : "ModelEventStreamRequest",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventStreamRequest",
+    "kind" : "class"
+  }, {
+    "file" : "ModelEventWireCodec.json",
+    "name" : "ModelEventWireCodec",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphEdge.json",
+    "name" : "ModelGraphEdge",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphEdge",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphPathOverride.json",
+    "name" : "ModelGraphPathOverride",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphPathOverride",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphProjectionConfiguration.json",
+    "name" : "ModelGraphProjectionConfiguration",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphProjectionConfiguration.ModelRevision.json",
+    "name" : "ModelGraphProjectionConfiguration.ModelRevision",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration$ModelRevision",
+    "kind" : "record"
+  }, {
+    "file" : "ModelGraphProjectionStatus.json",
+    "name" : "ModelGraphProjectionStatus",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelGraphProjectionStatus",
+    "kind" : "class"
+  }, {
+    "file" : "ModelHeadState.json",
+    "name" : "ModelHeadState",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelHeadState",
+    "kind" : "class"
+  }, {
+    "file" : "ModelReadBoundary.json",
+    "name" : "ModelReadBoundary",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "kind" : "record"
+  }, {
+    "file" : "ModelRelationship.json",
+    "name" : "ModelRelationship",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationship",
+    "kind" : "class"
+  }, {
+    "file" : "ModelRelationshipCycleValidator.json",
+    "name" : "ModelRelationshipCycleValidator",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator",
+    "kind" : "class"
+  }, {
+    "file" : "ModelRelationshipCycleValidator.Change.json",
+    "name" : "ModelRelationshipCycleValidator.Change",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator$Change",
+    "kind" : "record"
+  }, {
+    "file" : "ModelRelationshipCycleValidator.Edge.json",
+    "name" : "ModelRelationshipCycleValidator.Edge",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator$Edge",
+    "kind" : "record"
+  }, {
+    "file" : "ModelRelationshipCycleValidator.ParentLoader.json",
+    "name" : "ModelRelationshipCycleValidator.ParentLoader",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator$ParentLoader",
+    "kind" : "interface"
+  }, {
+    "file" : "ModelRelationshipCycleValidator.Step.json",
+    "name" : "ModelRelationshipCycleValidator.Step",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator$Step",
+    "kind" : "record"
+  }, {
+    "file" : "ModelRelationshipCycleValidator.ValidationException.json",
+    "name" : "ModelRelationshipCycleValidator.ValidationException",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipCycleValidator$ValidationException",
+    "kind" : "class"
+  }, {
+    "file" : "ModelSnapshotMutation.json",
+    "name" : "ModelSnapshotMutation",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelSnapshotMutation",
+    "kind" : "class"
+  }, {
+    "file" : "ModelStateIndexCodec.json",
+    "name" : "ModelStateIndexCodec",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStateIndexCodec",
+    "kind" : "class"
+  }, {
+    "file" : "ModelStreamBatchDecoder.json",
+    "name" : "ModelStreamBatchDecoder",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder",
+    "kind" : "class"
+  }, {
+    "file" : "ModelStreamBatchDecoder.Entry.json",
+    "name" : "ModelStreamBatchDecoder.Entry",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelStreamBatchDecoder$Entry",
+    "kind" : "record"
+  }, {
+    "file" : "ModelUpdate.json",
+    "name" : "ModelUpdate",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdate",
+    "kind" : "class"
+  }, {
+    "file" : "ModelUpdateKind.json",
+    "name" : "ModelUpdateKind",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelUpdateKind",
+    "kind" : "enum"
+  }, {
+    "file" : "ModelWebSocketCodec.json",
+    "name" : "ModelWebSocketCodec",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelWebSocketCodec",
+    "kind" : "enum"
+  }, {
+    "file" : "PlanModelDeletion.json",
+    "name" : "PlanModelDeletion",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.PlanModelDeletion",
+    "kind" : "class"
+  }, {
+    "file" : "PlanModelDeletion.Metric.json",
+    "name" : "PlanModelDeletion.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.PlanModelDeletion$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "RegisterModelGraphProjection.json",
+    "name" : "RegisterModelGraphProjection",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RegisterModelGraphProjection",
+    "kind" : "class"
+  }, {
+    "file" : "Relationship.json",
+    "name" : "Relationship",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.Relationship",
+    "kind" : "class"
+  }, {
+    "file" : "RepairRelationships.json",
+    "name" : "RepairRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.RepairRelationships",
+    "kind" : "class"
+  }, {
+    "file" : "TrackModelUpdates.json",
+    "name" : "TrackModelUpdates",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdates",
+    "kind" : "class"
+  }, {
+    "file" : "TrackModelUpdatesResult.json",
+    "name" : "TrackModelUpdatesResult",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult",
+    "kind" : "class"
+  }, {
+    "file" : "TrackModelUpdatesResult.Metric.json",
+    "name" : "TrackModelUpdatesResult.Metric",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.TrackModelUpdatesResult$Metric",
+    "kind" : "class"
+  }, {
+    "file" : "UpdateRelationships.json",
+    "name" : "UpdateRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.UpdateRelationships",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

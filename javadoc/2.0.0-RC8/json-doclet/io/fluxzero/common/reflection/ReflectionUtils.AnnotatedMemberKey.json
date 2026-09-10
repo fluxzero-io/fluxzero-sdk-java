@@ -1,0 +1,124 @@
+{
+  "name" : "AnnotatedMemberKey",
+  "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey",
+  "packageName" : "io.fluxzero.common.reflection",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "annotationType",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey.annotationType",
+    "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "element",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey.element",
+    "type" : "java.lang.reflect.AnnotatedElement",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "AnnotatedMemberKey",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey#AnnotatedMemberKey",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "element",
+      "type" : "java.lang.reflect.AnnotatedElement",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "annotationType",
+      "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "annotationType",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey#annotationType",
+    "returnType" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "element",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey#element",
+    "returnType" : "java.lang.reflect.AnnotatedElement",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$AnnotatedMemberKey#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "annotationType",
+    "type" : "java.lang.Class<? extends java.lang.annotation.Annotation>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "element",
+    "type" : "java.lang.reflect.AnnotatedElement",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

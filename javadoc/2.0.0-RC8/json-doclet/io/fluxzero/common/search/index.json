@@ -1,0 +1,104 @@
+{
+  "package" : {
+    "name" : "search",
+    "qualifiedName" : "io.fluxzero.common.search",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "DefaultDocumentSerializer.json",
+    "name" : "DefaultDocumentSerializer",
+    "qualifiedName" : "io.fluxzero.common.search.DefaultDocumentSerializer",
+    "kind" : "enum"
+  }, {
+    "file" : "Document.json",
+    "name" : "Document",
+    "qualifiedName" : "io.fluxzero.common.search.Document",
+    "kind" : "class"
+  }, {
+    "file" : "Document.Entry.json",
+    "name" : "Document.Entry",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry",
+    "kind" : "class"
+  }, {
+    "file" : "Document.EntryType.json",
+    "name" : "Document.EntryType",
+    "qualifiedName" : "io.fluxzero.common.search.Document$EntryType",
+    "kind" : "enum"
+  }, {
+    "file" : "Document.NullHandling.json",
+    "name" : "Document.NullHandling",
+    "qualifiedName" : "io.fluxzero.common.search.Document$NullHandling",
+    "kind" : "enum"
+  }, {
+    "file" : "Document.Path.json",
+    "name" : "Document.Path",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Path",
+    "kind" : "class"
+  }, {
+    "file" : "Document.SortInstruction.json",
+    "name" : "Document.SortInstruction",
+    "qualifiedName" : "io.fluxzero.common.search.Document$SortInstruction",
+    "kind" : "record"
+  }, {
+    "file" : "Facet.json",
+    "name" : "Facet",
+    "qualifiedName" : "io.fluxzero.common.search.Facet",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Inverter.json",
+    "name" : "Inverter",
+    "qualifiedName" : "io.fluxzero.common.search.Inverter",
+    "kind" : "interface"
+  }, {
+    "file" : "JacksonInverter.json",
+    "name" : "JacksonInverter",
+    "qualifiedName" : "io.fluxzero.common.search.JacksonInverter",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphDocumentManifest.json",
+    "name" : "ModelGraphDocumentManifest",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest",
+    "kind" : "record"
+  }, {
+    "file" : "ModelGraphDocumentManifest.Node.json",
+    "name" : "ModelGraphDocumentManifest.Node",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentManifest$Node",
+    "kind" : "record"
+  }, {
+    "file" : "ModelGraphDocumentSearch.json",
+    "name" : "ModelGraphDocumentSearch",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentSearch",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphDocumentStitcher.json",
+    "name" : "ModelGraphDocumentStitcher",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphDocumentStitcher.Bounds.json",
+    "name" : "ModelGraphDocumentStitcher.Bounds",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$Bounds",
+    "kind" : "class"
+  }, {
+    "file" : "ModelGraphDocumentStitcher.ManifestBuilder.json",
+    "name" : "ModelGraphDocumentStitcher.ManifestBuilder",
+    "qualifiedName" : "io.fluxzero.common.search.ModelGraphDocumentStitcher$ManifestBuilder",
+    "kind" : "class"
+  }, {
+    "file" : "SearchExclude.json",
+    "name" : "SearchExclude",
+    "qualifiedName" : "io.fluxzero.common.search.SearchExclude",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "SearchInclude.json",
+    "name" : "SearchInclude",
+    "qualifiedName" : "io.fluxzero.common.search.SearchInclude",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Sortable.json",
+    "name" : "Sortable",
+    "qualifiedName" : "io.fluxzero.common.search.Sortable",
+    "kind" : "annotation_type"
+  } ],
+  "subdirectories" : [ ]
+}

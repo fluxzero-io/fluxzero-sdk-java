@@ -1,0 +1,373 @@
+{
+  "name" : "ModelEventWireCodec",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Compact websocket representation for model-stream reads.\n <p>\n Model-event responses contain many small memberships. Encoding those as generic CBOR objects costs substantially\n more CPU and allocation than loading the underlying rows. This codec preserves the same protocol objects while\n representing their fixed fields directly.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "BOUNDARY_EVIDENCE_RESULT_VERSION",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.BOUNDARY_EVIDENCE_RESULT_VERSION",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 9
+  }, {
+    "name" : "DIRECT_REQUEST_MAGIC",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.DIRECT_REQUEST_MAGIC",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1180321137
+  }, {
+    "name" : "DIRECT_RESULT_MAGIC",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.DIRECT_RESULT_MAGIC",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1180321138
+  }, {
+    "name" : "FALLBACK_REQUEST_VERSION",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.FALLBACK_REQUEST_VERSION",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 8
+  }, {
+    "name" : "MAX_BATCH_SIZE",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.MAX_BATCH_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1000000
+  }, {
+    "name" : "MAX_COLLECTION_SIZE",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.MAX_COLLECTION_SIZE",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 2000000
+  }, {
+    "name" : "MAX_VALUE_BYTES",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.MAX_VALUE_BYTES",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 536870912
+  }, {
+    "name" : "REQUEST_MAGIC",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.REQUEST_MAGIC",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1180321105
+  }, {
+    "name" : "RESULT_MAGIC",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.RESULT_MAGIC",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 1180321106
+  }, {
+    "name" : "VERSION",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec.VERSION",
+    "type" : "int",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 7
+  } ],
+  "constructors" : [ {
+    "name" : "ModelEventWireCodec",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#ModelEventWireCodec",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "commonModelIdPrefix",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#commonModelIdPrefix",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "streams",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventStream>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decodeRequests",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#decodeRequests",
+    "returnType" : "io.fluxzero.common.api.RequestBatch<io.fluxzero.common.api.modeling.GetModelEvents>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.internal.BinaryWire.Reader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "version",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "decodeResults",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#decodeResults",
+    "returnType" : "io.fluxzero.common.api.ResultBatch",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.internal.BinaryWire.Reader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "version",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "encodeRequests",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#encodeRequests",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.RequestBatch<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "magic",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "encodeResults",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#encodeResults",
+    "returnType" : "byte[]",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.ResultBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "magic",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "encodedMessageSize",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#encodedMessageSize",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.common.api.SerializedMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "encodedResultSize",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#encodedResultSize",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.ResultBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "version",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readByteBlocks",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#readByteBlocks",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventDataBlock>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.internal.BinaryWire.Reader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readPayloadBlocks",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#readPayloadBlocks",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventPayloadBlock>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "input",
+      "type" : "io.fluxzero.common.api.internal.BinaryWire.Reader",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sharedModelType",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#sharedModelType",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "streams",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventStream>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "sharedSequenceNumber",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#sharedSequenceNumber",
+    "returnType" : "java.lang.Long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "streams",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelEventStream>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsRequests",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#supportsRequests",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.RequestBatch<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "supportsResults",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#supportsResults",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "batch",
+      "type" : "io.fluxzero.common.api.ResultBatch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "tryDecode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#tryDecode",
+    "returnType" : "io.fluxzero.common.api.JsonType",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "bytes",
+      "type" : "byte[]",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Decodes this codec's representation, or returns {@code null} for another transport format.\n"
+  }, {
+    "name" : "tryEncode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventWireCodec#tryEncode",
+    "returnType" : "byte[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "io.fluxzero.common.api.JsonType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ "java.io.IOException" ],
+    "varArgs" : false,
+    "documentation" : " Encodes a homogeneous compact model-event request or result batch.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

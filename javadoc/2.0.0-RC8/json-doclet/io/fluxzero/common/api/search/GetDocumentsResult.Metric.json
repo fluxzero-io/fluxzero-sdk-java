@@ -1,0 +1,55 @@
+{
+  "name" : "Metric",
+  "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentsResult$Metric",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Lightweight structure for representing {@link GetDocumentsResult} in Fluxzero metrics logs.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "bytes",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentsResult$Metric.bytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The size of all the retrieved documents in bytes.\n",
+    "constantValue" : null
+  }, {
+    "name" : "idsFound",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentsResult$Metric.idsFound",
+    "type" : "java.util.Collection<java.lang.String>",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The ids of retrieved documents.\n",
+    "constantValue" : null
+  }, {
+    "name" : "timestamp",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentsResult$Metric.timestamp",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The time (in milliseconds since epoch) when the response was generated.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Metric",
+    "qualifiedName" : "io.fluxzero.common.api.search.GetDocumentsResult$Metric#Metric",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

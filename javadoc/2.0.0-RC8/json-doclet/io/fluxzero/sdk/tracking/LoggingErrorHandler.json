@@ -1,0 +1,71 @@
+{
+  "name" : "LoggingErrorHandler",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.LoggingErrorHandler",
+  "packageName" : "io.fluxzero.sdk.tracking",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.extern.slf4j.Slf4j",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " The default {@link ErrorHandler} implementation used by Fluxzero consumers.\n <p>\n This handler logs errors that occur during message tracking and processing, then allows tracking to continue. It is\n intended for general-purpose use where robustness is more important than fail-fast behavior, but silent failure is\n undesirable.\n\n <p><strong>Logging Behavior:</strong>\n <ul>\n     <li>Technical exceptions (i.e., not {@link FunctionalException}) are always logged at {@code ERROR} level.</li>\n     <li>{@link FunctionalException}s are logged at {@code WARN} level if {@code logFunctionalErrors} is {@code true}.</li>\n     <li>The error message and full exception are included in logs to aid observability.</li>\n </ul>\n\n <p><strong>Control Flow:</strong>\n <ul>\n     <li>Tracking always continues; no exception is thrown.</li>\n     <li>The original error is returned, and may be published as a {@code Result} message.</li>\n     <li>The {@code retryFunction} is not executed in this implementation.</li>\n </ul>\n\n <p><strong>Usage:</strong> This handler is used by default if no custom {@code errorHandler} is specified in the\n {@link Consumer} annotation or {@link ConsumerConfiguration}.\n\n <pre>{@code\n @Consumer(name = \"default\")\n public class MyHandler {\n     @HandleEvent\n     void on(UserRegistered event) {\n         // Recoverable errors will be logged and processing continues\n     }\n }\n }</pre>\n\n @see ErrorHandler\n @see ThrowingErrorHandler\n @see SilentErrorHandler\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.ErrorHandler" ],
+  "fields" : [ {
+    "name" : "logFunctionalErrors",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.LoggingErrorHandler.logFunctionalErrors",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : " Whether to log {@link FunctionalException}s at {@code WARN} level. Technical errors are always logged at\n {@code ERROR}.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "LoggingErrorHandler",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.LoggingErrorHandler#LoggingErrorHandler",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a {@code LoggingErrorHandler} that logs both technical and functional errors.\n"
+  } ],
+  "methods" : [ {
+    "name" : "handleError",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.LoggingErrorHandler#handleError",
+    "returnType" : "java.lang.Object",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "error",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "errorMessage",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "retryFunction",
+      "type" : "java.util.concurrent.Callable<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Logs the given error and allows tracking to continue.\n\n @param error         the {@link Throwable} encountered during message processing\n @param errorMessage  context about the failure\n @param retryFunction the operation that was attempted (ignored in this implementation)\n @return the original error object (may be published as a {@code Result} message)\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

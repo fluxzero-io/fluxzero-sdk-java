@@ -1,0 +1,71 @@
+{
+  "name" : "ConditionalOnProperty",
+  "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnProperty",
+  "packageName" : "io.fluxzero.sdk.configuration.spring",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "METHOD,TYPE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "org.springframework.context.annotation.Conditional",
+    "values" : {
+      "value" : "io.fluxzero.sdk.configuration.spring.ConditionalOnProperty.Condition.class"
+    }
+  } ],
+  "documentation" : " {@link Conditional} that only matches when a specific property is set and matches a given pattern.\n\n <h2>Usage</h2>\n <pre>{@code\n @ConditionalOnProperty(value = \"feature.enabled\")\n @Bean\n public FeatureService featureService() {\n     return new FeatureService();\n }\n }</pre>\n\n <p>\n The pattern is a regular expression (defaults to {@code \".+\"}, i.e., non-empty).\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "pattern",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnProperty#pattern",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnProperty#value",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Condition",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.spring.ConditionalOnProperty$Condition",
+    "kind" : "class",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "org.springframework.core.annotation.Order",
+      "values" : {
+        "value" : "-2147483648"
+      }
+    }, {
+      "annotationType" : "java.lang.SuppressWarnings",
+      "values" : {
+        "value" : "\"ConstantConditions\""
+      }
+    } ]
+  } ]
+}

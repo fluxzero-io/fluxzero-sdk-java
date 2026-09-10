@@ -1,0 +1,168 @@
+{
+  "name" : "InvokeFunctions",
+  "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions",
+  "packageName" : "io.fluxzero.common.reflection",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "generalFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions.generalFunction",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.GeneralFunction",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "noParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions.noParameterFunction",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.NoParameterFunction",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "singleParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions.singleParameterFunction",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.SingleParameterFunction",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "InvokeFunctions",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#InvokeFunctions",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "generalFunction",
+      "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.GeneralFunction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "InvokeFunctions",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#InvokeFunctions",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "generalFunction",
+      "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.GeneralFunction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "noParameterFunction",
+      "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.NoParameterFunction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "singleParameterFunction",
+      "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.SingleParameterFunction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "generalFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#generalFunction",
+    "returnType" : "io.fluxzero.common.reflection.DefaultMemberInvoker.GeneralFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "noParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#noParameterFunction",
+    "returnType" : "io.fluxzero.common.reflection.DefaultMemberInvoker.NoParameterFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "singleParameterFunction",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#singleParameterFunction",
+    "returnType" : "io.fluxzero.common.reflection.DefaultMemberInvoker.SingleParameterFunction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.reflection.DefaultMemberInvoker$InvokeFunctions#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "generalFunction",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.GeneralFunction",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "noParameterFunction",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.NoParameterFunction",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "singleParameterFunction",
+    "type" : "io.fluxzero.common.reflection.DefaultMemberInvoker.SingleParameterFunction",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}
