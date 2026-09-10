@@ -247,6 +247,32 @@ class LocalOnlyDispatchTest {
         }
     }
 
+    @Test
+    void cachedScopeDoesNotCaptureAnotherApplicationsDispatchDecisions() {
+        try (Fluxzero fluxzero = createFluxzero()) {
+            assertMissingHandler(fluxzero.commandGateway().send(new LocalCommand("warm")));
+            fluxzero.commandGateway().sendAndForget(Guarantee.STORED, new OrdinaryCommand()).join();
+            assertEquals(1, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
+        }
+
+        FluxzeroBuilder builder = DefaultFluxzero.builder().addDispatchInterceptor((message, type, topic) -> {
+            if (message.getPayload() instanceof OrdinaryCommand) {
+                return message.withPayload(new LocalCommand("replacement"));
+            }
+            if (message.getPayload() instanceof LocalCommand) {
+                return message.withPayload(new OrdinaryCommand());
+            }
+            return message;
+        }, COMMAND);
+        try (Fluxzero fluxzero = createFluxzero(builder)) {
+            assertMissingHandler(fluxzero.commandGateway().send(new OrdinaryCommand()));
+            assertMissingHandler(fluxzero.commandGateway().send(new LocalCommand("original")));
+            assertEquals(0, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
+        }
+    }
+
     private static Fluxzero createFluxzero() {
         return createFluxzero(DefaultFluxzero.builder());
     }

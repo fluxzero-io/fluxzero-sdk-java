@@ -55,6 +55,7 @@ import java.util.function.UnaryOperator;
 import static io.fluxzero.common.Guarantee.SENT;
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAnnotations;
+import static io.fluxzero.common.reflection.ReflectionUtils.getTypeMetadata;
 import static io.fluxzero.sdk.common.ClientUtils.isApplicationNamespace;
 import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
@@ -492,16 +493,24 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     }
 
     private static boolean isLocalOnly(Class<?> payloadClass) {
-        Optional<LocalOnly> typeAnnotation = getAnnotationAs(payloadClass, LocalOnly.class, LocalOnly.class);
-        if (typeAnnotation.isPresent()) {
-            return typeAnnotation.get().value();
+        // Cache positive and negative scope decisions, never handler or interceptor state.
+        return getTypeMetadata(payloadClass).specializedMetadata(LocalOnlyMetadata.class, LocalOnlyMetadata::resolve)
+                .localOnly();
+    }
+
+    private record LocalOnlyMetadata(boolean localOnly) {
+        private static LocalOnlyMetadata resolve(Class<?> payloadClass) {
+            Optional<LocalOnly> typeAnnotation = getAnnotationAs(payloadClass, LocalOnly.class, LocalOnly.class);
+            if (typeAnnotation.isPresent()) {
+                return new LocalOnlyMetadata(typeAnnotation.get().value());
+            }
+            return new LocalOnlyMetadata(getPackageAnnotations(payloadClass.getPackage()).stream()
+                    .filter(annotation -> annotation.annotationType() == LocalOnly.class
+                                          || annotation.annotationType().isAnnotationPresent(LocalOnly.class))
+                    .map(annotation -> getAnnotationAs(annotation, LocalOnly.class, LocalOnly.class))
+                    .flatMap(Optional::stream)
+                    .findFirst().map(LocalOnly::value).orElse(false));
         }
-        return getPackageAnnotations(payloadClass.getPackage()).stream()
-                .filter(annotation -> annotation.annotationType() == LocalOnly.class
-                                      || annotation.annotationType().isAnnotationPresent(LocalOnly.class))
-                .map(annotation -> getAnnotationAs(annotation, LocalOnly.class, LocalOnly.class))
-                .flatMap(Optional::stream)
-                .findFirst().map(LocalOnly::value).orElse(false);
     }
 
     private LocalHandlerResult handleLocally(Message message, boolean localOnly) {
