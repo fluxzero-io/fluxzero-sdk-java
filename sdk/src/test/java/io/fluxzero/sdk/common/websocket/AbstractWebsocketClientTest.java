@@ -1017,9 +1017,9 @@ class AbstractWebsocketClientTest {
                                        configuration.resolveDelay(retryStatus(configuration, 2))),
                     () -> assertEquals(Duration.ofSeconds(12),
                                        configuration.resolveDelay(retryStatus(configuration, 4))),
-                    () -> assertEquals(Duration.ofMillis(22_500),
+                    () -> assertEquals(Duration.ofSeconds(12),
                                        configuration.resolveDelay(retryStatus(configuration, 5))),
-                    () -> assertEquals(Duration.ofMillis(22_500),
+                    () -> assertEquals(Duration.ofSeconds(12),
                                        configuration.resolveDelay(retryStatus(configuration, 1_000))),
                     () -> assertTrue(configuration.getErrorTest().test(new IOException("unreachable"))));
 

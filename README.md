@@ -6654,7 +6654,7 @@ Key options include:
 WebSocket connection retries use the historical fixed one-second interval in compatibility mode. With
 `fluxzero.defaults.version >= 2026.09.09`, or an explicit
 `fluxzero.websocket.reconnectBackoff.enabled=true`, consecutive failures instead use a capped exponential ceiling of
-1, 2, 4, 8, 16, then 30 seconds and select each actual delay with equal jitter between half and all of that ceiling.
+1, 2, 4, 8, then 16 seconds and select each actual delay with equal jitter between half and all of that ceiling.
 This spreads independently failing clients while bounding prolonged outages. A successful connection starts a fresh
 retry cycle. Set the dedicated property to `false` to retain fixed retries on a newer defaults profile. Its conventional
 environment-variable form is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
