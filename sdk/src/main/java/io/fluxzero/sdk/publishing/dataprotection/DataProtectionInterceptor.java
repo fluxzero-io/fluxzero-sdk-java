@@ -19,6 +19,7 @@ import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
+import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerDescriptor;
 import io.fluxzero.common.handling.HandlerInput;
@@ -53,8 +54,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperties;
@@ -76,7 +80,8 @@ import static java.util.stream.Collectors.toCollection;
  *   <li><strong>Dispatch phase:</strong>
  *     <ul>
  *       <li>Scans the payload for fields annotated with {@link ProtectData}.</li>
- *       <li>Each such field is serialized and stored securely in a designated store, indexed by a generated key.</li>
+ *       <li>Each such field receives a generated key. Values are stored securely when the message is externally
+ *       published; values used only by a local handler remain in memory.</li>
  *       <li>The payload is cloned and sensitive fields are removed (set to {@code null}).</li>
  *       <li>The generated key references and their dispatch namespace are stored in the message metadata under
  *       {@link #METADATA_KEY} and {@link #NAMESPACE_METADATA_KEY}.</li>
@@ -85,9 +90,10 @@ import static java.util.stream.Collectors.toCollection;
  *   <li><strong>Handling phase:</strong>
  *     <ul>
  *       <li>Looks for protected data references in the message metadata.</li>
- *       <li>If present, retrieves the original values from the store using the stored keys.</li>
+ *       <li>If present, retrieves the original values from memory or the store using the generated keys.</li>
  *       <li>Injects the retrieved values back into the message payload before invocation.</li>
- *       <li>If the target method is annotated with {@link DropProtectedData}, the stored entries are deleted after injection.</li>
+ *       <li>If the target method is annotated with {@link DropProtectedData}, the retained values are removed after
+ *       injection.</li>
  *     </ul>
  *   </li>
  * </ul>
@@ -130,6 +136,7 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     private final Serializer serializer;
     private final MissingProtectedDataPolicy onMissingProtectedData;
     private final boolean trackingMetricsEnabled;
+    private final ConcurrentMap<String, PendingProtectedData> pendingValues = new ConcurrentHashMap<>();
 
     /**
      * Creates an interceptor that silently invokes handlers when protected values are unavailable.
@@ -180,6 +187,54 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
     @Override
     @SuppressWarnings("unchecked")
     public Message interceptDispatch(Message m, MessageType messageType, String topic, String namespace) {
+        return protectData(m, namespace, false);
+    }
+
+    @Override
+    public Message interceptLocalDispatch(Message message, MessageType messageType, String topic, String namespace) {
+        return protectData(message, namespace, true);
+    }
+
+    @Override
+    public void beforeExternalDispatch(Message message, MessageType messageType, String topic) {
+        Set<String> references = getProtectedDataReferences(message);
+        PendingProtectedData pending = references.stream().map(pendingValues::get)
+                .filter(Objects::nonNull).findFirst().orElse(null);
+        if (pending != null) {
+            pending.externalize(keyValueStore, references);
+        }
+    }
+
+    @Override
+    public void preserveLocalDispatchState(Message previousMessage, Message replacement) {
+        Set<String> retained = replacement == null ? Set.of() : getProtectedDataReferences(replacement);
+        getProtectedDataReferences(previousMessage).stream().filter(key -> !retained.contains(key))
+                .forEach(pendingValues::remove);
+    }
+
+    @Override
+    public boolean storesLocalDispatchState() {
+        return true;
+    }
+
+    @Override
+    public void completeLocalDispatch(Message message) {
+        getProtectedDataReferences(message).forEach(pendingValues::remove);
+    }
+
+    @Override
+    public SerializedMessage modifySerializedMessage(SerializedMessage serializedMessage, Message message,
+                                                     MessageType messageType, String topic) {
+        try {
+            beforeExternalDispatch(message, messageType, topic);
+            return serializedMessage;
+        } finally {
+            completeLocalDispatch(message);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Message protectData(Message m, String namespace, boolean deferStorage) {
         Object payload = m.getPayload();
         if (payload == null || getAnnotatedProperties(payload.getClass(), ProtectData.class).isEmpty()) {
             if (!m.getMetadata().containsKey(METADATA_KEY)
@@ -193,7 +248,8 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
                 ? m.getMetadata().get(METADATA_KEY, Map.class) : Map.of();
         String existingNamespace = m.getMetadata().get(NAMESPACE_METADATA_KEY);
         String targetNamespace = namespace == null ? "" : namespace;
-        Map<String, String> protectedFields = getProtectedFields(payload, namespace);
+        PendingProtectedData pending = deferStorage ? new PendingProtectedData(namespace) : null;
+        Map<String, String> protectedFields = getProtectedFields(payload, namespace, pending);
         if (protectedFields.isEmpty() && !existingFields.isEmpty()
             && Objects.equals(existingNamespace, targetNamespace)) {
             protectedFields = existingFields;
@@ -207,6 +263,9 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         if (!protectedFields.isEmpty()) {
             Object payloadCopy = sanitizePayload(m.getPayload(), protectedFields);
             m = m.withPayload(payloadCopy);
+        }
+        if (pending != null && !pending.isEmpty()) {
+            protectedFields.values().forEach(key -> pendingValues.put(key, pending));
         }
         return m;
     }
@@ -385,13 +444,16 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             return new RestoredMessage(m, false);
         }
         Object payload = m.getPayload();
-        KeyValueStore store = keyValueStore.forNamespace(getProtectedDataNamespace(m));
+        PendingProtectedData pending = getPendingProtectedData(m);
+        boolean usePendingData = pending != null && !pending.isExternalized();
+        KeyValueStore store = usePendingData ? null
+                : keyValueStore.forNamespace(getProtectedDataNamespace(m));
         Map<String, String> protectedFields = m.getMetadata().get(METADATA_KEY, Map.class);
         Map<String, Object> protectedValues = new LinkedHashMap<>();
         Set<String> failedFields = new LinkedHashSet<>();
         protectedFields.forEach((fieldName, key) -> {
             try {
-                protectedValues.put(fieldName, store.get(key));
+                protectedValues.put(fieldName, usePendingData ? pending.get(key) : store.get(key));
             } catch (Exception e) {
                 failedFields.add(fieldName);
                 log.warn("Failed to obtain protected field {}", fieldName, e);
@@ -420,12 +482,33 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         if (payload != null && payload.getClass().isRecord()) {
             JsonNode payloadTree = serializer.convert(payload, JsonNode.class);
             protectedFields.forEach((fieldName, key) -> restoreProtectedField(
-                    payloadTree, fieldName, key, protectedValues, failedFields, dropProtectedData, store));
+                    payloadTree, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
             return new RestoredMessage(m.withPayload(serializer.convert(payloadTree, payload.getClass())), false);
         }
+        if (payload != null && pending != null) {
+            Object restoredPayload = pending.getOrCreateRestoredPayload(
+                    () -> serializer.deserialize(serializer.serialize(payload)));
+            protectedFields.forEach((fieldName, key) -> restoreProtectedField(
+                    restoredPayload, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
+            return new RestoredMessage(m.withPayload(restoredPayload), false);
+        }
         protectedFields.forEach((fieldName, key) -> restoreProtectedField(
-                payload, fieldName, key, protectedValues, failedFields, dropProtectedData, store));
+                payload, fieldName, key, protectedValues, failedFields, dropProtectedData, store, pending));
         return new RestoredMessage(m, false);
+    }
+
+    private PendingProtectedData getPendingProtectedData(DeserializingMessage message) {
+        return getProtectedDataReferences(message.toMessage()).stream().map(pendingValues::get)
+                .filter(Objects::nonNull).findFirst().orElse(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> getProtectedDataReferences(Message message) {
+        if (!message.getMetadata().containsKey(METADATA_KEY)) {
+            return Set.of();
+        }
+        Map<String, String> references = message.getMetadata().get(METADATA_KEY, Map.class);
+        return references.values().stream().filter(Objects::nonNull).collect(toCollection(LinkedHashSet::new));
     }
 
     private String getProtectedDataNamespace(DeserializingMessage message) {
@@ -448,7 +531,8 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
 
     private void restoreProtectedField(Object payload, String fieldName, String key,
                                         Map<String, Object> protectedValues, Set<String> failedFields,
-                                        boolean dropProtectedData, KeyValueStore store) {
+                                        boolean dropProtectedData, KeyValueStore store,
+                                        PendingProtectedData pending) {
         if (!failedFields.contains(fieldName)) {
             try {
                 writeProperty(fieldName, payload, protectedValues.get(fieldName));
@@ -457,7 +541,11 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             }
         }
         if (dropProtectedData) {
-            store.delete(key);
+            if (store == null) {
+                pending.remove(key);
+            } else {
+                store.delete(key);
+            }
         }
     }
 
@@ -488,21 +576,21 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
         return payloadCopy;
     }
 
-    private Map<String, String> getProtectedFields(Object value, String namespace) {
+    private Map<String, String> getProtectedFields(Object value, String namespace, PendingProtectedData pending) {
         if (value == null) {
             return Map.of();
         }
         Map<String, String> protectedFields = new LinkedHashMap<>();
         getAnnotatedProperties(value.getClass(), ProtectData.class).stream()
                 .flatMap(property -> ofNullable(getValue(property, value)).stream()
-                        .flatMap(propertyValue -> getProtectedFields(property, propertyValue, namespace)))
+                        .flatMap(propertyValue -> getProtectedFields(property, propertyValue, namespace, pending)))
                 .forEach(e -> protectedFields.put(e.getKey(), e.getValue()));
         return protectedFields;
     }
 
     @SuppressWarnings("ConditionCoveredByFurtherCondition")
     private Stream<Map.Entry<String, String>> getProtectedFields(AccessibleObject holder, Object propertyValue,
-                                                                  String namespace) {
+                                                                  String namespace, PendingProtectedData pending) {
         if (propertyValue == null) {
             return Stream.empty();
         }
@@ -513,16 +601,72 @@ public class DataProtectionInterceptor implements DispatchInterceptor, HandlerIn
             || propertyValue instanceof Iterable<?>
             || propertyValue instanceof Map<?, ?>
             || getTypeAnnotation(propertyValue.getClass(), ProtectData.class) != null) {
-            return Stream.of(Map.entry(name, storeProtectedValue(propertyValue, namespace)));
+            return Stream.of(Map.entry(name, protectValue(propertyValue, namespace, pending)));
         }
-        return getProtectedFields(propertyValue, namespace).entrySet().stream()
+        return getProtectedFields(propertyValue, namespace, pending).entrySet().stream()
                 .map(e -> Map.entry("%s/%s".formatted(name, e.getKey()), e.getValue()));
     }
 
-    private String storeProtectedValue(Object value, String namespace) {
+    private String protectValue(Object value, String namespace, PendingProtectedData pending) {
         String key = Fluxzero.currentIdentityProvider().nextTechnicalId();
-        keyValueStore.forNamespace(namespace).store(key, value, Guarantee.STORED);
+        if (pending == null) {
+            keyValueStore.forNamespace(namespace).store(key, value, Guarantee.STORED);
+        } else {
+            pending.put(key, value);
+        }
         return key;
+    }
+
+    private static final class PendingProtectedData {
+        private final String namespace;
+        private final Map<String, Object> values = new LinkedHashMap<>();
+        private boolean externalized;
+        private Object restoredPayload;
+
+        private PendingProtectedData(String namespace) {
+            this.namespace = namespace;
+        }
+
+        private synchronized void put(String key, Object value) {
+            values.put(key, value);
+        }
+
+        private synchronized Object get(String key) {
+            return values.get(key);
+        }
+
+        private synchronized void remove(String key) {
+            values.remove(key);
+        }
+
+        private synchronized boolean isEmpty() {
+            return values.isEmpty();
+        }
+
+        private synchronized boolean isExternalized() {
+            return externalized;
+        }
+
+        private synchronized Object getOrCreateRestoredPayload(Supplier<Object> supplier) {
+            if (restoredPayload == null) {
+                restoredPayload = supplier.get();
+            }
+            return restoredPayload;
+        }
+
+        private synchronized void externalize(KeyValueStore keyValueStore, Set<String> referencedKeys) {
+            if (externalized) {
+                return;
+            }
+            KeyValueStore store = keyValueStore.forNamespace(namespace);
+            values.forEach((key, value) -> {
+                if (referencedKeys.contains(key)) {
+                    store.store(key, value, Guarantee.STORED);
+                }
+            });
+            values.clear();
+            externalized = true;
+        }
     }
 
     private record RestoredMessage(DeserializingMessage message, boolean skip) {

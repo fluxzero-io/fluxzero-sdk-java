@@ -97,6 +97,67 @@ public interface DispatchInterceptor {
     }
 
     /**
+     * Intercepts a message that may still be handled locally.
+     *
+     * <p>The default delegates to the regular dispatch hook. Interceptors that externalize data may defer that side
+     * effect until external publication is certain while keeping the message safe for the remaining interceptor
+     * chain.</p>
+     *
+     * @param message     the message to be dispatched
+     * @param messageType the type of the message
+     * @param topic       the target topic or {@code null}
+     * @param namespace   the target namespace or {@code null} for the application namespace
+     * @return the modified message, the same message, or {@code null} to prevent dispatch
+     */
+    default Message interceptLocalDispatch(Message message, MessageType messageType, String topic, String namespace) {
+        return interceptDispatch(message, messageType, topic, namespace);
+    }
+
+    /**
+     * Carries interceptor-private local dispatch state across a replacement {@link Message}.
+     *
+     * <p>The default returns the replacement unchanged. Stateful interceptors may override this without exposing
+     * their transient state through message metadata or serialization.</p>
+     *
+     * @param previousMessage the message before another interceptor replaced it
+     * @param replacement     the replacement returned by that interceptor, or {@code null} when dispatch was suppressed
+     */
+    default void preserveLocalDispatchState(Message previousMessage, Message replacement) {
+        // No-op by default
+    }
+
+    /**
+     * Returns whether this interceptor may attach transient state during {@link #interceptLocalDispatch}.
+     */
+    default boolean storesLocalDispatchState() {
+        return false;
+    }
+
+    /**
+     * Completes side effects that were deferred while a message was still eligible for local handling.
+     *
+     * <p>This hook may be called before a local handler whose message will subsequently be published. Implementations
+     * should be idempotent because multiple local registries may independently request publication, and should also
+     * complete deferred work from {@link #modifySerializedMessage} for a direct external fallback.</p>
+     *
+     * @param message     the intercepted message
+     * @param messageType the type of the message
+     * @param topic       the target topic or {@code null}
+     */
+    default void beforeExternalDispatch(Message message, MessageType messageType, String topic) {
+        // No-op by default
+    }
+
+    /**
+     * Releases transient state retained for a completed local dispatch candidate.
+     *
+     * @param message the final intercepted message
+     */
+    default void completeLocalDispatch(Message message) {
+        // No-op by default
+    }
+
+    /**
      * Returns a view that supplies the given namespace when callers use the namespace-agnostic dispatch method.
      * Other dispatch hooks continue to delegate to this interceptor.
      *
@@ -115,6 +176,32 @@ public interface DispatchInterceptor {
             public Message interceptDispatch(Message message, MessageType messageType, String topic,
                                              String dispatchNamespace) {
                 return delegate.interceptDispatch(message, messageType, topic, dispatchNamespace);
+            }
+
+            @Override
+            public Message interceptLocalDispatch(Message message, MessageType messageType, String topic,
+                                                  String dispatchNamespace) {
+                return delegate.interceptLocalDispatch(message, messageType, topic, dispatchNamespace);
+            }
+
+            @Override
+            public void preserveLocalDispatchState(Message previousMessage, Message replacement) {
+                delegate.preserveLocalDispatchState(previousMessage, replacement);
+            }
+
+            @Override
+            public boolean storesLocalDispatchState() {
+                return delegate.storesLocalDispatchState();
+            }
+
+            @Override
+            public void beforeExternalDispatch(Message message, MessageType messageType, String topic) {
+                delegate.beforeExternalDispatch(message, messageType, topic);
+            }
+
+            @Override
+            public void completeLocalDispatch(Message message) {
+                delegate.completeLocalDispatch(message);
             }
 
             @Override

@@ -128,30 +128,30 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         for (Message message : messages) {
             Message original = message;
             boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
-            message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
+            message = interceptDispatch(original);
             if (message == null) {
                 continue;
             }
-            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
-            Optional<CompletableFuture<Object>> localResult = localHandlerRegistry.handle(
-                    localMessage(message), !localOnly);
-            if (localResult.isEmpty()) {
-                if (localOnly) {
-                    if (messageType.isRequest()) {
-                        return CompletableFuture.failedFuture(
-                                new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
+            try {
+                boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+                dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
+                Optional<CompletableFuture<Object>> localResult = localHandlerRegistry.handle(
+                        localMessage(message), !localOnly);
+                if (localResult.isEmpty()) {
+                    if (localOnly) {
+                        if (messageType.isRequest()) {
+                            return CompletableFuture.failedFuture(
+                                    new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
-                        message.serialize(serializer), message, messageType, topic);
-                if (serializedMessage == null) {
-                    continue;
-                }
-                serializedMessages.add(serializedMessage);
-            } else {
-                if (localResult.get().isCompletedExceptionally()) {
+                    SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
+                            message.serialize(serializer), message, messageType, topic);
+                    if (serializedMessage == null) {
+                        continue;
+                    }
+                    serializedMessages.add(serializedMessage);
+                } else if (localResult.get().isCompletedExceptionally()) {
                     try {
                         localResult.get().getNow(null);
                     } catch (CompletionException e) {
@@ -159,6 +159,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                                   message.getPayloadClass().getSimpleName(), e.getCause());
                     }
                 }
+            } finally {
+                dispatchInterceptor.completeLocalDispatch(message);
             }
         }
         if (!serializedMessages.isEmpty()) {
@@ -231,19 +233,24 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         Duration timeout = sendAndWaitTimeout(message);
         Message original = message;
         boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
-        message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
+        message = interceptDispatch(original);
         if (message == null) {
             return null;
         }
-        boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-        dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-        LocalHandlerResult localResult = handleLocally(message, localOnly);
-        if (localResult.isCompletedSuccessfully()) {
-            return (R) responseMapper.mapPayload(localResult.getValue());
+        PendingRequest request;
+        try {
+            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+            LocalHandlerResult localResult = handleLocally(message, localOnly);
+            if (localResult.isCompletedSuccessfully()) {
+                return (R) responseMapper.mapPayload(localResult.getValue());
+            }
+            request = localResult.isHandled()
+                    ? prepareLocalRequest(message, localResult.asFuture(), timeout)
+                    : localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
+        } finally {
+            dispatchInterceptor.completeLocalDispatch(message);
         }
-        PendingRequest request = localResult.isHandled()
-                ? prepareLocalRequest(message, localResult.asFuture(), timeout)
-                : localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
         CompletableFuture<R> future = (request.isExternal() ? sendRequest(request) : request.result())
                 .thenApply(Message::getPayload);
         return waitForResult(future, message, timeout);
@@ -280,17 +287,21 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private PendingRequest prepareRequest(Message message, Duration timeout) {
         Message original = message;
         boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
-        message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
+        message = interceptDispatch(original);
         if (message == null) {
             return PendingRequest.completed(emptyReturnMessage());
         }
-        boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-        dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-        LocalHandlerResult localResult = handleLocally(message, localOnly);
-        if (localResult.isHandled()) {
-            return prepareLocalRequest(message, localResult.asFuture(), timeout);
+        try {
+            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+            LocalHandlerResult localResult = handleLocally(message, localOnly);
+            if (localResult.isHandled()) {
+                return prepareLocalRequest(message, localResult.asFuture(), timeout);
+            }
+            return localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
+        } finally {
+            dispatchInterceptor.completeLocalDispatch(message);
         }
-        return localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
     }
 
     private PendingRequest prepareLocalRequest(Message message, CompletableFuture<Object> localResult,
@@ -347,6 +358,12 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 message.serialize(serializer), message, messageType, topic);
         return serializedMessage == null ? PendingRequest.completed(emptyReturnMessage())
                 : PendingRequest.external(serializedMessage, timeout);
+    }
+
+    private Message interceptDispatch(Message message) {
+        return localHandlerRegistry.supportsDeferredExternalization()
+                ? dispatchInterceptor.interceptLocalDispatch(message, messageType, topic, namespace)
+                : dispatchInterceptor.interceptDispatch(message, messageType, topic, namespace);
     }
 
     private List<CompletableFuture<Message>> completeRequests(List<PendingRequest> requests) {

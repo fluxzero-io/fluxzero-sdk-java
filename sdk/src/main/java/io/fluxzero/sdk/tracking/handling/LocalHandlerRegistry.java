@@ -121,6 +121,11 @@ public class LocalHandlerRegistry implements HandlerRegistry {
         return !localHandlers.isEmpty();
     }
 
+    @Override
+    public boolean supportsDeferredExternalization() {
+        return true;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
@@ -355,6 +360,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             boolean handled = false;
             boolean logMessage = false;
             boolean request = m.getMessageType().isRequest();
+            Fluxzero fluxzero = null;
             CompletableFuture<Object> future = new CompletableFuture<>();
             for (Handler<DeserializingMessage> handler : localHandlers) {
                 var optionalInvoker = handler.getInvoker(m);
@@ -362,6 +368,14 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                     var invoker = optionalInvoker.get();
                     boolean passive = invoker.isPassive();
                     if (!handled || !request || passive) {
+                        boolean invokerLogsMessage = logMessage(invoker);
+                        if (invokerLogsMessage && !logMessage && allowExternalPublication) {
+                            fluxzero = Fluxzero.getOptionally().orElse(null);
+                            if (fluxzero != null) {
+                                dispatchInterceptor.beforeExternalDispatch(
+                                        m.toMessage(), m.getMessageType(), m.getTopic());
+                            }
+                        }
                         try {
                             Object result = Invocation.performInvocation(invoker, invoker::invoke);
                             if (result instanceof Optional<?> optional) {
@@ -385,7 +399,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                             if (!passive) {
                                 handled = true;
                             }
-                            logMessage = logMessage || logMessage(invoker);
+                            logMessage = logMessage || invokerLogsMessage;
                         }
                     }
                 }
@@ -394,16 +408,20 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                 return handled ? Optional.of(future) : Optional.empty();
             } finally {
                 if (handled && logMessage && allowExternalPublication) {
-                    Fluxzero.getOptionally().ifPresent(fc -> {
+                    Fluxzero publishingFluxzero = fluxzero == null
+                            ? Fluxzero.getOptionally().orElse(null) : fluxzero;
+                    if (publishingFluxzero != null) {
+                        dispatchInterceptor.beforeExternalDispatch(
+                                m.toMessage(), m.getMessageType(), m.getTopic());
                         SerializedMessage serializedMessage = message.getSerializedObject();
                         serializedMessage = dispatchInterceptor.modifySerializedMessage(
                                 serializedMessage, m.toMessage(), m.getMessageType(), m.getTopic());
                         if (serializedMessage != null) {
-                            fc.client().forNamespace(getConsumerNamespace(m))
+                            publishingFluxzero.client().forNamespace(getConsumerNamespace(m))
                                     .getGatewayClient(m.getMessageType(), m.getTopic())
                                     .append(Guarantee.NONE, serializedMessage);
                         }
-                    });
+                    }
                 }
             }
         });

@@ -28,9 +28,11 @@ import java.util.List;
 /** Ordered, flat dispatch chain that can compile the same order into a local policy. */
 final class CompositeDispatchInterceptor implements DispatchInterceptor {
     private final List<DispatchInterceptor> interceptors;
+    private final List<DispatchInterceptor> localStateOwners;
 
     private CompositeDispatchInterceptor(List<DispatchInterceptor> interceptors) {
         this.interceptors = List.copyOf(interceptors);
+        this.localStateOwners = interceptors.stream().filter(DispatchInterceptor::storesLocalDispatchState).toList();
     }
 
     static DispatchInterceptor combine(DispatchInterceptor first, DispatchInterceptor second) {
@@ -62,6 +64,54 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
             message = interceptor.interceptDispatch(message, messageType, topic, namespace);
         }
         return message;
+    }
+
+    @Override
+    public Message interceptLocalDispatch(Message message, MessageType messageType, String topic, String namespace) {
+        for (DispatchInterceptor interceptor : interceptors) {
+            if (message == null) {
+                return null;
+            }
+            Message previous = message;
+            try {
+                message = interceptor.interceptLocalDispatch(message, messageType, topic, namespace);
+            } catch (RuntimeException | Error e) {
+                completeLocalDispatch(previous);
+                throw e;
+            }
+            if (message != previous) {
+                for (DispatchInterceptor stateOwner : localStateOwners) {
+                    stateOwner.preserveLocalDispatchState(previous, message);
+                }
+            }
+        }
+        return message;
+    }
+
+    @Override
+    public void beforeExternalDispatch(Message message, MessageType messageType, String topic) {
+        for (DispatchInterceptor interceptor : interceptors) {
+            interceptor.beforeExternalDispatch(message, messageType, topic);
+        }
+    }
+
+    @Override
+    public void completeLocalDispatch(Message message) {
+        for (DispatchInterceptor stateOwner : localStateOwners) {
+            stateOwner.completeLocalDispatch(message);
+        }
+    }
+
+    @Override
+    public boolean storesLocalDispatchState() {
+        return !localStateOwners.isEmpty();
+    }
+
+    @Override
+    public void preserveLocalDispatchState(Message previousMessage, Message replacement) {
+        for (DispatchInterceptor stateOwner : localStateOwners) {
+            stateOwner.preserveLocalDispatchState(previousMessage, replacement);
+        }
     }
 
     @Override

@@ -265,11 +265,15 @@ Data protection isolates sensitive fields from the primary message and event str
 
 ### @ProtectData
 
-Fields annotated with `@ProtectData` are removed from the message payload before it is serialized and are stored
-temporarily in an external Key-Value (KV) store.
+Fields annotated with `@ProtectData` are removed from the message payload before it is serialized. They are stored
+temporarily in an external Key-Value (KV) store when the message is externally published.
 
-When the message is eventually handled, the Fluxzero SDK **automatically re-injects** the value from the KV store back
-into the payload, making it available to the handler.
+When the message is eventually handled, the Fluxzero SDK **automatically re-injects** the retained value into the
+payload, making it available to the handler.
+
+For a message handled only by a local handler with `logMessage = false`, the original value remains in memory and is
+passed directly to the handler without KV I/O. External fallback and `logMessage = true` use the KV-backed path;
+`@LocalOnly` never externalizes the value.
 
 `@ProtectData` protects the annotated field **as a whole** when its value is:
 
@@ -306,8 +310,9 @@ the regular payload.
 
 ### @DropProtectedData
 
-Use this annotation on a handler or endpoint to permanently delete the sensitive values from the KV store. This ensures
-that once the trusted processing is complete, the data is no longer accessible.
+Use this annotation on a handler or endpoint to permanently delete the sensitive values from the KV store, or discard
+an in-memory value after local handling. This ensures that once the trusted processing is complete, the data is no
+longer accessible.
 
 ```kotlin
 @Component

@@ -4866,11 +4866,14 @@ public record RegisterCitizen(String name,
 
 When this message is dispatched, the `socialSecurityNumber` will be:
 
-- **Offloaded** to a separate data vault
+- **Offloaded** to a separate data vault when the message is published externally
 - **Redacted** from the main payload (not visible in logs or message inspectors)
 - **Re-injected** automatically when the message is handled
 
 This happens transparently—you can access the field as usual in handler methods.
+When a message is handled only by a local handler with `logMessage = false`, the original value stays in memory and is
+passed directly to that handler; no KV entry is created. External fallback and `logMessage = true` retain the normal
+vault-backed behavior. `@LocalOnly` never externalizes protected values.
 
 ---
 
@@ -4890,7 +4893,8 @@ void handle(RegisterCitizen command) {
 
 Once this handler completes:
 
-- The injected `socialSecurityNumber` is **permanently deleted** from storage.
+- The injected `socialSecurityNumber` is **permanently deleted** from storage, or discarded from memory for a
+  local-only dispatch.
 - Future replays will deserialize the message with that field **omitted**.
 
 > ⚠️ This mechanism ensures sensitive fields are **usable just-in-time** and **discarded thereafter**.
