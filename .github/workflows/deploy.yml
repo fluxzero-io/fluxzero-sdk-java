@@ -54,7 +54,9 @@ jobs:
           fi
 
       - name: Validate agent documentation graph
-        run: python3 .github/scripts/validate-agent-docs.py
+        run: |
+          python3 .github/scripts/validate-agent-docs.py
+          python3 .github/scripts/build-agent-docs.test.py
 
       - name: Install Java and Maven
         uses: actions/setup-java@v6
@@ -217,6 +219,16 @@ jobs:
           export MAVEN_DEPLOY_TOKEN="$token"
           ./mvnw -P sign -B deploy -DskipTests
 
+      - name: Preserve agent documentation release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent-docs
+          path: |
+            target/fluxzero-sdk-java-${{ steps.tag_version.outputs.new_tag }}-agent-docs.zip
+            target/fluxzero-sdk-java-${{ steps.tag_version.outputs.new_tag }}-agent-docs.zip.sha256
+          if-no-files-found: error
+          retention-days: 1
+
   # Job 2: Deploy to Maven Central (runs in parallel after tagging and image publication)
   maven-central:
     needs: build-and-test
@@ -308,6 +320,12 @@ jobs:
           name: project-files
           path: release-assets
 
+      - name: Download agent documentation
+        uses: actions/download-artifact@v8
+        with:
+          name: agent-docs
+          path: release-assets
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
@@ -315,9 +333,12 @@ jobs:
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body: ${{ needs.build-and-test.outputs.version-changelog }}
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
+          fail_on_unmatched_files: true
           files: |
             release-assets/project-java.zip
             release-assets/project-kotlin.zip
+            release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip
+            release-assets/fluxzero-sdk-java-${{ needs.build-and-test.outputs.version-tag }}-agent-docs.zip.sha256
 
   # Job 5: Notify fluxzero-site after the SDK release is tagged
   fluxzero-site:

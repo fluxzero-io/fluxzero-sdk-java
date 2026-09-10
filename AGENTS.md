@@ -101,6 +101,7 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 ## Build And Test
 
 - Use the Maven wrapper: `./mvnw`.
+- Packaging the agent documentation ZIP also requires Python 3.9+; see `docs/agents/README.md` for source-archive builds.
 - The project compiles with `maven.compiler.release=21`; CI and Docker images currently run on Temurin/Distroless Java 25.
 - Full PR-equivalent verification is `./mvnw -B install`.
 - For focused work, prefer targeted Maven runs such as `./mvnw -pl sdk -am test` or `./mvnw -pl proxy -am -Dtest=ProxyServerTest test`.

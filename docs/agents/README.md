@@ -18,14 +18,35 @@ This repository currently supplies only `sdk`. Existing application-facing CLI, 
 in this graph; it does not claim that those independently released tools share the SDK version.
 
 The SDK tag/checkout identifies which SDK the graph describes. Do not hard-code the dashboard's dependency version
-or a moving `latest` version in the manifest. A future release bundle must bind the namespace to the actual SDK release,
-source commit and content hash. Documentation corrections ship with a normal SDK release, including a patch release
-when only documentation changes; published release contents are immutable.
+or a moving `latest` version in the manifest. Documentation corrections ship with a normal SDK release, including
+a patch release when only documentation changes; published release contents are immutable.
 
 The graph is data, independent of MCP transport. Its presence here does not yet make it available through the local
-dev-server MCP. That integration and versioned download/cache distribution are separate changes. Existing
+dev-server MCP. The downloader, cache and MCP integration are separate changes. Existing
 `project-java.zip` and `project-kotlin.zip` release consumers continue to use the legacy `project-files` tree during
 that transition; it is not the source for new graph articles.
+
+## Release archive
+
+Maven `package` produces `target/fluxzero-sdk-java-<version>-agent-docs.zip`, attached to
+`io.fluxzero:fluxzero-sdk-java:<version>` with classifier `agent-docs` and type `zip`. One archive contains both Java
+and Kotlin guidance. Standard Maven deployment publishes it to Fluxzero Packages:
+
+```text
+https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-sdk-java/<version>/fluxzero-sdk-java-<version>-agent-docs.zip
+```
+
+The SHA-256 checksum is available at the same path with `.sha256` appended. The GitHub SDK release also contains
+the exact ZIP and its checksum, using the same filenames, as a backup for restoring Packages.
+
+The archive contains `manifest.json`, its `articles/` sources and `release.json`. The latter records `schemaVersion`,
+`namespace`, `componentVersion`, `sourceCommit` and `contentHash`. The content hash is SHA-256 over the concatenated
+UTF-8 records `path + NUL + lowercase SHA-256(file bytes) + LF`, sorted by path, for the manifest and article files.
+It excludes `release.json`; the archive checksum covers all bytes, including release metadata. ZIP entry timestamps
+and permissions are fixed so repeated builds of the same inputs produce the same archive.
+
+Packaging requires Python 3.9+ and Git. `-Dagent-docs.python=<executable>` selects Python;
+`-Dagent-docs.sourceCommit=<full-commit-hash>` supports building a source archive without Git metadata.
 
 ## Editing and validation
 
