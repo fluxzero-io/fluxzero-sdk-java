@@ -36,6 +36,9 @@ jobs:
       - name: Test release version policy
         run: bash .github/scripts/resolve-release-version.test.sh
 
+      - name: Validate agent documentation graph
+        run: python3 .github/scripts/validate-agent-docs.py
+
       - name: Run Maven build
         run: ./mvnw -B install
 

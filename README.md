@@ -13,6 +13,10 @@
 This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
 functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
+Application-building documentation is available as [human/developer guides](docs/developer) and a
+[versioned agent documentation graph](docs/agents/README.md). The graph contains focused articles, searchable symbols
+and explicit links; use the graph from the SDK release matching your project.
+
 ---
 
 ## Installation

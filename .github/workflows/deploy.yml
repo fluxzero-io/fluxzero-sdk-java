@@ -53,6 +53,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate agent documentation graph
+        run: python3 .github/scripts/validate-agent-docs.py
+
       - name: Install Java and Maven
         uses: actions/setup-java@v6
         with:
