@@ -20,6 +20,7 @@ import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.caching.AdaptiveObjectCache;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.modeling.AutomaticModelHandling;
@@ -47,6 +48,59 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class FluxzeroConfigTest {
+
+    @Test
+    void retryModelDefaultIsVersionedAndKeepsImplicitCreationStrict() {
+        for (String version : java.util.List.of("", "2026.09.08", "2026.09.09", "2027.01.01")) {
+            DefaultFluxzero.Builder builder = DefaultFluxzero.builder();
+            builder.replacePropertySource(ignored -> new SimplePropertySource(
+                    Map.of(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, version)));
+            assertEquals(version.isEmpty() || version.equals("2026.09.08")
+                                 ? ModelConflictPolicy.ACCEPT : ModelConflictPolicy.RETRY,
+                         builder.configuredModelConflictPolicy(), version);
+            assertEquals(ModelConflictPolicy.FAIL, builder.configuredModelCreationConflictPolicy());
+        }
+    }
+
+    @Test
+    void explicitModelPolicyOverridesVersionedDefaultInBothDirections() {
+        for (String version : java.util.List.of("2020.01.01", "2027.01.01")) {
+            for (ModelConflictPolicy policy : java.util.List.of(ModelConflictPolicy.ACCEPT, ModelConflictPolicy.RETRY)) {
+                DefaultFluxzero.Builder builder = DefaultFluxzero.builder();
+                builder.replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, version,
+                        "fluxzero.model.conflictPolicy", policy.name())));
+                assertEquals(policy, builder.configuredModelConflictPolicy());
+                assertEquals(policy, builder.configuredModelCreationConflictPolicy());
+            }
+        }
+    }
+
+    @Test
+    void automaticModelRoutingIsVersionedAndExplicitlyOverridable() {
+        for (String version : java.util.List.of("", "2026.09.09", "2026.09.10", "2027.01.01")) {
+            DefaultFluxzero.Builder builder = DefaultFluxzero.builder();
+            builder.replacePropertySource(ignored -> new SimplePropertySource(
+                    Map.of(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, version)));
+            assertEquals(version.equals("2026.09.10") || version.equals("2027.01.01"),
+                         builder.configuredAutomaticModelRouting(), version);
+            for (boolean enabled : java.util.List.of(false, true)) {
+                builder.replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        ApplicationProperties.DEFAULTS_VERSION_PROPERTY, version,
+                        "fluxzero.model.automaticRouting", Boolean.toString(enabled))));
+                assertEquals(enabled, builder.configuredAutomaticModelRouting());
+            }
+        }
+    }
+
+    @Test
+    void invalidModelDefaultsVersionFailsConfiguration() {
+        DefaultFluxzero.Builder builder = DefaultFluxzero.builder();
+        builder.replacePropertySource(ignored -> new SimplePropertySource(
+                Map.of(ApplicationProperties.DEFAULTS_VERSION_PROPERTY, "invalid")));
+        assertThrows(IllegalArgumentException.class, builder::configuredModelConflictPolicy);
+        assertThrows(IllegalArgumentException.class, builder::configuredAutomaticModelRouting);
+    }
 
     @Test
     void modelConflictPropertiesSupplyApplicationDefaults() {
@@ -164,6 +218,68 @@ public class FluxzeroConfigTest {
         DefaultFluxzero.builder()
                 .addConsumerConfiguration(config1, QUERY)
                 .addConsumerConfiguration(config2, COMMAND);
+    }
+
+    @Test
+    void typeAliasesCanBeConfiguredOnBuilder() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .addTypeAliases(Map.of("legacy.First", "current.First", "legacy.Second", "current.Second"))
+                .addPackageAliases(Map.of("host.example", "io.example", "old.example", "new.example"))
+                .build(LocalClient.newInstance())) {
+            assertEquals("current.First", fluxzero.serializer().upcastType("legacy.First"));
+            assertEquals("current.Second", fluxzero.serializer().upcastType("legacy.Second"));
+            assertEquals("io.example.Type", fluxzero.serializer().upcastType("host.example.Type"));
+            assertEquals("new.example.Type", fluxzero.serializer().upcastType("old.example.Type"));
+        }
+    }
+
+    @Test
+    void typeAliasesCanBeConfiguredByProperty() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        FluxzeroBuilder.TYPE_ALIASES_PROPERTY,
+                        "legacy.Type=current.Type, host.example.*=io.example.*")))
+                .build(LocalClient.newInstance())) {
+            assertEquals("current.Type", fluxzero.serializer().upcastType("legacy.Type"));
+            assertEquals("io.example.sub.Type", fluxzero.serializer().upcastType("host.example.sub.Type"));
+        }
+    }
+
+    @Test
+    void builderTypeAliasOverridesPropertyAlias() {
+        try (Fluxzero fluxzero = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        FluxzeroBuilder.TYPE_ALIASES_PROPERTY, "legacy.Type=property.Type")))
+                .addTypeAlias("legacy.Type", "builder.Type")
+                .build(LocalClient.newInstance())) {
+            assertEquals("builder.Type", fluxzero.serializer().upcastType("legacy.Type"));
+        }
+    }
+
+    @Test
+    void typeAliasesApplyToDistinctConfiguredSerializers() {
+        JacksonSerializer serializer = new JacksonSerializer();
+        JacksonSerializer snapshotSerializer = new JacksonSerializer();
+        JacksonSerializer documentSerializer = new JacksonSerializer();
+        try (Fluxzero ignored = DefaultFluxzero.builder()
+                .replaceSerializer(serializer)
+                .replaceSnapshotSerializer(snapshotSerializer)
+                .replaceDocumentSerializer(documentSerializer)
+                .addPackageAlias("host.example", "io.example")
+                .build(LocalClient.newInstance())) {
+            assertEquals("io.example.Type", serializer.upcastType("host.example.Type"));
+            assertEquals("io.example.Type", snapshotSerializer.upcastType("host.example.Type"));
+            assertEquals("io.example.Type", documentSerializer.upcastType("host.example.Type"));
+        }
+    }
+
+    @Test
+    void invalidTypeAliasPropertyFailsDuringBuild() {
+        var builder = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        FluxzeroBuilder.TYPE_ALIASES_PROPERTY, "host.example.*=io.example.Type")));
+
+        assertThrows(IllegalArgumentException.class, () -> builder.build(LocalClient.newInstance()));
     }
 
     @Test

@@ -152,8 +152,7 @@ public class ReflectionUtils {
                     .map(classForFqnCache)
                     .flatMap(Optional::stream)
                     .toList());
-    private static final Function<String, Optional<Class<?>>> classForNameCache
-            = memoize(ReflectionUtils::computeClassForName);
+    private static final ConcurrentHashMap<String, ClassLookup> classForNameCache = new ConcurrentHashMap<>();
     private static final BiFunction<Package, Boolean, Collection<? extends Annotation>> packageAnnotationsCache =
             memoize(ReflectionUtils::computePackageAnnotations);
     private static final Function<Parameter, Boolean> isNullableCache = memoize(
@@ -1820,19 +1819,60 @@ public class ReflectionUtils {
 
     @SneakyThrows
     public static Class<?> classForName(String type) {
-        Optional<Class<?>> result = classForNameCache.apply(type);
-        if (result.isPresent()) {
-            return result.get();
+        Class<?> result = classLookup(type).type();
+        if (result != null) {
+            return result;
         }
         throw new ClassNotFoundException(type);
     }
 
     public static Class<?> classForName(String type, Class<?> defaultClass) {
-        return classForNameCache.apply(type).orElse(defaultClass);
+        Class<?> result = classLookup(type).type();
+        return result == null ? defaultClass : result;
     }
 
     public static boolean classExists(String className) {
-        return classForNameCache.apply(className).isPresent();
+        return classLookup(className).type() != null;
+    }
+
+    /**
+     * Resolves a unique registered simple or partial name to its class name. Canonical names, unknown identifiers,
+     * {@code null} and generic signatures are returned unchanged. Generic signatures do not initiate class loading.
+     * Name normalization shares the class-lookup cache; it never caches application-specific serialization aliases.
+     *
+     * @param name the serialized type identifier
+     * @return its uniquely registered class name, or the original identifier if no normalization is needed
+     */
+    public static String resolveRegisteredTypeName(String name) {
+        if (name == null) {
+            return null;
+        }
+        ClassLookup lookup = classForNameCache.get(name);
+        if (lookup == null) {
+            if (name.contains("<")) {
+                return name;
+            }
+            lookup = classForNameCache.computeIfAbsent(name, ReflectionUtils::computeClassLookup);
+        }
+        return lookup.normalizedName() == null ? name : lookup.normalizedName();
+    }
+
+    private static ClassLookup classLookup(String name) {
+        ClassLookup result = classForNameCache.get(name);
+        return result == null ? classForNameCache.computeIfAbsent(name, ReflectionUtils::computeClassLookup) : result;
+    }
+
+    private static ClassLookup computeClassLookup(String name) {
+        Class<?> type = computeClassForName(name).orElse(null);
+        if (type == null) {
+            return ClassLookup.unknown;
+        }
+        String resolvedName = type.getName();
+        return new ClassLookup(type, name.equals(resolvedName) || name.contains("<") ? null : resolvedName);
+    }
+
+    private record ClassLookup(Class<?> type, String normalizedName) {
+        private static final ClassLookup unknown = new ClassLookup(null, null);
     }
 
     public static String getSimpleName(Class<?> c) {

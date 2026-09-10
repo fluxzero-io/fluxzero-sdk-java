@@ -18,7 +18,6 @@ package io.fluxzero.proxy;
 import com.sun.net.httpserver.HttpServer;
 import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.MessageType;
-import io.fluxzero.common.ObjectUtils;
 import io.fluxzero.common.TestUtils;
 import io.fluxzero.common.ThrowingConsumer;
 import io.fluxzero.common.ThrowingFunction;
@@ -857,7 +856,7 @@ class ProxyServerTest {
 
                 assertEquals(37, configuredProxyServer.getMaxThreads());
                 assertEquals(3, configuredProxyServer.getMinThreads());
-                assertEquals(ObjectUtils.supportsVirtualThreadWorkers(), configuredProxyServer.isUsingVirtualThreads());
+                assertTrue(configuredProxyServer.isUsingVirtualThreads());
             } finally {
                 if (configuredProxyServer != null) {
                     configuredProxyServer.cancel();

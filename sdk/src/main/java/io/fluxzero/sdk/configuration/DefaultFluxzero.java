@@ -147,6 +147,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -361,11 +362,15 @@ public class DefaultFluxzero implements Fluxzero {
         private static final String MAX_PUBLICATION_DEPTH_PROPERTY = "fluxzero.maxPublicationDepth";
         private static final int RELATIONSHIPS_CACHE_MAX_SIZE = 100_000;
         private static final LocalDate WEBREQUEST_ASYNC_HANDLING_DEFAULTS_VERSION = LocalDate.of(2026, 6, 20);
+        private static final LocalDate MODEL_RETRY_DEFAULTS_VERSION = LocalDate.of(2026, 9, 9);
+        private static final LocalDate MODEL_ROUTING_DEFAULTS_VERSION = LocalDate.of(2026, 9, 10);
 
         private Serializer serializer = new JacksonSerializer();
         private Serializer snapshotSerializer = serializer;
         private CorrelationDataProvider correlationDataProvider = DefaultCorrelationDataProvider.INSTANCE;
         private DocumentSerializer documentSerializer = (JacksonSerializer) serializer;
+        private final Map<String, String> typeAliases = new LinkedHashMap<>();
+        private final Map<String, String> packageAliases = new LinkedHashMap<>();
 
         private final Map<MessageType, ConsumerConfiguration> defaultConsumerConfigurations =
                 stream(MessageType.values()).collect(toMap(identity(), this::getDefaultConsumerConfiguration));
@@ -389,7 +394,7 @@ public class DefaultFluxzero implements Fluxzero {
         private Validator validator = ValidationUtils.defaultValidator.getClass() == DefaultValidator.class
                 ? new DefaultValidator(clock) : ValidationUtils.defaultValidator;
         private final SchedulingInterceptor schedulingInterceptor = new SchedulingInterceptor();
-        private DispatchInterceptor messageRoutingInterceptor = new MessageRoutingInterceptor();
+        private DispatchInterceptor messageRoutingInterceptor;
         private TaskScheduler taskScheduler = new InMemoryTaskScheduler(
                 "FluxzeroTaskScheduler", clock,
                 newWorkerPool("FluxzeroTaskScheduler-worker", 8));
@@ -453,6 +458,18 @@ public class DefaultFluxzero implements Fluxzero {
                 documentSerializer = (DocumentSerializer) serializer;
             }
             this.serializer = serializer;
+            return this;
+        }
+
+        @Override
+        public Builder addTypeAlias(@NonNull String oldType, @NonNull String newType) {
+            typeAliases.put(oldType, newType);
+            return this;
+        }
+
+        @Override
+        public Builder addPackageAlias(@NonNull String oldPackage, @NonNull String newPackage) {
+            packageAliases.put(oldPackage, newPackage);
             return this;
         }
 
@@ -874,6 +891,7 @@ public class DefaultFluxzero implements Fluxzero {
 
         @Override
         public Fluxzero build(@NonNull Client client) {
+            configureTypeAliases();
             if (client.unwrap() instanceof LocalClient localClient) {
                 localClient.setClock(clock);
             }
@@ -928,9 +946,16 @@ public class DefaultFluxzero implements Fluxzero {
             KeyValueStore keyValueStore = new DefaultKeyValueStore(client, serializer);
 
             //enable message routing
+            boolean automaticModelRouting = configuredAutomaticModelRouting();
+            AtomicReference<ModelCommitHandlerRegistry> routingModels = new AtomicReference<>();
+            DispatchInterceptor routingInterceptor = messageRoutingInterceptor == null
+                    ? new MessageRoutingInterceptor(automaticModelRouting ? message -> {
+                        ModelCommitHandlerRegistry registry = routingModels.get();
+                        return registry == null ? null : registry.routingTarget(message);
+                    } : null) : messageRoutingInterceptor;
             Arrays.stream(MessageType.values()).forEach(
                     type -> dispatchChains.computeIfPresent(type,
-                                                                  (t, i) -> i.andThen(messageRoutingInterceptor)));
+                                                                  (t, i) -> i.andThen(routingInterceptor)));
 
             //enable authentication
             if (userProvider != null) {
@@ -1153,12 +1178,15 @@ public class DefaultFluxzero implements Fluxzero {
                     dispatchChains.get(EVENT), client.id(),
                     runtimeParameterResolvers, handlerChains.get(COMMAND),
                     configuredModelConflictPolicy(),
+                    configuredModelCreationConflictPolicy(),
                     modelConflictResolver,
                     configuredMaxModelConflictRetries(),
                     configuredAutomaticModelHandling(),
                     configuredGraphProjectionCompletion());
             commandModelRepository.configureModelTypes(
                     modelCommitHandlerRegistry::knownModelTypes);
+            commandModelRepository.configureAutomaticModelRouting(automaticModelRouting);
+            routingModels.set(modelCommitHandlerRegistry);
             if (runtimeDocumentStore instanceof DefaultDocumentStore defaultDocumentStore) {
                 defaultDocumentStore.configureModelGraphSupport(
                         commandModelRepository,
@@ -1366,6 +1394,100 @@ public class DefaultFluxzero implements Fluxzero {
             return fluxzero;
         }
 
+        private void configureTypeAliases() {
+            ConfiguredTypeAliases propertyAliases = ConfiguredTypeAliases.parse(
+                    propertySource.get(FluxzeroBuilder.TYPE_ALIASES_PROPERTY));
+            Map<String, String> resolvedTypeAliases = new LinkedHashMap<>(propertyAliases.typeAliases());
+            resolvedTypeAliases.putAll(typeAliases);
+            Map<String, String> resolvedPackageAliases = new LinkedHashMap<>(propertyAliases.packageAliases());
+            resolvedPackageAliases.putAll(packageAliases);
+
+            configureTypeAliases(serializer, resolvedTypeAliases, resolvedPackageAliases);
+            if (snapshotSerializer != serializer) {
+                configureTypeAliases(snapshotSerializer, resolvedTypeAliases, resolvedPackageAliases);
+            }
+            if (documentSerializer instanceof Serializer documentDataSerializer
+                && documentDataSerializer != serializer && documentDataSerializer != snapshotSerializer) {
+                configureTypeAliases(documentDataSerializer, resolvedTypeAliases, resolvedPackageAliases);
+            }
+        }
+
+        private static void configureTypeAliases(Serializer serializer, Map<String, String> typeAliases,
+                                                 Map<String, String> packageAliases) {
+            typeAliases.forEach(serializer::registerTypeAlias);
+            packageAliases.forEach(serializer::registerPackageAlias);
+        }
+
+        private record ConfiguredTypeAliases(Map<String, String> typeAliases, Map<String, String> packageAliases) {
+            static ConfiguredTypeAliases parse(String value) {
+                if (value == null || value.isBlank()) {
+                    return new ConfiguredTypeAliases(Map.of(), Map.of());
+                }
+                Map<String, String> typeAliases = new LinkedHashMap<>();
+                Map<String, String> packageAliases = new LinkedHashMap<>();
+                for (String entry : splitEntries(value)) {
+                    if (entry.isBlank()) {
+                        continue;
+                    }
+                    int separator = entry.indexOf('=');
+                    if (separator <= 0 || separator != entry.lastIndexOf('=') || separator == entry.length() - 1) {
+                        throw invalidTypeAlias(entry);
+                    }
+                    String source = entry.substring(0, separator).strip();
+                    String target = entry.substring(separator + 1).strip();
+                    boolean sourcePackage = source.endsWith(".*");
+                    boolean targetPackage = target.endsWith(".*");
+                    if (sourcePackage != targetPackage || source.indexOf('*') != (sourcePackage ? source.length() - 1 : -1)
+                        || target.indexOf('*') != (targetPackage ? target.length() - 1 : -1)) {
+                        throw invalidTypeAlias(entry);
+                    }
+                    if (sourcePackage) {
+                        putAlias(packageAliases, source.substring(0, source.length() - 2),
+                                 target.substring(0, target.length() - 2), entry);
+                    } else {
+                        putAlias(typeAliases, source, target, entry);
+                    }
+                }
+                return new ConfiguredTypeAliases(typeAliases, packageAliases);
+            }
+
+            private static List<String> splitEntries(String value) {
+                List<String> result = new ArrayList<>();
+                int start = 0;
+                int genericDepth = 0;
+                for (int i = 0; i < value.length(); i++) {
+                    char current = value.charAt(i);
+                    if (current == '<') {
+                        genericDepth++;
+                    } else if (current == '>') {
+                        genericDepth--;
+                    } else if (genericDepth == 0 && (current == ',' || current == ';' || current == '\n')) {
+                        result.add(value.substring(start, i));
+                        start = i + 1;
+                    }
+                }
+                result.add(value.substring(start));
+                return result;
+            }
+
+            private static void putAlias(Map<String, String> aliases, String source, String target, String entry) {
+                if (source.isBlank() || target.isBlank()) {
+                    throw invalidTypeAlias(entry);
+                }
+                String previous = aliases.putIfAbsent(source, target);
+                if (previous != null && !previous.equals(target)) {
+                    throw new IllegalArgumentException("Conflicting aliases for " + source + " in property "
+                                                       + FluxzeroBuilder.TYPE_ALIASES_PROPERTY);
+                }
+            }
+
+            private static IllegalArgumentException invalidTypeAlias(String entry) {
+                return new IllegalArgumentException(
+                        "Invalid alias '" + entry.strip() + "' in property " + FluxzeroBuilder.TYPE_ALIASES_PROPERTY
+                        + ". Expected old.Type=new.Type or old.package.*=new.package.*");
+            }
+        }
+
         static boolean clientMetricsEnabled(Client client) {
             return !(client.unwrap() instanceof WebSocketClient webSocketClient)
                    || !webSocketClient.getClientConfig().isDisableMetrics();
@@ -1436,13 +1558,31 @@ public class DefaultFluxzero implements Fluxzero {
                             MODEL_CONFLICT_POLICY_PROPERTY);
             if (configured == null
                 || configured.isBlank()) {
-                return ModelConflictPolicy.ACCEPT;
+                return ApplicationProperties.defaultsVersionAtLeast(propertySource, MODEL_RETRY_DEFAULTS_VERSION)
+                        ? ModelConflictPolicy.RETRY : ModelConflictPolicy.ACCEPT;
             }
             return ModelConflictPolicy.resolve(
                     ModelConflictPolicy.valueOf(
                             configured.trim()
                                     .toUpperCase(
                                             java.util.Locale.ROOT)));
+        }
+
+        boolean configuredAutomaticModelRouting() {
+            String configured = propertySource.get("fluxzero.model.automaticRouting");
+            return configured == null
+                    ? ApplicationProperties.defaultsVersionAtLeast(propertySource, MODEL_ROUTING_DEFAULTS_VERSION)
+                    : Boolean.parseBoolean(configured.trim());
+        }
+
+        ModelConflictPolicy configuredModelCreationConflictPolicy() {
+            if (modelConflictPolicy != null && modelConflictPolicy != ModelConflictPolicy.DEFAULT) {
+                return modelConflictPolicy;
+            }
+            String configured = propertySource.get(MODEL_CONFLICT_POLICY_PROPERTY);
+            // Opting into safer defaults must not turn an implicit create-if-absent into an upsert.
+            return configured == null || configured.isBlank() ? ModelConflictPolicy.FAIL
+                    : configuredModelConflictPolicy();
         }
 
         int configuredMaxModelConflictRetries() {

@@ -26,8 +26,10 @@ ranges. Upcasting is application-side SDK behavior; the Runtime neither executes
 
 ## Java Version
 
-Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 24** and remains
-compatible with recent versions.
+Fluxzero SDK **2.x requires JDK 25 or higher** to compile and run, including its common, test-server and proxy artifacts.
+Java and Kotlin projects must target JVM 25 or newer. SDK v2 artifacts are compiled for Java 25, and the SDK build
+rejects older JDKs before compilation. CI and container images use Java 25; no preview features are required.
+This requirement does not change the Java baseline of the SDK 1.x release line.
 
 ---
 

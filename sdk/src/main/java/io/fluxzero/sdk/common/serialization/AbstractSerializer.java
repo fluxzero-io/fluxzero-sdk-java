@@ -18,6 +18,7 @@ package io.fluxzero.sdk.common.serialization;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Data;
+import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.SerializedObject;
 import io.fluxzero.common.reflection.ReflectionUtils;
@@ -34,6 +35,7 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
@@ -47,6 +49,7 @@ import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -91,7 +94,10 @@ public abstract class AbstractSerializer<I> implements Serializer {
     private final CasterChain<Data<I>, Data<I>> downcasterChain;
     @Getter
     private final String format;
-    private final Map<String, String> typeCasters = new ConcurrentHashMap<>();
+    private final Object typeAliasMonitor = new Object();
+    private final Map<String, String> typeAliases = new LinkedHashMap<>();
+    private final Map<String, String> packageAliases = new LinkedHashMap<>();
+    private volatile TypeAliasResolver typeAliasResolver = TypeAliasResolver.empty();
 
     /**
      * Constructs a new serializer with the provided caster candidates and converter.
@@ -101,7 +107,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
      * @param format           the default serialization format name (e.g., "json")
      */
     protected AbstractSerializer(Collection<?> casterCandidates, Converter<byte[], I> converter, String format) {
-        this.upcasterChain = DefaultCasterChain.createUpcaster(casterCandidates, converter);
+        this.upcasterChain = DefaultCasterChain.createUpcaster(
+                casterCandidates, converter, this::resolveRegisteredTypeBeforeUpcasting);
         this.downcasterChain = DefaultCasterChain.createDowncaster(casterCandidates, converter.getOutputType());
         this.format = format;
     }
@@ -219,8 +226,9 @@ public abstract class AbstractSerializer<I> implements Serializer {
     @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public <T> T deserialize(SerializedObject<byte[]> serializedObject) {
-        if (upcasterChain.canSkipCast(serializedObject, null)) {
-            Data<byte[]> data = serializedObject.data();
+        SerializedObject<byte[]> prepared = upcasterChain.prepareForSkippingCast(serializedObject, null);
+        if (prepared != null) {
+            Data<byte[]> data = prepared.data();
             String type = data.getType();
             String upcastedType = upcastType(type);
             if (Objects.equals(format, data.getFormat()) && isKnownType(upcastedType)) {
@@ -246,7 +254,8 @@ public abstract class AbstractSerializer<I> implements Serializer {
     public <S extends SerializedObject<byte[]>> Stream<DeserializingObject<byte[], S>> deserialize(
             Stream<S> dataStream, UnknownTypeStrategy unknownTypeStrategy) {
         return upcasterChain.cast((Stream<SerializedObject<byte[]>>) dataStream)
-                .map(s -> {
+                .map(input -> {
+                    SerializedObject<byte[]> s = (SerializedObject<byte[]>) attachClassNameMapper(input);
                     String type = s.data().getType();
                     String upcastedType = upcastType(type);
                     return Objects.equals(type, upcastedType) ? s : s.withData((Data) s.data().withType(upcastedType));
@@ -295,6 +304,7 @@ public abstract class AbstractSerializer<I> implements Serializer {
         if (casted == null) {
             return null;
         }
+        casted = attachClassNameMapper(casted);
         DeserializingObject<byte[], ?> object = deserializeFirstObject(casted, UnknownTypeStrategy.AS_INTERMEDIATE);
         if (object == null) {
             return null;
@@ -307,12 +317,15 @@ public abstract class AbstractSerializer<I> implements Serializer {
     public Class<?> serializedClassWithoutUpcasting(SerializedObject<?> serializedObject) {
         Data<?> data = serializedObject.data();
         if (data.byteArrayView() == null && !(data.getValue() instanceof byte[])
-            || !Objects.equals(format, data.getFormat())
-            || !upcasterChain.canSkipCast(
-                    (SerializedObject<byte[]>) serializedObject, null)) {
+            || !Objects.equals(format, data.getFormat())) {
             return null;
         }
-        String type = upcastType(data.getType());
+        SerializedObject<byte[]> prepared = upcasterChain.prepareForSkippingCast(
+                (SerializedObject<byte[]>) serializedObject, null);
+        if (prepared == null) {
+            return null;
+        }
+        String type = upcastType(prepared.data().getType());
         return isKnownType(type)
                 ? ReflectionUtils.classForName(type, null)
                 : null;
@@ -410,23 +423,113 @@ public abstract class AbstractSerializer<I> implements Serializer {
      */
     @Override
     public Registration registerTypeCaster(String oldType, String newType) {
-        typeCasters.put(oldType, newType);
-        return () -> typeCasters.remove(oldType);
+        return registerAlias(typeAliases, Objects.requireNonNull(oldType, "oldType"),
+                             Objects.requireNonNull(newType, "newType"));
+    }
+
+    @Override
+    public Registration registerTypeAlias(String oldType, String newType) {
+        return registerTypeCaster(oldType, newType);
+    }
+
+    @Override
+    public Registration registerPackageAlias(String oldPackage, String newPackage) {
+        return registerAlias(packageAliases, validatePackageName(oldPackage, "oldPackage"),
+                             validatePackageName(newPackage, "newPackage"));
     }
 
     /**
-     * Resolves the current type from a potentially chained upcast mapping.
+     * Resolves the current type from potentially chained exact and package aliases.
      */
     @Override
     public String upcastType(String type) {
         if (type == null) {
             return null;
         }
-        String result = typeCasters.get(type);
-        if (result == null || Objects.equals(result, type)) {
+        TypeAliasResolver resolver = typeAliasResolver;
+        if (resolver.isEmpty()) {
             return type;
         }
-        return upcastType(result);
+        return resolver.hasPackageAliases() ? resolver.resolve(type) : resolver.resolveExact(type);
+    }
+
+    /**
+     * Indicates whether exact or package aliases are currently registered.
+     */
+    protected boolean hasTypeAliases() {
+        return !typeAliasResolver.isEmpty();
+    }
+
+    private String resolveRegisteredTypeBeforeUpcasting(String type) {
+        String resolvedName = ReflectionUtils.resolveRegisteredTypeName(type);
+        if (Objects.equals(type, resolvedName) || !Objects.equals(type, upcastType(type))) {
+            return type;
+        }
+        return resolvedName;
+    }
+
+    private SerializedObject<?> attachClassNameMapper(SerializedObject<?> input) {
+        TypeAliasResolver resolver = typeAliasResolver;
+        if (resolver.isEmpty() || !(input instanceof SerializedMessage message)) {
+            return input;
+        }
+        Metadata metadata = message.getMetadata();
+        if (metadata == null) {
+            return input;
+        }
+        return message.withMetadata(metadata.withClassNameMapper(this::resolveTypeName));
+    }
+
+    private Registration registerAlias(Map<String, String> aliases, String source, String target) {
+        synchronized (typeAliasMonitor) {
+            String previous = aliases.put(source, target);
+            try {
+                updateTypeAliasResolver();
+            } catch (RuntimeException e) {
+                if (previous == null) {
+                    aliases.remove(source);
+                } else {
+                    aliases.put(source, previous);
+                }
+                updateTypeAliasResolver();
+                throw e;
+            }
+        }
+        AtomicBoolean active = new AtomicBoolean(true);
+        return () -> {
+            synchronized (typeAliasMonitor) {
+                if (active.get() && aliases.remove(source, target)) {
+                    try {
+                        updateTypeAliasResolver();
+                        active.set(false);
+                    } catch (RuntimeException e) {
+                        aliases.put(source, target);
+                        updateTypeAliasResolver();
+                        throw e;
+                    }
+                } else {
+                    active.set(false);
+                }
+            }
+        };
+    }
+
+    private void updateTypeAliasResolver() {
+        TypeAliasResolver resolver = TypeAliasResolver.create(typeAliases, packageAliases);
+        resolver.validate();
+        typeAliasResolver = resolver;
+    }
+
+    private static String validatePackageName(String value, String parameterName) {
+        Objects.requireNonNull(value, parameterName);
+        String result = value.strip();
+        if (result.isEmpty()) {
+            throw new IllegalArgumentException(parameterName + " must not be blank");
+        }
+        if (result.startsWith(".") || result.endsWith(".") || result.indexOf('*') >= 0) {
+            throw new IllegalArgumentException(parameterName + " must be a package name without wildcards: " + value);
+        }
+        return result;
     }
 
     /**
@@ -526,4 +629,176 @@ public abstract class AbstractSerializer<I> implements Serializer {
      * by concrete serializers.
      */
     protected abstract I asIntermediateValue(Object input);
+
+    private static final class TypeAliasResolver {
+        private static final TypeAliasResolver EMPTY =
+                new TypeAliasResolver(Map.of(), List.of(), null);
+
+        private final Map<String, String> typeAliases;
+        private final List<PackageAlias> packageAliases;
+        private final PrefixNode packageAliasRoot;
+        private final int aliasCount;
+
+        private TypeAliasResolver(Map<String, String> typeAliases, List<PackageAlias> packageAliases,
+                                  PrefixNode packageAliasRoot) {
+            this.typeAliases = typeAliases;
+            this.packageAliases = packageAliases;
+            this.packageAliasRoot = packageAliasRoot;
+            this.aliasCount = typeAliases.size() + packageAliases.size();
+        }
+
+        static TypeAliasResolver empty() {
+            return EMPTY;
+        }
+
+        static TypeAliasResolver create(Map<String, String> typeAliases, Map<String, String> packageAliases) {
+            if (typeAliases.isEmpty() && packageAliases.isEmpty()) {
+                return EMPTY;
+            }
+            List<PackageAlias> packageAliasList = packageAliases.entrySet().stream()
+                    .map(e -> new PackageAlias(e.getKey() + ".", e.getValue() + "."))
+                    .sorted(Comparator.comparingInt((PackageAlias a) -> a.source().length()).reversed())
+                    .toList();
+            PrefixNode packageAliasRoot = null;
+            if (!packageAliasList.isEmpty()) {
+                MutablePrefixNode mutableRoot = new MutablePrefixNode();
+                packageAliasList.forEach(a -> mutableRoot.add(a.source(), a.target()));
+                packageAliasRoot = mutableRoot.freeze();
+            }
+            return new TypeAliasResolver(new ConcurrentHashMap<>(typeAliases), packageAliasList, packageAliasRoot);
+        }
+
+        boolean isEmpty() {
+            return this == EMPTY;
+        }
+
+        boolean hasPackageAliases() {
+            return packageAliasRoot != null;
+        }
+
+        String resolveExact(String type) {
+            String result = type;
+            int numberOfAppliedAliases = 0;
+            while (true) {
+                String next = typeAliases.get(result);
+                if (next == null || next.equals(result)) {
+                    return result;
+                }
+                if (++numberOfAppliedAliases > aliasCount) {
+                    throw new IllegalStateException("Type alias cycle detected while resolving " + type);
+                }
+                result = next;
+            }
+        }
+
+        String resolve(String type) {
+            String result = type;
+            int numberOfAppliedAliases = 0;
+            while (true) {
+                String next = typeAliases.get(result);
+                if (next == null) {
+                    next = applyPackageAlias(result);
+                }
+                if (next == null || next.equals(result)) {
+                    return result;
+                }
+                if (++numberOfAppliedAliases > aliasCount) {
+                    throw new IllegalStateException("Type alias cycle detected while resolving " + type);
+                }
+                result = next;
+            }
+        }
+
+        void validate() {
+            typeAliases.keySet().forEach(this::validate);
+            packageAliases.forEach(a -> validatePackages(a.source() + "TypeAliasProbe"));
+        }
+
+        private void validate(String type) {
+            try {
+                resolve(type);
+            } catch (IllegalStateException e) {
+                throw new IllegalArgumentException(e.getMessage(), e);
+            }
+        }
+
+        private void validatePackages(String type) {
+            String result = type;
+            int numberOfAppliedAliases = 0;
+            while (true) {
+                String next = applyPackageAlias(result);
+                if (next == null || next.equals(result)) {
+                    return;
+                }
+                if (++numberOfAppliedAliases > packageAliases.size()) {
+                    throw new IllegalArgumentException("Package alias cycle detected while resolving " + type);
+                }
+                result = next;
+            }
+        }
+
+        private String applyPackageAlias(String type) {
+            return packageAliasRoot == null ? null : packageAliasRoot.apply(type);
+        }
+
+        private record PackageAlias(String source, String target) {
+        }
+
+        private static final class MutablePrefixNode {
+            private final Map<Character, MutablePrefixNode> children = new TreeMap<>();
+            private String replacement;
+
+            void add(String source, String target) {
+                MutablePrefixNode node = this;
+                for (int i = 0; i < source.length(); i++) {
+                    node = node.children.computeIfAbsent(source.charAt(i), ignored -> new MutablePrefixNode());
+                }
+                node.replacement = target;
+            }
+
+            PrefixNode freeze() {
+                char[] childCharacters = new char[children.size()];
+                PrefixNode[] childNodes = new PrefixNode[children.size()];
+                int index = 0;
+                for (Map.Entry<Character, MutablePrefixNode> entry : children.entrySet()) {
+                    childCharacters[index] = entry.getKey();
+                    childNodes[index] = entry.getValue().freeze();
+                    index++;
+                }
+                return new PrefixNode(childCharacters, childNodes, replacement);
+            }
+        }
+
+        private record PrefixNode(char[] childCharacters, PrefixNode[] childNodes, String replacement) {
+            String apply(String type) {
+                PrefixNode node = this;
+                String matchedReplacement = null;
+                int matchedLength = 0;
+                for (int i = 0; i < type.length(); i++) {
+                    node = node.child(type.charAt(i));
+                    if (node == null) {
+                        break;
+                    }
+                    if (node.replacement != null) {
+                        matchedReplacement = node.replacement;
+                        matchedLength = i + 1;
+                    }
+                }
+                return matchedReplacement == null ? null : matchedReplacement + type.substring(matchedLength);
+            }
+
+            private PrefixNode child(char character) {
+                for (int i = 0; i < childCharacters.length; i++) {
+                    char candidate = childCharacters[i];
+                    if (candidate == character) {
+                        return childNodes[i];
+                    }
+                    if (candidate > character) {
+                        return null;
+                    }
+                }
+                return null;
+            }
+        }
+    }
 }

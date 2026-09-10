@@ -15,6 +15,7 @@
 package io.fluxzero.sdk.givenwhenthen;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.serialization.Revision;
 import io.fluxzero.sdk.common.Nullable;
 import io.fluxzero.sdk.common.serialization.casting.Upcast;
@@ -28,6 +29,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
+import static io.fluxzero.sdk.configuration.FluxzeroBuilder.TYPE_ALIASES_PROPERTY;
 
 class TestFixtureResourceSequenceTest {
 
@@ -56,6 +60,38 @@ class TestFixtureResourceSequenceTest {
         fixture(handler).givenCommands("single-sequence-command.json")
                 .whenQuery(new HandledCommands())
                 .expectResult(List.of("only"));
+    }
+
+    @Test
+    void classMetadataInJsonResourceUsesPackageAlias() {
+        RecordingHandler handler = new RecordingHandler();
+
+        fixture(handler).registerPackageAlias("host.example", "io.fluxzero.sdk.givenwhenthen")
+                .givenCommands("aliased-current-command.json")
+                .whenQuery(new HandledCommands())
+                .expectResult(List.of("aliased current"));
+    }
+
+    @Test
+    void classMetadataInJsonResourceUsesRegisteredSimpleName() {
+        RecordingHandler handler = new RecordingHandler();
+
+        fixture(handler).givenCommands("registered-simple-command.json")
+                .whenQuery(new HandledCommands())
+                .expectResult(List.of("registered simple"));
+    }
+
+    @Test
+    void classMetadataInJsonResourceUsesPackageAliasFromProperty() {
+        RecordingHandler handler = new RecordingHandler();
+        var builder = DefaultFluxzero.builder()
+                .replacePropertySource(ignored -> new SimplePropertySource(Map.of(
+                        TYPE_ALIASES_PROPERTY, "host.example.*=io.fluxzero.sdk.givenwhenthen.*")));
+
+        TestFixture.create(builder, handler).registerCasters(new SequenceCommandUpcaster())
+                .givenCommands("aliased-sequence-command.json")
+                .whenQuery(new HandledCommands())
+                .expectResult(List.of("aliased"));
     }
 
     @Test

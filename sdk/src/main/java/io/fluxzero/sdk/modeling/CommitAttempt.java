@@ -45,6 +45,8 @@ public final class CommitAttempt {
     private Map<String, Entity<?>> entities = Map.of();
 
     private List<String> readModelIds = List.of();
+    private List<String> applyReadModelIds = List.of();
+    private Set<String> readCollector;
     private Map<String, Class<?>> readModelTypes = Map.of();
     private List<Step> steps = List.of();
     private List<Change> changes = List.of();
@@ -187,10 +189,16 @@ public final class CommitAttempt {
     }
 
     public Entity<?> entity(String modelId) {
+        if (readCollector != null && modelId != null) {
+            readCollector.add(modelId);
+        }
         return entities.get(modelId);
     }
 
     public Map<String, Entity<?>> entities() {
+        if (readCollector != null) {
+            readCollector.addAll(entities.keySet());
+        }
         return entities;
     }
 
@@ -226,7 +234,7 @@ public final class CommitAttempt {
             }
         }
         if (exact != null || sourceProperty != null) {
-            return exact;
+            return recordRead(exact);
         }
         if (secondCandidate != null) {
             throw ambiguous(modelType, null, resolution.models().stream()
@@ -234,7 +242,20 @@ public final class CommitAttempt {
                             modelType, target.modelType()))
                     .map(MutationPlan.ResolvedModel::modelId).toList());
         }
-        return candidate;
+        return recordRead(candidate);
+    }
+
+    private Entity<?> recordRead(Entity<?> entity) {
+        if (readCollector != null && entity != null) {
+            readCollector.add(entity.id().toString());
+        }
+        return entity;
+    }
+
+    Set<String> collectReads(Set<String> collector) {
+        Set<String> previous = readCollector;
+        readCollector = collector;
+        return previous;
     }
 
     MutationPlan.DirectReferences references(EntityMetadata.ModelParameter parameter) {
@@ -292,8 +313,18 @@ public final class CommitAttempt {
             Collection<String> readIds,
             Map<String, Class<?>> readTypes,
             List<Step> steps) {
+        evaluated(stateIndex, readIds, readIds, readTypes, steps);
+    }
+
+    void evaluated(
+            long stateIndex,
+            Collection<String> readIds,
+            Collection<String> applyReadIds,
+            Map<String, Class<?>> readTypes,
+            List<Step> steps) {
         readStateIndex = stateIndex;
         readModelIds = List.copyOf(readIds);
+        applyReadModelIds = readIds == applyReadIds ? readModelIds : List.copyOf(applyReadIds);
         readModelTypes = Map.copyOf(readTypes);
         this.steps = List.copyOf(steps);
         ArrayList<Change> ordered = new ArrayList<>();
@@ -309,6 +340,11 @@ public final class CommitAttempt {
 
     public List<String> readModelIds() {
         return readModelIds;
+    }
+
+    /** Reads needed to preserve this policy's evaluation: ACCEPT only reapplies its original steps. */
+    public List<String> readModelIds(ModelConflictPolicy policy) {
+        return ModelConflictPolicy.resolve(policy) == ModelConflictPolicy.ACCEPT ? applyReadModelIds : readModelIds;
     }
 
     Map<String, Class<?>> readModelTypes() {
@@ -328,16 +364,20 @@ public final class CommitAttempt {
     }
 
     ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured) {
+        return conflictPolicy(configured, configured);
+    }
+
+    ModelConflictPolicy conflictPolicy(ModelConflictPolicy configured, ModelConflictPolicy creationPolicy) {
         ModelConflictPolicy application = ModelConflictPolicy.resolve(configured);
         if (changes.size() == 1 && readModelTypes.size() == 1
             && readModelTypes.containsKey(changes.getFirst().modelId())) {
-            return transitionPolicy(changes.getFirst(), application);
+            return transitionPolicy(changes.getFirst(), application, creationPolicy);
         }
         ModelConflictPolicy result = ModelConflictPolicy.ACCEPT;
         Set<String> written = new HashSet<>();
         for (Change change : changes) {
             written.add(change.modelId());
-            result = strictest(result, transitionPolicy(change, application));
+            result = strictest(result, transitionPolicy(change, application, creationPolicy));
         }
         for (Map.Entry<String, Class<?>> entry : readModelTypes.entrySet()) {
             if (!written.contains(entry.getKey())) {
@@ -397,10 +437,10 @@ public final class CommitAttempt {
     }
 
     private static ModelConflictPolicy transitionPolicy(
-            Change change, ModelConflictPolicy application) {
-        ModelConflictPolicy result = inherit(change.conflictPolicy(), application);
-        return change.before() == null && change.beforeSequenceNumber() < 0L
-               && result == ModelConflictPolicy.ACCEPT ? ModelConflictPolicy.FAIL : result;
+            Change change, ModelConflictPolicy application, ModelConflictPolicy creationPolicy) {
+        boolean creation = change.before() == null && change.beforeSequenceNumber() < 0L;
+        ModelConflictPolicy result = inherit(change.conflictPolicy(), creation ? creationPolicy : application);
+        return creation && result == ModelConflictPolicy.ACCEPT ? ModelConflictPolicy.FAIL : result;
     }
 
     private static ModelConflictPolicy modelPolicy(Class<?> type) {

@@ -1636,7 +1636,7 @@ public final class OpenApiRenderer {
         private final Set<ModelGraphExpansion> expandedModelGraphs = new LinkedHashSet<>();
         private final Map<Class<?>, List<String>> modelGraphSelections = new LinkedHashMap<>();
         private final String openApiVersion;
-        private final List<Class<?>> modelTypes;
+        private List<Class<?>> modelTypes;
 
         SchemaContext(String openApiVersion, List<Class<?>> modelTypes) {
             this.openApiVersion = openApiVersion;
@@ -1677,12 +1677,19 @@ public final class OpenApiRenderer {
         }
 
         void bindMarkedTypes(ClassLoader classLoader) {
+            // Compiled schemas also supply graph types: the runtime registry may only know some of the children.
+            Set<Class<?>> graphTypes = new LinkedHashSet<>(modelTypes);
             schemas.forEach((name, schema) -> {
                 String typeName = schema.path(JAVA_TYPE_EXTENSION).asText();
                 if (!typeName.isBlank()) {
-                    bind(loadType(typeName, classLoader), name);
+                    Class<?> type = loadType(typeName, classLoader);
+                    bind(type, name);
+                    if (EntityMetadata.of(type).isModel()) {
+                        graphTypes.add(type);
+                    }
                 }
             });
+            modelTypes = List.copyOf(graphTypes);
         }
 
         void markType(Class<?> type) {

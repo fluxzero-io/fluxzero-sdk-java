@@ -13,6 +13,8 @@ code.
 - [Upcasting (@Upcast)](#upcasting)
     - [Payload Upcasters (ObjectNode)](#payload-upcasting)
     - [Data Upcasters (Full Message)](#data-upcasting)
+- [Registered Simple Type Names](#registered-type-names)
+- [Type Aliases](#type-aliases)
 - [Downcasting (@Downcast)](#downcasting)
 - [Testing Upcasters](#testing-upcasters)
 - [Implementation Rules](#implementation-rules)
@@ -32,6 +34,8 @@ code.
 4. **Register Once**: Spring applications discover upcaster beans (normally `@Component`) automatically. Without
    Spring, register caster instances explicitly with the serializer.
 5. **Test with TestFixture**: Upcasters can be verified using `TestFixture.whenUpcasting(...)`.
+6. **Prefer Aliases for Pure Renames**: If only a fully qualified class or package name changed, while the payload and
+   revision stayed compatible, configure a type alias instead of creating an upcaster.
 
 ---
 
@@ -87,10 +91,10 @@ public class ProjectUpcaster {
 
 ### Data Upcasters and Message Metadata
 
-Use `Data<JsonNode>` when content, serialized **type** or **revision** must evolve together. This is the preferred route
-for a class rename; no separate typecaster is required. A `Metadata` or `SerializedMessage` parameter may be injected
-when the serialized input is a message. Return `Metadata` to replace the message metadata without changing the payload;
-the caster chain advances the revision automatically.
+Use `Data<JsonNode>` when you need to change the **type as part of a revision migration** or set the **revision**
+explicitly. For a pure class or package rename, use a [type alias](#type-aliases). A `Metadata` or `SerializedMessage`
+parameter may be injected when the serialized input is a message. Return `Metadata` to replace the message metadata
+without changing the payload; the caster chain advances the revision automatically.
 
 [//]: # (@formatter:off)
 ```java
@@ -126,6 +130,80 @@ Read-time upcasting is sufficient for correctness. A dedicated
 `@HandleDocument(modelGraph = RootModel.class)` handler may return the complete Graph to persist evolved JSON into the
 derived projection. It must not change the root, state boundary, nodes or placements and never rewrites Models,
 snapshots, events or relationships.
+
+---
+
+<a name="registered-type-names"></a>
+
+## Registered Simple Type Names
+
+Use `@RegisterType` on a message class or root package when a frontend or other producer should send a stable simple
+type such as `CreateOrder` instead of a Java FQN. The generated registry resolves serialized envelope types for
+messages, documents, snapshots, and other data, plus root or nested JSON `@class` values. A partial suffix such as
+`orders.CreateOrder` can disambiguate equal simple names. Do not use an ambiguous simple name. Type aliases resolve
+before registered names; use `Serializer.resolveTypeName` when passing the resolver to `JsonUtils`.
+Registered envelope names are normalized before revision upcasters are selected. Historical aliases remain post-upcast
+so an upcaster declared for the old type still runs before the type is mapped.
+
+Annotation processing must run in every module that contributes registered types. Separate classpath entries and Spring
+Boot nested JARs retain the generated indexes automatically. A custom uber-JAR must combine every
+`META-INF/io.fluxzero.common.serialization.TypeRegistry` resource in its own packaging configuration (for Maven Shade,
+use `AppendingTransformer`). FQNs remain valid. Use aliases for historical FQNs already stored or queued after a
+package move, not as a substitute for current simple-name producers.
+
+---
+
+<a name="type-aliases"></a>
+
+## Type Aliases
+
+Use aliases when historical serialized data names an old class or package, but the JSON payload and revision remain
+compatible with the current type. Prefer application or deployment configuration. Put the complete list in
+`application.properties`:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+Or supply the same value through the conventional environment variable:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+The compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also accepted by `ApplicationProperties`. An environment
+value takes precedence over system and application properties and supplies the complete list. Entries may be separated
+by commas, semicolons, or newlines; a package alias has a trailing `.*` on both sides.
+
+Aliases apply to the top-level serialized type, to polymorphic `@class` values nested anywhere in Jackson JSON, and to
+JSON-encoded message metadata read through a typed `Metadata#get`. Raw metadata strings remain unchanged.
+`TestFixture` resolves non-revisioned fixture `@class` values before Jackson class loading; revisioned fixture roots
+keep the historical type until their upcasters have run. For direct untyped `JsonUtils` resource reads outside a
+fixture, pass the configured serializer's `upcastType` to `JsonUtils.fromFileWithTypeMapper` explicitly.
+
+Use the builder only when aliases are intentionally owned by application code or a test:
+
+[//]: # (@formatter:off)
+```java
+Fluxzero fluxzero = DefaultFluxzero.builder()
+        .addTypeAlias("host.example.LegacyCommand", "io.example.CurrentCommand")
+        .addPackageAlias("host.example.events", "io.example.events")
+        .build(client);
+```
+[//]: # (@formatter:on)
+
+Follow these rules:
+
+- Exact aliases take precedence over package aliases.
+- For overlapping package aliases, the longest matching package prefix wins. Package boundaries are respected.
+- Aliases may chain, but cycles are rejected when they are registered.
+- Programmatic aliases override property aliases with the same source.
+- Upcasters run first and select the serialized source type; aliases resolve the resulting type before deserialization.
+  If a rename and a schema change happen together, keep `@Upcast.type` on the historical FQN and combine the upcaster
+  with an alias.
+- Builder aliases apply to the primary serializer, snapshot serializer, and serializer-backed document serializer.
+- `TestFixture` JSON `@class` values use the same aliases. A fixture can also call `registerTypeAlias(...)` or
+  `registerPackageAlias(...)` directly.
 
 ---
 
@@ -199,8 +277,11 @@ You can verify upcasters in a `TestFixture` by providing the old serialized form
 ```
 
 `@class` is used as `Data.type` and `@revision` as `Data.revision`; both markers are removed before the payload enters
-the upcaster chain. Always use `@revision` for serialization metadata. A field named `revision` without the `@` prefix
-is normal payload data. Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls return the same
+the upcaster chain. Exact and package aliases are applied to the resulting type before deserialization. Configure them
+through `fluxzero.serialization.typeAliases` or `FLUXZERO_SERIALIZATION_TYPE_ALIASES`, on the builder, or directly on
+the fixture. Always use `@revision` for serialization metadata. A field named `revision` without the `@` prefix is
+normal payload data. Untyped
+`JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` calls return the same
 `Data<JsonNode>` representation, while explicitly typed overloads keep their declared return type. Untyped root arrays
 and multiple root values (NDJSON) return an `ArrayList` whose elements or records are each resolved independently with
 the same `@class` and `@revision` rules. A `.ndjson` or `.jsonl` resource always returns an `ArrayList`, including for
@@ -231,8 +312,8 @@ void testProjectUpcasting() {
   in a separate package. For shared logic, a separate upcaster component is often cleaner.
 - **Chain of Responsibility**: Fluxzero automatically chains upcasters. To move from Revision 0 to 2, the SDK will look
   for a 0->1 upcaster and then a 1->2 upcaster.
-- **FQNs**: Use the Fully Qualified Name stored in the source data in `@Upcast.type`. After a class rename that is
-  usually the old name; return `Data.withType(...)` to select the new name for the remainder of the chain.
+- **FQNs**: Use the Fully Qualified Name stored at that revision in the `type` attribute of `@Upcast`. This remains the
+  historical/source name when a type alias later maps it to the current class.
 - **Type Coverage**: If a shared nested value object changes (for example `ProjectDetails`), add upcasters for each
   top-level type that embeds it (for example `CreateProject`, `UpdateProject`, and `Project`).
 - **Revision Discipline**: Whenever a payload/document schema changes, increment `@Revision` on each affected top-level

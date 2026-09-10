@@ -197,8 +197,8 @@ public class EntityParameterResolver implements PreparedParameterResolver<Object
                    && resolvedModelBinding(message, plan).isPresent();
         }
         Entity<?> entity = context.get().resolve(model.modelType(), model.associationProperty());
-        return entity != null && (model.entityWrapped() || model.graphWrapped()
-                                  || entity.isPresent() || isNullable(parameter));
+        return entity == null ? isNullable(parameter)
+                : model.entityWrapped() || model.graphWrapped() || entity.isPresent() || isNullable(parameter);
     }
 
     private static Object modelArgument(

@@ -213,14 +213,36 @@ If evaluation fails, no target is committed. Conflict handling applies to the co
 - `ACCEPT` stores the original event and rebases derived documents, snapshots and relations on current model state;
 - `FAIL` rolls the runtime action back and returns a conflict;
 - `RETRY` rolls it back and performs a bounded complete reevaluation against freshly loaded models;
-- `DEFAULT` inherits the application policy and ultimately falls back to `ACCEPT`.
+- `DEFAULT` inherits the application policy: `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
 
-A concurrent claim of the same new model identity is never silently `ACCEPT`-rebased into an overwrite. An explicit
+`RETRY` and `FAIL` validate all Models resolved during evaluation, including assertion and interceptor dependencies.
+`ACCEPT` validates only dependencies used during apply plus written targets; assertion-/interceptor-only changes do
+not require a rebase because that policy preserves the original decision. Rebase skips assertions and interceptors.
+Roots used to select an apply ancestor remain dependencies, even if an assertion originally loaded those roots or the
+ancestor is nullable and currently missing. Rebase reloads those selection roots without rerunning assertions.
+Conflict-free eligible commits use the same cached-head/atomic-boundary Runtime optimization for all policies.
+
+A concurrent claim of the same new model identity fails under implicit defaults, including the new RETRY default,
+and is never silently `ACCEPT`-rebased into an overwrite. An explicit
 `RETRY` instead reevaluates the complete action at the conflict boundary: create-only assertions still reject the
 existing identity, while deliberate upserts may continue from its freshly reconstructed value.
 
 Configure a default through `FluxzeroBuilder` or `fluxzero.model.conflictPolicy`, and override it on `@Model` or an
 individual `@Apply`.
+
+## Automatic Model routing
+
+Set `fluxzero.model.automaticRouting=true` or opt into defaults version `2026.09.10` to route simple single-apply
+commands by their canonical Model target ID. The target must be statically unambiguous: collection/dynamic returns,
+multiple applies and Model interception disable inference. ID extraction uses the same typed-ID affixes and parent
+scope as Model loading; it executes no apply and performs no repository read. Single-Model events use their actual
+committed target as fallback, including targets selected after interception. Multi-Model events do not pick a first ID.
+
+Explicit segments and routing annotations always take precedence. A field or metadata/property explicitly designated
+by `@RoutingKey` suppresses fallback even if its value is absent. `fluxzero.model.automaticRouting=false` disables both
+fallbacks. Aggregate event routing and local dispatch behavior remain unchanged. Routing reduces write contention but
+does not eliminate conflicts on shared read dependencies or imply ordering across consumers. A source command segment
+is not assumed to represent the Model ID when its routing provenance is unknown.
 
 ## Consecutive commands in one tracking batch
 

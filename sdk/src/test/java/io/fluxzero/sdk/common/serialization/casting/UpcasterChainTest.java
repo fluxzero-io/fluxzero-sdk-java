@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
@@ -39,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -288,6 +290,73 @@ class UpcasterChainTest {
         assertTrue(empty.canSkipCast(input, null));
         assertFalse(matching.canSkipCast(input, null));
         assertTrue(matching.canSkipCast(input, 0));
+        assertSame(input, empty.prepareForSkippingCast(input, null));
+        assertNull(matching.prepareForSkippingCast(input, null));
+        assertSame(input, matching.prepareForSkippingCast(input, 0));
+    }
+
+    @Test
+    void preparesTypeOnceWithoutMaterializingOrConvertingTheInput() {
+        AtomicInteger resolutions = new AtomicInteger();
+        AbstractConverter<byte[], String> converter = new AbstractConverter<>() {
+            @Override
+            public String convert(byte[] bytes) {
+                throw new AssertionError("Preparation converted content");
+            }
+
+            @Override
+            public Data<?> convertFormat(Data<byte[]> data) {
+                throw new AssertionError("Preparation converted format");
+            }
+        };
+        var chain = DefaultCasterChain.createUpcaster(List.of(), converter, type -> {
+            resolutions.incrementAndGet();
+            return "canonical.Type";
+        });
+        Data<byte[]> input = new Data<>(() -> {
+            throw new AssertionError("Preparation materialized content");
+        }, "short", 0, Data.JSON_FORMAT);
+
+        SerializedObject<byte[]> prepared = chain.prepareForSkippingCast(input, null);
+
+        assertEquals("canonical.Type", prepared.getType());
+        assertEquals(1, resolutions.get());
+        assertSame(prepared, chain.prepareForSkippingCast(prepared, null));
+        assertEquals(2, resolutions.get());
+    }
+
+    @Test
+    void normalizedTypeWithAnUpcasterRetainsTheOrdinaryCastingPath() {
+        var chain = DefaultCasterChain.createUpcaster(List.of(upcasterStub), new StringConverter(),
+                                                      type -> "mapPayload");
+        Data<byte[]> input = new Data<>("input".getBytes(), "short", 0, Data.JSON_FORMAT);
+
+        assertNull(chain.prepareForSkippingCast(input, null));
+        assertEquals("mappedPayload", chain.cast(Stream.of(input)).findFirst().orElseThrow().data().getValue());
+    }
+
+    @Test
+    void preparingAnInterceptedChainDoesNotExecuteCallbacks() {
+        CasterChain<Data<String>, Data<String>> chain = DefaultCasterChain.createUpcaster(List.of(), String.class);
+        CasterChain<Data<String>, Data<String>> intercepted = chain.intercept(input -> {
+            throw new AssertionError("Preparation executed the before callback");
+        }, output -> {
+            throw new AssertionError("Preparation executed the after callback");
+        });
+
+        assertNull(intercepted.prepareForSkippingCast(new Data<>("input", "type", 0), null));
+    }
+
+    @Test
+    void preparationRespectsCustomSkipEligibility() {
+        CasterChain<Data<String>, Data<String>> chain = new DefaultCasterChain<>(List.of(), String.class, false) {
+            @Override
+            public boolean canSkipCast(Data<String> input, Integer rev) {
+                return false;
+            }
+        };
+
+        assertNull(chain.prepareForSkippingCast(new Data<>("input", "type", 0), null));
     }
 
     /*

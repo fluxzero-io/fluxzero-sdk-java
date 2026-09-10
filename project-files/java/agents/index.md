@@ -33,7 +33,7 @@ Check the folder `{project-root}/.fluxzero/agents/rules` for:
 - **[Testing](rules/testing.md)**: Verification using `TestFixture`.
 - **[Local Development](rules/development.md)**: Version-aligned CLI, dev-server, and `dev.yaml` guidance.
 - **[Validation](rules/validation.md)**: Security, authorization, and payload validation.
-- **[Serialization](rules/serialization.md)**: Versioning and upcasting.
+- **[Serialization](rules/serialization.md)**: Versioning, type aliases, and upcasting.
 - **[Configuration](rules/configuration.md)**: SDK and application setup.
 - **[Troubleshooting](rules/troubleshooting.md)**: Resolving common issues and errors.
 - **[Imports](rules/fluxzero-fqns-grouped.md)**: Mandatory Java FQNs for all SDK components.

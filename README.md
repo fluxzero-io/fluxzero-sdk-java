@@ -19,6 +19,21 @@ functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
 ### Maven Users
 
+Add the Fluxzero repository to your POM to receive releases as soon as they are published:
+
+```xml
+<repositories>
+    <repository>
+        <id>fluxzero</id>
+        <url>https://packages.fluxzero.io/maven</url>
+        <releases><enabled>true</enabled></releases>
+        <snapshots><enabled>false</enabled></snapshots>
+    </repository>
+</repositories>
+```
+
+Releases are published here before Maven Central. Existing Maven coordinates stay the same.
+
 Import the [Fluxzero BOM](https://mvnrepository.com/artifact/io.fluxzero/fluxzero-bom) in your
 `dependencyManagement` section to centralize version management:
 
@@ -79,6 +94,10 @@ automatically:
 <summary><strong>Kotlin DSL (build.gradle.kts)</strong></summary>
 
 ```kotlin
+repositories {
+    maven { url = uri("https://packages.fluxzero.io/maven") }
+    mavenCentral()
+}
 dependencies {
     implementation(platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}"))
     implementation("io.fluxzero:java-client")
@@ -94,6 +113,10 @@ dependencies {
 <summary><strong>Groovy DSL (build.gradle)</strong></summary>
 
 ```groovy
+repositories {
+    maven { url 'https://packages.fluxzero.io/maven' }
+    mavenCentral()
+}
 dependencies {
     implementation platform("io.fluxzero:fluxzero-bom:${fluxzeroVersion}")
     implementation 'io.fluxzero:java-client'
@@ -2566,6 +2589,8 @@ ancestors of each selected path are included automatically, while sibling and de
 explicitly. Exclusion and path selection affect documentation only, not the graph returned at runtime.
 `ApiDocResponse.type` and `modelGraph` are mutually exclusive. The served OpenAPI endpoint completes compile-time graph
 metadata with the model types registered in the current application, so child models may live in another Maven module.
+Model types recorded in the generated schemas remain available even when the runtime registry is only partially
+populated. Serving a generated graph therefore does not depend on those models having been used earlier in the process.
 
 #### Request Cookies
 
@@ -3811,6 +3836,26 @@ even if the earlier commit is still in flight. Direct `loadModel`/`loadModels` c
 `loadGraph` composition use that same batch view, so aliases, creations, deletions and child moves are visible without
 waiting for storage. A graph that moves into a root retains its already durable descendants. Explicit historical
 `loadGraphAt` calls remain fixed to their requested boundary and never include pending state.
+
+With `fluxzero.defaults.version >= 2026.09.09`, Model updates default to `RETRY`: the Runtime validates all Models
+resolved during evaluation, including assertions and interceptors, and a conflict triggers a bounded fresh Model
+evaluation. Conflict-free commits use the same cached-head/atomic-boundary optimization as `ACCEPT` when eligible.
+Implicit first creations still fail on conflict, preserving create-if-absent. Explicit `@Apply`, `@Model`, builder
+or `fluxzero.model.conflictPolicy` settings take precedence; an explicit `RETRY` can deliberately reevaluate a create
+and needs a create-only assertion if overwriting must remain forbidden. Without a defaults version, `ACCEPT` remains
+the compatibility default. `ACCEPT` preserves the original event: only apply dependencies and written targets require
+rebasing, not Models read solely by assertions or interceptors. `FAIL` and `RETRY` retain the complete evaluation readset.
+The loaded roots used to select an apply ancestor also count as apply dependencies, including nullable missing ancestors.
+This validation does not turn arbitrary external searches or unrelated repository reads into transactional reads.
+
+With `fluxzero.defaults.version >= 2026.09.10`, or `fluxzero.model.automaticRouting=true`, a command with one statically
+unambiguous, non-collection Model apply gets a routing fallback based on its canonical Model ID, including typed-ID
+affixes and parent scope. No Model is loaded and no apply is executed to find that ID. Intercepted, dynamic and
+multi-apply commands do not receive this inferred route. An event affecting exactly one Model gets the corresponding
+fallback from its actual committed target. Explicit segments, `@RoutingKey` fields and type-level metadata/property
+declarations win, including declarations whose value is absent. Multiple targets never select an arbitrary first ID.
+Set `fluxzero.model.automaticRouting=false` to disable both fallbacks. Aggregate routing is unchanged. A command's
+segment is not blindly inherited: external producers or interceptors may have assigned it for a different key.
 
 Explicit `assertAndApply` operations and stored-event applies started while handling that batch participate in the same
 view. They keep their own commit boundary, but expose their staged output to later messages and wait/re-evaluate when
@@ -5575,6 +5620,50 @@ The serializer is fully pluggable, and you can supply your own by implementing o
 
 ---
 
+### Registered Simple Type Names
+
+Annotate a message type or a root package with `@RegisterType` when external producers should not need to know its
+Java/Kotlin package. The annotation processor indexes the selected types at compile time:
+
+```java
+@RegisterType
+package com.example.api;
+```
+
+The frontend or another producer can then send `CreateUser` (or a distinguishing suffix such as
+`user.CreateUser`) as the serialized envelope type instead of `com.example.api.CreateUser`. This applies to every
+serialized payload, including commands, queries, events, documents, and snapshots. The same resolver handles root and
+nested JSON `@class` values:
+
+```json
+{
+  "@class": "CreateUser",
+  "userId": "user-123"
+}
+```
+
+Use a simple name only when it is unique across the registered types. If two packages contain the same class name,
+include enough trailing package segments to distinguish them. Annotation processing must be enabled in every module
+that contributes registered types. Kotlin projects can annotate a marker type with
+`@RegisterType(root = "com.example.api")` through `kapt`.
+
+Registered envelope names are normalized before revision upcasters are selected, so older revisions sent with a
+simple or partial name follow the same upcasting path as the fully qualified type.
+
+Separate classpath entries and Spring Boot nested JARs retain the per-module indexes automatically. A custom uber-JAR
+is responsible for combining the fixed registry resource itself. With Maven Shade, for example:
+
+```xml
+<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+    <resource>META-INF/io.fluxzero.common.serialization.TypeRegistry</resource>
+</transformer>
+```
+
+Fully qualified names remain supported. Use [type aliases](#type-aliases) for historical FQNs already stored or queued
+after a class or package move; simple registered names are intended for current producers.
+
+---
+
 ### Revisions
 
 To track changes in your data model, annotate your class with `@Revision`. When deserializing, Flux will use this
@@ -5650,6 +5739,51 @@ ObjectNode upcast(ObjectNode json, @Nullable Metadata metadata) {
 ```
 
 Returning `Metadata` still requires message input because non-message data has nowhere to store it.
+
+---
+
+### Type Aliases
+
+Use type aliases when serialized data contains an old Java type name but the payload itself does not need to change.
+For most applications, configure all exact and package aliases together in `application.properties`:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+In deployment configuration, use the conventional environment-variable name. Quote the value so the shell does not
+interpret the `*` characters:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+The compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also accepted. Environment variables follow the normal
+property resolution order and take precedence over system and application properties. The selected property value is
+the complete comma-, semicolon-, or newline-separated alias list; add `.*` on both sides to identify package aliases.
+
+Use the builder when the aliases are intentionally owned by application code or a test:
+
+```java
+Fluxzero fluxzero = DefaultFluxzero.builder()
+        .addTypeAlias("host.example.LegacyCommand", "io.example.CurrentCommand")
+        .addPackageAlias("host.example.events", "io.example.events")
+        .build();
+```
+
+A package alias applies to the package and all its subpackages while preserving the remaining class-name suffix.
+Exact aliases take precedence, and the longest package prefix wins when package aliases overlap. Aliases may also
+chain, for example from an exact legacy name into an aliased package. Package boundaries are respected, so an alias for
+`host.example` does not match `host.examples.SomeType`. Jackson deserialization also applies aliases to polymorphic
+`@class` values at any depth in the JSON and in JSON-encoded message metadata read through a typed `Metadata#get`.
+`TestFixture` applies the same aliases before resolving non-revisioned fixture types, while revisioned fixture roots
+retain their old type until their upcasters have run.
+
+Programmatic aliases override property aliases with the same source. Alias resolution runs after revision upcasters,
+so existing `@Upcast` handlers continue to select the serialized type and may themselves change it before aliases are
+applied. It is used by the primary and snapshot serializers, by serializer-backed document serializers, and by
+`@class` values in JSON files loaded by `TestFixture`. Fixtures can additionally call `registerTypeAlias(...)` or
+`registerPackageAlias(...)` directly.
 
 ---
 
@@ -5883,9 +6017,19 @@ Properties are resolved in the following order of precedence:
 
 1. `EnvironmentVariablesSource` – e.g. `export MY_SETTING=value`
 2. `SystemPropertiesSource` – e.g. `-Dmy.setting=value`
-3. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
-4. `ApplicationPropertiesSource` – base fallback (`application.properties`)
-5. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+3. `FluxzeroAdditionalPropertiesSource` – locations configured with `FLUXZERO_CONFIG_LOCATIONS`
+4. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
+5. `ApplicationPropertiesSource` – base fallback (`application.properties`)
+6. `FluxzeroPropertiesSource` – SDK defaults (`fluxzero.properties` or `fluxzero.json`)
+7. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+
+`ApplicationPropertiesSource` merges every `application.properties` resource visible on the application classpath.
+This lets a shared module provide defaults once: every executable that depends on that module sees those properties
+without copying them into its own resources. Avoid defining the same key with different values in multiple modules;
+the SDK warns about that ambiguity. Use an environment variable, system property, environment-specific file, or other
+higher-priority source for an intentional override.
+Custom uber-JAR builds that collapse multiple classpath resources into one file must merge overlapping
+`application.properties` resources in their own packaging configuration.
 
 To specify the environment (`dev`, `prod`, etc.), define:
 
@@ -5951,6 +6095,8 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
+| `>= 2026.09.09` | `fluxzero.model.conflictPolicy = RETRY` | Model updates validate all evaluation dependencies and retry conflicts with fresh evaluation; implicit first creations still fail on conflict. Explicit policies override this choice. Compatibility mode retains `ACCEPT`. |
+| `>= 2026.09.10` | `fluxzero.model.automaticRouting = true` | Single, statically unambiguous Model-apply commands and single-Model events use the canonical Model ID when explicit routing is absent. Set `false` to retain compatibility routing. |
 
 For example:
 
@@ -5959,7 +6105,8 @@ fluxzero.defaults.version=2026.09.10
 ```
 
 This enables package-scoped consumer defaults, natural periodic initial delays, user-ID metadata, same-origin redirects,
-jittered WebSocket reconnects and byte-bounded aggregate-history pages, plus all earlier versioned defaults. To choose
+jittered WebSocket reconnects, byte-bounded aggregate-history pages, Model retries and automatic Model routing,
+plus all earlier versioned defaults. To choose
 one behavior explicitly without changing the defaults version, set the dedicated property directly. Existing
 applications that omit `fluxzero.defaults.version` keep compatibility behavior: unconfigured handlers share the
 application default consumer, implicit `@Periodic(initialDelay = -1)` is treated as an immediate first run, user
@@ -6618,10 +6765,9 @@ concurrency raises simultaneous decode and allocation, while result-completion c
 work-group pressure. Tune from the
 sparse pressure diagnostics and load-test the resulting aggregate across all configured sessions.
 
-The worker model is unchanged by these limits. On Java 25 and newer, completion tasks use one virtual thread per task.
-On Java 21 through 24, they use the existing lazily populated fixed platform-thread pool, sized to the configured
-completion concurrency. Both routes default to eight. Explicit configuration still wins when an application has
-measured headroom; for example, Java 25 applications can opt into 32 virtual completion workers.
+Completion tasks use one virtual thread per task, with admission limited separately to eight concurrent completions
+by default. Explicit configuration still wins when an application has measured headroom; for example, applications
+can opt into 32 concurrent completions. Using virtual threads does not remove the configured resource limits.
 
 The default `JdkWebsocketConnector` owns a separate shared runtime-data executor. Connectors constructed with an
 explicit `HttpClient` or executor retain their original executor affinity for compatibility; an explicitly supplied
@@ -6725,8 +6871,10 @@ application upcasters.
 
 ### Java Version
 
-Fluxzero requires **JDK 21 or higher** to compile and run. It is actively tested on **JDK 25** and remains
-compatible with recent versions.
+Fluxzero SDK **2.x requires JDK 25 or higher** to compile and run, including its common, test-server and proxy artifacts.
+Java and Kotlin projects must target JVM 25 or newer. SDK v2 artifacts are compiled for Java 25, and the SDK build
+rejects older JDKs before compilation. CI and container images use Java 25; no preview features are required.
+This requirement does not change the Java baseline of the SDK 1.x release line.
 
 ---
 
@@ -6844,3 +6992,7 @@ Then generate both HTML and JSON docs locally with:
 
 The json-doclet output lands in `target/json-docs`; the `publish-javadoc` workflow copies it to the GitHub Pages
 site on release.
+
+## Publishing SDK releases
+
+See [releasing the SDK](docs/releasing.md) for Maven deployment commands and GitHub OIDC publication.

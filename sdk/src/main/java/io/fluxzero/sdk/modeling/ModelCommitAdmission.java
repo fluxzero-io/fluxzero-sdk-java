@@ -125,6 +125,9 @@ final class ModelCommitAdmission implements AutoCloseable {
         int effectiveSlot = waits ? -1 : slot;
         return ticket.grant.thenCompose(ignored -> {
             synchronized (monitor) {
+                // Progress requests only need predecessors while this ticket waits. Keeping them after
+                // admission retains the entire completed chain for continuously overlapping scopes.
+                ticket.predecessors = List.of();
                 if (ticket.cancelled) {
                     return CompletableFuture.failedFuture(closedFailure());
                 }
@@ -395,9 +398,9 @@ final class ModelCommitAdmission implements AutoCloseable {
     private static final class Ticket {
         private final Scope scope;
         private CompletableFuture<Void> release;
-        private List<Ticket> predecessors = List.of();
+        private volatile List<Ticket> predecessors = List.of();
         private CompletableFuture<Void> grant = COMPLETED;
-        private ModelCommitBatch transport;
+        private volatile ModelCommitBatch transport;
         private boolean started;
         private boolean cancelled;
         private boolean released;

@@ -82,6 +82,29 @@ class ModelConflictPoliciesTest {
     }
 
     @Test
+    void implicitCreationDoesNotBecomeAnUpsertUnderTheRetryDefault() throws Exception {
+        Change creation = Change.applied(
+                "new", DefaultModel.class, -1L, null, null,
+                new DefaultModel("new"), method("inherit"), null, false);
+
+        assertEquals(ModelConflictPolicy.FAIL, evaluation(creation)
+                .conflictPolicy(ModelConflictPolicy.RETRY, ModelConflictPolicy.FAIL));
+        assertEquals(ModelConflictPolicy.RETRY, evaluation(transition(
+                "existing", DefaultModel.class, method("inherit")))
+                .conflictPolicy(ModelConflictPolicy.RETRY, ModelConflictPolicy.FAIL));
+    }
+
+    @Test
+    void explicitCreationRetryStillOverridesTheStrictCreationDefault() throws Exception {
+        Change creation = Change.applied(
+                "new", DefaultModel.class, -1L, null, null,
+                new DefaultModel("new"), method("retry"), null, false);
+
+        assertEquals(ModelConflictPolicy.RETRY, evaluation(creation)
+                .conflictPolicy(ModelConflictPolicy.RETRY, ModelConflictPolicy.FAIL));
+    }
+
+    @Test
     void newIdentityAcceptFailsInsteadOfRebasingIntoAnOverwrite()
             throws Exception {
         Change creation =

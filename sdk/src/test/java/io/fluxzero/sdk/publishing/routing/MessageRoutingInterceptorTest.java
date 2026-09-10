@@ -40,9 +40,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.common.MessageType.COMMAND;
 import static io.fluxzero.common.ObjectUtils.run;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class MessageRoutingInterceptorTest {
 
@@ -77,6 +79,35 @@ class MessageRoutingInterceptorTest {
     @Value
     static class Foo {
         String bar;
+    }
+
+    @Test
+    void commandFallbackOnlyRunsWhenNeitherSegmentNorExplicitRoutingExists() {
+        AtomicInteger fallbacks = new AtomicInteger();
+        MessageRoutingInterceptor routing = new MessageRoutingInterceptor(message -> {
+            fallbacks.incrementAndGet();
+            return "model-id";
+        });
+        Message plain = new Message("unrouted");
+        SerializedMessage serialized = plain.serialize(new io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer());
+        routing.modifySerializedMessage(serialized, plain, COMMAND, null);
+        assertEquals(ConsistentHashing.computeSegment("model-id"), serialized.getSegment());
+        assertEquals(1, fallbacks.get());
+        routing.modifySerializedMessage(serialized, plain, COMMAND, null);
+        serialized.setSegment(null);
+        routing.modifySerializedMessage(serialized, plain, EVENT, null);
+        assertNull(serialized.getSegment());
+        for (Object payload : java.util.List.of(new MissingRoutingField(), new AnnotationOnType())) {
+            routing.modifySerializedMessage(serialized, new Message(payload), COMMAND, null);
+            assertNull(serialized.getSegment());
+        }
+        assertEquals(1, fallbacks.get());
+    }
+
+    private record MissingRoutingField(@RoutingKey String route) {
+        private MissingRoutingField() {
+            this(null);
+        }
     }
 
     @Test

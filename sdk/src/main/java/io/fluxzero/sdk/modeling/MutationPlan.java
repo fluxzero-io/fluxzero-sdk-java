@@ -795,6 +795,7 @@ public final class MutationPlan {
         private final List<Deferred> deferred;
         private final List<PlannedAncestor> ancestors;
         private final Map<String, EntityMetadata.HandlerMethod> handlerMethods;
+        private final Slot routingTarget;
 
         private TargetPlan(
                 Class<?> payloadType,
@@ -807,6 +808,31 @@ public final class MutationPlan {
             this.deferred = deferred;
             this.ancestors = ancestors;
             this.handlerMethods = handlerMethods;
+            List<EntityMetadata.HandlerMethod> applies = handlerMethods.values().stream()
+                    .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
+            List<Slot> writes = slots.stream().filter(slot -> slot.access.writes()).toList();
+            routingTarget = applies.size() == 1 && !applies.getFirst().collectionApplyResult()
+                            && !applies.getFirst().dynamicApplyResult() && deferred.isEmpty()
+                            && writes.size() == 1 && !writes.getFirst().collection
+                            && !writes.getFirst().property.missing()
+                            && handlerMethods.values().stream().noneMatch(
+                                    handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY)
+                    ? writes.getFirst() : null;
+        }
+
+        /** Returns a statically unambiguous single-apply target without loading or applying any model. */
+        public String routingTarget(HasMessage input) {
+            if (routingTarget == null) {
+                return null;
+            }
+            DirectReferences direct = routingTarget.parameter == null ? DirectReferences.missing()
+                    : directReferences(input, routingTarget.parameter);
+            if (direct.present()) {
+                return direct.modelId();
+            }
+            Object payload = checkedPayload(input);
+            Object raw = routingTarget.property.read(payload);
+            return raw == null ? null : repositoryId(raw, routingTarget, payload);
         }
 
         boolean isDirectSingleTarget() {
@@ -835,14 +861,17 @@ public final class MutationPlan {
                 String explicitId,
                 Class<?> explicitType,
                 boolean appliesOnly) {
-            validate(explicitType, appliesOnly);
+            // Apply ancestors can have been selected through a root injected only by an assertion.
+            // Rebase must reload those selection roots without executing the assertion again.
+            boolean applyOnlyTargets = appliesOnly && ancestors.stream().noneMatch(PlannedAncestor::apply);
+            validate(explicitType, applyOnlyTargets);
             Object payload = checkedPayload(input);
             Map<String, ResolvedModel> result = new LinkedHashMap<>();
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
             for (Slot slot : slots) {
                 if (!acceptsExplicitTarget(slot.handler, explicitType)
-                    || appliesOnly && !slot.apply
+                    || applyOnlyTargets && !slot.apply
                     || compatibleExplicit(slot.modelType, explicitType)) {
                     continue;
                 }

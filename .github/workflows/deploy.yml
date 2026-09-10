@@ -40,6 +40,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set release timestamp
+        run: echo "RELEASE_TIMESTAMP=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+
       - name: Verify repository normalization
         run: |
           git add --renormalize .
@@ -55,6 +58,9 @@ jobs:
           distribution: temurin
           java-version: "25"
           cache: maven
+          server-id: fluxzero
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_DEPLOY_TOKEN
 
       - name: Find existing release tag
         id: existing_tag
@@ -135,7 +141,7 @@ jobs:
 
       - name: Build and test
         id: maven-build
-        run: ./mvnw -Dgpg.skip -DskipPublishing=true -B install -P deploy
+        run: ./mvnw -B install
 
       - name: Reserve release tag
         env:
@@ -194,6 +200,21 @@ jobs:
             target/release-notes.md
           retention-days: 1
 
+      - name: Deploy to packages.fluxzero.io with GitHub OIDC
+        env:
+          MAVEN_USERNAME: github-actions
+          MAVEN_GPG_KEY: ${{ secrets.OSSRH_SIGNING_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.OSSRH_SIGNING_PASSPHRASE }}
+        run: |
+          set +x
+          token=$(curl --fail --silent --show-error --get \
+            --data-urlencode 'audience=https://packages.fluxzero.io/publish/maven' \
+            --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -er '.value')
+          echo "::add-mask::$token"
+          export MAVEN_DEPLOY_TOKEN="$token"
+          ./mvnw -P sign -B deploy -DskipTests
+
   repair-main-ci:
     name: Repair failed main build
     needs: build-and-test
@@ -218,6 +239,9 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
+
+      - name: Set release timestamp
+        run: echo "RELEASE_TIMESTAMP=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
 
       - name: Install Java and Maven
         uses: actions/setup-java@v6
@@ -246,7 +270,7 @@ jobs:
           deployment_log="$(mktemp)"
           trap 'rm -f "$deployment_log"' EXIT
 
-          maven_arguments=(-P deploy -B deploy -DskipTests)
+          maven_arguments=(-P "sign,central" -B deploy -DskipTests)
           if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
             # A previous attempt may have completed the immutable publication
             # after losing its final status response.
