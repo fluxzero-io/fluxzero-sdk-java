@@ -89,7 +89,7 @@ optional byte request and remains count-bounded only; the SDK still reads its pa
 
 In compatibility mode, failed WebSocket connections retry every second. Set
 `fluxzero.websocket.reconnectBackoff.enabled=true`, or use `fluxzero.defaults.version >= 2026.09.09`, to use equal
-jitter over capped exponential ceilings of 1, 2, 4, 8, 16, then 30 seconds. A successful connection resets the retry
+jitter over capped exponential ceilings of 1, 2, 4, 8, then 16 seconds. A successful connection resets the retry
 cycle. Set the dedicated property to `false` to keep fixed retries on a newer defaults profile. The conventional
 environment-variable name is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`.
 

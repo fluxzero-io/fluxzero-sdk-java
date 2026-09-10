@@ -152,7 +152,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             "fluxzero.websocket.reconnectBackoff.enabled";
     static final LocalDate RECONNECT_BACKOFF_DEFAULTS_VERSION = LocalDate.of(2026, 9, 9);
     private static final Duration CLOSE_HANDSHAKE_TIMEOUT = Duration.ofSeconds(1);
-    private static final Duration MAX_RECONNECT_DELAY = Duration.ofSeconds(30);
+    private static final Duration MAX_RECONNECT_DELAY = Duration.ofSeconds(16);
     private static final Duration TRANSPORT_METRIC_PUBLICATION_TIMEOUT = Duration.ofSeconds(1);
     protected static final Duration CONNECTION_TIMEOUT_FAILSAFE_GRACE = Duration.ofSeconds(5);
     protected static final int CONNECTION_RETRY_LOG_INTERVAL = 10;
