@@ -215,23 +215,6 @@ jobs:
           export MAVEN_DEPLOY_TOKEN="$token"
           ./mvnw -P sign -B deploy -DskipTests
 
-  repair-main-ci:
-    name: Repair failed main build
-    needs: build-and-test
-    if: ${{ always() && github.ref == 'refs/heads/main' && needs.build-and-test.result == 'failure' && needs.build-and-test.outputs.maven-build-outcome != 'success' }}
-    uses: ./.github/workflows/repair-main-ci.yml
-    permissions:
-      actions: read
-      contents: write
-      issues: write
-      pull-requests: write
-    secrets: inherit
-    with:
-      run_id: ${{ github.run_id }}
-      run_url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-      head_sha: ${{ github.sha }}
-      head_branch: main
-
   # Job 2: Deploy to Maven Central (runs in parallel after tagging and image publication)
   maven-central:
     needs: build-and-test
