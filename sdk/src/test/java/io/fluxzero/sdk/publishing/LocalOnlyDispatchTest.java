@@ -236,6 +236,46 @@ class LocalOnlyDispatchTest {
         }
     }
 
+    @Test
+    void cachedScopeDoesNotCaptureAnotherApplicationsDispatchDecisions() {
+        try (Fluxzero fluxzero = createFluxzero()) {
+            assertMissingHandler(fluxzero.commandGateway().send(new LocalCommand("warm")));
+            fluxzero.commandGateway().sendAndForget(Guarantee.STORED, new OrdinaryCommand()).join();
+            assertEquals(1, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
+        }
+
+        FluxzeroBuilder builder = DefaultFluxzero.builder().addDispatchInterceptor((message, type, topic) -> {
+            if (message.getPayload() instanceof OrdinaryCommand) {
+                return message.withPayload(new LocalCommand("replacement"));
+            }
+            if (message.getPayload() instanceof LocalCommand) {
+                return message.withPayload(new OrdinaryCommand());
+            }
+            return message;
+        }, COMMAND);
+        try (Fluxzero fluxzero = createFluxzero(builder)) {
+            assertMissingHandler(fluxzero.commandGateway().send(new OrdinaryCommand()));
+            assertMissingHandler(fluxzero.commandGateway().send(new LocalCommand("original")));
+            assertEquals(0, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
+        }
+    }
+
+    @Test
+    void cachesInheritedAndEnclosingScopeWithExplicitFalseOverrides() {
+        try (Fluxzero fluxzero = createFluxzero()) {
+            for (int i = 0; i < 2; i++) {
+                assertMissingHandler(fluxzero.commandGateway().send(new LocalChild()));
+                assertMissingHandler(fluxzero.commandGateway().send(new LocalScope.Nested()));
+                fluxzero.commandGateway().sendAndForget(
+                        Guarantee.STORED, new ExternalChild(), new LocalScope.OptOut()).join();
+            }
+            assertEquals(4, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
+        }
+    }
+
     private static Fluxzero createFluxzero() {
         return createFluxzero(DefaultFluxzero.builder());
     }
@@ -280,6 +320,29 @@ class LocalOnlyDispatchTest {
     }
 
     private record OrdinaryCommand() {
+    }
+
+    @LocalOnly
+    private static class LocalBase {
+    }
+
+    private static class LocalChild extends LocalBase {
+    }
+
+    @LocalOnly(false)
+    private static class ExternalChild extends LocalBase {
+        public final String value = "external";
+    }
+
+    @LocalOnly
+    private static class LocalScope {
+        private static class Nested {
+        }
+
+        @LocalOnly(false)
+        private static class OptOut {
+            public final String value = "external";
+        }
     }
 
     @LocalOnly

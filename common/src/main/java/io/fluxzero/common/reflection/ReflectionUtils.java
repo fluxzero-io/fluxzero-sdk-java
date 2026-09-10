@@ -997,6 +997,7 @@ public class ReflectionUtils {
         private final ConcurrentHashMap<String, BiConsumer<Object, Object>> setters = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, PropertyPathMetadata> propertyPaths = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<MemberInvokerKey, MemberInvoker> invokers = new ConcurrentHashMap<>();
+        private volatile ConcurrentHashMap<Class<?>, Object> specializedMetadata;
 
         @SneakyThrows
         private TypeMetadata(Class<?> type) {
@@ -1124,6 +1125,37 @@ public class ReflectionUtils {
         public MemberInvoker invoker(Member member, boolean forceAccess) {
             return invokers.computeIfAbsent(new MemberInvokerKey(member, forceAccess),
                                             ignored -> new DefaultMemberInvoker(member, forceAccess));
+        }
+
+        /**
+         * Returns type-specific structural metadata owned by this central type cache.
+         * <p>
+         * SDK features can use this extension point for immutable metadata that is derived only from {@link #type()}.
+         * Runtime or instance state must not be captured by the factory or the returned value. Concurrent or reentrant
+         * first access may compute more than one value; all callers receive the first value published successfully.
+         *
+         * @param metadataType unique metadata kind and expected result type
+         * @param factory      computes non-null metadata from this Java type on first access
+         * @param <M>          metadata type
+         * @return the cached metadata instance
+         */
+        public <M> M specializedMetadata(Class<M> metadataType, Function<Class<?>, ? extends M> factory) {
+            ConcurrentHashMap<Class<?>, Object> metadata = specializedMetadata;
+            if (metadata == null) {
+                synchronized (this) {
+                    metadata = specializedMetadata;
+                    if (metadata == null) {
+                        specializedMetadata = metadata = new ConcurrentHashMap<>();
+                    }
+                }
+            }
+            Object result = metadata.get(metadataType);
+            if (result == null) {
+                M computed = Objects.requireNonNull(factory.apply(type), "Specialized metadata must not be null");
+                Object existing = metadata.putIfAbsent(metadataType, computed);
+                result = existing == null ? computed : existing;
+            }
+            return metadataType.cast(result);
         }
 
         @SuppressWarnings("unchecked")
