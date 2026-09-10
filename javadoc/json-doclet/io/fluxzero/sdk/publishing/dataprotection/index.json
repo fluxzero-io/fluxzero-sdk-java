@@ -20,6 +20,11 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$HandleAnnotation",
     "kind" : "class"
   }, {
+    "file" : "DataProtectionInterceptor.PendingProtectedData.json",
+    "name" : "DataProtectionInterceptor.PendingProtectedData",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$PendingProtectedData",
+    "kind" : "class"
+  }, {
     "file" : "DataProtectionInterceptor.RestoredMessage.json",
     "name" : "DataProtectionInterceptor.RestoredMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor$RestoredMessage",

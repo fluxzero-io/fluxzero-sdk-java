@@ -47,6 +47,48 @@
     "varArgs" : false,
     "documentation" : " Chains this interceptor with another. The resulting interceptor applies this one first, then the next one.\n\n @param nextInterceptor the interceptor to run after this one\n @return a new {@code DispatchInterceptor} representing the combined logic\n"
   }, {
+    "name" : "beforeExternalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#beforeExternalDispatch",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Completes side effects that were deferred while a message was still eligible for local handling.\n\n <p>This hook may be called before a local handler whose message will subsequently be published. Implementations\n should be idempotent because multiple local registries may independently request publication, and should also\n complete deferred work from {@link #modifySerializedMessage} for a direct external fallback.</p>\n\n @param message     the intercepted message\n @param messageType the type of the message\n @param topic       the target topic or {@code null}\n"
+  }, {
+    "name" : "completeLocalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#completeLocalDispatch",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Releases transient state retained for a completed local dispatch candidate.\n\n @param message the final intercepted message\n"
+  }, {
     "name" : "interceptDispatch",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#interceptDispatch",
     "returnType" : "io.fluxzero.sdk.common.Message",
@@ -103,6 +145,37 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Intercepts a dispatch to a specific namespace.\n <p>\n The default implementation delegates to the namespace-agnostic method so existing interceptors retain their\n behavior. Interceptors that access namespace-sensitive resources can override this method.\n\n @param message     the message to be dispatched\n @param messageType the type of the message\n @param topic       the target topic or {@code null}\n @param namespace   the target namespace or {@code null} for the application namespace\n @return the modified message, the same message, or {@code null} to prevent dispatch\n"
+  }, {
+    "name" : "interceptLocalDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#interceptLocalDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "io.fluxzero.common.MessageType",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "topic",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "namespace",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Intercepts a message that may still be handled locally.\n\n <p>The default delegates to the regular dispatch hook. Interceptors that externalize data may defer that side\n effect until external publication is certain while keeping the message safe for the remaining interceptor\n chain.</p>\n\n @param message     the message to be dispatched\n @param messageType the type of the message\n @param topic       the target topic or {@code null}\n @param namespace   the target namespace or {@code null} for the application namespace\n @return the modified message, the same message, or {@code null} to prevent dispatch\n"
   }, {
     "name" : "modifySerializedMessage",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#modifySerializedMessage",
@@ -186,6 +259,38 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Prepares this interceptor for repeated local dispatches with the same static message characteristics.\n\n <p>This optional method lets local handling apply an interceptor without creating a complete {@link Message}\n first. Implementations must preserve the observable behavior of {@link #interceptDispatch(Message, MessageType,\n String)}. Return {@code null} when that is not possible; Fluxzero will then use the regular dispatch path for\n this payload type.</p>\n\n <p>The returned policy may be cached and used concurrently. State belonging to a single dispatch must be stored\n in the supplied {@link io.fluxzero.sdk.tracking.handling.LocalExecution}, not in the policy itself.</p>\n\n @param descriptor payload class, message type, and topic shared by the local dispatches\n @return a thread-safe prepared policy, or {@code null} to use regular message-based dispatch\n"
+  }, {
+    "name" : "preserveLocalDispatchState",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#preserveLocalDispatchState",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "previousMessage",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "replacement",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Carries interceptor-private local dispatch state across a replacement {@link Message}.\n\n <p>The default returns the replacement unchanged. Stateful interceptors may override this without exposing\n their transient state through message metadata or serialization.</p>\n\n @param previousMessage the message before another interceptor replaced it\n @param replacement     the replacement returned by that interceptor, or {@code null} when dispatch was suppressed\n"
+  }, {
+    "name" : "storesLocalDispatchState",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#storesLocalDispatchState",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this interceptor may attach transient state during {@link #interceptLocalDispatch}.\n"
   }, {
     "name" : "withNamespace",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DispatchInterceptor#withNamespace",

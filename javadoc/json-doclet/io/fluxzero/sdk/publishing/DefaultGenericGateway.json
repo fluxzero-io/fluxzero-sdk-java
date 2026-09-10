@@ -303,6 +303,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "interceptDispatch",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#interceptDispatch",
+    "returnType" : "io.fluxzero.sdk.common.Message",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.Message",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "isLocalOnly",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway#isLocalOnly",
     "returnType" : "boolean",

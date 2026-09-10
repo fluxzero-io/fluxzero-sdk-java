@@ -176,6 +176,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Creates a fallback registry that only invokes the given registry if this one yields no result.\n\n @param next the fallback registry\n @return a combined registry with short-circuiting behavior\n"
+  }, {
+    "name" : "supportsDeferredExternalization",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.HandlerRegistry#supportsDeferredExternalization",
+    "returnType" : "boolean",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns whether this registry supports messages whose external-only dispatch side effects are deferred until\n local handler selection has completed.\n\n <p>The default is {@code false} to preserve the contract of custom registries. Fluxzero's local registry\n overrides this because its handler and dispatch interceptor chains coordinate deferred externalization.</p>\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
