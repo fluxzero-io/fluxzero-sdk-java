@@ -24,26 +24,29 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Requires a command or query payload to be handled exclusively inside the publishing application.
+ * Restricts messages with the annotated payload type to local handlers.
  *
- * <p>Fluxzero normally forwards a command or query to the Runtime when no local handler accepts it. A payload marked
- * with {@code @LocalOnly} instead requires exactly one applicable, result-producing local handler. Dispatch fails
- * before monitoring, serialization, or external publication when no such handler exists, when multiple such handlers
- * exist, or when the selected local configuration would also publish the message.</p>
+ * <p>The annotation may be placed on a payload type, a meta-annotation, or a package. Package declarations apply to
+ * child packages; use {@code @LocalOnly(false)} on a more specific package or payload type to opt out. A marked
+ * original remains local-only when a dispatch interceptor replaces its payload, while a marked replacement also
+ * enables the restriction.</p>
  *
- * <p>The restriction remains active when a dispatch interceptor replaces a marked payload. It also becomes active
- * when an interceptor replaces an unmarked payload with a marked payload. Suppressing the message in the interceptor
- * still suppresses dispatch normally.</p>
- *
- * <p>This annotation applies to command and query payload types. Mark the corresponding handler with
- * {@link LocalHandler}; self-handling command and query payloads are local by default.</p>
+ * <p>Fluxzero never serializes or publishes a local-only message externally. A request without a matching local
+ * handler completes exceptionally with {@link LocalOnlyDispatchException}; a non-request message without a matching
+ * handler simply completes. Handler code can still perform its own side effects.</p>
  *
  * @see LocalHandler
  * @see LocalOnlyDispatchException
  */
 @Documented
-@Target({ElementType.TYPE, ElementType.ANNOTATION_TYPE})
+@Target({ElementType.TYPE, ElementType.ANNOTATION_TYPE, ElementType.PACKAGE})
 @Retention(RetentionPolicy.RUNTIME)
 @Inherited
 public @interface LocalOnly {
+    /**
+     * Whether messages in this scope are restricted to local handlers.
+     *
+     * @return {@code true} to require local-only dispatch
+     */
+    boolean value() default true;
 }
