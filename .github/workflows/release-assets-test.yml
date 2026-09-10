@@ -1,0 +1,26 @@
+name: Maven release assets
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/collect-maven-assets.py'
+      - '.github/scripts/test_release_assets.py'
+      - '.github/workflows/release-assets-test.yml'
+      - '.github/workflows/deploy.yml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/collect-maven-assets.py'
+      - '.github/scripts/test_release_assets.py'
+      - '.github/workflows/release-assets-test.yml'
+      - '.github/workflows/deploy.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 .github/scripts/test_release_assets.py
