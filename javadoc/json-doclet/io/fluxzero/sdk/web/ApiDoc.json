@@ -166,7 +166,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Marks a schema property or parameter as required in generated docs.\n"
+    "documentation" : " Marks a schema property, endpoint parameter, or request body as required in generated docs.\n"
   }, {
     "name" : "security",
     "qualifiedName" : "io.fluxzero.sdk.web.ApiDoc#security",

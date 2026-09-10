@@ -24,6 +24,11 @@
     "name" : "WebSocketEventStoreClient",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient",
     "kind" : "class"
+  }, {
+    "file" : "WebSocketEventStoreClient.EventPage.json",
+    "name" : "WebSocketEventStoreClient.EventPage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage",
+    "kind" : "record"
   } ],
   "subdirectories" : [ ]
 }

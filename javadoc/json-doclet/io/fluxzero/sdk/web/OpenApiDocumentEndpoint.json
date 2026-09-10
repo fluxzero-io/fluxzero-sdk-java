@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Automatic endpoint that serves the generated OpenAPI document for an {@link ApiDocInfo} scope.\n",
+  "documentation" : " Automatic endpoint that serves the generated OpenAPI document for an {@link ApiDocInfo} scope.\n <p>\n All {@value OpenApiProcessor#DEFAULT_OUTPUT} resources visible to the handler class loader are combined in stable\n resource order. Compatible object members are merged, exact duplicates are accepted, and conflicting metadata,\n routes, operation ids, or components fail during handler registration. A resource produced by an application shade\n transformer may contain multiple consecutive JSON documents. Runtime extraction is used only when no compiled or\n manually supplied resource is present.\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -13,6 +13,14 @@
     "name" : "documentJson",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint.documentJson",
     "type" : "java.lang.String",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "generatedDocument",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint.generatedDocument",
+    "type" : "java.util.Optional<java.lang.String>",
     "modifiers" : [ "private", "volatile" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -180,6 +188,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "generatedDocument",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#generatedDocument",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "hashCode",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#hashCode",
     "returnType" : "int",
@@ -194,18 +213,52 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "readDocuments",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#readDocuments",
+    "returnType" : "void",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "resource",
+      "type" : "java.net.URL",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "documents",
+      "type" : "java.util.Map<java.lang.String,com.fasterxml.jackson.databind.JsonNode>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "readGeneratedDocument",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#readGeneratedDocument",
     "returnType" : "java.util.Optional<java.lang.String>",
     "modifiers" : [ "private", "static" ],
-    "annotations" : [ {
-      "annotationType" : "lombok.SneakyThrows",
-      "values" : {}
-    } ],
+    "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
       "name" : "handlerType",
       "type" : "java.lang.Class<?>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "readGeneratedDocument",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#readGeneratedDocument",
+    "returnType" : "java.util.Optional<java.lang.String>",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "classLoader",
+      "type" : "java.lang.ClassLoader",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -261,6 +314,17 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "validateResources",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiDocumentEndpoint#validateResources",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Loads and validates compiled OpenAPI resources. Handler registration invokes this once for each distinct\n automatic document endpoint so resource conflicts fail before the endpoint starts serving requests.\n"
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],

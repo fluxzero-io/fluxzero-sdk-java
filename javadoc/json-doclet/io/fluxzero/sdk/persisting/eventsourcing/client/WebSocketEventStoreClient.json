@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "public" ],
   "annotations" : [ ],
-  "documentation" : " WebSocket-based implementation of the {@link EventStoreClient}, enabling interaction with the Fluxzero Runtime's event\n store via a persistent WebSocket connection.\n\n <p>This implementation supports:\n <ul>\n   <li>Storing events for event-sourced aggregates</li>\n   <li>Efficient, paginated retrieval of aggregate event streams</li>\n   <li>Deleting aggregate event streams</li>\n   <li>Maintaining aggregate/entity relationships</li>\n </ul>\n\n <p>The {@code fetchBatchSize} setting controls how many events are fetched per paginated request when loading\n an aggregate's event history. This ensures efficient memory usage while still supporting large aggregates.\n\n <p>End users rarely interact with this client directly. Instead, they typically use higher-level abstractions\n such as {@link io.fluxzero.sdk.persisting.eventsourcing.EventStore} or\n {@link io.fluxzero.sdk.persisting.repository.AggregateRepository}.\n\n @see EventStoreClient\n @see io.fluxzero.sdk.persisting.eventsourcing.EventStore\n @see io.fluxzero.sdk.persisting.repository.AggregateRepository\n",
+  "documentation" : " WebSocket-based implementation of the {@link EventStoreClient}, enabling interaction with the Fluxzero Runtime's event\n store via a persistent WebSocket connection.\n\n <p>This implementation supports:\n <ul>\n   <li>Storing events for event-sourced aggregates</li>\n   <li>Efficient, paginated retrieval of aggregate event streams</li>\n   <li>Deleting aggregate event streams</li>\n   <li>Maintaining aggregate/entity relationships</li>\n </ul>\n\n <p>The {@code fetchBatchSize} setting controls how many events are fetched per paginated request when loading an\n aggregate's event history. The aggregate-history byte setting in {@link WebSocketClient.ClientConfig} independently\n bounds the cumulative serialized event-payload bytes requested per page. An individually oversized first event is\n still returned so paging can advance.\n\n <p>End users rarely interact with this client directly. Instead, they typically use higher-level abstractions\n such as {@link io.fluxzero.sdk.persisting.eventsourcing.EventStore} or\n {@link io.fluxzero.sdk.persisting.repository.AggregateRepository}.\n\n @see EventStoreClient\n @see io.fluxzero.sdk.persisting.eventsourcing.EventStore\n @see io.fluxzero.sdk.persisting.repository.AggregateRepository\n",
   "typeParameters" : [ ],
   "superClass" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
   "interfaces" : [ "io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient" ],
@@ -13,6 +13,14 @@
     "name" : "fetchBatchSize",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient.fetchBatchSize",
     "type" : "int",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "maxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient.maxFetchBytes",
+    "type" : "long",
     "modifiers" : [ "final", "private" ],
     "annotations" : [ ],
     "documentation" : null,
@@ -119,6 +127,47 @@
     "varArgs" : false,
     "documentation" : " Sends a delete command for the event stream of the specified aggregate.\n"
   }, {
+    "name" : "fetchPage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#fetchPage",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient.EventPage",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "aggregateId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lastSequenceNumber",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "remaining",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "pageSize",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxFetchBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "fetchEvents",
+      "type" : "java.util.function.Function<io.fluxzero.common.api.eventsourcing.GetEvents,io.fluxzero.common.api.eventsourcing.GetEventsResult>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "getAggregateIds",
     "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient#getAggregateIds",
     "returnType" : "java.util.Map<java.lang.String,java.lang.String>",
@@ -191,6 +240,11 @@
     }, {
       "name" : "fetchBatchSize",
       "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "maxFetchBytes",
+      "type" : "long",
       "varArgs" : false,
       "annotations" : [ ]
     }, {
@@ -296,5 +350,11 @@
   } ],
   "enumConstants" : [ ],
   "recordComponents" : [ ],
-  "nestedTypes" : [ ]
+  "nestedTypes" : [ {
+    "name" : "EventPage",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.WebSocketEventStoreClient$EventPage",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  } ]
 }

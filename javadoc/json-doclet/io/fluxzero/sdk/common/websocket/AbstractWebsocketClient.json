@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " Abstract base class for all WebSocket-based clients in the Fluxzero Java client.\n <p>\n This class provides robust connection management, message dispatching, result handling, batching, metrics publishing,\n and ping-based health checking. It underpins core components such as {@code WebsocketGatewayClient}, providing the\n shared infrastructure needed for durable, resilient WebSocket communication with the Fluxzero Runtime.\n\n <h2>Core Responsibilities</h2>\n <ul>\n   <li>Establishing and maintaining WebSocket connections with automatic reconnection support</li>\n   <li>Managing message sending and batching via {@link Request} and {@link RequestBatch}</li>\n   <li>Receiving and processing incoming {@link RequestResult} and {@link ResultBatch} messages</li>\n   <li>Supporting command guarantees (e.g., SENT, STORED) with retries and backpressure handling</li>\n   <li>Sending periodic ping frames to detect connection drops</li>\n   <li>Integrating with the Fluxzero metrics infrastructure for custom performance telemetry</li>\n </ul>\n\n <h2>Key Features</h2>\n <ul>\n   <li><b>Session Pooling:</b> Maintains multiple concurrent sessions to handle high-throughput scenarios</li>\n   <li><b>Request Backlogs:</b> Each session has a backlog to buffer and batch outgoing requests</li>\n   <li><b>Ping Scheduling:</b> Scheduled tasks detect broken sessions using WebSocket pings</li>\n   <li><b>Auto Retry:</b> Failed requests are retried if the session is closed unexpectedly</li>\n   <li><b>Async Result Handling:</b> Responses are handled on a separate thread pool to avoid blocking I/O</li>\n   <li><b>Metrics Publishing:</b> Optional emission of message-related metrics based on configuration</li>\n </ul>\n\n @see WebsocketGatewayClient\n @see Command\n @see WebSocketRequest\n @see SessionPool\n @see Request\n @see RequestResult\n @see ResultBatch\n",
+  "documentation" : " Abstract base class for all WebSocket-based clients in the Fluxzero Java client.\n <p>\n This class provides robust connection management, message dispatching, result handling, batching, metrics publishing,\n and ping-based health checking. It underpins core components such as {@code WebsocketGatewayClient}, providing the\n shared infrastructure needed for durable, resilient WebSocket communication with the Fluxzero Runtime.\n\n <h2>Core Responsibilities</h2>\n <ul>\n   <li>Establishing and maintaining WebSocket connections with automatic reconnection support</li>\n   <li>Managing message sending and batching via {@link Request} and {@link RequestBatch}</li>\n   <li>Receiving and processing incoming {@link RequestResult} and {@link ResultBatch} messages</li>\n   <li>Supporting command guarantees (e.g., SENT, STORED) with retries and backpressure handling</li>\n   <li>Sending periodic ping frames to detect connection drops</li>\n   <li>Integrating with the Fluxzero metrics infrastructure for custom performance telemetry</li>\n </ul>\n\n <h2>Key Features</h2>\n <ul>\n   <li><b>Session Pooling:</b> Maintains multiple concurrent sessions to handle high-throughput scenarios</li>\n   <li><b>Request Backlogs:</b> Each session has a backlog to buffer and batch outgoing requests</li>\n   <li><b>Ping Scheduling:</b> Scheduled tasks detect broken sessions using WebSocket pings</li>\n   <li><b>Auto Retry:</b> Failed requests are retried if the session is closed unexpectedly; reconnect attempts can\n   use versioned capped backoff with jitter</li>\n   <li><b>Async Result Handling:</b> Responses are handled on a separate thread pool to avoid blocking I/O</li>\n   <li><b>Metrics Publishing:</b> Optional emission of message-related metrics based on configuration</li>\n </ul>\n\n @see WebsocketGatewayClient\n @see Command\n @see WebSocketRequest\n @see SessionPool\n @see Request\n @see RequestResult\n @see ResultBatch\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.sdk.common.websocket.WebsocketEndpoint", "java.lang.AutoCloseable" ],
@@ -66,6 +66,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "MAX_RECONNECT_DELAY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.MAX_RECONNECT_DELAY",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "NEGOTIATED_SESSION_ID_USER_PROPERTY",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.NEGOTIATED_SESSION_ID_USER_PROPERTY",
     "type" : "java.lang.String",
@@ -73,6 +81,22 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : null
+  }, {
+    "name" : "RECONNECT_BACKOFF_DEFAULTS_VERSION",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.RECONNECT_BACKOFF_DEFAULTS_VERSION",
+    "type" : "java.time.LocalDate",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "RECONNECT_BACKOFF_ENABLED_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.RECONNECT_BACKOFF_ENABLED_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.websocket.reconnectBackoff.enabled"
   }, {
     "name" : "REPLAYED_RESPONSE_METADATA_KEY",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.REPLAYED_RESPONSE_METADATA_KEY",
@@ -137,6 +161,14 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "fluxzero.websocket.transportMetrics.enabled"
+  }, {
+    "name" : "TRANSPORT_METRIC_PUBLICATION_TIMEOUT",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.TRANSPORT_METRIC_PUBLICATION_TIMEOUT",
+    "type" : "java.time.Duration",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
   }, {
     "name" : "allowMetrics",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.allowMetrics",
@@ -258,6 +290,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "reconnectBackoffEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.reconnectBackoffEnabled",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "reconnectExecutor",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.reconnectExecutor",
     "type" : "java.util.concurrent.ExecutorService",
@@ -362,6 +402,30 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "transportMetricExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.transportMetricExecutor",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "transportMetricPublicationInFlight",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.transportMetricPublicationInFlight",
+    "type" : "java.util.concurrent.atomic.AtomicBoolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "transportMetricPublicationThread",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.transportMetricPublicationThread",
+    "type" : "java.util.concurrent.atomic.AtomicReference<java.lang.Thread>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "transportMetricsEnabled",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient.transportMetricsEnabled",
     "type" : "boolean",
@@ -414,7 +478,7 @@
     } ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : " Constructs a WebSocket client with fine-grained control over connection setup. This constructor allows you to\n specify a custom container, reconnect delay, object mapper, and session count. It is primarily used for advanced\n configuration or test scenarios.\n\n @param connector        the WebSocket connector to use for establishing connections\n @param endpointUri      the WebSocket server endpoint\n @param client           the client providing config and access to the Fluxzero Runtime\n @param allowMetrics     flag to enable or disable automatic metrics publishing\n @param reconnectDelay   the delay between reconnect attempts if the connection is lost\n @param objectMapper     the Jackson object mapper for (de)serializing requests and responses\n @param numberOfSessions the number of WebSocket sessions to establish in parallel\n"
+    "documentation" : " Constructs a WebSocket client with fine-grained control over connection setup. This constructor allows you to\n specify a custom container, reconnect delay, object mapper, and session count. It is primarily used for advanced\n configuration or test scenarios.\n\n @param connector        the WebSocket connector to use for establishing connections\n @param endpointUri      the WebSocket server endpoint\n @param client           the client providing config and access to the Fluxzero Runtime\n @param allowMetrics     flag to enable or disable automatic metrics publishing\n @param reconnectDelay   the fixed compatibility delay and initial ceiling for versioned reconnect backoff\n @param objectMapper     the Jackson object mapper for (de)serializing requests and responses\n @param numberOfSessions the number of WebSocket sessions to establish in parallel\n"
   }, {
     "name" : "AbstractWebsocketClient",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#AbstractWebsocketClient",
@@ -882,7 +946,7 @@
     "name" : "emitTransportMetricAsync",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#emitTransportMetricAsync",
     "returnType" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
-    "modifiers" : [ "private" ],
+    "modifiers" : [ ],
     "annotations" : [ ],
     "typeParameters" : [ ],
     "parameters" : [ {
@@ -924,6 +988,27 @@
     }, {
       "name" : "state",
       "type" : "io.fluxzero.sdk.common.websocket.JdkWebSocketSession.RuntimeDataState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equalJitter",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#equalJitter",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "upperBound",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "jitterFraction",
+      "type" : "double",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -1447,6 +1532,33 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "newTransportMetricExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#newTransportMetricExecutor",
+    "returnType" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "client",
+      "type" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "nextReconnectJitter",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#nextReconnectJitter",
+    "returnType" : "double",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Supplies the random fraction used to spread reconnect attempts within the current equal-jitter window.\n"
+  }, {
     "name" : "nextRuntimeIngressProgressDeadline",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#nextRuntimeIngressProgressDeadline",
     "returnType" : "long",
@@ -1670,6 +1782,53 @@
     }, {
       "name" : "metadata",
       "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "publishTransportMetricSnapshot",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#publishTransportMetricSnapshot",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketTransportMetric.Event",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "session",
+      "type" : "io.fluxzero.sdk.common.websocket.WebsocketSession",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "state",
+      "type" : "io.fluxzero.sdk.common.websocket.JdkWebSocketSession.RuntimeDataState",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "publication",
+      "type" : "java.util.concurrent.CompletableFuture<java.lang.Void>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "reconnectBackoffEnabled",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#reconnectBackoffEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -2082,6 +2241,17 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "shutdownTransportMetricExecutor",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#shutdownTransportMetricExecutor",
+    "returnType" : "void",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "submitRuntimeResult",
     "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#submitRuntimeResult",
     "returnType" : "io.fluxzero.sdk.common.websocket.RuntimeIngressController.MessageDispatch",
@@ -2129,6 +2299,28 @@
       "varArgs" : false,
       "annotations" : [ ]
     } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "transportMetricPublicationInFlight",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#transportMetricPublicationInFlight",
+    "returnType" : "boolean",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "transportMetricPublicationTimeout",
+    "qualifiedName" : "io.fluxzero.sdk.common.websocket.AbstractWebsocketClient#transportMetricPublicationTimeout",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "protected" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null

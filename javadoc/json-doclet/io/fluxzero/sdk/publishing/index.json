@@ -100,6 +100,16 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.LocalDispatchDescriptor",
     "kind" : "record"
   }, {
+    "file" : "LocalOnly.json",
+    "name" : "LocalOnly",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.LocalOnly",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "LocalOnlyDispatchException.json",
+    "name" : "LocalOnlyDispatchException",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.LocalOnlyDispatchException",
+    "kind" : "class"
+  }, {
     "file" : "MetricsGateway.json",
     "name" : "MetricsGateway",
     "qualifiedName" : "io.fluxzero.sdk.publishing.MetricsGateway",

@@ -18,6 +18,30 @@
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
   "fields" : [ {
+    "name" : "AGGREGATE_HISTORY_MAX_FETCH_BYTES_DEFAULTS_VERSION",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.AGGREGATE_HISTORY_MAX_FETCH_BYTES_DEFAULTS_VERSION",
+    "type" : "java.time.LocalDate",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : "fluxzero.eventsourcing.maxFetchBytes"
+  }, {
+    "name" : "DEFAULT_AGGREGATE_HISTORY_MAX_FETCH_BYTES",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_AGGREGATE_HISTORY_MAX_FETCH_BYTES",
+    "type" : "long",
+    "modifiers" : [ "final", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : 104857600
+  }, {
     "name" : "DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.DEFAULT_MAX_CONCURRENT_RUNTIME_RESULT_COMPLETIONS",
     "type" : "int",
@@ -153,6 +177,17 @@
     "annotations" : [ ],
     "documentation" : null,
     "constantValue" : "fluxzero.runtime.ingress.stallCloseTimeout"
+  }, {
+    "name" : "aggregateHistoryMaxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.aggregateHistoryMaxFetchBytes",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "lombok.Builder.Default",
+      "values" : {}
+    } ],
+    "documentation" : " Maximum cumulative serialized event-payload bytes requested per aggregate-history page. {@code 0} disables\n the byte limit. Compatibility defaults leave this disabled; {@code fluxzero.defaults.version >= 2026.09.10}\n defaults it to 100 MiB. Configure {@code fluxzero.eventsourcing.maxFetchBytes} or this builder field to\n override either default explicitly.\n",
+    "constantValue" : null
   }, {
     "name" : "applicationId",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig.applicationId",
@@ -444,6 +479,33 @@
     "documentation" : null
   } ],
   "methods" : [ {
+    "name" : "defaultAggregateHistoryMaxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#defaultAggregateHistoryMaxFetchBytes",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "defaultAggregateHistoryMaxFetchBytes",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#defaultAggregateHistoryMaxFetchBytes",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "defaultGatewaySessions",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#defaultGatewaySessions",
     "returnType" : "java.util.Map<io.fluxzero.common.MessageType,java.lang.Integer>",
@@ -464,6 +526,32 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "firstDurationProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstDurationProperty",
+    "returnType" : "java.time.Duration",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
     "documentation" : null
   }, {
     "name" : "firstDurationProperty",
@@ -508,6 +596,58 @@
     "varArgs" : true,
     "documentation" : null
   }, {
+    "name" : "firstIntegerProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstIntegerProperty",
+    "returnType" : "int",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "firstLongProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstLongProperty",
+    "returnType" : "long",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "defaultValue",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
     "name" : "firstLongProperty",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstLongProperty",
     "returnType" : "long",
@@ -528,6 +668,43 @@
     "thrownTypes" : [ ],
     "varArgs" : true,
     "documentation" : null
+  }, {
+    "name" : "firstProperty",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#firstProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "names",
+      "type" : "java.lang.String[]",
+      "varArgs" : true,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : true,
+    "documentation" : null
+  }, {
+    "name" : "fromProperties",
+    "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#fromProperties",
+    "returnType" : "io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "propertySource",
+      "type" : "io.fluxzero.common.application.PropertySource",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Creates a configuration whose property-backed defaults are resolved from the supplied application-local\n source. The source must contain the required Runtime base URL and application name. Use {@code toBuilder()}\n to apply programmatic overrides to the result.\n"
   }, {
     "name" : "getPreferredCompressionAlgorithm",
     "qualifiedName" : "io.fluxzero.sdk.configuration.client.WebSocketClient$ClientConfig#getPreferredCompressionAlgorithm",

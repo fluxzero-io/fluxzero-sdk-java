@@ -5,7 +5,7 @@
   "kind" : "class",
   "modifiers" : [ "final", "public" ],
   "annotations" : [ ],
-  "documentation" : " Renders a generic {@link ApiDocCatalog} as an OpenAPI JSON document.\n <p>\n The renderer intentionally uses a small inline schema generator instead of binding the SDK API to an OpenAPI-specific\n model library. The generated schemas cover common Java primitives, enums, records, arrays, collections, maps, and\n simple field-based POJOs.\n </p>\n\n @see OpenApiProcessor\n",
+  "documentation" : " Renders a generic {@link ApiDocCatalog} as an OpenAPI JSON document.\n <p>\n The renderer intentionally uses a small inline schema generator instead of binding the SDK API to an OpenAPI-specific\n model library. The generated schemas cover common Java primitives, enums, records, arrays, collections, maps, and\n simple field-based POJOs. Validation annotations on map values are retained. String-compatible map-key constraints\n are rendered as {@code propertyNames} in OpenAPI 3.1 and omitted in OpenAPI 3.0, where that keyword is unsupported.\n Required metadata on a body or body/form parameter also marks the OpenAPI Request Body Object as required.\n </p>\n\n @see OpenApiProcessor\n",
   "typeParameters" : [ ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ ],
@@ -357,6 +357,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "discriminatorProperty",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#discriminatorProperty",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "typeInfo",
+      "type" : "java.lang.annotation.Annotation",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "documentInfo",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#documentInfo",
     "returnType" : "io.fluxzero.sdk.web.OpenApiRenderer.DocumentInfo",
@@ -600,6 +616,22 @@
     "parameters" : [ {
       "name" : "property",
       "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isStringCompatibleMapKey",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#isStringCompatibleMapKey",
+    "returnType" : "boolean",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "keyType",
+      "type" : "java.lang.reflect.AnnotatedType",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
@@ -886,6 +918,22 @@
     "varArgs" : false,
     "documentation" : null
   }, {
+    "name" : "propertyNamesSchema",
+    "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#propertyNamesSchema",
+    "returnType" : "java.util.Optional<com.fasterxml.jackson.databind.node.ObjectNode>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "keySchema",
+      "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
     "name" : "putDecimal",
     "qualifiedName" : "io.fluxzero.sdk.web.OpenApiRenderer#putDecimal",
     "returnType" : "void",
@@ -1126,6 +1174,11 @@
     }, {
       "name" : "schema",
       "type" : "com.fasterxml.jackson.databind.node.ObjectNode",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "required",
+      "type" : "boolean",
       "varArgs" : false,
       "annotations" : [ ]
     } ],
