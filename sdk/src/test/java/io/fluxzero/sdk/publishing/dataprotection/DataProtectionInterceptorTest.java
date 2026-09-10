@@ -91,6 +91,73 @@ class DataProtectionInterceptorTest {
     }
 
     @Test
+    void restoresLocallyDispatchedDataFromMemoryWithoutUsingKeyValueStorage() {
+        KeyValueStore defaultStore = mock(KeyValueStore.class);
+        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
+        DataProtectionInterceptor interceptor = new DataProtectionInterceptor(defaultStore, new JacksonSerializer());
+        Message intercepted = interceptor.interceptLocalDispatch(
+                new Message(new SomeEvent("secret")), MessageType.EVENT, null, "tenant");
+        SomeHandler target = new SomeHandler();
+        Handler<DeserializingMessage> handler = HandlerInspector.createHandler(
+                target, HandleEvent.class, List.of(new PayloadParameterResolver(), new MessageParameterResolver()));
+
+        assertNull(intercepted.<SomeEvent>getPayload().getSensitiveData());
+        interceptor.wrap(handler).getInvokerOrNull(new DeserializingMessage(
+                intercepted, MessageType.EVENT, new JacksonSerializer())).invoke();
+
+        assertEquals("secret", target.getLastEvent().getSensitiveData());
+        assertNull(intercepted.<SomeEvent>getPayload().getSensitiveData());
+        verify(defaultStore, never()).forNamespace("tenant");
+        verify(namespacedStore, never()).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
+        verify(namespacedStore, never()).get(anyString());
+        verify(namespacedStore, never()).delete(anyString());
+    }
+
+    @Test
+    void externalizesDeferredDataOnceBeforeExternalDispatch() {
+        KeyValueStore defaultStore = mock(KeyValueStore.class);
+        KeyValueStore namespacedStore = mock(KeyValueStore.class);
+        when(defaultStore.forNamespace("tenant")).thenReturn(namespacedStore);
+        DataProtectionInterceptor interceptor = new DataProtectionInterceptor(defaultStore, new JacksonSerializer());
+        Message intercepted = interceptor.interceptLocalDispatch(
+                new Message(new SomeEvent("secret")), MessageType.EVENT, null, "tenant");
+
+        interceptor.beforeExternalDispatch(intercepted, MessageType.EVENT, null);
+        interceptor.beforeExternalDispatch(intercepted, MessageType.EVENT, null);
+
+        verify(namespacedStore).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
+    }
+
+    @Test
+    void droppingLocallyDispatchedDataDoesNotDeleteFromKeyValueStorage() {
+        KeyValueStore store = mock(KeyValueStore.class);
+        when(store.forNamespace(nullable(String.class))).thenReturn(store);
+        DataProtectionInterceptor interceptor = new DataProtectionInterceptor(store, new JacksonSerializer());
+        Message intercepted = interceptor.interceptLocalDispatch(
+                new Message(new SomeEvent("secret")), MessageType.EVENT, null, null);
+        DroppingHandler droppingTarget = new DroppingHandler();
+        SomeHandler secondTarget = new SomeHandler();
+        Handler<DeserializingMessage> droppingHandler = HandlerInspector.createHandler(
+                droppingTarget, HandleEvent.class, List.of(new PayloadParameterResolver()));
+        Handler<DeserializingMessage> secondHandler = HandlerInspector.createHandler(
+                secondTarget, HandleEvent.class,
+                List.of(new PayloadParameterResolver(), new MessageParameterResolver()));
+        DeserializingMessage message = new DeserializingMessage(
+                intercepted, MessageType.EVENT, new JacksonSerializer());
+
+        interceptor.wrap(droppingHandler).getInvokerOrNull(message).invoke();
+        interceptor.wrap(secondHandler).getInvokerOrNull(message).invoke();
+
+        assertEquals("secret", droppingTarget.getLastEvent().getSensitiveData());
+        assertNull(secondTarget.getLastEvent().getSensitiveData());
+        verify(store, never()).forNamespace(nullable(String.class));
+        verify(store, never()).store(anyString(), eq("secret"), eq(io.fluxzero.common.Guarantee.STORED));
+        verify(store, never()).get(anyString());
+        verify(store, never()).delete(anyString());
+    }
+
+    @Test
     void replacesInheritedProtectedDataReferencesInDispatchNamespace() {
         KeyValueStore defaultStore = mock(KeyValueStore.class);
         KeyValueStore namespacedStore = mock(KeyValueStore.class);

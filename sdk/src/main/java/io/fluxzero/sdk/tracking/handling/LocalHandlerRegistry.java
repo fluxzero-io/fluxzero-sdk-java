@@ -130,6 +130,11 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                || selfHandlers.apply(payloadType).isEmpty();
     }
 
+    @Override
+    public boolean supportsDeferredExternalization() {
+        return true;
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public Registration registerHandler(Object target, HandlerFilter handlerFilter) {
@@ -177,19 +182,26 @@ public class LocalHandlerRegistry implements HandlerRegistry {
 
     @Override
     public LocalHandlerResult handleResult(DeserializingMessage message) {
+        return handleResult(message, true);
+    }
+
+    @Override
+    public LocalHandlerResult handleResult(DeserializingMessage message, boolean allowExternalPublication) {
         return runInLocalHandlerNamespace(message,
-                                          () -> handleResultInConsumerNamespace(new MessageHandlerInput(message)));
+                                          () -> handleResultInConsumerNamespace(
+                                                  new MessageHandlerInput(message), allowExternalPublication));
     }
 
     @Override
     public LocalHandlerResult handleResult(LocalHandlerInput input) {
         DeserializingMessage message = input.getMessageIfAvailable();
         return message == null
-                ? runInLocalHandlerNamespace(() -> handleResultInConsumerNamespace(input))
-                : runInLocalHandlerNamespace(message, () -> handleResultInConsumerNamespace(input));
+                ? runInLocalHandlerNamespace(() -> handleResultInConsumerNamespace(input, true))
+                : runInLocalHandlerNamespace(message, () -> handleResultInConsumerNamespace(input, true));
     }
 
-    private LocalHandlerResult handleResultInConsumerNamespace(LocalHandlerInput input) {
+    private LocalHandlerResult handleResultInConsumerNamespace(
+            LocalHandlerInput input, boolean allowExternalPublication) {
         Class<?> payloadClass = payloadClass(input.getPayload());
         long version = handlerVersion.get();
         PreparedLocalPlan rawPlan = input.getMessageIfAvailable() == null
@@ -198,7 +210,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                 : getPreparedPlan(input, getLocalHandlers(input.getMessageType(), payloadClass), version,
                                   payloadClass);
         if (prepared == PreparedLocalPlan.unsupported) {
-            return handle(input.getMessage()).map(LocalHandlerResult::asynchronous)
+            return handle(input.getMessage(), allowExternalPublication).map(LocalHandlerResult::asynchronous)
                     .orElseGet(LocalHandlerResult::notHandled);
         }
         if (prepared == PreparedLocalPlan.noMatch) {
@@ -335,11 +347,20 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     @SuppressWarnings("unchecked")
     @Override
     public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
-        return runInLocalHandlerNamespace(message, () -> handleInConsumerNamespace(message));
+        return handle(message, true);
     }
 
     @SuppressWarnings("unchecked")
-    private Optional<CompletableFuture<Object>> handleInConsumerNamespace(DeserializingMessage message) {
+    @Override
+    public Optional<CompletableFuture<Object>> handle(DeserializingMessage message,
+                                                      boolean allowExternalPublication) {
+        return runInLocalHandlerNamespace(
+                message, () -> handleInConsumerNamespace(message, allowExternalPublication));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<CompletableFuture<Object>> handleInConsumerNamespace(
+            DeserializingMessage message, boolean allowExternalPublication) {
         List<Handler<DeserializingMessage>> localHandlers = getLocalHandlers(message);
         if (localHandlers.isEmpty()) {
             return Optional.empty();
@@ -348,6 +369,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             boolean handled = false;
             boolean logMessage = false;
             boolean request = m.getMessageType().isRequest();
+            Fluxzero fluxzero = null;
             CompletableFuture<Object> future = new CompletableFuture<>();
             for (Handler<DeserializingMessage> handler : localHandlers) {
                 var optionalInvoker = handler.getInvoker(m);
@@ -355,6 +377,14 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                     var invoker = optionalInvoker.get();
                     boolean passive = invoker.isPassive();
                     if (!handled || !request || passive) {
+                        boolean invokerLogsMessage = logMessage(invoker);
+                        if (invokerLogsMessage && !logMessage && allowExternalPublication) {
+                            fluxzero = Fluxzero.getOptionally().orElse(null);
+                            if (fluxzero != null) {
+                                dispatchInterceptor.beforeExternalDispatch(
+                                        m.toMessage(), m.getMessageType(), m.getTopic());
+                            }
+                        }
                         try {
                             Object result = Invocation.performInvocation(invoker, invoker::invoke);
                             if (result instanceof Optional<?> optional) {
@@ -378,7 +408,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                             if (!passive) {
                                 handled = true;
                             }
-                            logMessage = logMessage || logMessage(invoker);
+                            logMessage = logMessage || invokerLogsMessage;
                         }
                     }
                 }
@@ -386,17 +416,21 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             try {
                 return handled ? Optional.of(future) : Optional.empty();
             } finally {
-                if (handled && logMessage) {
-                    Fluxzero.getOptionally().ifPresent(fc -> {
+                if (handled && logMessage && allowExternalPublication) {
+                    Fluxzero publishingFluxzero = fluxzero == null
+                            ? Fluxzero.getOptionally().orElse(null) : fluxzero;
+                    if (publishingFluxzero != null) {
+                        dispatchInterceptor.beforeExternalDispatch(
+                                m.toMessage(), m.getMessageType(), m.getTopic());
                         SerializedMessage serializedMessage = message.getSerializedObject();
                         serializedMessage = dispatchInterceptor.modifySerializedMessage(
                                 serializedMessage, m.toMessage(), m.getMessageType(), m.getTopic());
                         if (serializedMessage != null) {
-                            fc.client().forNamespace(getConsumerNamespace(m))
+                            publishingFluxzero.client().forNamespace(getConsumerNamespace(m))
                                     .getGatewayClient(m.getMessageType(), m.getTopic())
                                     .append(Guarantee.NONE, serializedMessage);
                         }
-                    });
+                    }
                 }
             }
         });

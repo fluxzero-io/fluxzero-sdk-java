@@ -47,6 +47,15 @@ import java.lang.annotation.Target;
  * To permanently remove protected data after it is no longer needed, consider using the {@link DropProtectedData}
  * annotation on a handler method.
  *
+ * <p>Updates committed through {@link io.fluxzero.sdk.modeling.Model} also retain only redacted event payloads.
+ * Reconstruction restores values that are still available; erased values remain absent and vault read failures
+ * fail reconstruction. This does not redact values copied into Model state, documents or snapshots. Durable Model
+ * updates require vault storage even when their commands are handled locally.</p>
+ *
+ * <p>Safe record editing and Model-event redaction require a supported
+ * {@link io.fluxzero.sdk.common.serialization.Serializer#serializedPropertyPaths(Object, String) serialized property
+ * mapping}. Custom wire shapes must supply this capability explicitly; unsupported mappings prevent publication.</p>
+ *
  * <h2>Example</h2>
  * <pre>{@code
  * public record RegisterCitizen(

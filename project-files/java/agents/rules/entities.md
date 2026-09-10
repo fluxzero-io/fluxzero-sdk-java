@@ -161,6 +161,19 @@ public record RenameProject(ProjectId projectId,
 Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
 direct target and related ancestor resolved for the action. They must not perform nested model writes.
 
+Interception selects the payloads to which assertions apply:
+
+| Interceptor outcome | Assertions and application |
+|:--------------------|:---------------------------|
+| Retain the payload | Its matching immediate `@AssertLegal` methods run before `@Apply` |
+| Suppress the payload | Neither its assertions nor its apply methods run |
+| Replace the payload | Only the replacement's matching assertions and apply methods run |
+| Split the payload | Each part's immediate assertions and apply run in order; later parts see earlier changes |
+
+Never assume an `@AssertLegal` method that only matches the original payload will run after replacement. Put an
+invariant that must survive rewriting on the effective replacement or in shared/Model-side assertion logic that also
+matches it. `@AssertLegal(afterHandler = true)` retains its deferred handler-completion timing.
+
 ## Combine payload and Model handlers
 
 Keep action-specific handlers on the payload. Put genuinely cross-cutting state behavior on the Model when several
@@ -177,6 +190,19 @@ payload applies. This lets an instance Model apply finalize a newly created Mode
 independent of Model-handler iteration order. Both phases are reduced to one atomic `Change` per Model ID. Static Model
 applies remain valid; an independent static creation factory is used only when the payload did not already create its
 target. Keep every phase pure and deterministic because live handling, retry, rebase and replay share this route.
+
+## Recursive Model assertions
+
+Return a validation object (or collection) from `@AssertLegal` to run its matching checks recursively. The original
+payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
+and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
+
+Returned objects are traversed in the returning method's before/after phase. Annotated fields and record components
+delegate in both phases; their nested methods determine timing, not `afterHandler` on the field. Use a field for a
+validator shared across phases: a no-arg assertion method is not called again after apply. `Fluxzero.assertLegal`
+runs only immediate checks. Nulls are ignored; collection order is preserved. Identity-based cycle detection visits
+an object once per payload or Model assertion phase; nesting beyond 256 levels fails. Direct accessor methods remain
+eligible even when their return value has already been traversed.
 
 ## Multi-model commits
 
@@ -455,6 +481,13 @@ properties. Public policies are:
 - `FAIL`: return the conflict.
 
 If multiple applies request different policies, the stricter applicable policy wins; failure is not weakened by retry.
+
+The implicit update policy is `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
+`fluxzero.model.conflictPolicy` and explicit builder/Model/Apply settings override it. Implicit first creations still
+fail on conflict: the new default must not turn create-if-absent into an upsert. Explicit RETRY also reevaluates creation
+and requires create-only assertions when appropriate. ACCEPT validates apply dependencies and writes, excluding
+assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
+commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
 ## Deletion
 

@@ -48,6 +48,7 @@ import io.fluxzero.sdk.web.LocalServerConfig;
 import io.fluxzero.sdk.web.WebResponseMapper;
 
 import java.time.Clock;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -60,6 +61,13 @@ import java.util.function.UnaryOperator;
  * integrations.
  */
 public interface FluxzeroBuilder extends FluxzeroConfiguration {
+
+    /**
+     * Property containing comma-, semicolon-, or newline-separated type aliases in {@code source=target} form.
+     * Package aliases use a trailing {@code .*} on both sides.
+     * The conventional environment-variable name is {@code FLUXZERO_SERIALIZATION_TYPE_ALIASES}.
+     */
+    String TYPE_ALIASES_PROPERTY = "fluxzero.serialization.typeAliases";
 
     /**
      * Update the default consumer configuration for the specified message type.
@@ -182,13 +190,16 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
     /**
      * Configures the optional policy used when an independent-model commit was evaluated against an older model state.
      * <p>
-     * {@link ModelConflictPolicy#ACCEPT} is the final default and never rejects the original event; stale derived
-     * state is internally rebased without rerunning assertions or interceptors. Scoped
+     * {@link ModelConflictPolicy#ACCEPT} preserves the original event and internally rebases stale apply state
+     * without rerunning assertions or interceptors. Scoped
      * {@link io.fluxzero.sdk.modeling.Model @Model} and {@link io.fluxzero.sdk.persisting.eventsourcing.Apply @Apply}
      * settings may override this policy. Rejecting policies roll back the complete runtime action before invoking
      * {@code resolver}. A resolver-requested retry performs a fresh pinned model load and is bounded by
      * {@code maxRetries}. If this method is not called, properties {@code fluxzero.model.conflictPolicy} and
-     * {@code fluxzero.model.maxConflictRetries} are consulted before falling back to {@code ACCEPT} and three retries.
+     * {@code fluxzero.model.maxConflictRetries} are consulted. The policy defaults to {@code RETRY} from
+     * {@code fluxzero.defaults.version = 2026.09.09}, or {@code ACCEPT} in compatibility mode, with three retries.
+     * Under these implicit defaults, first creations fail on conflict rather than becoming upserts. An explicitly
+     * selected {@code RETRY} also applies to creation and therefore requires create-only assertions where appropriate.
      *
      * @param policy conflict policy sent with model commits
      * @param resolver client-side decision after a rolled-back conflict
@@ -299,6 +310,40 @@ public interface FluxzeroBuilder extends FluxzeroConfiguration {
      * Replaces the default serializer used for events, commands, snapshots, and documents.
      */
     FluxzeroBuilder replaceSerializer(Serializer serializer);
+
+    /**
+     * Adds an exact alias from a legacy serialized type name to its current type name.
+     * <p>
+     * Multiple aliases may be added. Programmatic aliases take precedence over aliases for the same source configured
+     * through {@link #TYPE_ALIASES_PROPERTY}.
+     */
+    default FluxzeroBuilder addTypeAlias(String oldType, String newType) {
+        serializer().registerTypeAlias(oldType, newType);
+        return this;
+    }
+
+    /** Adds multiple exact aliases from legacy serialized type names to their current type names. */
+    default FluxzeroBuilder addTypeAliases(Map<String, String> aliases) {
+        aliases.forEach(this::addTypeAlias);
+        return this;
+    }
+
+    /**
+     * Adds an alias from a legacy package and all its subpackages to a current package.
+     * <p>
+     * Package names are supplied without a trailing wildcard. When aliases overlap, the longest matching package
+     * prefix wins; an exact type alias always takes precedence.
+     */
+    default FluxzeroBuilder addPackageAlias(String oldPackage, String newPackage) {
+        serializer().registerPackageAlias(oldPackage, newPackage);
+        return this;
+    }
+
+    /** Adds multiple package-prefix aliases. */
+    default FluxzeroBuilder addPackageAliases(Map<String, String> aliases) {
+        aliases.forEach(this::addPackageAlias);
+        return this;
+    }
 
     /**
      * Replaces the {@link CorrelationDataProvider} used to attach correlation data to messages.

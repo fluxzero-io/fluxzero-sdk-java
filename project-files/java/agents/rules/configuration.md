@@ -11,6 +11,7 @@ use [Local Development](development.md) and obtain the current schema with `fz d
 ## Quick Navigation
 
 - [Property Resolution](#property-resolution)
+- [Serialization Type Aliases](#serialization-type-aliases)
 - [Core Properties](#core-properties)
 - [Client Configuration](#client-configuration)
     - [In-Memory (LocalClient)](#local-client)
@@ -29,9 +30,20 @@ order of precedence:
 
 1. **Environment Variables**: e.g., `export FLUXZERO_BASE_URL=...`
 2. **System Properties**: e.g., `-Dfluxzero.base-url=...`
-3. **Environment-Specific Properties**: `application-{environment}.properties` (set `ENVIRONMENT` variable)
-4. **Base Properties**: `application.properties`
-5. **Spring Environment**: (If Spring is active)
+3. **Additional Config Locations**: files configured with `FLUXZERO_CONFIG_LOCATIONS`
+4. **Environment-Specific Properties**: `application-{environment}.properties` (set `ENVIRONMENT` variable)
+5. **Base Properties**: `application.properties`
+6. **Fluxzero SDK Defaults**: `fluxzero.properties` or `fluxzero.json`
+7. **Spring Environment**: (If Spring is active)
+
+All classpath `application.properties` resources are merged. Put shared defaults in one common module and let dependent
+executables inherit them; do not copy the same key into every executable. If different modules define conflicting
+values for one key, resolution depends on class-loader order and Fluxzero logs a warning. Use a higher-priority source
+for intentional overrides. Always resolve feature configuration through `ApplicationProperties` or, at a builder or
+configuration boundary, the component's configured `PropertySource`; never read environment variables, system
+properties, or files directly and never introduce a feature-specific property utility.
+Custom uber-JAR packaging that collapses equal resource names must merge overlapping `application.properties` files
+itself; Spring integration cannot recover a resource removed during packaging.
 
 ### Typed Access
 
@@ -44,6 +56,30 @@ boolean enabled = ApplicationProperties.getBooleanProperty("feature.toggle", tru
 int maxItems = ApplicationProperties.getIntegerProperty("limit.items", 100);
 ```
 [//]: # (@formatter:on)
+
+---
+
+<a name="serialization-type-aliases"></a>
+
+## Serialization Type Aliases
+
+Prefer application or deployment configuration for serialized class and package renames. Put all aliases in one
+property value:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+Or use the conventional environment variable:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+`ApplicationProperties` also accepts the compact `FLUXZERO_SERIALIZATION_TYPEALIASES` spelling. The selected property
+source supplies the complete comma-, semicolon-, or newline-separated list; package aliases use `.*` on both sides.
+Use builder methods only for aliases intentionally owned by application code or tests. See
+[Serialization](serialization.md#type-aliases) for precedence, upcaster ordering, and fixture behavior.
 
 ---
 
@@ -106,6 +142,12 @@ Fluxzero fluxzero = DefaultFluxzero.builder()
     .build(WebSocketClient.newInstance(config));
 ```
 [//]: # (@formatter:on)
+
+Compatibility mode retries failed WebSocket connections every second. Enable capped exponential equal-jitter retry
+with `fluxzero.websocket.reconnectBackoff.enabled=true` or `fluxzero.defaults.version >= 2026.09.09`; use the explicit
+property with `false` to retain fixed retries. The environment-variable form is
+`FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`. Transport diagnostics are single-flight per client on a dedicated,
+timeboxed worker, so metric failure cannot build a queue on result-completion workers.
 
 <a name="advanced-builder-patterns"></a>
 
@@ -170,6 +212,9 @@ Use advanced toggles conservatively:
 - `fluxzero.tracking.maxFetchBytes` changes the default serialized payload byte limit per consumer fetch. Use bytes,
   for example `104857600` for 100 MiB; omit a consumer's `maxFetchBytes` or set it to `-1` to inherit that default,
   and set it to `0` only when an unbounded fetch is intentional.
+- `fluxzero.eventsourcing.maxFetchBytes` bounds serialized event payload per aggregate-history page. Compatibility mode
+  is count-only; `fluxzero.defaults.version >= 2026.09.10` selects 100 MiB. Use `0` to retain count-only pages. One
+  oversized event is still returned so aggregate loading cannot stall. Older Runtimes ignore the optional byte limit.
 
 ---
 

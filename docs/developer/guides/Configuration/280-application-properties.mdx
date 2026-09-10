@@ -24,9 +24,20 @@ Properties are resolved in the following order of precedence:
 
 1. `EnvironmentVariablesSource` – e.g. `export MY_SETTING=value`
 2. `SystemPropertiesSource` – e.g. `-Dmy.setting=value`
-3. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
-4. `ApplicationPropertiesSource` – base fallback (`application.properties`)
-5. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+3. `FluxzeroAdditionalPropertiesSource` – locations configured with `FLUXZERO_CONFIG_LOCATIONS`
+4. `ApplicationEnvironmentPropertiesSource` – e.g. `application-dev.properties`
+5. `ApplicationPropertiesSource` – base fallback (`application.properties`)
+6. `FluxzeroPropertiesSource` – SDK defaults (`fluxzero.properties` or `fluxzero.json`)
+7. *(Optional)*: Spring’s `Environment` is added as a fallback source if Spring is active
+
+`ApplicationPropertiesSource` merges every `application.properties` resource visible on the application classpath.
+A shared module can therefore own common defaults once; each executable that depends on that module inherits them.
+Do not repeat the same key with different values across modules: the SDK logs a warning because class-loader ordering
+would make that value ambiguous. Put intentional overrides in an environment variable, system property,
+environment-specific file, or another higher-priority source.
+Spring Boot nested JARs remain separate classpath resources and are discovered automatically. A custom uber-JAR build
+that collapses equal resource names must merge overlapping `application.properties` files in its own packaging
+configuration.
 
 To specify the environment (`dev`, `prod`, etc.), define:
 
@@ -40,6 +51,36 @@ SDK-loaded property files accept both regular property names and their conventio
 example, `FLUXZERO_AUTH_OIDC_LOGIN_STATE_SECRET` can be resolved with
 `ApplicationProperties.getProperty("fluxzero.auth.oidc.login-state-secret")`. When both forms occur in the same source,
 the exact property name takes priority.
+
+---
+
+## Serialization type aliases
+
+Use `fluxzero.serialization.typeAliases` to map legacy serialized type names to their current names during
+deserialization. Separate multiple entries with commas, semicolons, or newlines. Exact aliases use `source=target`;
+package aliases require a trailing `.*` on both sides:
+
+```properties
+fluxzero.serialization.typeAliases=host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*
+```
+
+For deployment configuration, set the conventional environment variable. Quote its value so the shell leaves package
+wildcards unchanged:
+
+```bash
+export FLUXZERO_SERIALIZATION_TYPE_ALIASES='host.example.LegacyCommand=io.example.CurrentCommand,host.example.events.*=io.example.events.*'
+```
+
+`FLUXZERO_SERIALIZATION_TYPEALIASES` is accepted as a compact alternative. Following the normal property resolution
+order, the environment variable takes precedence over system properties and `application*.properties`. The selected
+property source supplies the complete alias list; entries are not merged across property sources.
+
+Exact aliases take precedence over package aliases, and the longest matching package prefix wins. An alias configured
+through `FluxzeroBuilder.addTypeAlias(...)` or `addPackageAlias(...)` overrides a property alias with the same source.
+Aliases run after revision upcasters and also apply to polymorphic `@class` values at any depth in JSON, JSON-encoded
+message metadata read as an object, and root `@class` values in JSON test fixtures. See
+[Upcasting and downcasting](/docs/guides/data-control-and-serialization/upcasting-and-downcasting#type-aliases) for the
+complete behavior.
 
 ---
 
@@ -75,16 +116,20 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
+| `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
+| `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
 
 For example:
 
 ```properties
-fluxzero.defaults.version=2026.07.27
+fluxzero.defaults.version=2026.09.10
 ```
 
-This enables the package-scoped consumer default and all earlier versioned defaults. To choose one behavior explicitly
-without changing the defaults version, set the dedicated property directly. Existing applications that omit
-`fluxzero.defaults.version` retain the original shared application consumer and immediate implicit periodic start.
+This enables the package-scoped consumer default, the newer reconnect policy, byte-bounded aggregate-history pages and
+all earlier versioned defaults. To choose one behavior explicitly without changing the defaults version, set the
+dedicated property directly. Existing applications that omit `fluxzero.defaults.version` retain the original shared
+application consumer, immediate implicit periodic start, fixed one-second WebSocket reconnect interval and count-only
+aggregate-history paging.
 
 ---
 

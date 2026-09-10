@@ -81,6 +81,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -117,6 +118,11 @@ final class ModelReplayCursor {
     private final ModelRepository repository;
     private final EventBoundaryBarrier eventBoundaryBarrier;
     private final ModelTypeResolver modelTypeResolver;
+    private UnaryOperator<DeserializingMessage> replayRestoration = UnaryOperator.identity();
+
+    void configureReplayRestoration(UnaryOperator<DeserializingMessage> restoration) {
+        this.replayRestoration = Objects.requireNonNull(restoration);
+    }
 
     ModelReplayCursor(EventStoreClient eventStoreClient) {
         this(eventStoreClient, DEFAULT_SETTINGS);
@@ -2098,6 +2104,7 @@ final class ModelReplayCursor {
                                             storedEvent.membership()
                                                     .getStateIndex()));
                 }
+                event = replayRestoration.apply(event);
                 apply(storedEvent, List.of(
                         new PreparedReplay(event, definition, null)));
             }
@@ -2342,6 +2349,7 @@ final class ModelReplayCursor {
                     serializer.deserializeMessages(
                                     Stream.of(storedEvent.event()), EVENT,
                                     ignoreUnknown ? UnknownTypeStrategy.IGNORE : UnknownTypeStrategy.FAIL)
+                            .map(replayRestoration)
                             .toList());
         }
 

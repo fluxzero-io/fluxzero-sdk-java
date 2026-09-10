@@ -261,8 +261,10 @@ the same tracker.
 2. **Routing Key Selection**:
     - **@RoutingKey**: You can annotate a field in your payload with `@RoutingKey`. The value of this field will be used
       to calculate the segment.
-    - **Model commit routing**: Model events use the message routing key by default. A single-target apply may explicitly
-      choose model-ID routing.
+    - **Model routing**: `fluxzero.model.automaticRouting=true` (default from defaults version `2026.09.10`) adds a
+      canonical Model-ID fallback for single statically unambiguous apply commands and single-Model events. Never
+      choose an arbitrary target for multi-Model updates. Explicit segments and `@RoutingKey` declarations win,
+      including missing values; do not blindly inherit an unknown command segment. Aggregate routing is unchanged.
     - **Default**: If no key is found, a random segment is assigned (no ordering guarantees).
 
 ```kotlin

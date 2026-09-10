@@ -18,7 +18,10 @@ package io.fluxzero.common.api;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.util.JsonParserDelegate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import io.fluxzero.common.api.internal.BinaryWire;
@@ -40,6 +43,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS;
@@ -72,6 +76,8 @@ import static java.util.Collections.emptyMap;
  * }</pre>
  */
 public final class Metadata {
+    private static final String CLASS_PROPERTY = "@class";
+
     /**
      * Type stored in the {@link Data} envelope returned by {@link #toData()}.
      */
@@ -100,6 +106,8 @@ public final class Metadata {
     private volatile Map<String, String> entries;
     private volatile Data<byte[]> data;
     private volatile int chunkStatus = UNKNOWN_CHUNK_STATUS;
+
+    private final transient UnaryOperator<String> classNameMapper;
 
     /**
      * Retrieves a map of entries where the keys and values are strings.
@@ -230,7 +238,7 @@ public final class Metadata {
                 return empty();
             }
             shared = true;
-            return new Metadata(entries, size);
+            return new Metadata(entries, size, null);
         }
 
         private void ensureCapacity(int requiredEntries) {
@@ -301,6 +309,10 @@ public final class Metadata {
     }
 
     static Metadata fromData(@NonNull Data<byte[]> data, int chunkStatus) {
+        return fromData(data, chunkStatus, null);
+    }
+
+    private static Metadata fromData(Data<byte[]> data, int chunkStatus, UnaryOperator<String> classNameMapper) {
         if (!DATA_TYPE.equals(data.getType()) || !DATA_FORMAT.equals(data.getFormat()) || data.getRevision() != 0) {
             throw new IllegalArgumentException("Unsupported serialized metadata descriptor: " + data);
         }
@@ -308,7 +320,7 @@ public final class Metadata {
             || chunkStatus > (CHUNKED_STATUS | LAST_CHUNK_STATUS | FIRST_CHUNK_STATUS)) {
             throw new IllegalArgumentException("Invalid metadata chunk status " + chunkStatus);
         }
-        return new Metadata(data, chunkStatus);
+        return new Metadata(data, chunkStatus, classNameMapper);
     }
 
     static boolean containsKey(
@@ -363,21 +375,52 @@ public final class Metadata {
      */
     @JsonCreator
     private Metadata(Map<String, String> entries) {
+        this(entries, null);
+    }
+
+    private Metadata(Map<String, String> entries, UnaryOperator<String> classNameMapper) {
         this.source = Objects.requireNonNull(entries, "entries");
         this.compactSize = -1;
         this.entries = entries;
+        this.classNameMapper = classNameMapper;
     }
 
-    private Metadata(String[] entries, int size) {
+    /**
+     * Returns metadata that applies the supplied mapper to {@code @class} values when a JSON-encoded entry is read as
+     * an object. Raw string access and JSON serialization retain the original entry values.
+     *
+     * @param classNameMapper maps serialized class names before Jackson resolves them
+     * @return this instance when the mapper is already attached, otherwise a copy with the mapper attached
+     */
+    public Metadata withClassNameMapper(@NonNull UnaryOperator<String> classNameMapper) {
+        return withMapper(classNameMapper);
+    }
+
+    private Metadata withMapper(UnaryOperator<String> classNameMapper) {
+        return this.classNameMapper == classNameMapper ? this : new Metadata(this, classNameMapper);
+    }
+
+    private Metadata(Metadata original, UnaryOperator<String> classNameMapper) {
+        this.source = original.source;
+        this.compactSize = original.compactSize;
+        this.entries = original.entries;
+        this.data = original.data;
+        this.chunkStatus = original.chunkStatus;
+        this.classNameMapper = classNameMapper;
+    }
+
+    private Metadata(String[] entries, int size, UnaryOperator<String> classNameMapper) {
         this.source = Objects.requireNonNull(entries, "entries");
         this.compactSize = size;
+        this.classNameMapper = classNameMapper;
     }
 
-    private Metadata(Data<byte[]> data, int chunkStatus) {
+    private Metadata(Data<byte[]> data, int chunkStatus, UnaryOperator<String> classNameMapper) {
         this.source = Objects.requireNonNull(data, "data");
         this.compactSize = -1;
         this.data = data;
         this.chunkStatus = chunkStatus;
+        this.classNameMapper = classNameMapper;
     }
 
     /**
@@ -413,7 +456,7 @@ public final class Metadata {
         }
         Map<String, String> map = new HashMap<>(materialize());
         values.forEach((key, value) -> with(key, value, map));
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     private static boolean hasOnlyStringEntries(Map<?, ?> values) {
@@ -427,7 +470,7 @@ public final class Metadata {
 
     private Metadata withSerializedChanges(Map<String, String> values) {
         byte[] merged = MetadataBinaryCodec.merge(toData(), values);
-        return fromData(new Data<>(merged, DATA_TYPE, 0, DATA_FORMAT));
+        return fromData(new Data<>(merged, DATA_TYPE, 0, DATA_FORMAT), UNKNOWN_CHUNK_STATUS, classNameMapper);
     }
 
     /**
@@ -438,20 +481,21 @@ public final class Metadata {
      * metadata
      */
     public Metadata with(Metadata metadata) {
+        UnaryOperator<String> mapper = classNameMapper != null ? classNameMapper : metadata.classNameMapper;
         if (metadata.isEmpty()) {
-            return this;
+            return withMapper(mapper);
         }
         if (isEmpty()) {
-            return metadata;
+            return metadata.withMapper(mapper);
         }
         if (hasCompactEntries() && metadata.hasCompactEntries()) {
             return fromData(new Data<>(
                     MetadataBinaryCodec.merge(toData(), metadata.toData()),
-                    DATA_TYPE, 0, DATA_FORMAT));
+                    DATA_TYPE, 0, DATA_FORMAT), UNKNOWN_CHUNK_STATUS, mapper);
         }
         Map<String, String> map = new HashMap<>(materialize());
         map.putAll(metadata.materialize());
-        return new Metadata(map);
+        return new Metadata(map, mapper);
     }
 
     /**
@@ -473,7 +517,7 @@ public final class Metadata {
         for (int i = 0; i < keyValues.length; i += 2) {
             with(keyValues[i].toString(), keyValues[i + 1], map);
         }
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /**
@@ -497,7 +541,7 @@ public final class Metadata {
         if (value instanceof Enum<?> enumValue && hasCompactEntries()) {
             return withCompactString(keyString, enumValue.name());
         }
-        return new Metadata(with(key, value, new HashMap<>(materialize())));
+        return new Metadata(with(key, value, new HashMap<>(materialize())), classNameMapper);
     }
 
     private boolean hasCompactEntries() {
@@ -514,7 +558,7 @@ public final class Metadata {
     public Metadata withNull(Object key) {
         var map = new HashMap<>(materialize());
         map.put(key.toString(), objectMapper.writeValueAsString(null));
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /**
@@ -598,7 +642,7 @@ public final class Metadata {
      */
     @SneakyThrows
     public Metadata withTrace(Object key, Object value) {
-        return new Metadata(withTrace(key, value, new HashMap<>(materialize())));
+        return new Metadata(withTrace(key, value, new HashMap<>(materialize())), classNameMapper);
     }
 
     /*
@@ -615,7 +659,7 @@ public final class Metadata {
     public Metadata without(Object key) {
         Map<String, String> map = new HashMap<>(materialize());
         map.remove(key.toString());
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /**
@@ -634,7 +678,7 @@ public final class Metadata {
                 iterator.remove();
             }
         });
-        return new Metadata(map);
+        return new Metadata(map, classNameMapper);
     }
 
     /*
@@ -719,7 +763,12 @@ public final class Metadata {
             return (T) Enum.valueOf((Class<Enum>) type, value);
         }
         try {
-            return objectMapper.readValue(value, type);
+            if (classNameMapper == null) {
+                return objectMapper.readValue(value, type);
+            }
+            try (JsonParser parser = classNameMappingParser(value)) {
+                return objectMapper.readValue(parser, type);
+            }
         } catch (IOException e) {
             throw new IllegalStateException(format("Failed to deserialize value %s to a %s for key %s",
                                                    value, type.getSimpleName(), key), e);
@@ -751,7 +800,13 @@ public final class Metadata {
         }
         JsonNode tree;
         try {
-            tree = objectMapper.reader().with(FAIL_ON_TRAILING_TOKENS).readTree(value);
+            if (classNameMapper == null) {
+                tree = objectMapper.reader().with(FAIL_ON_TRAILING_TOKENS).readTree(value);
+            } else {
+                try (JsonParser parser = classNameMappingParser(value)) {
+                    tree = objectMapper.reader().with(FAIL_ON_TRAILING_TOKENS).readTree(parser);
+                }
+            }
         } catch (IOException e) {
             return stringMapper.apply(value);
         }
@@ -793,7 +848,12 @@ public final class Metadata {
             return null;
         }
         try {
-            return objectMapper.readValue(value, type);
+            if (classNameMapper == null) {
+                return objectMapper.readValue(value, type);
+            }
+            try (JsonParser parser = classNameMappingParser(value)) {
+                return objectMapper.readValue(parser, type);
+            }
         } catch (IOException e) {
             throw new IllegalStateException(format("Failed to deserialize value %s to a %s for key %s",
                                                    value, type, key), e);
@@ -811,6 +871,36 @@ public final class Metadata {
      */
     public <T> Optional<T> getOptionally(Object key, TypeReference<T> type) {
         return Optional.ofNullable(get(key, type));
+    }
+
+    private JsonParser classNameMappingParser(String value) throws IOException {
+        return new ClassNameMappingJsonParser(objectMapper.createParser(value));
+    }
+
+    private class ClassNameMappingJsonParser extends JsonParserDelegate {
+        private ClassNameMappingJsonParser(JsonParser delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public String getText() throws IOException {
+            return mapClassName(super.getText());
+        }
+
+        @Override
+        public String getValueAsString() throws IOException {
+            return mapClassName(super.getValueAsString());
+        }
+
+        @Override
+        public String getValueAsString(String defaultValue) throws IOException {
+            return mapClassName(super.getValueAsString(defaultValue));
+        }
+
+        private String mapClassName(String value) throws IOException {
+            return currentToken() == JsonToken.VALUE_STRING && CLASS_PROPERTY.equals(currentName())
+                    ? classNameMapper.apply(value) : value;
+        }
     }
 
     /**
@@ -973,7 +1063,8 @@ public final class Metadata {
 
     private Metadata withCompactString(String key, String value) {
         if (!(source instanceof String[] compact)) {
-            return fromData(new Data<>(MetadataBinaryCodec.merge(toData(), key, value), DATA_TYPE, 0, DATA_FORMAT));
+            return fromData(new Data<>(MetadataBinaryCodec.merge(toData(), key, value), DATA_TYPE, 0, DATA_FORMAT),
+                            UNKNOWN_CHUNK_STATUS, classNameMapper);
         }
         int matchingIndex = -1;
         for (int index = 0; index < compactSize; index++) {
@@ -994,7 +1085,7 @@ public final class Metadata {
         }
         result[target] = key;
         result[target + 1] = value;
-        return new Metadata(result, nextSize);
+        return new Metadata(result, nextSize, classNameMapper);
     }
 
     private Map<String, String> materialize() {

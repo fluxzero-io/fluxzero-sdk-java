@@ -55,7 +55,12 @@ import java.lang.annotation.Target;
  * Note: If you annotate a class or package with {@code @LocalHandler}, all handler methods within it are local by
  * default. To opt out for a specific method, use {@code @LocalHandler(false)} on that method.
  *
+ * <p>Local handling normally falls back to the Fluxzero Runtime when no handler matches. Use
+ * {@link io.fluxzero.sdk.publishing.LocalOnly @LocalOnly} sparingly when external publication would cross a security
+ * boundary.</p>
+ *
  * @see io.fluxzero.common.MessageType
+ * @see io.fluxzero.sdk.publishing.LocalOnly
  */
 @Documented
 @Target({ElementType.METHOD, ElementType.TYPE, ElementType.PACKAGE})

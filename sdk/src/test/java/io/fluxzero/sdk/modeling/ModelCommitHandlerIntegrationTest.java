@@ -75,6 +75,92 @@ import static org.mockito.Mockito.verify;
 class ModelCommitHandlerIntegrationTest {
 
     @Test
+    @Timeout(10)
+    void acceptRebasesWhenAnAssertionLoadedRootChangesItsApplyAncestor() {
+        for (boolean initiallyMissing : List.of(false, true)) {
+            TestFixture fixture = TestFixture.create();
+            fixture.givenCommands(new CreateAncestorCustomer("customer-before", "before"),
+                                  new CreateAncestorCustomer("customer-after", "after"),
+                                  new SetAncestorOrder("selection-order", initiallyMissing ? null : "customer-before"),
+                                  new CreateAncestorReport("selection-report"));
+            UpdateAncestorReport.assertions.set(0);
+            UpdateAncestorReport.applies.set(0);
+            UpdateAncestorReport.beforeApply.set(() -> CompletableFuture.runAsync(() ->
+                    fixture.getFluxzero().apply(fluxzero -> {
+                        Fluxzero.assertAndApply(new SetAncestorOrder("selection-order", "customer-after"));
+                        return null;
+                    })).join());
+            try {
+                fixture.whenCommand(new UpdateAncestorReport("selection-report", "selection-order"))
+                        .expectThat(fluxzero -> {
+                            assertTrue(UpdateAncestorReport.applies.get() > 0,
+                                       "Apply must be selected; initiallyMissing=" + initiallyMissing);
+                            assertEquals("after", fluxzero.modelRepository()
+                                    .load("selection-report", AncestorReport.class).get().customerName());
+                            assertEquals(1, UpdateAncestorReport.assertions.get(), "ACCEPT must not rerun assertions");
+                            assertEquals(2, UpdateAncestorReport.applies.get(), "Reparenting must reapply at the new boundary");
+                        });
+            } finally {
+                UpdateAncestorReport.beforeApply.set(null);
+            }
+        }
+    }
+
+    @Model
+    private record AncestorCustomer(@EntityId String customerId, String name) {
+    }
+
+    private record CreateAncestorCustomer(String customerId, String name) {
+        @Apply
+        AncestorCustomer apply() {
+            return new AncestorCustomer(customerId, name);
+        }
+    }
+
+    @Model
+    private record AncestorOrder(@EntityId String orderId, @Parent(AncestorCustomer.class) String customerId) {
+    }
+
+    private record SetAncestorOrder(String orderId, String customerId) {
+        @Apply
+        AncestorOrder apply() {
+            return new AncestorOrder(orderId, customerId);
+        }
+    }
+
+    @Model
+    private record AncestorReport(@EntityId String reportId, String customerName) {
+    }
+
+    private record CreateAncestorReport(String reportId) {
+        @Apply
+        AncestorReport apply() {
+            return new AncestorReport(reportId, "initial");
+        }
+    }
+
+    private record UpdateAncestorReport(String reportId, String orderId) {
+        private static final AtomicReference<Runnable> beforeApply = new AtomicReference<>();
+        private static final AtomicInteger assertions = new AtomicInteger();
+        private static final AtomicInteger applies = new AtomicInteger();
+
+        @AssertLegal
+        void check(AncestorOrder order) {
+            assertions.incrementAndGet();
+            Runnable concurrentWrite = beforeApply.getAndSet(null);
+            if (concurrentWrite != null) {
+                concurrentWrite.run();
+            }
+        }
+
+        @Apply
+        AncestorReport apply(AncestorReport report, @Nullable AncestorCustomer customer) {
+            applies.incrementAndGet();
+            return new AncestorReport(reportId, customer == null ? "missing" : customer.name());
+        }
+    }
+
+    @Test
     void explicitGraphUpdateCreatesAndReplaysAnIndependentModel() {
         AccountId accountId = new AccountId("direct-graph-create");
 

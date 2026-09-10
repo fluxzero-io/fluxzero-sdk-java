@@ -172,6 +172,11 @@ class UserQueryHandler {
 ```
 [//]: # (@formatter:on)
 
+Use `@LocalOnly` sparingly on a payload or package when external publication would cross a security boundary. It invokes
+local handlers only and suppresses `logMessage`; an unhandled request returns a failed future while an unhandled
+non-request completes normally. Parent packages include child packages and `@LocalOnly(false)` restores normal fallback
+for a more specific package or payload type.
+
 > **Passive Listening**: All requests (commands, queries, web requests) can be handled passively using e.g.
 `@HandleQuery(passive = true)`, meaning results won't be published. This is useful for auditing or logging without
 > interfering with the primary request flow.
@@ -550,6 +555,11 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
 - Jakarta validation annotations on endpoint parameters and model fields/record components are reflected in schemas
   where possible, including required flags, numeric bounds, sizes, patterns, and email format. `@Size` maps to
   length constraints for text, item constraints for arrays/collections, and property constraints for maps.
+- Required metadata on a body or body/form parameter sets `requestBody.required: true`; a body without such metadata
+  remains optional. Map-value type-use constraints apply to `additionalProperties`. OpenAPI 3.1 also emits supported
+  string-compatible map-key constraints as `propertyNames`; OpenAPI 3.0 omits that unsupported keyword.
+- Jackson polymorphism with a real type property retains its discriminator and mapping. `Id.DEDUCTION` is represented
+  only by its `oneOf` alternatives and never by a synthetic discriminator.
 - Array properties in response models are required by default; array properties in input models must be made required
   explicitly with validation or `@ApiDoc(required = true)`.
 - Render JSON with `OpenApiRenderer.render(...)`, `renderJson(...)`, or `renderPrettyJson(...)` and configure global
@@ -558,6 +568,12 @@ OpenAPI 3.1 can be enabled with `OpenApiOptions` or `-Afluxzero.openapi.specVers
   contain web handlers opted in with `@ApiDoc`. Configure it with javac options like `-Afluxzero.openapi.title=...`,
   `-Afluxzero.openapi.version=...`, `-Afluxzero.openapi.servers=...`, `-Afluxzero.openapi.specVersion=3.1.0`, or
   disable it with `-Afluxzero.openapi.enabled=false`.
+- The automatic endpoint discovers every `META-INF/fluxzero/openapi.json` visible to the handler classloader and merges
+  compatible paths, components, and metadata in stable resource order. Exact duplicates are accepted; conflicting
+  values and duplicate operation ids fail during handler registration with source and JSON-path context. A manual
+  document at the same path follows these rules. Spring Boot nested JARs are discovered normally. A classic shaded JAR
+  must preserve overlapping resources itself; an application-configured Maven Shade `AppendingTransformer` is
+  supported because consecutive JSON documents are read separately.
 - If route paths depend on runtime `@Path` properties, use `ApiDocExtractor.extract(handlerInstance)` for exact runtime
   docs; the compile-time processor can only see static annotation values.
 

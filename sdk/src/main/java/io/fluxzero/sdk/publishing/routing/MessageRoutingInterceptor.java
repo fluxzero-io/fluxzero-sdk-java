@@ -19,8 +19,12 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.function.Function;
+
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotatedProperty;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
 
 /**
  * A {@link DispatchInterceptor} that assigns a routing segment to messages prior to dispatch.
@@ -48,9 +52,27 @@ import lombok.extern.slf4j.Slf4j;
  * @see ConsistentHashing
  * @see SerializedMessage#setSegment(Integer)
  */
-@AllArgsConstructor
 @Slf4j
 public class MessageRoutingInterceptor implements DispatchInterceptor {
+    private final Function<Message, String> modelRoutingTarget;
+
+    /** Routes messages using only their explicitly defined routing key. */
+    public MessageRoutingInterceptor() {
+        this(null);
+    }
+
+    /** Adds a command-only Model-ID fallback when no explicit routing is declared. */
+    public MessageRoutingInterceptor(Function<Message, String> modelRoutingTarget) {
+        this.modelRoutingTarget = modelRoutingTarget;
+    }
+
+    /** An explicit routing declaration suppresses automatic Model routing even if its value is absent. */
+    public static boolean hasExplicitRouting(Message message) {
+        Class<?> payloadType = message.getPayloadClass();
+        return getAnnotation(payloadType, RoutingKey.class).filter(a -> !a.value().isBlank()).isPresent()
+               || getAnnotatedProperty(payloadType, RoutingKey.class).isPresent();
+    }
+
     @Override
     public io.fluxzero.sdk.publishing.PreparedLocalDispatch prepareLocalDispatch(
             io.fluxzero.sdk.publishing.LocalDispatchDescriptor descriptor) {
@@ -78,6 +100,13 @@ public class MessageRoutingInterceptor implements DispatchInterceptor {
                                                      MessageType messageType, String topic) {
         if (serializedMessage.getSegment() == null) {
             m.computeRoutingKey().map(ConsistentHashing::computeSegment).ifPresent(serializedMessage::setSegment);
+            if (serializedMessage.getSegment() == null && modelRoutingTarget != null
+                && messageType == MessageType.COMMAND && !hasExplicitRouting(m)) {
+                String target = modelRoutingTarget.apply(m);
+                if (target != null) {
+                    serializedMessage.setSegment(ConsistentHashing.computeSegment(target));
+                }
+            }
         }
         return serializedMessage;
     }

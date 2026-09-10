@@ -36,6 +36,7 @@ import io.fluxzero.common.handling.HandlerInvoker;
 import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
@@ -285,9 +286,11 @@ class ModelCommitHandlerRegistryTest {
                         serializer,
                         mock(DocumentSerializer.class),
                         DispatchInterceptor.noOp,
+                        DispatchInterceptor.noOp,
                         "test",
                         List.of(),
                         HandlerDecorator.noOp,
+                        ModelConflictPolicy.ACCEPT,
                         ModelConflictPolicy.ACCEPT,
                         ModelConflictResolver.retryIfAllowed(),
                         1,
@@ -315,6 +318,7 @@ class ModelCommitHandlerRegistryTest {
 
     @Test
     void overlappingAcceptCommitsAcrossTrackingBatchesCannotOvertake() {
+        ThreadLocal<String> context = ThreadLocalContext.create();
         BatchParentId id = new BatchParentId("cross-batch-accept");
         AtomicReference<BatchParent> durable = new AtomicReference<>(new BatchParent(id, 0));
         AtomicLong durableStateIndex = new AtomicLong();
@@ -361,6 +365,8 @@ class ModelCommitHandlerRegistryTest {
         when(eventStoreClient.commitModels(any())).thenAnswer(invocation -> {
             CommitModels request = invocation.getArgument(0);
             int attempt = physicalAttempts.getAndIncrement();
+            assertEquals(request.getSubsteps().getFirst().getEvent().getMetadata().get("owner"), context.get(),
+                    "queued submission must not inherit its predecessor's completion context");
             if (attempt == 0) {
                 firstRequest.set(request);
                 return firstResponse;
@@ -381,16 +387,20 @@ class ModelCommitHandlerRegistryTest {
         BATCH_INCREMENT_OBSERVATIONS.clear();
 
         try {
+            context.set("first");
             CompletableFuture<Void> first = subject.assertAndApply(
-                    new Message(new IncrementBatchParent(id, 0)));
+                    new Message(new IncrementBatchParent(id, 0), Metadata.of("owner", "first")));
+            context.set("second");
             CompletableFuture<Void> second = subject.assertAndApply(
-                    new Message(new IncrementBatchParent(id, 0)));
+                    new Message(new IncrementBatchParent(id, 0), Metadata.of("owner", "second")));
 
             assertEquals(1, physicalAttempts.get());
             assertFalse(first.isDone());
             assertFalse(second.isDone());
             long firstBoundary = durableStateIndex.incrementAndGet();
+            context.set("transport-callback");
             firstResponse.complete(acceptedResult(firstRequest.get(), firstBoundary, 1L));
+            assertEquals("transport-callback", context.get());
 
             first.join();
             second.join();
@@ -400,6 +410,7 @@ class ModelCommitHandlerRegistryTest {
             assertEquals(List.of(0, 0), List.copyOf(BATCH_INCREMENT_OBSERVATIONS));
             verify(repository, never()).invalidateModels(any());
         } finally {
+            context.remove();
             BATCH_INCREMENT_OBSERVATIONS.clear();
             subject.close();
         }
@@ -1866,9 +1877,11 @@ class ModelCommitHandlerRegistryTest {
                         serializer,
                         mock(DocumentSerializer.class),
                         DispatchInterceptor.noOp,
+                        DispatchInterceptor.noOp,
                         "test",
                         List.of(),
                         HandlerDecorator.noOp,
+                        io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
                         io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
                         ModelConflictResolver.fail(),
                         0,
@@ -1956,9 +1969,11 @@ class ModelCommitHandlerRegistryTest {
                 serializer,
                 mock(DocumentSerializer.class),
                 DispatchInterceptor.noOp,
+                DispatchInterceptor.noOp,
                 "test",
                 List.of(),
                 HandlerDecorator.noOp,
+                io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
                 io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT,
                 ModelConflictResolver.fail(),
                 0,

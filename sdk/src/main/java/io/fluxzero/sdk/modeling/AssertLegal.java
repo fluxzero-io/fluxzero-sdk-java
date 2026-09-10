@@ -83,6 +83,27 @@ import java.lang.annotation.Target;
  * <h2>Return value inspection</h2>
  * If an {@code @AssertLegal} method returns a non-null object, Fluxzero will also inspect that return value for further
  * {@code @AssertLegal} methods or properties. This allows for deep, composable validation logic.
+ * <p>For independent {@link Model Models}, return values (including collection elements) are traversed in the
+ * returning method's phase. Nested methods keep the original payload, metadata, user and application parameter
+ * resolvers; injected Models are loaded at the same pinned read boundary and participate in conflict validation.
+ * Null values are ignored. Each object identity is visited once within a payload or Model assertion phase, so shared
+ * references and cycles do not execute its checks repeatedly. Nesting beyond 256 levels is rejected.</p>
+ * <p>Annotated Model fields, including record components, delegate in both phases; methods on their values select
+ * their own {@link #afterHandler()} timing. A method is invoked only in its declared phase, even when it is a no-arg
+ * accessor. To share one validation object between before and after checks, expose it through an annotated field
+ * rather than relying on a before-method being invoked again after apply. {@link io.fluxzero.sdk.Fluxzero#assertLegal(Object)}
+ * performs only immediate checks. Rebase under ACCEPT and event replay do not rerun assertions.</p>
+ *
+ * <h2>Interaction with intercepted updates</h2>
+ * {@link io.fluxzero.sdk.persisting.eventsourcing.InterceptApply @InterceptApply} resolves the effective update or
+ * updates first. Assertions therefore run for a retained update, do not run for a suppressed update, and run only for
+ * the replacement when the original update is replaced. Expanded updates are processed in encounter order: each
+ * update's immediate assertions run before its apply methods and see state produced by earlier updates. Assertions
+ * configured with {@link #afterHandler()} remain deferred until handler completion.
+ *
+ * <p>If a rule must also hold after an interceptor replaces the original payload, define that rule for the effective
+ * replacement or place it in shared/entity-side assertion logic that matches the replacement. An assertion that only
+ * matches the original payload is intentionally not invoked after replacement.</p>
  *
  * <h2>Ordering</h2>
  * Multiple legality methods may be invoked. For independently stored models, assertions declared on the payload run
@@ -103,7 +124,8 @@ public @interface AssertLegal {
     int HIGHEST_PRIORITY = Integer.MAX_VALUE, LOWEST_PRIORITY = Integer.MIN_VALUE, DEFAULT_PRIORITY = 0;
 
     /**
-     * Determines the order of assertions if there are multiple annotated methods. A method with higher priority will be
+     * Determines the order of assertions if there are multiple annotated methods (or fields on independent Models).
+     * A method with higher priority will be
      * invoked before methods with a lower priority. Use {@link #HIGHEST_PRIORITY} to ensure that the check is performed
      * first. Methods with the same priority are invoked in deterministic order by method name and signature.
      */
@@ -112,6 +134,7 @@ public @interface AssertLegal {
     /**
      * Determines if the legality check should be performed immediately (the default), or when the current handler is
      * done, i.e.: after @Apply and just before the aggregate updates are committed.
+     * For independent Models, this selects method timing; annotated fields delegate to their values in both phases.
      */
     boolean afterHandler() default false;
 }

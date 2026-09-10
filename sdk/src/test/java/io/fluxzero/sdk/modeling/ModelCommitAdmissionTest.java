@@ -34,8 +34,33 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.fluxzero.common.reflection.ReflectionUtils.getFieldValue;
 
 class ModelCommitAdmissionTest {
+
+    @Test
+    void sustainedOverlapDoesNotRetainCompletedPredecessors() {
+        ModelCommitAdmission subject = new ModelCommitAdmission();
+        ModelCommitAdmission.Scope scope = write("busy");
+        ModelCommitAdmission.Session current = start(subject, scope);
+        for (int i = 0; i < 2_000; i++) {
+            ModelCommitAdmission.Session next = subject.open();
+            CompletableFuture<Optional<CommitModelsResult>> result = next.submit(
+                    () -> scope, null, -1,
+                    (batch, slot) -> CompletableFuture.completedFuture(Optional.of(accepted("next"))));
+            assertFalse(result.isDone());
+            assertEquals(2, subject.activeScopes());
+            subject.release(current);
+            result.join();
+            current = next;
+        }
+        Object ticket = getFieldValue("ticket", current).orElseThrow();
+        assertEquals(List.of(), getFieldValue("predecessors", ticket).orElseThrow(),
+                "a granted ticket must not retain its completed predecessors or their transitive history");
+        assertEquals(1, subject.activeScopes());
+        subject.release(current);
+        assertEquals(0, subject.activeScopes());
+    }
 
     @Test
     void ordersOverlappingWritersBeforeTheirFirstPhysicalAttempt() {

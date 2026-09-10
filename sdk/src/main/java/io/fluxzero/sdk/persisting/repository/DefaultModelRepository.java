@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import io.fluxzero.common.ConsistentHashing;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
@@ -78,6 +79,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.persisting.search.DocumentStore;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
+import io.fluxzero.sdk.publishing.routing.MessageRoutingInterceptor;
 import io.fluxzero.sdk.tracking.Tracker;
 import lombok.NonNull;
 
@@ -102,6 +104,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
@@ -125,6 +128,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private static final long MAX_MIGRATION_POLL_NANOS = Duration.ofMillis(250).toNanos();
 
     private final Client client;
+    private final String publicationNamespace;
     private final String modelNamePrefix;
     private final DocumentStore documentStore;
     private final Serializer serializer;
@@ -143,6 +147,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             graphProjectionRegistrations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
+    private boolean automaticModelRouting;
+    private UnaryOperator<DeserializingMessage> replayRestoration = UnaryOperator.identity();
 
     public DefaultModelRepository(
             Client client,
@@ -185,6 +191,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             String modelNamePrefix,
             ConcurrentHashMap<String, Class<?>> modelTypesByName) {
         this.client = Objects.requireNonNull(client, "client");
+        this.publicationNamespace = ClientUtils.isApplicationNamespace(client) ? null : client.namespace();
         this.modelNamePrefix = modelNamePrefix == null ? "" : modelNamePrefix;
         this.modelTypesByName = Objects.requireNonNull(modelTypesByName, "Model type catalog");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
@@ -230,7 +237,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 snapshotSerializer, cacheSource, modelDefinitionCompiler,
                 migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName);
         result.configureModelTypes(modelTypes);
+        result.configureAutomaticModelRouting(automaticModelRouting);
+        result.configureReplayRestoration(replayRestoration);
         return result;
+    }
+
+    /** Configures application-owned event payload restoration before this repository is made available to callers. */
+    public void configureReplayRestoration(UnaryOperator<DeserializingMessage> restoration) {
+        this.replayRestoration = Objects.requireNonNull(restoration);
+        replayCursor.configureReplayRestoration(restoration);
     }
 
     /** Returns the model-definition compiler shared by live commits and stored-event replay. */
@@ -589,6 +604,11 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         this.modelTypes = Objects.requireNonNull(
                 modelTypes, "Model types");
         modelTypes.get().forEach(this::modelName);
+    }
+
+    /** Configures the single-Model event-routing fallback before this repository starts handling commits. */
+    public void configureAutomaticModelRouting(boolean enabled) {
+        automaticModelRouting = enabled;
     }
 
     @Override
@@ -1743,7 +1763,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 if (direct && !graphPublished.isEmpty()
                     && !ordinaryEventIds.contains(message.getMessageId())) {
                     SerializedMessage publication = serialize(
-                            message, commitId, protocolSteps.size(), false);
+                            message, commitId, protocolSteps.size(), false,
+                            routingTarget(graphPublished, List.of()));
                     publication.setSource(source);
                     publication = BinaryWire.prepareEnvelope(publication);
                     Change anchor = graphPublished.getFirst();
@@ -1768,7 +1789,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                                 message, committedTransitions, commitId, protocolSteps.size())
                         : serialize(
                                 message, commitId, protocolSteps.size(),
-                                transitions.stream().anyMatch(Change::cascadedDeletion));
+                                transitions.stream().anyMatch(Change::cascadedDeletion),
+                                routingTarget(transitions, graphPublished));
                 if (event != null) {
                     event.setSource(source);
                     event = BinaryWire.prepareEnvelope(event);
@@ -1789,7 +1811,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 return new Outcome(null, preparedChanges, existingEvent);
             }
             CommitModels commit = new CommitModels(
-                    commitId, evaluation.readStateIndex(), evaluation.readModelIds(),
+                    commitId, evaluation.readStateIndex(), evaluation.readModelIds(conflictPolicy),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
                     possibleDuplicate, migration);
             return new Outcome(commit, preparedChanges, existingEvent);
@@ -1909,7 +1931,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 DeserializingMessage message,
                 String commitId,
                 int substep,
-                boolean internalLifecycleEvent) {
+                boolean internalLifecycleEvent,
+                String routingTarget) {
             SerializedMessage source = message.getSerializedObject(serializer);
             io.fluxzero.sdk.common.Message logicalMessage =
                     message.toMessage();
@@ -1934,16 +1957,38 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             SerializedMessage serialized = internalLifecycleEvent
                     ? candidate
                     : dispatchInterceptor.modifySerializedMessage(
-                            candidate, logicalMessage, EVENT, null);
+                            candidate, message, EVENT, null, publicationNamespace);
             if (serialized == null) {
                 throw new IllegalStateException(
                         "Serialized model event was suppressed after @Apply evaluation; "
                         + "logical event suppression must happen before model applies");
             }
+            if (!internalLifecycleEvent && routingTarget != null && serialized.getSegment() == null
+                && !MessageRoutingInterceptor.hasExplicitRouting(logicalMessage)) {
+                serialized.setSegment(ConsistentHashing.computeSegment(routingTarget));
+            }
             serialized.setMetadata(serialized.getMetadata().with(
                     ModelEventMetadata.COMMIT_ID, commitId,
                     ModelEventMetadata.SUBSTEP, substep));
             return serialized;
+        }
+
+        private String routingTarget(List<Change> changes, List<Change> graphChanges) {
+            if (!automaticModelRouting || changes.isEmpty()) {
+                return null;
+            }
+            String modelId = changes.getFirst().modelId();
+            for (Change change : changes) {
+                if (!modelId.equals(change.modelId())) {
+                    return null;
+                }
+            }
+            for (Change change : graphChanges) {
+                if (!modelId.equals(change.modelId())) {
+                    return null;
+                }
+            }
+            return modelId;
         }
 
         private static Long existingEventIndex(
@@ -1977,7 +2022,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                             logical.getMessageId() + "$direct-model-update",
                             logical.getTimestamp()),
                     EVENT, null, serializer);
-            return serialize(direct, commitId, substep, true);
+            return serialize(direct, commitId, substep, true, null);
         }
 
         private static boolean possibleDuplicate(

@@ -352,6 +352,7 @@ public class DefaultHandlerFactory implements HandlerFactory {
             for (OpenApiDocumentEndpoint endpoint : OpenApiDocumentEndpoint.forHandler(
                     targetClass, target, modelGraphTypes)) {
                 if (openApiDocumentEndpoints.add(endpoint)) {
+                    endpoint.validateResources();
                     handler = handler.or(createDefaultHandler(endpoint, m -> endpoint, config));
                 }
             }

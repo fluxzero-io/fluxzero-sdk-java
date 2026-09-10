@@ -268,9 +268,14 @@ public class FileUtils {
      */
     @SneakyThrows
     public static Properties loadProperties(String fileName) {
+        return loadProperties(fileName, getCallerClass().getClassLoader());
+    }
+
+    @SneakyThrows
+    static Properties loadProperties(String fileName, ClassLoader classLoader) {
         fileName = fileName.startsWith("/") ? fileName.substring(1) : fileName;
         Properties result = new Properties();
-        var resources = Collections.list(getCallerClass().getClassLoader().getResources(fileName)).reversed();
+        var resources = Collections.list(classLoader.getResources(fileName)).reversed();
         for (URL resource : resources) {
             try (InputStream inputStream = resource.openStream()) {
                 Properties properties = new Properties();

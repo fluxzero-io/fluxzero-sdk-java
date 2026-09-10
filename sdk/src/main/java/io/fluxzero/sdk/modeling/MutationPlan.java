@@ -105,6 +105,7 @@ public final class MutationPlan {
     public static final class Compiler {
         private final List<ParameterResolver<? super DeserializingMessage>> parameterResolvers;
         private final ConcurrentHashMap<ReplayKey, MutationPlan> replayPlans = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<Class<?>, AssertionPlan> assertionPlans = new ConcurrentHashMap<>();
 
         public Compiler(List<ParameterResolver<? super DeserializingMessage>> parameterResolvers) {
             List<ParameterResolver<? super DeserializingMessage>> resolvers =
@@ -130,18 +131,72 @@ public final class MutationPlan {
         ModelReducer compileReducer(
                 Collection<EntityMetadata.HandlerMethod> selectedHandlers,
                 Class<?> payloadType) {
+            return compileReducer(selectedHandlers, payloadType, referencedModelTypes(payloadType));
+        }
+
+        private ModelReducer compileReducer(
+                Collection<EntityMetadata.HandlerMethod> selectedHandlers, Class<?> payloadType,
+                Collection<Class<?>> assertionModels) {
             @SuppressWarnings("unchecked")
             List<EntityMetadata.HandlerMethod> handlers = selectedHandlers instanceof List<?> list
                     ? (List<EntityMetadata.HandlerMethod>) list : List.copyOf(selectedHandlers);
-            DirectSingleTargetApply direct = handlers.size() == 1
+            List<AssertionField> fields = new ArrayList<>();
+            EntityMetadata.of(payloadType).assertionFields().forEach(field ->
+                    fields.add(new AssertionField(field, null)));
+            LinkedHashSet<Class<?>> modelTypes = new LinkedHashSet<>(assertionModels);
+            handlers.forEach(handler -> {
+                if (handler.receiverModelType() != null) {
+                    modelTypes.add(handler.receiverModelType());
+                }
+                modelTypes.addAll(handler.targetModelTypes());
+                handler.modelParameters().forEach(parameter -> modelTypes.add(parameter.modelType()));
+            });
+            modelTypes.forEach(type -> EntityMetadata.of(type).assertionFields().forEach(field ->
+                    fields.add(new AssertionField(field, type))));
+            DirectSingleTargetApply direct = handlers.size() == 1 && fields.isEmpty()
                     ? directSingleTargetApply(handlers.getFirst(), payloadType) : null;
-            return new ModelReducer(compileHandlers(handlers), direct);
+            return new ModelReducer(compileHandlers(handlers), direct, fields, this);
+        }
+
+        AssertionPlan assertions(Class<?> type) {
+            return assertionPlans.computeIfAbsent(type, key -> {
+                EntityMetadata metadata = EntityMetadata.of(key);
+                HandlerPlan methods = compileHandlers(metadata.handlerMethods().stream()
+                        .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL).toList());
+                List<AssertionField> fields = metadata.assertionFields().stream()
+                        .map(field -> new AssertionField(field, null)).toList();
+                return new AssertionPlan(
+                        prepareAssertions(MutationPlan.assertions(methods.all(), fields, false)),
+                        prepareAssertions(MutationPlan.assertions(methods.all(), fields, true)));
+            });
+        }
+
+        private List<Assertion> prepareAssertions(List<Assertion> assertions) {
+            return assertions.stream().map(assertion -> {
+                if (assertion.handler() == null || assertion.handler().method().modelParameters().isEmpty()) {
+                    return assertion;
+                }
+                EntityMetadata.HandlerMethod method = assertion.handler().method();
+                var parameters = EntityMetadata.modelParameters(method.executable()).parameters();
+                List<ParameterResolver<? super DeserializingMessage>> selectors = new ArrayList<>();
+                // Select against the application's non-Model resolvers before loading late Model dependencies.
+                selectors.add((parameter, annotation) -> parameters.containsKey(parameter) ? message -> null : null);
+                selectors.addAll(parameterResolvers);
+                return new Assertion(assertion.handler(), assertion.field(), assertion.priority(), assertion.signature(),
+                                     compileMatcher(method, selectors));
+            }).toList();
         }
 
         private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
                 EntityMetadata.HandlerMethod handler) {
+            return compileMatcher(handler, parameterResolvers);
+        }
+
+        private HandlerMatcher<Object, DeserializingMessage> compileMatcher(
+                EntityMetadata.HandlerMethod handler,
+                List<ParameterResolver<? super DeserializingMessage>> resolvers) {
             return inspect(
-                    handler.executable().getDeclaringClass(), List.of(handler.executable()), parameterResolvers,
+                    handler.executable().getDeclaringClass(), List.of(handler.executable()), resolvers,
                     HandlerConfiguration.<DeserializingMessage>builder()
                             .methodAnnotation(annotationType(handler.kind()))
                             .build());
@@ -180,7 +235,7 @@ public final class MutationPlan {
                     ? directSingleTargetApply(handlers.getFirst(), key.payloadType()) : null;
             return new MutationPlan(
                     new ModelReducer(compileHandlers(handlers), direct),
-                    compile(key.payloadType(), handlers),
+                    compile(key.payloadType(), handlers, List.of()),
                     ModelCommitPolicy.SYNC_AFTER_HANDLER, !handlers.isEmpty(), false);
         }
 
@@ -289,6 +344,34 @@ public final class MutationPlan {
             EntityMetadata.HandlerMethod method,
             HandlerMatcher<Object, DeserializingMessage> matcher,
             EffectOverrides effect) {
+    }
+
+    record AssertionField(EntityMetadata.Property property, Class<?> receiverModelType) {
+    }
+
+    record AssertionPlan(List<Assertion> before, List<Assertion> after) {
+    }
+
+    record Assertion(CompiledHandler handler, AssertionField field, int priority, String signature,
+                     HandlerMatcher<Object, DeserializingMessage> selector) {
+    }
+
+    static List<Assertion> assertions(
+            List<CompiledHandler> handlers, List<AssertionField> fields, boolean after) {
+        List<Assertion> result = new ArrayList<>();
+        handlers.stream().filter(handler -> handler.method().kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL
+                                            && assertAfterHandler(handler.method()) == after)
+                .forEach(handler -> result.add(new Assertion(handler, null, assertionPriority(handler.method()),
+                                                            handler.method().executable().toGenericString(), null)));
+        fields.forEach(field -> {
+            AssertLegal annotation = ReflectionUtils.getAnnotationAs(
+                    field.property().member(), AssertLegal.class, AssertLegal.class).orElseThrow();
+            // Fields delegate to a validation object in both phases; its methods choose their own timing.
+            result.add(new Assertion(null, field, annotation.priority(), field.property().member().toString(), null));
+        });
+        result.sort(java.util.Comparator.comparingInt(Assertion::priority).reversed()
+                            .thenComparing(Assertion::signature));
+        return List.copyOf(result);
     }
 
     record EffectOverrides(
@@ -496,9 +579,12 @@ public final class MutationPlan {
             applies.stream().flatMap(handler -> handler.targetModelTypes().stream())
                     .forEach(knownModelTypes::addIfAbsent);
             PlanTraits traits = inspectPlanTraits(payloadType, new LinkedHashSet<>());
+            LinkedHashSet<Class<?>> assertionModels = new LinkedHashSet<>(referencedModelTypes(payloadType));
+            registeredModelTypes.stream().filter(type -> !EntityMetadata.of(type).assertionFields().isEmpty())
+                    .forEach(assertionModels::add);
             return new MutationPlan(
-                    compiler.compileReducer(handlers, payloadType),
-                    compile(payloadType, handlers),
+                    compiler.compileReducer(handlers, payloadType, assertionModels),
+                    compile(payloadType, handlers, assertionModels),
                     ModelCommitPolicy.merge(traits.policies()),
                     traits.commit(), traits.commit() && traits.automatic());
         }
@@ -619,6 +705,12 @@ public final class MutationPlan {
     public static TargetPlan compile(
             Class<?> payloadType,
             Collection<EntityMetadata.HandlerMethod> handlers) {
+        return compile(payloadType, handlers, referencedModelTypes(payloadType));
+    }
+
+    private static TargetPlan compile(
+            Class<?> payloadType, Collection<EntityMetadata.HandlerMethod> handlers,
+            Collection<Class<?>> assertionModels) {
         Payload payload = Payload.of(Objects.requireNonNull(payloadType, "payloadType"));
         List<Slot> slots = new ArrayList<>();
         List<Deferred> deferred = new ArrayList<>();
@@ -628,6 +720,13 @@ public final class MutationPlan {
             compile(payload, handler, slots, deferred, ancestors);
             handlerMethods.put(handler.executable().toGenericString(), handler);
         });
+        if (!assertionModels.isEmpty()) {
+            assertionModels.stream()
+                    .filter(type -> !EntityMetadata.of(type).assertionFields().isEmpty())
+                    .filter(type -> slots.stream().noneMatch(slot -> slot.modelType == type))
+                    .forEach(type -> slots.add(new Slot(type, payload.required(type, "@AssertLegal fields"),
+                                                       false, Access.READ_ONLY, null, true, false, null)));
+        }
         return new TargetPlan(
                 payloadType, List.copyOf(slots), List.copyOf(deferred), List.copyOf(ancestors),
                 Map.copyOf(handlerMethods));
@@ -795,6 +894,7 @@ public final class MutationPlan {
         private final List<Deferred> deferred;
         private final List<PlannedAncestor> ancestors;
         private final Map<String, EntityMetadata.HandlerMethod> handlerMethods;
+        private final Slot routingTarget;
 
         private TargetPlan(
                 Class<?> payloadType,
@@ -807,10 +907,36 @@ public final class MutationPlan {
             this.deferred = deferred;
             this.ancestors = ancestors;
             this.handlerMethods = handlerMethods;
+            List<EntityMetadata.HandlerMethod> applies = handlerMethods.values().stream()
+                    .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
+            List<Slot> writes = slots.stream().filter(slot -> slot.access.writes()).toList();
+            routingTarget = applies.size() == 1 && !applies.getFirst().collectionApplyResult()
+                            && !applies.getFirst().dynamicApplyResult() && deferred.isEmpty()
+                            && writes.size() == 1 && !writes.getFirst().collection
+                            && !writes.getFirst().property.missing()
+                            && handlerMethods.values().stream().noneMatch(
+                                    handler -> handler.kind() == EntityMetadata.HandlerKind.INTERCEPT_APPLY)
+                    ? writes.getFirst() : null;
+        }
+
+        /** Returns a statically unambiguous single-apply target without loading or applying any model. */
+        public String routingTarget(HasMessage input) {
+            if (routingTarget == null) {
+                return null;
+            }
+            DirectReferences direct = routingTarget.parameter == null ? DirectReferences.missing()
+                    : directReferences(input, routingTarget.parameter);
+            if (direct.present()) {
+                return direct.modelId();
+            }
+            Object payload = checkedPayload(input);
+            Object raw = routingTarget.property.read(payload);
+            return raw == null ? null : repositoryId(raw, routingTarget, payload);
         }
 
         boolean isDirectSingleTarget() {
             return slots.size() == 1 && !slots.getFirst().collection
+                   && (slots.getFirst().handler != null || !slots.getFirst().property.missing())
                    && deferred.isEmpty() && ancestors.isEmpty();
         }
 
@@ -835,14 +961,19 @@ public final class MutationPlan {
                 String explicitId,
                 Class<?> explicitType,
                 boolean appliesOnly) {
-            validate(explicitType, appliesOnly);
+            // Apply ancestors can have been selected through a root injected only by an assertion.
+            // Rebase must reload those selection roots without executing the assertion again.
+            boolean applyOnlyTargets = appliesOnly && ancestors.stream().noneMatch(PlannedAncestor::apply);
+            validate(explicitType, applyOnlyTargets);
             Object payload = checkedPayload(input);
             Map<String, ResolvedModel> result = new LinkedHashMap<>();
             Map<EntityMetadata.ModelParameter, DirectReferences> references = new LinkedHashMap<>();
             Map<Slot, List<String>> slotIds = deferred.isEmpty() ? Map.of() : new IdentityHashMap<>();
             for (Slot slot : slots) {
                 if (!acceptsExplicitTarget(slot.handler, explicitType)
-                    || appliesOnly && !slot.apply
+                    || slot.handler == null && explicitType != null && !compatibleExplicit(slot.modelType, explicitType)
+                    || slot.handler == null && slot.property.missing()
+                    || applyOnlyTargets && !slot.apply
                     || compatibleExplicit(slot.modelType, explicitType)) {
                     continue;
                 }
@@ -875,8 +1006,10 @@ public final class MutationPlan {
                             target.modelType, List.copyOf(candidates), target.handler));
                 }
             }
-            if (explicitId != null && handlerMethods.values().stream()
-                    .anyMatch(handler -> bindsExplicitTarget(handler, explicitType))) {
+            if (explicitId != null && (handlerMethods.values().stream()
+                    .anyMatch(handler -> bindsExplicitTarget(handler, explicitType))
+                                      || !appliesOnly && slots.stream().anyMatch(slot ->
+                    slot.handler == null && compatibleExplicit(slot.modelType, explicitType)))) {
                 List<String> sources = slots.stream()
                         .filter(slot -> acceptsExplicitTarget(slot.handler, explicitType)
                                 && !slot.receiver
@@ -964,6 +1097,8 @@ public final class MutationPlan {
 
         private TargetPlan validate(Class<?> explicitType, boolean appliesOnly) {
             slots.stream().filter(slot -> !appliesOnly || slot.apply)
+                    // Field-only targets without an ID are optional until an explicit Graph target binds them.
+                    .filter(slot -> slot.handler != null)
                     .filter(slot -> acceptsExplicitTarget(slot.handler, explicitType))
                     .filter(slot -> !compatibleExplicit(slot.modelType, explicitType))
                     .map(slot -> slot.property).filter(Property::missing).findFirst().ifPresent(property -> {
@@ -973,7 +1108,7 @@ public final class MutationPlan {
         }
 
         private boolean acceptsExplicitTarget(String handler, Class<?> explicitType) {
-            return explicitType == null || MutationPlan.acceptsExplicitTarget(
+            return explicitType == null || handler == null || MutationPlan.acceptsExplicitTarget(
                     handlerMethods.get(handler), explicitType);
         }
     }

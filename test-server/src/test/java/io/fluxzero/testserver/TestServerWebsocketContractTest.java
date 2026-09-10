@@ -368,7 +368,9 @@ class TestServerWebsocketContractTest {
 
     @Test
     void eventSourcingRequestsRoundTripOverFullServer() throws Exception {
-        WebSocketClient client = client("event-sourcing");
+        WebSocketClient client = WebSocketClient.newInstance(
+                clientConfig("event-sourcing", "contract-event-sourcing-" + UUID.randomUUID(), null)
+                        .toBuilder().aggregateHistoryMaxFetchBytes(5L).build());
         try {
             EventStoreClient eventStore = client.getEventStoreClient();
             String aggregateId = "aggregate-" + UUID.randomUUID();
@@ -379,6 +381,16 @@ class TestServerWebsocketContractTest {
             AggregateEventStream<SerializedMessage> stream = eventStore.getEvents(aggregateId, -1L, 10);
             assertEquals(List.of("event-1", "event-2"), stream.map(TestServerWebsocketContractTest::payload).toList());
             assertEquals(1L, stream.getLastSequenceNumber().orElseThrow());
+
+            String boundedAggregateId = "bounded-aggregate-" + UUID.randomUUID();
+            List<SerializedMessage> boundedEvents = List.of(
+                    message("large", new byte[8]), message("small-1", new byte[3]),
+                    message("small-2", new byte[3]));
+            await(eventStore.storeEvents(boundedAggregateId, boundedEvents, true, STORED));
+            AggregateEventStream<SerializedMessage> boundedStream = eventStore.getEvents(
+                    boundedAggregateId, -1L, 2);
+            assertEquals(boundedEvents.subList(0, 2), boundedStream.toList());
+            assertEquals(1L, boundedStream.getLastSequenceNumber().orElseThrow());
 
             Relationship stale = relationship("stale-entity", aggregateId, "ContractAggregate");
             Relationship fresh = relationship("fresh-entity", aggregateId, "ContractAggregate");

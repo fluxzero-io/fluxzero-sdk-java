@@ -352,6 +352,68 @@ class OpenApiRendererTest {
     }
 
     @Test
+    void retainsCompiledModelGraphTypesWhenTheRuntimeRegistryIsPartial() {
+        ObjectNode generated = generatedModelGraph(true, "locations/infrastructure/connections");
+        List<Class<?>> runtimeTypes = List.of(ContractModel.class);
+
+        JsonNode document = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated.toString(), runtimeTypes, getClass().getClassLoader()),
+                JsonNode.class);
+
+        JsonNode schemas = document.path("components").path("schemas");
+        assertEquals("#/components/schemas/LocationModel", schemas.path("OrganisationModel").path("properties")
+                .path("locations").path("items").path("$ref").asText());
+        assertEquals("#/components/schemas/ConnectionModel", schemas.path("LocationModel").path("properties")
+                .path("infrastructure").path("properties").path("connections").path("items").path("$ref").asText());
+        assertEquals(List.of(ContractModel.class), runtimeTypes);
+        assertFalse(document.toString().contains("x-fluxzero-java-type"));
+        assertFalse(document.toString().contains("x-fluxzero-model-graph"));
+    }
+
+    @Test
+    void runtimeModelGraphEnrichmentStaysLocalToItsDocument() {
+        String generated = generatedModelGraph(false, null).toString();
+        JsonNode expanded = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated, List.of(ConnectionModel.class), getClass().getClassLoader()),
+                JsonNode.class);
+        JsonNode independent = io.fluxzero.common.serialization.JsonUtils.fromJson(
+                OpenApiRenderer.enrichModelGraphs(generated, List.of(ContractModel.class), getClass().getClassLoader()),
+                JsonNode.class);
+
+        assertTrue(expanded.path("components").path("schemas").path("LocationModel")
+                .path("properties").has("infrastructure"));
+        assertFalse(independent.path("components").path("schemas").path("LocationModel")
+                .path("properties").has("infrastructure"));
+    }
+
+    @Test
+    void compiledModelEvidenceDoesNotHideUnknownSelectedPaths() {
+        String generated = generatedModelGraph(true, "locations/missing").toString();
+        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+                () -> OpenApiRenderer.enrichModelGraphs(
+                        generated, List.of(ContractModel.class), getClass().getClassLoader()));
+
+        assertTrue(failure.getMessage().contains("locations/missing"));
+    }
+
+    private static ObjectNode generatedModelGraph(boolean includeConnections, String selectedPath) {
+        List<Class<?>> compiledTypes = includeConnections
+                ? List.of(OrganisationModel.class, LocationModel.class, ConnectionModel.class)
+                : List.of(OrganisationModel.class, LocationModel.class);
+        ObjectNode generated = OpenApiRenderer.render(new ApiDocCatalog(
+                ApiDocExtractor.extract(ModelGraphHandler.class).endpoints(), compiledTypes));
+        ObjectNode response = (ObjectNode) generated.path("paths").path("/organisations/{id}").path("get")
+                .path("responses").path("200").path("content").path("application/json").path("schema");
+        response.put(OpenApiRenderer.MODEL_GRAPH_EXTENSION, OrganisationModel.class.getName());
+        if (selectedPath != null) {
+            response.putArray(OpenApiRenderer.MODEL_GRAPH_PATHS_EXTENSION).add(selectedPath);
+        }
+        compiledTypes.forEach(type -> ((ObjectNode) generated.path("components").path("schemas")
+                .path(type.getSimpleName())).put(OpenApiRenderer.JAVA_TYPE_EXTENSION, type.getName()));
+        return generated;
+    }
+
+    @Test
     void excludesGraphPropertiesFromRequestSchemas() {
         JsonNode document = OpenApiRenderer.render(ApiDocExtractor.extract(ModelGraphRequestHandler.class));
 
@@ -409,6 +471,56 @@ class OpenApiRendererTest {
         assertEquals(3, translations.path("maxProperties").asInt());
         assertFalse(translations.has("minLength"));
         assertFalse(translations.has("maxLength"));
+    }
+
+    @Test
+    void rendersEquivalentRequestAndPolymorphismContractsForOpenApi30And31() {
+        for (String version : List.of("3.0.4", "3.1.1")) {
+            JsonNode document = OpenApiRenderer.render(
+                    ApiDocExtractor.extract(ContractHandler.class),
+                    new OpenApiOptions("Contract API", "1", "", List.of(), version));
+            JsonNode paths = document.path("paths");
+
+            JsonNode requiredBody = paths.path("/contracts/required").path("post").path("requestBody");
+            assertTrue(requiredBody.path("required").asBoolean());
+            JsonNode mapSchema = requiredBody.path("content").path("application/json").path("schema");
+            assertEquals(2, mapSchema.path("additionalProperties").path("minLength").asInt());
+            assertEquals(8, mapSchema.path("additionalProperties").path("maxLength").asInt());
+            if (OpenApiOptions.isOpenApi31(version)) {
+                assertEquals("string", mapSchema.path("propertyNames").path("type").asText());
+                assertEquals("[a-z]{2}", mapSchema.path("propertyNames").path("pattern").asText());
+                assertEquals(2, mapSchema.path("propertyNames").path("minLength").asInt());
+                assertEquals(2, mapSchema.path("propertyNames").path("maxLength").asInt());
+            } else {
+                assertFalse(mapSchema.has("propertyNames"));
+            }
+
+            assertFalse(paths.path("/contracts/optional").path("post").path("requestBody").has("required"));
+            JsonNode bodyParameters = paths.path("/contracts/parameters").path("post").path("requestBody");
+            assertTrue(bodyParameters.path("required").asBoolean());
+            assertTrue(contains(bodyParameters.path("content").path("application/json").path("schema")
+                                        .path("required"), "mandatory"));
+            JsonNode multipleBodies = paths.path("/contracts/multiple").path("post").path("requestBody");
+            assertTrue(multipleBodies.path("required").asBoolean());
+            JsonNode multipleBodySchema = multipleBodies.path("content").path("application/json").path("schema");
+            assertEquals(1, multipleBodySchema.path("required").size());
+            assertTrue(multipleBodySchema.path("properties")
+                               .has(multipleBodySchema.path("required").get(0).asText()));
+            JsonNode formBody = paths.path("/contracts/form").path("post").path("requestBody");
+            assertTrue(formBody.path("required").asBoolean());
+            assertTrue(contains(formBody.path("content").path("application/x-www-form-urlencoded").path("schema")
+                                        .path("required"), "mandatory"));
+
+            JsonNode schemas = document.path("components").path("schemas");
+            JsonNode named = schemas.path("NamedPayload");
+            assertEquals("kind", named.path("discriminator").path("propertyName").asText());
+            assertEquals("#/components/schemas/NamedValue", named.path("discriminator").path("mapping")
+                    .path("named").asText());
+            assertEquals(1, named.path("oneOf").size());
+            JsonNode deduced = schemas.path("DeducedPayload");
+            assertFalse(deduced.has("discriminator"));
+            assertEquals(2, deduced.path("oneOf").size());
+        }
     }
 
     @ApiDoc(description = "Meter endpoints", tags = "Meters")
@@ -561,6 +673,68 @@ class OpenApiRendererTest {
         @HandlePost("/email")
         void send(EmailEnvelope body) {
         }
+    }
+
+    @ApiDoc
+    static class ContractHandler {
+        @HandlePost("/contracts/required")
+        void required(
+                @ApiDoc(required = true)
+                Map<@jakarta.validation.constraints.Pattern(regexp = "[a-z]{2}")
+                        @jakarta.validation.constraints.Size(min = 2, max = 2) String,
+                        @jakarta.validation.constraints.Size(min = 2, max = 8) String> body) {
+        }
+
+        @HandlePost("/contracts/optional")
+        void optional(Map<String, String> body) {
+        }
+
+        @HandlePost("/contracts/parameters")
+        void parameters(@BodyParam("mandatory") @jakarta.validation.constraints.NotBlank String mandatory,
+                        @BodyParam("optional") String optional) {
+        }
+
+        @HandlePost("/contracts/multiple")
+        void multiple(@jakarta.validation.constraints.NotBlank String mandatory, String optional) {
+        }
+
+        @HandlePost("/contracts/form")
+        void form(@FormParam("mandatory") @jakarta.validation.constraints.NotBlank String mandatory,
+                  @FormParam("optional") String optional) {
+        }
+
+        @HandlePost("/contracts/named")
+        void named(NamedPayload body) {
+        }
+
+        @HandlePost("/contracts/deduced")
+        void deduced(DeducedPayload body) {
+        }
+    }
+
+    @com.fasterxml.jackson.annotation.JsonTypeInfo(
+            use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.NAME, property = "kind")
+    @com.fasterxml.jackson.annotation.JsonSubTypes(
+            @com.fasterxml.jackson.annotation.JsonSubTypes.Type(value = NamedValue.class, name = "named"))
+    interface NamedPayload {
+    }
+
+    record NamedValue(String value) implements NamedPayload {
+    }
+
+    @com.fasterxml.jackson.annotation.JsonTypeInfo(
+            use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.DEDUCTION, property = "ignored")
+    @com.fasterxml.jackson.annotation.JsonSubTypes({
+            @com.fasterxml.jackson.annotation.JsonSubTypes.Type(DeducedText.class),
+            @com.fasterxml.jackson.annotation.JsonSubTypes.Type(DeducedNumber.class)
+    })
+    interface DeducedPayload {
+    }
+
+    record DeducedText(String text) implements DeducedPayload {
+    }
+
+    record DeducedNumber(int number) implements DeducedPayload {
     }
 
     @ApiDocInfo(

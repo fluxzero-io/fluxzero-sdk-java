@@ -59,26 +59,36 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final ModelPipeline pipeline;
     private final Handler<DeserializingMessage> decoratedHandler;
     private final HandlerDecorator handlerDecorator;
+    private final DispatchInterceptor commandDispatchInterceptor;
     private volatile boolean localHandlingEnabled;
 
-    /** Creates the automatic model registration facade and its single execution pipeline. */
+    /**
+     * Creates the automatic model registration facade and its single execution pipeline.
+     * {@code creationConflictPolicy} is the inherited policy for targets first created by an attempt;
+     * explicit Model/Apply policies still take precedence.
+     * The command dispatch interceptor finalizes deferred external-only side effects when a durable Model handler
+     * is actually selected; ordinary local handlers keep their dispatch-local state.
+     */
     public ModelCommitHandlerRegistry(
             DefaultModelRepository repository,
             EventStoreClient eventStoreClient,
             Serializer serializer,
             Serializer snapshotSerializer,
             DocumentSerializer documentSerializer,
+            DispatchInterceptor commandDispatchInterceptor,
             DispatchInterceptor eventDispatchInterceptor,
             String source,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
             HandlerDecorator handlerDecorator,
             ModelConflictPolicy conflictPolicy,
+            ModelConflictPolicy creationConflictPolicy,
             ModelConflictResolver conflictResolver,
             int maxConflictRetries,
             AutomaticModelHandling automaticHandling,
             GraphProjectionCompletion graphProjectionCompletion) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.handlerDecorator = Objects.requireNonNull(handlerDecorator, "handlerDecorator");
+        this.commandDispatchInterceptor = Objects.requireNonNull(commandDispatchInterceptor, "commandDispatchInterceptor");
         MutationPlan.Compiler shared = repository.modelDefinitionCompiler();
         this.definitions = new MutationPlan.Catalog(
                 shared == null ? new MutationPlan.Compiler(parameterResolvers) : shared,
@@ -86,7 +96,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
         this.pipeline = new ModelPipeline(
                 repository, eventStoreClient, serializer, snapshotSerializer,
                 documentSerializer, eventDispatchInterceptor, source,
-                conflictPolicy, conflictResolver, maxConflictRetries,
+                conflictPolicy, creationConflictPolicy, conflictResolver, maxConflictRetries,
                 graphProjectionCompletion, definitions::get,
                 () -> localHandlingEnabled);
         this.decoratedHandler = handlerDecorator.wrap(pipeline.handler(null));
@@ -95,6 +105,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     /** Returns the repository shared by automatic handling and public model loads. */
     public DefaultModelRepository repository() {
         return repository;
+    }
+
+    /** Returns the canonical target of a statically unambiguous single-Model apply, or {@code null}. */
+    public String routingTarget(Message message) {
+        return definitions.get(message.getPayloadClass()).targets().routingTarget(message);
     }
 
     /** Returns the model types registered as handlers in this application. */
@@ -164,6 +179,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             return Optional.empty();
         }
         try {
+            Message command = message.toMessage();
+            try {
+                // Durable Model events may outlive this dispatch. Preserve the eager restoration/commit boundary.
+                commandDispatchInterceptor.beforeExternalDispatch(command, message.getMessageType(), message.getTopic());
+            } finally {
+                commandDispatchInterceptor.completeLocalDispatch(command);
+            }
             Object result = invoker.invoke();
             if (result instanceof CompletableFuture<?> future) {
                 return Optional.of(future.thenApply(value -> value));
@@ -257,6 +279,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     @Override
     public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
         return !localHandlingEnabled;
+    }
+
+    @Override
+    public boolean supportsDeferredExternalization() {
+        return true;
     }
 
     @Override

@@ -53,6 +53,20 @@ import java.util.Collection;
  *     <li>A different object to replace the update</li>
  * </ul>
  *
+ * <h2>Interaction with legality assertions</h2>
+ * Interception fully determines the effective update sequence before {@link AssertLegal @AssertLegal} and
+ * {@link Apply @Apply} are considered:
+ * <ul>
+ *     <li>A retained update runs its matching immediate assertions before it is applied.</li>
+ *     <li>A suppressed update runs neither its assertions nor its apply methods.</li>
+ *     <li>A replacement runs assertions for the replacement, not for the original update.</li>
+ *     <li>Expanded updates are asserted and applied in encounter order. Each update's immediate assertions see the
+ *         state produced by earlier updates.</li>
+ * </ul>
+ * Assertions configured with {@code @AssertLegal(afterHandler = true)} remain deferred until handler completion. If
+ * an invariant must survive replacement, define it for the effective replacement (or in shared/entity-side logic)
+ * rather than relying on an assertion that only matches the original update.
+ *
  * <p>
  * Method parameters are automatically injected and may include:
  * <ul>

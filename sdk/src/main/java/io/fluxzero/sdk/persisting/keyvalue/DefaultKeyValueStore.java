@@ -54,7 +54,7 @@ public class DefaultKeyValueStore extends AbstractNamespaced<KeyValueStore> impl
         try {
             getKeyValueClient().putValue(key, serializer.serialize(value), guarantee).get();
         } catch (Exception e) {
-            throw new KeyValueStoreException(String.format("Could not store a value %s for key %s", value, key), e);
+            throw new KeyValueStoreException(String.format("Could not store a value for key %s", key), e);
         }
     }
 
@@ -63,7 +63,7 @@ public class DefaultKeyValueStore extends AbstractNamespaced<KeyValueStore> impl
         try {
             return getKeyValueClient().putValueIfAbsent(key, serializer.serialize(value)).get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
-            throw new KeyValueStoreException(String.format("Could not store a value %s for key %s", value, key), e);
+            throw new KeyValueStoreException(String.format("Could not store a value for key %s", key), e);
         }
     }
 

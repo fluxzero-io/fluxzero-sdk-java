@@ -16,6 +16,7 @@
 
 package io.fluxzero.sdk.modeling;
 
+import io.fluxzero.common.api.modeling.ModelConflictPolicy;
 import io.fluxzero.common.MessageType;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -44,6 +45,54 @@ class ModelCommitEngineTest {
 
     private final MutationPlan.Compiler compiler =
             new MutationPlan.Compiler(List.of(new PayloadParameterResolver()));
+
+    @Test
+    void acceptReadsOnlyApplyDependenciesWhileRetryRetainsAssertions() {
+        OrderId orderId = new OrderId("read-scope");
+        InventoryId inventoryId = new InventoryId("read-scope");
+        Map<String, Entity<?>> stored = Map.of(
+                orderId.toString(), entity(orderId, new Order(orderId, "pending")),
+                inventoryId.toString(), entity(inventoryId, new Inventory(inventoryId, 5)));
+
+        CommitAttempt result = evaluate(message(new AssertInventoryThenUpdate(orderId, inventoryId)),
+                (substep, boundary, staged) -> resolveSubstep(substep, 77, stored));
+
+        assertEquals(List.of(orderId.toString()), result.readModelIds(ModelConflictPolicy.ACCEPT));
+        assertEquals(java.util.Set.of(orderId.toString(), inventoryId.toString()),
+                     java.util.Set.copyOf(result.readModelIds(ModelConflictPolicy.RETRY)));
+        assertEquals(result.readModelIds(), result.readModelIds(ModelConflictPolicy.FAIL));
+    }
+
+    @Test
+    void acceptRetainsInjectedApplyDependencies() {
+        OrderId orderId = new OrderId("apply-scope");
+        InventoryId inventoryId = new InventoryId("apply-scope");
+        Map<String, Entity<?>> stored = Map.of(
+                orderId.toString(), entity(orderId, new Order(orderId, "pending")),
+                inventoryId.toString(), entity(inventoryId, new Inventory(inventoryId, 5)));
+
+        CommitAttempt result = evaluate(message(new ReserveOrder(orderId, inventoryId)),
+                (substep, boundary, staged) -> resolveSubstep(substep, 77, stored));
+
+        assertEquals(java.util.Set.of(orderId.toString(), inventoryId.toString()),
+                     java.util.Set.copyOf(result.readModelIds(ModelConflictPolicy.ACCEPT)));
+    }
+
+    @Test
+    void acceptExcludesReadsUsedOnlyToChooseTheOriginalInterceptedEvent() {
+        OrderId orderId = new OrderId("interceptor-scope");
+        InventoryId inventoryId = new InventoryId("interceptor-scope");
+        Map<String, Entity<?>> stored = Map.of(
+                orderId.toString(), entity(orderId, new Order(orderId, "pending")),
+                inventoryId.toString(), entity(inventoryId, new Inventory(inventoryId, 5)));
+
+        CommitAttempt result = evaluate(message(new InterceptInventoryThenUpdate(orderId, inventoryId)),
+                (substep, boundary, staged) -> resolveSubstep(substep, 77, stored));
+
+        assertEquals(List.of(orderId.toString()), result.readModelIds(ModelConflictPolicy.ACCEPT));
+        assertEquals(java.util.Set.of(orderId.toString(), inventoryId.toString()),
+                     java.util.Set.copyOf(result.readModelIds(ModelConflictPolicy.RETRY)));
+    }
 
     @Test
     void evaluatesAllWritesAgainstSameBeginStateThenPublishesResultingState() {
@@ -1174,6 +1223,30 @@ class ModelCommitEngineTest {
         @Apply
         Order reserve(Order order, Inventory inventory) {
             return new Order(order.orderId(), "reserved-" + inventory.available());
+        }
+    }
+
+    private record AssertInventoryThenUpdate(OrderId orderId, InventoryId inventoryId) {
+        @AssertLegal
+        void before(Inventory inventory) {
+            assertEquals(5, inventory.available());
+        }
+
+        @Apply
+        Order update(Order order) {
+            return new Order(orderId, "updated");
+        }
+
+        @AssertLegal(afterHandler = true)
+        void after(Inventory inventory) {
+            assertEquals(5, inventory.available());
+        }
+    }
+
+    private record InterceptInventoryThenUpdate(OrderId orderId, InventoryId inventoryId) {
+        @InterceptApply
+        Object intercept(Inventory inventory) {
+            return new CreateOrder(orderId);
         }
     }
 

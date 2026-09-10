@@ -15,16 +15,20 @@
 package io.fluxzero.sdk.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.fluxzero.common.serialization.JsonUtils;
 import io.fluxzero.sdk.tracking.handling.authentication.NoUserRequired;
-import lombok.SneakyThrows;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.AnnotatedElement;
-import java.nio.charset.StandardCharsets;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -36,6 +40,12 @@ import static io.fluxzero.common.ObjectUtils.isBlank;
 
 /**
  * Automatic endpoint that serves the generated OpenAPI document for an {@link ApiDocInfo} scope.
+ * <p>
+ * All {@value OpenApiProcessor#DEFAULT_OUTPUT} resources visible to the handler class loader are combined in stable
+ * resource order. Compatible object members are merged, exact duplicates are accepted, and conflicting metadata,
+ * routes, operation ids, or components fail during handler registration. A resource produced by an application shade
+ * transformer may contain multiple consecutive JSON documents. Runtime extraction is used only when no compiled or
+ * manually supplied resource is present.
  */
 public final class OpenApiDocumentEndpoint {
     @Path
@@ -43,6 +53,7 @@ public final class OpenApiDocumentEndpoint {
     private final Class<?> handlerType;
     private final Object handler;
     private final Supplier<? extends Collection<Class<?>>> modelTypes;
+    private volatile Optional<String> generatedDocument;
     private volatile String documentJson;
 
     private OpenApiDocumentEndpoint(String path, Class<?> handlerType, Object handler,
@@ -105,13 +116,21 @@ public final class OpenApiDocumentEndpoint {
                 .build();
     }
 
+    /**
+     * Loads and validates compiled OpenAPI resources. Handler registration invokes this once for each distinct
+     * automatic document endpoint so resource conflicts fail before the endpoint starts serving requests.
+     */
+    public void validateResources() {
+        generatedDocument();
+    }
+
     private String documentJson() {
         String result = documentJson;
         if (result == null) {
             synchronized (this) {
                 result = documentJson;
                 if (result == null) {
-                    result = readGeneratedDocument(handlerType)
+                    result = generatedDocument()
                             .map(document -> OpenApiRenderer.enrichModelGraphs(
                                     document, modelTypes.get(), handlerType.getClassLoader()))
                             .orElseGet(this::renderRuntimeDocument);
@@ -122,17 +141,60 @@ public final class OpenApiDocumentEndpoint {
         return result;
     }
 
-    @SneakyThrows
+    private Optional<String> generatedDocument() {
+        Optional<String> result = generatedDocument;
+        if (result == null) {
+            synchronized (this) {
+                result = generatedDocument;
+                if (result == null) {
+                    result = readGeneratedDocument(handlerType);
+                    generatedDocument = result;
+                }
+            }
+        }
+        return result;
+    }
+
     private static Optional<String> readGeneratedDocument(Class<?> handlerType) {
-        ClassLoader classLoader = handlerType.getClassLoader();
-        InputStream input = classLoader == null
-                ? ClassLoader.getSystemResourceAsStream(OpenApiProcessor.DEFAULT_OUTPUT)
-                : classLoader.getResourceAsStream(OpenApiProcessor.DEFAULT_OUTPUT);
-        if (input == null) {
+        return readGeneratedDocument(handlerType.getClassLoader());
+    }
+
+    static Optional<String> readGeneratedDocument(ClassLoader classLoader) {
+        List<URL> resources;
+        try {
+            resources = Collections.list(classLoader == null
+                                                 ? ClassLoader.getSystemResources(OpenApiProcessor.DEFAULT_OUTPUT)
+                                                 : classLoader.getResources(OpenApiProcessor.DEFAULT_OUTPUT));
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Could not enumerate OpenAPI resources at " + OpenApiProcessor.DEFAULT_OUTPUT, e);
+        }
+        resources.sort((first, second) -> first.toExternalForm().compareTo(second.toExternalForm()));
+        if (resources.isEmpty()) {
             return Optional.empty();
         }
-        try (input) {
-            return Optional.of(new String(input.readAllBytes(), StandardCharsets.UTF_8));
+        Map<String, JsonNode> documents = new LinkedHashMap<>();
+        for (URL resource : resources) {
+            readDocuments(resource, documents);
+        }
+        ObjectNode merged = OpenApiDocumentMerger.merge(documents);
+        return Optional.of(JsonUtils.asPrettyJson(merged));
+    }
+
+    private static void readDocuments(URL resource, Map<String, JsonNode> documents) {
+        String source = resource.toExternalForm();
+        int documentIndex = 0;
+        try (InputStream input = resource.openStream(); var parser = JsonUtils.reader.createParser(input)) {
+            while (parser.nextToken() != null) {
+                JsonNode document = JsonUtils.reader.readTree(parser);
+                documents.put(source + "#document=" + ++documentIndex, document);
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not read OpenAPI document from '%s': %s"
+                                                       .formatted(source, e.getMessage()), e);
+        }
+        if (documentIndex == 0) {
+            throw new IllegalArgumentException("OpenAPI resource '%s' is empty".formatted(source));
         }
     }
 

@@ -21,6 +21,7 @@ import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -104,6 +105,42 @@ class WebSocketClientConfigTest {
             assertEquals(8, config.getMaxConcurrentRuntimeResultCompletions());
             assertEquals(Duration.ZERO, config.getRuntimeIngressStallCloseTimeout());
         });
+    }
+
+    @Test
+    void aggregateHistoryByteLimitUsesVersionedDefaultAndExplicitOverrides() {
+        assertEquals(0L, clientConfig(Map.of()).getAggregateHistoryMaxFetchBytes());
+        assertEquals(0L, clientConfig(Map.of("fluxzero.defaults.version", "2026.09.09"))
+                .getAggregateHistoryMaxFetchBytes());
+        assertEquals(100L * 1024 * 1024,
+                     clientConfig(Map.of("fluxzero.defaults.version", "2026.09.10"))
+                             .getAggregateHistoryMaxFetchBytes());
+        assertEquals(100L * 1024 * 1024,
+                     clientConfig(Map.of("fluxzero.defaults.version", "2027.01.01"))
+                             .getAggregateHistoryMaxFetchBytes());
+        assertEquals(0L, clientConfig(Map.of(
+                "fluxzero.defaults.version", "2027.01.01",
+                WebSocketClient.ClientConfig.AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY, " 0 "))
+                .getAggregateHistoryMaxFetchBytes());
+        assertEquals(1234L, clientConfig(Map.of(
+                WebSocketClient.ClientConfig.AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY, "1234"))
+                .getAggregateHistoryMaxFetchBytes());
+        assertEquals(5678L, clientConfigBuilder(Map.of(
+                WebSocketClient.ClientConfig.AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY, "1234"))
+                .aggregateHistoryMaxFetchBytes(5678L).build().getAggregateHistoryMaxFetchBytes());
+    }
+
+    @Test
+    void aggregateHistoryByteLimitUsesApplicationLocalPropertySource() {
+        withProperties(Map.of("fluxzero.defaults.version", "2027.01.01",
+                              WebSocketClient.ClientConfig.AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY, "9999"),
+                       () -> {
+                           assertEquals(0L, clientConfig(Map.of("fluxzero.defaults.version", "2026.09.09"))
+                                   .getAggregateHistoryMaxFetchBytes());
+                           assertEquals(1234L, clientConfig(Map.of(
+                                   WebSocketClient.ClientConfig.AGGREGATE_HISTORY_MAX_FETCH_BYTES_PROPERTY, "1234"))
+                                   .getAggregateHistoryMaxFetchBytes());
+                       });
     }
 
     @Test
@@ -208,12 +245,18 @@ class WebSocketClientConfigTest {
                                                                             .runtimeIngressStallCloseTimeout(
                                                                                     Duration.ofSeconds(-1))
                                                                             .build()));
+        IllegalArgumentException aggregateHistoryError = assertThrows(IllegalArgumentException.class,
+                                                                       () -> WebSocketClient.newInstance(
+                                                                               clientConfigBuilder()
+                                                                                       .aggregateHistoryMaxFetchBytes(-1L)
+                                                                                       .build()));
 
         assertTrue(concurrencyError.getMessage().contains("maxConcurrentRuntimeWebSocketMessages"));
         assertTrue(messageError.getMessage().contains("maxRetainedRuntimeWebSocketMessages"));
         assertTrue(byteError.getMessage().contains("maxRetainedRuntimeWebSocketBytes"));
         assertTrue(completionError.getMessage().contains("maxConcurrentRuntimeResultCompletions"));
         assertTrue(stallError.getMessage().contains("runtimeIngressStallCloseTimeout"));
+        assertTrue(aggregateHistoryError.getMessage().contains("aggregateHistoryMaxFetchBytes"));
     }
 
     @Test
@@ -257,6 +300,22 @@ class WebSocketClientConfigTest {
         return WebSocketClient.ClientConfig.builder()
                 .name("test-app")
                 .runtimeBaseUrl("ws://localhost");
+    }
+
+    private static WebSocketClient.ClientConfig clientConfig(Map<String, String> properties) {
+        return WebSocketClient.ClientConfig.fromProperties(propertySource(properties));
+    }
+
+    private static WebSocketClient.ClientConfig.ClientConfigBuilder clientConfigBuilder(
+            Map<String, String> properties) {
+        return WebSocketClient.ClientConfig.fromProperties(propertySource(properties)).toBuilder();
+    }
+
+    private static SimplePropertySource propertySource(Map<String, String> properties) {
+        Map<String, String> source = new HashMap<>(properties);
+        source.put("FLUXZERO_APPLICATION_NAME", "test-app");
+        source.put("FLUXZERO_BASE_URL", "ws://localhost");
+        return new SimplePropertySource(source);
     }
 
     private static void withProperties(Map<String, String> properties, Runnable task) {

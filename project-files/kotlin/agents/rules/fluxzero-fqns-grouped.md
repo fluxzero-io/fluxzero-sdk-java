@@ -192,6 +192,8 @@ io.fluxzero.sdk.publishing.ErrorGateway
 io.fluxzero.sdk.publishing.EventGateway
 io.fluxzero.sdk.publishing.GatewayException
 io.fluxzero.sdk.publishing.GenericGateway
+io.fluxzero.sdk.publishing.LocalOnly
+io.fluxzero.sdk.publishing.LocalOnlyDispatchException
 io.fluxzero.sdk.publishing.MetricsGateway
 io.fluxzero.sdk.publishing.QueryGateway
 io.fluxzero.sdk.publishing.RequestHandler

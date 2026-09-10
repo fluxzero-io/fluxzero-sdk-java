@@ -20,6 +20,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.handling.LocalExecution;
 
 import java.util.ArrayList;
@@ -29,12 +30,15 @@ import java.util.List;
 final class CompositeDispatchInterceptor implements DispatchInterceptor {
     private final DispatchInterceptor[] interceptors;
     private final DispatchInterceptor[] monitoringInterceptors;
+    private final DispatchInterceptor[] localStateOwners;
 
     private CompositeDispatchInterceptor(List<DispatchInterceptor> interceptors) {
         this.interceptors = interceptors.toArray(
                 DispatchInterceptor[]::new);
         this.monitoringInterceptors = interceptors.stream()
                 .filter(CompositeDispatchInterceptor::overridesMonitorDispatch)
+                .toArray(DispatchInterceptor[]::new);
+        this.localStateOwners = interceptors.stream().filter(DispatchInterceptor::storesLocalDispatchState)
                 .toArray(DispatchInterceptor[]::new);
     }
 
@@ -110,6 +114,54 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
     }
 
     @Override
+    public Message interceptLocalDispatch(Message message, MessageType messageType, String topic, String namespace) {
+        for (DispatchInterceptor interceptor : interceptors) {
+            if (message == null) {
+                return null;
+            }
+            Message previous = message;
+            try {
+                message = interceptor.interceptLocalDispatch(message, messageType, topic, namespace);
+            } catch (RuntimeException | Error e) {
+                completeLocalDispatch(previous);
+                throw e;
+            }
+            if (message != previous) {
+                for (DispatchInterceptor stateOwner : localStateOwners) {
+                    stateOwner.preserveLocalDispatchState(previous, message);
+                }
+            }
+        }
+        return message;
+    }
+
+    @Override
+    public void beforeExternalDispatch(Message message, MessageType messageType, String topic) {
+        for (DispatchInterceptor interceptor : interceptors) {
+            interceptor.beforeExternalDispatch(message, messageType, topic);
+        }
+    }
+
+    @Override
+    public void completeLocalDispatch(Message message) {
+        for (DispatchInterceptor stateOwner : localStateOwners) {
+            stateOwner.completeLocalDispatch(message);
+        }
+    }
+
+    @Override
+    public boolean storesLocalDispatchState() {
+        return localStateOwners.length > 0;
+    }
+
+    @Override
+    public void preserveLocalDispatchState(Message previousMessage, Message replacement) {
+        for (DispatchInterceptor stateOwner : localStateOwners) {
+            stateOwner.preserveLocalDispatchState(previousMessage, replacement);
+        }
+    }
+
+    @Override
     public void monitorDispatch(Message message, MessageType messageType, String topic, String namespace,
                                 boolean request) {
         for (int index = 0;
@@ -134,6 +186,18 @@ final class CompositeDispatchInterceptor implements DispatchInterceptor {
                     .modifySerializedMessage(
                             serialized, message,
                             messageType, topic);
+        }
+        return serialized;
+    }
+
+    @Override
+    public SerializedMessage modifySerializedMessage(SerializedMessage serialized, DeserializingMessage source,
+                                                     MessageType messageType, String topic, String namespace) {
+        for (DispatchInterceptor interceptor : interceptors) {
+            if (serialized == null) {
+                return null;
+            }
+            serialized = interceptor.modifySerializedMessage(serialized, source, messageType, topic, namespace);
         }
         return serialized;
     }

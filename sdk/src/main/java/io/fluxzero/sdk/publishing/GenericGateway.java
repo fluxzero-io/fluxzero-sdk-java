@@ -61,6 +61,7 @@ import static java.util.Arrays.stream;
  * @see io.fluxzero.sdk.publishing.CommandGateway
  * @see io.fluxzero.sdk.publishing.QueryGateway
  * @see io.fluxzero.sdk.publishing.EventGateway
+ * @see LocalOnly
  */
 public interface GenericGateway extends Namespaced<GenericGateway>, HasLocalHandlers, AutoCloseable {
 

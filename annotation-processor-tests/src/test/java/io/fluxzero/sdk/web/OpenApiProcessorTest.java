@@ -216,6 +216,35 @@ class OpenApiProcessorTest {
         assertTrue(selectedSchemas.path("SelectedRoot").path("properties").has("children"));
         assertTrue(selectedSchemas.path("SelectedChild").path("properties").has("leaves"));
         assertFalse(selectedSchemas.path("SelectedRoot").path("properties").has("excludedChildren"));
+
+        JsonNode requiredBody = paths.path("/processor/contracts/required").path("post").path("requestBody");
+        assertTrue(requiredBody.path("required").asBoolean());
+        JsonNode mapSchema = requiredBody.path("content").path("application/json").path("schema");
+        assertEquals(2, mapSchema.path("additionalProperties").path("minLength").asInt());
+        assertEquals(8, mapSchema.path("additionalProperties").path("maxLength").asInt());
+        assertFalse(mapSchema.has("propertyNames"));
+        assertFalse(paths.path("/processor/contracts/optional").path("post").path("requestBody").has("required"));
+        JsonNode bodyParameters = paths.path("/processor/contracts/parameters").path("post").path("requestBody");
+        assertTrue(bodyParameters.path("required").asBoolean());
+        assertTrue(contains(bodyParameters.path("content").path("application/json").path("schema")
+                                    .path("required"), "mandatory"));
+        JsonNode multipleBodies = paths.path("/processor/contracts/multiple").path("post").path("requestBody");
+        assertTrue(multipleBodies.path("required").asBoolean());
+        assertTrue(contains(multipleBodies.path("content").path("application/json").path("schema")
+                                    .path("required"), "mandatory"));
+        JsonNode formBody = paths.path("/processor/contracts/form").path("post").path("requestBody");
+        assertTrue(formBody.path("required").asBoolean());
+        assertTrue(contains(formBody.path("content").path("application/x-www-form-urlencoded").path("schema")
+                                    .path("required"), "mandatory"));
+
+        JsonNode named = schemas.path("NamedPayload");
+        assertEquals("kind", named.path("discriminator").path("propertyName").asText());
+        assertEquals("#/components/schemas/NamedValue", named.path("discriminator").path("mapping")
+                .path("named").asText());
+        assertEquals(1, named.path("oneOf").size());
+        JsonNode deduced = schemas.path("DeducedPayload");
+        assertFalse(deduced.has("discriminator"));
+        assertEquals(2, deduced.path("oneOf").size());
     }
 
     @ApiDocInfo(
@@ -311,6 +340,42 @@ class OpenApiProcessorTest {
         void sendEmail(EmailEnvelope body) {
         }
 
+        @HandlePost("/contracts/required")
+        void requiredContract(
+                @ApiDoc(required = true)
+                Map<@jakarta.validation.constraints.Pattern(regexp = "[a-z]{2}")
+                        @jakarta.validation.constraints.Size(min = 2, max = 2) String,
+                        @jakarta.validation.constraints.Size(min = 2, max = 8) String> body) {
+        }
+
+        @HandlePost("/contracts/optional")
+        void optionalContract(Map<String, String> body) {
+        }
+
+        @HandlePost("/contracts/parameters")
+        void contractParameters(
+                @BodyParam("mandatory") @jakarta.validation.constraints.NotBlank String mandatory,
+                @BodyParam("optional") String optional) {
+        }
+
+        @HandlePost("/contracts/multiple")
+        void multipleContracts(@jakarta.validation.constraints.NotBlank String mandatory, String optional) {
+        }
+
+        @HandlePost("/contracts/form")
+        void contractForm(
+                @FormParam("mandatory") @jakarta.validation.constraints.NotBlank String mandatory,
+                @FormParam("optional") String optional) {
+        }
+
+        @HandlePost("/contracts/named")
+        void namedContract(NamedPayload body) {
+        }
+
+        @HandlePost("/contracts/deduced")
+        void deducedContract(DeducedPayload body) {
+        }
+
         @ApiDocExclude
         @HandleGet("/internal")
         String internal() {
@@ -362,6 +427,31 @@ class OpenApiProcessorTest {
     record LocalizedEmail(
             @jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Size(min = 1, max = 3)
             Map<String, String> translations) implements EmailValue {
+    }
+
+    @com.fasterxml.jackson.annotation.JsonTypeInfo(
+            use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.NAME, property = "kind")
+    @com.fasterxml.jackson.annotation.JsonSubTypes(
+            @com.fasterxml.jackson.annotation.JsonSubTypes.Type(value = NamedValue.class, name = "named"))
+    interface NamedPayload {
+    }
+
+    record NamedValue(String value) implements NamedPayload {
+    }
+
+    @com.fasterxml.jackson.annotation.JsonTypeInfo(
+            use = com.fasterxml.jackson.annotation.JsonTypeInfo.Id.DEDUCTION, property = "ignored")
+    @com.fasterxml.jackson.annotation.JsonSubTypes({
+            @com.fasterxml.jackson.annotation.JsonSubTypes.Type(DeducedText.class),
+            @com.fasterxml.jackson.annotation.JsonSubTypes.Type(DeducedNumber.class)
+    })
+    interface DeducedPayload {
+    }
+
+    record DeducedText(String text) implements DeducedPayload {
+    }
+
+    record DeducedNumber(int number) implements DeducedPayload {
     }
 
     /**

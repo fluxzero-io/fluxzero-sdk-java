@@ -15,12 +15,12 @@
 package io.fluxzero.sdk.configuration.spring;
 
 import io.fluxzero.common.Registration;
+import io.fluxzero.common.application.PropertySource;
 import io.fluxzero.common.caching.Cache;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.casting.CastInspector;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
-import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -243,11 +243,12 @@ public class FluxzeroSpringConfig implements BeanPostProcessor, DisposableBean {
             Client client = getBean(Client.class).orElseGet(() -> getBean(WebSocketClient.ClientConfig.class)
                     .<Client>map(WebSocketClient::newInstance)
                     .orElseGet(() -> {
+                        PropertySource propertySource = builder.propertySource();
                         if (Stream.of("FLUXZERO_BASE_URL", "FLUX_BASE_URL")
-                                        .anyMatch(ApplicationProperties::containsProperty) &&
+                                        .anyMatch(name -> propertySource.get(name) != null) &&
                                 Stream.of("FLUXZERO_APPLICATION_NAME", "FLUX_APPLICATION_NAME")
-                                        .anyMatch(ApplicationProperties::containsProperty)) {
-                            var config = WebSocketClient.ClientConfig.builder().build();
+                                        .anyMatch(name -> propertySource.get(name) != null)) {
+                            var config = WebSocketClient.ClientConfig.fromProperties(propertySource);
                             log.info("Using connected Fluxzero client (application name: {}, service url: {})",
                                      config.getName(), config.getRuntimeBaseUrl());
                             return WebSocketClient.newInstance(config);

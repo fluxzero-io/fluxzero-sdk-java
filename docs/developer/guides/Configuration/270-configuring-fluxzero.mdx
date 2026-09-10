@@ -95,6 +95,14 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
   of `@Model(persistence = ModelPersistence.DOCUMENT)`. It can therefore implement document-level encryption,
   compression, signing, or a
   custom envelope using the document ID, collection, timestamps, and metadata.
+- Prefer `fluxzero.serialization.typeAliases` or `FLUXZERO_SERIALIZATION_TYPE_ALIASES` to configure the complete list
+  of exact and package aliases per deployment.
+- `addTypeAlias(...)`, `addTypeAliases(...)`, `addPackageAlias(...)`, and `addPackageAliases(...)` provide
+  programmatic configuration when aliases are intentionally owned by application code. These aliases take precedence
+  over property configuration for the same source.
+
+See [Upcasting and downcasting](/docs/guides/data-control-and-serialization/upcasting-and-downcasting#type-aliases) for
+the alias syntax, resolution order, and `TestFixture` behavior.
 
 ### Parameter injection and handler behavior
 
@@ -109,6 +117,10 @@ In Spring environments, it can be customized by implementing the `FluxzeroCustom
 - `addPropertySource(...)` and `replacePropertySource(...)` control the configuration hierarchy (e.g., ENV > system
   props > application.properties).
 - Integrates with `ApplicationProperties` for encrypted or templated config values.
+
+`ApplicationProperties` merges every `application.properties` resource visible as a separate classpath resource,
+including resources in Spring Boot nested JARs. A custom uber-JAR build that collapses equal resource names must merge
+those files in its own packaging configuration.
 
 ### Task scheduling and execution
 

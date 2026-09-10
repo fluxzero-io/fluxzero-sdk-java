@@ -42,7 +42,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
-import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
 import static java.net.http.HttpClient.Version.HTTP_1_1;
 
 /**
@@ -177,7 +176,7 @@ public class JdkWebsocketConnector implements WebsocketConnector {
     }
 
     static String defaultWorkerMode() {
-        return supportsVirtualThreadWorkers() ? "virtual-thread-per-task" : "fixed-platform-pool";
+        return "virtual-thread-per-task";
     }
 
     private static void abortConnectingSession(JdkWebSocketSession session, CompletableFuture<WebSocket> webSocketFuture) {

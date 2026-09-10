@@ -301,6 +301,41 @@ public class DeserializingMessage implements HasMessage {
     }
 
     /**
+     * Exposes a restored, same-type payload to handling code while retaining this message's serialized envelope.
+     *
+     * <p>This is intended for values restored from private storage, not for changing the event. Metadata-only
+     * copies retain the original data, revision and index. A subsequent {@link #withPayload(Object)} or
+     * {@link #withMessage(Message)} is a real replacement and uses ordinary serialization again.</p>
+     *
+     * @param payload the restored logical payload
+     * @return a view with the restored payload and the unchanged serialized source
+     */
+    public DeserializingMessage withRestoredPayload(Object payload) {
+        return new RestoredPayloadMessage(this, getSerializedObject(), toMessage().withPayload(payload));
+    }
+
+    private static final class RestoredPayloadMessage extends DeserializingMessage {
+        private RestoredPayloadMessage(DeserializingMessage source, SerializedMessage serialized, Message message) {
+            super(new DeserializingObject<>(serialized,
+                    type -> type == Object.class ? message.getPayload() : message.getPayloadAs(type)) {
+                @Override
+                public Class<?> getPayloadClass() {
+                    return message.getPayloadClass();
+                }
+            }, source.messageType, source.topic, source.serializer);
+            DeserializingMessage view = this;
+            view.message = message;
+            view.context = source.context;
+        }
+
+        @Override
+        public DeserializingMessage withMetadata(Metadata metadata) {
+            return new RestoredPayloadMessage(this, getSerializedObject().withMetadata(metadata),
+                                              toMessage().withMetadata(metadata));
+        }
+    }
+
+    /**
      * Replaces the complete logical message while retaining this wrapper's type, topic, serializer, and context.
      *
      * <p>Unlike {@link #withPayload(Object)}, this method deliberately retains the supplied message identity. It is

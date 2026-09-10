@@ -15,21 +15,21 @@
 package io.fluxzero.common.serialization;
 
 import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
 import static io.fluxzero.common.reflection.ReflectionUtils.getSimpleName;
 
-@Slf4j
 public class DefaultTypeRegistry implements TypeRegistry {
 
     @SneakyThrows
@@ -56,11 +56,16 @@ public class DefaultTypeRegistry implements TypeRegistry {
     }
 
     protected DefaultTypeRegistry(List<String> candidates) {
-        this.fullTypeNames = new TreeSet<>(candidates);
+        TreeSet<String> fullTypeNames = new TreeSet<>();
+        candidates.stream().filter(candidate -> candidate != null && !candidate.isBlank()).forEach(fullTypeNames::add);
+        this.fullTypeNames = fullTypeNames;
         Map<String, String> types = new TreeMap<>();
-        for (String fqn : candidates) {
-            if (fqn != null && !fqn.isBlank()) {
-                types.putIfAbsent(getSimpleName(fqn), fqn);
+        Set<String> ambiguousNames = new HashSet<>();
+        for (String fqn : fullTypeNames) {
+            String simpleName = getSimpleName(fqn);
+            if (!ambiguousNames.contains(simpleName) && types.putIfAbsent(simpleName, fqn) != null) {
+                types.remove(simpleName);
+                ambiguousNames.add(simpleName);
             }
         }
         this.types = types;
@@ -75,7 +80,16 @@ public class DefaultTypeRegistry implements TypeRegistry {
     public Optional<String> getTypeName(String alias) {
         return Optional.ofNullable(types.get(alias)).or(() -> {
             var suffix = (alias.startsWith(".") ? alias : "." + alias);
-            return fullTypeNames.stream().filter(t -> t.endsWith(suffix)).findFirst();
+            String match = null;
+            for (String type : fullTypeNames) {
+                if (type.endsWith(suffix)) {
+                    if (match != null) {
+                        return Optional.empty();
+                    }
+                    match = type;
+                }
+            }
+            return Optional.ofNullable(match);
         });
     }
 

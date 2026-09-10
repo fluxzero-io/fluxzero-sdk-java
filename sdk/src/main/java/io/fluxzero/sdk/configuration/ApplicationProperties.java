@@ -181,6 +181,33 @@ public class ApplicationProperties {
      *         JDK redirects with {@code fluxzero.web.defaultRedirectPolicy = ALLOW}; {@code NEVER} disables
      *         redirects explicitly.</td>
      *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.09}</td>
+     *         <td>{@code fluxzero.websocket.reconnectBackoff.enabled = true}</td>
+     *         <td>WebSocket reconnects use equal jitter over a capped exponential delay instead of retrying every
+     *         second. Existing applications can retain the fixed interval with
+     *         {@code fluxzero.websocket.reconnectBackoff.enabled = false}.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.10}</td>
+     *         <td>{@code fluxzero.eventsourcing.maxFetchBytes = 104857600}</td>
+     *         <td>Aggregate-history pages request at most 100 MiB of serialized event payload. Existing applications
+     *         can retain count-only pages with {@code fluxzero.eventsourcing.maxFetchBytes = 0}.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.09}</td>
+     *         <td>{@code fluxzero.model.conflictPolicy = RETRY}</td>
+     *         <td>Independent Model updates validate all evaluation dependencies and retry a conflict with a fresh
+     *         evaluation. Implicit first creations still fail on conflict. Explicit Model/Apply or application
+     *         policies override this default; compatibility mode retains {@code ACCEPT}.</td>
+     *     </tr>
+     *     <tr>
+     *         <td>{@code >= 2026.09.10}</td>
+     *         <td>{@code fluxzero.model.automaticRouting = true}</td>
+     *         <td>Commands with one statically unambiguous Model apply and single-Model events use the canonical
+     *         Model ID as routing fallback. Explicit segments and routing declarations always take precedence.
+     *         Set the property to {@code false} to retain compatibility behavior.</td>
+     *     </tr>
      * </table>
      * <p>
      * Memory-aware cache pressure can be tuned with

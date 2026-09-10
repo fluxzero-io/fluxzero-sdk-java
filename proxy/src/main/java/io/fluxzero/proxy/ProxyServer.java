@@ -52,7 +52,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.fluxzero.common.ObjectUtils.supportsVirtualThreadWorkers;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getFirstAvailableProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
@@ -323,12 +322,7 @@ public class ProxyServer implements Registration {
         QueuedThreadPool threadPool = new QueuedThreadPool(maxThreads, minThreads);
         threadPool.setName("fluxzero-proxy");
         if (getBooleanProperty(USE_VIRTUAL_THREADS_PROPERTY, false)) {
-            if (supportsVirtualThreadWorkers()) {
-                threadPool.setVirtualThreadsExecutor(VirtualThreads.getDefaultVirtualThreadsExecutor());
-            } else {
-                log.warn("{} is enabled but virtual-thread workers are only supported on Java 25+",
-                         USE_VIRTUAL_THREADS_PROPERTY);
-            }
+            threadPool.setVirtualThreadsExecutor(VirtualThreads.getDefaultVirtualThreadsExecutor());
         }
         return threadPool;
     }

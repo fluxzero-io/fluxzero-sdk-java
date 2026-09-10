@@ -38,6 +38,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DeserializingMessageTest {
 
     @Test
+    void restoredPayloadViewKeepsEnvelopeContextAndAliasesUntilARealReplacement() {
+        Serializer serializer = new JacksonSerializer();
+        SerializedMessage raw = new SerializedMessage(serializer.serialize("redacted").withType("custom-alias")
+                .withRevision(3), Metadata.of("original", "value"), "id", 42L);
+        raw.setIndex(123L);
+        DeserializingMessage source = new DeserializingMessage(raw, ignored -> "redacted", MessageType.EVENT,
+                                                               "topic", serializer);
+        source.putContext(AtomicInteger.class, new AtomicInteger(7));
+        DeserializingMessage restored = source.withRestoredPayload("restored");
+        DeserializingMessage enriched = restored.withMetadata(restored.getMetadata().with("extra", "metadata"));
+        assertEquals("restored", enriched.getPayload());
+        assertEquals("restored", enriched.getPayloadAs(String.class));
+        assertEquals(String.class, enriched.getPayloadClass());
+        assertEquals("custom-alias", enriched.getType());
+        assertEquals(123L, enriched.getIndex());
+        assertEquals("topic", enriched.getTopic());
+        assertSame(raw.getData(), enriched.getSerializedObject().getData());
+        assertEquals(3, enriched.getSerializedObject().getRevision());
+        assertEquals(42L, enriched.getSerializedObject().getTimestamp());
+        assertSame(source.getContext(AtomicInteger.class).orElseThrow(),
+                   enriched.getContext(AtomicInteger.class).orElseThrow());
+        assertEquals(String.class, new DeserializingMessage(enriched).getPayloadClass());
+        assertEquals("changed", serializer.deserialize(enriched.withPayload("changed").getSerializedObject().getData()));
+        assertEquals("redacted", source.getPayload());
+    }
+
+    @Test
     void returnsVoidPayloadClassWhenDelegatePayloadClassIsUnknown() {
         Serializer serializer = new JacksonSerializer();
         SerializedMessage serializedMessage = new SerializedMessage(

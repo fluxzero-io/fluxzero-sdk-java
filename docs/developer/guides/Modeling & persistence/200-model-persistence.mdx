@@ -36,6 +36,12 @@ record Account(@EntityId AccountId accountId, Money balance) {
 Each applied update is stored in this account's model stream. Loading reconstructs the account by replaying its
 `@Apply` methods, optionally starting at a snapshot or checkpoint.
 
+For remote Runtimes, the SDK pages aggregate histories by event count. Applications using
+`fluxzero.defaults.version >= 2026.09.10` also request a 100 MiB serialized payload limit per page; configure
+`fluxzero.eventsourcing.maxFetchBytes` explicitly to tune it or use `0` for count-only compatibility behavior. A single
+larger event is allowed through to guarantee progress, and later pages resume at the exact next aggregate sequence.
+Runtimes predating this optional request field ignore it and continue to return count-only pages.
+
 The set supports exactly the meaningful combinations:
 
 - `{EVENT_SOURCED}` reconstructs from events without a current document;
@@ -239,7 +245,19 @@ Clients may send the model state boundary they evaluated. If one of the relevant
 - `FAIL` rejects and rolls back the complete action;
 - `RETRY` rejects, reloads all action dependencies and reruns assertions, interceptors and applies within a bounded
   retry policy;
-- `DEFAULT` inherits model, builder or property configuration and finally resolves to `ACCEPT`.
+- `DEFAULT` inherits model, builder or property configuration and resolves to `RETRY` from defaults version
+  `2026.09.09`, otherwise `ACCEPT`. Explicit `fluxzero.model.conflictPolicy` settings override that choice.
+
+Implicit first creations always fail on conflict; opting into the RETRY default does not turn create-if-absent into an
+upsert. An explicitly configured RETRY retains its complete reevaluation semantics, including creation. ACCEPT only
+validates dependencies read by applies and written targets, since it preserves the original event and skips assertions
+and interceptors during rebase. RETRY and FAIL retain the full evaluation readset. Conflict-free eligible commits use
+the same cached-head planning and atomic namespace-boundary check regardless of policy; a failed boundary check falls
+back to current-head validation under the state lock.
+
+Apply-ancestor dependencies include the loaded roots that determined their selection, including the absence of a
+nullable ancestor. A concurrent reparenting therefore still triggers rebase even if the old ancestor's own value is
+unchanged; assertions are not rerun to reload these roots.
 
 This is intentionally not the organizing principle of the model API. It is an optional consistency policy for the
 uncommon case where multiple writers race on the same model.

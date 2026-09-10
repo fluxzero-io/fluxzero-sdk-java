@@ -39,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
  * apply domain events to the aggregate and persist them in the event store.
  *
  * @see HasLocalHandlers for registering local event handlers
+ * @see LocalOnly for restricting publication to local handlers
  * @see io.fluxzero.sdk.modeling.Entity for applying events to aggregates
  * @see io.fluxzero.sdk.tracking.handling.HandleEvent for handling events
  */

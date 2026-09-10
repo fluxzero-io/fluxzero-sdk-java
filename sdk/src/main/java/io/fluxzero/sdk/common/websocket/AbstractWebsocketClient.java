@@ -49,6 +49,7 @@ import io.fluxzero.sdk.common.exception.ServiceException;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
+import io.fluxzero.sdk.configuration.ApplicationProperties;
 import io.fluxzero.sdk.configuration.client.WebSocketClient;
 import io.fluxzero.sdk.configuration.client.WebSocketClient.ClientConfig;
 import io.fluxzero.sdk.publishing.AdhocDispatchInterceptor;
@@ -72,6 +73,7 @@ import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -84,11 +86,15 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES;
 import static com.fasterxml.jackson.databind.DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE;
@@ -129,7 +135,8 @@ import static java.util.Optional.ofNullable;
  *   <li><b>Session Pooling:</b> Maintains multiple concurrent sessions to handle high-throughput scenarios</li>
  *   <li><b>Request Backlogs:</b> Each session has a backlog to buffer and batch outgoing requests</li>
  *   <li><b>Ping Scheduling:</b> Scheduled tasks detect broken sessions using WebSocket pings</li>
- *   <li><b>Auto Retry:</b> Failed requests are retried if the session is closed unexpectedly</li>
+ *   <li><b>Auto Retry:</b> Failed requests are retried if the session is closed unexpectedly; reconnect attempts can
+ *   use versioned capped backoff with jitter</li>
  *   <li><b>Async Result Handling:</b> Responses are handled on a separate thread pool to avoid blocking I/O</li>
  *   <li><b>Metrics Publishing:</b> Optional emission of message-related metrics based on configuration</li>
  * </ul>
@@ -148,7 +155,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
             RuntimeIngressController.MessageDispatch.admitted(COMPLETED_RUNTIME_MESSAGE);
     static final String TRANSPORT_METRICS_ENABLED_PROPERTY =
             "fluxzero.websocket.transportMetrics.enabled";
+    static final String RECONNECT_BACKOFF_ENABLED_PROPERTY =
+            "fluxzero.websocket.reconnectBackoff.enabled";
+    static final LocalDate RECONNECT_BACKOFF_DEFAULTS_VERSION = LocalDate.of(2026, 9, 9);
     private static final Duration CLOSE_HANDSHAKE_TIMEOUT = Duration.ofSeconds(1);
+    private static final Duration MAX_RECONNECT_DELAY = Duration.ofSeconds(16);
+    private static final Duration TRANSPORT_METRIC_PUBLICATION_TIMEOUT = Duration.ofSeconds(1);
     protected static final Duration CONNECTION_TIMEOUT_FAILSAFE_GRACE = Duration.ofSeconds(5);
     protected static final int CONNECTION_RETRY_LOG_INTERVAL = 10;
     protected static final String CLIENT_HANDSHAKE_CONFIGURATOR_USER_PROPERTY =
@@ -205,9 +217,13 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     private final ExecutorService resultExecutor;
     private final RuntimeResultDispatcher runtimeResultDispatcher;
     private final ExecutorService reconnectExecutor;
+    private final ExecutorService transportMetricExecutor;
+    private final AtomicBoolean transportMetricPublicationInFlight = new AtomicBoolean();
+    private final AtomicReference<Thread> transportMetricPublicationThread = new AtomicReference<>();
     private final Semaphore inFlightWebSocketBytes;
     private final boolean allowMetrics;
     private final boolean transportMetricsEnabled;
+    private final boolean reconnectBackoffEnabled;
     private final boolean monitorRuntimeIngressProgress;
     private final WebsocketResultDiagnostics resultDiagnostics;
     private final SdkRuntimeWebsocketEndpoint sdkRuntimeEndpoint = new SdkRuntimeWebsocketEndpoint(this);
@@ -253,7 +269,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
      * @param endpointUri      the WebSocket server endpoint
      * @param client           the client providing config and access to the Fluxzero Runtime
      * @param allowMetrics     flag to enable or disable automatic metrics publishing
-     * @param reconnectDelay   the delay between reconnect attempts if the connection is lost
+     * @param reconnectDelay   the fixed compatibility delay and initial ceiling for versioned reconnect backoff
      * @param objectMapper     the Jackson object mapper for (de)serializing requests and responses
      * @param numberOfSessions the number of WebSocket sessions to establish in parallel
      */
@@ -275,6 +291,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         this.resultDiagnostics = WebsocketResultDiagnostics.from(propertySource);
         this.transportMetricsEnabled = allowMetrics && !clientConfig.isDisableMetrics()
                                        && transportMetricsEnabled(propertySource);
+        this.reconnectBackoffEnabled = reconnectBackoffEnabled(propertySource);
         this.monitorRuntimeIngressProgress = transportMetricsEnabled
                                              || !clientConfig.getRuntimeIngressStallCloseTimeout().isZero();
         this.inFlightWebSocketBytes = new Semaphore(Math.max(1, clientConfig.getMaxInFlightWebSocketBytes()));
@@ -284,6 +301,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         this.runtimeResultDispatcher = new RuntimeResultDispatcher(
                 resultExecutor, clientConfig.getMaxConcurrentRuntimeResultCompletions());
         this.reconnectExecutor = newWorkerPool(this + "-reconnect", Math.max(1, numberOfSessions));
+        this.transportMetricExecutor = transportMetricsEnabled ? newTransportMetricExecutor(this) : null;
         this.sessionPool = new SessionPool(numberOfSessions, previousSession -> retryOnFailure(
                 () -> connectToServer(connector, endpointUri, previousSession),
                 createConnectionRetryConfiguration(endpointUri, reconnectDelay)));
@@ -295,8 +313,16 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                                                                    Math.max(1, numberOfSessions)));
     }
 
+    private static ExecutorService newTransportMetricExecutor(AbstractWebsocketClient client) {
+        String threadName = client + "-transportMetric";
+        return ObjectUtils.supportsVirtualThreadWorkers()
+                ? Executors.newThreadPerTaskExecutor(ObjectUtils.newVirtualThreadFactory(threadName))
+                : Executors.newSingleThreadExecutor(
+                        Thread.ofPlatform().daemon(true).name(threadName, 0L).factory());
+    }
+
     protected RetryConfiguration createConnectionRetryConfiguration(URI endpointUri, Duration reconnectDelay) {
-        return RetryConfiguration.builder()
+        var builder = RetryConfiguration.builder()
                 .delay(reconnectDelay)
                 .errorTest(e -> {
                     if (e instanceof Error) {
@@ -305,8 +331,30 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                     return !closed.get();
                 })
                 .successLogger(status -> logSuccessfulReconnect(endpointUri, status))
-                .exceptionLogger(status -> logConnectionRetryStatus(endpointUri, status))
-                .build();
+                .exceptionLogger(status -> logConnectionRetryStatus(endpointUri, status));
+        if (reconnectBackoffEnabled) {
+            Function<RetryStatus, Duration> backoff = RetryConfiguration.exponentialBackoff(
+                    reconnectDelay, reconnectDelay.compareTo(MAX_RECONNECT_DELAY) < 0
+                            ? MAX_RECONNECT_DELAY : reconnectDelay);
+            builder.delayFunction(status -> equalJitter(backoff.apply(status), nextReconnectJitter()));
+        }
+        return builder.build();
+    }
+
+    /**
+     * Supplies the random fraction used to spread reconnect attempts within the current equal-jitter window.
+     */
+    protected double nextReconnectJitter() {
+        return ThreadLocalRandom.current().nextDouble();
+    }
+
+    static Duration equalJitter(Duration upperBound, double jitterFraction) {
+        if (jitterFraction < 0 || jitterFraction >= 1) {
+            throw new IllegalArgumentException("Reconnect jitter fraction must be at least 0 and less than 1");
+        }
+        Duration lowerBound = upperBound.dividedBy(2);
+        long jitterNanos = (long) (upperBound.minus(lowerBound).toNanos() * jitterFraction);
+        return lowerBound.plusNanos(jitterNanos);
     }
 
     protected void logSuccessfulReconnect(URI endpointUri, RetryStatus status) {
@@ -318,9 +366,14 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
     protected void logConnectionRetryStatus(URI endpointUri, RetryStatus status) {
         int retryCount = status.getNumberOfTimesRetried();
         if (retryCount == 0) {
-            log().warn("Failed to connect to endpoint {}; reason: {}. Retrying every {} ms...",
-                       endpointUri, status.getException().getMessage(),
-                       status.getRetryConfiguration().getDelay().toMillis());
+            if (reconnectBackoffEnabled) {
+                log().warn("Failed to connect to endpoint {}; reason: {}. Retrying with capped exponential backoff "
+                           + "and jitter...", endpointUri, status.getException().getMessage());
+            } else {
+                log().warn("Failed to connect to endpoint {}; reason: {}. Retrying every {} ms...",
+                           endpointUri, status.getException().getMessage(),
+                           status.getRetryConfiguration().getDelay().toMillis());
+            }
         } else if (retryCount > 0 && retryCount % CONNECTION_RETRY_LOG_INTERVAL == 0) {
             log().warn("Still trying to connect to endpoint {} after {} retries. Last error: {}.",
                        endpointUri, retryCount, status.getException().getMessage());
@@ -1430,6 +1483,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
                 sessionBacklogs.values().forEach(Backlog::shutDown);
                 sessionBacklogs.clear();
                 runtimeResultDispatcher.close();
+                shutdownTransportMetricExecutor();
                 shutdownExecutor(resultExecutor, "websocket result executor");
                 shutdownExecutor(reconnectExecutor, "websocket reconnect executor");
                 pingDeadlines.clear();
@@ -1454,6 +1508,12 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         } catch (InterruptedException e) {
             currentThread().interrupt();
             log().info("Interrupted while waiting for {} to terminate", name);
+        }
+    }
+
+    private void shutdownTransportMetricExecutor() {
+        if (transportMetricExecutor != null) {
+            transportMetricExecutor.shutdownNow();
         }
     }
 
@@ -1486,7 +1546,7 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         if (!shouldEmitTransportMetrics()) {
             return;
         }
-        emitTransportMetricSnapshot(event, session, transportMetricState(session, knownState));
+        emitTransportMetricAsync(event, session, transportMetricState(session, knownState));
     }
 
     private void emitTransportMetricSnapshot(WebsocketTransportMetric.Event event, WebsocketSession session,
@@ -1521,30 +1581,66 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
         }
     }
 
-    private CompletableFuture<Void> emitTransportMetricAsync(
+    CompletableFuture<Void> emitTransportMetricAsync(
             WebsocketTransportMetric.Event event, WebsocketSession session,
             JdkWebSocketSession.RuntimeDataState state) {
-        CompletableFuture<Void> publication = new CompletableFuture<>();
         if (state == null || !shouldEmitTransportMetrics()) {
-            publication.complete(null);
-            return publication;
+            return CompletableFuture.completedFuture(null);
         }
+        if (!transportMetricPublicationInFlight.compareAndSet(false, true)) {
+            return CompletableFuture.completedFuture(null);
+        }
+        CompletableFuture<Void> publication = new CompletableFuture<>();
         try {
-            resultExecutor.execute(() -> {
-                try {
-                    emitTransportMetricSnapshot(event, session, state);
-                    publication.complete(null);
-                } catch (Throwable e) {
-                    publication.completeExceptionally(e);
+            pingScheduler.orTimeout(publication, transportMetricPublicationTimeout());
+            publication.whenComplete((ignored, failure) -> {
+                if (failure instanceof TimeoutException) {
+                    Thread publicationThread = transportMetricPublicationThread.get();
+                    if (publicationThread != null) {
+                        publicationThread.interrupt();
+                    }
                 }
             });
+            transportMetricExecutor.execute(() -> publishTransportMetricSnapshot(event, session, state, publication));
         } catch (RejectedExecutionException e) {
+            transportMetricPublicationInFlight.set(false);
             publication.completeExceptionally(e);
             if (!closed.get()) {
                 log().warn("Failed to schedule websocket transport metric publication", e);
             }
         }
         return publication;
+    }
+
+    private void publishTransportMetricSnapshot(
+            WebsocketTransportMetric.Event event, WebsocketSession session,
+            JdkWebSocketSession.RuntimeDataState state, CompletableFuture<Void> publication) {
+        Thread current = currentThread();
+        transportMetricPublicationThread.set(current);
+        Throwable failure = null;
+        try {
+            if (!publication.isDone()) {
+                emitTransportMetricSnapshot(event, session, state);
+            }
+        } catch (Throwable e) {
+            failure = e;
+        } finally {
+            transportMetricPublicationThread.compareAndSet(current, null);
+            transportMetricPublicationInFlight.set(false);
+        }
+        if (failure == null) {
+            publication.complete(null);
+        } else {
+            publication.completeExceptionally(failure);
+        }
+    }
+
+    protected Duration transportMetricPublicationTimeout() {
+        return TRANSPORT_METRIC_PUBLICATION_TIMEOUT;
+    }
+
+    boolean transportMetricPublicationInFlight() {
+        return transportMetricPublicationInFlight.get();
     }
 
     private JdkWebSocketSession.RuntimeDataState transportMetricState(
@@ -1701,6 +1797,13 @@ public abstract class AbstractWebsocketClient implements WebsocketEndpoint, Auto
 
     static boolean transportMetricsEnabled(PropertySource propertySource) {
         return propertySource.getBoolean(TRANSPORT_METRICS_ENABLED_PROPERTY);
+    }
+
+    static boolean reconnectBackoffEnabled(PropertySource propertySource) {
+        String configured = propertySource.get(RECONNECT_BACKOFF_ENABLED_PROPERTY);
+        return configured == null
+                ? ApplicationProperties.defaultsVersionAtLeast(propertySource, RECONNECT_BACKOFF_DEFAULTS_VERSION)
+                : Boolean.parseBoolean(configured.trim());
     }
 
     protected String getNegotiatedSessionId(WebsocketSession session) {

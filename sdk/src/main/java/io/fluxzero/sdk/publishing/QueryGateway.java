@@ -39,6 +39,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @see HasLocalHandlers
  * @see io.fluxzero.sdk.tracking.handling.HandleQuery
+ * @see LocalOnly
  */
 public interface QueryGateway extends Namespaced<QueryGateway>, HasLocalHandlers {
 

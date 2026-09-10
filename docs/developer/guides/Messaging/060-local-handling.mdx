@@ -46,6 +46,13 @@ class SomeLocalHandler {
   By default, handler metrics are disabled for local handlers. To enable, use <code>logMetrics = true</code> to track performance metrics even for local handlers.
 </Aside>
 
+## Require local handling
+
+Use `@LocalOnly` sparingly on a payload or package when external publication would cross a security boundary. Fluxzero
+then invokes local handlers only, suppresses `logMessage`, returns a failed future for an unhandled request and quietly
+completes an unhandled non-request. Parent packages include their children; `@LocalOnly(false)` restores normal
+fallback for a more specific package or payload type.
+
 ## Self-handling messages
 
 Instead of defining message handlers externally, you can embed handler logic directly in the message payload. This is often useful for queries or simple commands.

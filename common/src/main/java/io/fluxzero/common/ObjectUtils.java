@@ -463,30 +463,34 @@ public class ObjectUtils {
     }
 
     /**
-     * Creates a worker thread factory that uses virtual threads on Java 25+ and platform threads otherwise.
+     * Creates a named virtual-thread factory for workers.
      */
     public static ThreadFactory newWorkerThreadFactory(String prefix) {
-        return supportsVirtualThreadWorkers() ? newVirtualThreadFactory(prefix) : newPlatformThreadFactory(prefix);
+        return newVirtualThreadFactory(prefix);
     }
 
     /**
-     * Creates a worker pool that uses virtual threads on Java 25+ and a fixed-size platform pool otherwise.
+     * Creates an executor with one named virtual thread per task. The caller owns its shutdown.
+     * Concurrency and admission limits must be enforced by the submitting component, not by this executor.
+     *
+     * @param prefix   the worker thread name prefix
+     * @param poolSize a positive legacy sizing hint; does not bound virtual-thread concurrency
      */
     public static ExecutorService newWorkerPool(String prefix, int poolSize) {
         if (poolSize < 1) {
             throw new IllegalArgumentException("poolSize must be >= 1");
         }
-        return supportsVirtualThreadWorkers()
-                ? Executors.newThreadPerTaskExecutor(newVirtualThreadFactory(prefix))
-                : Executors.newFixedThreadPool(poolSize, newPlatformThreadFactory(prefix));
+        return Executors.newThreadPerTaskExecutor(newVirtualThreadFactory(prefix));
     }
 
+    /**
+     * Returns {@code true}: virtual workers are available on every supported Java runtime.
+     *
+     * @deprecated SDK v2 requires Java 25 or newer, so callers no longer need a runtime-version check.
+     */
+    @Deprecated
     public static boolean supportsVirtualThreadWorkers() {
-        return supportsVirtualThreadWorkers(Runtime.version().feature());
-    }
-
-    static boolean supportsVirtualThreadWorkers(int javaFeatureVersion) {
-        return javaFeatureVersion >= 25;
+        return true;
     }
 
     /**
