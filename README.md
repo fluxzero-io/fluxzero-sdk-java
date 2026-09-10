@@ -3496,6 +3496,15 @@ the payload did not already produce that Model. Payload `@InterceptApply` runs b
 assertions run payload then Model before applying, while `afterHandler = true` assertions run in that order against the
 final state. Live handling, retry, rebase and event replay use this same phasing.
 
+Model `@AssertLegal` methods recursively validate non-null return values, including collection elements. Nested
+checks receive the original payload, metadata, user and application parameter resolvers. Additional injected Models
+are loaded at the same pinned read boundary and included in the RETRY/FAIL readset; ACCEPT rebase and replay do not
+rerun assertions. A returned object is visited in the returning method's before/after phase. Annotated fields,
+including record components, delegate in both phases, with the nested methods choosing their own `afterHandler`
+timing. Use a field to share checks across phases: a no-arg assertion method is not called again in the other phase.
+Nulls are ignored; shared identities and cycles are visited once per payload or Model assertion phase. Nesting beyond 256
+levels fails explicitly. `Fluxzero.assertLegal(...)` runs only immediate checks and does not apply or commit.
+
 Related models remain independently stored:
 
 ```java

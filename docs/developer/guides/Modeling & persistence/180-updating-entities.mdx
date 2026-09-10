@@ -301,6 +301,26 @@ An assertion declared only for the original payload is therefore intentionally s
 replacement. Put an invariant that must survive a rewrite on the effective replacement, or in shared or Model-side
 assertion logic that also matches it. `@AssertLegal(afterHandler = true)` keeps its documented deferred timing.
 
+## Composable legality checks
+
+An `@AssertLegal` method may return a validation object or a collection of validation objects. Fluxzero recursively
+executes their matching assertions using the original payload, metadata, user and application parameter resolvers.
+The nested object is the assertion receiver, not a replacement payload. Additional Model injections, including
+ancestors and `List<Graph<T>>` associations, use the same pinned read boundary. RETRY and FAIL protect these reads;
+ACCEPT rebase and event replay do not rerun the checks.
+
+Return values are visited in the returning method's phase: before-methods visit nested before-methods; after-methods
+visit nested after-methods against the fully composed state. A no-arg accessor is still a method and is not invoked
+again in the other phase. To expose one validator in both phases, use an `@AssertLegal` field (or an annotated record
+component). Fields delegate in both phases regardless of the field's `afterHandler` value; the nested methods choose
+their own timing. Field and method priorities apply within each payload/Model phase; nested checks run immediately
+when encountered. `Fluxzero.assertLegal(...)` performs only immediate checks, without applying or committing.
+
+Null values are ignored. Collection elements are visited in encounter order. Object identity prevents cycles and
+repeated visits within a payload or Model assertion phase, without calling domain `equals` or `hashCode`. Direct
+assertion methods always remain eligible, including explicitly implemented record accessors; only repeated traversal
+of their returned objects is suppressed. Nesting beyond 256 levels is rejected explicitly.
+
 <Aside type="caution">
 Do not perform irreversible external work inside an apply. It may run again during event sourcing or a conflict retry.
 Publish follow-up messages from handlers or event handlers instead.

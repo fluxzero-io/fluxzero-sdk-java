@@ -1041,6 +1041,29 @@ final class ModelPipeline {
                             explicitTarget == null ? null : explicitTarget.modelId(),
                             explicitTarget == null ? null : explicitTarget.modelType(),
                             applyOnly);
+            return new ModelReducer.ResolvedSubstep(
+                    resolve(resolution, boundary, stagedValues), definition.reducer());
+        }
+
+        @Override
+        public CommitAttempt resolveAssertion(
+                DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                CommitAttempt context, Map<String, Object> stagedValues) {
+            MutationPlan.Resolution bound = MutationPlan.bind(message, parameters);
+            LinkedHashMap<String, MutationPlan.ResolvedModel> targets = new LinkedHashMap<>();
+            context.targets().forEach(target -> MutationPlan.merge(targets, target));
+            bound.models().forEach(target -> MutationPlan.merge(targets, target));
+            MutationPlan.Resolution resolution = new MutationPlan.Resolution(
+                    List.copyOf(targets.values()), List.of(), bound.ancestorDependencies().stream()
+                    .filter(dependency -> context.resolve(dependency.modelType(), dependency.association()) == null)
+                    .toList(), bound.references());
+            Map<String, Object> values = new LinkedHashMap<>(stagedValues);
+            context.entities().forEach((id, entity) -> values.put(id, entity.get()));
+            return resolve(resolution, context.readStateIndex(), values).withValues(values);
+        }
+
+        private CommitAttempt resolve(
+                MutationPlan.Resolution resolution, Long boundary, Map<String, Object> stagedValues) {
             AncestorPlanKey planKey = resolution.hasAncestorDependencies()
                     ? ancestorPlanKey(resolution, stagedValues) : null;
             List<MutationPlan.ResolvedModel> effectiveTargets = planKey == null
@@ -1055,10 +1078,10 @@ final class ModelPipeline {
                 stateIndex = loaded.readStateIndex();
                 effectiveTargets = targets(loaded);
                 ancestorPlans.put(planKey, effectiveTargets);
-            } else if (pinnedStateIndex == null && requestedStateIndex == null
+            } else if (boundary == null
                        || !missing.isEmpty()) {
                 MutationPlan.Resolution loadResolution =
-                        pinnedStateIndex == null && requestedStateIndex == null
+                        boundary == null
                                 ? planKey == null ? resolution
                                         : resolution.withResolvedModels(effectiveTargets)
                                 : new MutationPlan.Resolution(missing, List.of());
@@ -1071,10 +1094,7 @@ final class ModelPipeline {
                     target.modelId(), Objects.requireNonNull(
                             commitEntities.get(target.modelId()),
                             "Missing commit-scoped model " + target.modelId())));
-            return new ModelReducer.ResolvedSubstep(
-                    CommitAttempt.create(
-                            stateIndex, effectiveResolution, selected),
-                    definition.reducer());
+            return CommitAttempt.create(stateIndex, effectiveResolution, selected);
         }
 
         @Override

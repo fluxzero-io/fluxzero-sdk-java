@@ -191,6 +191,19 @@ independent of Model-handler iteration order. Both phases are reduced to one ato
 applies remain valid; an independent static creation factory is used only when the payload did not already create its
 target. Keep every phase pure and deterministic because live handling, retry, rebase and replay share this route.
 
+## Recursive Model assertions
+
+Return a validation object (or collection) from `@AssertLegal` to run its matching checks recursively. The original
+payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
+and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
+
+Returned objects are traversed in the returning method's before/after phase. Annotated fields and record components
+delegate in both phases; their nested methods determine timing, not `afterHandler` on the field. Use a field for a
+validator shared across phases: a no-arg assertion method is not called again after apply. `Fluxzero.assertLegal`
+runs only immediate checks. Nulls are ignored; collection order is preserved. Identity-based cycle detection visits
+an object once per payload or Model assertion phase; nesting beyond 256 levels fails. Direct accessor methods remain
+eligible even when their return value has already been traversed.
+
 ## Multi-model commits
 
 One payload can read and update unrelated models:

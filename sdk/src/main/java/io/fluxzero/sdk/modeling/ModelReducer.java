@@ -23,10 +23,13 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -56,19 +59,43 @@ public final class ModelReducer {
     private final MutationPlan.DirectSingleTargetApply directApply;
     private final MutationPlan.CompiledHandler directHandler;
     private final boolean afterAssertions;
+    private final MutationPlan.Compiler compiler;
+    private final List<MutationPlan.Assertion> beforePayloadAssertions, beforeModelAssertions;
+    private final List<MutationPlan.Assertion> afterPayloadAssertions, afterModelAssertions;
+    private final boolean recursiveAssertions;
 
     ModelReducer(
             MutationPlan.HandlerPlan handlers,
             MutationPlan.DirectSingleTargetApply directApply) {
+        this(handlers, directApply, List.of(), null);
+    }
+
+    ModelReducer(
+            MutationPlan.HandlerPlan handlers,
+            MutationPlan.DirectSingleTargetApply directApply,
+            List<MutationPlan.AssertionField> fields,
+            MutationPlan.Compiler compiler) {
         this.handlers = Objects.requireNonNull(handlers, "handlers");
         this.directApply = directApply;
         this.directHandler = directApply == null ? null : handlers.singleApply();
-        this.afterAssertions = !handlers.payload().afterAssertions().isEmpty()
-                               || !handlers.model().afterAssertions().isEmpty();
+        this.compiler = compiler;
+        List<MutationPlan.AssertionField> payloadFields = fields.stream()
+                .filter(field -> field.receiverModelType() == null).toList();
+        List<MutationPlan.AssertionField> modelFields = fields.stream()
+                .filter(field -> field.receiverModelType() != null).toList();
+        this.beforePayloadAssertions = MutationPlan.assertions(handlers.payload().beforeAssertions(), payloadFields, false);
+        this.beforeModelAssertions = MutationPlan.assertions(handlers.model().beforeAssertions(), modelFields, false);
+        this.afterPayloadAssertions = MutationPlan.assertions(handlers.payload().afterAssertions(), payloadFields, true);
+        this.afterModelAssertions = MutationPlan.assertions(handlers.model().afterAssertions(), modelFields, true);
+        this.afterAssertions = !afterPayloadAssertions.isEmpty() || !afterModelAssertions.isEmpty();
+        this.recursiveAssertions = !fields.isEmpty() || handlers.all().stream().anyMatch(handler ->
+                handler.method().kind() == EntityMetadata.HandlerKind.ASSERT_LEGAL
+                && handler.method().executable() instanceof Method method && method.getReturnType() != void.class);
     }
 
     boolean empty() {
-        return handlers.all().isEmpty();
+        return handlers.all().isEmpty() && beforePayloadAssertions.isEmpty() && beforeModelAssertions.isEmpty()
+               && !afterAssertions;
     }
 
     boolean direct() {
@@ -127,7 +154,7 @@ public final class ModelReducer {
             CommitAttempt beginState,
             boolean applyHandlers,
             boolean assertions) {
-        return apply(message, beginState, applyHandlers, assertions, null);
+        return apply(message, beginState, applyHandlers, assertions, null, null);
     }
 
     private List<Change> apply(
@@ -135,7 +162,8 @@ public final class ModelReducer {
             CommitAttempt beginState,
             boolean applyHandlers,
             boolean assertions,
-            Set<String> applyReads) {
+            Set<String> applyReads,
+            AssertionLoader assertionLoader) {
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(beginState, "beginState");
         if (directApply != null && applyHandlers) {
@@ -152,12 +180,15 @@ public final class ModelReducer {
                     message, beginState,
                     List.of(directTransition(
                             compiledHandler, result, 0, beginState)),
-                    assertions);
+                    assertions, assertionLoader);
         }
         beginState.attachTo(message);
         try {
-            return message.apply(ignored -> applyInContext(
-                    message, beginState, applyHandlers, assertions, applyReads));
+            // Keep the unused loader out of the ordinary path's captured arguments.
+            return assertionLoader == null ? message.apply(ignored -> applyInContext(
+                    message, beginState, applyHandlers, assertions, applyReads, null))
+                    : message.apply(ignored -> applyInContext(
+                    message, beginState, applyHandlers, assertions, applyReads, assertionLoader));
         } finally {
             beginState.attachTo(message);
         }
@@ -168,10 +199,11 @@ public final class ModelReducer {
             CommitAttempt beginState,
             boolean applyHandlers,
             boolean assertions,
-            Set<String> applyReads) {
+            Set<String> applyReads,
+            AssertionLoader assertionLoader) {
         if (assertions) {
-            invokeAll(handlers.payload().beforeAssertions(), message, beginState);
-            invokeAll(handlers.model().beforeAssertions(), message, beginState);
+            assertAll(beforePayloadAssertions, message, beginState, false, assertionLoader);
+            assertAll(beforeModelAssertions, message, beginState, false, assertionLoader);
         }
         if (!applyHandlers) {
             return List.of();
@@ -204,7 +236,7 @@ public final class ModelReducer {
         List<Change> transitions = finalValues.values().stream()
                 .map(value -> transition(value, beginState.entity(value.modelId())))
                 .toList();
-        return finishApply(message, beginState, transitions, assertions);
+        return finishApply(message, beginState, transitions, assertions, assertionLoader);
     }
 
     private Map<String, AppliedValue> applyPhase(
@@ -295,24 +327,101 @@ public final class ModelReducer {
             DeserializingMessage message,
             CommitAttempt beginState,
             List<Change> transitions,
-            boolean assertions) {
+            boolean assertions,
+            AssertionLoader assertionLoader) {
         if (assertions && afterAssertions) {
             Map<String, Object> values = new LinkedHashMap<>(transitions.size());
             transitions.forEach(transition -> values.put(
                     transition.modelId(), transition.after()));
             CommitAttempt resultingState = beginState.withValues(values);
-            invokeAll(handlers.payload().afterAssertions(), message, resultingState);
-            invokeAll(handlers.model().afterAssertions(), message, resultingState);
+            assertAll(afterPayloadAssertions, message, resultingState, true, assertionLoader);
+            assertAll(afterModelAssertions, message, resultingState, true, assertionLoader);
         }
         return transitions;
     }
 
-    private static void invokeAll(
-            List<MutationPlan.CompiledHandler> handlers,
+    private void assertAll(
+            List<MutationPlan.Assertion> assertions,
             DeserializingMessage message,
-            CommitAttempt context) {
-        for (int i = 0; i < handlers.size(); i++) {
-            invokeIfApplicable(handlers.get(i), message, context);
+            CommitAttempt context,
+            boolean after,
+            AssertionLoader assertionLoader) {
+        IdentityHashMap<Object, Boolean> visited = null;
+        for (int i = 0; i < assertions.size(); i++) {
+            MutationPlan.Assertion assertion = assertions.get(i);
+            Object result;
+            Object receiver;
+            if (assertion.handler() != null) {
+                HandlerInvoker invoker = invoker(assertion.handler(), message, context);
+                if (invoker == null) {
+                    continue;
+                }
+                result = invoker.invoke();
+                receiver = result == null ? null : invocationTarget(assertion.handler().method(), message, context);
+            } else {
+                MutationPlan.AssertionField field = assertion.field();
+                ModelPipeline.ExplicitModelTarget explicit = message.getContext(
+                        ModelPipeline.ExplicitModelTarget.class).orElse(null);
+                if (field.receiverModelType() != null && explicit != null
+                    && !EntityMetadata.compatibleTypes(field.receiverModelType(), explicit.modelType())) {
+                    continue;
+                }
+                Entity<?> entity = field.receiverModelType() == null ? null : context.resolve(field.receiverModelType(), null);
+                receiver = field.receiverModelType() == null ? message.getPayload() : entity == null ? null : entity.get();
+                result = receiver == null ? null : field.property().read(receiver);
+            }
+            if (result != null) {
+                if (visited == null) {
+                    visited = new IdentityHashMap<>();
+                }
+                visited.put(receiver, Boolean.TRUE);
+                assertResult(result, message, context, after, visited, 0, assertionLoader);
+            }
+        }
+    }
+
+    private void assertResult(Object value, DeserializingMessage message, CommitAttempt context, boolean after,
+                              IdentityHashMap<Object, Boolean> visited, int depth, AssertionLoader assertionLoader) {
+        if (value == null || visited.put(value, Boolean.TRUE) != null) {
+            return;
+        }
+        if (depth >= 256) {
+            throw new IllegalStateException("Model assertion nesting exceeds 256 levels");
+        }
+        if (value instanceof Collection<?> collection) {
+            for (Object element : collection) {
+                assertResult(element, message, context, after, visited, depth + 1, assertionLoader);
+            }
+            return;
+        }
+        MutationPlan.AssertionPlan plan = compiler.assertions(value.getClass());
+        for (MutationPlan.Assertion assertion : after ? plan.after() : plan.before()) {
+            Object result;
+            CommitAttempt assertionContext = context;
+            try {
+                if (assertion.handler() != null) {
+                    context.attachTo(message);
+                    if (assertion.selector() != null && !assertion.selector().canHandle(message)) {
+                        continue;
+                    }
+                    if (assertionLoader != null && !assertion.handler().method().modelParameters().isEmpty()) {
+                        assertionContext = assertionLoader.load(message,
+                                EntityMetadata.modelParameters(assertion.handler().method().executable()), context);
+                    }
+                    assertionContext.attachTo(message);
+                    HandlerInvoker invoker = assertion.handler().matcher().getInvokerOrNull(value, message);
+                    if (invoker == null) {
+                        continue;
+                    }
+                    result = invoker.invoke();
+                } else {
+                    context.attachTo(message);
+                    result = assertion.field().property().read(value);
+                }
+                assertResult(result, message, assertionContext, after, visited, depth + 1, assertionLoader);
+            } finally {
+                context.attachTo(message);
+            }
         }
     }
 
@@ -339,16 +448,6 @@ public final class ModelReducer {
                     "Stored model event produced no transition for " + targetModelId);
         }
         return selected.after();
-    }
-
-    private static void invokeIfApplicable(
-            MutationPlan.CompiledHandler handler,
-            DeserializingMessage message,
-            CommitAttempt context) {
-        HandlerInvoker invoker = invoker(handler, message, context);
-        if (invoker != null) {
-            invoker.invoke();
-        }
     }
 
     private static HandlerInvoker invoker(
@@ -778,9 +877,22 @@ public final class ModelReducer {
                     interceptionPhase = interceptionPhase.next();
                 }
 
+                AssertionLoader assertionLoader = mode.assertions && resolved.reducer().recursiveAssertions
+                        ? (message, parameters, assertionContext) -> {
+                            CommitAttempt loaded = resolver.resolveAssertion(
+                                    message, parameters, assertionContext, stagedValues);
+                            if (loaded.readStateIndex() != assertionContext.readStateIndex()) {
+                                throw new IllegalStateException("Nested assertion changed the pinned model read boundary");
+                            }
+                            loaded.targets().forEach(target -> {
+                                readModelIds.add(target.modelId());
+                                readModelTypes.putIfAbsent(target.modelId(), target.modelType());
+                            });
+                            return loaded;
+                        } : null;
                 List<Change> transitions = resolved.reducer().apply(
-                        current.message(), context,
-                        mode.applyHandlers, mode.assertions, applyReadModelIds);
+                        current.message(), context, mode.applyHandlers, mode.assertions,
+                        applyReadModelIds, assertionLoader);
                 for (Change transition : transitions) {
                     stagedValues.put(transition.modelId(), transition.after());
                     applyReadModelIds.add(transition.modelId());
@@ -956,11 +1068,23 @@ public final class ModelReducer {
     }
 
     @FunctionalInterface
+    private interface AssertionLoader {
+        CommitAttempt load(DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                           CommitAttempt context);
+    }
+
+    @FunctionalInterface
     interface SubstepResolver {
         ResolvedSubstep resolve(
                 DeserializingMessage message,
                 Long readStateIndex,
                 Map<String, Object> stagedValues);
+
+        default CommitAttempt resolveAssertion(
+                DeserializingMessage message, EntityMetadata.ExecutableParameters parameters,
+                CommitAttempt context, Map<String, Object> stagedValues) {
+            return context;
+        }
 
         default ResolvedSubstep resolveGraph(
                 String modelId,

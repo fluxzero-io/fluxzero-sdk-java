@@ -84,6 +84,7 @@ public final class EntityMetadata {
     private final List<AliasProperty> aliasProperties;
     private final List<ParentReference> parentReferences;
     private final List<HandlerMethod> handlerMethods;
+    private final List<Property> assertionFields;
     private final int revision;
     private volatile Boolean selfReferentialMember;
 
@@ -213,6 +214,9 @@ public final class EntityMetadata {
                                       .formatted(type.getName()));
             }
         }
+        this.assertionFields = typeMetadata.annotatedProperties(AssertLegal.class).stream()
+                .filter(Field.class::isInstance)
+                .map(EntityMetadata::property).toList();
         this.handlerMethods = inspectHandlerMethods(typeMetadata);
     }
 
@@ -675,6 +679,10 @@ public final class EntityMetadata {
 
     public List<HandlerMethod> handlerMethods() {
         return handlerMethods;
+    }
+
+    List<Property> assertionFields() {
+        return assertionFields;
     }
 
     boolean hasSelfReferentialMember() {
