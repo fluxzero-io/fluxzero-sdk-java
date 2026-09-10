@@ -1,6 +1,6 @@
 ---
 title: Building your first app
-description: Tutorial for creating your first Fluxzero app
+description: A guided tutorial for building your first Fluxzero app.
 sidebar:
    order: 30
 ---
@@ -12,6 +12,8 @@ In this tutorial, we’ll build a simple to-do app that shows the core ideas of 
 We’ll start from a blank slate and add features like creating projects, managing tasks, querying data, and scheduling actions.
 
 Each feature comes with a test, so you’ll see how Fluxzero works in practice, not just theory.
+
+Ask your coding agent to implement each section. The tutorial also doubles as a tour of the real code behind the product.
 
 ---
 
@@ -25,7 +27,7 @@ To familiarize yourself with core concepts in Fluxzero, first [check them out](/
 
 ## Getting started
 
-Create a new project called 'Todo' using the Basic Starter for Java or Kotlin (see [Installation](/docs/getting-started/installation) for how).
+Have your coding agent create a new project called 'Todo' using the Basic Starter for Java or Kotlin (see [Installation](/docs/getting-started/installation) for how).
 We’ll use the following package layout:
 
 ```text
@@ -37,15 +39,15 @@ io.fluxzero.todo
     └── handler classes
 ```
 
-Open your project in
+Your coding agent can work in the project directly. Whenever you want to inspect or edit the code,
   <a href="https://www.jetbrains.com/idea/" target="_blank" rel="noopener noreferrer">IntelliJ IDEA <span aria-hidden="true">↗</span></a>
-  for the best experience.
+  provides a good Java and Kotlin experience.
 
 ---
 
 ## Designing our app
 
-Before we start coding, let’s decide what kind of to-do app we want.
+Before we add code, let’s decide what kind of to-do app we want.
 
 Our app should support multiple projects, each containing its own tasks.
 This lets users organize tasks into categories like *Work*, *Groceries*, or *Side project*.
@@ -308,7 +310,7 @@ class ProjectCommandHandler {
 </Tabs>
 
 What this method tells Fluxzero is that this handler is interested in commands of type CreateProject. These commands
-may have been published in the same app or any other service connected to the Fluxzero runtime.
+may have been published in the same app or any other service connected through Fluxzero.
 
 You can inject all kinds of parameters into handler methods, like the command sender, metadata, or full command message. For more info on handlers see [message handlers](/docs/guides/messaging/message-handling).
 
@@ -2977,7 +2979,7 @@ This setup ensures your task expiration logic and Slack integration are fully te
 
 ## Wrapping up
 
-That’s it! You’ve just built your first Fluxzero app — complete with:
+That’s it! Your coding agent has built your first Fluxzero app, complete with:
 
 - ✅ Creating and updating projects
 - ✅ Adding nested tasks
@@ -2999,7 +3001,7 @@ You’ve now seen how Fluxzero helps you build powerful apps with simple, expres
 Want to keep going?
 
 - [Deploy your app to Fluxzero Cloud](/docs/tutorials/cloud-deployment)
-- Dive deeper with our [developer guides](/docs/guides)
+- Dive deeper with our [technical guides](/docs/guides)
 - Explore real-world patterns in the <a href="https://github.com/fluxzero-io/fluxzero-examples" target="_blank" rel="noopener noreferrer">Fluxzero examples repo <span aria-hidden="true">↗</span></a>
 - Try extending the to-do app — maybe add task checklists, due dates, or progress tracking
 
@@ -3007,4 +3009,4 @@ Want to keep going?
 
 Fluxzero is designed to help you move fast, without giving up on clean architecture or observability.
 
-[Let us know what you build](/contact) — and if you have questions or feedback, we’d love to hear. We built this for developers like you. Let’s make it the best it can be.
+[Let us know what you build](/contact) — and if you have questions or feedback, we’d love to hear. We built this for builders like you.

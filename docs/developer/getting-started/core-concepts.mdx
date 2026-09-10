@@ -1,22 +1,24 @@
 ---
 title: Core concepts
-description: Fluxzero is a cloud runtime that lets you focus on business logic instead of infrastructure.
+description: How Fluxzero keeps your product behavior visible in clean code while the cloud handles the foundation.
 sidebar:
     order: 11
 ---
 
 import {Tabs, TabItem} from '@astrojs/starlight/components';
 
-# Your code in Fluxzero
+# How product behavior becomes code
 
-Fluxzero apps are built with **clean, expressive code** — no scaffolding, no layers, no dependency injection. Just logic.
+Fluxzero apps keep product behavior visible in **clean, expressive code** — no scaffolding, no layers, no dependency injection. Just logic.
 
-You write the heart of your application: the messages, logic, and state.
+Your coding agent writes this application code as ordinary code that you can inspect, test, and extend.
+
+Either way, the application contains the heart of your product: the messages, logic, and state.
 Fluxzero handles everything else: delivery, persistence, routing, retries, observability, and scale.
 
-Let’s go over the only parts you still write — the ones that define your product.
+Let’s go over the only parts the application still needs — the ones that define your product.
 
-## What you write
+## What the application contains
 
 These are the core building blocks of your business logic — all plain Java or Kotlin classes:
 
