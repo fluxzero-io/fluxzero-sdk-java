@@ -782,6 +782,12 @@
   "enumConstants" : [ ],
   "recordComponents" : [ ],
   "nestedTypes" : [ {
+    "name" : "LocalOnlyMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$LocalOnlyMetadata",
+    "kind" : "record",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ]
+  }, {
     "name" : "PendingRequest",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$PendingRequest",
     "kind" : "record",

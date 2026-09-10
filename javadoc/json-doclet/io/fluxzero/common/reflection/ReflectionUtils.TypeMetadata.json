@@ -178,6 +178,14 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "specializedMetadata",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata.specializedMetadata",
+    "type" : "java.util.concurrent.ConcurrentHashMap<java.lang.Class<?>,java.lang.Object>",
+    "modifiers" : [ "private", "volatile" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "type",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata.type",
     "type" : "java.lang.Class<?>",
@@ -815,6 +823,27 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : null
+  }, {
+    "name" : "specializedMetadata",
+    "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#specializedMetadata",
+    "returnType" : "M",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "M" ],
+    "parameters" : [ {
+      "name" : "metadataType",
+      "type" : "java.lang.Class<M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "factory",
+      "type" : "java.util.function.Function<java.lang.Class<?>,? extends M>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns type-specific structural metadata owned by this central type cache.\n <p>\n SDK features can use this extension point for immutable metadata that is derived only from {@link #type()}.\n Runtime or instance state must not be captured by the factory or the returned value. Concurrent or reentrant\n first access may compute more than one value; all callers receive the first value published successfully.\n\n @param metadataType unique metadata kind and expected result type\n @param factory      computes non-null metadata from this Java type on first access\n @param <M>          metadata type\n @return the cached metadata instance\n"
   }, {
     "name" : "type",
     "qualifiedName" : "io.fluxzero.common.reflection.ReflectionUtils$TypeMetadata#type",

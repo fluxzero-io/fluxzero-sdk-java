@@ -35,6 +35,11 @@
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway",
     "kind" : "class"
   }, {
+    "file" : "DefaultGenericGateway.LocalOnlyMetadata.json",
+    "name" : "DefaultGenericGateway.LocalOnlyMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$LocalOnlyMetadata",
+    "kind" : "record"
+  }, {
     "file" : "DefaultGenericGateway.PendingRequest.json",
     "name" : "DefaultGenericGateway.PendingRequest",
     "qualifiedName" : "io.fluxzero.sdk.publishing.DefaultGenericGateway$PendingRequest",
