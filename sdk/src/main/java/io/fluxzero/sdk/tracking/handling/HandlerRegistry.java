@@ -91,6 +91,22 @@ public interface HandlerRegistry extends HasLocalHandlers {
     Optional<CompletableFuture<Object>> handle(DeserializingMessage message);
 
     /**
+     * Attempts to handle the message locally while controlling optional SDK-managed external publication.
+     *
+     * <p>The default delegates to {@link #handle(DeserializingMessage)} because custom registries are assumed to invoke
+     * local handlers only. Registries that optionally mirror locally handled messages externally should honor
+     * {@code allowExternalPublication}.</p>
+     *
+     * @param message the deserialized message to dispatch
+     * @param allowExternalPublication whether SDK-managed mirroring may publish the message externally
+     * @return an optional future containing the result, or empty if no handler was found
+     */
+    default Optional<CompletableFuture<Object>> handle(DeserializingMessage message,
+                                                       boolean allowExternalPublication) {
+        return handle(message);
+    }
+
+    /**
      * Conservatively reports whether local handling can be skipped without first materializing a message.
      *
      * <p>Custom registries default to {@code false}. Returning {@code true} is an explicit promise that invoking this
@@ -121,6 +137,20 @@ public interface HandlerRegistry extends HasLocalHandlers {
     }
 
     /**
+     * Attempts to handle the message locally while controlling optional SDK-managed external publication.
+     *
+     * @param message the message to dispatch
+     * @param allowExternalPublication whether SDK-managed mirroring may publish the message externally
+     * @return the local handling result
+     */
+    default LocalHandlerResult handleResult(DeserializingMessage message, boolean allowExternalPublication) {
+        return handle(message, allowExternalPublication).map(result -> LocalHandlerResult.asynchronous(
+                        result.thenCompose(value -> Invocation.resultPublicationBarrier(message)
+                                .thenApply(ignored -> value))))
+                .orElseGet(LocalHandlerResult::notHandled);
+    }
+
+    /**
      * Attempts to handle a lazy local input.
      *
      * <p>The default materializes the message and delegates to {@link #handleResult(DeserializingMessage)}.
@@ -131,20 +161,6 @@ public interface HandlerRegistry extends HasLocalHandlers {
      */
     default LocalHandlerResult handleResult(LocalHandlerInput input) {
         return handleResult(input.getMessage());
-    }
-
-    /**
-     * Selects exactly one result-producing local handler without invoking it.
-     *
-     * <p>This method backs fail-closed local-only dispatch. Custom registries must override it before they can accept
-     * local-only payloads; the default rejects the dispatch because adapting {@link #handle(DeserializingMessage)}
-     * cannot prove uniqueness without invoking a handler.</p>
-     *
-     * @param message the message to inspect
-     * @return an exact local handler selection
-     */
-    default LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
-        return LocalHandlerSelection.unsupported();
     }
 
     /**
@@ -199,6 +215,13 @@ public interface HandlerRegistry extends HasLocalHandlers {
             }
 
             @Override
+            public Optional<CompletableFuture<Object>> handle(DeserializingMessage message,
+                                                              boolean allowExternalPublication) {
+                return first.handle(message, allowExternalPublication)
+                        .or(() -> second.handle(message, allowExternalPublication));
+            }
+
+            @Override
             public boolean handleLocal(LocalExecution execution) {
                 return first.handleLocal(execution)
                        || second.handleLocal(execution);
@@ -224,6 +247,15 @@ public interface HandlerRegistry extends HasLocalHandlers {
         }
 
         @Override
+        public Optional<CompletableFuture<Object>> handle(DeserializingMessage message,
+                                                          boolean allowExternalPublication) {
+            Optional<CompletableFuture<Object>> firstResult = first.handle(message, allowExternalPublication);
+            Optional<CompletableFuture<Object>> secondResult = second.handle(message, allowExternalPublication);
+            return firstResult.isPresent() ? secondResult.map(messageCompletableFuture -> firstResult.get()
+                    .thenCombine(messageCompletableFuture, (a, b) -> a)).or(() -> firstResult) : secondResult;
+        }
+
+        @Override
         public boolean canHandle(DeserializingMessage message) {
             return first.canHandle(message) || second.canHandle(message);
         }
@@ -232,12 +264,6 @@ public interface HandlerRegistry extends HasLocalHandlers {
         public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
             return first.canSkipLocalHandling(messageType, payloadType)
                    && second.canSkipLocalHandling(messageType, payloadType);
-        }
-
-        @Override
-        public LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
-            return LocalHandlerSelection.merge(first.selectSingleHandler(message),
-                                               second.selectSingleHandler(message));
         }
 
         @Override
@@ -281,11 +307,6 @@ public interface HandlerRegistry extends HasLocalHandlers {
         @Override
         public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
             return true;
-        }
-
-        @Override
-        public LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
-            return LocalHandlerSelection.noMatch();
         }
 
         @Override

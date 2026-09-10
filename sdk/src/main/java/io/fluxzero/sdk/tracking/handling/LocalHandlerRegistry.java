@@ -177,19 +177,26 @@ public class LocalHandlerRegistry implements HandlerRegistry {
 
     @Override
     public LocalHandlerResult handleResult(DeserializingMessage message) {
+        return handleResult(message, true);
+    }
+
+    @Override
+    public LocalHandlerResult handleResult(DeserializingMessage message, boolean allowExternalPublication) {
         return runInLocalHandlerNamespace(message,
-                                          () -> handleResultInConsumerNamespace(new MessageHandlerInput(message)));
+                                          () -> handleResultInConsumerNamespace(
+                                                  new MessageHandlerInput(message), allowExternalPublication));
     }
 
     @Override
     public LocalHandlerResult handleResult(LocalHandlerInput input) {
         DeserializingMessage message = input.getMessageIfAvailable();
         return message == null
-                ? runInLocalHandlerNamespace(() -> handleResultInConsumerNamespace(input))
-                : runInLocalHandlerNamespace(message, () -> handleResultInConsumerNamespace(input));
+                ? runInLocalHandlerNamespace(() -> handleResultInConsumerNamespace(input, true))
+                : runInLocalHandlerNamespace(message, () -> handleResultInConsumerNamespace(input, true));
     }
 
-    private LocalHandlerResult handleResultInConsumerNamespace(LocalHandlerInput input) {
+    private LocalHandlerResult handleResultInConsumerNamespace(
+            LocalHandlerInput input, boolean allowExternalPublication) {
         Class<?> payloadClass = payloadClass(input.getPayload());
         long version = handlerVersion.get();
         PreparedLocalPlan rawPlan = input.getMessageIfAvailable() == null
@@ -198,7 +205,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                 : getPreparedPlan(input, getLocalHandlers(input.getMessageType(), payloadClass), version,
                                   payloadClass);
         if (prepared == PreparedLocalPlan.unsupported) {
-            return handle(input.getMessage()).map(LocalHandlerResult::asynchronous)
+            return handle(input.getMessage(), allowExternalPublication).map(LocalHandlerResult::asynchronous)
                     .orElseGet(LocalHandlerResult::notHandled);
         }
         if (prepared == PreparedLocalPlan.noMatch) {
@@ -335,11 +342,20 @@ public class LocalHandlerRegistry implements HandlerRegistry {
     @SuppressWarnings("unchecked")
     @Override
     public Optional<CompletableFuture<Object>> handle(DeserializingMessage message) {
-        return runInLocalHandlerNamespace(message, () -> handleInConsumerNamespace(message));
+        return handle(message, true);
     }
 
     @SuppressWarnings("unchecked")
-    private Optional<CompletableFuture<Object>> handleInConsumerNamespace(DeserializingMessage message) {
+    @Override
+    public Optional<CompletableFuture<Object>> handle(DeserializingMessage message,
+                                                      boolean allowExternalPublication) {
+        return runInLocalHandlerNamespace(
+                message, () -> handleInConsumerNamespace(message, allowExternalPublication));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Optional<CompletableFuture<Object>> handleInConsumerNamespace(
+            DeserializingMessage message, boolean allowExternalPublication) {
         List<Handler<DeserializingMessage>> localHandlers = getLocalHandlers(message);
         if (localHandlers.isEmpty()) {
             return Optional.empty();
@@ -386,7 +402,7 @@ public class LocalHandlerRegistry implements HandlerRegistry {
             try {
                 return handled ? Optional.of(future) : Optional.empty();
             } finally {
-                if (handled && logMessage) {
+                if (handled && logMessage && allowExternalPublication) {
                     Fluxzero.getOptionally().ifPresent(fc -> {
                         SerializedMessage serializedMessage = message.getSerializedObject();
                         serializedMessage = dispatchInterceptor.modifySerializedMessage(
@@ -400,58 +416,6 @@ public class LocalHandlerRegistry implements HandlerRegistry {
                 }
             }
         });
-    }
-
-    @Override
-    public LocalHandlerSelection selectSingleHandler(DeserializingMessage message) {
-        return runInLocalHandlerNamespace(message, () -> message.apply(this::selectSingleHandlerInConsumerNamespace));
-    }
-
-    private LocalHandlerSelection selectSingleHandlerInConsumerNamespace(DeserializingMessage message) {
-        List<HandlerInvoker> invokers = new java.util.ArrayList<>();
-        int requestHandlers = 0;
-        for (Handler<DeserializingMessage> handler : getLocalHandlers(message)) {
-            HandlerInvoker invoker = handler.getInvokerOrNull(message);
-            if (invoker == null) {
-                continue;
-            }
-            invokers.add(invoker);
-            if (!invoker.isPassive() && ++requestHandlers > 1) {
-                return LocalHandlerSelection.ambiguous();
-            }
-        }
-        if (requestHandlers == 0) {
-            return LocalHandlerSelection.noMatch();
-        }
-        if (invokers.stream().anyMatch(this::logMessage)) {
-            return LocalHandlerSelection.externalPublication();
-        }
-        List<HandlerInvoker> selectedInvokers = List.copyOf(invokers);
-        return LocalHandlerSelection.selected(() -> runInLocalHandlerNamespace(
-                message, () -> message.apply(ignored -> invokeSelectedHandlers(selectedInvokers, message))));
-    }
-
-    private LocalHandlerResult invokeSelectedHandlers(List<HandlerInvoker> invokers, DeserializingMessage message) {
-        LocalHandlerResult requestResult = LocalHandlerResult.notHandled();
-        for (HandlerInvoker invoker : invokers) {
-            try {
-                Object result = Invocation.performInvocation(invoker, invoker::invoke);
-                if (result instanceof Optional<?> optional) {
-                    result = optional.orElse(null);
-                }
-                if (!invoker.isPassive()) {
-                    requestResult = result instanceof CompletableFuture<?> future
-                            ? LocalHandlerResult.asynchronous(future) : LocalHandlerResult.completed(result);
-                }
-            } catch (Throwable e) {
-                if (invoker.isPassive()) {
-                    log.error("Passive handler {} failed to handle a {}", invoker, message.getPayloadClass(), e);
-                } else {
-                    requestResult = LocalHandlerResult.failed(e);
-                }
-            }
-        }
-        return requestResult;
     }
 
     @Override

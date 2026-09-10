@@ -14,6 +14,7 @@
 
 package io.fluxzero.sdk.publishing;
 
+import io.fluxzero.common.Guarantee;
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.sdk.Fluxzero;
@@ -23,7 +24,11 @@ import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.FluxzeroBuilder;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.publishing.localonly.external.PackageOverrideCommand;
+import io.fluxzero.sdk.publishing.localonly.nested.ParentPackageLocalCommand;
+import io.fluxzero.sdk.publishing.localonly.nested.TypeOverrideCommand;
 import io.fluxzero.sdk.tracking.handling.HandleCommand;
+import io.fluxzero.sdk.tracking.handling.HandleEvent;
 import io.fluxzero.sdk.tracking.handling.HandleQuery;
 import io.fluxzero.sdk.tracking.handling.LocalHandler;
 import org.junit.jupiter.api.Test;
@@ -35,15 +40,17 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static io.fluxzero.common.MessageType.COMMAND;
+import static io.fluxzero.common.MessageType.EVENT;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Isolated
 class LocalOnlyDispatchTest {
@@ -83,41 +90,35 @@ class LocalOnlyDispatchTest {
     }
 
     @Test
-    void registrationRemovalAndAmbiguityRemainFailClosed() {
+    void registrationRemovalFailsRequestsWhileMultipleHandlersUseNormalLocalSelection() {
         try (Fluxzero fluxzero = createFluxzero()) {
             CommandHandler first = new CommandHandler("first");
             Registration registration = fluxzero.commandGateway().registerHandler(first);
             assertEquals("first-value", fluxzero.commandGateway().sendAndWait(new LocalCommand("value")));
 
             registration.cancel();
-            LocalOnlyDispatchException missing = assertThrows(
-                    LocalOnlyDispatchException.class,
-                    () -> fluxzero.commandGateway().sendAndWait(new LocalCommand("missing")));
-            assertTrue(missing.getMessage().contains("no local request handler matched"));
+            assertThrows(LocalOnlyDispatchException.class,
+                         () -> fluxzero.commandGateway().sendAndWait(new LocalCommand("missing")));
 
             CommandHandler second = new CommandHandler("second");
             CommandHandler third = new CommandHandler("third");
             fluxzero.commandGateway().registerHandler(second);
             fluxzero.commandGateway().registerHandler(third);
-            LocalOnlyDispatchException ambiguous = assertThrows(
-                    LocalOnlyDispatchException.class,
-                    () -> fluxzero.commandGateway().sendAndWait(new LocalCommand("ambiguous")));
-            assertTrue(ambiguous.getMessage().contains("multiple local request handlers matched"));
-            assertEquals(0, second.invocations.get());
+            assertEquals("second-ambiguous",
+                         fluxzero.commandGateway().sendAndWait(new LocalCommand("ambiguous")));
+            assertEquals(1, second.invocations.get());
             assertEquals(0, third.invocations.get());
         }
     }
 
     @Test
-    void missingHandlerFailsDirectlyForAsyncBulkAndFireAndForgetCalls() {
+    void missingRequestHandlerCompletesAsyncBulkAndFireAndForgetFuturesExceptionally() {
         try (Fluxzero fluxzero = createFluxzero()) {
-            assertThrows(LocalOnlyDispatchException.class,
-                         () -> fluxzero.commandGateway().send(new LocalCommand("async")));
-            assertThrows(LocalOnlyDispatchException.class,
-                         () -> fluxzero.commandGateway().send(
-                                 new LocalCommand("first"), new LocalCommand("second")));
-            assertThrows(LocalOnlyDispatchException.class,
-                         () -> fluxzero.commandGateway().sendAndForget(new LocalCommand("forget")));
+            assertMissingHandler(fluxzero.commandGateway().send(new LocalCommand("async")));
+            fluxzero.commandGateway().send(new LocalCommand("first"), new LocalCommand("second"))
+                    .forEach(LocalOnlyDispatchTest::assertMissingHandler);
+            assertMissingHandler(fluxzero.commandGateway().sendAndForget(
+                    Guarantee.NONE, new LocalCommand("forget")));
         }
     }
 
@@ -126,8 +127,8 @@ class LocalOnlyDispatchTest {
         Object[] commands = IntStream.range(0, 256)
                 .mapToObj(index -> new LocalCommand("parallel-" + index)).toArray();
         try (Fluxzero fluxzero = createFluxzero()) {
-            assertThrows(LocalOnlyDispatchException.class, () -> fluxzero.commandGateway().send(commands));
-            assertThrows(LocalOnlyDispatchException.class, () -> fluxzero.commandGateway().sendAndForget(commands));
+            fluxzero.commandGateway().send(commands).forEach(LocalOnlyDispatchTest::assertMissingHandler);
+            assertMissingHandler(fluxzero.commandGateway().sendAndForget(Guarantee.NONE, commands));
         }
     }
 
@@ -171,17 +172,56 @@ class LocalOnlyDispatchTest {
     }
 
     @Test
-    void rejectsLocalHandlerThatWouldAlsoPublishTheMessage() {
+    void suppressesConfiguredMessageLoggingForLocalOnlyPayload() {
         PublishingHandler handler = new PublishingHandler();
         try (Fluxzero fluxzero = createFluxzero()) {
             fluxzero.commandGateway().registerHandler(handler);
 
-            LocalOnlyDispatchException error = assertThrows(
-                    LocalOnlyDispatchException.class,
-                    () -> fluxzero.commandGateway().sendAndWait(new LocalCommand("value")));
+            assertEquals("value", fluxzero.commandGateway().sendAndWait(new LocalCommand("value")));
 
-            assertTrue(error.getMessage().contains("configured to publish the message externally"));
-            assertEquals(0, handler.invocations.get());
+            assertEquals(1, handler.invocations.get());
+            assertEquals(0, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
+        }
+    }
+
+    @Test
+    void invokesAllLocalEventHandlersWithoutExternalPublication() {
+        EventHandler first = new EventHandler();
+        EventHandler second = new EventHandler();
+        try (Fluxzero fluxzero = createFluxzero()) {
+            fluxzero.eventGateway().registerHandler(first);
+            fluxzero.eventGateway().registerHandler(second);
+
+            fluxzero.eventGateway().publish(Guarantee.STORED, new LocalEvent()).join();
+
+            assertEquals(1, first.invocations.get());
+            assertEquals(1, second.invocations.get());
+            assertEquals(0, ((LocalClient) fluxzero.client()).getTrackingClient(EVENT)
+                    .readFromIndex(0, 10).size());
+        }
+    }
+
+    @Test
+    void localOnlyEventWithoutHandlerCompletesWithoutPublication() {
+        try (Fluxzero fluxzero = createFluxzero()) {
+            fluxzero.eventGateway().publish(Guarantee.STORED, new LocalEvent()).join();
+
+            assertEquals(0, ((LocalClient) fluxzero.client()).getTrackingClient(EVENT)
+                    .readFromIndex(0, 10).size());
+        }
+    }
+
+    @Test
+    void inheritsParentPackageAndSupportsTypeAndPackageOverrides() {
+        try (Fluxzero fluxzero = createFluxzero()) {
+            assertMissingHandler(fluxzero.commandGateway().send(new ParentPackageLocalCommand()));
+
+            fluxzero.commandGateway().sendAndForget(Guarantee.STORED, new TypeOverrideCommand(),
+                                                    new PackageOverrideCommand()).join();
+
+            assertEquals(2, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
         }
     }
 
@@ -215,6 +255,11 @@ class LocalOnlyDispatchTest {
         return builder.build(LocalClient.newInstance(null));
     }
 
+    private static void assertMissingHandler(CompletableFuture<?> result) {
+        CompletionException error = assertThrows(CompletionException.class, result::join);
+        assertInstanceOf(LocalOnlyDispatchException.class, error.getCause());
+    }
+
     @LocalOnly
     private record LocalCommand(String value) {
     }
@@ -246,6 +291,10 @@ class LocalOnlyDispatchTest {
     }
 
     private record OrdinaryCommand() {
+    }
+
+    @LocalOnly
+    private record LocalEvent() {
     }
 
     @SensitiveLocal
@@ -316,6 +365,16 @@ class LocalOnlyDispatchTest {
         String handle(LocalCommand command) {
             invocations.incrementAndGet();
             return command.value();
+        }
+    }
+
+    @LocalHandler(logMessage = true)
+    private static class EventHandler {
+        private final AtomicInteger invocations = new AtomicInteger();
+
+        @HandleEvent
+        void handle(LocalEvent ignored) {
+            invocations.incrementAndGet();
         }
     }
 

@@ -25,7 +25,6 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
-import io.fluxzero.sdk.tracking.handling.LocalHandlerSelection;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.tracking.handling.authentication.User;
 import org.junit.jupiter.api.Test;
@@ -39,20 +38,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -195,7 +193,7 @@ class DefaultGenericGatewayTest {
     }
 
     @Test
-    void localOnlyDispatchFailsBeforeMonitoringSerializationOrPublication() {
+    void missingLocalOnlyRequestFailsThroughFutureWithoutSerializationOrPublication() {
         Client client = mock(Client.class);
         GatewayClient gatewayClient = mock(GatewayClient.class);
         HandlerRegistry localHandlers = mock(HandlerRegistry.class);
@@ -205,42 +203,27 @@ class DefaultGenericGatewayTest {
         when(client.namespace()).thenReturn(null);
         when(client.forNamespace(null)).thenReturn(client);
         when(interceptor.interceptDispatch(message, MessageType.COMMAND, null, null)).thenReturn(message);
-        when(localHandlers.selectSingleHandler(any())).thenReturn(LocalHandlerSelection.noMatch());
+        when(localHandlers.handleResult(any(), eq(false))).thenReturn(LocalHandlerResult.notHandled());
         DefaultGenericGateway gateway = gateway(client, gatewayClient, localHandlers, serializer, interceptor);
 
-        assertThrows(LocalOnlyDispatchException.class, () -> gateway.sendAndWait(message));
+        CompletionException error = assertThrows(CompletionException.class, () -> gateway.sendForMessage(message).join());
 
-        verify(interceptor, never()).monitorDispatch(any(), eq(MessageType.COMMAND), isNull(), isNull(), anyBoolean());
+        assertInstanceOf(LocalOnlyDispatchException.class, error.getCause());
         verify(interceptor, never()).modifySerializedMessage(any(), any(), any(), any());
         verify(serializer, never()).serialize(any(), any());
         verify(gatewayClient, never()).append(any(), any(SerializedMessage[].class));
     }
 
     @Test
-    void customRegistryMustExplicitlySupportExactLocalSelection() {
-        HandlerRegistry customRegistry = mock(HandlerRegistry.class, CALLS_REAL_METHODS);
-        when(customRegistry.handle(any())).thenReturn(Optional.of(CompletableFuture.completedFuture("unsafe")));
-        DefaultGenericGateway gateway = gateway(mock(GatewayClient.class), customRegistry);
-
-        LocalOnlyDispatchException error = assertThrows(
-                LocalOnlyDispatchException.class, () -> gateway.sendAndWait(new LocalOnlyCommand()));
-
-        assertTrue(error.getMessage().contains("cannot guarantee exact local selection"));
-        verify(customRegistry, never()).handle(any());
-    }
-
-    @Test
-    void invalidCustomSelectionCannotFallBackToExternalDispatch() {
+    void localOnlyDispatchUsesTheExistingCustomRegistryContract() {
         GatewayClient gatewayClient = mock(GatewayClient.class);
-        HandlerRegistry customRegistry = mock(HandlerRegistry.class);
-        when(customRegistry.selectSingleHandler(any())).thenReturn(
-                LocalHandlerSelection.selected(LocalHandlerResult::notHandled));
+        HandlerRegistry customRegistry = mock(HandlerRegistry.class, CALLS_REAL_METHODS);
+        when(customRegistry.handle(any())).thenReturn(Optional.of(CompletableFuture.completedFuture("local")));
         DefaultGenericGateway gateway = gateway(gatewayClient, customRegistry);
 
-        LocalOnlyDispatchException error = assertThrows(
-                LocalOnlyDispatchException.class, () -> gateway.sendAndWait(new LocalOnlyCommand()));
+        gateway.sendAndForget(Guarantee.NONE, new Message(new LocalOnlyCommand())).join();
 
-        assertTrue(error.getMessage().contains("selected local handler did not accept the message"));
+        verify(customRegistry).handle(any());
         verify(gatewayClient, never()).append(any(), any(SerializedMessage[].class));
     }
 

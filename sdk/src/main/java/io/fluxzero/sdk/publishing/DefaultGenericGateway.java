@@ -31,7 +31,6 @@ import io.fluxzero.sdk.configuration.client.Client;
 import io.fluxzero.sdk.publishing.client.GatewayClient;
 import io.fluxzero.sdk.tracking.handling.HandlerRegistry;
 import io.fluxzero.sdk.tracking.handling.LocalHandlerResult;
-import io.fluxzero.sdk.tracking.handling.LocalHandlerSelection;
 import io.fluxzero.sdk.tracking.handling.LocalExecution;
 import io.fluxzero.sdk.tracking.handling.ResponseMapper;
 import io.fluxzero.sdk.web.WebResponse;
@@ -54,7 +53,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.Guarantee.SENT;
-import static io.fluxzero.common.reflection.ReflectionUtils.isAnnotationPresent;
+import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotationAs;
+import static io.fluxzero.common.reflection.ReflectionUtils.getPackageAnnotations;
 import static io.fluxzero.sdk.common.ClientUtils.isApplicationNamespace;
 import static io.fluxzero.sdk.common.ClientUtils.setConsumerNamespace;
 import static io.fluxzero.sdk.common.ClientUtils.waitForResults;
@@ -140,13 +140,20 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             if (message == null) {
                 continue;
             }
-            LocalHandlerSelection localSelection = selectLocalOnlyHandler(original, originalLocalOnly, message);
+            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
             dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
-            Optional<CompletableFuture<Object>> localResult = localSelection == null
-                    ? canSkipLocalHandling(message)
-                            ? Optional.empty() : localHandlerRegistry.handle(localMessage(message))
-                    : Optional.of(invokeLocalOnlyHandler(message, localSelection).asFuture());
+            Optional<CompletableFuture<Object>> localResult = localOnly
+                    ? localHandlerRegistry.handle(localMessage(message), false)
+                    : canSkipLocalHandling(message)
+                            ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
             if (localResult.isEmpty()) {
+                if (localOnly) {
+                    if (messageType.isRequest()) {
+                        return CompletableFuture.failedFuture(
+                                new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
+                    }
+                    continue;
+                }
                 SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
                         message.serialize(serializer), message, messageType, topic);
                 if (serializedMessage == null) {
@@ -206,14 +213,21 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             if (message == null) {
                 continue;
             }
-            LocalHandlerSelection localSelection = selectLocalOnlyHandler(candidate, originalLocalOnly, message);
+            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
             dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
-            Optional<CompletableFuture<Object>> localResult = localSelection == null
-                    ? canSkipLocalHandling(message)
-                            ? Optional.empty() : localHandlerRegistry.handle(localMessage(message))
-                    : Optional.of(invokeLocalOnlyHandler(message, localSelection).asFuture());
+            Optional<CompletableFuture<Object>> localResult = localOnly
+                    ? localHandlerRegistry.handle(localMessage(message), false)
+                    : canSkipLocalHandling(message)
+                            ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
             if (localResult.isEmpty()) {
-                externalMessages.add(message);
+                if (localOnly) {
+                    if (messageType.isRequest()) {
+                        return CompletableFuture.failedFuture(
+                                new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
+                    }
+                } else {
+                    externalMessages.add(message);
+                }
             } else if (localResult.get().isCompletedExceptionally()) {
                 try {
                     localResult.get().getNow(null);
@@ -291,15 +305,19 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 requests[i] = PendingRequest.completed(emptyReturnMessage());
                 continue;
             }
-            LocalHandlerSelection localSelection = selectLocalOnlyHandler(original, originalLocalOnly, message);
+            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
             dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-            LocalHandlerResult localResult = handleLocally(message, localSelection);
+            LocalHandlerResult localResult = handleLocally(message, localOnly);
             if (localResult.isHandled()) {
                 requests[i] = prepareLocalRequest(message, localResult.asFuture(), timeout);
             } else {
-                externalIndices[externalSize++] = i;
-                externalTimeouts[i] = timeout;
-                externalMessages.add(message);
+                if (localOnly) {
+                    requests[i] = prepareMissingLocalHandler(message);
+                } else {
+                    externalIndices[externalSize++] = i;
+                    externalTimeouts[i] = timeout;
+                    externalMessages.add(message);
+                }
             }
         }
         FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
@@ -402,15 +420,15 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (message == null) {
             return null;
         }
-        LocalHandlerSelection localSelection = selectLocalOnlyHandler(original, originalLocalOnly, message);
+        boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
         dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-        LocalHandlerResult localResult = handleLocally(message, localSelection);
+        LocalHandlerResult localResult = handleLocally(message, localOnly);
         if (localResult.isCompletedSuccessfully()) {
             return (R) responseMapper.mapPayload(localResult.getValue());
         }
         PendingRequest request = localResult.isHandled()
                 ? prepareLocalRequest(message, localResult.asFuture(), timeout)
-                : prepareExternalRequest(message, timeout);
+                : localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
         CompletableFuture<R> future = (request.isExternal() ? sendRequest(request) : request.result())
                 .thenApply(Message::getPayload);
         return waitForResult(future, message, timeout);
@@ -451,13 +469,13 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         if (message == null) {
             return PendingRequest.completed(emptyReturnMessage());
         }
-        LocalHandlerSelection localSelection = selectLocalOnlyHandler(original, originalLocalOnly, message);
+        boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
         dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-        LocalHandlerResult localResult = handleLocally(message, localSelection);
+        LocalHandlerResult localResult = handleLocally(message, localOnly);
         if (localResult.isHandled()) {
             return prepareLocalRequest(message, localResult.asFuture(), timeout);
         }
-        return prepareExternalRequest(message, timeout);
+        return localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
     }
 
     private PendingRequest prepareLocalRequest(Message message, CompletableFuture<Object> localResult,
@@ -469,46 +487,37 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         return PendingRequest.completed(trackCallback(message.getMessageId(), result));
     }
 
-    private LocalHandlerResult handleLocally(Message message) {
-        return canSkipLocalHandling(message)
-                ? LocalHandlerResult.notHandled() : localHandlerRegistry.handleResult(localMessage(message));
-    }
-
     private boolean canSkipLocalHandling(Message message) {
         return localHandlerRegistry.canSkipLocalHandling(messageType, message.getPayloadClass());
     }
 
-    private LocalHandlerSelection selectLocalOnlyHandler(Message original, boolean originalLocalOnly, Message message) {
-        if (!originalLocalOnly && (original.getPayloadClass() == message.getPayloadClass()
-                                   || !isLocalOnly(message.getPayloadClass()))) {
-            return null;
-        }
-        LocalHandlerSelection selection = messageType == MessageType.COMMAND || messageType == MessageType.QUERY
-                ? localHandlerRegistry.selectSingleHandler(localMessage(message))
-                : LocalHandlerSelection.unsupported();
-        if (!selection.isSelected()) {
-            throw new LocalOnlyDispatchException(message.getPayloadClass(), messageType, selection.getOutcome());
-        }
-        return selection;
-    }
-
     private static boolean isLocalOnly(Class<?> payloadClass) {
-        return isAnnotationPresent(payloadClass, LocalOnly.class);
-    }
-
-    private LocalHandlerResult handleLocally(Message message, LocalHandlerSelection localSelection) {
-        return localSelection == null
-                ? handleLocally(message)
-                : invokeLocalOnlyHandler(message, localSelection);
-    }
-
-    private LocalHandlerResult invokeLocalOnlyHandler(Message message, LocalHandlerSelection selection) {
-        LocalHandlerResult result = selection.invoke();
-        if (result == null || !result.isHandled()) {
-            throw new LocalOnlyDispatchException(
-                    message.getPayloadClass(), messageType, LocalHandlerSelection.Outcome.INVALID_SELECTION);
+        Optional<LocalOnly> typeAnnotation = getAnnotationAs(payloadClass, LocalOnly.class, LocalOnly.class);
+        if (typeAnnotation.isPresent()) {
+            return typeAnnotation.get().value();
         }
-        return result;
+        return getPackageAnnotations(payloadClass.getPackage()).stream()
+                .filter(annotation -> annotation.annotationType() == LocalOnly.class
+                                      || annotation.annotationType().isAnnotationPresent(LocalOnly.class))
+                .map(annotation -> getAnnotationAs(annotation, LocalOnly.class, LocalOnly.class))
+                .flatMap(Optional::stream)
+                .findFirst().map(LocalOnly::value).orElse(false);
+    }
+
+    private LocalHandlerResult handleLocally(Message message, boolean localOnly) {
+        if (!localOnly && canSkipLocalHandling(message)) {
+            return LocalHandlerResult.notHandled();
+        }
+        DeserializingMessage localMessage = localMessage(message);
+        return localOnly ? localHandlerRegistry.handleResult(localMessage, false)
+                : localHandlerRegistry.handleResult(localMessage);
+    }
+
+    private PendingRequest prepareMissingLocalHandler(Message message) {
+        return messageType.isRequest()
+                ? PendingRequest.completed(CompletableFuture.failedFuture(
+                        new LocalOnlyDispatchException(message.getPayloadClass(), messageType)))
+                : PendingRequest.completed(emptyReturnMessage());
     }
 
     private DeserializingMessage localMessage(Message message) {
