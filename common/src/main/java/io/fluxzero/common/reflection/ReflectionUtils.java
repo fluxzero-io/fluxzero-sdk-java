@@ -1181,10 +1181,11 @@ public class ReflectionUtils {
          * Returns type-specific structural metadata owned by this central type cache.
          * <p>
          * SDK features can use this extension point for immutable metadata that is derived only from {@link #type()}.
-         * Runtime or instance state must not be captured by the factory or the returned value.
+         * Runtime or instance state must not be captured by the factory or the returned value. Concurrent or reentrant
+         * first access may compute more than one value; all callers receive the first value published successfully.
          *
          * @param metadataType unique metadata kind and expected result type
-         * @param factory      computes the metadata from this Java type on first access
+         * @param factory      computes non-null metadata from this Java type on first access
          * @param <M>          metadata type
          * @return the cached metadata instance
          */

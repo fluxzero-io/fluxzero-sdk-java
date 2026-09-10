@@ -19,6 +19,7 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
+import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.tracking.metrics.DisableMetrics;
 import lombok.SneakyThrows;
 
@@ -64,6 +65,15 @@ import java.util.stream.Stream;
  * @see DisableMetrics
  */
 public class AdhocDispatchInterceptor implements DispatchInterceptor {
+
+    @Override
+    public SerializedMessage modifySerializedMessage(SerializedMessage serialized, DeserializingMessage source,
+                                                     MessageType messageType, String topic, String namespace) {
+        Map<MessageType, DispatchInterceptor> current = delegates.get();
+        DispatchInterceptor delegate = current == null ? null : current.get(messageType);
+        return delegate == null ? serialized
+                : delegate.modifySerializedMessage(serialized, source, messageType, topic, namespace);
+    }
 
     @Override
     public PreparedLocalDispatch prepareLocalDispatch(LocalDispatchDescriptor descriptor) {

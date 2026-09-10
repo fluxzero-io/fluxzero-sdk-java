@@ -137,32 +137,32 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         for (Message message : messages) {
             Message original = message;
             boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
-            message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
+            message = interceptDispatch(original);
             if (message == null) {
                 continue;
             }
-            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
-            Optional<CompletableFuture<Object>> localResult = localOnly
-                    ? localHandlerRegistry.handle(localMessage(message), false)
-                    : canSkipLocalHandling(message)
-                            ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
-            if (localResult.isEmpty()) {
-                if (localOnly) {
-                    if (messageType.isRequest()) {
-                        return CompletableFuture.failedFuture(
-                                new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
+            try {
+                boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+                dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
+                Optional<CompletableFuture<Object>> localResult = localOnly
+                        ? localHandlerRegistry.handle(localMessage(message), false)
+                        : canSkipLocalHandling(message)
+                                ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
+                if (localResult.isEmpty()) {
+                    if (localOnly) {
+                        if (messageType.isRequest()) {
+                            return CompletableFuture.failedFuture(
+                                    new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
-                        message.serialize(serializer), message, messageType, topic);
-                if (serializedMessage == null) {
-                    continue;
-                }
-                serializedMessages.add(serializedMessage);
-            } else {
-                if (localResult.get().isCompletedExceptionally()) {
+                    SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
+                            message.serialize(serializer), message, messageType, topic);
+                    if (serializedMessage == null) {
+                        continue;
+                    }
+                    serializedMessages.add(serializedMessage);
+                } else if (localResult.get().isCompletedExceptionally()) {
                     try {
                         localResult.get().getNow(null);
                     } catch (CompletionException e) {
@@ -170,6 +170,8 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                                   message.getPayloadClass().getSimpleName(), e.getCause());
                     }
                 }
+            } finally {
+                dispatchInterceptor.completeLocalDispatch(message);
             }
         }
         if (!serializedMessages.isEmpty()) {
@@ -207,66 +209,79 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
             Guarantee guarantee, UnaryOperator<SerializedMessage> interceptor,
             Message[] messages, int from, int until) {
         List<Message> externalMessages = new ArrayList<>(until - from);
-        for (int index = from; index < until; index++) {
-            Message candidate = messages[index];
-            boolean originalLocalOnly = isLocalOnly(candidate.getPayloadClass());
-            Message message = dispatchInterceptor.interceptDispatch(candidate, messageType, topic, namespace);
-            if (message == null) {
-                continue;
-            }
-            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
-            Optional<CompletableFuture<Object>> localResult = localOnly
-                    ? localHandlerRegistry.handle(localMessage(message), false)
-                    : canSkipLocalHandling(message)
-                            ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
-            if (localResult.isEmpty()) {
-                if (localOnly) {
-                    if (messageType.isRequest()) {
-                        return CompletableFuture.failedFuture(
-                                new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
-                    }
-                } else {
-                    externalMessages.add(message);
-                }
-            } else if (localResult.get().isCompletedExceptionally()) {
-                try {
-                    localResult.get().getNow(null);
-                } catch (CompletionException e) {
-                    log.error("Handler failed to handle a {}", message.getPayloadClass().getSimpleName(), e.getCause());
-                }
-            }
-        }
-        FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
-                "sdk.command-gateway", "serialize", messageType.name(),
-                externalMessages.size(), 0L, 0L, 0L);
-        List<SerializedMessage> serializedMessages;
         try {
-            serializedMessages = serializeMessages(externalMessages);
-            FluxzeroJfr.finish(serializationEvent, null);
-        } catch (RuntimeException | Error failure) {
-            FluxzeroJfr.finish(serializationEvent, failure);
-            throw failure;
-        }
-        SerializedMessage[] finalMessages = new SerializedMessage[serializedMessages.size()];
-        int resultSize = 0;
-        for (int i = 0; i < serializedMessages.size(); i++) {
-            Message message = externalMessages.get(i);
-            SerializedMessage serialized = dispatchInterceptor.modifySerializedMessage(
-                    serializedMessages.get(i), message, messageType, topic);
-            if (serialized != null) {
-                serialized = interceptor.apply(serialized);
-                if (serialized != null) {
-                    finalMessages[resultSize++] = serialized;
+            for (int index = from; index < until; index++) {
+                Message candidate = messages[index];
+                boolean originalLocalOnly = isLocalOnly(candidate.getPayloadClass());
+                Message message = interceptDispatch(candidate);
+                if (message == null) {
+                    continue;
+                }
+                boolean external = false;
+                try {
+                    boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+                    dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, false);
+                    Optional<CompletableFuture<Object>> localResult = localOnly
+                            ? localHandlerRegistry.handle(localMessage(message), false)
+                            : canSkipLocalHandling(message)
+                                    ? Optional.empty() : localHandlerRegistry.handle(localMessage(message));
+                    if (localResult.isEmpty()) {
+                        if (localOnly) {
+                            if (messageType.isRequest()) {
+                                return CompletableFuture.failedFuture(
+                                        new LocalOnlyDispatchException(message.getPayloadClass(), messageType));
+                            }
+                        } else {
+                            externalMessages.add(message);
+                            external = true;
+                        }
+                    } else if (localResult.get().isCompletedExceptionally()) {
+                        try {
+                            localResult.get().getNow(null);
+                        } catch (CompletionException e) {
+                            log.error("Handler failed to handle a {}", message.getPayloadClass().getSimpleName(), e.getCause());
+                        }
+                    }
+                } finally {
+                    if (!external) {
+                        dispatchInterceptor.completeLocalDispatch(message);
+                    }
                 }
             }
+            FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
+                    "sdk.command-gateway", "serialize", messageType.name(),
+                    externalMessages.size(), 0L, 0L, 0L);
+            List<SerializedMessage> serializedMessages;
+            try {
+                serializedMessages = serializeMessages(externalMessages);
+                FluxzeroJfr.finish(serializationEvent, null);
+            } catch (RuntimeException | Error failure) {
+                FluxzeroJfr.finish(serializationEvent, failure);
+                throw failure;
+            }
+            SerializedMessage[] finalMessages = new SerializedMessage[serializedMessages.size()];
+            int resultSize = 0;
+            for (int i = 0; i < serializedMessages.size(); i++) {
+                Message message = externalMessages.get(i);
+                SerializedMessage serialized = dispatchInterceptor.modifySerializedMessage(
+                        serializedMessages.get(i), message, messageType, topic);
+                if (serialized != null) {
+                    serialized = interceptor.apply(serialized);
+                    if (serialized != null) {
+                        finalMessages[resultSize++] = serialized;
+                    }
+                }
+            }
+            if (resultSize == 0) {
+                return CompletableFuture.completedFuture(null);
+            }
+            return AsyncCompletionScope.register(gatewayClient.append(
+                    guarantee, resultSize == finalMessages.length
+                            ? finalMessages : java.util.Arrays.copyOf(finalMessages, resultSize)));
+        } finally {
+            // External candidates retain protected values until serialization and externalization have completed.
+            externalMessages.forEach(dispatchInterceptor::completeLocalDispatch);
         }
-        if (resultSize == 0) {
-            return CompletableFuture.completedFuture(null);
-        }
-        return AsyncCompletionScope.register(gatewayClient.append(
-                guarantee, resultSize == finalMessages.length
-                        ? finalMessages : java.util.Arrays.copyOf(finalMessages, resultSize)));
     }
 
     @Override
@@ -297,51 +312,63 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         int[] externalIndices = new int[messages.length];
         Duration[] externalTimeouts = new Duration[messages.length];
         int externalSize = 0;
-        for (int i = 0; i < messages.length; i++) {
-            Message original = messages[i];
-            boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
-            Duration timeout = requestTimeout(original).orElse(null);
-            Message message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
-            if (message == null) {
-                requests[i] = PendingRequest.completed(emptyReturnMessage());
-                continue;
-            }
-            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-            LocalHandlerResult localResult = handleLocally(message, localOnly);
-            if (localResult.isHandled()) {
-                requests[i] = prepareLocalRequest(message, localResult.asFuture(), timeout);
-            } else {
-                if (localOnly) {
-                    requests[i] = prepareMissingLocalHandler(message);
-                } else {
-                    externalIndices[externalSize++] = i;
-                    externalTimeouts[i] = timeout;
-                    externalMessages.add(message);
+        try {
+            for (int i = 0; i < messages.length; i++) {
+                Message original = messages[i];
+                boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
+                Duration timeout = requestTimeout(original).orElse(null);
+                Message message = interceptDispatch(original);
+                if (message == null) {
+                    requests[i] = PendingRequest.completed(emptyReturnMessage());
+                    continue;
+                }
+                boolean external = false;
+                try {
+                    boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+                    dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+                    LocalHandlerResult localResult = handleLocally(message, localOnly);
+                    if (localResult.isHandled()) {
+                        requests[i] = prepareLocalRequest(message, localResult.asFuture(), timeout);
+                    } else {
+                        if (localOnly) {
+                            requests[i] = prepareMissingLocalHandler(message);
+                        } else {
+                            externalIndices[externalSize++] = i;
+                            externalTimeouts[i] = timeout;
+                            externalMessages.add(message);
+                            external = true;
+                        }
+                    }
+                } finally {
+                    if (!external) {
+                        dispatchInterceptor.completeLocalDispatch(message);
+                    }
                 }
             }
+            FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
+                    "sdk.command-gateway", "serialize", messageType.name(),
+                    externalMessages.size(), 0L, 0L, 0L);
+            List<SerializedMessage> serializedMessages;
+            try {
+                serializedMessages = serializeMessages(externalMessages);
+                FluxzeroJfr.finish(serializationEvent, null);
+            } catch (RuntimeException | Error failure) {
+                FluxzeroJfr.finish(serializationEvent, failure);
+                throw failure;
+            }
+            for (int i = 0; i < externalSize; i++) {
+                int requestIndex = externalIndices[i];
+                Message message = externalMessages.get(i);
+                SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
+                        serializedMessages.get(i), message, messageType, topic);
+                requests[requestIndex] = serializedMessage == null
+                        ? PendingRequest.completed(emptyReturnMessage())
+                        : PendingRequest.external(serializedMessage, externalTimeouts[requestIndex]);
+            }
+            return java.util.Arrays.asList(requests);
+        } finally {
+            externalMessages.forEach(dispatchInterceptor::completeLocalDispatch);
         }
-        FluxzeroJfr.Batch serializationEvent = FluxzeroJfr.startBatch(
-                "sdk.command-gateway", "serialize", messageType.name(),
-                externalMessages.size(), 0L, 0L, 0L);
-        List<SerializedMessage> serializedMessages;
-        try {
-            serializedMessages = serializeMessages(externalMessages);
-            FluxzeroJfr.finish(serializationEvent, null);
-        } catch (RuntimeException | Error failure) {
-            FluxzeroJfr.finish(serializationEvent, failure);
-            throw failure;
-        }
-        for (int i = 0; i < externalSize; i++) {
-            int requestIndex = externalIndices[i];
-            Message message = externalMessages.get(i);
-            SerializedMessage serializedMessage = dispatchInterceptor.modifySerializedMessage(
-                    serializedMessages.get(i), message, messageType, topic);
-            requests[requestIndex] = serializedMessage == null
-                    ? PendingRequest.completed(emptyReturnMessage())
-                    : PendingRequest.external(serializedMessage, externalTimeouts[requestIndex]);
-        }
-        return java.util.Arrays.asList(requests);
     }
 
     private List<SerializedMessage> serializeMessages(List<Message> messages) {
@@ -417,19 +444,24 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
         Duration timeout = sendAndWaitTimeout(message);
         Message original = message;
         boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
-        message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
+        message = interceptDispatch(original);
         if (message == null) {
             return null;
         }
-        boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-        dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-        LocalHandlerResult localResult = handleLocally(message, localOnly);
-        if (localResult.isCompletedSuccessfully()) {
-            return (R) responseMapper.mapPayload(localResult.getValue());
+        PendingRequest request;
+        try {
+            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+            LocalHandlerResult localResult = handleLocally(message, localOnly);
+            if (localResult.isCompletedSuccessfully()) {
+                return (R) responseMapper.mapPayload(localResult.getValue());
+            }
+            request = localResult.isHandled()
+                    ? prepareLocalRequest(message, localResult.asFuture(), timeout)
+                    : localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
+        } finally {
+            dispatchInterceptor.completeLocalDispatch(message);
         }
-        PendingRequest request = localResult.isHandled()
-                ? prepareLocalRequest(message, localResult.asFuture(), timeout)
-                : localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
         CompletableFuture<R> future = (request.isExternal() ? sendRequest(request) : request.result())
                 .thenApply(Message::getPayload);
         return waitForResult(future, message, timeout);
@@ -466,17 +498,21 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
     private PendingRequest prepareRequest(Message message, Duration timeout) {
         Message original = message;
         boolean originalLocalOnly = isLocalOnly(original.getPayloadClass());
-        message = dispatchInterceptor.interceptDispatch(original, messageType, topic, namespace);
+        message = interceptDispatch(original);
         if (message == null) {
             return PendingRequest.completed(emptyReturnMessage());
         }
-        boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
-        dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
-        LocalHandlerResult localResult = handleLocally(message, localOnly);
-        if (localResult.isHandled()) {
-            return prepareLocalRequest(message, localResult.asFuture(), timeout);
+        try {
+            boolean localOnly = originalLocalOnly || isLocalOnly(message.getPayloadClass());
+            dispatchInterceptor.monitorDispatch(message, messageType, topic, namespace, true);
+            LocalHandlerResult localResult = handleLocally(message, localOnly);
+            if (localResult.isHandled()) {
+                return prepareLocalRequest(message, localResult.asFuture(), timeout);
+            }
+            return localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
+        } finally {
+            dispatchInterceptor.completeLocalDispatch(message);
         }
-        return localOnly ? prepareMissingLocalHandler(message) : prepareExternalRequest(message, timeout);
     }
 
     private PendingRequest prepareLocalRequest(Message message, CompletableFuture<Object> localResult,
@@ -540,6 +576,12 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                 message.serialize(serializer), message, messageType, topic);
         return serializedMessage == null ? PendingRequest.completed(emptyReturnMessage())
                 : PendingRequest.external(serializedMessage, timeout);
+    }
+
+    private Message interceptDispatch(Message message) {
+        return localHandlerRegistry.supportsDeferredExternalization()
+                ? dispatchInterceptor.interceptLocalDispatch(message, messageType, topic, namespace)
+                : dispatchInterceptor.interceptDispatch(message, messageType, topic, namespace);
     }
 
     private List<CompletableFuture<Message>> completeRequests(List<PendingRequest> requests) {

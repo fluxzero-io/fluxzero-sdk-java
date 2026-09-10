@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static io.fluxzero.common.ObjectUtils.asStream;
+import static io.fluxzero.sdk.publishing.dataprotection.DataProtectionInterceptor.preserveRestoredDataContext;
 
 /**
  * Sole executor for the immutable handler and target knowledge in {@link MutationPlan}.
@@ -983,6 +984,7 @@ public final class ModelReducer {
             DeserializingMessage source, Object output,
             boolean preserveSourceIdentity) {
         if (output instanceof DeserializingMessage message) {
+            preserveRestoredDataContext(source, message);
             return message.withMetadata(
                     source.getMetadata().with(message.getMetadata()));
         }

@@ -55,6 +55,25 @@ import java.util.stream.Stream;
 public interface Serializer extends ContentFilter {
 
     /**
+     * Resolves a slash-separated Java property path to its serialized names, with the canonical name first and any
+     * accepted aliases following it. Data protection uses this when editing an intermediate payload without losing
+     * unrelated serialized fields. An empty list means the property is not serialized.
+     *
+     * <p>Serializers that rename, flatten, or alias properties must override this method using their own
+     * configuration. Returned path segments use JSON Pointer escaping ({@code ~0} and {@code ~1}), without a leading
+     * slash. Implementations must reject configurations whose mapping cannot be established safely. The default
+     * throws rather than guessing a mapping that could leave private values in the serialized payload.</p>
+     *
+     * @param payload the logical payload, used to resolve polymorphic nested values
+     * @param propertyPath the Java property path
+     * @return canonical serialized path and aliases, or an empty list for an omitted property
+     * @throws UnsupportedOperationException if safe property mapping is not supported
+     */
+    default List<String> serializedPropertyPaths(Object payload, String propertyPath) {
+        throw new UnsupportedOperationException("This serializer does not provide safe serialized property paths");
+    }
+
+    /**
      * Serializes the given object to a {@link Data} wrapper using the default format.
      *
      * @param object the object to serialize

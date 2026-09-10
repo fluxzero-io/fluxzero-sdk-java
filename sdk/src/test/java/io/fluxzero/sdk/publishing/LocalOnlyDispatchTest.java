@@ -273,6 +273,20 @@ class LocalOnlyDispatchTest {
         }
     }
 
+    @Test
+    void cachesInheritedAndEnclosingScopeWithExplicitFalseOverrides() {
+        try (Fluxzero fluxzero = createFluxzero()) {
+            for (int i = 0; i < 2; i++) {
+                assertMissingHandler(fluxzero.commandGateway().send(new LocalChild()));
+                assertMissingHandler(fluxzero.commandGateway().send(new LocalScope.Nested()));
+                fluxzero.commandGateway().sendAndForget(
+                        Guarantee.STORED, new ExternalChild(), new LocalScope.OptOut()).join();
+            }
+            assertEquals(4, ((LocalClient) fluxzero.client()).getTrackingClient(COMMAND)
+                    .readFromIndex(0, 10).size());
+        }
+    }
+
     private static Fluxzero createFluxzero() {
         return createFluxzero(DefaultFluxzero.builder());
     }
@@ -317,6 +331,29 @@ class LocalOnlyDispatchTest {
     }
 
     private record OrdinaryCommand() {
+    }
+
+    @LocalOnly
+    private static class LocalBase {
+    }
+
+    private static class LocalChild extends LocalBase {
+    }
+
+    @LocalOnly(false)
+    private static class ExternalChild extends LocalBase {
+        public final String value = "external";
+    }
+
+    @LocalOnly
+    private static class LocalScope {
+        private static class Nested {
+        }
+
+        @LocalOnly(false)
+        private static class OptOut {
+            public final String value = "external";
+        }
     }
 
     @LocalOnly

@@ -14,13 +14,22 @@
 
 package io.fluxzero.sdk.common.serialization.jackson;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFilter;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.core.util.JsonParserDelegate;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;
+import com.fasterxml.jackson.databind.ser.BeanSerializer;
+import com.fasterxml.jackson.databind.ser.impl.UnwrappingBeanPropertyWriter;
+import com.fasterxml.jackson.databind.ser.impl.UnwrappingBeanSerializer;
 import io.fluxzero.common.api.Data;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedObject;
@@ -45,9 +54,12 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Type;
 import java.nio.ByteOrder;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -146,6 +158,106 @@ public class JacksonSerializer extends AbstractSerializer<JsonNode> implements D
     @Override
     protected String asString(Type type) {
         return typeStringCache.apply(type);
+    }
+
+    /**
+     * Maps standard bean properties using this mapper's naming, alias and unwrapping configuration. Custom codecs,
+     * dynamic output and type/root wrappers require an explicit mapping override; unsupported mappings fail closed.
+     */
+    @Override
+    public List<String> serializedPropertyPaths(Object payload, String propertyPath) {
+        if (objectMapper.isEnabled(SerializationFeature.WRAP_ROOT_VALUE)) {
+            throw unsupportedPropertyMapping(payload.getClass(), propertyPath);
+        }
+        return serializedPropertyPaths(payload, payload.getClass(), propertyPath);
+    }
+
+    @SneakyThrows
+    private List<String> serializedPropertyPaths(Object payload, Class<?> type, String path) {
+        int separator = path.indexOf('/');
+        String name = separator < 0 ? path : path.substring(0, separator);
+        var description = objectMapper.getSerializationConfig().introspect(objectMapper.constructType(type));
+        // Bean introspection alone cannot prove the wire shape of a custom codec or a type wrapper.
+        var codec = objectMapper.getSerializerProviderInstance().findValueSerializer(type);
+        var typeSerializer = objectMapper.getSerializerFactory().createTypeSerializer(
+                objectMapper.getSerializationConfig(), objectMapper.constructType(type));
+        if (description.findAnyGetter() != null
+            || objectMapper.getSerializationConfig().getAnnotationIntrospector()
+                       .findFilterId(description.getClassInfo()) != null
+            || codec.getClass() != BeanSerializer.class
+            || typeSerializer != null && !usesPropertyTypeId(typeSerializer.getTypeInclusion())) {
+            throw unsupportedPropertyMapping(type, path);
+        }
+        var writers = new ArrayList<BeanPropertyWriter>();
+        var writerNames = new HashSet<String>();
+        codec.properties().forEachRemaining(writer -> {
+            if (writer.getClass() != BeanPropertyWriter.class
+                && writer.getClass() != UnwrappingBeanPropertyWriter.class
+                || !writerNames.add(writer.getName())
+                || description.findProperties().stream().noneMatch(property ->
+                    property.getName().equals(writer.getName())
+                    && property.getPrimaryMember() != null
+                    && property.getPrimaryMember().equals(writer.getMember()))) {
+                throw unsupportedPropertyMapping(type, path);
+            }
+            writers.add((BeanPropertyWriter) writer);
+        });
+        for (var property : description.findProperties()) {
+            if (!property.getInternalName().equals(name) || !property.couldSerialize()) {
+                continue;
+            }
+            var member = property.getPrimaryMember();
+            var writer = writers.stream().filter(candidate -> candidate.getName().equals(property.getName()))
+                    .findFirst().orElseThrow(() -> unsupportedPropertyMapping(type, path));
+            if (separator >= 0 && (member != null && member.getAnnotation(JsonFilter.class) != null
+                                   || writer.getSerializer() != null
+                                      && writer.getSerializer().getClass() != BeanSerializer.class
+                                      && writer.getSerializer().getClass() != UnwrappingBeanSerializer.class
+                                   || writer.getTypeSerializer() != null
+                                      && !usesPropertyTypeId(writer.getTypeSerializer().getTypeInclusion()))) {
+                throw unsupportedPropertyMapping(type, path);
+            }
+            JsonUnwrapped unwrapped = member == null ? null : member.getAnnotation(JsonUnwrapped.class);
+            List<String> names = new ArrayList<>(List.of(escapeProperty(property.getName())));
+            JsonAlias aliases = member == null ? null : member.getAnnotation(JsonAlias.class);
+            if (aliases != null) {
+                Arrays.stream(aliases.value()).map(JacksonSerializer::escapeProperty).forEach(names::add);
+            }
+            if (separator < 0) {
+                if (unwrapped != null && unwrapped.enabled()) {
+                    throw new IllegalArgumentException("An unwrapped value cannot be protected as a single property: " + path);
+                }
+                return names;
+            }
+            Object nested = payload == null ? null : ReflectionUtils.readProperty(name, payload).orElse(null);
+            List<String> children = serializedPropertyPaths(nested,
+                    nested == null ? property.getPrimaryType().getRawClass() : nested.getClass(),
+                    path.substring(separator + 1));
+            if (unwrapped != null && unwrapped.enabled()) {
+                return children.stream().map(child -> {
+                    int slash = child.indexOf('/');
+                    return escapeProperty(unwrapped.prefix()) + (slash < 0 ? child : child.substring(0, slash))
+                           + escapeProperty(unwrapped.suffix()) + (slash < 0 ? "" : child.substring(slash));
+                }).toList();
+            }
+            return names.stream().flatMap(parent -> children.stream().map(child -> parent + "/" + child)).toList();
+        }
+        throw unsupportedPropertyMapping(type, path);
+    }
+
+    private static boolean usesPropertyTypeId(JsonTypeInfo.As inclusion) {
+        return inclusion == JsonTypeInfo.As.PROPERTY || inclusion == JsonTypeInfo.As.EXISTING_PROPERTY;
+    }
+
+    private static UnsupportedOperationException unsupportedPropertyMapping(Class<?> type, String path) {
+        return new UnsupportedOperationException(
+                "Cannot safely map protected property %s on %s with this Jackson configuration. "
+                .formatted(path, type.getName())
+                + "Provide an explicit serializedPropertyPaths implementation for the custom wire format.");
+    }
+
+    private static String escapeProperty(String name) {
+        return name.replace("~", "~0").replace("/", "~1");
     }
 
     /**

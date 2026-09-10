@@ -59,12 +59,15 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     private final ModelPipeline pipeline;
     private final Handler<DeserializingMessage> decoratedHandler;
     private final HandlerDecorator handlerDecorator;
+    private final DispatchInterceptor commandDispatchInterceptor;
     private volatile boolean localHandlingEnabled;
 
     /**
      * Creates the automatic model registration facade and its single execution pipeline.
      * {@code creationConflictPolicy} is the inherited policy for targets first created by an attempt;
      * explicit Model/Apply policies still take precedence.
+     * The command dispatch interceptor finalizes deferred external-only side effects when a durable Model handler
+     * is actually selected; ordinary local handlers keep their dispatch-local state.
      */
     public ModelCommitHandlerRegistry(
             DefaultModelRepository repository,
@@ -72,6 +75,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             Serializer serializer,
             Serializer snapshotSerializer,
             DocumentSerializer documentSerializer,
+            DispatchInterceptor commandDispatchInterceptor,
             DispatchInterceptor eventDispatchInterceptor,
             String source,
             List<ParameterResolver<? super DeserializingMessage>> parameterResolvers,
@@ -84,6 +88,7 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             GraphProjectionCompletion graphProjectionCompletion) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.handlerDecorator = Objects.requireNonNull(handlerDecorator, "handlerDecorator");
+        this.commandDispatchInterceptor = Objects.requireNonNull(commandDispatchInterceptor, "commandDispatchInterceptor");
         MutationPlan.Compiler shared = repository.modelDefinitionCompiler();
         this.definitions = new MutationPlan.Catalog(
                 shared == null ? new MutationPlan.Compiler(parameterResolvers) : shared,
@@ -174,6 +179,13 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
             return Optional.empty();
         }
         try {
+            Message command = message.toMessage();
+            try {
+                // Durable Model events may outlive this dispatch. Preserve the eager restoration/commit boundary.
+                commandDispatchInterceptor.beforeExternalDispatch(command, message.getMessageType(), message.getTopic());
+            } finally {
+                commandDispatchInterceptor.completeLocalDispatch(command);
+            }
             Object result = invoker.invoke();
             if (result instanceof CompletableFuture<?> future) {
                 return Optional.of(future.thenApply(value -> value));
@@ -267,6 +279,11 @@ public final class ModelCommitHandlerRegistry implements HandlerRegistry, Handle
     @Override
     public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
         return !localHandlingEnabled;
+    }
+
+    @Override
+    public boolean supportsDeferredExternalization() {
+        return true;
     }
 
     @Override

@@ -104,6 +104,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static io.fluxzero.common.Guarantee.STORED;
 import static io.fluxzero.common.MessageType.EVENT;
@@ -127,6 +128,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private static final long MAX_MIGRATION_POLL_NANOS = Duration.ofMillis(250).toNanos();
 
     private final Client client;
+    private final String publicationNamespace;
     private final String modelNamePrefix;
     private final DocumentStore documentStore;
     private final Serializer serializer;
@@ -146,6 +148,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private final ConcurrentHashMap<String, Class<?>> modelTypesByName;
     private volatile Supplier<List<Class<?>>> modelTypes = List::of;
     private boolean automaticModelRouting;
+    private UnaryOperator<DeserializingMessage> replayRestoration = UnaryOperator.identity();
 
     public DefaultModelRepository(
             Client client,
@@ -188,6 +191,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             String modelNamePrefix,
             ConcurrentHashMap<String, Class<?>> modelTypesByName) {
         this.client = Objects.requireNonNull(client, "client");
+        this.publicationNamespace = ClientUtils.isApplicationNamespace(client) ? null : client.namespace();
         this.modelNamePrefix = modelNamePrefix == null ? "" : modelNamePrefix;
         this.modelTypesByName = Objects.requireNonNull(modelTypesByName, "Model type catalog");
         this.documentStore = Objects.requireNonNull(documentStore, "documentStore");
@@ -234,7 +238,14 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 migrationReadBarrierConfiguration, modelNamePrefix, modelTypesByName);
         result.configureModelTypes(modelTypes);
         result.configureAutomaticModelRouting(automaticModelRouting);
+        result.configureReplayRestoration(replayRestoration);
         return result;
+    }
+
+    /** Configures application-owned event payload restoration before this repository is made available to callers. */
+    public void configureReplayRestoration(UnaryOperator<DeserializingMessage> restoration) {
+        this.replayRestoration = Objects.requireNonNull(restoration);
+        replayCursor.configureReplayRestoration(restoration);
     }
 
     /** Returns the model-definition compiler shared by live commits and stored-event replay. */
@@ -1946,7 +1957,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             SerializedMessage serialized = internalLifecycleEvent
                     ? candidate
                     : dispatchInterceptor.modifySerializedMessage(
-                            candidate, logicalMessage, EVENT, null);
+                            candidate, message, EVENT, null, publicationNamespace);
             if (serialized == null) {
                 throw new IllegalStateException(
                         "Serialized model event was suppressed after @Apply evaluation; "

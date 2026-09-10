@@ -966,10 +966,12 @@ public class DefaultFluxzero implements Fluxzero {
                 });
             }
 
+            UnaryOperator<DeserializingMessage> modelReplayRestoration = UnaryOperator.identity();
             //enable data protection
             if (!disableDataProtection) {
                 DataProtectionInterceptor interceptor = new DataProtectionInterceptor(
                         keyValueStore, serializer, onMissingProtectedData(), !disableTrackingMetrics);
+                modelReplayRestoration = interceptor::restoreForReplay;
                 Stream.of(CUSTOM, COMMAND, EVENT, QUERY, RESULT, SCHEDULE).forEach(type -> {
                     dispatchChains.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
                     handlerChains.computeIfPresent(type, (t, i) -> i.andThen(interceptor));
@@ -1170,12 +1172,13 @@ public class DefaultFluxzero implements Fluxzero {
                             snapshotSerializer, modelCache,
                             runtimeParameterResolvers,
                             propertySource.get(ApplicationProperties.MODEL_NAME_PREFIX_PROPERTY));
+            commandModelRepository.configureReplayRestoration(modelReplayRestoration);
             graphRepository.set(commandModelRepository);
             modelCommitHandlerRegistry = new ModelCommitHandlerRegistry(
                     commandModelRepository, client.getEventStoreClient(),
                     serializer, snapshotSerializer,
                     documentSerializer,
-                    dispatchChains.get(EVENT), client.id(),
+                    dispatchChains.get(COMMAND), dispatchChains.get(EVENT), client.id(),
                     runtimeParameterResolvers, handlerChains.get(COMMAND),
                     configuredModelConflictPolicy(),
                     configuredModelCreationConflictPolicy(),

@@ -164,6 +164,17 @@ public interface HandlerRegistry extends HasLocalHandlers {
     }
 
     /**
+     * Returns whether this registry supports messages whose external-only dispatch side effects are deferred until
+     * local handler selection has completed.
+     *
+     * <p>The default is {@code false} to preserve the contract of custom registries. Fluxzero's local registry
+     * overrides this because its handler and dispatch interceptor chains coordinate deferred externalization.</p>
+     */
+    default boolean supportsDeferredExternalization() {
+        return false;
+    }
+
+    /**
      * Attempts payload-first local handling and writes the outcome into the reusable execution frame.
      * Implementations that cannot preserve the lazy input return {@code false}, causing the caller to use the
      * canonical message-based path.
@@ -264,6 +275,11 @@ public interface HandlerRegistry extends HasLocalHandlers {
         public boolean canSkipLocalHandling(MessageType messageType, Class<?> payloadType) {
             return first.canSkipLocalHandling(messageType, payloadType)
                    && second.canSkipLocalHandling(messageType, payloadType);
+        }
+
+        @Override
+        public boolean supportsDeferredExternalization() {
+            return first.supportsDeferredExternalization() && second.supportsDeferredExternalization();
         }
 
         @Override

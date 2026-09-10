@@ -39,11 +39,35 @@ To prevent a field from being stored with the rest of a message payload, annotat
 
 When this message is dispatched, the `socialSecurityNumber` will be:
 
-- **Offloaded** to a separate data vault
+- **Offloaded** to a separate data vault when the message is published externally
 - **Redacted** from the main payload (not visible in logs or message inspectors)
 - **Re-injected** automatically when the message is handled
 
 This happens transparently — you can access the field as usual in handler methods.
+
+If a message is handled only by a local handler with `logMessage = false`, the original value remains in memory and is
+passed directly to that handler without a KV write or read. External fallback and `logMessage = true` keep the normal
+vault-backed behavior. `@LocalOnly` prevents external command dispatch; it does not suppress durable domain writes
+performed by the handler.
+
+### Independent Model events
+
+Automatic `@Model` commands and explicit `assertAndApply` updates also protect their stored and published events,
+including records, ordinary objects, and replacement payloads returned by `@InterceptApply`. A local Model commit is
+a durable write: its protected values must be available in the vault before the commit is sent. Unchanged restored
+values keep their references, even after erasure; a genuinely changed value receives a new reference. JSON property
+names, aliases, and configured naming strategies are respected.
+
+Reconstructing a Model restores retained values before resolving targets and applying stored events. It does not run
+command assertions/interceptors, write protected values, or execute `@DropProtectedData`. An erased value is `null`,
+so replay applies must tolerate missing private data. A vault read failure fails reconstruction instead of caching an
+incomplete Model. `@ProtectData` does not redact secrets deliberately copied into Model state, documents or snapshots.
+
+The built-in Jackson serializer supports standard bean properties, configured property names, aliases and nested
+unwrapped properties. Custom codecs, modified property writers, dynamic filters/any-getters and type/root wrappers
+require an explicit, safe `Serializer.serializedPropertyPaths` implementation matching their wire representation.
+Other serializer implementations must provide this capability too; the default does not guess property names.
+Unsupported mappings and formats fail before the Model commit rather than leaving private values in stored bytes.
 
 ---
 
@@ -76,7 +100,8 @@ If the protected data should only be retained **temporarily**, annotate the hand
 
 Once this handler completes:
 
-- The injected `socialSecurityNumber` is permanently deleted from storage.
+- The injected `socialSecurityNumber` is permanently deleted from storage, or discarded from memory for a local-only
+  dispatch.
 - Future replays will deserialize the message with that field omitted.
 
 <Aside type="caution">
