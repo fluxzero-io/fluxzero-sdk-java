@@ -125,6 +125,22 @@
     "documentation" : null,
     "constantValue" : null
   }, {
+    "name" : "forwardContinuationExecutor",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.forwardContinuationExecutor",
+    "type" : "java.util.concurrent.Executor",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "forwardWorkerPool",
+    "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.forwardWorkerPool",
+    "type" : "java.util.concurrent.ExecutorService",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
     "name" : "httpClients",
     "qualifiedName" : "io.fluxzero.proxy.ForwardProxyConsumer.httpClients",
     "type" : "io.fluxzero.proxy.ForwardProxyConsumer.RedirectClients",
