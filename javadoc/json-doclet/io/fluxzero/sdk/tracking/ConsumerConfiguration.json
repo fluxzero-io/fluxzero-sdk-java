@@ -56,7 +56,7 @@
     "type" : "java.lang.String",
     "modifiers" : [ "final", "public", "static" ],
     "annotations" : [ ],
-    "documentation" : " Configures the default serialized payload byte limit per tracking fetch. Consumers can override this default\n with {@link Builder#maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.\n",
+    "documentation" : " Configures the default serialized payload byte limit per tracking fetch. Consumers can override this default\n with the {@link Builder} method {@code maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.\n",
     "constantValue" : "fluxzero.tracking.maxFetchBytes"
   }, {
     "name" : "PER_HANDLER_CONSUMER_MODE",

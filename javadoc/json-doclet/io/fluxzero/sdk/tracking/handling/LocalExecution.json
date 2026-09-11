@@ -273,7 +273,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "{@inheritDoc} "
+    "documentation" : " Returns the message for this invocation, materializing it when necessary.\n\n @return the message being handled\n"
   }, {
     "name" : "getMessageIfAvailable",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getMessageIfAvailable",
@@ -287,7 +287,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "{@inheritDoc} "
+    "documentation" : " Returns the message only if it has already been materialized.\n\n @return the existing message, or {@code null} if it has not been created yet\n"
   }, {
     "name" : "getMessageType",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getMessageType",
@@ -329,7 +329,7 @@
     "parameters" : [ ],
     "thrownTypes" : [ ],
     "varArgs" : false,
-    "documentation" : "{@inheritDoc} "
+    "documentation" : " Returns the payload for this invocation without materializing its message.\n\n @return the payload; never {@code null} while the execution is active\n"
   }, {
     "name" : "getResult",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.LocalExecution#getResult",

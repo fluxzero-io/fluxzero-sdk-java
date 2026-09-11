@@ -8,7 +8,7 @@
     "annotationType" : "lombok.AllArgsConstructor",
     "values" : {}
   } ],
-  "documentation" : " A default implementation of the {@link MemoizingBiFunction} interface that memoizes (caches) results of a\n {@link BiFunction} based on a pair of input arguments. Cached results can be reused for identical subsequent\n calls, and the cache can optionally be configured with a lifespan and a custom clock for time-based eviction.\n\n This class internally uses a {@link MemoizingFunction}, with the input arguments wrapped as\n {@link Map.Entry} for caching purposes.\n\n @param <T> the type of the first input argument\n @param <U> the type of the second input argument\n @param <R> the type of the computed result\n",
+  "documentation" : " A default implementation of the {@link MemoizingBiFunction} interface that memoizes (caches) results of a\n {@link BiFunction} based on a pair of input arguments. Cached results can be reused for identical subsequent\n calls, and the cache can optionally be configured with a lifespan and a custom clock for time-based eviction.\n\n This class internally uses a {@link MemoizingFunction}, with the input arguments wrapped in a private key pair for\n caching purposes.\n\n @param <T> the type of the first input argument\n @param <U> the type of the second input argument\n @param <R> the type of the computed result\n",
   "typeParameters" : [ "T", "U", "R" ],
   "superClass" : "java.lang.Object",
   "interfaces" : [ "io.fluxzero.common.MemoizingBiFunction<T,U,R>" ],
