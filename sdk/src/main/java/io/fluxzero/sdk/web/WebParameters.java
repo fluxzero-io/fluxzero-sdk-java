@@ -41,7 +41,7 @@ import static io.fluxzero.sdk.web.WebUtils.concatenateUrlParts;
  * {@link WebPattern} instances—one for each combination of method and URI pattern.
  *
  * @see WebPattern
- * @see WebUtils#getWebPatterns(Executable)
+ * @see WebUtils#getWebPatterns(Class, Object, Executable)
  */
 @Value
 public class WebParameters {

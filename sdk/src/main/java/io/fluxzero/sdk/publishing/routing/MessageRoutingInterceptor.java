@@ -46,7 +46,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * @see DispatchInterceptor
  * @see ConsistentHashing
- * @see SerializedMessage#setSegment(Integer)
+ * @see SerializedMessage
  */
 @AllArgsConstructor
 @Slf4j

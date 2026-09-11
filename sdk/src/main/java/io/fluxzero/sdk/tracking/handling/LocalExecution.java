@@ -225,13 +225,21 @@ public final class LocalExecution implements LocalHandlerInput {
         return execution.invocation;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Returns the payload for this invocation without materializing its message.
+     *
+     * @return the payload; never {@code null} while the execution is active
+     */
     @Override
     public Object getPayload() {
         return payload;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Returns the message for this invocation, materializing it when necessary.
+     *
+     * @return the message being handled
+     */
     @Override
     public DeserializingMessage getMessage() {
         if (deserializingMessage == null) {
@@ -243,7 +251,11 @@ public final class LocalExecution implements LocalHandlerInput {
         return deserializingMessage;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Returns the message only if it has already been materialized.
+     *
+     * @return the existing message, or {@code null} if it has not been created yet
+     */
     @Override
     public DeserializingMessage getMessageIfAvailable() {
         return deserializingMessage;

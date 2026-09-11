@@ -304,7 +304,8 @@
                     <version>3.12.0</version>
                     <configuration>
                         <javadocExecutable>${java.home}/bin/javadoc</javadocExecutable>
-                        <doclint>all,-reference,-missing</doclint>
+                        <doclint>all,-missing</doclint>
+                        <failOnWarnings>true</failOnWarnings>
                     </configuration>
                     <executions>
                         <execution>
@@ -569,12 +570,13 @@
                 </reportSets>
                 <configuration>
                     <javadocExecutable>${java.home}/bin/javadoc</javadocExecutable>
-                    <doclint>all,-reference,-missing</doclint>
+                    <doclint>all,-missing</doclint>
                     <additionalJOptions>
                         <additionalJOption>--add-modules</additionalJOption>
                         <additionalJOption>java.net.http</additionalJOption>
                     </additionalJOptions>
                     <failOnError>true</failOnError>
+                    <failOnWarnings>true</failOnWarnings>
                 </configuration>
             </plugin>
         </plugins>

@@ -50,7 +50,7 @@ import java.util.regex.Pattern;
  *
  * @see WebRequest
  * @see HandleWeb
- * @see io.fluxzero.sdk.web.WebUtils#getWebPatterns(java.lang.reflect.Executable)
+ * @see WebUtils#getWebPatterns(Class, Object, java.lang.reflect.Executable)
  */
 @Value
 public class WebPattern {
