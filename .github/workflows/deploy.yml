@@ -348,7 +348,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.SITE_BUILD_DISPATCHER_APP_ID }}
+          client-id: ${{ secrets.SITE_BUILD_DISPATCHER_APP_ID }}
           private-key: ${{ secrets.SITE_BUILD_DISPATCHER_PRIVATE_KEY }}
           owner: fluxzero-io
           repositories: fluxzero-site
