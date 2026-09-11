@@ -103,17 +103,19 @@ jobs:
             echo "package_channel_tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Calculate release version
-        uses: mathieudutour/github-tag-action@v6.2
+      - name: Expose release version
         id: tag_version
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: minor
-          tag_prefix: ""
-          custom_tag: ${{ steps.existing_tag.outputs.tag || steps.release_version.outputs.version }}
-          fetch_all_tags: true
-          custom_release_rules: "deps:patch:Dependency updates"
-          dry_run: true
+        env:
+          EXISTING_TAG: ${{ steps.existing_tag.outputs.tag }}
+          RESOLVED_VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          version="${EXISTING_TAG:-$RESOLVED_VERSION}"
+          if [ -z "$version" ]; then
+            echo "No release version was resolved" >&2
+            exit 1
+          fi
+          echo "new_version=$version" >> "$GITHUB_OUTPUT"
+          echo "new_tag=$version" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
         id: release_notes
