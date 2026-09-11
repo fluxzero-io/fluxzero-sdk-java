@@ -201,6 +201,8 @@ Fluxzero applications typically integrate with external identity providers (like
 `UserProvider`.
 
 - **UserProvider**: A Spring bean that resolves the current user from the message metadata or thread context.
+- **User identity**: Use `User.id()` for ownership, audit, and other stable identity comparisons. It defaults to
+  `Principal.getName()` for 1.x compatibility; override it when the principal name is not the application user ID.
 - **JWT**: In a typical setup, a gateway or proxy extracts the JWT, verifies it, and attaches the user information to
   the message `Metadata` before forwarding it to the Fluxzero application.
 - **Local Identity**: For local testing, the `TestFixture` uses a system user by default but can be configured with

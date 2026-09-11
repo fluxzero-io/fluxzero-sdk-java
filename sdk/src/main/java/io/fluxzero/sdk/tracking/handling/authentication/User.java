@@ -54,6 +54,20 @@ public interface User extends Principal {
     }
 
     /**
+     * Returns the stable identifier of this user.
+     * <p>
+     * The default delegates to {@link #getName()} so existing {@code User} implementations remain source-, binary-,
+     * and behavior-compatible. Implementations should override this method when the principal name is not a stable
+     * application user identifier. Fluxzero uses this value for user metadata, provider lookups, and diagnostics that
+     * identify the acting user.
+     *
+     * @return the stable user identifier
+     */
+    default String id() {
+        return getName();
+    }
+
+    /**
      * Executes a callable task with this user set as the current thread-local user. Restores the previous user (if any)
      * after execution.
      *

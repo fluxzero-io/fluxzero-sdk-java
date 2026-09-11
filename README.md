@@ -1377,10 +1377,11 @@ Your `UserProvider` implementation can also support testing and system behavior 
 
 This ensures your custom user logic is consistently applied, even in automated tests and background execution.
 
-With `fluxzero.defaults.version >= 2026.08.04`, `AbstractUserProvider` stores `User.getName()` in its metadata field for
+With `fluxzero.defaults.version >= 2026.08.04`, `AbstractUserProvider` stores `User.id()` in its metadata field for
 regular users and `$system` for the system user, instead of serializing the complete user. On receipt, `$system` resolves
 through `getSystemUser()` and other IDs through `getUserById(...)`; complete user objects from older messages remain
-readable. Applications using compatibility defaults keep the complete-user format. Set
+readable. `id()` defaults to `getName()` for compatibility; override it when the principal name is not a stable
+application user ID. Applications using compatibility defaults keep the complete-user format. Set
 `fluxzero.auth.useUserIdMetadata` explicitly to `true` or `false` to select either format independently of the defaults
 version.
 
@@ -5433,7 +5434,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | --- | --- | --- |
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
-| `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
+| `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.id()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`; `id()` defaults to `getName()` for compatibility. |
 | `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |

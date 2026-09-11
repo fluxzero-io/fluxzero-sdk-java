@@ -24,6 +24,7 @@ import static io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvi
 import static io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.SYSTEM_USER_ID;
 import static io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider.USE_USER_ID_METADATA_PROPERTY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -44,9 +45,17 @@ class AbstractUserProviderTest {
             Metadata metadata = provider.addToMetadata(Metadata.empty(), metadataUser);
 
             assertEquals(metadataUser, metadata.get(DEFAULT_USER_KEY, MockUser.class));
+            assertFalse(Metadata.objectMapper.valueToTree(metadata.get(DEFAULT_USER_KEY, MockUser.class)).has("id"));
             assertEquals(metadataUser, provider.fromMessage(message(metadata)));
             assertNull(provider.requestedUserId);
         });
+    }
+
+    @Test
+    void defaultIdentityDelegatesToPrincipalName() {
+        MockUser user = new MockUser("metadata");
+
+        assertEquals(user.getName(), user.id());
     }
 
     @Test
@@ -70,14 +79,42 @@ class AbstractUserProviderTest {
     }
 
     @Test
-    void newDefaultsStoreUserNameAndResolveItById() {
+    void newDefaultsStoreDefaultUserIdAndResolveItById() {
         withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
             MockUser metadataUser = new MockUser("metadata");
             Metadata metadata = provider.addToMetadata(Metadata.empty(), metadataUser);
 
-            assertEquals(metadataUser.getName(), metadata.get(DEFAULT_USER_KEY));
+            assertEquals(metadataUser.id(), metadata.get(DEFAULT_USER_KEY));
             assertSame(resolvedUser, provider.fromMessage(message(metadata)));
-            assertEquals(metadataUser.getName(), provider.requestedUserId);
+            assertEquals(metadataUser.id(), provider.requestedUserId);
+        });
+    }
+
+    @Test
+    void newDefaultsStoreExplicitUserIdInsteadOfPrincipalName() {
+        withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
+            User metadataUser = new User() {
+                @Override
+                public String id() {
+                    return "user-123";
+                }
+
+                @Override
+                public String getName() {
+                    return "Display name";
+                }
+
+                @Override
+                public boolean hasRole(String role) {
+                    return false;
+                }
+            };
+
+            Metadata metadata = provider.addToMetadata(Metadata.empty(), metadataUser);
+
+            assertEquals("user-123", metadata.get(DEFAULT_USER_KEY));
+            assertSame(resolvedUser, provider.fromMessage(message(metadata)));
+            assertEquals("user-123", provider.requestedUserId);
         });
     }
 
@@ -97,8 +134,13 @@ class AbstractUserProviderTest {
         withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
             User regularUser = new User() {
                 @Override
-                public String getName() {
+                public String id() {
                     return SYSTEM_USER_ID;
+                }
+
+                @Override
+                public String getName() {
+                    return "Not the system user";
                 }
 
                 @Override

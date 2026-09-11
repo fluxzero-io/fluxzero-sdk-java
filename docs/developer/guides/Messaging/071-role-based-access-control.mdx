@@ -285,6 +285,12 @@ fun handle(command: DeleteAccount) { ... }
 
 User roles are resolved by the configured `UserProvider`, which extracts user info from message metadata (e.g. headers or tokens). Fluxzero uses a pluggable SPI to register this provider.
 
+Use `User.id()` for ownership checks, audit references, and other behavior that needs a stable user identity. In the 1.x
+SDK it defaults to `Principal.getName()` for compatibility with existing `User` implementations. Override `id()` when
+the principal name is a display or provider-facing name. `AbstractUserProvider` stores this ID in user metadata and
+resolves it through `getUserById(...)`; keep accepting earlier `getName()` values while older messages can still be in
+flight.
+
 <Aside type="tip">
   In tests, you can override or mock the <code>UserProvider</code> via the <code>TestFixture</code> API.
 </Aside>

@@ -151,7 +151,8 @@ public class ApplicationProperties {
      *         <td>{@code >= 2026.08.04}</td>
      *         <td>{@code fluxzero.auth.useUserIdMetadata = true}</td>
      *         <td>{@link io.fluxzero.sdk.tracking.handling.authentication.AbstractUserProvider} writes {@code $system}
-     *         for the system user and {@link java.security.Principal#getName()} for regular users. It resolves
+     *         for the system user and {@link io.fluxzero.sdk.tracking.handling.authentication.User#id()} for regular
+     *         users. It resolves
      *         {@code $system} to the system user and other values through {@code getUserById}. Existing applications can
      *         keep serialized user objects with {@code fluxzero.auth.useUserIdMetadata = false}.</td>
      *     </tr>
