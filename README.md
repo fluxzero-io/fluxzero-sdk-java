@@ -13,6 +13,12 @@
 This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
 functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
+Coding agents can use the versioned [SDK documentation graph](docs/agents/README.md).
+It covers Java and Kotlin applications built with the 2.x Model and Graph APIs,
+including explicit compatibility guidance for existing Aggregate state. Maven
+packages it as the `agent-docs` ZIP classifier of `io.fluxzero:fluxzero-sdk-java`;
+the standalone stdio MCP bridge loads the archive matching the project's SDK version.
+
 ---
 
 ## Installation
