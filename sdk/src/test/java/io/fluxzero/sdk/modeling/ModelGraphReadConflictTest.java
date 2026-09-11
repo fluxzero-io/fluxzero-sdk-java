@@ -46,6 +46,24 @@ class ModelGraphReadConflictTest {
     private static final AtomicInteger attempts = new AtomicInteger();
 
     @Test
+    void unusedAndValueOnlyDirectGraphInjectionKeepTheOrdinaryCommitProtocol() {
+        GateClient client = new GateClient();
+        try (Fluxzero fluxzero = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
+            commit(fluxzero, new CreateParent("parent", 10));
+            AtomicInteger submissions = new AtomicInteger();
+            client.beforeCommit = request -> {
+                submissions.incrementAndGet();
+                assertEquals(CommitModels.class, request.getClass());
+                assertEquals(List.of(), request.getReadRelationships());
+            };
+            commit(fluxzero, new SeedReceipt("receipt"));
+            commit(fluxzero, new IgnoreParentGraph("receipt", "parent"));
+            commit(fluxzero, new ObserveParentValue("receipt", "parent"));
+            assertEquals(3, submissions.get());
+        }
+    }
+
+    @Test
     void valueOnlyGraphReadsRetryErasureAndAllowFreshAbsence() {
         GateClient client = new GateClient();
         try (Fluxzero fluxzero = DefaultFluxzero.builder().disableKeepalive().disableShutdownHook().build(client)) {
@@ -324,6 +342,13 @@ class ModelGraphReadConflictTest {
         @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
         Receipt apply(Graph<ParentModel> parent) {
             return new Receipt(receiptId, parent.get() == null ? 0 : 1);
+        }
+    }
+
+    record IgnoreParentGraph(String receiptId, String parentId) {
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY)
+        Receipt apply(Graph<ParentModel> parent) {
+            return new Receipt(receiptId, 0);
         }
     }
 

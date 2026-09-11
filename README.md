@@ -3880,9 +3880,14 @@ Different child types on the same path share a conservative dependency; remapped
 source. Physical erasure conservatively invalidates older Graph reads in the namespace because their historical evidence
 is removed. History and relationship cleanup advance the namespace atomically, including when a Graph was read after
 deletion preparation. Stale reads of erased values also conflict; fresh reads of their absence remain valid.
-Eligible relationship reads at the exact cached namespace boundary retain JDBC's cached-head/atomic-CAS route;
-older reads require database validation. Head-only writes remain batchable; relationship writers separate dependent
-readers into ordered waves. Additional validation has a cost and is not a zero-overhead optimization.
+Eligible relationship reads retain JDBC's cached-head/atomic-CAS route at the exact cached boundary or across known
+contiguous head-only writes by that Runtime. Other older reads require database validation. Without inspected
+relationships, commits skip membership queries and retain the ordinary wire format, including unused or value-only
+Graph injection resolved directly by ID. An indirectly resolved ancestor still protects the relationships used to select
+it, even if the handler only reads its value. Head-only writes remain batchable; relationship writers separate dependent readers into ordered waves.
+Adding a child uses the existing relation indexes; extra change-index entries are limited to closed relationships.
+Removing or reparenting must retain that evidence even without Graph injection in the writer, since another transaction
+may have read the affected collection. Additional validation is not a zero-overhead guarantee.
 
 Custom `ModelRepository` implementations must return SDK Graph views (for example, through `Graphs.compose`) for
 transactional navigation. An opaque custom `Graph` fails explicitly instead of silently losing dependencies or

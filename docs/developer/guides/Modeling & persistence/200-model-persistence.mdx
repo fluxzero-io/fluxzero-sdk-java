@@ -270,9 +270,13 @@ FAIL rejects. ACCEPT excludes assertion-/interceptor-only reads and preserves ap
 Path-scoped reads conservatively include every child type at that path; remapped paths include all paths of their source.
 Physical erasure invalidates older Graph reads namespace-wide because it removes historical evidence. Physical cleanup
 advances the namespace atomically, also protecting reads made after erasure preparation. Stale erased-value reads
-conflict, while fresh reads of their absence remain valid. Eligible reads at the exact
-cached namespace boundary retain JDBC's atomic-CAS route; older reads require database validation. Head-only writes
-remain batchable, while relationship writers separate dependent readers into ordered waves.
+conflict, while fresh reads of their absence remain valid. Eligible reads at the exact cached boundary or across known
+contiguous head-only writes by that Runtime retain JDBC's atomic-CAS route; other older reads require database validation.
+Unused or value-only Graph injection resolved directly by ID adds no membership proof or query. Indirect ancestor
+injection still protects the relationships traversed to select that ancestor. Head-only writes remain batchable,
+while relationship writers separate dependent readers into ordered waves. New child memberships use existing indexes;
+only closed relationships require extra change-index entries. Removing or reparenting still retains evidence when the
+writer does not inject a Graph, since another transaction may have read the affected collection.
 
 Custom repositories must construct SDK Graph views (for example with `Graphs.compose`) for transactional navigation.
 Opaque custom Graph implementations fail explicitly; ordinary non-transactional custom reads remain supported.

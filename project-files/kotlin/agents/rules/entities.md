@@ -471,8 +471,11 @@ every rebase. Complete reads within evaluation, including joined parallel scans.
 unrelated repository reads are not implicitly transactional. Types sharing a path share a conservative dependency;
 remapped paths protect all source paths, and physical erasure invalidates older Graph reads namespace-wide.
 Upgrade all Runtime instances first: older Runtimes reject the new relationship-aware wire request. Eligible reads at
-the exact cached namespace boundary retain atomic-CAS planning; older reads need database validation. Head-only writes
-remain batchable. Physical cleanup advances the namespace and an identity-free cleanup position. Stored Model
+the exact cached namespace boundary or across known contiguous head-only writes retain atomic-CAS planning; other older
+reads need database validation. Unused or value-only Graph injection resolved directly by ID adds no membership proof/query;
+indirect ancestor injection still protects the relationships used to select that ancestor. Writers still retain
+evidence of removed/reparented relations, even without their own Graph injection, to protect concurrent readers.
+Head-only writes remain batchable. Physical cleanup advances the namespace and an identity-free cleanup position. Stored Model
 payload/history formats are unchanged. Custom repositories must return SDK views such as `Graphs.compose` for
 transactional navigation; opaque custom Graphs fail explicitly, while ordinary custom reads remain supported.
 
