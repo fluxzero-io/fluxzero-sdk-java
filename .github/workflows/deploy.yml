@@ -65,8 +65,8 @@ jobs:
           java-version: "25"
           cache: maven
           server-id: fluxzero
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_DEPLOY_TOKEN
+          server-username-env-var: MAVEN_USERNAME
+          server-password-env-var: MAVEN_DEPLOY_TOKEN
 
       - name: Find existing release tag
         id: existing_tag
@@ -263,8 +263,8 @@ jobs:
           java-version: "25"
           cache: maven
           server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+          server-username-env-var: MAVEN_USERNAME
+          server-password-env-var: MAVEN_PASSWORD
 
       - name: Download artifacts
         if: steps.central_window.outputs.publish == 'true'
