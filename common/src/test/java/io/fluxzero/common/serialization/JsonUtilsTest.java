@@ -181,6 +181,29 @@ class JsonUtilsTest {
     }
 
     @Test
+    void singletonInheritedRootArrayRetainsItsContainer() {
+        List<?> result = assertInstanceOf(
+                ArrayList.class, JsonUtils.fromFile("inheritance/extended-singleton-array.json"));
+
+        assertEquals(List.of(new SamplePayload(1, "base current")), result);
+    }
+
+    @Test
+    void inheritedRootArrayCanBeReadAsTypedArray() {
+        SamplePayload[] result = JsonUtils.fromFile("inheritance/extended-array.json", SamplePayload[].class);
+
+        assertEquals(List.of(new SamplePayload(1, "current"), new SamplePayload(2, "nested other")),
+                     List.of(result));
+    }
+
+    @Test
+    void inheritedNdjsonRetainsIndependentRoots() {
+        List<?> result = assertInstanceOf(ArrayList.class, JsonUtils.fromFile("inheritance/extended.ndjson"));
+
+        assertEquals(List.of(new SamplePayload(1, "base current"), new SamplePayload(2, "nested other")), result);
+    }
+
+    @Test
     void objectRootExtendsRetainsExistingOverrideBehavior() {
         SamplePayload result = assertInstanceOf(
                 SamplePayload.class, JsonUtils.fromFile("inheritance/extended-object.json"));

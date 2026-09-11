@@ -300,9 +300,13 @@ public class JsonUtils {
         if (!content.contains('"' + extendsProperty + '"') && !content.contains('"' + extendProperty + '"')) {
             return content;
         }
-        Iterator<JsonNode> roots = reader.readerFor(JsonNode.class).readValues(content);
         List<JsonNode> rootNodes = new ArrayList<>();
-        roots.forEachRemaining(rootNodes::add);
+        // readValues(String) unwraps a root array. Preserve each root container as well as NDJSON boundaries.
+        try (JsonParser parser = reader.createParser(content)) {
+            while (parser.nextToken() != null) {
+                rootNodes.add(reader.readTree(parser));
+            }
+        }
         if (rootNodes.stream().noneMatch(JsonUtils::containsExtends)) {
             return content;
         }

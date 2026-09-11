@@ -1,0 +1,2 @@
+{"@extends": "base-current.json"}
+{"@extends": "nested/extended-other.json"}

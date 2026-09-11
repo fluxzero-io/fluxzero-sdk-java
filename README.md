@@ -2088,6 +2088,10 @@ JSON resources can **extend** other resources using the `@extends` keyword:
 This will recursively merge the referenced file (`/org/example/create-user.json`) with the current one, allowing you
 to override or augment deeply nested structures.
 
+Each object in a root or nested array resolves its own inheritance relative to the file containing it.
+Array containers are preserved, including single-element arrays and explicitly typed array reads.
+JSONL/NDJSON resources retain their independent record boundaries.
+
 > 🧠 This is especially useful for composing test scenarios with shared defaults or inheritance-like setups.
 
 ---
