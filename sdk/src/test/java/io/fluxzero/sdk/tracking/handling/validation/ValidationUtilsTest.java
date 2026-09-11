@@ -17,6 +17,9 @@ package io.fluxzero.sdk.tracking.handling.validation;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.configuration.DefaultFluxzero;
 import io.fluxzero.sdk.configuration.client.LocalClient;
+import io.fluxzero.sdk.tracking.handling.authentication.RequiresAnyRole;
+import io.fluxzero.sdk.tracking.handling.authentication.UnauthorizedException;
+import io.fluxzero.sdk.tracking.handling.authentication.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -99,6 +102,31 @@ class ValidationUtilsTest {
         }
     }
 
+    @Test
+    void authorizationFailureIdentifiesUserByStableId() {
+        User user = new User() {
+            @Override
+            public String id() {
+                return "user-123";
+            }
+
+            @Override
+            public String getName() {
+                return "Display name";
+            }
+
+            @Override
+            public boolean hasRole(String role) {
+                return false;
+            }
+        };
+
+        UnauthorizedException exception = assertThrows(
+                UnauthorizedException.class, () -> ValidationUtils.assertAuthorized(AdminOnly.class, user));
+
+        assertEquals("User user-123 is unauthorized to execute AdminOnly", exception.getMessage());
+    }
+
     @Value
     public static class Foo {
         @NotBlank String bar;
@@ -118,6 +146,10 @@ class ValidationUtilsTest {
         String handle() {
             return "ok";
         }
+    }
+
+    @RequiresAnyRole("admin")
+    private static class AdminOnly {
     }
 
     @Value

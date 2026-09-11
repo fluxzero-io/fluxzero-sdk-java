@@ -150,8 +150,8 @@ public interface Serializer extends ContentFilter {
      * <p>
      * Deserialization is performed lazily. This means that actual conversion for a given result in the output stream
      * only happens if {@link DeserializingObject#getPayload()} is invoked on the result. This has the advantage that a
-     * caller can inspect what type will be returned via {@link DeserializingObject#getSerializedObject()} before
-     * deciding to go through with the deserialization.
+     * caller can inspect what type will be returned via {@link DeserializingObject} method
+     * {@code getSerializedObject()} before deciding to go through with the deserialization.
      * <p>
      * You can specify whether deserialization of a result in the output stream should fail with a
      * {@link DeserializationException} if a type is unknown (not a class). It is up to the implementation to determine

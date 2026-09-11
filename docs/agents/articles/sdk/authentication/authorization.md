@@ -8,8 +8,13 @@ public record Sender(UserId userId, Role userRole) implements User {
             new Sender(new UserId("system"), Role.OWNER);
 
     @Override
-    public String getName() {
+    public String id() {
         return userId.toString();
+    }
+
+    @Override
+    public String getName() {
+        return id();
     }
 
     @Override
@@ -33,6 +38,11 @@ public record Sender(UserId userId, Role userRole) implements User {
     }
 }
 ```
+
+Use `User.id()` wherever application behavior needs the stable actor identity. On the 1.x SDK it defaults to
+`Principal.getName()` so existing implementations keep working; override it when the principal name is a display or
+provider-facing name. `AbstractUserProvider` writes this ID to user metadata and passes it to `getUserById(...)` on
+receipt. Keep resolving earlier `getName()` values while messages written by an older SDK can still be in flight.
 
 Create roles in the app, not in the IDP client:
 

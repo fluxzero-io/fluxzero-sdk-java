@@ -37,6 +37,8 @@ env:
 jobs:
   generate-javadoc:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v7
@@ -48,8 +50,8 @@ jobs:
           java-version: '25'
           cache: 'maven'
           server-id: github
-          server-username: ${{ github.actor }}
-          server-password: ${{ secrets.GITHUB_TOKEN }}
+          server-username-env-var: GITHUB_ACTOR
+          server-password-env-var: GITHUB_TOKEN
 
       - name: Set maven version
         if: ${{ inputs.version != '' }}

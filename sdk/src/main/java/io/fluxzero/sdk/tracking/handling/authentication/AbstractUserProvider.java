@@ -39,7 +39,7 @@ import static io.fluxzero.sdk.configuration.ApplicationProperties.DEFAULTS_VERSI
  * <h2>Metadata key</h2>
  * The default metadata key is {@link #DEFAULT_USER_KEY}, which resolves to {@code "$user"}. With compatibility
  * defaults, this key stores a serialized user object. With defaults version {@code 2026.08.04} or newer, or when
- * {@link #USE_USER_ID_METADATA_PROPERTY} is enabled, it stores {@link User#getName()} for regular users and
+ * {@link #USE_USER_ID_METADATA_PROPERTY} is enabled, it stores {@link User#id()} for regular users and
  * {@link #SYSTEM_USER_ID} for the system user. Regular IDs resolve through {@link #getUserById(Object)} and the system
  * ID resolves through {@link #getSystemUser()}.
  * Custom keys can also be provided via the constructor for flexibility across different application contexts.
@@ -138,14 +138,14 @@ public abstract class AbstractUserProvider implements UserProvider {
 
     /**
      * Adds a {@link User} to the metadata using the configured key. Compatibility defaults serialize the complete user;
-     * new defaults store {@link User#getName()} so the receiving provider can resolve a regular user by ID, or
+     * new defaults store {@link User#id()} so the receiving provider can resolve a regular user by ID, or
      * {@link #SYSTEM_USER_ID} when {@link #isSystemUser(User)} identifies the user as the system user.
      *
      * @param metadata the original metadata
      * @param user     the user to add
      * @param ifAbsent whether to only add the user if it is not already present
      * @return updated metadata including the user
-     * @throws IllegalArgumentException if a regular user has the reserved name {@link #SYSTEM_USER_ID}
+     * @throws IllegalArgumentException if a regular user has the reserved ID {@link #SYSTEM_USER_ID}
      */
     @Override
     public Metadata addToMetadata(Metadata metadata, User user, boolean ifAbsent) {
@@ -157,7 +157,7 @@ public abstract class AbstractUserProvider implements UserProvider {
             if (isSystemUser(user)) {
                 metadataUser = SYSTEM_USER_ID;
             } else {
-                metadataUser = user.getName();
+                metadataUser = user.id();
                 if (SYSTEM_USER_ID.equals(metadataUser)) {
                     throw new IllegalArgumentException("User ID `%s` is reserved for the system user"
                                                                .formatted(SYSTEM_USER_ID));

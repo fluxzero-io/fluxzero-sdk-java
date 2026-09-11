@@ -93,7 +93,7 @@ public class ConsumerConfiguration implements Substitutable<ConsumerConfiguratio
 
     /**
      * Configures the default complete serialized message byte limit per tracking fetch. Consumers can override this
-     * default with {@link Builder#maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
+     * default with the {@link Builder} method {@code maxFetchBytes(long)} or {@link Consumer#maxFetchBytes()}.
      */
     public static final String MAX_FETCH_BYTES_PROPERTY = "fluxzero.tracking.maxFetchBytes";
 

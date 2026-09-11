@@ -1895,7 +1895,7 @@ public class ReflectionUtils {
     /**
      * Returns the loadable types from the generated application type registry.
      * <p>
-     * The result is resolved once and uses the same class cache as {@link #getClass(String)}.
+     * The result is resolved once and uses the same class cache as {@link #classForName(String)}.
      */
     public static List<Class<?>> getRegisteredTypes() {
         return registeredTypesSupplier.get();

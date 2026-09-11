@@ -26,8 +26,8 @@ import java.util.function.Consumer;
  * {@link BiFunction} based on a pair of input arguments. Cached results can be reused for identical subsequent
  * calls, and the cache can optionally be configured with a lifespan and a custom clock for time-based eviction.
  *
- * This class internally uses a {@link MemoizingFunction}, with the input arguments wrapped as
- * {@link Map.Entry} for caching purposes.
+ * This class internally uses a {@link MemoizingFunction}, with the input arguments wrapped in a private key pair for
+ * caching purposes.
  *
  * @param <T> the type of the first input argument
  * @param <U> the type of the second input argument

@@ -50,7 +50,7 @@ import java.util.Optional;
  * the method.
  *
  * @see HasMessage#getPayloadClass()
- * @see ReflectionUtils#getClassSpecificityComparator()
+ * @see ReflectionUtils
  */
 public class PayloadFilter implements MessageFilter<HasMessage> {
 
