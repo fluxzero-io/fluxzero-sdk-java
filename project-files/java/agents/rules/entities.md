@@ -62,7 +62,7 @@ Important settings:
 Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
 `publicationStrategy` and per-apply overrides. Internal Graph-component documents are also orthogonal: they neither
 make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
-`ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT` Models.
+`ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT`-only Models.
 
 ## Apply actions
 

@@ -13,6 +13,12 @@
 This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
 functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
+Application-building documentation is available as [human/developer guides](docs/developer) and a
+[versioned agent documentation graph](docs/agents/README.md). The graph contains focused articles, searchable symbols
+and explicit links; use the graph from the SDK release matching your project.
+Each release publishes the graph as an `agent-docs` ZIP on Fluxzero Packages, with the same ZIP and SHA-256 checksum
+attached to the GitHub release for backup. Download coordinates and archive metadata are described in the graph README.
+
 ---
 
 ## Installation
@@ -2085,6 +2091,10 @@ JSON resources can **extend** other resources using the `@extends` keyword:
 This will recursively merge the referenced file (`/org/example/create-user.json`) with the current one, allowing you
 to override or augment deeply nested structures.
 
+Each object in a root or nested array resolves its own inheritance relative to the file containing it.
+Array containers are preserved, including single-element arrays and explicitly typed array reads.
+JSONL/NDJSON resources retain their independent record boundaries.
+
 > 🧠 This is especially useful for composing test scenarios with shared defaults or inheritance-like setups.
 
 ---
@@ -3450,7 +3460,7 @@ by content-based Graph and relationship queries without becoming publicly search
 and `@Sortable` to shape those internal indexes explicitly.
 
 Event-sourcing-only settings such as `ignoreUnknownEvents`, `snapshotPeriod`, `maxSnapshotCount` and
-`checkpointPeriod` are rejected on `DOCUMENT` Models instead of being silently ignored.
+`checkpointPeriod` are rejected on `DOCUMENT`-only Models instead of being silently ignored.
 
 ```java
 public record UpdateProfile(

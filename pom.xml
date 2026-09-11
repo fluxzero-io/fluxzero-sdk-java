@@ -54,15 +54,17 @@
         <jetty.version>12.1.13</jetty.version>
         <jakarta.annotation.version>3.0.0</jakarta.annotation.version>
         <jakarta.validation.version>3.1.1</jakarta.validation.version>
-        <kotlin.version>2.4.10</kotlin.version>
+        <kotlin.version>2.4.20</kotlin.version>
         <json.doclet.version>0.0.10</json.doclet.version>
         <junit.parallelism>2</junit.parallelism>
         <mockito.version>5.23.0</mockito.version>
         <slf4j.version>2.0.19</slf4j.version>
-        <fluxzero.maven.plugin.version>1.17.3</fluxzero.maven.plugin.version>
+        <fluxzero.maven.plugin.version>1.18.0</fluxzero.maven.plugin.version>
         <fluxzero.package.channel-tag>latest</fluxzero.package.channel-tag>
         <fluxzero.package.base-image>gcr.io/distroless/java25-debian13:nonroot@sha256:9ccf2b8bce700d9f450523e2055afabe4d4ee795e6d69a0647a2dcd6e180e411</fluxzero.package.base-image>
         <argLine/>
+        <agent-docs.sourceCommit>HEAD</agent-docs.sourceCommit>
+        <agent-docs.python>python3</agent-docs.python>
     </properties>
 
     <dependencyManagement>
@@ -409,6 +411,57 @@
         </pluginManagement>
 
         <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.3</version>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>build-agent-docs</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${agent-docs.python}</executable>
+                            <arguments>
+                                <argument>${project.basedir}/.github/scripts/build-agent-docs.py</argument>
+                                <argument>--version</argument>
+                                <argument>${project.version}</argument>
+                                <argument>--source-commit</argument>
+                                <argument>${agent-docs.sourceCommit}</argument>
+                                <argument>--output</argument>
+                                <argument>${project.build.directory}/${project.build.finalName}-agent-docs.zip</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>3.6.1</version>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>attach-agent-docs</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>attach-artifact</goal>
+                        </goals>
+                        <configuration>
+                            <artifacts>
+                                <artifact>
+                                    <file>${project.build.directory}/${project.build.finalName}-agent-docs.zip</file>
+                                    <type>zip</type>
+                                    <classifier>agent-docs</classifier>
+                                </artifact>
+                            </artifacts>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>io.fluxzero.tools</groupId>
                 <artifactId>fluxzero-maven-plugin</artifactId>

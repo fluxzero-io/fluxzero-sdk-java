@@ -31,6 +31,7 @@ import com.fasterxml.jackson.databind.introspect.AnnotationIntrospectorPair;
 import com.fasterxml.jackson.databind.introspect.NopAnnotationIntrospector;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
@@ -52,10 +53,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.fasterxml.jackson.annotation.JsonTypeInfo.Id;
@@ -152,7 +151,8 @@ import static com.fasterxml.jackson.databind.cfg.JsonNodeFeature.STRIP_TRAILING_
  * When {@code deposit-to-userB.json} is loaded, it will inherit all fields from {@code deposit-to-userA.json}
  * and override the {@code recipient} field with "userB".
  * <p>
- * The inheritance is recursive and is applied before deserialization.
+ * The inheritance is recursive and is applied before deserialization. Every element in a root or nested JSON array
+ * resolves its own inheritance independently, relative to the file containing that element.
  *
  * @see ObjectMapper
  * @see JsonNode
@@ -231,7 +231,8 @@ public class JsonUtils {
     private static final String revisionProperty = "@revision";
     private static final String revisionMarker = '"' + revisionProperty + '"';
     private static final String escapedAsciiMarker = "\\u00";
-    private static final Pattern extendsPattern = Pattern.compile("(\"@extends?\"\\s*:\\s*\"([^\"]+)\"\\s*,?)");
+    private static final String extendsProperty = "@extends";
+    private static final String extendProperty = "@extend";
 
     /**
      * Loads and deserializes a JSON file located relative to the calling class. Untyped root arrays return an
@@ -296,29 +297,88 @@ public class JsonUtils {
     @SneakyThrows
     protected static String getContent(URI fileUri) {
         String content = FileUtils.loadFile(fileUri);
-        AtomicReference<String> extendsReference = new AtomicReference<>();
-        content = extendsPattern.matcher(content).replaceFirst(m -> {
-            extendsReference.set(m.group(2));
-            return "";
-        });
-        String extendsFile = extendsReference.get();
-        if (extendsFile != null) {
-            String extendsContent;
-            if (extendsFile.startsWith("/")) {
-                URL extendsResource = JsonUtils.class.getResource(extendsFile);
-                if (extendsResource == null) {
-                    log.error("Resource {} not found", extendsFile);
-                    throw new IllegalArgumentException("File not found: " + extendsFile);
-                }
-                extendsContent = getContent(extendsResource.toURI());
-            } else {
-                extendsContent = getContent(FileUtils.safeResolve(fileUri, extendsFile));
-            }
-            var baseNode = reader.readTree(extendsContent);
-            reader.readerForUpdating(baseNode).readValue(reader.readTree(content));
-            content = reader.writeValueAsString(baseNode);
+        if (!content.contains('"' + extendsProperty + '"') && !content.contains('"' + extendProperty + '"')) {
+            return content;
         }
-        return content;
+        List<JsonNode> rootNodes = new ArrayList<>();
+        // readValues(String) unwraps a root array. Preserve each root container as well as NDJSON boundaries.
+        try (JsonParser parser = reader.createParser(content)) {
+            while (parser.nextToken() != null) {
+                rootNodes.add(reader.readTree(parser));
+            }
+        }
+        if (rootNodes.stream().noneMatch(JsonUtils::containsExtends)) {
+            return content;
+        }
+        List<String> resolvedRoots = new ArrayList<>();
+        for (JsonNode root : rootNodes) {
+            resolvedRoots.add(writer.writeValueAsString(resolveExtends(root, fileUri)));
+        }
+        return String.join("\n", resolvedRoots);
+    }
+
+    private static boolean containsExtends(JsonNode node) {
+        if (node instanceof ObjectNode objectNode
+                && (objectNode.has(extendsProperty) || objectNode.has(extendProperty))) {
+            return true;
+        }
+        Iterator<JsonNode> children = node.elements();
+        while (children.hasNext()) {
+            if (containsExtends(children.next())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SneakyThrows
+    private static JsonNode resolveExtends(JsonNode node, URI containingFile) {
+        if (node instanceof ArrayNode arrayNode) {
+            for (int i = 0; i < arrayNode.size(); i++) {
+                arrayNode.set(i, resolveExtends(arrayNode.get(i), containingFile));
+            }
+            return arrayNode;
+        }
+        if (!(node instanceof ObjectNode objectNode)) {
+            return node;
+        }
+
+        JsonNode extendsNode = objectNode.remove(extendsProperty);
+        if (extendsNode == null) {
+            extendsNode = objectNode.remove(extendProperty);
+        }
+        resolveChildren(objectNode, containingFile);
+        if (extendsNode == null) {
+            return objectNode;
+        }
+        if (!extendsNode.isTextual()) {
+            throw new IllegalArgumentException("Expected " + extendsProperty + " to contain a file name");
+        }
+
+        URI baseFile = resolveExtendsFile(containingFile, extendsNode.textValue());
+        JsonNode baseNode = resolveExtends(reader.readTree(FileUtils.loadFile(baseFile)), baseFile);
+        if (!(baseNode instanceof ObjectNode)) {
+            throw new IllegalArgumentException("Expected extended JSON resource to contain an object: " + baseFile);
+        }
+        reader.readerForUpdating(baseNode).readValue(objectNode);
+        return baseNode;
+    }
+
+    private static void resolveChildren(ObjectNode objectNode, URI containingFile) {
+        objectNode.properties().forEach(entry -> entry.setValue(resolveExtends(entry.getValue(), containingFile)));
+    }
+
+    @SneakyThrows
+    private static URI resolveExtendsFile(URI containingFile, String extendsFile) {
+        if (!extendsFile.startsWith("/")) {
+            return FileUtils.safeResolve(containingFile, extendsFile);
+        }
+        URL resource = JsonUtils.class.getResource(extendsFile);
+        if (resource == null) {
+            log.error("Resource {} not found", extendsFile);
+            throw new IllegalArgumentException("File not found: " + extendsFile);
+        }
+        return resource.toURI();
     }
 
     /**

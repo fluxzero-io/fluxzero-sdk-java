@@ -1,0 +1,4 @@
+{
+  "@extends": "base-current.json",
+  "value": "object override"
+}

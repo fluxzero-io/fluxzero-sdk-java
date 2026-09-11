@@ -242,6 +242,9 @@ it always remains payload data. The same interpretation is available through unt
 Reuse base configurations and override specific fields. You can use **absolute paths** (starting with `/`) to reference
 JSON resources from other packages.
 
+Each object in a root or nested array resolves `@extends` relative to its containing resource. Array containers,
+including single-element arrays, remain arrays; JSONL/NDJSON records remain independent.
+
 [//]: # (@formatter:off)
 ```json
 {

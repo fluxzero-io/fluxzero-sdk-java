@@ -25,9 +25,9 @@ Find answers to the most common questions about Fluxzero. Can't find what you're
 />
 
 <LinkCard
-  title="💻 Development & Testing"
-  href="#development--testing"
-  description="Questions about writing code, testing, and development workflows with Fluxzero."
+  title="💻 Building & Testing"
+  href="#building--testing"
+  description="How your coding agent builds, and how to inspect and test Fluxzero products."
 />
 
 <LinkCard
@@ -50,9 +50,18 @@ Find answers to the most common questions about Fluxzero. Can't find what you're
 <details>
 <summary>**What is Fluxzero and how is it different from traditional frameworks?**</summary>
 
-Fluxzero is a backend development platform that eliminates infrastructure complexity by providing a message-driven programming model. Instead of writing REST controllers, repositories, and service layers, you write message handlers that contain pure business logic.
+Fluxzero is a cloud designed for the AI era. It gives every product a reliable backend and eliminates infrastructure complexity through a message-driven programming model. Instead of you or your agent writing REST controllers, repositories, and service layers, the application contains message handlers focused on product behavior.
 
-Traditional frameworks require you to manage HTTP routing, database connections, message queues, and service configuration. Fluxzero handles all of this automatically, letting you focus on your application's business logic.
+Traditional frameworks leave the application team responsible for HTTP routing, database connections, message queues, and service configuration. Fluxzero handles all of this automatically, letting you focus on your product's behavior.
+
+</details>
+
+<details>
+<summary>**Do I need to be a developer to build with Fluxzero?**</summary>
+
+No. The easiest way to start is to [copy one instruction into your coding agent](/get-started). You decide what the product should do, while the agent works in the application code and Fluxzero handles the backend foundation.
+
+The result is a real Java or Kotlin codebase, not a generated black box. Developers can inspect, test, and extend it directly in their own IDE, and builders who do not want to write code can keep working through their agent.
 
 </details>
 
@@ -68,7 +77,7 @@ Event sourcing is just one of many patterns available in Fluxzero. You can also 
 <details>
 <summary>**What programming languages does Fluxzero support?**</summary>
 
-Fluxzero currently supports Java and Kotlin. The platform is designed to work with the JVM ecosystem, allowing you to use existing Java libraries and tools.
+Fluxzero application code is currently written in Java or Kotlin. Your coding agent can write that code using the existing JVM libraries and tools.
 
 We chose Java/Kotlin because they provide excellent tooling, type safety, and a mature ecosystem that works well with enterprise development.
 
@@ -143,7 +152,7 @@ Fluxzero uses consistent hashing to route messages to specific segments based on
 
 ---
 
-## Development & Testing
+## Building & Testing
 
 
 <details>
@@ -234,9 +243,9 @@ The business logic stays the same, but the infrastructure layer is completely re
 Fluxzero and serverless solve different problems:
 
 **Serverless**: Great for event-driven functions but requires managing infrastructure between functions  
-**Fluxzero**: Provides a complete application runtime with managed state and message routing
+**Fluxzero**: Provides a complete cloud with managed state and message routing
 
-Fluxzero gives you serverless-like developer experience (focus on business logic) but with better performance and state management for complex applications.
+Fluxzero gives you a serverless-like building experience focused on product logic, but with managed state and message routing for complex applications.
 
 </details>
 

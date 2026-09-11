@@ -63,6 +63,15 @@ class TestFixtureResourceSequenceTest {
     }
 
     @Test
+    void givenCommandsResolvesExtendsPerArrayElementBeforeTypeResolutionAndUpcasting() {
+        RecordingHandler handler = new RecordingHandler();
+
+        fixture(handler).givenCommands("extended-sequence-commands.json")
+                .whenQuery(new HandledCommands())
+                .expectResult(List.of("current", "upcasted nested legacy"));
+    }
+
+    @Test
     void classMetadataInJsonResourceUsesPackageAlias() {
         RecordingHandler handler = new RecordingHandler();
 

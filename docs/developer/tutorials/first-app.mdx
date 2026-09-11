@@ -13,9 +13,11 @@ This tutorial builds projects and tasks as independently stored models. You will
 boilerplate command handlers, connect them with a relationship, search across that relationship and test the whole
 flow.
 
+Ask your coding agent to implement each section. The tutorial also doubles as a tour of the real code behind the product.
+
 ## Project layout
 
-Start with the Basic Starter for Java or Kotlin from [Installation](/docs/getting-started/installation). A small domain
+Have your coding agent start with the Basic Starter for Java or Kotlin from [Installation](/docs/getting-started/installation). A small domain
 can use this layout:
 
 ```text
@@ -64,7 +66,7 @@ data class Project(
   </TabItem>
 </Tabs>
 
-`@Model` gives each project ID its own persistence and lifecycle boundary. Here
+`@Model` gives each project ID its own persistence and lifecycle boundary.
 Combining `EVENT_SOURCED` and `DOCUMENT` keeps event replay authoritative and also maintains a synchronous direct
 search document. `@EntityId` identifies the Model.
 

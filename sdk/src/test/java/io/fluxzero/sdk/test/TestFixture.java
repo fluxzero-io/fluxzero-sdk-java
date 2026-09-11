@@ -34,7 +34,6 @@ import io.fluxzero.common.api.search.SerializedDocument;
 import io.fluxzero.common.api.tracking.MessageBatch;
 import io.fluxzero.common.api.tracking.Position;
 import io.fluxzero.common.application.PropertySource;
-import io.fluxzero.common.application.SimplePropertySource;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
@@ -394,6 +393,7 @@ public class TestFixture implements Given<TestFixture>, When {
     private String tracedMessageTopic;
 
     private final BeanParameterResolver beanParameterResolver = new BeanParameterResolver();
+    private final PropertySource basePropertySource;
     private final Map<String, String> testProperties = new HashMap<>();
     private final List<HttpCookie> cookies = new ArrayList<>();
     private final Map<String, List<String>> headers = WebUtils.emptyHeaderMap();
@@ -416,6 +416,9 @@ public class TestFixture implements Given<TestFixture>, When {
         this.synchronous = synchronous;
         this.spying = false;
         this.productionUserProvider = false;
+        PropertySource configuredPropertySource = fluxzeroBuilder.propertySource();
+        this.basePropertySource = configuredPropertySource instanceof FixturePropertySource fixturePropertySource
+                ? fixturePropertySource.base() : configuredPropertySource;
         fluxzeroBuilder.registerUserProvider(
                 ofNullable(fluxzeroBuilder.userProvider())
                         .or(() -> Optional.ofNullable(UserProvider.defaultUserProvider))
@@ -423,7 +426,7 @@ public class TestFixture implements Given<TestFixture>, When {
         if (synchronous) {
             fluxzeroBuilder.disableScheduledCommandHandler();
         }
-        fluxzeroBuilder.replacePropertySource(s -> new SimplePropertySource(testProperties).andThen(s));
+        fluxzeroBuilder.replacePropertySource(ignored -> fixturePropertySource());
         this.interceptor = new GivenWhenThenInterceptor(this);
         var dispatchInterceptor = new LowPriorityDispatchInterceptor(interceptor);
         client = trackRemoteDocumentUpdates(client);
@@ -476,8 +479,11 @@ public class TestFixture implements Given<TestFixture>, When {
         this.synchronous = synchronous;
         this.spying = spying;
         this.productionUserProvider = productionUserProvider;
+        this.basePropertySource = currentFixture.basePropertySource;
+        this.testProperties.putAll(currentFixture.testProperties);
 
         this.fluxzeroBuilder = currentFixture.fluxzeroBuilder;
+        this.fluxzeroBuilder.replacePropertySource(ignored -> fixturePropertySource());
         if (productionUserProvider != currentFixture.productionUserProvider) {
             this.fluxzeroBuilder.registerUserProvider(
                     ofNullable(UserProvider.defaultUserProvider)
@@ -507,6 +513,18 @@ public class TestFixture implements Given<TestFixture>, When {
 
     private Client trackRemoteDocumentUpdates(Client client) {
         return client.unwrap() instanceof LocalClient ? client : new DocumentTrackingClient(client, interceptor);
+    }
+
+    private PropertySource fixturePropertySource() {
+        return new FixturePropertySource(testProperties, basePropertySource);
+    }
+
+    private record FixturePropertySource(Map<String, String> properties, PropertySource base)
+            implements PropertySource {
+        @Override
+        public String get(String name) {
+            return ofNullable(properties.get(name)).orElseGet(() -> base.get(name));
+        }
     }
 
     private void recordObservation(TestFixtureObservation observation) {
