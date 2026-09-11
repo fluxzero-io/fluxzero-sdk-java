@@ -616,8 +616,7 @@
                         <configuration>
                             <publishingServerId>central</publishingServerId>
                             <autoPublish>true</autoPublish>
-                            <waitUntil>published</waitUntil>
-                            <waitMaxTime>3600</waitMaxTime>
+                            <waitUntil>uploaded</waitUntil>
                             <excludeArtifacts>
                                 <artifact>annotation-processor-tests</artifact>
                                 <artifact>java-downstream-project</artifact>
