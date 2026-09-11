@@ -1,0 +1,9 @@
+[
+  {
+    "@extends": "base-current.json",
+    "value": "current"
+  },
+  {
+    "@extends": "nested/extended-other.json"
+  }
+]

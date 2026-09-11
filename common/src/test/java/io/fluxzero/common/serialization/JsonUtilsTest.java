@@ -173,6 +173,22 @@ class JsonUtilsTest {
     }
 
     @Test
+    void everyRootArrayElementResolvesItsOwnRelativeExtendsRecursively() {
+        List<?> result = assertInstanceOf(List.class, JsonUtils.fromFile("inheritance/extended-array.json"));
+
+        assertEquals(List.of(new SamplePayload(1, "current"),
+                             new SamplePayload(2, "nested other")), result);
+    }
+
+    @Test
+    void objectRootExtendsRetainsExistingOverrideBehavior() {
+        SamplePayload result = assertInstanceOf(
+                SamplePayload.class, JsonUtils.fromFile("inheritance/extended-object.json"));
+
+        assertEquals(new SamplePayload(1, "object override"), result);
+    }
+
+    @Test
     void untypedRootArrayFailureIdentifiesElementIndex() {
         IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> JsonUtils.fromJson("""
                 [

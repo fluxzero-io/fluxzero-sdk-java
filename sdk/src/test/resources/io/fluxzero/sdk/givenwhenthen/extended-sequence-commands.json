@@ -1,0 +1,9 @@
+[
+  {
+    "@extends": "fixture-inheritance/current-command.json",
+    "value": "current"
+  },
+  {
+    "@extends": "fixture-inheritance/nested/extended-legacy-command.json"
+  }
+]

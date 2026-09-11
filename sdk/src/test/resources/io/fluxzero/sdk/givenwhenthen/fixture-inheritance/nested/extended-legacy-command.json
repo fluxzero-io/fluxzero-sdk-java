@@ -1,0 +1,4 @@
+{
+  "@extends": "../legacy-command.json",
+  "legacyValue": "nested legacy"
+}
