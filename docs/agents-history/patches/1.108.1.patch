@@ -1,0 +1,16 @@
+--- a/articles/recipes/add-query.md
++++ b/articles/recipes/add-query.md
+@@ -10,4 +10,4 @@
+ 
+ For an indexed list/count requirement, follow the dedicated search-list-count recipe. Do not call `fetchAll()` and then filter, sort, paginate, or count in Java. Build constraints with `match(...)`, `lookAhead(...)`, `query(...)`, time/range operations, and `sortBy(...)`; finish with a bounded `fetch(...)` or `count()`.
+ 
+-For a standalone/component query handler, use `@LocalHandler` when it should run synchronously and bypass persisted tracking. An ordinary self-handling query without `@TrackSelf` is already local; read self-handling query placement before adding tracking or registering payload classes. Use `Fluxzero.memoize(...)` for lightweight local caching instead of static utility caches.
++For a standalone/component query handler, use `@LocalHandler` when it should run synchronously and bypass persisted tracking. An ordinary self-handling query without `@TrackSelf` is already local; read self-handling query placement before adding tracking or registering payload classes.
+--- a/articles/sdk/messages/queries.md
++++ b/articles/sdk/messages/queries.md
+@@ -19,4 +19,4 @@
+ 
+ Prefer dedicated query payloads over static utility methods for reusable reads. A standalone query without `@LocalHandler` still participates in normal tracking and request handling; use `@LocalHandler` only when local synchronous execution is the intended behavior.
+ 
+-For lightweight local caching in self-handling commands or queries, use `Fluxzero.memoize(...)` or `Fluxzero.memoizeIfAbsent(...)` instead of ad hoc static caches.
++Keep caching scoped to application lifecycle and only introduce it when its invalidation and isolation contract is explicit.

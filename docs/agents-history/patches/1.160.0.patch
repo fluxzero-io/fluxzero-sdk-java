@@ -1,0 +1,839 @@
+--- a/articles/recipes/add-authenticated-frontend.md
++++ b/articles/recipes/add-authenticated-frontend.md
+@@ -35,12 +35,12 @@
+ 
+ ## 4. Publish the matching client contract
+ 
+-Generated OpenAPI must name the mechanism the application actually accepts:
++Application-owned OpenAPI must name the mechanism the application actually accepts:
+ 
+ - BFF cookie: an `apiKey` scheme with `in: cookie` and the exact configured cookie name.
+ - Bearer API: an HTTP bearer scheme and matching security requirement.
+ 
+-`@RequiresUser` does not generate this scheme. Keep generated OpenAPI authoritative for HTTP operations and add a small live-protocol section that states the WebSocket route, handshake cookie/header, initial snapshot, updates, errors, and reconnect behavior.
++`@RequiresUser` does not generate this scheme. Keep application-owned OpenAPI authoritative for HTTP operations and add a small live-protocol section that states the WebSocket route, handshake cookie/header, initial snapshot, updates, errors, and reconnect behavior.
+ 
+ ## 5. Prove each boundary separately
+ 
+@@ -55,7 +55,7 @@
+ | WebSocket handshake | Raw authenticated open establishes the same user for later frames |
+ | Discovery | Served OpenAPI security requirement resolves to the matching scheme |
+ 
+-The `...ByUser` helpers remain useful for authorization after identity exists, but they do not replace the raw credential rows. Read HTTP authentication boundary testing for a deterministic fixture example and generated API discovery for structural security assertions.
++The `...ByUser` helpers remain useful for authorization after identity exists, but they do not replace the raw credential rows. Read HTTP authentication boundary testing for a deterministic fixture example and API contract documentation for structural security assertions.
+ 
+ ## 6. Hand off a usable client path
+ 
+--- a/articles/recipes/add-web-endpoint.md
++++ b/articles/recipes/add-web-endpoint.md
+@@ -4,7 +4,7 @@
+ 
+ Before writing the adapter, make a small field map from the product request to the endpoint DTO, command/query, aggregate identity, and response. Preserve every product-relevant field across that path.
+ 
+-For nested records and collections, read request DTO validation and OpenAPI contracts. `@Valid` cascades into a present value but does not make the outer field, list, or list item required; keep runtime constraints and generated required arrays aligned at every DTO level.
++For nested records and collections, read request DTO validation and OpenAPI contracts. `@Valid` cascades into a present value but does not make the outer field, list, or list item required; keep runtime constraints and documented required arrays aligned at every DTO level.
+ 
+ | Product field | Endpoint request | Command/query | Response/test |
+ | --- | --- | --- | --- |
+@@ -18,7 +18,7 @@
+ 
+ Add `@NoUserRequired` only for intentionally public endpoints. Otherwise let the app's normal authentication rules apply. When the product says the frontend is signed in or authenticated, follow the authenticated-frontend recipe: `@RequiresUser`, roles, and `getUserById(...)` do not establish a cookie or bearer credential.
+ 
+-Let route annotations do the transport work: path params, query params, optional segments, content negotiation, and automatic `HEAD`/`OPTIONS` are part of the web handler model. Keep business decisions in commands, queries, and legal assertions.
++Let route annotations bind path and query parameters. Configure explicit HTTP helper handlers and response policy when the API needs them. Keep business decisions in commands, queries, and legal assertions.
+ 
+ Check every literal route against sibling dynamic routes. For paths such as `/counts` beside `/{articleId}`, add a web-level test for both paths and avoid identifiers that collide with reserved literals when the product contract allows a clearer route.
+ 
+@@ -26,4 +26,6 @@
+ 
+ Follow the focused routed HTTP endpoint testing article: list every advertised operation added or changed by the task, then execute each one through the matching `TestFixture` web helper. Do not count a command/query test or an OpenAPI path assertion as execution of that endpoint.
+ 
+-When API documentation is part of the product contract, give every advertised HTTP operation a stable `@ApiDoc(operationId = "...")`, enable the generated document with `@ApiDocInfo`, request it through the fixture route, and assert its operations and schemas structurally. Do not use reflection or broad text containment as proof that runtime discovery works. Generated OpenAPI does not include WebSocket lifecycle pseudo-methods; document and fixture-test live routes separately.
++When API documentation is part of the product contract, maintain the operation inventory and schemas explicitly
++in this SDK version. Test its advertised URLs through the fixture. Document and fixture-test WebSocket routes
++and live-protocol behavior separately.
+--- a/articles/recipes/test-behavior.md
++++ b/articles/recipes/test-behavior.md
+@@ -17,7 +17,7 @@
+ 
+ For live updates, test both halves: use the concrete `socket(method, sessionId, payload)` helper from the WebSocket testing article, seed state, and assert the snapshot payload returned by `whenWebRequest(socket(WS_OPEN, sessionId, null))`. Then open a fresh session with `givenWebRequest(socket(WS_OPEN, sessionId, null))`, trigger the real command/event, and assert the emitted `WebResponse`. A snapshot alone is not evidence of later push delivery, and a push-handler annotation alone is not evidence of an initial snapshot.
+ 
+-Request generated OpenAPI through the fixture route, then parse and assert paths, operations, request fields, and response schemas. Avoid reflection-only or broad string-containment assertions. OpenAPI covers HTTP operations, not WebSocket lifecycle pseudo-methods; verify live routes separately.
++Request application-owned OpenAPI through the fixture route, then parse and assert paths, operations, request fields, and response schemas. Avoid reflection-only or broad string-containment assertions. OpenAPI covers HTTP operations, not WebSocket lifecycle pseudo-methods; verify live routes separately.
+ 
+ Tests should make the expected business rule obvious. Prefer one focused scenario per rule over broad setup that hides the intent.
+ 
+--- a/articles/sdk/project-setup/gradle.md
++++ b/articles/sdk/project-setup/gradle.md
+@@ -97,7 +97,7 @@
+ }
+ ```
+ 
+-Use both `annotationProcessor(platform("io.fluxzero:fluxzero-bom:$fluxzeroVersion"))` and `annotationProcessor("io.fluxzero:sdk")` for Java projects so the annotation processor resolves through the Fluxzero BOM. Kotlin projects need both kapt artifacts: `common` provides type-registry processing, while `sdk` provides the request, OpenAPI, and web-parameter processors. A Kotlin build that contains only `kapt("io.fluxzero:common")` is incomplete even when ordinary compilation succeeds.
++Use both `annotationProcessor(platform("io.fluxzero:fluxzero-bom:$fluxzeroVersion"))` and `annotationProcessor("io.fluxzero:sdk")` for Java projects so the annotation processor resolves through the Fluxzero BOM. Kotlin projects need both kapt artifacts: `common` provides type-registry processing, while `sdk` provides the request and web-parameter processors. A Kotlin build that contains only `kapt("io.fluxzero:common")` is incomplete even when ordinary compilation succeeds.
+ 
+ Use `mavenLocal()` only for local SDK or plugin development. Normal apps use Fluxzero Packages for Fluxzero artifacts, `mavenCentral()` for other dependencies, and the pinned Fluxzero BOM.
+ 
+--- a/articles/sdk/project-setup/java.md
++++ b/articles/sdk/project-setup/java.md
+@@ -35,13 +35,11 @@
+ 
+ ```java
+ @RegisterType
+-@ApiDoc
+ @RequiresUser
+ @Path("/api")
+ package com.example.app;
+ 
+ import io.fluxzero.common.serialization.RegisterType;
+-import io.fluxzero.sdk.web.ApiDoc;
+ import io.fluxzero.sdk.tracking.handling.authentication.RequiresUser;
+ import io.fluxzero.sdk.web.Path;
+ ```
+@@ -51,7 +49,6 @@
+ - `@RegisterType` lets Fluxzero discover serializable payload types under the package.
+ - `@RequiresUser` secures payloads by default; add `@NoUserRequired` only on explicit public endpoints.
+ - `@Path("/api")` gives web handlers a package-level HTTP prefix. Use relative child `@Path` values to append to it; a leading slash resets the inherited prefix. Read web routing and parameter binding before defining nested paths.
+-- `@ApiDoc` opts the package's HTTP handlers into generated OpenAPI. Add `@ApiDocInfo` when document metadata or served OpenAPI/reference endpoints are required; read generated API discovery for flags, path resolution, operation IDs, and structural runtime tests.
+ - Use Java records for commands, queries, IDs, and value objects unless the domain needs a normal class.
+ - Use Lombok only if the project already wants it. Fluxzero itself does not require Lombok.
+ - Generate typed IDs at endpoint or command-factory boundaries before constructing commands such as `CreateUser`; do not generate IDs in `@Apply`.
+--- a/articles/sdk/reference/public-symbols.md
++++ b/articles/sdk/reference/public-symbols.md
+@@ -59,12 +59,10 @@
+ | Objective | Public symbol |
+ | --- | --- |
+ | web request/response | `io.fluxzero.sdk.web.WebRequest`, `WebResponse` |
+-| web response mapping/form parts | `io.fluxzero.sdk.web.WebResponseMapper`, `DefaultWebResponseMapper`, `WebFormPart` |
++| web response mapping/form parts | `io.fluxzero.sdk.web.WebResponseMapper`, `DefaultWebResponseMapper` |
+ | web handlers and path | `io.fluxzero.sdk.web.HandleGet`, `HandlePost`, `HandleWeb`, `Path` |
+ | parameter binding | `io.fluxzero.sdk.web.PathParam`, `QueryParam`, `HeaderParam`, `CookieParam`, `FormParam`, `BodyParam` |
+ | sockets/static | `io.fluxzero.sdk.web.SocketEndpoint`, `SocketSession`, `ServeStatic` |
+-| API discovery | `io.fluxzero.sdk.web.ApiDoc`, `ApiDocInfo`, `ApiDocComponent`, `ApiDocResponse` |
+-| advanced API discovery | `io.fluxzero.sdk.web.ApiDocExclude`, `ApiDocCatalog`, `ApiDocExtractor`, `OpenApiOptions`, `OpenApiRenderer`, `ApiReferenceRenderer` |
+ | authentication/authorization | `io.fluxzero.sdk.tracking.handling.authentication.User`, `UserProvider`, `RequiresUser`, `RequiresAnyRole`, `NoUserRequired` |
+ | identity provider | `io.fluxzero.sdk.common.IdentityProvider` |
+ | validation | `io.fluxzero.sdk.tracking.handling.validation.ValidateWith`, `ValidationUtils`, `ValidationException` |
+--- a/articles/sdk/search/pagination.md
++++ b/articles/sdk/search/pagination.md
+@@ -51,7 +51,7 @@
+ Use the focused compound-sorting guidance when a page uses a derived rank or hides technical indexed fields from its
+ public response.
+ 
+-Map `offset` and `limit` as documented query parameters at the endpoint. Preserve their runtime validation and describe defaults and maximums with `@ApiDoc`; do not hide a server cap inside the query handler.
++Map `offset` and `limit` as documented query parameters at the endpoint. Preserve their runtime validation and describe defaults and maximums in the API documentation; do not hide a server cap inside the query handler.
+ 
+ ## Audit secondary consumers
+ 
+--- a/articles/sdk/testing.md
++++ b/articles/sdk/testing.md
+@@ -54,7 +54,10 @@
+ 
+ For WebSocket endpoints, register `@SocketEndpoint` classes by class and model socket frames as websocket `WebRequest` messages with a stable `sessionId`. A live view needs two fixture scenarios: opening after seeded state must assert the initial snapshot payload, and an already-open session must receive a `WebResponse` after the domain command/event. When the product says all open viewers receive updates, open two distinct session IDs as Given state and assert one outgoing response for each ID. Querying a projection after the command proves state, not socket delivery. These are fixture-level socket behavior tests; use a local runtime client only when a real network handshake or serialization smoke test is required.
+ 
+-For generated OpenAPI or other discoverable contracts, request the served document through `TestFixture.whenGet(...)`, parse it, and assert paths, methods, operation IDs, request fields, and response schemas structurally. Reflection over `@ApiDoc` does not prove annotation processing or runtime route registration. Broad substring checks can pass when an operation is missing or bound to the wrong shape. Generated OpenAPI intentionally omits WebSocket lifecycle pseudo-methods; document that protocol separately and prove the socket route and delivery with WebSocket fixture scenarios.
++When the application supplies an OpenAPI document, request it through its fixture route and assert paths, methods,
++request fields, and response schemas structurally. Keep it consistent with the endpoint matrix. Broad substring
++checks can pass when an operation is missing. Document the WebSocket protocol separately and prove live delivery
++with WebSocket fixture scenarios.
+ 
+ For schema evolution, read serialization. Increment `@Revision` on changed top-level payloads/documents and verify upcasters with `TestFixture.whenUpcasting(...)`.
+ 
+--- a/articles/sdk/testing/bulk-workflows.md
++++ b/articles/sdk/testing/bulk-workflows.md
+@@ -70,7 +70,7 @@
+ 
+ Use distinct IDs for "already stored" and "duplicated inside this request"; they exercise different rules. A test that fails on the first item cannot distinguish rollback from ordinary sequential dispatch.
+ 
+-For an HTTP bulk wrapper, also read request DTO validation and OpenAPI contracts. Test missing and empty outer lists, null items, and independently invalid nested fields at the routed boundary; a valid inner command does not prove the public wrapper or generated nested schema.
++For an HTTP bulk wrapper, also read request DTO validation and OpenAPI contracts. Test missing and empty outer lists, null items, and independently invalid nested fields at the routed boundary; a valid inner command does not prove the public wrapper or documented nested schema.
+ 
+ ## Example: measure fail-fast visibility
+ 
+--- a/articles/sdk/testing/http.md
++++ b/articles/sdk/testing/http.md
+@@ -12,7 +12,7 @@
+ | Routed HTTP fixture call | Handler selection, path/query/body binding, caller metadata, and `WebResponse` conversion | A real proxy socket, TLS, or browser behavior |
+ | Served OpenAPI assertion | Generated route, method, schema, operation ID, and discovery metadata | That the advertised operation can actually execute |
+ 
+-Generated OpenAPI proves discoverability; it does not execute the advertised operation. A direct endpoint-method call also bypasses routing and does not count as an HTTP contract test.
++Application-owned OpenAPI proves discoverability; it does not execute the advertised operation. A direct endpoint-method call also bypasses routing and does not count as an HTTP contract test.
+ 
+ ## Build an operation matrix
+ 
+--- a/articles/sdk/web.md
++++ b/articles/sdk/web.md
+@@ -34,7 +34,7 @@
+ 
+ Return `WebResponse` when you need explicit status, headers, or content type. Add `@NoUserRequired` only for public endpoints such as health checks, login callbacks, public docs, or unauthenticated MCP docs. For protected frontend routes, `@RequiresUser` only enforces an identity; read production HTTP identity to implement the cookie or bearer path that establishes it.
+ 
+-Use `/api` as the default application API prefix, usually through package-level `@Path("/api")`. Route matching supports composed `@Path` values, literal and parameter segments, regex parameters, wildcards, optional segments, trailing-slash handling, request parameter injection, and most-specific route selection. In a composed hierarchy, relative child `@Path` values append; a child `@Path` beginning with `/` resets the earlier package/class chain. Read web routing and parameter binding for exact examples and annotation placement.
++Use `/api` as the default application API prefix, usually through package-level `@Path("/api")`. Route matching supports composed `@Path` values, literal and parameter segments, regex parameters, wildcards, request parameter injection, and most-specific route selection. In a composed hierarchy, relative child `@Path` values append; a child `@Path` beginning with `/` resets the earlier package/class chain. Read web routing and parameter binding for exact examples and annotation placement.
+ 
+ Avoid static/dynamic path collisions such as `/articles/counts` and `/articles/{articleId}` when an identifier could equal the reserved word. Most-specific matching favors the literal route, but the public contract should still include a web-level test proving the static route reaches the intended handler and the dynamic route still accepts normal IDs. Reordering methods is not a substitute for a route test; use a less ambiguous path or a constrained parameter when the contract permits it.
+ 
+@@ -42,7 +42,9 @@
+ 
+ Default HTTP mapping is intentionally predictable: objects map to 200 JSON, `void`/`null` map to 204, validation/deserialization failures map to 400, `UnauthenticatedException` and `UnauthorizedException` map to 401, other `FunctionalException` failures map to 403, timeouts map to 503, and unexpected failures map to 500. Return `WebResponse` when the default is not the API contract.
+ 
+-`@ApiDoc` opts annotated packages or endpoints into generated API docs; it does not by itself publish a document endpoint. `@ApiDocInfo` supplies document metadata and controls the served OpenAPI and reference paths. Use generated API discovery for package configuration, stable operation IDs, runtime fixture assertions, and the intentional separation between HTTP OpenAPI and WebSocket protocol documentation. Do not maintain a handwritten duplicate of generated HTTP operations. `@ServeStatic` is for static assets; keep its `ignorePaths` covering `/api/*` unless the app deliberately serves static content over API routes.
++`@ServeStatic` serves static assets; keep its `ignorePaths` covering `/api/*` unless the app deliberately serves
++static content over API routes. This SDK version has no built-in OpenAPI generation. If API documentation is part
++of the product contract, maintain and verify it alongside the routed endpoint tests.
+ 
+ Automatic `HEAD`/`OPTIONS` support belongs in routing, not hand-written endpoint methods. Prefer explicit `@HandleHead` or `@HandleOptions` only when the app needs custom behavior.
+ 
+--- a/articles/sdk/web/advanced-transport.md
++++ b/articles/sdk/web/advanced-transport.md
+@@ -22,42 +22,25 @@
+ Fingerprint immutable assets and configure caching deliberately; do not give HTML an immutable one-year cache when it
+ must point clients to newly deployed assets.
+ 
+-## Form and multipart parameters
++## Form parameters and raw uploads
+ 
+-Use `@FormParam` on handler parameters for URL-encoded and multipart parts. Bind text as `String`, file bytes as
+-`byte[]`/`InputStream`, or use `WebFormPart` when filename, content type, or part headers matter:
++Use `@FormParam` for URL-encoded form fields. This version does not expose multipart parts through that annotation.
++Accept a multipart body as an unannotated raw `byte[]` or `String` only when the application deliberately owns parsing
++and request-size validation. `WebFormPart` is not available.
+ 
+ ```java
+-@HandlePost("/api/uploads")
+-UploadReceipt upload(
+-        @FormParam("label") @NotBlank String label,
+-        @FormParam("file") WebFormPart file) {
+-    // Validate type and size before durable processing.
++@HandlePost("/api/profile")
++void updateProfile(@FormParam("displayName") @NotBlank String displayName) {
++    // Dispatch a validated domain command.
+ }
+ ```
+ 
+-Use `@BodyParam` only to extract named JSON body fields; a plain DTO parameter is clearer for the complete body. Apply
+-validation to the injected parameter and independently bound nested values. Do not retain upload bytes in events,
+-metrics, logs, or search documents unless the product explicitly requires it.
++Use a plain DTO parameter for a complete JSON body, or `@BodyParam` for a named JSON body field. Keep validation at
++the public boundary and do not put raw upload bytes in events, metrics, logs, or search documents by default.
+ 
+-## Automatic `HEAD` and `OPTIONS`
++## Explicit response policy
+ 
+-A matching GET route can answer `HEAD` when no explicit HEAD/ANY handler wins; the response keeps status/headers and
+-removes the body. Routes can contribute to automatic `OPTIONS` with `204` and `Allow` when no explicit OPTIONS/ANY
+-handler wins. Disable `autoHead` or `autoOptions` only when another application owns that helper for the same public
+-route. Add a routed test; method declaration order is not the selection contract.
+-
+-## Response mapping and content negotiation
+-
+-Automatically mapped objects support JSON, strings support `text/plain` and JSON string representation, and
+-`byte[]`/`InputStream` support `application/octet-stream`. Fluxzero chooses a supported representation from `Accept`
+-best-effort and leaves the normal default when none matches; do not promise `406` without an explicit application
+-policy. An explicit `WebResponse` or `Content-Type` wins.
+-
+-Use `FluxzeroBuilder.replaceWebResponseMapper(...)` only for an application-wide policy. Preserve safe error mapping,
+-HEAD body stripping, metadata/headers, and content negotiation in its tests. Prefer returning an explicit
+-`WebResponse` from the exceptional endpoint that needs a different status over changing every endpoint.
+-
+-Programmatic `ApiDocExtractor`/`OpenApiRenderer` is an advanced documentation path for dynamic handler instances or a
+-custom document host. Generated annotation-processing output and served `@ApiDocInfo` endpoints remain the default;
+-do not create a second manually maintained operation inventory.
++Return ordinary payloads for default HTTP mapping. Return a `WebResponse` when an endpoint needs a custom status,
++content type, or headers. This SDK version does not provide the later automatic HEAD/OPTIONS route helpers or
++Accept-based content negotiation. Define explicit handlers when the public contract requires those operations.
++Use the application-wide `replaceWebResponseMapper(...)` only for a shared policy and test all affected mappings.
+--- a/articles/sdk/web/api-discovery-options.md
++++ /dev/null
+@@ -1,63 +0,0 @@
+-Use these options after the ordinary generated API-discovery path works and the product needs exclusions, reusable
+-responses, a different OpenAPI dialect, or a browser reference renderer. Keep handlers and their annotations as the
+-single operation inventory.
+-
+-## Exclude documentation without changing runtime behavior
+-
+-`@ApiDocExclude` can exclude a package, handler type or method, parameter, field, record component, or type use from
+-generated documentation. It does not disable a route or remove a runtime field. Do not use it to hide an endpoint that
+-should be inaccessible; enforce authentication/authorization or remove the handler.
+-
+-## Describe additional and reusable responses
+-
+-Fluxzero infers the normal response from the handler return type. Add repeatable `@ApiDocResponse` entries for status
+-or error responses that cannot be inferred:
+-
+-```java
+-@ApiDocResponse(status = 400, description = "Invalid request")
+-@ApiDocResponse(status = 409, ref = "conflict")
+-@HandlePost("/api/actions")
+-ActionResult perform(ActionRequest request) {
+-    // ordinary endpoint mapping
+-}
+-```
+-
+-A bare `ref` resolves below `#/components/responses/`; define that component through `@ApiDocInfo.components`. When
+-`ref` is set, response description, type, and content type are ignored because an OpenAPI Reference Object cannot have
+-response-object siblings. Test that every reference resolves in the served document.
+-
+-Use `@ApiDoc` itself for dependency-free schema hints that inference cannot supply: `type`, `format`, `example`,
+-`defaultValue`, `minimum`, `maximum`, `allowableValues`, `required`, and `implementation`. It can annotate fields,
+-parameters, record components, and type arguments. Prefer it over adding a second Swagger-specific annotation model;
+-none of these documentation hints replaces runtime validation.
+-
+-
+-
+-## Select document and reference rendering
+-
+-`ApiDocCatalog` is the format-neutral extracted model. `OpenApiRenderer` turns it into OpenAPI using
+-`OpenApiOptions`; the default OpenAPI document version is `3.0.1`, while `openApiVersion = "3.1.0"` selects the 3.1
+-shape. Annotation processing accepts matching `fluxzero.openapi.*` processor options for title, version, servers,
+-enabled state, and document version. Prefer `@ApiDocInfo` for application-owned metadata and processor options only
+-for build-wide defaults.
+-
+-The exact processor keys are `fluxzero.openapi.enabled`, `fluxzero.openapi.output`,
+-`fluxzero.openapi.specVersion`, `fluxzero.openapi.title`, `fluxzero.openapi.version`,
+-`fluxzero.openapi.description`, and `fluxzero.openapi.servers`. Pass them as compiler `-A` options. Do not disable
+-generation in one build profile while tests or packaging still promise the generated resource.
+-
+-`@ApiDocInfo(serveApiReference = true)` also serves the OpenAPI document used by the page. Choose
+-`ApiReferenceRenderer.REDOC`, `SCALAR`, or `SWAGGER_UI`, and override script/stylesheet URLs only when the application's
+-content-security and asset-hosting policy requires it. A browser page is presentation; the served JSON contract
+-remains the machine-readable source.
+-
+-## Programmatic extraction is exceptional
+-
+-`ApiDocExtractor.extract(handlerInstance)` supports dynamically supplied handler instances.
+-`OpenApiRenderer.render(...)`, `renderJson(...)`, or `renderPrettyJson(...)` produces a document for a custom endpoint;
+-the selected `ApiReferenceRenderer` configures the accompanying browser page. Use this only when generated
+-annotation-processing output and automatic `@ApiDocInfo` serving cannot express the runtime handler set.
+-
+-For any custom path, retain the structural tests from generated API discovery: exact paths/methods, stable operation
+-IDs, required fields, every response/reference, security requirement plus scheme, selected OpenAPI version, serving
+-content type, and one routed behavior test per advertised operation.
+--- a/articles/sdk/web/api-discovery.md
++++ /dev/null
+@@ -1,133 +0,0 @@
+-Use this when a product requires frontend operations to be discoverable through generated API documentation. Treat the generated HTTP contract as the source of truth; do not maintain a second handwritten OpenAPI document beside the handlers.
+-
+-## Publish the generated HTTP contract
+-
+-`@ApiDoc` opts packages, handler types, or methods into generated documentation. An empty annotation is enough for route, parameter, request, and response information that Fluxzero can infer. Add explicit metadata only where inference is insufficient, especially stable operation IDs:
+-
+-```java
+-@ApiDoc(summary = "Create a project", operationId = "createProject")
+-@HandlePost("/projects")
+-ProjectId create(CreateProjectRequest request) {
+-    // map the request to the already-tested command
+-}
+-```
+-
+-Put top-level metadata and serving options on the package or handler scope that owns the routes:
+-
+-```java
+-@Path("/api")
+-@ApiDoc
+-@ApiDocInfo(
+-        title = "Project API",
+-        version = "1.0.0",
+-        serveOpenApi = true,
+-        openApiPath = "openapi.json",
+-        serveApiReference = true,
+-        apiReferencePath = "docs")
+-package com.example.projects;
+-
+-import io.fluxzero.sdk.web.ApiDoc;
+-import io.fluxzero.sdk.web.ApiDocInfo;
+-import io.fluxzero.sdk.web.Path;
+-```
+-
+-Relative document paths resolve against the `@Path` on the same package or handler type. This example serves `/api/openapi.json` and `/api/docs`. Absolute configured paths start at the application root. Nested handler `@Path` values follow the same composition rule: relative values append and a leading `/` resets the inherited chain. Read web routing and parameter binding before duplicating an inherited prefix. `serveApiReference = true` also serves the OpenAPI document because the reference page consumes it. The automatic document and reference endpoints are public, so enable them only when that is the intended product contract.
+-
+-With annotation processing enabled, Fluxzero writes the generated document to `META-INF/fluxzero/openapi.json`. The automatic endpoint uses that generated resource when present and can render from runtime metadata as a fallback. Keep handler annotations and this generated artifact authoritative; do not copy their operations into a manually maintained JSON string.
+-
+-## Make validation and security explicit
+-
+-OpenAPI generation maps supported Jakarta constraints that are visible on the inspected element, but Java record-component propagation and annotation-processor visibility can still leave required arrays incomplete. Runtime security is separate: package-level `@RequiresUser` is not inferred as an OpenAPI scheme or requirement. Inspect the generated schema instead of assuming either contract is complete.
+-
+-Keep runtime validation and add `@ApiDoc(required = true)` on required request record components when the generated schema would otherwise omit requiredness:
+-
+-```java
+-public record AddProjectRequest(
+-        @ApiDoc(required = true) @NotBlank String projectId,
+-        @ApiDoc(required = true) @NotBlank String title,
+-        @ApiDoc(required = true) @NotNull ProjectType type) {
+-}
+-```
+-
+-`@ApiDoc(required = true)` documents the contract; it does not replace Jakarta validation. Use it as an explicit fallback when a supported Jakarta constraint is not visible where generation inspects the property, including annotations propagated to a record's field, accessor, or type use rather than its record-component element.
+-
+-For nested records, collection wrappers, and bulk items, inspect every reachable schema rather than only the request body's outer `$ref`. Read request DTO validation and OpenAPI contracts for a complete outer-list/item example and routed invalid-payload tests.
+-
+-Declare the authentication mechanism the client actually uses. For a bearer-token API:
+-
+-```java
+-@ApiDocInfo(
+-        title = "Project API",
+-        version = "1.0.0",
+-        security = "bearerAuth",
+-        components = @ApiDocComponent(
+-                path = "securitySchemes.bearerAuth",
+-                json = """
+-                        {"type":"http","scheme":"bearer","bearerFormat":"JWT"}
+-                        """),
+-        serveOpenApi = true)
+-```
+-
+-For a BFF session, define an `apiKey` security scheme with `in: cookie` and the application's actual configured cookie name instead. Do not advertise bearer auth for a cookie-only app or invent a generic cookie name. `@RequiresUser` enforces runtime identity but does not automatically create an OpenAPI security scheme.
+-
+-## Verify the runtime boundary
+-
+-Treat the emitted document as a separate evidence boundary. Map each promised method, path, operation ID, input
+-requiredness rule, item schema, and response shape to a structural assertion; the verification-boundaries inventory
+-helps keep those checks independent from routed execution and domain behavior.
+-
+-Reflection over `@ApiDoc` proves only that annotations exist. Reading a build file proves only that processing was configured. Request the served document through `TestFixture` so route registration, document generation/loading, and response conversion all participate:
+-
+-```java
+-TestFixture.create(new ProjectEndpoint())
+-        .whenGet("/api/openapi.json")
+-        .expectWebResult(response -> {
+-            String openApi = response.<String>getPayloadAs(String.class);
+-            JsonNode document = JsonUtils.readTree(openApi);
+-            JsonNode operation = document.path("paths")
+-                    .path("/api/projects").path("post");
+-            JsonNode requestSchema = document.path("components")
+-                    .path("schemas").path("AddProjectRequest");
+-            Set<String> required = StreamSupport.stream(
+-                            requestSchema.path("required").spliterator(), false)
+-                    .map(JsonNode::asText).collect(Collectors.toSet());
+-            return response.getStatus() == 200
+-                   && "application/json".equals(response.getContentType())
+-                   && "createProject".equals(operation.path("operationId").asText())
+-                   && operation.path("requestBody").path("content")
+-                           .path("application/json").has("schema")
+-                   && required.equals(Set.of("projectId", "title", "type"))
+-                   && operation.path("responses").has("200");
+-        });
+-```
+-
+-Bind the response payload before parsing. `getPayloadAs(Type)` does not infer its generic return type from
+-`String.class`. Passing an unbound result directly to overloaded `JsonUtils.fromJson(...)` is ambiguous between its
+-String and byte-array overloads; `JsonUtils.readTree(openApi)` expresses the intended JSON-tree boundary directly.
+-
+-Build a structural assertion matrix from the advertised HTTP surface:
+-
+-| Contract part | Assert |
+-| --- | --- |
+-| Route | Exact path and HTTP method |
+-| Operation | Stable `operationId`, summary, and security when required |
+-| Input | Path/query parameter names, request-body fields, and exact required properties |
+-| Output | Status codes and response schema |
+-| Serving | Configured OpenAPI/reference path and content type |
+-
+-Give every advertised operation a matching row in routed HTTP tests, and give every product-critical required field or
+-response branch an independently falsifiable assertion. Keep discovery structure, routed execution, and domain behavior
+-as separate evidence rows; success in one does not imply the others.
+-
+-Also assert the top-level or operation security requirement and its matching `components.securitySchemes` entry. A named requirement without a defined scheme, or a scheme that does not match the actual cookie/bearer flow, is not a usable client contract.
+-
+-Do not replace these checks with broad string containment. A copied operation name can remain present while the route, method, or schema is missing.
+-
+-Pair every advertised path-and-method row added or changed by the task with the focused routed HTTP endpoint test matrix. Requesting this OpenAPI document proves that discovery is served; it does not execute the documented application operations.
+-
+-## WebSocket discoverability is separate
+-
+-Fluxzero's generated OpenAPI contains standard HTTP operations and intentionally excludes WebSocket lifecycle pseudo-methods such as `WS_OPEN` and `WS_MESSAGE`. A socket route missing from `paths` is therefore not evidence that socket registration failed.
+-
+-Document the live protocol separately in the product-facing reference or API prose. Include the route, how the handshake supplies authentication, the initial snapshot shape, later update shapes, close/error behavior, and reconnect expectations. Verify it through the WebSocket fixture boundary: open the real route, assert the initial snapshot, trigger the real command or event, and assert delivery to the open session. If a consumer requires machine-readable live-protocol metadata in the same artifact, add a deliberately designed vendor extension rather than replacing the generated HTTP operations with a handwritten document. Keep the socket fixture test as the registration and delivery proof.
+-
+--- a/articles/sdk/web/request-contracts.md
++++ b/articles/sdk/web/request-contracts.md
+@@ -1,11 +1,10 @@
+-Use this when an HTTP request contains required fields, nested records, collections, or bulk items. Runtime validation and generated OpenAPI describe related but distinct contracts; every reachable DTO level must be correct.
++Use this when an HTTP request contains required fields, nested records, collections, or bulk items. Runtime validation and application-owned OpenAPI describe related but distinct contracts; every reachable DTO level must be correct.
+ 
+ | Annotation | Effect |
+ | --- | --- |
+ | `@Valid` | Cascades validation into a non-null value; it does not make the value, collection, or collection item required |
+ | `@NotNull`, `@NotBlank`, `@NotEmpty` | Enforces runtime shape and may inform OpenAPI when visible on the inspected record component |
+ | `@Size` | Enforces collection/string bounds and may document those bounds when visible |
+-| `@ApiDoc(required = true)` | Explicitly documents requiredness; it does not replace Jakarta runtime validation |
+ 
+ Validate the public DTO even when the command repeats the constraints. The command still needs protection for non-HTTP callers, while the endpoint DTO must reject malformed input before mapping and must advertise an accurate client contract.
+ 
+@@ -13,24 +12,23 @@
+ 
+ ```java
+ public record ImportRequest(
+-        @ApiDoc(required = true)
+         @NotEmpty
+         @Size(max = 100)
+         List<@NotNull @Valid ArticleDraft> articles) {
+ }
+ 
+ public record ArticleDraft(
+-        @ApiDoc(required = true) @NotNull ArticleId articleId,
+-        @ApiDoc(required = true) @NotBlank String title,
+-        @ApiDoc(required = true) @NotNull LocalDate reviewAfter,
+-        @ApiDoc(required = true) @NotBlank String description,
+-        @ApiDoc(required = true) @NotNull Set<@NotBlank String> tags) {
++        @NotNull ArticleId articleId,
++        @NotBlank String title,
++        @NotNull LocalDate reviewAfter,
++        @NotBlank String description,
++        @NotNull Set<@NotBlank String> tags) {
+ }
+ ```
+ 
+ `@Valid List<@Valid ArticleDraft> articles` alone is insufficient: `articles` may be null, the list may be empty, and a null element is not rejected by `@Valid`. Put container constraints on the record component and element constraints on the type argument.
+ 
+-If annotation propagation or processor visibility omits a required property, keep the Jakarta constraint and add `@ApiDoc(required = true)` at the inspected record component. The documentation annotation is a contract fallback, never a validation substitute.
++Keep every requiredness rule on the public DTO and reflect it in the application's API documentation.
+ 
+ ## Verify routed validation and the served schema
+ 
+--- a/articles/sdk/web/routing-and-binding.md
++++ b/articles/sdk/web/routing-and-binding.md
+@@ -35,7 +35,8 @@
+ 
+ The reset rule above applies to nested `@Path` annotations. A leading slash in `@HandleGet`, `@HandlePost`, or another `@Handle*` mapping is not the same as a leading slash in `@Path`: the mapping is normalized and appended to the computed handler base. An absolute URL mapping can deliberately replace that base. Use an intentional absolute child `@Path` only when replacing the inherited prefix is the contract.
+ 
+-An instance/property-derived `@Path` is evaluated at runtime. Generated OpenAPI can compose static package, type, and method path values, but it cannot enumerate arbitrary runtime property values. Prefer static paths for discoverable application APIs; otherwise document and test the dynamic route separately instead of claiming the generated artifact contains every runtime value.
++An instance/property-derived `@Path` is evaluated at runtime. Document and test the resolved route for the
++actual handler instance and configured properties.
+ 
+ ## Put transport annotations on handler parameters
+ 
+@@ -56,16 +57,16 @@
+ }
+ 
+ record PublishArticleRequest(
+-        @ApiDoc(required = true) @NotBlank String articleId,
+-        @ApiDoc(required = true) @NotBlank String title) {
++        @NotBlank String articleId,
++        @NotBlank String title) {
+ }
+ ```
+ 
+-Use a plain request DTO parameter for the whole JSON body. Use `@BodyParam` on method parameters only when deliberately extracting named body fields. Put Jakarta validation and `@ApiDoc(required = true)` on DTO record components according to the runtime and generated contract; do not put web injection annotations there.
++Use a plain request DTO parameter for the whole JSON body. Use `@BodyParam` on method parameters only when deliberately extracting named body fields. Put Jakarta validation on DTO record components according to the runtime and documented contract; do not put web injection annotations there.
+ 
+ Name injected parameters explicitly when the route or public contract depends on a different name. Java annotation processing records method parameter metadata, but an explicit `@PathParam("articleId")` or `@QueryParam("offset")` keeps the binding and OpenAPI intent visible.
+ 
+-## Verify runtime and generated paths together
++## Verify runtime and documented paths together
+ 
+ For each static route added or changed:
+ 
+@@ -77,4 +78,4 @@
+ 
+ For a dynamic property-derived path, drive the actual handler instance through the runtime router and assert the resolved value; do not require a build-time OpenAPI path that cannot be known statically.
+ 
+-A generated path alone does not prove runtime binding, and a direct method call proves neither routing nor OpenAPI. Read routed HTTP endpoint testing and generated API discovery for the two complementary matrices.
++A generated path alone does not prove runtime binding, and a direct method call proves neither routing nor OpenAPI. Read routed HTTP endpoint testing and API contract documentation for the two complementary matrices.
+--- a/manifest.json
++++ b/manifest.json
+@@ -517,8 +517,6 @@
+         "package-info.java",
+         "@RequiresUser",
+         "@Path",
+-        "@ApiDoc",
+-        "@ApiDocInfo",
+         "annotationProcessor"
+       ],
+       "links": [
+@@ -545,10 +543,6 @@
+         {
+           "description": "composed web paths and handler parameter binding",
+           "path": "/docs/sdk/web/routing-and-binding"
+-        },
+-        {
+-          "description": "generated API discovery and runtime contract tests",
+-          "path": "/docs/sdk/web/api-discovery"
+         },
+         {
+           "description": "Run and verify apps with local test infrastructure",
+@@ -1121,10 +1115,6 @@
+         {
+           "description": "Build HTTP and WebSocket adapters and API discovery",
+           "path": "/docs/sdk/web"
+-        },
+-        {
+-          "description": "Publish and structurally test generated HTTP OpenAPI",
+-          "path": "/docs/sdk/web/api-discovery"
+         },
+         {
+           "description": "raw cookie and bearer boundary tests",
+@@ -2944,8 +2934,6 @@
+         "@NoUserRequired",
+         "@SocketEndpoint",
+         "@ServeStatic",
+-        "@ApiDoc",
+-        "@ApiDocInfo",
+         "operationId",
+         "META-INF/fluxzero/openapi.json",
+         "@HandleHead",
+@@ -2995,10 +2983,6 @@
+         {
+           "description": "Compose package and handler paths and bind request parameters",
+           "path": "/docs/sdk/web/routing-and-binding"
+-        },
+-        {
+-          "description": "Publish and structurally verify generated API discovery",
+-          "path": "/docs/sdk/web/api-discovery"
+         },
+         {
+           "description": "Nested request validation and exact OpenAPI required fields",
+@@ -3094,109 +3078,12 @@
+           "path": "/docs/sdk/web/request-contracts"
+         },
+         {
+-          "description": "generated path and parameter discovery",
+-          "path": "/docs/sdk/web/api-discovery"
+-        },
+-        {
+           "description": "execute the effective route through TestFixture",
+           "path": "/docs/sdk/testing/http"
+         },
+         {
+           "description": "add a web endpoint",
+           "path": "/docs/recipes/add-web-endpoint"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/web/api-discovery",
+-      "title": "Generated API Discovery",
+-      "summary": "Publish Fluxzero-generated HTTP OpenAPI, then structurally verify every promised method, operation ID, required input, item schema, and response shape.",
+-      "source": "articles/sdk/web/api-discovery.md",
+-      "symbols": [
+-        "@ApiDoc",
+-        "@ApiDoc(required = true)",
+-        "@ApiDocInfo",
+-        "@ApiDocComponent",
+-        "serveOpenApi",
+-        "openApiPath",
+-        "serveApiReference",
+-        "apiReferencePath",
+-        "operationId",
+-        "securitySchemes",
+-        "bearerAuth",
+-        "META-INF/fluxzero/openapi.json",
+-        "whenGet",
+-        "expectWebResult",
+-        "JsonUtils",
+-        "JsonUtils readTree String",
+-        "ambiguous fromJson String byte Class",
+-        "OpenAPI",
+-        "API discovery",
+-        "WebSocket documentation",
+-        "vendor extension",
+-        "OpenApiDocumentMerger",
+-        "duplicate operationId"
+-      ],
+-      "links": [
+-        {
+-          "description": "Build HTTP and WebSocket adapters and API discovery",
+-          "path": "/docs/sdk/web"
+-        },
+-        {
+-          "description": "Java package annotations and annotation processing",
+-          "path": "/docs/sdk/project-setup/java"
+-        },
+-        {
+-          "description": "Test behavior across fixture message and HTTP flows",
+-          "path": "/docs/sdk/testing"
+-        },
+-        {
+-          "description": "routed HTTP execution distinct from contract discovery",
+-          "path": "/docs/sdk/testing/http"
+-        },
+-        {
+-          "description": "map every advertised contract element to independent structural evidence",
+-          "path": "/docs/sdk/testing/verification-boundaries"
+-        },
+-        {
+-          "description": "Type fixture web results and decode response payloads",
+-          "path": "/docs/sdk/reference/test-fixture-signatures"
+-        },
+-        {
+-          "description": "composed paths and parameter placement",
+-          "path": "/docs/sdk/web/routing-and-binding"
+-        },
+-        {
+-          "description": "nested DTO requiredness and routed validation",
+-          "path": "/docs/sdk/web/request-contracts"
+-        },
+-        {
+-          "description": "production HTTP identity mechanism",
+-          "path": "/docs/sdk/authentication/http-identity"
+-        },
+-        {
+-          "description": "raw cookie and bearer boundary tests",
+-          "path": "/docs/sdk/testing/http-authentication"
+-        },
+-        {
+-          "description": "independent request-field and authorization contract tests",
+-          "path": "/docs/sdk/testing/behavior-matrices"
+-        },
+-        {
+-          "description": "Test WebSocket snapshots sessions pushes and authorization",
+-          "path": "/docs/sdk/testing/websocket"
+-        },
+-        {
+-          "description": "add a documented web endpoint",
+-          "path": "/docs/recipes/add-web-endpoint"
+-        },
+-        {
+-          "description": "complete authentication and its security contract",
+-          "path": "/docs/recipes/add-authenticated-frontend"
+-        },
+-        {
+-          "description": "Configure exclusions reusable responses OpenAPI dialects and reference renderers",
+-          "path": "/docs/sdk/web/api-discovery-options"
+         }
+       ]
+     },
+@@ -3212,7 +3099,6 @@
+         "@NotEmpty",
+         "@Size",
+         "List<@NotNull @Valid ...>",
+-        "@ApiDoc(required = true)",
+         "record component",
+         "components.schemas",
+         "required",
+@@ -3223,10 +3109,6 @@
+         {
+           "description": "Build HTTP and WebSocket adapters and API discovery",
+           "path": "/docs/sdk/web"
+-        },
+-        {
+-          "description": "Publish and structurally test generated HTTP OpenAPI",
+-          "path": "/docs/sdk/web/api-discovery"
+         },
+         {
+           "description": "Apply payload validation authorization filters and protected data",
+@@ -3861,10 +3743,6 @@
+           "path": "/docs/sdk/web"
+         },
+         {
+-          "description": "Publish and structurally test generated HTTP OpenAPI",
+-          "path": "/docs/sdk/web/api-discovery"
+-        },
+-        {
+           "description": "map every operation binding required field failure and response to direct evidence",
+           "path": "/docs/sdk/testing/verification-boundaries"
+         },
+@@ -3950,10 +3828,6 @@
+           "path": "/docs/sdk/authentication/local"
+         },
+         {
+-          "description": "Publish and structurally test generated HTTP OpenAPI",
+-          "path": "/docs/sdk/web/api-discovery"
+-        },
+-        {
+           "description": "Test WebSocket snapshots sessions pushes and authorization",
+           "path": "/docs/sdk/testing/websocket"
+         },
+@@ -3994,10 +3868,6 @@
+         {
+           "description": "Build HTTP and WebSocket adapters and API discovery",
+           "path": "/docs/sdk/web"
+-        },
+-        {
+-          "description": "separate HTTP OpenAPI from live-protocol discovery",
+-          "path": "/docs/sdk/web/api-discovery"
+         },
+         {
+           "description": "Map cookies or bearer tokens to Sender",
+@@ -5138,13 +5008,10 @@
+       "source": "articles/sdk/web/advanced-transport.md",
+       "symbols": [
+         "@ServeStatic",
+-        "WebFormPart",
+         "DefaultWebResponseMapper",
+         "WebResponseMapper",
+         "@HandleHead",
+         "@HandleOptions",
+-        "autoHead",
+-        "autoOptions",
+         "forwardWebRequestsToLocalServer",
+         "content negotiation"
+       ],
+@@ -5496,48 +5363,6 @@
+       ]
+     },
+     {
+-      "path": "/docs/sdk/web/api-discovery-options",
+-      "title": "Advanced API Discovery Options",
+-      "summary": "Configure documentation exclusions, reusable responses, OpenAPI dialects, renderers, and exceptional programmatic extraction.",
+-      "source": "articles/sdk/web/api-discovery-options.md",
+-      "symbols": [
+-        "@ApiDocExclude",
+-        "@ApiDocResponse",
+-        "ApiDocCatalog",
+-        "ApiDocExtractor",
+-        "OpenApiOptions",
+-        "OpenApiRenderer",
+-        "ApiReferenceRenderer",
+-        "REDOC",
+-        "SCALAR",
+-        "SWAGGER_UI",
+-        "fluxzero.openapi.specVersion",
+-        "requestBody.required"
+-      ],
+-      "links": [
+-        {
+-          "description": "Publish and structurally verify generated API discovery",
+-          "path": "/docs/sdk/web/api-discovery"
+-        },
+-        {
+-          "description": "Build ordinary thin HTTP and WebSocket adapters",
+-          "path": "/docs/sdk/web"
+-        },
+-        {
+-          "description": "Keep runtime validation aligned with generated contracts",
+-          "path": "/docs/sdk/web/request-contracts"
+-        },
+-        {
+-          "description": "Configure Java annotation processing for generated output",
+-          "path": "/docs/sdk/project-setup/java"
+-        },
+-        {
+-          "description": "Test every advertised route through the HTTP fixture",
+-          "path": "/docs/sdk/testing/http"
+-        }
+-      ]
+-    },
+-    {
+       "path": "/docs/recipes",
+       "title": "Recipes",
+       "summary": "Small task flows for agents building and testing a Fluxzero Java application.",
+@@ -5770,7 +5595,6 @@
+         "@NotEmpty",
+         "whenPostByUser",
+         "whenGetByUser",
+-        "@ApiDoc",
+         "operationId",
+         "OpenAPI"
+       ],
+@@ -5806,10 +5630,6 @@
+         {
+           "description": "execute every advertised HTTP route",
+           "path": "/docs/sdk/testing/http"
+-        },
+-        {
+-          "description": "publish and verify generated API discovery",
+-          "path": "/docs/sdk/web/api-discovery"
+         }
+       ]
+     },
+@@ -5865,10 +5685,6 @@
+           "path": "/docs/sdk/testing/http-authentication"
+         },
+         {
+-          "description": "matching generated security contract",
+-          "path": "/docs/sdk/web/api-discovery"
+-        },
+-        {
+           "description": "authenticated WebSocket handshake tests",
+           "path": "/docs/sdk/testing/websocket"
+         }

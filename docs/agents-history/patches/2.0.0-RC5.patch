@@ -1,0 +1,129 @@
+--- a/articles/recipes/create-app.md
++++ b/articles/recipes/create-app.md
+@@ -29,10 +29,6 @@
+ 
+ Important settings:
+ 
+-- `name`: durable logical Model type name; defaults to the concrete class's simple name. Keep an explicit value stable
+-  across Java class/package renames. It is separate from serializer payload types and has no aliases or FQN fallback.
+-  `fluxzero.model.namePrefix` is prepended literally for applications sharing a namespace (`billing` + `Invoice` =
+-  `billingInvoice`). Changing either value after data exists requires an application-managed data transition.
+ - `persistence`: selects a non-empty set of durable representations:
+   - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
+   - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and also maintain a current document.
+@@ -51,7 +47,7 @@
+ - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
+ - `materializeGraph`: enables the optional durable whole-tree read model.
+ - `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
+-  Model collection plus `-graphs` when a direct document exists, or `<logical Model name>-graphs` otherwise, and
++  Model collection plus `-graphs` when a direct document exists, or `<simple model name>-graphs` otherwise, and
+   materializes the complete finite graph without implicit size limits.
+ 
+ Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
+--- a/articles/recipes/search-list-count.md
++++ b/articles/recipes/search-list-count.md
+@@ -24,12 +24,9 @@
+ ```
+ [//]: # (@formatter:on)
+ 
+-`DocumentProjection.searchable = false` keeps a Model document out of unrestricted typed Model search. Without a
+-separate Graph role it stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
+-configured collection—but its summary/reversary, facets and sortables are empty. Keeping the collection stable supports
+-adoption of existing documents. Direct Model loads, aliases and exact parent/ancestor-ID relations still work. If the
+-same Model participates in Graph composition, its current component document retains the independently required
+-indexes without becoming publicly searchable; shape those with `@SearchExclude`, `@Facet` and `@Sortable`.
++`DocumentProjection.searchable = false` keeps a Model document in private type-isolated storage. Direct Model loads,
++aliases, parent relations and Graph composition still work, while `Fluxzero.search(UserPreferences.class)` does not
++expose the document.
+ 
+ <a name="facets-sorting"></a>
+ 
+--- a/articles/sdk/entities/graph-search.md
++++ b/articles/sdk/entities/graph-search.md
+@@ -25,24 +25,19 @@
+ Use `.whereParent(projectId)` or `.whereAncestor(organisationId)` when the related typed ID is known. This traverses
+ durable relationships directly and needs no parent or ancestor document. Use the ID-plus-Model-class overload for
+ untyped functional IDs and a loaded `Graph` for parent-scoped identities. The returned target must still have either a
+-public document or a relation-scoped current component document maintained for Graph participation; standalone event-sourced targets
++public document or a private current document maintained for Graph participation; standalone event-sourced targets
+ without one should be loaded by ID.
+ 
+ Use the class-and-constraint `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` overloads when related
+-IDs must first be selected by current Model content. They use that Model's own public document or independently
+-maintained Graph-component document. A reference-only `DOCUMENT` projection without such a Graph role does
+-not add content, facet or sortable indexes. `materializeGraph = true` supplies an internal root document but does not
+-make the whole Graph projection the related predicate source. Prefer
+-`searchGraph(Root.class).whereDescendant(Child.class, constraint)` over a broad forced-live
++IDs must first be selected by current Model content. They use that Model's own public or type-isolated private current
++document; `materializeGraph = true` supplies a private root document but does not make the whole Graph projection the
++related predicate source. Prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` over a broad forced-live
+ nested-path filter when the child type is known. Use
+ `searchGraph(Root.class).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness. It
+-reads a configured `@GraphProjection` by default and otherwise stitches the applicable current documents live;
++reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;
+ `searchGraph(Root.class, true)`
+ forces live composition. Use `fetch(..., ObjectNode.class)` for explicit raw JSON. Enable materialization with
+ `@Model(materializeGraph = true)`. Include `DOCUMENT` separately only when the Model itself needs a current document;
+-set `DocumentProjection.searchable = false` when that document must not be publicly searchable. Without a separate
+-Graph role its payload remains reference-loadable but its summary/reversary, facets and sortables are not indexed. A
+-Graph-component role retains its independently required indexes; shape those explicitly with `@SearchExclude`, `@Facet` and
+-`@Sortable`. A blank projection collection
++set `DocumentProjection.searchable = false` when that document is reference-only. A blank projection collection
+ appends `-graphs` to the direct Model collection when one exists, or to the
+-logical root-Model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
++simple root-model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
+--- a/articles/sdk/entities/index.md
++++ b/articles/sdk/entities/index.md
+@@ -34,10 +34,6 @@
+ 
+ Important settings:
+ 
+-- `name`: durable logical Model type name; defaults to the concrete class's simple name. Keep an explicit value stable
+-  across Java class/package renames. It is separate from serializer payload types and has no aliases or FQN fallback.
+-  `fluxzero.model.namePrefix` is prepended literally for applications sharing a namespace (`billing` + `Invoice` =
+-  `billingInvoice`). Changing either value after data exists requires an application-managed data transition.
+ - `persistence`: selects a non-empty set of durable representations:
+   - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
+   - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and also maintain a current document.
+@@ -56,7 +52,7 @@
+ - `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
+ - `materializeGraph`: enables the optional durable whole-tree read model.
+ - `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
+-  Model collection plus `-graphs` when a direct document exists, or `<logical Model name>-graphs` otherwise, and
++  Model collection plus `-graphs` when a direct document exists, or `<simple model name>-graphs` otherwise, and
+   materializes the complete finite graph without implicit size limits.
+ 
+ Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
+--- a/articles/sdk/search.md
++++ b/articles/sdk/search.md
+@@ -41,12 +41,9 @@
+ ```
+ [//]: # (@formatter:on)
+ 
+-`DocumentProjection.searchable = false` keeps a Model document out of unrestricted typed Model search. Without a
+-separate Graph role it stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
+-configured collection—but its summary/reversary, facets and sortables are empty. Keeping the collection stable supports
+-adoption of existing documents. Direct Model loads, aliases and exact parent/ancestor-ID relations still work. If the
+-same Model participates in Graph composition, its current component document retains the independently required
+-indexes without becoming publicly searchable; shape those with `@SearchExclude`, `@Facet` and `@Sortable`.
++`DocumentProjection.searchable = false` keeps a Model document in private type-isolated storage. Direct Model loads,
++aliases, parent relations and Graph composition still work, while `Fluxzero.search(UserPreferences.class)` does not
++expose the document.
+ 
+ <a name="facets-sorting"></a>
+ 
+--- a/articles/sdk/search/model-relationships.md
++++ b/articles/sdk/search/model-relationships.md
+@@ -27,10 +27,8 @@
+ parent-scoped identity. Depth-bounded overloads support exact grandparents and further traversal.
+ 
+ Use the class-and-constraint overload when IDs must be selected by related Model content. It requires that related
+-Model's own public document or independently maintained internal Graph-component document; an explicit composition
+-path or `materializeGraph = true` supplies the latter. A reference-only `DOCUMENT` projection without such a Graph role
+-supplies no content, facet or sortable indexes. The whole materialized Graph projection is not searched as the Model
+-itself. The returned target
++Model's own public or private current document; an explicit composition path or `materializeGraph = true` supplies a
++private one, while the whole materialized Graph projection is not searched as the Model itself. The returned target
+ also needs a public document or relation-scoped private Graph-component document. A standalone event-sourced target
+ without either is loaded by ID rather than searched.
+ 

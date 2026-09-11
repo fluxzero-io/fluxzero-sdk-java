@@ -1,0 +1,30 @@
+--- a/articles/sdk/web/api-discovery-options.md
++++ b/articles/sdk/web/api-discovery-options.md
+@@ -27,14 +27,10 @@
+ response-object siblings. Test that every reference resolves in the served document.
+ 
+ Use `@ApiDoc` itself for dependency-free schema hints that inference cannot supply: `type`, `format`, `example`,
+-`defaultValue`, `minimum`, `maximum`, `allowableValues`, `required`, `implementation`, `oneOf`, and
+-`additionalProperties`. It can annotate fields,
++`defaultValue`, `minimum`, `maximum`, `allowableValues`, `required`, and `implementation`. It can annotate fields,
+ parameters, record components, and type arguments. Prefer it over adding a second Swagger-specific annotation model;
+ none of these documentation hints replaces runtime validation.
+ 
+-Use `additionalProperties = ApiDoc.AdditionalProperties.DENY` only when runtime deserialization rejects unknown
+-fields. Close each alternative of a `oneOf` union separately. `@Size` maps to text length, array/collection item count,
+-or map property count according to the annotated type.
+ 
+ 
+ ## Select document and reference rendering
+--- a/manifest.json
++++ b/manifest.json
+@@ -5597,9 +5597,6 @@
+         "SCALAR",
+         "SWAGGER_UI",
+         "fluxzero.openapi.specVersion",
+-        "oneOf",
+-        "additionalProperties",
+-        "ApiDoc.AdditionalProperties.DENY",
+         "requestBody.required"
+       ],
+       "links": [

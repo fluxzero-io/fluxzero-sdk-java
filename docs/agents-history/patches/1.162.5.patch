@@ -1,0 +1,120 @@
+--- a/articles/sdk/entities/commit-effect-boundary.md
++++ b/articles/sdk/entities/commit-effect-boundary.md
+@@ -26,7 +26,6 @@
+ ```java
+ import io.fluxzero.sdk.Fluxzero;
+ import io.fluxzero.sdk.modeling.Aggregate;
+-import io.fluxzero.sdk.modeling.AggregateEventRouting;
+ import io.fluxzero.sdk.modeling.Entity;
+ import io.fluxzero.sdk.modeling.EventPublication;
+ import io.fluxzero.sdk.scheduling.Schedule;
+@@ -36,8 +35,7 @@
+ import org.springframework.stereotype.Component;
+ 
+ @Aggregate(
+-        eventPublication = EventPublication.IF_MODIFIED,
+-        eventRouting = AggregateEventRouting.AGGREGATE_ID)
++        eventPublication = EventPublication.IF_MODIFIED)
+ record AssetJob(/* persisted state */) {
+ }
+ 
+@@ -73,9 +71,7 @@
+ 
+ In a Spring application, `@Component` makes the tracked event handler discoverable. Outside Spring, register `AssetJobAcceptedEffects` explicitly with the Fluxzero builder. An unregistered post-commit handler provides no effect delivery.
+ 
+-Put every ordered post-commit effect for the workflow—initial requests and deadline creation, deadline cancellation, and compensation—under the same named consumer, here `@Consumer(name = "asset-job-effects")`. Also route every published intent for one aggregate to the same message segment. The explicit aggregate-level rule above is the least fragile option: `eventRouting = AggregateEventRouting.AGGREGATE_ID` routes every event published from that aggregate by its aggregate ID.
+-
+-Do not confuse event-source storage with tracked-event routing. Fluxzero stores an event-sourced update against its aggregate, but the default published-event routing is `AggregateEventRouting.MESSAGE_ROUTING_KEY`. Under that default, an applied payload's own `@RoutingKey` determines the message segment; without one, the aggregate ID is not automatically the segment key. Either configure `AGGREGATE_ID` once on the aggregate, or put the same primary-ID `@RoutingKey` on every applied payload that the effect consumer handles. Test the configured alternative explicitly. A single named consumer gives the handlers one tracking position, while the shared segment keeps one workflow on one tracker when that consumer has multiple threads. `singleTracker = true` is a global-order alternative when a safe segment key is unavailable, at the cost of parallelism.
++Put every ordered post-commit effect for the workflow—initial requests and deadline creation, deadline cancellation, and compensation—under the same named consumer, here `@Consumer(name = "asset-job-effects")`. Also route every published intent for one aggregate to the same message segment. Put the same primary-ID `@RoutingKey` on every applied intent payload so events for one workflow share a segment. Event storage against an aggregate does not choose the published message segment. A named consumer shares one position; a shared segment orders one workflow on one tracker. Test routing for every intent. Use `singleTracker = true` only when global ordering justifies giving up parallelism.
+ 
+ Do not give component senders independent names such as `caption-jobs`, `artwork-cancellation`, and `asset-job-deadlines`. Independent consumers have independent tracking positions: a cancellation can run before the older processing publication, or deadline cancellation can run before deadline creation, leaving an orphan effect. Separate effect consumers require an explicit reconciliation design that tolerates reordering and repairs the final external state; naming them separately does not provide per-job ordering.
+ 
+--- a/articles/sdk/project-setup/java/sdk-imports.md
++++ b/articles/sdk/project-setup/java/sdk-imports.md
+@@ -8,7 +8,6 @@
+ | --- | --- |
+ | static SDK facade | `io.fluxzero.sdk.Fluxzero` |
+ | aggregate annotation | `io.fluxzero.sdk.modeling.Aggregate` |
+-| aggregate published-event routing policy | `io.fluxzero.sdk.modeling.AggregateEventRouting` |
+ | aggregate/entity ID | `io.fluxzero.sdk.modeling.EntityId` |
+ | alternate persisted ID | `io.fluxzero.sdk.modeling.Alias` |
+ | loaded aggregate/entity wrapper | `io.fluxzero.sdk.modeling.Entity` |
+@@ -29,7 +28,7 @@
+ | application properties | `io.fluxzero.sdk.configuration.ApplicationProperties` |
+ | registered JSON type names | `io.fluxzero.common.serialization.RegisterType` |
+ 
+-The most common wrong guesses are important: `Apply` is not in `io.fluxzero.sdk.modeling`; `RoutingKey` is not in `io.fluxzero.sdk.tracking`; and `Metadata` is in the `common` artifact's `io.fluxzero.common.api` package. `AggregateEventRouting` is a modeling enum; use `AGGREGATE_ID` when every event published from an aggregate must share its aggregate-ID message segment. A domain query implements `io.fluxzero.sdk.tracking.handling.Request<R>`, not the runtime transport DTO `io.fluxzero.common.api.Request`.
++The most common wrong guesses are important: `Apply` is not in `io.fluxzero.sdk.modeling`; `RoutingKey` is not in `io.fluxzero.sdk.tracking`; and `Metadata` is in the `common` artifact's `io.fluxzero.common.api` package. Use the same primary-ID `@RoutingKey` on every applied event that must share a segment. A domain query implements `io.fluxzero.sdk.tracking.handling.Request<R>`, not the runtime transport DTO `io.fluxzero.common.api.Request`.
+ 
+ For the correlation-to-primary-command pattern, the complete sensitive import set is:
+ 
+--- a/articles/sdk/reference/public-symbols.md
++++ b/articles/sdk/reference/public-symbols.md
+@@ -28,7 +28,7 @@
+ | entity wrapper | `io.fluxzero.sdk.modeling.Entity` |
+ | legality/apply | `io.fluxzero.sdk.modeling.AssertLegal`, `io.fluxzero.sdk.persisting.eventsourcing.Apply` |
+ | update interception | `io.fluxzero.sdk.persisting.eventsourcing.InterceptApply` |
+-| event publication/routing | `io.fluxzero.sdk.modeling.EventPublication`, `EventPublicationStrategy`, `AggregateEventRouting` |
++| event publication/routing | `io.fluxzero.sdk.modeling.EventPublication`, `EventPublicationStrategy` |
+ | aggregate repository | `io.fluxzero.sdk.persisting.repository.AggregateRepository` |
+ | event store | `io.fluxzero.sdk.persisting.eventsourcing.EventStore` |
+ | search document store | `io.fluxzero.sdk.persisting.search.DocumentStore` |
+--- a/articles/sdk/workflows/business-compensation.md
++++ b/articles/sdk/workflows/business-compensation.md
+@@ -44,7 +44,7 @@
+ unless the preceding decision made compensation newly necessary. With `EventPublication.IF_MODIFIED`, only the first
+ false-to-true update publishes the `RequestArtworkCancellation` event that the sender handles.
+ 
+-The returned `.get()` is only the in-memory updated state. Do not call `sendArtworkCancellation(...)` from that aggregate handler. The registered tracked `ArtworkCancellationSender` handles the intent event after aggregate commit; this keeps state and new aliases durable before the effect starts. Use the same `asset-job-effects` consumer for initial processing publication, deadline creation/cancellation, and every component compensation handler. Configure the aggregate with `eventRouting = AggregateEventRouting.AGGREGATE_ID`, or give every applied intent payload the same primary-ID `@RoutingKey`, so the effect consumer observes each job's intents on one segment and in order. Event-source storage does not make aggregate-ID message routing the default. A separate `artwork-compensation` consumer would have an independent position and could compensate before an older processing publication runs. Read aggregate commit and effect boundaries for the full ordering rule, failure/retry tests, and stable idempotency requirements.
++The returned `.get()` is only the in-memory updated state. Do not call `sendArtworkCancellation(...)` from that aggregate handler. The registered tracked `ArtworkCancellationSender` handles the intent event after aggregate commit; this keeps state and new aliases durable before the effect starts. Use the same `asset-job-effects` consumer for initial processing publication, deadline creation/cancellation, and every component compensation handler. Give every applied intent payload the same primary-ID `@RoutingKey`, so the effect consumer observes each job's intents on one segment and in order. Event-source storage does not make aggregate-ID message routing the default. A separate `artwork-compensation` consumer would have an independent position and could compensate before an older processing publication runs. Read aggregate commit and effect boundaries for the full ordering rule, failure/retry tests, and stable idempotency requirements.
+ 
+ Sending `RequestArtworkCancellation` as a separate tracked command is an intentional extra ordering and completion
+ boundary. Use that only when separate application/consumer ownership is required, and test the partial-progress and
+--- a/articles/sdk/workflows/correlation.md
++++ b/articles/sdk/workflows/correlation.md
+@@ -7,7 +7,6 @@
+ import io.fluxzero.common.api.Metadata;
+ import io.fluxzero.sdk.Fluxzero;
+ import io.fluxzero.sdk.modeling.Aggregate;
+-import io.fluxzero.sdk.modeling.AggregateEventRouting;
+ import io.fluxzero.sdk.modeling.Alias;
+ import io.fluxzero.sdk.modeling.Entity;
+ import io.fluxzero.sdk.modeling.EntityId;
+@@ -80,8 +79,7 @@
+ 
+ ```java
+ @Aggregate(
+-        eventPublication = EventPublication.IF_MODIFIED,
+-        eventRouting = AggregateEventRouting.AGGREGATE_ID)
++        eventPublication = EventPublication.IF_MODIFIED)
+ public record AssetJob(
+         @EntityId AssetJobId assetJobId,
+         @Alias(prefix = "caption-ref-") String captionReference,
+@@ -92,7 +90,7 @@
+ }
+ ```
+ 
+-`eventRouting = AggregateEventRouting.AGGREGATE_ID` is needed here because this workflow publishes applied intent events to an ordered post-commit effect consumer. Event-sourced storage belongs to the aggregate, but published-event message routing defaults to the applied payload's `@RoutingKey`; it does not default to the aggregate ID. If every applied payload instead declares the same primary-ID `@RoutingKey`, the default routing mode can be used, but enforce that invariant across every intent type.
++Put the same primary-ID `@RoutingKey` on every applied intent payload consumed by the post-commit effects consumer. Event storage belongs to the aggregate; published-event routing follows each payload. Enforce and test that shared routing key across every intent type.
+ 
+ The load key must include the same prefix. Keep decision payloads component-specific and, after every secondary-key load, compare the persisted component field with the raw incoming reference before doing anything else:
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -1766,8 +1766,6 @@
+         "post-commit consumer",
+         "shared workflow effect consumer",
+         "effect ordering",
+-        "AggregateEventRouting.AGGREGATE_ID",
+-        "AggregateEventRouting.MESSAGE_ROUTING_KEY",
+         "aggregate event routing segment",
+         "relationship indexing",
+         "alias visible after commit",
+@@ -2189,7 +2187,6 @@
+         "Fluxzero.loadEntity(prefixedAlias)",
+         "post-load equality guard",
+         "fully-prefixed primary ID",
+-        "AggregateEventRouting.AGGREGATE_ID",
+         "RecordProcessorDecision",
+         "@RoutingKey AssetJobId",
+         "asset-job-transitions",

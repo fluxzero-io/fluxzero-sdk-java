@@ -21,10 +21,10 @@ The SDK tag/checkout identifies which SDK the graph describes. Do not hard-code 
 or a moving `latest` version in the manifest. Documentation corrections ship with a normal SDK release, including
 a patch release when only documentation changes; published release contents are immutable.
 
-The graph is data, independent of MCP transport. Its presence here does not yet make it available through the local
-dev-server MCP. The downloader, cache and MCP integration are separate changes. Existing
+The graph is data, independent of MCP transport. The dev server's standalone stdio MCP bridge downloads the matching
+release archive into its shared versioned cache and exposes the documentation tools. Existing
 `project-java.zip` and `project-kotlin.zip` release consumers continue to use the legacy `project-files` tree during
-that transition; it is not the source for new graph articles.
+the transition. New current articles belong here; historical manual differences inform the backfill catalog.
 
 ## Release archive
 
@@ -49,6 +49,10 @@ Packaging requires Python 3.9+ and Git. `-Dagent-docs.python=<executable>` selec
 `-Dagent-docs.sourceCommit=<full-commit-hash>` supports building a source archive without Git metadata.
 
 ## Editing and validation
+
+For released SDK versions that only shipped legacy manuals, see the reviewed
+[historical graph catalog](../agents-history/README.md). Its local builder keeps
+historical SDK provenance separate from the later documentation curation commit.
 
 - Update the relevant graph articles with an SDK behavior change, together with the human/developer documentation.
 - Keep every supported concept reachable. Split advanced detail into a focused article instead of deleting correct

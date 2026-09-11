@@ -1,0 +1,20 @@
+--- a/articles/sdk/operations/tracker-positions.md
++++ b/articles/sdk/operations/tracker-positions.md
+@@ -19,7 +19,6 @@
+ 
+ - `getPosition(consumer)` returns the most recently committed index ranges per segment.
+ - `readFromIndex(minIndex, maxSize)` reads serialized messages for diagnostics without advancing a consumer.
+-- `readRange(minInclusive, maxExclusive, maxSize)` bounds that inspection by index and count.
+ 
+ Direct reads bypass handler invocation and consumer configuration. They are suitable for inspection or a controlled
+ export, not for silently reimplementing tracking in application code.
+--- a/manifest.json
++++ b/manifest.json
+@@ -2717,7 +2717,6 @@
+         "Client#getTrackingClient",
+         "getPosition(String)",
+         "readFromIndex(long, int)",
+-        "readRange(long, long, int)",
+         "resetPosition(String, long)",
+         "storePosition(String, int[], long)",
+         "disconnectTracker(String, String, boolean)",

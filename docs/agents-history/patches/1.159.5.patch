@@ -1,0 +1,26 @@
+--- a/articles/sdk/web.md
++++ b/articles/sdk/web.md
+@@ -34,7 +34,7 @@
+ 
+ Return `WebResponse` when you need explicit status, headers, or content type. Add `@NoUserRequired` only for public endpoints such as health checks, login callbacks, public docs, or unauthenticated MCP docs. For protected frontend routes, `@RequiresUser` only enforces an identity; read production HTTP identity to implement the cookie or bearer path that establishes it.
+ 
+-Use `/api` as the default application API prefix, usually through package-level `@Path("/api")`. Route matching supports composed `@Path` values, literal and parameter segments, regex parameters, wildcards, request parameter injection, and most-specific route selection. In a composed hierarchy, relative child `@Path` values append; a child `@Path` beginning with `/` resets the earlier package/class chain. Read web routing and parameter binding for exact examples and annotation placement.
++Use `/api` as the default application API prefix, usually through package-level `@Path("/api")`. Route matching supports composed `@Path` values, literal and parameter segments, path parameters and request parameter injection through the historical Jooby-backed router. In a composed hierarchy, relative child `@Path` values append; a child `@Path` beginning with `/` resets the earlier package/class chain. Read web routing and parameter binding for exact examples and annotation placement.
+ 
+ Avoid static/dynamic path collisions such as `/articles/counts` and `/articles/{articleId}` when an identifier could equal the reserved word. Most-specific matching favors the literal route, but the public contract should still include a web-level test proving the static route reaches the intended handler and the dynamic route still accepts normal IDs. Reordering methods is not a substitute for a route test; use a less ambiguous path or a constrained parameter when the contract permits it.
+ 
+--- a/articles/sdk/web/advanced-transport.md
++++ b/articles/sdk/web/advanced-transport.md
+@@ -24,9 +24,9 @@
+ 
+ ## Form parameters and raw uploads
+ 
+-Use `@FormParam` for URL-encoded form fields. This version does not expose multipart parts through that annotation.
+-Accept a multipart body as an unannotated raw `byte[]` or `String` only when the application deliberately owns parsing
+-and request-size validation. `WebFormPart` is not available.
++The historical Jooby-backed web adapter supports `@FormParam` for URL-encoded fields and multipart data.
++Use `@FormParam byte[]` for the uploaded bytes and `@HeaderParam("Content-Type")` when content-type context is
++needed. Validate request size and content before processing.
+ 
+ ```java
+ @HandlePost("/api/profile")

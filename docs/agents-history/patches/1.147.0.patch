@@ -1,0 +1,35 @@
+--- a/articles/sdk/project-setup/kotlin.md
++++ b/articles/sdk/project-setup/kotlin.md
+@@ -29,12 +29,10 @@
+ ```kotlin
+ package com.example.app
+ 
+-import io.fluxzero.common.serialization.RegisterType
+ import org.springframework.boot.SpringApplication
+ import org.springframework.boot.autoconfigure.SpringBootApplication
+ 
+ @SpringBootApplication
+-@RegisterType(root = "com.example.app")
+ class App {
+     companion object {
+         @JvmStatic
+@@ -47,7 +45,7 @@
+ 
+ Notes:
+ 
+-- Put `@RegisterType(root = "...")` on the Kotlin app class because Kotlin cannot conveniently express the same package annotation pattern as Java.
++- This version predates Kotlin root-package type-registry processing. Use fully qualified fixture names; do not add the later `RegisterType.root` attribute.
+ - Keep package-level security and web-path annotations in Java `package-info.java`.
+ - Use the Kotlin Spring plugin/all-open support so Spring can proxy components where needed.
+ - Add `jackson-module-kotlin` for JSON serialization of Kotlin classes.
+--- a/articles/sdk/serialization/registered-type-names.md
++++ b/articles/sdk/serialization/registered-type-names.md
+@@ -10,7 +10,7 @@
+ import io.fluxzero.common.serialization.RegisterType;
+ ```
+ 
+-Kotlin can put `@RegisterType(root = "com.example.app")` on a marker or application class.
++This version does not support the later `RegisterType.root` attribute for Kotlin package processing.
+ Annotation processing must run in each contributing module. Preserve generated
+ `META-INF/io.fluxzero.common.serialization.TypeRegistry` resources when assembling a multi-module application.
+ Use unambiguous fully qualified names rather than relying on collision resolution for equal simple names.

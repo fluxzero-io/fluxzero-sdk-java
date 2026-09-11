@@ -1,0 +1,172 @@
+--- a/articles/sdk/project-setup/java/sdk-imports.md
++++ b/articles/sdk/project-setup/java/sdk-imports.md
+@@ -27,7 +27,7 @@
+ | outbound HTTP message | `io.fluxzero.sdk.web.WebRequest` |
+ | outbound HTTP gateway | `io.fluxzero.sdk.publishing.WebRequestGateway` |
+ | application properties | `io.fluxzero.sdk.configuration.ApplicationProperties` |
+-| registered wire/JSON type names | `io.fluxzero.common.serialization.RegisterType` |
++| registered JSON type names | `io.fluxzero.common.serialization.RegisterType` |
+ 
+ The most common wrong guesses are important: `Apply` is not in `io.fluxzero.sdk.modeling`; `RoutingKey` is not in `io.fluxzero.sdk.tracking`; and `Metadata` is in the `common` artifact's `io.fluxzero.common.api` package. `AggregateEventRouting` is a modeling enum; use `AGGREGATE_ID` when every event published from an aggregate must share its aggregate-ID message segment. A domain query implements `io.fluxzero.sdk.tracking.handling.Request<R>`, not the runtime transport DTO `io.fluxzero.common.api.Request`.
+ 
+--- a/articles/sdk/serialization.md
++++ b/articles/sdk/serialization.md
+@@ -7,7 +7,7 @@
+ - Ask whether the app has deployed historical data before adding an upcaster.
+ - Verify upcasters with `TestFixture.whenUpcasting(...)` before deployment.
+ - For a compatible class/package rename, configure a type alias instead of inventing a revision migration.
+-- For current producers using stable short type names, use `@RegisterType` and preserve generated registry resources.
++- Use fully qualified names for serialized types; `@RegisterType` also supports generated type lookup.
+ 
+ ```java
+ @Revision(2)
+--- a/articles/sdk/serialization/registered-type-names.md
++++ b/articles/sdk/serialization/registered-type-names.md
+@@ -1,44 +1,19 @@
+-Use `io.fluxzero.common.serialization.RegisterType` when producers or JSON fixtures should use a stable short type
+-name instead of a Java fully qualified name. Annotate a message class or a root package and enable annotation
+-processing in every module contributing registered types.
++`@RegisterType` registers classes or packages in the generated `TypeRegistry`. It is available for
++fixture/type lookup in this SDK version, but do not assume the SDK normalizes short names in every serialized
++message, document, or snapshot envelope. Use fully qualified names for stored/wire types and fixture `@class`
++values, as recommended by this version's manuals.
+ 
+ ```java
+ @RegisterType
+-public record ChangeLabel(String label) {}
++package com.example.app;
++
++import io.fluxzero.common.serialization.RegisterType;
+ ```
+ 
+-```kotlin
+-@RegisterType
+-data class ChangeLabel(val label: String)
+-```
++Kotlin can put `@RegisterType(root = "com.example.app")` on a marker or application class.
++Annotation processing must run in each contributing module. Preserve generated
++`META-INF/io.fluxzero.common.serialization.TypeRegistry` resources when assembling a multi-module application.
++Use unambiguous fully qualified names rather than relying on collision resolution for equal simple names.
+ 
+-The examples assume the annotation import and the project's normal Kotlin/Jackson setup. A producer or fixture can
+-then refer to `ChangeLabel`. When simple names collide, use a distinguishing suffix such as `labels.ChangeLabel`.
+-Do not use an ambiguous simple name. FQNs remain valid for both registered and unregistered types.
+-
+-## Where resolution applies
+-
+-The generated registry resolves serialized envelope types for messages, documents, snapshots and other data, and
+-root/nested JSON `@class` values. Fixture JSON can therefore use a unique registered simple name:
+-
+-```json
+-{"@class": "ChangeLabel", "label": "Primary"}
+-```
+-
+-`Serializer.resolveTypeName` resolves aliases before registered names. Registered envelope names are normalized before
+-revision upcasters are selected. Historical aliases remain post-upcast so a caster for an old FQN still runs. Use
+-aliases for names already stored or queued after a package move; short names do not replace that historical migration.
+-
+-## Preserve all generated indexes
+-
+-The processor writes `META-INF/io.fluxzero.common.serialization.TypeRegistry`. Separate classpath entries and Spring
+-Boot nested JARs retain the contributing indexes. A custom uber-JAR must combine overlapping index resources rather
+-than keep only one module's file. For Maven Shade, configure an `AppendingTransformer` for this resource in the
+-application's own packaging configuration.
+-
+-Java annotation processing and Kotlin kapt must run for each participating module. The `common` processor supplies
+-the registry; the SDK also supplies request, OpenAPI and web-parameter processors. Keep both required kapt artifacts
+-in Kotlin projects as described in project setup.
+-
+-Verify simple names, suffix disambiguation, ambiguity rejection, nested JSON and the packaged multi-module artifact.
+-A successful IDE/test-classpath lookup alone does not prove the merged application JAR retains its indexes.
++Type aliases handle historical class/package renames separately; revision upcasters operate on the historical
++serialized source type. Test the actual message/fixture path when using any abbreviated type lookup.
+--- a/articles/sdk/serialization/type-aliases.md
++++ b/articles/sdk/serialization/type-aliases.md
+@@ -33,8 +33,6 @@
+ - Aliases may chain, but cycles are rejected during registration.
+ - Revision upcasters select the historical serialized type first. Aliases map the resulting type before deserialization,
+   so a class rename does not skip an upcaster registered for that historical FQN.
+-- Registered simple envelope names are normalized before selecting revision upcasters; this is separate from the
+-  post-upcast mapping of historical aliases. Read registered type names when combining both mechanisms.
+ 
+ Aliases apply to serialized envelope types, root and nested polymorphic JSON `@class` values, and JSON-encoded
+ metadata read through typed `Metadata.get(...)`. Raw metadata strings remain unchanged.
+@@ -46,8 +44,7 @@
+ root preserves the historical type until its upcasters have run. Use `@revision`, not a payload field named `revision`.
+ 
+ Direct untyped `JsonUtils` reads outside the fixture have no ambient application serializer. Supply its resolver through
+-`JsonUtils.fromFileWithTypeMapper(...)` when aliases or registered names are needed. `Serializer.resolveTypeName`
+-combines alias and registered-name resolution; `upcastType` alone only handles aliases.
++`JsonUtils.fromFileWithTypeMapper(...)` with the serializer's `upcastType` when aliases are needed.
+ 
+ Verify exact and package renames, overlapping packages, nested polymorphic values, typed metadata, and a historical
+ type that needs both a revision upcaster and an alias. Do not introduce an upcaster solely to rewrite a compatible FQN.
+--- a/articles/sdk/testing.md
++++ b/articles/sdk/testing.md
+@@ -27,7 +27,7 @@
+ 
+ JSON fixtures use Fluxzero serialization metadata such as `@class` and `@extends`. Keep JSON examples close to the domain test resources and use them when historical payload shape matters.
+ 
+-For registered types, `@class` may be a unique simple name or distinguishing suffix; otherwise use an FQN. Use
++Use fully qualified names in `@class`. Use
+ `@revision` for historical serialized roots, and type aliases for compatible historical class/package renames.
+ Arrays and NDJSON resources can mix current and revisioned records. Read the focused JSON-fixture and revisioned-JSON
+ articles before constructing migration fixtures.
+--- a/articles/sdk/testing/json-fixtures.md
++++ b/articles/sdk/testing/json-fixtures.md
+@@ -3,8 +3,7 @@
+ 
+ ## Store complete type information
+ 
+-Put resources under `src/test/resources`. For a type indexed by `@RegisterType`, prefer its unique simple name or a
+-distinguishing suffix in `@class`. Use the fully qualified name for an unregistered type:
++Put resources under `src/test/resources`. Use the fully qualified name in `@class`:
+ 
+ ```json
+ {
+@@ -14,7 +13,7 @@
+ }
+ ```
+ 
+-An FQN remains valid and makes the target explicit. Registered names must be unambiguous. Historical FQNs may be kept
++An FQN makes the target explicit. Historical FQNs may be kept
+ after a class/package move when the corresponding type alias is configured. A compatible rename uses an alias; an
+ actual schema migration uses a revision upcaster. Root and nested `@class` values use the configured resolver.
+ 
+--- a/articles/sdk/testing/revisioned-json.md
++++ b/articles/sdk/testing/revisioned-json.md
+@@ -22,10 +22,9 @@
+ ## Untyped versus typed JSON reads
+ 
+ Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` interpret a revisioned object as `Data<JsonNode>`.
+-Explicitly typed overloads retain their declared return type. Non-revisioned fixture objects can use registered
+-simple names or distinguishing suffixes; historical data keeps the source identity needed by its upcaster.
+-Direct untyped reads outside a fixture need an explicit type mapper when application aliases or registered-name
+-resolution are required.
++Explicitly typed overloads retain their declared return type. Use fully qualified names in fixture objects;
++historical data keeps the source identity needed by its upcaster. Direct untyped reads outside a fixture need
++an explicit type mapper when application aliases are required.
+ 
+ ## Arrays and newline-delimited resources
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -6184,15 +6184,12 @@
+     },
+     {
+       "path": "/docs/sdk/serialization/registered-type-names",
+-      "title": "Registered Wire and JSON Type Names",
+-      "summary": "Resolve unique simple names and suffixes and preserve generated module indexes.",
++      "title": "Registered Type Lookup",
++      "summary": "Register classes for type lookup while using fully qualified serialized names.",
+       "source": "articles/sdk/serialization/registered-type-names.md",
+       "symbols": [
+         "@RegisterType",
+-        "Serializer.resolveTypeName",
+-        "TypeRegistry",
+-        "short type names",
+-        "simple names"
++        "TypeRegistry"
+       ],
+       "links": [
+         {

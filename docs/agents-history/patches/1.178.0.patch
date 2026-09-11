@@ -1,0 +1,72 @@
+--- a/articles/sdk/configuration.md
++++ b/articles/sdk/configuration.md
+@@ -25,7 +25,7 @@
+ `FLUXZERO_CONFIG_LOCATIONS` accepts comma-separated `file:/path/to/config.properties`, plain file paths, and `classpath:config.properties` locations. Prefix a location with `optional:` when a missing file should be ignored; later listed locations override earlier ones.
+ 
+ Core SDK properties include `FLUXZERO_BASE_URL`, `FLUXZERO_APPLICATION_NAME`, `FLUXZERO_NAMESPACE`,
+-`FLUXZERO_APPLICATION_ID`, `FLUXZERO_TASK_ID`, `ENCRYPTION_KEY`, and `fluxzero.defaults.version`.
++`FLUXZERO_APPLICATION_ID`, `FLUXZERO_TASK_ID`, `ENCRYPTION_KEY`.
+ `FLUXZERO_TASK_ID` supplies the client instance identifier used for tracking; if it is absent a random UUID is
+ generated. Use a unique value for each concurrently running client. This version does not expose a separate
+ `FLUXZERO_CLIENT_ID` property or the newer authoritative `$taskId` correlation contract.
+--- a/articles/sdk/project-setup/java.md
++++ b/articles/sdk/project-setup/java.md
+@@ -58,10 +58,6 @@
+ 
+ Annotation processing must be enabled in the build. In Maven use `maven-compiler-plugin` with `io.fluxzero:sdk` in `annotationProcessorPaths`. In Gradle add both `annotationProcessor(platform("io.fluxzero:fluxzero-bom:$fluxzeroVersion"))` and `annotationProcessor("io.fluxzero:sdk")`; without the annotation-processor BOM or an explicit version, plain Gradle projects can fail to resolve the SDK processor.
+ 
+-Add `src/main/resources/fluxzero.properties`:
+-
+-```properties
+-fluxzero.defaults.version=2026.06.20
+-```
++Put application-owned runtime properties in `src/main/resources/fluxzero.properties` and keep deploy-specific overrides outside domain code.
+ 
+ Continue with the create-app recipe once the source layout compiles.
+--- a/articles/sdk/project-setup/kotlin.md
++++ b/articles/sdk/project-setup/kotlin.md
+@@ -57,10 +57,6 @@
+ - For aggregate shapes that need Java-style builder ergonomics, define that builder manually rather than relying on Lombok-style generation.
+ - Generate typed IDs before constructing commands, usually in an endpoint or command boundary, not in `@Apply`.
+ 
+-Add `src/main/resources/fluxzero.properties`:
+-
+-```properties
+-fluxzero.defaults.version=2026.06.20
+-```
++Put application-owned runtime properties in `src/main/resources/fluxzero.properties` and keep deploy-specific overrides outside domain code.
+ 
+ Continue with the create-app recipe once the source layout compiles.
+--- a/articles/sdk/tracking.md
++++ b/articles/sdk/tracking.md
+@@ -18,7 +18,9 @@
+ }
+ ```
+ 
+-Handlers without explicit consumer configuration use the unconfigured-handler fallback. `fluxzero.tracking.unconfiguredHandlerConsumerMode=perHandler` gives each handler class a generated default consumer. `defaultAppConsumer` shares the application default consumer. With `fluxzero.defaults.version >= 2026.05.20`, `perHandler` is the default.
++Handlers without an explicit `@Consumer` or matching builder configuration share the application default consumer
++for their message type. Builder configurations take precedence over that fallback; explicit annotations are more
++specific. This version has no per-handler fallback mode.
+ 
+ Replay is a code/configuration decision, not a casual runtime action:
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -2504,8 +2504,7 @@
+         "maxIndexExclusive",
+         "IndexUtils.indexFromTimestamp(...)",
+         "@HandleError",
+-        "@HandleDocument",
+-        "fluxzero.tracking.unconfiguredHandlerConsumerMode"
++        "@HandleDocument"
+       ],
+       "links": [
+         {
+@@ -4617,7 +4616,6 @@
+         "DefaultFluxzero.builder()",
+         "FLUXZERO_CONFIG_LOCATIONS",
+         "fluxzero.properties",
+-        "fluxzero.defaults.version",
+         "FLUXZERO_BASE_URL",
+         "FLUXZERO_APPLICATION_NAME",
+         "FLUXZERO_NAMESPACE",

@@ -4137,7 +4137,7 @@
     {
       "path": "/docs/sdk/validation/protected-data",
       "title": "Protected Data Lifecycle And Testing",
-      "summary": "Restore protected values in a registered trusted handler, apply safe data through an Entity, account for pre-handler deletion, and prove deletion and later visibility.",
+      "summary": "Protect sensitive fields through local in-memory or external KV retention, restore values, and verify erasure before handler invocation.",
       "source": "articles/sdk/validation/protected-data.md",
       "symbols": [
         "@ProtectData",
@@ -4156,7 +4156,9 @@
         "pre-handler deletion",
         "throwing handler protected data",
         "later handler protected data",
-        "direct KV deletion test"
+        "direct KV deletion test",
+        "local protected data",
+        "logMessage"
       ],
       "links": [
         {

@@ -1,0 +1,11 @@
+--- a/articles/sdk/testing/websocket.md
++++ b/articles/sdk/testing/websocket.md
+@@ -29,7 +29,7 @@
+ - Open creates or returns the socket endpoint instance and sends the expected initial snapshot payload when the product promises one.
+ - Message before open fails when the endpoint requires an open session.
+ - Message after open returns expected `WebResponse` output or publishes expected events.
+-- `@Association` routes events only to matching open socket instances.
++- Explicitly filter non-socket events to the intended open session; association-based endpoint routing is not available in this version.
+ - Alive checks send ping responses and close timed-out sessions when configured.
+ - `@RequiresUser` behavior is tested with the same user-provider fixture setup used for HTTP endpoints.
+ 

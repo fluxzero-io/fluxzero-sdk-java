@@ -1,10 +1,15 @@
-Use `@ProtectData` when a field must stay out of the ordinary serialized payload. Fluxzero stores the value separately
-in KV, puts only a field-to-key reference in message metadata, serializes the field as `null`, and restores it for
+Use `@ProtectData` when a field must stay out of the ordinary serialized payload. Fluxzero retains the value separately,
+puts only a field-to-key reference in message metadata, serializes the field as `null`, and restores it for
 handling. Put `@DropProtectedData` only on the trusted handler that should consume the value for the last time.
+
+An externally published message stores protected values in KV. A message handled only by local handlers with
+`logMessage = false` retains its protected values in memory and performs no KV I/O. External fallback and
+`logMessage = true` use KV; `@LocalOnly` prevents externalization. Dropping protected data removes the value from
+the applicable store, which is memory for purely local handling and KV for externally published data.
 
 ## Deletion happens before handler invocation
 
-The interceptor order for a dropping handler is:
+For KV-backed protected data, the interceptor order for a dropping handler is:
 
 ```text
 KV read -> inject protected value into a handler payload -> delete KV entry -> invoke handler
@@ -53,12 +58,14 @@ A durable-event assertion with the sensitive field set to `null` proves sanitiza
 proves restoration. Neither proves that KV was deleted.
 
 For a deterministic deletion assertion, capture the generated KV key from the handler's `DeserializingMessage`
-metadata, then inspect the fixture's public `keyValueStore()` after the action:
+metadata, then inspect the fixture's public `keyValueStore()` after the action. Explicitly retain message logging
+so this scenario exercises KV-backed protection; a purely local `logMessage = false` scenario only exercises
+in-memory retention and cannot prove KV deletion:
 
 ```java
 AtomicReference<String> protectedKey = new AtomicReference<>();
 
-@HandleCommand
+@HandleCommand(logMessage = true)
 @DropProtectedData
 void handle(OpenSupportTicket command, DeserializingMessage message) {
     Map<String, String> references = message.getMetadata().get(

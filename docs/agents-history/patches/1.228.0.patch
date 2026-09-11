@@ -1,0 +1,125 @@
+--- a/articles/sdk/serialization.md
++++ b/articles/sdk/serialization.md
+@@ -52,15 +52,18 @@
+ 
+ ```json
+ {
+-  "@class": "com.example.project.api.model.Project",
+-  "@revision": 1,
+-  "name": "Legacy name"
++  "@class": "io.fluxzero.common.api.Data",
++  "value": {
++    "@class": "com.fasterxml.jackson.databind.JsonNode",
++    "name": "Legacy name"
++  },
++  "type": "com.example.project.api.model.Project",
++  "revision": 1
+ }
+ ```
+ 
+-`@class` and `@revision` provide the serialized source type and revision and are removed before the payload reaches
+-the upcaster. A plain field named `revision` remains payload data. Read revisioned JSON for fixture versus direct
+-`JsonUtils` resource reads.
++The explicit `Data<JsonNode>` wrapper supplies the historical serialized type and revision. Read historical JSON
++fixtures before constructing the resource; this SDK version does not interpret root-level `@revision` shorthand.
+ 
+ ```java
+ fixture.whenUpcasting("/project/project-rev1.json")
+--- a/articles/sdk/testing.md
++++ b/articles/sdk/testing.md
+@@ -27,8 +27,7 @@
+ 
+ JSON fixtures use Fluxzero serialization metadata such as `@class` and `@extends`. Keep JSON examples close to the domain test resources and use them when historical payload shape matters.
+ 
+-Use fully qualified names in `@class`. Use
+-`@revision` for historical serialized roots.
++Use fully qualified names in `@class`. Use an explicit `Data<JsonNode>` wrapper for historical serialized roots.
+ Read the focused JSON-fixture and revisioned-JSON articles before constructing migration fixtures.
+ 
+ The default fixture wrapper returns the system user when no active user is present and delegates ID lookup to a provider registered on the builder. Use `whenCommandByUser`, `whenQueryByUser`, and related helpers for user-sensitive rules. To exercise a configured provider's `getUserById(...)`, keep the normal fixture wrapper and pass a user ID, not a constructed `User`, in at least one scenario. Use `withProductionUserProvider()` separately for unauthenticated/no-fallback behavior; it switches to the process-wide `UserProvider.defaultUserProvider` and does not preserve an arbitrary provider registered only on that fixture builder.
+--- a/articles/sdk/testing/json-fixtures.md
++++ b/articles/sdk/testing/json-fixtures.md
+@@ -15,9 +15,8 @@
+ 
+ An FQN makes the target explicit. Use a `Data<JsonNode>` upcaster when a historical type must change.
+ 
+-Add root-level `@revision` beside `@class` for historical serialized data. The fixture runs the revision upcaster
+-chain. The field `revision` without `@` is ordinary payload data. Follow the revisioned-JSON article for the
+-exact resource contract.
++For historical serialized input, use an explicit `Data<JsonNode>` wrapper with `type`, `revision`, and `value`.
++Follow the historical JSON article for the exact resource contract.
+ 
+ ## Derive variants with `@extends`
+ 
+--- a/articles/sdk/testing/revisioned-json.md
++++ b/articles/sdk/testing/revisioned-json.md
+@@ -1,30 +1,22 @@
+-Use root-level `@class` and `@revision` when a fixture resource represents historical serialized data that must pass
+-through the normal upcaster chain. `@Revision` is the Java/Kotlin annotation declaring a type's revision; `@revision`
+-is the case-sensitive JSON serialization field.
++Use an explicit `Data<JsonNode>` wrapper for historical fixture input in this SDK version. The later
++root-level `@revision` shorthand is not supported here.
+ 
+ ```json
+ {
+-  "@class": "com.example.legacy.LabelChanged",
+-  "@revision": 0,
+-  "revision": 42,
+-  "label": "Primary"
++  "@class": "io.fluxzero.common.api.Data",
++  "value": {
++    "@class": "com.fasterxml.jackson.databind.JsonNode",
++    "label": "Primary"
++  },
++  "type": "com.example.legacy.LabelChanged",
++  "revision": 0
+ }
+ ```
+ 
+-The fixture uses `@class` as `Data.type` and `@revision` as `Data.revision`, removes both markers from the payload,
+-runs the revision upcasters. The plain `revision: 42` remains application data.
+-Do not use a field named `revision` as a substitute for `@revision`.
++The outer `type` and `revision` describe the serialized source. The nested value is its old JSON payload.
++Use `TestFixture.whenUpcasting("/labels/legacy.json")` and assert the current result. For an event reconstruction
++claim, also exercise the registered event deserialization path with a legacy `SerializedMessage`, as described
++in split-event upcasting. Keep a payload field called `revision` separate from the wrapper's serialization revision.
+ 
+-Test a caster directly with `TestFixture.whenUpcasting(...)`. For a production behavior claim, also pass the historical
+-resource through the relevant fixture command/event/aggregate boundary. Follow the split-upcaster article when one
+-historical event expands into several events; asserting only the direct caster result does not prove reconstruction.
+-
+-## Untyped versus typed JSON reads
+-
+-Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` interpret a revisioned object as `Data<JsonNode>`.
+-Explicitly typed overloads retain their declared return type. Use fully qualified names in fixture objects;
+-historical data keeps the source identity needed by its upcaster.
+-
+-Use a JSON command-array resource with `givenCommands("/labels/baseline.json")` for ordered setup.
+-Test a revisioned object with an ordinary `revision` payload field and assert the normalized payload or
+-resulting behavior through the relevant fixture boundary.
++The same wrapper pattern applies to Java and Kotlin. Do not replace it with an ordinary current-type object:
++that would deserialize before testing the historical migration.
+--- a/manifest.json
++++ b/manifest.json
+@@ -6162,17 +6162,12 @@
+     },
+     {
+       "path": "/docs/sdk/testing/revisioned-json",
+-      "title": "Revisioned JSON, Arrays and NDJSON",
+-      "summary": "Test historical @class/@revision payloads and ordered array or NDJSON resources.",
++      "title": "Historical JSON Fixtures",
++      "summary": "Represent old serialized data with an explicit Data wrapper.",
+       "source": "articles/sdk/testing/revisioned-json.md",
+       "symbols": [
+-        "@revision",
+-        "@class",
+-        "JSONL",
+-        "JsonUtils.fromFile",
+-        "JsonUtils.fromJson",
+-        "givenCommands",
+-        "givenCommandsByUser",
++        "Data",
++        "Data<JsonNode>",
+         "whenUpcasting"
+       ],
+       "links": [

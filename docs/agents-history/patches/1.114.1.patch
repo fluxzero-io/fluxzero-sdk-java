@@ -1,0 +1,70 @@
+--- a/articles/sdk/validation.md
++++ b/articles/sdk/validation.md
+@@ -42,6 +42,6 @@
+ 
+ Enable response/content filtering explicitly with `@FilterContent` on the handler method, class, or package. Filtering applies recursively to objects, collections, and maps. A filter method can inject the current user and the root object; returning `null` removes the object from the result.
+ 
+-Use `@ProtectData` for fields that should not be stored in the normal message stream. Fluxzero stores protected values temporarily in KV and reinjects them for trusted handling. Nested protection works only when every segment of the nested path is annotated. Use `@DropProtectedData` only on the trusted handler that should consume the value for the last time. Deletion happens during restoration before the handler body runs and is not rolled back after handler failure. Read the protected-data lifecycle article before relying on ordering, retries, missing-data policy, or deletion tests.
++Use `@ProtectData` for fields that should not be stored in the normal message stream. Fluxzero stores protected values temporarily in KV and reinjects them for trusted handling. Use writable direct bean properties for protected fields in this version; do not rely on nested record rewriting. Use `@DropProtectedData` only on the trusted handler that should consume the value for the last time. Deletion happens during restoration before the handler body runs and is not rolled back after handler failure. Read the protected-data lifecycle article before relying on ordering, retries, missing-data policy, or deletion tests.
+ 
+ Test each independent constraint with all other fields valid, and assert `ValidationException` plus the relevant rendered property-specific violation in `ValidationException.getViolations()`. A payload that makes two required fields blank proves only that validation ran, not that either individual constraint is protected. Use the authorization and validation behavior-matrix article for exact-role, inherited-role, roleless, unauthenticated, and one-cause-per-scenario examples.
+--- a/articles/sdk/validation/protected-data.md
++++ b/articles/sdk/validation/protected-data.md
+@@ -18,9 +18,13 @@
+ ## Model the trusted boundary
+ 
+ ```java
+-public record OpenSupportTicket(
+-        TicketId ticketId,
+-        @ProtectData String rawContactAddress) {
++@lombok.Data
++@lombok.NoArgsConstructor
++@lombok.AllArgsConstructor
++public class OpenSupportTicket {
++    private TicketId ticketId;
++    @ProtectData
++    private String rawContactAddress;
+ }
+ 
+ @Component
+@@ -28,9 +32,9 @@
+     @HandleCommand
+     @DropProtectedData
+     void handle(OpenSupportTicket command) {
+-        String pseudonym = pseudonym(command.rawContactAddress());
+-        Fluxzero.<SupportTicket>loadAggregate(command.ticketId())
+-                .assertAndApply(new TicketOpened(command.ticketId(), pseudonym));
++        String pseudonym = pseudonym(command.getRawContactAddress());
++        Fluxzero.<SupportTicket>loadAggregate(command.getTicketId())
++                .assertAndApply(new TicketOpened(command.getTicketId(), pseudonym));
+     }
+ }
+ ```
+@@ -38,8 +42,8 @@
+ `assertAndApply(...)` is an `Entity` operation. Do not call it on `TicketOpened` or another event record. The explicit `loadAggregate(...)` above supplies the aggregate target, and `@Component` makes this standalone handler discoverable in a Spring application. Outside Spring, register the handler instance with the configured `Fluxzero.registerHandlers(...)` API.
+ 
+ The durable update, aggregate state, logs, results, events, and metrics must contain only a derived safe value, never the
+-raw protected value. Nested protection is not an arbitrary recursive scan: every segment of a nested path must itself
+-be annotated with `@ProtectData`.
++raw protected value. In this version protection reads and rewrites directly annotated fields. Use a mutable
++bean for the protected payload and do not rely on the later record reconstruction or nested protected-path support.
+ 
+ Choose the dropping handler carefully. Another independent handler for the same message may run after it and see the
+ protected field as `null`. Design later handlers to tolerate the missing value or reject it explicitly in application
+@@ -87,14 +91,14 @@
+     @HandleCommand
+     @DropProtectedData
+     void handle(OpenSupportTicket command) {
+-        trustedValue.set(command.rawContactAddress());
++        trustedValue.set(command.getRawContactAddress());
+     }
+ }
+ 
+ final class LaterPassiveObserver {
+     @HandleCommand(passive = true)
+     void observe(OpenSupportTicket command) {
+-        laterValue.set(command.rawContactAddress());
++        laterValue.set(command.getRawContactAddress());
+     }
+ }
+ 

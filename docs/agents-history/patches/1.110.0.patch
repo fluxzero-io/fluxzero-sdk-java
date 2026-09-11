@@ -1,0 +1,35 @@
+--- a/articles/sdk/extensions/interceptors.md
++++ b/articles/sdk/extensions/interceptors.md
+@@ -78,8 +78,7 @@
+ ## Registration and order
+ 
+ Register with `addDispatchInterceptor`, `addHandlerInterceptor`, or `addBatchInterceptor`, optionally limited to
+-message types. Implementations found through Java `ServiceLoader` are also loaded by normal Fluxzero instances and
+-`TestFixture`. `@Order` controls precedence; lower values run earlier, and negative values can run before built-ins.
++message types. This version does not auto-load interceptors from Java `ServiceLoader`; register them explicitly
++on the builder. Keep consumer-specific ordering aligned with the configuration APIs present in the project.
+ 
+-Test the extension with the same registration path used in production. A `ServiceLoader` interceptor on the test
+-classpath can affect unrelated fixtures, so isolate it or make its activation explicit.
++Test the extension with the same explicit registration path used in production.
+--- a/articles/sdk/testing/external-backends.md
++++ b/articles/sdk/testing/external-backends.md
+@@ -46,6 +46,5 @@
+ ## Registration and interception hazards
+ 
+ Register the same production integration handler instance/class that the application discovers. A fixture-only mock
+-must not be a Spring production bean. Interceptors loaded by Java `ServiceLoader` are active in `TestFixture` too; if a
+-global interceptor rewrites or blocks remote requests, make that dependency explicit in the test or isolate it from the
+-test classpath.
++must not be a Spring production bean. Register relevant interceptors explicitly in the fixture so request
++rewriting/filtering behavior is tested with the same setup as production.
+--- a/manifest.json
++++ b/manifest.json
+@@ -4698,7 +4698,6 @@
+         "HandlerInterceptor",
+         "BatchInterceptor",
+         "@Order",
+-        "ServiceLoader",
+         "Metadata.withTrace"
+       ],
+       "links": [

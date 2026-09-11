@@ -1,0 +1,12 @@
+--- a/articles/sdk/operations/tracker-positions.md
++++ b/articles/sdk/operations/tracker-positions.md
+@@ -19,8 +19,7 @@
+ 
+ - `getPosition(consumer)` returns the most recently committed index ranges per segment.
+ - `readFromIndex(minIndex, maxSize)` reads serialized messages for diagnostics without advancing a consumer.
+-- `readRange(minInclusive, maxExclusive, maxSize)` bounds that inspection; use the byte-limited overload for logs with
+-  potentially large payloads.
++- `readRange(minInclusive, maxExclusive, maxSize)` bounds that inspection by index and count.
+ 
+ Direct reads bypass handler invocation and consumer configuration. They are suitable for inspection or a controlled
+ export, not for silently reimplementing tracking in application code.

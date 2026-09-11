@@ -1,0 +1,92 @@
+--- a/articles/sdk/configuration/advanced-builder.md
++++ b/articles/sdk/configuration/advanced-builder.md
+@@ -11,14 +11,9 @@
+ builder.addParameterResolver(new TenantContextResolver());
+ ```
+ 
+-The resolver runs during handler parameter matching. Make it deterministic, return unresolved when the context is not
+-available, and avoid network/database work. A constrained validation method can use the same resolvers; unresolved
+-parameters cause that method constraint to be skipped, so always-required validation must not depend on an optional
+-resolver.
+-
+-`replaceValidator(current -> replacement)` changes structural validation application-wide. Prefer the default SDK
+-validator unless a concrete unsupported constraint or integration requires replacement. Re-run payload, method
+-parameter/return, nested collection, group, and fixture tests after replacement.
++The resolver runs during handler parameter matching. Make it deterministic, return unresolved when context is
++not available, and avoid network/database work. It does not supply parameters to payload constraint methods
++in this SDK version.
+ 
+ ## Consumer templates and secondary consumers
+ 
+--- a/articles/sdk/extensions/index.md
++++ b/articles/sdk/extensions/index.md
+@@ -10,7 +10,6 @@
+ | Wrap one handler invocation or its result | `HandlerInterceptor` |
+ | Allocate/measure resources around a tracker batch | `BatchInterceptor` |
+ | Resolve a custom handler method parameter | `ParameterResolver` |
+-| Replace application-wide structural validation | `FluxzeroBuilder.replaceValidator(...)` |
+ | Change standard consumer templates or add a secondary consumer | `ConsumerConfiguration` on `FluxzeroBuilder` |
+ 
+ Do not use an interceptor to implement domain transitions, authorization that belongs in security/domain rules, or
+--- a/articles/sdk/validation.md
++++ b/articles/sdk/validation.md
+@@ -31,7 +31,6 @@
+ }
+ ```
+ 
+-Context-aware constraint methods may inject values resolved during handling, such as `User`, `Message`, `DeserializingMessage`, `Metadata`, or custom resolver values. If the parameter cannot be resolved for that validation run, Fluxzero skips that method, so keep always-required checks on fields or no-argument constraint methods.
+ 
+ Security annotations are checked before the handler runs:
+ 
+--- a/articles/sdk/validation/capabilities.md
++++ b/articles/sdk/validation/capabilities.md
+@@ -9,16 +9,13 @@
+ structured constraint violations. Fluxzero convenience constraints include URL, UUID, unique-elements, range, length,
+ and credit-card validation.
+ 
+-`ValidationUtils` uses the validator configured on the active Fluxzero instance and exposes:
++`ValidationUtils` exposes:
+ 
+ - `assertValid(...)`, `isValid(...)`, and `checkValidity(...)`;
+ - `getConstraintViolations(...)` for structured paths;
+ - executable parameter and return validation;
+ - authorization helpers distinct from structural validation.
+ 
+-Constrained payload methods can receive parameters from Fluxzero's handler `ParameterResolver` set. If a parameter is
+-unresolved for that validation run, that constrained method is skipped. Put mandatory rules on fields or no-argument
+-methods; use injected contextual validation only when absence is intentionally allowed.
+ 
+ ## Intentional limitations
+ 
+@@ -29,9 +26,8 @@
+ - `TraversableResolver` reachability policy;
+ - full Expression Language message evaluation.
+ 
+-Use Java annotations and application code instead. If a required validation contract is not supported, replace the
+-validator centrally through the advanced builder only after adding parity tests for payloads, groups, nested/container
+-values, executable parameters/returns, and structured error paths.
++Use Java annotations and application code instead. Keep contextual business rules in `@AssertLegal` or ordinary
++handler/domain logic; this version does not inject handler context into constrained payload methods.
+ 
+ ## Content filtering is output shaping
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -4929,7 +4929,6 @@
+         "addParameterResolver",
+         "registerUserProvider",
+         "replaceIdentityProvider",
+-        "replaceValidator",
+         "forwardWebRequestsToLocalServer",
+         "disableTrackingMetrics",
+         "enableHostMetrics"
+@@ -5246,8 +5245,7 @@
+         "ValidationUtils",
+         "@ValidateWith",
+         "ConstraintValidator",
+-        "ExecutableValidator",
+-        "replaceValidator"
++        "ExecutableValidator"
+       ],
+       "links": [
+         {

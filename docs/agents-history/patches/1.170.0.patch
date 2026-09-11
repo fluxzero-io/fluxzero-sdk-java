@@ -1,0 +1,42 @@
+--- a/articles/sdk/operations/search-maintenance.md
++++ b/articles/sdk/operations/search-maintenance.md
+@@ -30,25 +30,7 @@
+ 
+ ## Bulk updates
+ 
+-Use one collection-scoped builder when mixed index and delete operations belong in one stored request:
+-
+-```java
+-Fluxzero.bulkUpdate("projection-v3")
+-        .index(currentDocument)
+-        .delete(obsoleteDocumentId)
+-        .executeAndWait();
+-```
+-
+-`indexIfNotExists(...)` prevents replacement of an existing ID. `execute()` returns a future with
+-`Guarantee.STORED`; `executeAndForget()` deliberately uses `Guarantee.NONE` and is a poor choice for operator tooling
+-that must report a verified outcome. Treat each collection/document-ID pair as one final update in the batch: do not
+-depend on repeated operations for the same ID being executed sequentially, and do not claim that a multi-document bulk
+-request is an application transaction.
+-
+-When operations are prepared independently, `Fluxzero.prepareIndex(value).toBulkUpdate()` produces a public
+-`BulkUpdate` value and `DocumentStore.bulkUpdate(updates)` stores the collected batch. This does not turn an index
+-operation into a deletion merely by changing its ID; use an explicit delete update or the collection-scoped builder
+-for mixed index/delete work.
++Use `Fluxzero.prepareIndex(value).toBulkUpdate()` to prepare public `BulkUpdate` values and pass the collection to `DocumentStore.bulkUpdate(updates)`. The default guarantee is `STORED`; await the returned future before reporting an operator action as complete. Mixed deletion requires explicit delete updates. Keep one final operation per collection/document-ID pair and do not assume a multi-document batch is an application transaction.
+ 
+ ## Collection deletion and audit trails
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -2755,10 +2755,7 @@
+         "DocumentStore.createAuditTrail",
+         "Search.delete()",
+         "Search.move(Object)",
+-        "BulkUpdateBuilder",
+-        "Fluxzero.bulkUpdate",
+         "Fluxzero.deleteCollection",
+-        "executeAndWait()",
+         "audit trail retention"
+       ],
+       "links": [

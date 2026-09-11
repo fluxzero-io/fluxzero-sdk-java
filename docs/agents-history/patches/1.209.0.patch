@@ -1,0 +1,15 @@
+--- a/articles/sdk/web/advanced-transport.md
++++ b/articles/sdk/web/advanced-transport.md
+@@ -15,9 +15,9 @@
+ ```
+ 
+ `@ServeStatic` searches its configured classpath/file source. The default resource path is `/static`, the default API
+-ignore path is `/api/*`, and the default fallback is `index.html`. With `cleanUrls = true`, an extensionless path tries
+-the exact resource, `<path>.html`, `<path>/index.html`, then the fallback. Keep API paths excluded so an SPA fallback
+-cannot hide a missing endpoint. Use `classpath:` or `file:` to restrict the source intentionally.
++ignore path is `/api/*`, and the default fallback is `index.html`. Request the actual resource path; this version
++has no clean-URL expansion to `.html` or `/index.html`. Keep API paths excluded so an SPA fallback cannot hide
++a missing endpoint. Use `classpath:` or `file:` to restrict the source intentionally.
+ 
+ Fingerprint immutable assets and configure caching deliberately; do not give HTML an immutable one-year cache when it
+ must point clients to newly deployed assets.

@@ -1,0 +1,37 @@
+--- a/articles/sdk/search.md
++++ b/articles/sdk/search.md
+@@ -61,7 +61,7 @@
+ 
+ Never discard the `CompletableFuture<Void>` returned by `Fluxzero.index(...)` from a `void` tracked projection handler. The handler may finish and its consumer may advance before an asynchronous storage failure is observed. For straightforward projections, use `prepareIndex(...).indexAndWait()`. Use the blocking stored variant when the consumer position must wait for indexing. Merely returning a future does not provide that tracking-position guarantee in this version.
+ 
+-Use the search builder for match/query filters, time windows, logical groups, pagination, sorting, async results, aggregations, facets, histograms, and stats. Keep this logic server-side in a query handler instead of rebuilding it in clients. Read complete lists and pagination before returning a capped `List<T>`: an inaccessible fixed maximum is not pagination and cannot satisfy “all/current” contracts. Read facet filters and counts when a response needs categorical value counts or exact facet filtering; it maps `@Facet`, `matchFacet(...)`, and `facetStats()` with a concrete test.
++Use the search builder for match/query filters, time windows, logical groups, pagination, sorting, aggregations, facets, histograms, and stats. Keep this logic server-side in a query handler instead of rebuilding it in clients. Read complete lists and pagination before returning a capped `List<T>`: an inaccessible fixed maximum is not pagination and cannot satisfy “all/current” contracts. Read facet filters and counts when a response needs categorical value counts or exact facet filtering; it maps `@Facet`, `matchFacet(...)`, and `facetStats()` with a concrete test.
+ 
+ Fields used for sorting, quantity filters, and existence filters need `@Sortable`. Put it on the field/getter that owns the exact path used by `sortBy(...)`, `between(...)`, or existence constraints; every literal `sortBy("field")` in a query should have a visible matching `@Sortable` model property. Default runtime sort is newest first by timestamp, and sortable paths are indexed for performance. Search is eventually consistent, so command success does not guarantee that a secondary search projection is visible immediately.
+ 
+--- a/articles/sdk/search/constraints-aggregations.md
++++ b/articles/sdk/search/constraints-aggregations.md
+@@ -55,18 +55,16 @@
+ Use `includeOnly(...)` or `exclude(...)` to shape returned documents without fetching protected/internal fields. This
+ is response shaping, not authorization; enforce visibility before returning the result.
+ 
+-Available terminal operations include `count`, field `aggregate`, grouped aggregation, facet statistics, timestamp
+-histograms, and their async variants. Return a `CompletableFuture` directly from an async query handler when no further
+-synchronous work is required:
++Available terminal operations include `count`, field `aggregate`, grouped aggregation, facet statistics, and
++timestamp histograms. Use the synchronous operations available in this SDK version:
+ 
+ ```java
+ @HandleQuery
+-CompletableFuture<Long> count(CountVisibleEntries query) {
++long count(CountVisibleEntries query) {
+     return Fluxzero.search(KnowledgeEntry.class)
+             .match(query.visibility(), true, "visibility")
+-            .countAsync();
++            .count();
+ }
+ ```
+ 
+-Do not call `.join()` inside an otherwise asynchronous handler. Test direct search constraints with
+-`whenSearching(...)`, then test the public query mapping separately.
++Test direct search constraints with `whenSearching(...)`, then test the public query mapping separately.

@@ -1,0 +1,11 @@
+--- a/articles/sdk/sagas.md
++++ b/articles/sdk/sagas.md
+@@ -52,7 +52,7 @@
+ reconstruct the stateful instance in a new fixture and prove terminal, pending-effect, and deletion behavior
+ independently. Use a retained runtime/client without manual reseeding for persistence-backed restart evidence.
+ 
+-`@Association` correlates incoming messages to persisted saga instances. A message can match by a payload property with the same name, by an explicit `@Association("property")` override, or by parameter-level association including resolved `@Trigger` values. More than one saga instance can match one message. Read durable multi-key correlation before using processor or payment references, and prove each association independently after reconstruction.
++`@Association` correlates incoming messages to persisted saga instances. A message can match by a payload property with the same name, or by an explicit `@Association("property")` override on state or handler method. More than one saga instance can match one message. Read durable multi-key correlation before using processor or payment references, and prove each association independently after reconstruction.
+ 
+ Keep nested workflow updates on the parent stateful handler in this version. Nested `@Member` handler dispatch is
+ not available; return the updated parent or model a separately persisted stateful workflow with explicit correlation.

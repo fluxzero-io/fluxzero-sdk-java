@@ -1,0 +1,149 @@
+--- a/articles/sdk/configuration.md
++++ b/articles/sdk/configuration.md
+@@ -12,17 +12,7 @@
+ 
+ Recent SDKs can load `FluxzeroSpringConfig` through Spring Boot auto-configuration. Keep the explicit `@Import` only when auto-configuration is disabled or the app uses a custom Spring context.
+ 
+-Property precedence is:
+-
+-1. Environment variables such as `FLUXZERO_BASE_URL`.
+-2. System properties such as `-Dfluxzero.base-url=...`.
+-3. Extra locations from `FLUXZERO_CONFIG_LOCATIONS` or `fluxzero.config.locations`.
+-4. `application-{environment}.properties` selected by `ENVIRONMENT`.
+-5. `application.properties`.
+-6. Fluxzero defaults from classpath `fluxzero.json` and `fluxzero.properties`.
+-7. Spring Environment as the final fallback when Spring Boot is active.
+-
+-`FLUXZERO_CONFIG_LOCATIONS` accepts comma-separated `file:/path/to/config.properties`, plain file paths, and `classpath:config.properties` locations. Prefix a location with `optional:` when a missing file should be ignored; later listed locations override earlier ones.
++Property precedence is environment variables, system properties, `application-{environment}.properties` selected by `ENVIRONMENT`, then `application.properties`. Spring Environment supplies a final fallback in Spring applications.
+ 
+ Core SDK properties include `FLUXZERO_BASE_URL`, `FLUXZERO_APPLICATION_NAME`, `FLUXZERO_NAMESPACE`,
+ `FLUXZERO_APPLICATION_ID`, `FLUXZERO_TASK_ID`, `ENCRYPTION_KEY`.
+--- a/articles/sdk/project-setup/java.md
++++ b/articles/sdk/project-setup/java.md
+@@ -10,7 +10,7 @@
+ src/main/java/com/example/app/<domain>/api/model/...
+ src/test/java/com/example/app/TestApp.java
+ src/test/java/com/example/app/<domain>/...
+-src/main/resources/fluxzero.properties
++src/main/resources/application.properties
+ ```
+ 
+ Spring Boot entry point:
+@@ -58,6 +58,6 @@
+ 
+ Annotation processing must be enabled in the build. In Maven use `maven-compiler-plugin` with `io.fluxzero:sdk` in `annotationProcessorPaths`. In Gradle add both `annotationProcessor(platform("io.fluxzero:fluxzero-bom:$fluxzeroVersion"))` and `annotationProcessor("io.fluxzero:sdk")`; without the annotation-processor BOM or an explicit version, plain Gradle projects can fail to resolve the SDK processor.
+ 
+-Put application-owned runtime properties in `src/main/resources/fluxzero.properties` and keep deploy-specific overrides outside domain code.
++Put application-owned runtime properties in `src/main/resources/application.properties` and keep deploy-specific overrides outside domain code.
+ 
+ Continue with the create-app recipe once the source layout compiles.
+--- a/articles/sdk/project-setup/kotlin.md
++++ b/articles/sdk/project-setup/kotlin.md
+@@ -10,7 +10,7 @@
+ src/main/kotlin/com/example/app/<domain>/api/model/...
+ src/test/kotlin/com/example/app/TestApp.kt
+ src/test/kotlin/com/example/app/<domain>/...
+-src/main/resources/fluxzero.properties
++src/main/resources/application.properties
+ ```
+ 
+ Kotlin still uses a small Java `package-info.java` when package-level annotations are useful:
+@@ -57,6 +57,6 @@
+ - For aggregate shapes that need Java-style builder ergonomics, define that builder manually rather than relying on Lombok-style generation.
+ - Generate typed IDs before constructing commands, usually in an endpoint or command boundary, not in `@Apply`.
+ 
+-Put application-owned runtime properties in `src/main/resources/fluxzero.properties` and keep deploy-specific overrides outside domain code.
++Put application-owned runtime properties in `src/main/resources/application.properties` and keep deploy-specific overrides outside domain code.
+ 
+ Continue with the create-app recipe once the source layout compiles.
+--- a/articles/sdk/troubleshooting/index.md
++++ b/articles/sdk/troubleshooting/index.md
+@@ -58,7 +58,7 @@
+ non-null item constraints separately. Security annotations are resolved by specificity: method, class, package, then
+ super-package. A more specific annotation can replace a broader package rule.
+ 
+-Use `ValidationUtils.getConstraintViolations(...)` or a fixture assertion on rendered property-specific violation in `ValidationException.getViolations()` to identify the
++Use `ValidationUtils.checkValidity(...)` or a fixture assertion on rendered property-specific violation in `ValidationException.getViolations()` to identify the
+ actual missing constraint. Do not treat a later `NullPointerException` as successful boundary validation.
+ 
+ ## Escalate platform failures without operating internals
+--- a/articles/sdk/validation/capabilities.md
++++ b/articles/sdk/validation/capabilities.md
+@@ -1,33 +1,10 @@
+-Fluxzero supplies a focused Jakarta Validation provider for application messages and handler executables. Use the
+-supported profile directly; do not assume every Hibernate Validator, CDI, XML, or Expression Language feature is
+-present.
++Fluxzero integrates with Jakarta Validation through its `Jsr380Validator` adapter and the configured validation
++provider. Put structural constraints on payload/value-object fields and cascade nested validation with `@Valid`.
+ 
+-## Supported application profile
+-
+-The SDK profile covers standard Jakarta constraints, custom constraint validators, groups, cascaded/container
+-validation, value extractors, method/constructor parameter and return validation, property/value validation, and raw
+-structured constraint violations. Fluxzero convenience constraints include URL, UUID, unique-elements, range, length,
+-and credit-card validation.
+-
+-`ValidationUtils` exposes:
+-
+-- `assertValid(...)`, `isValid(...)`, and `checkValidity(...)`;
+-- `getConstraintViolations(...)` for structured paths;
+-- executable parameter and return validation;
+-- authorization helpers distinct from structural validation.
+-
+-
+-## Intentional limitations
+-
+-Do not design an application around:
+-
+-- `validation.xml` or XML constraint mappings;
+-- CDI-managed validator lifecycle;
+-- `TraversableResolver` reachability policy;
+-- full Expression Language message evaluation.
+-
+-Use Java annotations and application code instead. Keep contextual business rules in `@AssertLegal` or ordinary
+-handler/domain logic; this version does not inject handler context into constrained payload methods.
++Use `ValidationUtils.assertValid(...)`, `isValid(...)`, and `checkValidity(...)` for explicit checks where automatic
++validation is not the boundary. Do not assume the later SDK-owned validator profile or its convenience constraint
++package exists here. Keep provider-specific extensions and configuration aligned with this project's dependencies.
++Contextual business rules belong in `@AssertLegal` or handlers rather than injected constraint methods.
+ 
+ ## Content filtering is output shaping
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -4594,14 +4594,13 @@
+     {
+       "path": "/docs/sdk/configuration",
+       "title": "Configuration",
+-      "summary": "Configure SDK applications through property precedence, FLUXZERO_CONFIG_LOCATIONS, fluxzero.properties defaults, Spring fallback, namespace defaults, and runtime URLs.",
++      "summary": "Configure applications through environment, system and application properties, Spring fallback, namespaces and runtime URLs.",
+       "source": "articles/sdk/configuration.md",
+       "symbols": [
+         "application.properties",
+         "FluxzeroSpringConfig",
+         "FluxzeroCustomizer",
+         "DefaultFluxzero.builder()",
+-        "FLUXZERO_CONFIG_LOCATIONS",
+         "fluxzero.properties",
+         "FLUXZERO_BASE_URL",
+         "FLUXZERO_APPLICATION_NAME",
+@@ -5178,14 +5177,13 @@
+     {
+       "path": "/docs/sdk/validation/capabilities",
+       "title": "Validation Provider Capabilities",
+-      "summary": "Understand Fluxzero Jakarta Validation support, executable validation, custom constraints, and validator replacement boundaries.",
++      "summary": "Use Jakarta structural validation and separate it from content filtering.",
+       "source": "articles/sdk/validation/capabilities.md",
+       "symbols": [
+-        "Validator",
++        "Jsr380Validator",
+         "ValidationUtils",
+-        "@ValidateWith",
+-        "ConstraintValidator",
+-        "ExecutableValidator"
++        "@Valid",
++        "@FilterContent"
+       ],
+       "links": [
+         {

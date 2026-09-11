@@ -1,0 +1,17 @@
+--- a/articles/sdk/configuration.md
++++ b/articles/sdk/configuration.md
+@@ -25,10 +25,10 @@
+ `FLUXZERO_CONFIG_LOCATIONS` accepts comma-separated `file:/path/to/config.properties`, plain file paths, and `classpath:config.properties` locations. Prefix a location with `optional:` when a missing file should be ignored; later listed locations override earlier ones.
+ 
+ Core SDK properties include `FLUXZERO_BASE_URL`, `FLUXZERO_APPLICATION_NAME`, `FLUXZERO_NAMESPACE`,
+-`FLUXZERO_APPLICATION_ID`, `FLUXZERO_TASK_ID`, `FLUXZERO_CLIENT_ID`, `ENCRYPTION_KEY`, and `fluxzero.defaults.version`.
+-The task ID identifies the platform task and supplies `$taskId` correlation metadata; the client ID uniquely identifies
+-a process/client instance. By default the latter contains a task-ID prefix and a UUID, or just a random UUID when
+-there is no task ID. Do not use task identity as an exact client-readiness identity.
++`FLUXZERO_APPLICATION_ID`, `FLUXZERO_TASK_ID`, `ENCRYPTION_KEY`, and `fluxzero.defaults.version`.
++`FLUXZERO_TASK_ID` supplies the client instance identifier used for tracking; if it is absent a random UUID is
++generated. Use a unique value for each concurrently running client. This version does not expose a separate
++`FLUXZERO_CLIENT_ID` property or the newer authoritative `$taskId` correlation contract.
+ 
+ 
+ `FLUXZERO_NAMESPACE` is app-wide by default. It scopes runtime interactions across messaging, tracking, event store, documents, and search unless a specific operation overrides it.

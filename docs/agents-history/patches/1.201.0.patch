@@ -1,0 +1,68 @@
+--- a/articles/sdk/runtime-interaction.md
++++ b/articles/sdk/runtime-interaction.md
+@@ -8,7 +8,9 @@
+ 4. App B appends a result targeted back to App A.
+ 5. App A's request consumer receives the result and completes the pending call.
+ 
+-For command handlers that update aggregates, the SDK waits for asynchronous after-handler aggregate commits by default before returning the handler result. A command followed by a query can often read the committed aggregate/search state. Do not rely on this for downstream projections or event-handler side effects; return needed state from the command or wait for the projection's own signal.
++Command handling success does not guarantee that an asynchronous aggregate/search commit has completed in this
++SDK version. Return needed state from the command or wait for an explicit persistence/projection signal before
++relying on a subsequent search query.
+ 
+ Handler delivery is effectively at-least-once. A tracker fetches a batch, processes it, then commits position. If it crashes before committing, some messages can be processed again.
+ 
+--- a/articles/sdk/tracking.md
++++ b/articles/sdk/tracking.md
+@@ -7,7 +7,6 @@
+ - `singleTracker = true` forces strict global ordering.
+ - `ignoreSegment = true` lets the consumer receive all segments; combine with `@RoutingKey` only when client-side filtering is intentional.
+ - `maxFetchBytes` caps serialized payload bytes per fetch.
+-- `awaitSendAndForgetFutures = true` waits for fire-and-forget sends started during a batch before storing the consumer position.
+ 
+ ```java
+ @Component
+--- a/articles/sdk/tracking/error-policy.md
++++ b/articles/sdk/tracking/error-policy.md
+@@ -8,10 +8,8 @@
+ level, returns the error as the handler result, and lets tracking continue without retrying. The failed message is
+ therefore not automatically tried again before the consumer advances. Do not call the default "guaranteed delivery."
+ 
+-The same policy receives failures from asynchronous handler results or fire-and-forget dispatch futures when the
+-consumer is configured to await them. `awaitSendAndForgetFutures = true` prevents position storage before those
+-futures reach their requested guarantee, but the selected error handler still determines what happens after a
+-failure.
++An asynchronous effect must be part of an explicitly awaited handler result when consumer progress depends on
++its success. Do not assume fire-and-forget sends are awaited before position storage in this SDK version.
+ 
+ ## Choose a built-in policy deliberately
+ 
+--- a/articles/sdk/web/outbound-requests.md
++++ b/articles/sdk/web/outbound-requests.md
+@@ -48,7 +48,8 @@
+ 
+ `Guarantee.STORED` does not commit an aggregate and does not make state plus HTTP publication atomic. Never call this gateway immediately after `assertAndApply(...).get()` in the same aggregate handler. Persist the request intent first, then publish from a registered tracked post-commit consumer so correlation aliases exist before a fast response can arrive; read aggregate commit and effect boundaries.
+ 
+-Tracked consumers await send-and-forget futures started during a batch by default (`awaitSendAndForgetFutures = true`). Keep that default unless independent completion is intentional.
++Do not assume tracked consumers await send-and-forget dispatch before position storage in this SDK version.
++Observe completion explicitly when successful publication is part of the handler contract.
+ 
+ Do not use `sendAndWait` when the HTTP response is only transport acknowledgement. A `2xx` processor response is not a processing confirmation unless the processor contract explicitly says so. Model the later business decision as its own correlated message.
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -2501,7 +2501,6 @@
+         "maxFetchBytes",
+         "singleTracker",
+         "ignoreSegment",
+-        "awaitSendAndForgetFutures",
+         "minIndex",
+         "maxIndexExclusive",
+         "IndexUtils.indexFromTimestamp(...)",
+@@ -5547,7 +5546,6 @@
+         "RetryingErrorHandler",
+         "ForeverRetryingErrorHandler",
+         "SilentErrorHandler",
+-        "awaitSendAndForgetFutures",
+         "ConsumerConfiguration.errorHandler",
+         "tracker position after failure"
+       ],

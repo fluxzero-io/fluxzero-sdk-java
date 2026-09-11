@@ -1,0 +1,121 @@
+--- a/articles/sdk/serialization.md
++++ b/articles/sdk/serialization.md
+@@ -44,7 +44,8 @@
+ }
+ ```
+ 
+-Message metadata has a separate immutable upcasting contract. Inject `Metadata` and return the replacement `Metadata`; do not mutate the source `SerializedMessage`. Read metadata upcasting for message-only versus reusable non-message signatures, complete replacement semantics, successive payload/metadata revisions, and failure tests.
++To update message metadata in this SDK version, inject `SerializedMessage` into a full-data upcaster and call
++`setMetadata(...)`. Read metadata upcasting for this message-only contract and the appropriate envelope tests.
+ 
+ Fluxzero chains upcasters by revision. To move revision `0` data to revision `2`, provide `0 -> 1` and `1 -> 2` steps. If a shared nested value object changes, add upcasters for every top-level stored type that embeds it.
+ 
+--- a/articles/sdk/serialization/metadata-upcasting.md
++++ b/articles/sdk/serialization/metadata-upcasting.md
+@@ -1,80 +1,23 @@
+-Use this when a stored message's metadata must evolve during deserialization. Keep payload/type/format changes in an `ObjectNode` or `Data<T>` upcaster; metadata has its own immutable parameter-and-result contract.
+-
+-## Return replacement metadata
+-
+-An `@Upcast` method may inject the intermediate payload, its `Data<T>`, the source `SerializedMessage`, and the message `Metadata` in any order. To change only metadata, return `Metadata`:
++In this SDK version, a full-data upcaster can inject the source `SerializedMessage` and update its metadata.
++The later metadata-parameter/Metadata-return contract is not available.
+ 
+ ```java
+-import io.fluxzero.common.api.Metadata;
+-import io.fluxzero.common.api.SerializedMessage;
+-import io.fluxzero.sdk.common.serialization.casting.Upcast;
+-import org.springframework.stereotype.Component;
+-
+ @Component
+-final class CreateProjectMetadataUpcaster {
+-    @Upcast(type = "com.example.project.api.CreateProject", revision = 1)
+-    Metadata addLegacyTenant(Metadata metadata, SerializedMessage source) {
+-        return metadata.with("tenant", "legacy")
+-                .with("upcasted-message-id", source.getMessageId());
++final class CreateProjectUpcaster {
++    @Upcast(type = "com.example.old.CreateProject", revision = 0)
++    Data<JsonNode> upcastRev0(Data<JsonNode> data, SerializedMessage message) {
++        message.setMetadata(message.getMetadata().with("upcasted", "true"));
++        return data.withType("com.example.project.api.CreateProject")
++                .withRevision(1);
+     }
+ }
+ ```
+ 
+-Returning `Metadata` replaces the complete message metadata, leaves the payload unchanged, and advances the revision by one. `metadata.with(...)` retains existing entries while adding or replacing the named entries. Returning `Metadata.of(...)` instead intentionally drops every entry you do not copy. The source `SerializedMessage`, including its metadata, payload, and message ID, remains unchanged; upcasters must be deterministic and side-effect-free.
++Keep the transformation deterministic. `Data<T>` contains payload, type, revision, and format; metadata belongs
++to the message envelope. This pattern needs message input: do not use it for a snapshot, document, or key-value
++entry without checking the applicable caster input. Use a payload-only caster for reusable non-message migrations.
+ 
+-Do not call a setter on the injected `SerializedMessage`. The message is context, not an object to mutate. A metadata-returning upcaster must return a non-null `Metadata` value.
+-
+-## Separate payload and metadata revisions
+-
+-`Data<T>` represents the serialized payload value, type, revision, and format; it does not own message metadata. When both payload and metadata must change, use explicit successive steps. The payload-value/`ObjectNode` and `Metadata` return steps below each advance one revision. A returned `Data<T>` is installed with the revision it contains, so that method must set its target revision explicitly. Only one caster may own a `(type, revision)` pair:
+-
+-```java
+-@Upcast(type = "com.example.project.api.CreateProject", revision = 0)
+-ObjectNode renameOwner(ObjectNode payload) {
+-    payload.set("ownerId", payload.remove("userId"));
+-    return payload; // revision 0 -> 1
+-}
+-
+-@Upcast(type = "com.example.project.api.CreateProject", revision = 1)
+-Metadata addTenant(Metadata metadata) {
+-    return metadata.with("tenant", "legacy"); // revision 1 -> 2
+-}
+-```
+-
+-Set the current stored type's `@Revision` to `2`. Do not register separate payload and metadata methods for the same input revision; that is ambiguous rather than a two-part transaction.
+-
+-## Message input versus reusable data input
+-
+-Messages provide `Metadata` and `SerializedMessage` context. Snapshots, documents, key-value entries, and other raw serialized objects do not. A required `Metadata` parameter therefore makes an upcaster message-only: applying it to non-message data fails.
+-
+-If one payload upcaster deliberately supports both contexts, make metadata nullable:
+-
+-```java
+-import com.fasterxml.jackson.databind.node.ObjectNode;
+-import io.fluxzero.common.api.Metadata;
+-import org.jspecify.annotations.Nullable;
+-
+-@Upcast(type = "com.example.shared.LegacyValue", revision = 0)
+-ObjectNode normalize(ObjectNode payload, @Nullable Metadata metadata) {
+-    if (metadata != null && metadata.containsKey("tenant")) {
+-        payload.put("tenant", metadata.get("tenant"));
+-    }
+-    return payload;
+-}
+-```
+-
+-Fluxzero recognizes a runtime parameter annotation whose simple name is `Nullable`; Kotlin nullable parameter types are also recognized. The parameter receives `null` for non-message input. This only makes metadata injection optional. A method that returns `Metadata` still requires message input because a raw serialized object has no metadata envelope to replace.
+-
+-## Test the envelope, absence, and failures
+-
+-Keep payload-only shape tests with `TestFixture.whenUpcasting(...)`. Add message-envelope tests against the registered serializer/caster chain or through durable reconstruction of a legacy `SerializedMessage`. Prove all of these separately:
+-
+-- existing metadata remains and the new entry is present;
+-- payload bytes/value, type, message ID, and unrelated envelope fields are preserved while revision advances exactly one;
+-- the original input message and its metadata are unchanged;
+-- a nullable metadata parameter receives `null` for non-message input;
+-- a required metadata parameter on non-message input fails with `DeserializationException`;
+-- a metadata-returning caster on non-message input fails;
+-- returning `null` metadata fails instead of deleting or silently preserving metadata.
+-
+-When a payload step and metadata step are chained, test the intermediate and final revisions so a missing or duplicate `(type, revision)` caster cannot be hidden by the final object assertion.
++Test metadata and payload through the actual registered serializer/caster chain with a legacy `SerializedMessage`.
++Verify preserved unrelated metadata, the intended changed entry, the final type/revision, and reconstructed state.
++A direct `whenUpcasting(...)` payload test does not by itself prove envelope metadata handling. Do not promise
++that the supplied source message remains unchanged when using this historical mutating contract.
+--- a/manifest.json
++++ b/manifest.json
+@@ -4211,7 +4211,7 @@
+     {
+       "path": "/docs/sdk/serialization/metadata-upcasting",
+       "title": "Message Metadata Upcasting",
+-      "summary": "Inject and return immutable Metadata for stored messages, keep payload changes in separate revisions, handle absent message context explicitly, and test envelope preservation and failures.",
++      "summary": "Migrate message metadata through a SerializedMessage-aware data upcaster.",
+       "source": "articles/sdk/serialization/metadata-upcasting.md",
+       "symbols": [
+         "@Upcast returns Metadata",

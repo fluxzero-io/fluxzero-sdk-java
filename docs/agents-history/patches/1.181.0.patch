@@ -1,0 +1,12 @@
+--- a/articles/sdk/reference/test-fixture-signatures.md
++++ b/articles/sdk/reference/test-fixture-signatures.md
+@@ -138,8 +138,6 @@
+ ```java
+ expectOnlyNewSchedules(Object... expected)
+ expectOnlySchedules(Object... expected)
+-expectOnlyScheduledCommands(Object... expected)
+ ```
+ 
+-The first inspects schedules created in this phase; the second inspects all active schedules after it; the third matches
+-scheduled command payloads. Use a `ThrowingPredicate<Schedule>` when both ID and deadline are part of the contract.
++The first inspects schedules created in this phase; the second inspects all active schedules after it. Use a `ThrowingPredicate<Schedule>` when both ID and deadline are part of the contract.

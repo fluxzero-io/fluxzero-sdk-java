@@ -1,0 +1,112 @@
+--- a/articles/recipes/add-authenticated-frontend.md
++++ b/articles/recipes/add-authenticated-frontend.md
+@@ -20,7 +20,7 @@
+ 
+ 1. `UserProvider.fromMessage(...)` consumes a real `WebRequest` credential or an already trusted Fluxzero user.
+ 2. `getUserById(...)` loads the application profile after a subject is known.
+-3. `refreshUser(...)` reloads mutable roles or profile data when an already established user is refreshed for a message or session.
++3. the application-owned `reloadSender(...)` helper reloads mutable roles or profile data when an already established user is refreshed for a message or session.
+ 4. `getSystemUser()` remains limited to trusted internal work.
+ 
+ The production HTTP identity article contains the cookie/bearer provider example and validation boundary. A provider containing only `getUserById(...)` is a lookup fragment. It can pass every `...ByUser(userId, ...)` test while every external protected request still fails.
+--- a/articles/sdk/authentication/authorization.md
++++ b/articles/sdk/authentication/authorization.md
+@@ -99,8 +99,7 @@
+ 
+ ```java
+ @Component
+-final class SenderProvider extends AbstractUserProvider
+-        implements RefreshingUserProvider<Sender> {
++final class SenderProvider extends AbstractUserProvider {
+ 
+     SenderProvider() {
+         super(Sender.class);
+@@ -115,7 +114,12 @@
+     }
+ 
+     @Override
+-    public Sender refreshUser(Sender sender, HasMessage message) {
++    public User fromMessage(HasMessage message) {
++        User trusted = super.fromMessage(message);
++        return trusted instanceof Sender sender ? reloadSender(sender) : trusted;
++    }
++
++    private Sender reloadSender(Sender sender) {
+         return sender == null ? null : (Sender) getUserById(sender.userId());
+     }
+ 
+@@ -128,7 +132,7 @@
+ 
+ A missing aggregate is represented by an empty `Entity`, and `Entity.get()` returns `null`; the `profile == null` branch above is the normal absence path. Do not wrap `Fluxzero.loadAggregate(...).get()` in `catch (RuntimeException)` and translate every failure to `null`. That would erase the distinction between normal absence and storage, serialization, `TechnicalException`, or programming failures. Preserve the original failure in provider code and instrument that boundary. During initial request authentication, the current `AuthenticatingInterceptor` converts an exception thrown by `fromMessage(...)` to no user, so do not claim that the HTTP caller will observe the technical exception; test and monitor provider failures separately. If malformed raw identifiers are deliberately treated as unknown callers, catch only the exact identifier-conversion failure before loading application state.
+ 
+-Spring registers a `UserProvider` bean with the Fluxzero builder. Outside Spring, register it explicitly with `DefaultFluxzero.builder().registerUserProvider(...)`. Use `RefreshingUserProvider` when persisted role or profile changes must affect later requests instead of trusting stale role data embedded in an earlier session.
++Spring registers a `UserProvider` bean with the Fluxzero builder. Outside Spring, register it explicitly with `DefaultFluxzero.builder().registerUserProvider(...)`. Reload mutable roles deliberately inside your `fromMessage(...)` implementation after a trusted identity is established. The SDK does not provide an automatic role-refresh SPI in this version.
+ 
+ Map validated IDP claims to existing application state according to the client credential and first-user lifecycle and an explicit provisioning policy. Successful external authentication does not itself authorize creation of a domain user. Choose pre-provisioning, administrator invitation, or explicit self-registration as the product requires, and make that choice idempotent and auditable. Do not use the system user to send an admin-only create-user command merely because an authenticated subject is missing; reserve system authority for a named, deliberate bootstrap, migration, or infrastructure operation.
+ 
+--- a/articles/sdk/authentication/http-identity.md
++++ b/articles/sdk/authentication/http-identity.md
+@@ -4,7 +4,7 @@
+ | --- | --- |
+ | `fromMessage(...)` | Authenticate an incoming request or consume an already trusted Fluxzero `$user` |
+ | `getUserById(...)` | Resolve an already identified user, primarily for fixture `...ByUser(id, ...)` helpers and application lookup |
+-| `refreshUser(...)` | Reload roles/profile for an identity that was already established |
++| Application-owned reload inside `fromMessage(...)` | Reload current roles/profile after validating an identity |
+ | `getSystemUser()` | Supply the trusted internal identity for non-human work |
+ 
+ `getUserById(...)` is lookup, not HTTP authentication. Extending `AbstractUserProvider` without overriding `fromMessage(...)` only reads a complete user already stored in `$user` metadata. `ProxyServer` forwards request headers and cookies as `WebRequest` metadata; it does not validate them or turn them into `$user`. Likewise, `@RequiresUser` rejects or permits an identity but does not establish one.
+@@ -21,8 +21,7 @@
+ }
+ 
+ @Component
+-final class SenderProvider extends AbstractUserProvider
+-        implements RefreshingUserProvider<Sender> {
++final class SenderProvider extends AbstractUserProvider {
+     private final BearerAuthenticator tokens;
+ 
+     SenderProvider(BearerAuthenticator tokens) {
+@@ -34,7 +33,7 @@
+     public User fromMessage(HasMessage message) {
+         User alreadyTrusted = super.fromMessage(message);
+         if (alreadyTrusted != null) {
+-            return alreadyTrusted;
++            return alreadyTrusted instanceof Sender sender ? reloadSender(sender) : alreadyTrusted;
+         }
+ 
+         if (!(message.toMessage() instanceof WebRequest)) {
+@@ -44,7 +43,7 @@
+         Metadata metadata = message.getMetadata();
+         Optional<Sender> sessionSender = AppSessionStore.sender(metadata);
+         if (sessionSender.isPresent()) {
+-            return refreshUser(sessionSender.get(), message);
++            return reloadSender(sessionSender.get());
+         }
+ 
+         Optional<UserId> userId = WebRequest.getHeader(metadata, "Authorization")
+@@ -68,8 +67,7 @@
+         return profile == null ? null : new Sender(profile.userId(), profile.role());
+     }
+ 
+-    @Override
+-    public Sender refreshUser(Sender sender, HasMessage message) {
++    private Sender reloadSender(Sender sender) {
+         return sender == null ? null : (Sender) getUserById(sender.userId());
+     }
+ 
+@@ -84,14 +82,14 @@
+ 
+ `BearerAuthenticator` is an application security boundary, not permission to implement token validation by string splitting. Splitting the authorization scheme from its credentials is only header parsing; the authenticator must still verify the token cryptographically and semantically with `TokenValidators` and the configured `OidcTenantConfig`. First respect `super.fromMessage(...)` so trusted identity propagated from a parent Fluxzero message is not re-authenticated as if it were a new HTTP request. Then require an actual `WebRequest` before inspecting raw headers or cookies; otherwise a command or event carrying similarly named metadata could establish an HTTP identity.
+ 
+-For WebSockets, authenticate the opening handshake through the same cookie or bearer path. Established frames reuse the session identity and `RefreshingUserProvider` can refresh application roles; document which handshake header or cookie the client must send.
++For WebSockets, authenticate the opening handshake and explicitly test how later frames receive trusted identity in this SDK version. Do not assume a pinned session-user or automatic refresh contract. Resolve any mutable roles in the application authentication boundary and document the handshake credentials.
+ 
+ ## Completion checklist
+ 
+ - The app chose BFF cookie, validated bearer behavior, or an intentional dual-mode combination and includes only the matching dependencies and configuration.
+ - The client has a documented login or configured external-issuer acquisition path; an internal token helper is not that path.
+ - BFF login/callback/session endpoints are explicitly public with `@NoUserRequired`; protected API packages use `@RequiresUser`.
+-- `fromMessage(...)` handles the chosen real request credential, while `getUserById(...)` and `refreshUser(...)` map it to current application state.
++- `fromMessage(...)` handles the chosen real request credential, while `getUserById(...)` and the application-owned `reloadSender(...)` helper map it to current application state.
+ - Local/test startup includes the matching IDP stub or deterministic validator.
+ - OpenAPI declares the actual cookie/bearer scheme and WebSocket documentation describes handshake credentials.
+ - Raw credential, missing credential, invalid credential, lookup, role, and ownership behavior are tested as separate boundaries.

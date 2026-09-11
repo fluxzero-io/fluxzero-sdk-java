@@ -1,0 +1,33 @@
+--- a/articles/sdk/metrics.md
++++ b/articles/sdk/metrics.md
+@@ -65,8 +65,7 @@
+ ```
+ 
+ Use `expectMetrics(...)` for inclusive payload/class matching, `expectMetric(...)` for one predicate,
+-`expectOnlyMetrics(...)` when every metric is part of the contract, and `expectNoMetricsLike(...)` or
+-`expectNoMetricLike(...)` for a targeted negative assertion. `expectNoMetrics()` also rejects SDK tracking metrics, so
++`expectOnlyMetrics(...)` when every metric is part of the contract, and `expectNoMetricsLike(...)` with an explicit predicate for a targeted negative assertion. `expectNoMetrics()` also rejects SDK tracking metrics, so
+ it is usually too broad for an asynchronous fixture.
+ 
+ ## Separate fixture seeding from production replay
+--- a/articles/sdk/scheduling/tracked-effect-reconciliation.md
++++ b/articles/sdk/scheduling/tracked-effect-reconciliation.md
+@@ -120,7 +120,7 @@
+   active;
+ - retry after a failure repeats no non-idempotent effect that completed before the failure.
+ 
+-`expectNoNewSchedules()` proves only that the current action created none. Pair it with `expectNoScheduleLike(...)` or an
++`expectNoNewSchedules()` proves only that the current action created none. Pair it with `expectNoSchedulesLike(...)` with an explicit predicate or an
+ exact complete active-set assertion to prove that obsolete work is not still present.
+ 
+ Keep reconstruction claims separate. `givenScheduledCommands(...)` and `givenSchedules(...)` supply scheduler state to
+--- a/manifest.json
++++ b/manifest.json
+@@ -2543,7 +2543,6 @@
+         "expectMetric",
+         "expectOnlyMetrics",
+         "expectNoMetricsLike",
+-        "expectNoMetricLike",
+         "custom metrics",
+         "replay metrics"
+       ],

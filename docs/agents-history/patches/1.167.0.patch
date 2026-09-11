@@ -1,0 +1,221 @@
+--- a/articles/sdk/reference/public-symbols.md
++++ b/articles/sdk/reference/public-symbols.md
+@@ -17,7 +17,6 @@
+ | delivery guarantee/type | `io.fluxzero.common.Guarantee`, `io.fluxzero.common.MessageType` |
+ | typed application request | `io.fluxzero.sdk.tracking.handling.Request` |
+ | injected handler argument extension | `io.fluxzero.common.handling.ParameterResolver` |
+-| stable SDK diagnostics | `io.fluxzero.sdk.common.exception.FluxzeroErrorCode`, `FluxzeroErrors` |
+ 
+ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a runtime transport DTO.
+ 
+--- a/articles/sdk/testing/behavior-matrices.md
++++ b/articles/sdk/testing/behavior-matrices.md
+@@ -18,7 +18,7 @@
+ 
+ Do not use a bare `expectExceptionalResult()` for a product rule. It can pass because of an unrelated validation, missing handler, authorization failure, or framework error. Match the most stable signal the application owns:
+ 
+-- Jakarta payload validation: `ValidationException` and the relevant `ValidationException.ViolationSummary` property path.
++- Jakarta payload validation: `ValidationException` and the relevant entry in `ValidationException.getViolations()`.
+ - Missing identity: `UnauthenticatedException`.
+ - Authenticated caller without the required role: `UnauthorizedException`.
+ - Domain legality: the application's functional exception type, error code, or stable rule predicate.
+@@ -27,17 +27,17 @@
+ fixture.whenCommand(new CreateProject(" ", "Valid description"))
+         .expectExceptionalResult(error ->
+                 error instanceof ValidationException validation
+-                && validation.getViolationSummaries().stream()
+-                        .anyMatch(v -> "title".equals(v.path())));
++                && validation.getViolations().stream()
++                        .anyMatch(v -> v.contains("title")));
+ 
+ fixture.whenCommand(new CreateProject("Valid title", " "))
+         .expectExceptionalResult(error ->
+                 error instanceof ValidationException validation
+-                && validation.getViolationSummaries().stream()
+-                        .anyMatch(v -> "description".equals(v.path())));
++                && validation.getViolations().stream()
++                        .anyMatch(v -> v.contains("description")));
+ ```
+ 
+-Prefer a property path over the validator's complete rendered sentence. The path identifies the broken contract while avoiding dependence on incidental message formatting.
++This SDK exposes rendered violation strings. Match the relevant property with all control fields valid, and verify the provider's actual formatting. Do not rely on a structured path accessor that this version does not expose.
+ 
+ ## Prove the role hierarchy
+ 
+--- a/articles/sdk/troubleshooting/error-codes.md
++++ /dev/null
+@@ -1,37 +0,0 @@
+-Fluxzero SDK reports include stable `FZ-SDK-*` identifiers. Match diagnostics and support playbooks on the code; the
+-human-readable explanation can improve over time. Keep the original cause and structured context when reporting a
+-failure.
+-
+-| Code | Meaning | Application-side checks |
+-| --- | --- | --- |
+-| `FZ-SDK-0001` | No active Fluxzero instance | Run inside a configured instance, set the application instance during bootstrap, or use `TestFixture`. |
+-| `FZ-SDK-0002` | Request timed out | Check matching handler discovery, namespace/topic, passive/result behavior, routing, authentication, and whether the remote consumer is running. |
+-| `FZ-SDK-0003` | Handler invocation failed | Inspect the cause, resolved parameters, payload shape, and user context. Use a `FunctionalException` only for an expected business rejection. |
+-| `FZ-SDK-0004` | Response dispatch failed | Check response serialization, custom dispatch interceptors, result/web-response connectivity, and the target request ID. |
+-| `FZ-SDK-0005` | Blocking wait was interrupted | Check application shutdown, caller cancellation, test-runner interruption, and whether retry is safe. Preserve the interrupt contract. |
+-| `FZ-SDK-0006` | Message dispatch failed | Check serialization, dispatch interceptors, client connection, namespace, message type, and topic. |
+-| `FZ-SDK-0007` | No `UserProvider` | Register the application user provider before adding a user to message metadata, or remove the user attachment if it is not required. |
+-| `FZ-SDK-0008` | Invalid tracking configuration | Check that each tracked handler matches one valid consumer, consumer names/configurations do not conflict, and handlers are registered before tracking starts. |
+-| `FZ-SDK-0009` | Invalid periodic schedule | Configure a cron expression or positive delay, add `@Periodic` when calling periodic scheduling, or use `Periodic.DISABLED` deliberately. |
+-| `FZ-SDK-0010` | Tracker runtime operation failed | Check the cause and managed-runtime connectivity; distinguish an expected shutdown/disconnect from failed position storage or tracker maintenance. |
+-
+-## Preserve useful context
+-
+-When surfacing a code in application logs or an operational incident, include only safe identifiers:
+-
+-- application name and namespace;
+-- message type and custom topic when applicable;
+-- consumer and tracker ID;
+-- payload type, message/request ID, segment, and index when supplied by the report;
+-- original exception type and a sanitized message.
+-
+-Do not log protected payload values, credentials, complete authorization headers, or encrypted configuration values.
+-An error code identifies a category; it does not prove the root cause. For example, `FZ-SDK-0002` can mean no handler,
+-a filtered handler, a handler that returned no result, or a running handler that exceeded the effective timeout.
+-
+-## Decide who can act
+-
+-Application teams can correct handler discovery, request/result contracts, consumer configuration, namespace/topic
+-selection, serializers, interceptors, user providers, and schedules. If those are correct and the supported Cloud
+-diagnostic reports a runtime or connectivity failure, preserve the report and escalate it. Do not translate a platform
+-failure into manual database, cluster, or internal-consumer operations.
+--- a/articles/sdk/troubleshooting/index.md
++++ b/articles/sdk/troubleshooting/index.md
+@@ -58,7 +58,7 @@
+ non-null item constraints separately. Security annotations are resolved by specificity: method, class, package, then
+ super-package. A more specific annotation can replace a broader package rule.
+ 
+-Use `ValidationUtils.getConstraintViolations(...)` or a fixture assertion on `ViolationSummary.path()` to identify the
++Use `ValidationUtils.getConstraintViolations(...)` or a fixture assertion on rendered property-specific violation in `ValidationException.getViolations()` to identify the
+ actual missing constraint. Do not treat a later `NullPointerException` as successful boundary validation.
+ 
+ ## Escalate platform failures without operating internals
+--- a/articles/sdk/validation.md
++++ b/articles/sdk/validation.md
+@@ -44,4 +44,4 @@
+ 
+ Use `@ProtectData` for fields that should not be stored in the normal message stream. Fluxzero stores protected values temporarily in KV and reinjects them for trusted handling. Nested protection works only when every segment of the nested path is annotated. Use `@DropProtectedData` only on the trusted handler that should consume the value for the last time. Deletion happens during restoration before the handler body runs and is not rolled back after handler failure. Read the protected-data lifecycle article before relying on ordering, retries, missing-data policy, or deletion tests.
+ 
+-Test each independent constraint with all other fields valid, and assert `ValidationException` plus the relevant `ViolationSummary.path()`. A payload that makes two required fields blank proves only that validation ran, not that either individual constraint is protected. Use the authorization and validation behavior-matrix article for exact-role, inherited-role, roleless, unauthenticated, and one-cause-per-scenario examples.
++Test each independent constraint with all other fields valid, and assert `ValidationException` plus the relevant rendered property-specific violation in `ValidationException.getViolations()`. A payload that makes two required fields blank proves only that validation ran, not that either individual constraint is protected. Use the authorization and validation behavior-matrix article for exact-role, inherited-role, roleless, unauthenticated, and one-cause-per-scenario examples.
+--- a/manifest.json
++++ b/manifest.json
+@@ -920,10 +920,6 @@
+         {
+           "description": "Interpret SDK-level application failures",
+           "path": "/docs/sdk/troubleshooting"
+-        },
+-        {
+-          "description": "Interpret stable Fluxzero SDK error identifiers",
+-          "path": "/docs/sdk/troubleshooting/error-codes"
+         }
+       ]
+     },
+@@ -3669,7 +3665,6 @@
+         "rejected command",
+         "expectNoMetricsLike",
+         "ValidationException",
+-        "ViolationSummary",
+         "UnauthenticatedException",
+         "UnauthorizedException",
+         "@RequiresUser",
+@@ -4044,7 +4039,6 @@
+         "@AssertTrue",
+         "@ValidateWith",
+         "ValidationException",
+-        "ViolationSummary",
+         "@RequiresUser",
+         "@RequiresAnyRole",
+         "@NoUserRequired",
+@@ -4715,10 +4709,6 @@
+           "path": "/docs/sdk/development/diagnostics"
+         },
+         {
+-          "description": "Interpret stable Fluxzero SDK error identifiers",
+-          "path": "/docs/sdk/troubleshooting/error-codes"
+-        },
+-        {
+           "description": "Check production handler discovery and registration",
+           "path": "/docs/sdk/handlers"
+         },
+@@ -4729,44 +4719,6 @@
+         {
+           "description": "Validate runtime properties namespaces and endpoint configuration",
+           "path": "/docs/sdk/configuration"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/troubleshooting/error-codes",
+-      "title": "Stable SDK Error Codes",
+-      "summary": "Interpret FZ-SDK diagnostic identifiers without coupling automation to mutable exception wording.",
+-      "source": "articles/sdk/troubleshooting/error-codes.md",
+-      "symbols": [
+-        "FluxzeroErrorCode",
+-        "FluxzeroErrors",
+-        "FZ-SDK-0001",
+-        "FZ-SDK-0002",
+-        "FZ-SDK-0003",
+-        "FZ-SDK-0004",
+-        "FZ-SDK-0005",
+-        "FZ-SDK-0006",
+-        "FZ-SDK-0007",
+-        "FZ-SDK-0008",
+-        "FZ-SDK-0009",
+-        "FZ-SDK-0010"
+-      ],
+-      "links": [
+-        {
+-          "description": "Route an unexpected SDK behavior first",
+-          "path": "/docs/sdk/troubleshooting"
+-        },
+-        {
+-          "description": "Understand handler placement discovery and execution",
+-          "path": "/docs/sdk/handlers"
+-        },
+-        {
+-          "description": "Configure consumers trackers replay and retry",
+-          "path": "/docs/sdk/tracking"
+-        },
+-        {
+-          "description": "Inspect namespaced runtime state when justified",
+-          "path": "/docs/sdk/operations"
+         }
+       ]
+     },
+@@ -5285,10 +5237,6 @@
+         {
+           "description": "Choose among advanced public SDK extension points",
+           "path": "/docs/sdk/extensions"
+-        },
+-        {
+-          "description": "Interpret stable Fluxzero SDK error identifiers",
+-          "path": "/docs/sdk/troubleshooting/error-codes"
+         }
+       ]
+     },
+@@ -5316,9 +5264,7 @@
+         "ParameterResolver",
+         "DispatchInterceptor",
+         "HandlerInterceptor",
+-        "BatchInterceptor",
+-        "FluxzeroErrorCode",
+-        "FluxzeroErrors"
++        "BatchInterceptor"
+       ],
+       "links": [
+         {
+@@ -5509,10 +5455,6 @@
+         {
+           "description": "Resolve cron and scheduling configuration properties",
+           "path": "/docs/sdk/configuration/properties"
+-        },
+-        {
+-          "description": "Diagnose stable invalid-periodic-schedule SDK errors",
+-          "path": "/docs/sdk/troubleshooting/error-codes"
+         }
+       ]
+     },

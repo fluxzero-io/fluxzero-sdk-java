@@ -1,0 +1,48 @@
+--- a/articles/sdk/validation.md
++++ b/articles/sdk/validation.md
+@@ -43,6 +43,6 @@
+ 
+ Enable response/content filtering explicitly with `@FilterContent` on the handler method, class, or package. Filtering applies recursively to objects, collections, and maps. A filter method can inject the current user and the root object; returning `null` removes the object from the result.
+ 
+-Use `@ProtectData` for fields that should not be stored in the normal message stream. Fluxzero retains protected values separately and reinjects them for trusted handling. External publication and `logMessage = true` use KV; handling only locally with `logMessage = false` retains the values in memory without KV I/O. Nested protection works only when every segment of the nested path is annotated. Use `@DropProtectedData` only on the trusted handler that should consume the value for the last time. Deletion from the applicable store happens during restoration before the handler body runs and is not rolled back after handler failure. Read the protected-data lifecycle article before relying on ordering, retries, missing-data policy, or deletion tests.
++Use `@ProtectData` for fields that should not be stored in the normal message stream. Fluxzero stores protected values temporarily in KV and reinjects them for trusted handling. Nested protection works only when every segment of the nested path is annotated. Use `@DropProtectedData` only on the trusted handler that should consume the value for the last time. Deletion happens during restoration before the handler body runs and is not rolled back after handler failure. Read the protected-data lifecycle article before relying on ordering, retries, missing-data policy, or deletion tests.
+ 
+ Test each independent constraint with all other fields valid, and assert `ValidationException` plus the relevant `ViolationSummary.path()`. A payload that makes two required fields blank proves only that validation ran, not that either individual constraint is protected. Use the authorization and validation behavior-matrix article for exact-role, inherited-role, roleless, unauthenticated, and one-cause-per-scenario examples.
+--- a/articles/sdk/validation/protected-data.md
++++ b/articles/sdk/validation/protected-data.md
+@@ -1,15 +1,10 @@
+-Use `@ProtectData` when a field must stay out of the ordinary serialized payload. Fluxzero retains the value separately,
+-puts only a field-to-key reference in message metadata, serializes the field as `null`, and restores it for
++Use `@ProtectData` when a field must stay out of the ordinary serialized payload. Fluxzero stores the value separately
++in KV, puts only a field-to-key reference in message metadata, serializes the field as `null`, and restores it for
+ handling. Put `@DropProtectedData` only on the trusted handler that should consume the value for the last time.
+-
+-An externally published message stores protected values in KV. A message handled only by local handlers with
+-`logMessage = false` retains its protected values in memory and performs no KV I/O. External fallback and
+-`logMessage = true` use KV; `@LocalOnly` prevents externalization. Dropping protected data removes the value from
+-the applicable store, which is memory for purely local handling and KV for externally published data.
+ 
+ ## Deletion happens before handler invocation
+ 
+-For KV-backed protected data, the interceptor order for a dropping handler is:
++The interceptor order for a dropping handler is:
+ 
+ ```text
+ KV read -> inject protected value into a handler payload -> delete KV entry -> invoke handler
+@@ -58,14 +53,12 @@
+ proves restoration. Neither proves that KV was deleted.
+ 
+ For a deterministic deletion assertion, capture the generated KV key from the handler's `DeserializingMessage`
+-metadata, then inspect the fixture's public `keyValueStore()` after the action. Explicitly retain message logging
+-so this scenario exercises KV-backed protection; a purely local `logMessage = false` scenario only exercises
+-in-memory retention and cannot prove KV deletion:
++metadata, then inspect the fixture's public `keyValueStore()` after the action:
+ 
+ ```java
+ AtomicReference<String> protectedKey = new AtomicReference<>();
+ 
+-@HandleCommand(logMessage = true)
++@HandleCommand
+ @DropProtectedData
+ void handle(OpenSupportTicket command, DeserializingMessage message) {
+     Map<String, String> references = message.getMetadata().get(

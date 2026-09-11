@@ -7,3 +7,6 @@
 
 # Shell scripts should always use LF.
 *.sh text eol=lf
+
+# Unified patch context includes significant single-space lines.
+docs/agents-history/patches/*.patch -whitespace

@@ -1,0 +1,439 @@
+--- a/articles/sdk/configuration/advanced-builder.md
++++ b/articles/sdk/configuration/advanced-builder.md
+@@ -63,14 +63,3 @@
+ explicit `ClientConfig` is for a standalone non-Spring client that must connect to a configured runtime. Normal Cloud
+ applications should use template/auto-configuration and supplied connection properties rather than constructing
+ protocol clients inside domain code.
+-## Bound transport work with versioned defaults
+-
+-`fluxzero.eventsourcing.maxFetchBytes` bounds serialized payload per aggregate-history page; it is independent of
+-`fluxzero.tracking.maxFetchBytes` for consumer fetches. Compatibility mode retains count-only history pages;
+-`fluxzero.defaults.version >= 2026.09.10` selects 100 MiB. An explicit `0` keeps count-only pages. One oversized event
+-is still returned to make progress, and older Runtimes ignore the optional byte limit. Read history fetching before
+-treating this as a strict memory cap.
+-
+-`fluxzero.websocket.reconnectBackoff.enabled` enables capped exponential equal-jitter retries instead of fixed
+-one-second retries. The versioned default enables it from `2026.09.09`; an explicit value overrides the default.
+-Read WebSocket recovery for client/task identity and bounded diagnostics.
+--- a/articles/sdk/configuration/websocket-recovery.md
++++ /dev/null
+@@ -1,33 +0,0 @@
+-Use the configured `WebSocketClient` and SDK properties for connection recovery. Do not add application-level
+-reconnect loops around individual command/query calls; distinguish transport reconnection from business retries.
+-
+-## Reconnect backoff
+-
+-Compatibility mode retries failed WebSocket connections every second. Enable capped exponential equal-jitter
+-backoff explicitly:
+-
+-```properties
+-fluxzero.websocket.reconnectBackoff.enabled=true
+-```
+-
+-The environment variable is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`. The behavior is also enabled by
+-`fluxzero.defaults.version >= 2026.09.09`. An explicit `false` overrides the defaults version and retains fixed retries.
+-With the default reconnect delay, backoff grows with consecutive failures, is jittered, and is capped at sixteen
+-seconds. A custom initial delay above sixteen seconds also raises that ceiling. Successful connection recovery
+-resets the failure sequence. Avoid asserting one exact randomized delay in an application test.
+-
+-Transport diagnostics are single-flight per client on a dedicated timeboxed worker. A failure to publish diagnostic
+-metrics must not queue unbounded work on result-completion workers. Reconnect behavior should therefore remain bounded
+-even while both the connection and its diagnostic publication fail.
+-
+-## Task and client identity
+-
+-`FLUXZERO_TASK_ID` identifies the platform task/pod. It supplies authoritative `$taskId` correlation metadata and is
+-used as a prefix for generated client IDs. It is not itself the complete unique client identity.
+-
+-`FLUXZERO_CLIENT_ID` can set an explicitly unique client/process ID. Otherwise the SDK generates a task-ID-prefixed
+-UUID, or a random UUID when no task ID is configured. Preserve uniqueness when several clients run in the same task.
+-Readiness or correlation logic that requires the exact client ID must use that ID rather than equate it to the task ID.
+-
+-Use `ApplicationProperties` or the component's configured `PropertySource` for these settings. Keep explicit client
+-builder configuration near bootstrap; application handlers should use the SDK facade and typed messages.
+--- a/articles/sdk/entities/history-fetching.md
++++ /dev/null
+@@ -1,21 +0,0 @@
+-Aggregate reconstruction fetches historical events in pages. Use a payload-byte bound when large events would make a
+-count-only page too large; this changes transport page size, not the aggregate's event ordering or logical history.
+-
+-```properties
+-fluxzero.eventsourcing.maxFetchBytes=104857600
+-```
+-
+-The conventional environment variable is `FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES`. Compatibility mode keeps
+-count-only paging. `fluxzero.defaults.version >= 2026.09.10` selects a 100 MiB serialized-event-payload limit;
+-an explicit property overrides that default. Set `0` to retain count-only pages.
+-
+-The existing event-count page bound still applies. A page returns one oversized event when necessary to make
+-progress, so this is not an absolute process-memory limit or a rule rejecting large individual events. Older Runtimes
+-ignore the optional byte bound; byte-bounded paging requires runtime support as well as the updated SDK.
+-
+-Keep this separate from `fluxzero.tracking.maxFetchBytes`, which controls consumer tracking fetches. Increasing or
+-reducing one does not configure the other. Configure through `ApplicationProperties`; do not introduce a custom
+-environment-variable reader in an aggregate loader.
+-
+-Test reconstruction and ordering across page boundaries with large payloads. Include an event larger than the bound
+-and verify progress. The same event stream must reconstruct the same state regardless of the page size.
+--- a/articles/sdk/entities/intercept-apply.md
++++ b/articles/sdk/entities/intercept-apply.md
+@@ -1,4 +1,4 @@
+-Use `@InterceptApply` to transform an update before legality checks and state application. It is orchestration around a
++Use `@InterceptApply` to transform an update before state application. It is orchestration around a
+ transition, not the deterministic transition itself.
+ 
+ ## Return contract
+@@ -32,17 +32,16 @@
+ }
+ ```
+ 
+-Because `RecordLabelChange` is another payload type, the replacement goes through matching `@InterceptApply` methods
+-for that type, then `@AssertLegal`, then `@Apply`. A same-type normalized replacement proceeds directly to legality
+-and apply handling. Do not perform the state mutation in the interceptor.
++Because `RecordLabelChange` is another payload type, the replacement goes through matching interception and apply
++methods. A same-type replacement proceeds without repeating the same interceptor. Do not mutate state in the
++interceptor.
+ 
+-Only effective payloads run assertions: a retained payload runs its matching assertions, suppression runs neither
+-assertions nor apply methods, and a replacement runs only assertions matching the replacement. An assertion that
+-matches only the original type does not run after rewriting. Put an invariant that must survive transformation on
+-the replacement or in shared/entity-side assertion logic that also matches it.
++In this SDK version, `assertAndApply(update)` first calls `assertLegal(update)` on the original input and then
++`apply(update)`. Interception belongs to the apply phase. Do not assume suppression skips the original legality
++check or that rewritten/split payloads automatically receive their own legality checks. Put required invariants
++on the original update or explicitly validate effective payloads in shared domain logic.
+ 
+-`@AssertLegal(afterHandler = true)` keeps its deferred handler-completion timing. Do not reinterpret it as an immediate
+-assertion merely because interception occurred.
++`@AssertLegal(afterHandler = true)` retains its deferred handler-completion timing.
+ 
+ ## Expand one accepted update
+ 
+@@ -59,7 +58,7 @@
+ }
+ ```
+ 
+-Expanded updates run their matching immediate assertions and apply methods sequentially in encounter order in the
++Expanded updates apply sequentially in encounter order in the
+ same loaded aggregate/member context; later updates observe state
+ produced by earlier ones. This gives one aggregate update batch, not an atomic transaction across aggregate roots.
+ 
+--- a/articles/sdk/messages/local-only.md
++++ /dev/null
+@@ -1,27 +0,0 @@
+-Use `io.fluxzero.sdk.publishing.LocalOnly` sparingly when publishing a message outside this process would cross a
+-security boundary. Ordinary `@LocalHandler` dispatch can fall back to the runtime when there is no matching local
+-handler. `@LocalOnly` makes that external fallback impossible for the annotated payload scope.
+-
+-```java
+-@LocalOnly
+-public record ReadLocalSetting(String key) implements Request<String> {}
+-```
+-
+-Import `Request` from `io.fluxzero.sdk.tracking.handling`. Kotlin payloads can use the same annotation and contract.
+-The annotation can be placed on payload types, meta-annotations and packages. A package declaration includes child
+-packages; `@LocalOnly(false)` on a more specific package or payload type restores normal fallback for that scope.
+-
+-## Dispatch contract
+-
+-- Only matching local handlers may run. The message is never serialized or published externally.
+-- `logMessage` does not publish a copy of a local-only message.
+-- A request without a matching local handler returns a future failed with `LocalOnlyDispatchException`.
+-- An unhandled non-request completes normally without external publication.
+-- If a dispatch interceptor replaces the payload, a marked original stays local-only; a marked replacement also
+-  activates the restriction. Rewriting cannot remove the original boundary.
+-
+-Handler code can still perform its own side effects, including sending other messages. The annotation constrains
+-dispatch of this message; it is not a sandbox or an authorization check for everything the handler executes.
+-
+-Verify successful local handling, unmatched requests, unmatched non-requests, inherited package scope, explicit
+-opt-out and interceptor replacement. Include a negative assertion that no external message or log copy was sent.
+--- a/articles/sdk/project-setup/java/sdk-imports.md
++++ b/articles/sdk/project-setup/java/sdk-imports.md
+@@ -27,8 +27,6 @@
+ | outbound HTTP message | `io.fluxzero.sdk.web.WebRequest` |
+ | outbound HTTP gateway | `io.fluxzero.sdk.publishing.WebRequestGateway` |
+ | application properties | `io.fluxzero.sdk.configuration.ApplicationProperties` |
+-| fail-closed local dispatch | `io.fluxzero.sdk.publishing.LocalOnly` |
+-| unhandled local-only request | `io.fluxzero.sdk.publishing.LocalOnlyDispatchException` |
+ | registered wire/JSON type names | `io.fluxzero.common.serialization.RegisterType` |
+ 
+ The most common wrong guesses are important: `Apply` is not in `io.fluxzero.sdk.modeling`; `RoutingKey` is not in `io.fluxzero.sdk.tracking`; and `Metadata` is in the `common` artifact's `io.fluxzero.common.api` package. `AggregateEventRouting` is a modeling enum; use `AGGREGATE_ID` when every event published from an aggregate must share its aggregate-ID message segment. A domain query implements `io.fluxzero.sdk.tracking.handling.Request<R>`, not the runtime transport DTO `io.fluxzero.common.api.Request`.
+--- a/articles/sdk/web/api-discovery-options.md
++++ b/articles/sdk/web/api-discovery-options.md
+@@ -36,10 +36,6 @@
+ fields. Close each alternative of a `oneOf` union separately. `@Size` maps to text length, array/collection item count,
+ or map property count according to the annotated type.
+ 
+-Required metadata on a body or body/form parameter sets `requestBody.required: true`; without it, the body remains
+-optional. Map-value type-use constraints describe `additionalProperties`. OpenAPI 3.1 emits supported string-compatible
+-map-key constraints as `propertyNames`; OpenAPI 3.0 omits that unsupported keyword. Jackson polymorphism with a real
+-type property preserves discriminator/mapping; `Id.DEDUCTION` emits `oneOf` alternatives without a synthetic discriminator.
+ 
+ ## Select document and reference rendering
+ 
+--- a/articles/sdk/web/api-discovery.md
++++ b/articles/sdk/web/api-discovery.md
+@@ -131,14 +131,3 @@
+ 
+ Document the live protocol separately in the product-facing reference or API prose. Include the route, how the handshake supplies authentication, the initial snapshot shape, later update shapes, close/error behavior, and reconnect expectations. Verify it through the WebSocket fixture boundary: open the real route, assert the initial snapshot, trigger the real command or event, and assert delivery to the open session. If a consumer requires machine-readable live-protocol metadata in the same artifact, add a deliberately designed vendor extension rather than replacing the generated HTTP operations with a handwritten document. Keep the socket fixture test as the registration and delivery proof.
+ 
+-## Multi-module discovery and merged resources
+-
+-The automatic endpoint discovers every `META-INF/fluxzero/openapi.json` visible to the handler classloader. It merges
+-compatible paths, components and metadata in stable resource order. Exact duplicates are accepted. Conflicting
+-values and duplicate operation IDs fail during handler registration with source and JSON-path context; they are not
+-silently resolved by whichever resource happens to load first. A manual document at the same path follows the same rules.
+-
+-Spring Boot nested JARs are discovered normally. A classic shaded JAR must preserve overlapping resources in the
+-application packaging. Maven Shade's `AppendingTransformer` can concatenate these resources because the SDK reads
+-consecutive JSON documents separately. Verify merged endpoints/components and a deliberate conflict against the
+-packaged multi-module application, not only one module's generated file.
+--- a/manifest.json
++++ b/manifest.json
+@@ -583,8 +583,6 @@
+         "io.fluxzero.sdk.test.Then",
+         "ResultValidator",
+         "Fluxzero Java imports",
+-        "LocalOnly",
+-        "LocalOnlyDispatchException",
+         "RegisterType"
+       ],
+       "links": [
+@@ -1297,10 +1295,6 @@
+         {
+           "description": "Control request wait deadlines and expired tracked handler execution",
+           "path": "/docs/sdk/messages/request-timeouts"
+-        },
+-        {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+         }
+       ]
+     },
+@@ -1359,10 +1353,6 @@
+         {
+           "description": "Local dispatch versus tracked production runtime ingress",
+           "path": "/docs/sdk/messages/commands/self-handling"
+-        },
+-        {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+         }
+       ]
+     },
+@@ -1443,10 +1433,6 @@
+         {
+           "description": "Exact primary-ID aggregate lookup mapped to a public view",
+           "path": "/docs/sdk/messages/queries/exact-aggregate-lookup"
+-        },
+-        {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+         }
+       ]
+     },
+@@ -2055,10 +2041,6 @@
+         {
+           "description": "Choose dispatch handler or tracker-batch interception boundaries",
+           "path": "/docs/sdk/extensions/interceptors"
+-        },
+-        {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+         }
+       ]
+     },
+@@ -2505,10 +2487,6 @@
+         {
+           "description": "Choose deliberate namespaced runtime observation recovery or deletion",
+           "path": "/docs/sdk/operations"
+-        },
+-        {
+-          "description": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-          "path": "/docs/sdk/configuration/websocket-recovery"
+         }
+       ]
+     },
+@@ -2967,10 +2945,6 @@
+         {
+           "description": "Maintain search state through DocumentStore and Search first",
+           "path": "/docs/sdk/operations/search-maintenance"
+-        },
+-        {
+-          "description": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-          "path": "/docs/sdk/entities/history-fetching"
+         }
+       ]
+     },
+@@ -3179,7 +3153,6 @@
+         "WebSocket documentation",
+         "vendor extension",
+         "OpenApiDocumentMerger",
+-        "AppendingTransformer",
+         "duplicate operationId"
+       ],
+       "links": [
+@@ -4698,10 +4671,6 @@
+         {
+           "description": "Map historical class/package names without inventing schema migrations.",
+           "path": "/docs/sdk/serialization/type-aliases"
+-        },
+-        {
+-          "description": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-          "path": "/docs/sdk/configuration/websocket-recovery"
+         }
+       ]
+     },
+@@ -4999,14 +4968,6 @@
+         {
+           "description": "Use subsystem clients only for justified operations",
+           "path": "/docs/sdk/operations/low-level-clients"
+-        },
+-        {
+-          "description": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-          "path": "/docs/sdk/configuration/websocket-recovery"
+-        },
+-        {
+-          "description": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-          "path": "/docs/sdk/entities/history-fetching"
+         }
+       ]
+     },
+@@ -5052,8 +5013,7 @@
+         "@AssertLegal",
+         "Entity",
+         "@AssertLegal(afterHandler = true)",
+-        "suppressed assertions",
+-        "replacement assertions"
++        "suppressed assertions"
+       ],
+       "links": [
+         {
+@@ -5544,10 +5504,6 @@
+         {
+           "description": "Reconstruct supplied aggregate history in new fixtures",
+           "path": "/docs/sdk/testing/reconstruction"
+-        },
+-        {
+-          "description": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-          "path": "/docs/sdk/entities/history-fetching"
+         }
+       ]
+     },
+@@ -5656,9 +5612,7 @@
+         "oneOf",
+         "additionalProperties",
+         "ApiDoc.AdditionalProperties.DENY",
+-        "propertyNames",
+-        "requestBody.required",
+-        "Id.DEDUCTION"
++        "requestBody.required"
+       ],
+       "links": [
+         {
+@@ -6238,8 +6192,7 @@
+         "Serializer.resolveTypeName",
+         "TypeRegistry",
+         "short type names",
+-        "simple names",
+-        "AppendingTransformer"
++        "simple names"
+       ],
+       "links": [
+         {
+@@ -6302,94 +6255,6 @@
+           "path": "/docs/sdk/serialization/split-event-upcasters"
+         }
+       ]
+-    },
+-    {
+-      "path": "/docs/sdk/messages/local-only",
+-      "title": "Fail-Closed Local Dispatch",
+-      "summary": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-      "source": "articles/sdk/messages/local-only.md",
+-      "symbols": [
+-        "@LocalOnly",
+-        "@LocalOnly(false)",
+-        "LocalOnlyDispatchException",
+-        "local-only",
+-        "logMessage"
+-      ],
+-      "links": [
+-        {
+-          "description": "Messages",
+-          "path": "/docs/sdk/messages"
+-        },
+-        {
+-          "description": "Commands",
+-          "path": "/docs/sdk/messages/commands"
+-        },
+-        {
+-          "description": "Queries",
+-          "path": "/docs/sdk/messages/queries"
+-        },
+-        {
+-          "description": "Handlers",
+-          "path": "/docs/sdk/handlers"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/configuration/websocket-recovery",
+-      "title": "WebSocket Recovery and Client Identity",
+-      "summary": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-      "source": "articles/sdk/configuration/websocket-recovery.md",
+-      "symbols": [
+-        "FLUXZERO_CLIENT_ID",
+-        "FLUXZERO_TASK_ID",
+-        "$taskId",
+-        "fluxzero.websocket.reconnectBackoff.enabled",
+-        "FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED",
+-        "WebSocketClient",
+-        "equal jitter"
+-      ],
+-      "links": [
+-        {
+-          "description": "Configuration",
+-          "path": "/docs/sdk/configuration"
+-        },
+-        {
+-          "description": "Advanced Application Builder Configuration",
+-          "path": "/docs/sdk/configuration/advanced-builder"
+-        },
+-        {
+-          "description": "Runtime Interaction Model",
+-          "path": "/docs/sdk/runtime-interaction"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/entities/history-fetching",
+-      "title": "Bounded Aggregate History Fetching",
+-      "summary": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-      "source": "articles/sdk/entities/history-fetching.md",
+-      "symbols": [
+-        "fluxzero.eventsourcing.maxFetchBytes",
+-        "FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES",
+-        "aggregate history",
+-        "100 MiB",
+-        "oversized event",
+-        "GetEvents"
+-      ],
+-      "links": [
+-        {
+-          "description": "Event Publication And Entity History",
+-          "path": "/docs/sdk/entities/publication-and-history"
+-        },
+-        {
+-          "description": "Advanced Application Builder Configuration",
+-          "path": "/docs/sdk/configuration/advanced-builder"
+-        },
+-        {
+-          "description": "Low-Level Runtime Clients",
+-          "path": "/docs/sdk/operations/low-level-clients"
+-        }
+-      ]
+     }
+   ]
+ }

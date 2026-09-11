@@ -1,0 +1,43 @@
+--- a/articles/sdk/configuration.md
++++ b/articles/sdk/configuration.md
+@@ -37,7 +37,7 @@
+ 
+ Spring auto-configuration registers annotated handlers, upcasters, downcasters, user providers, and other SDK integration beans in normal Spring Boot apps. Use a `FluxzeroCustomizer` when the app needs to adjust the default client/builder instead of forking setup code.
+ 
+-`DefaultFluxzero.builder()` is for infrastructure-level tuning: custom property resolvers, validator, consumer defaults, replay behavior, secondary behavior, correlation, host metrics, web request forwarding, and fetch byte limits. Keep these settings centralized near application bootstrap.
++`DefaultFluxzero.builder()` is for infrastructure-level tuning: custom property resolvers, validator, consumer defaults, replay behavior, secondary behavior, correlation, host metrics, and web request forwarding. Keep these settings centralized near application bootstrap.
+ 
+ Use `application.properties`, environment variables, and runtime configuration for deploy-specific values. Access them through `ApplicationProperties.getProperty(...)`, its default-value overload, or `ApplicationProperties.requireProperty(...)`. The required accessor is `requireProperty`, not `require`. Read the focused property-access article for a typed configuration boundary and `TestFixture.withProperty(...)` scenarios.
+ 
+--- a/articles/sdk/configuration/advanced-builder.md
++++ b/articles/sdk/configuration/advanced-builder.md
+@@ -49,9 +49,6 @@
+ deliberate interval and never put sensitive payload data in labels. Host metrics do not expose managed database or
+ cluster internals.
+ 
+-`fluxzero.tracking.maxFetchBytes` supplies the inherited serialized byte limit per consumer fetch. A consumer-specific
+-`maxFetchBytes = -1` inherits it; `0` is deliberately unbounded. Raise limits only after measuring payload size and
+-memory behavior.
+ 
+ ## Compatibility forwarding and direct clients
+ 
+--- a/articles/sdk/tracking.md
++++ b/articles/sdk/tracking.md
+@@ -6,7 +6,6 @@
+ - `threads` controls tracker concurrency for that consumer.
+ - `singleTracker = true` forces strict global ordering.
+ - `ignoreSegment = true` lets the consumer receive all segments; combine with `@RoutingKey` only when client-side filtering is intentional.
+-- `maxFetchBytes` caps serialized payload bytes per fetch.
+ 
+ ```java
+ @Component
+--- a/manifest.json
++++ b/manifest.json
+@@ -2498,7 +2498,6 @@
+       "symbols": [
+         "@Consumer",
+         "threads",
+-        "maxFetchBytes",
+         "singleTracker",
+         "ignoreSegment",
+         "minIndex",

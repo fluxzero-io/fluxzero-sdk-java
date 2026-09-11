@@ -1,0 +1,52 @@
+--- a/articles/sdk/reference/public-symbols.md
++++ b/articles/sdk/reference/public-symbols.md
+@@ -61,7 +61,7 @@
+ | web request/response | `io.fluxzero.sdk.web.WebRequest`, `WebResponse` |
+ | web response mapping/form parts | `io.fluxzero.sdk.web.WebResponseMapper`, `DefaultWebResponseMapper` |
+ | web handlers and path | `io.fluxzero.sdk.web.HandleGet`, `HandlePost`, `HandleWeb`, `Path` |
+-| parameter binding | `io.fluxzero.sdk.web.PathParam`, `QueryParam`, `HeaderParam`, `CookieParam`, `FormParam`, `BodyParam` |
++| parameter binding | `io.fluxzero.sdk.web.PathParam`, `QueryParam`, `HeaderParam`, `CookieParam`, `FormParam` |
+ | sockets/static | `io.fluxzero.sdk.web.SocketEndpoint`, `SocketSession`, `ServeStatic` |
+ | authentication/authorization | `io.fluxzero.sdk.tracking.handling.authentication.User`, `UserProvider`, `RequiresUser`, `RequiresAnyRole`, `NoUserRequired` |
+ | identity provider | `io.fluxzero.sdk.common.IdentityProvider` |
+--- a/articles/sdk/web/advanced-transport.md
++++ b/articles/sdk/web/advanced-transport.md
+@@ -35,7 +35,7 @@
+ }
+ ```
+ 
+-Use a plain DTO parameter for a complete JSON body, or `@BodyParam` for a named JSON body field. Keep validation at
++Use a plain DTO parameter for a complete JSON body. Keep validation at
+ the public boundary and do not put raw upload bytes in events, metrics, logs, or search documents by default.
+ 
+ ## Explicit response policy
+--- a/articles/sdk/web/routing-and-binding.md
++++ b/articles/sdk/web/routing-and-binding.md
+@@ -40,7 +40,7 @@
+ 
+ ## Put transport annotations on handler parameters
+ 
+-`@PathParam`, `@QueryParam`, `@HeaderParam`, `@CookieParam`, `@FormParam`, and `@BodyParam` target handler method parameters. They do not belong on request-record components. `@WebParam` is the meta-annotation used to define parameter annotations; do not place it directly on an endpoint parameter or DTO field:
++`@PathParam`, `@QueryParam`, `@HeaderParam`, `@CookieParam`, and `@FormParam` target handler method parameters. They do not belong on request-record components. `@WebParam` is the meta-annotation used to define parameter annotations; do not place it directly on an endpoint parameter or DTO field:
+ 
+ ```java
+ @HandleGet
+@@ -62,7 +62,7 @@
+ }
+ ```
+ 
+-Use a plain request DTO parameter for the whole JSON body. Use `@BodyParam` on method parameters only when deliberately extracting named body fields. Put Jakarta validation on DTO record components according to the runtime and documented contract; do not put web injection annotations there.
++Use a plain request DTO parameter for the whole JSON body. Put Jakarta validation on DTO record components according to the runtime and documented contract; do not put web injection annotations there.
+ 
+ Name injected parameters explicitly when the route or public contract depends on a different name. Java annotation processing records method parameter metadata, but an explicit `@PathParam("articleId")` or `@QueryParam("offset")` keeps the binding and OpenAPI intent visible.
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -3058,7 +3058,6 @@
+         "@HeaderParam",
+         "@CookieParam",
+         "@FormParam",
+-        "@BodyParam",
+         "@WebParam",
+         "package-info.java",
+         "route binding",

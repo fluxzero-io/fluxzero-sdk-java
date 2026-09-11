@@ -1,0 +1,32 @@
+--- a/articles/sdk/search.md
++++ b/articles/sdk/search.md
+@@ -59,7 +59,7 @@
+ 
+ Plain records are supported indexing targets. Give them a stable document ID so later updates replace the intended document instead of creating accidental duplicates. `@Searchable` supplies default collection/timestamp metadata; it does not publish a plain record by itself. The two-argument overload `Fluxzero.index(value, secondArgument)` treats the second argument as the collection, not the document ID. Read manual indexing before choosing an overload, deciding how handler completion observes storage failure, or testing replay-safe replacement. Use `@SearchExclude` and `@SearchInclude` to control indexed shape.
+ 
+-Never discard the `CompletableFuture<Void>` returned by `Fluxzero.index(...)` from a `void` tracked projection handler. The handler may finish and its consumer may advance before an asynchronous storage failure is observed. For straightforward projections, use `prepareIndex(...).indexAndWait()`. If a handler returns the future instead, configure the owning tracked consumer with `awaitAsyncResults = true` when its position must not advance before indexing completes.
++Never discard the `CompletableFuture<Void>` returned by `Fluxzero.index(...)` from a `void` tracked projection handler. The handler may finish and its consumer may advance before an asynchronous storage failure is observed. For straightforward projections, use `prepareIndex(...).indexAndWait()`. Use the blocking stored variant when the consumer position must wait for indexing. Merely returning a future does not provide that tracking-position guarantee in this version.
+ 
+ Use the search builder for match/query filters, time windows, logical groups, pagination, sorting, async results, aggregations, facets, histograms, and stats. Keep this logic server-side in a query handler instead of rebuilding it in clients. Read complete lists and pagination before returning a capped `List<T>`: an inaccessible fixed maximum is not pagination and cannot satisfy “all/current” contracts. Read facet filters and counts when a response needs categorical value counts or exact facet filtering; it maps `@Facet`, `matchFacet(...)`, and `facetStats()` with a concrete test.
+ 
+--- a/articles/sdk/search/manual-indexing.md
++++ b/articles/sdk/search/manual-indexing.md
+@@ -17,7 +17,7 @@
+ 
+ Never use `Fluxzero.index(value, stableId)` to supply a document ID. That call compiles, but `stableId` becomes the collection. Use the three-argument overload or the fluent `prepareIndex(...)` form when the ID is explicit.
+ 
+-`Fluxzero.index(...)` returns a `CompletableFuture<Void>`. Never drop that future from a `void` tracked projection handler: a storage failure may otherwise happen after the handler completes and after the consumer advances. The fluent `indexAndWait()` form uses a stored guarantee and blocks until the operation completes. Alternatively return the future and use `@Consumer(awaitAsyncResults = true)` when the consumer position must wait for indexing; merely starting asynchronous work is not durable projection completion.
++`Fluxzero.index(...)` returns a `CompletableFuture<Void>`. Never drop that future from a `void` tracked projection handler: a storage failure may otherwise happen after the handler completes and after the consumer advances. The fluent `indexAndWait()` form uses a stored guarantee and blocks until the operation completes. Use that blocking stored variant when the consumer position must wait for indexing; merely returning a future does not provide that guarantee in this version.
+ 
+ Waiting for the write and choosing failure behavior are separate decisions. `indexAndWait()` surfaces a storage failure
+ to the handler, but the consumer's error policy decides whether tracking logs and continues, retries, or stops before the
+--- a/manifest.json
++++ b/manifest.json
+@@ -4467,7 +4467,6 @@
+         "IndexOperation#id",
+         "IndexOperation#collection",
+         "indexAndWait()",
+-        "awaitAsyncResults",
+         "ifNotExists",
+         "@Searchable",
+         "@EntityId",

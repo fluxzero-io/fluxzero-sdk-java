@@ -1,0 +1,997 @@
+--- a/articles/recipes/add-query.md
++++ b/articles/recipes/add-query.md
+@@ -44,11 +44,6 @@
+ ```
+ [//]: # (@formatter:on)
+ 
+-Use `@LocalOnly` sparingly on a payload or package when external publication would cross a security boundary. It invokes
+-local handlers only and suppresses `logMessage`; an unhandled request returns a failed future while an unhandled
+-non-request completes normally. Parent packages include child packages and `@LocalOnly(false)` restores normal fallback
+-for a more specific package or payload type.
+-
+ > **Passive Listening**: All requests (commands, queries, web requests) can be handled passively using e.g.
+ `@HandleQuery(passive = true)`, meaning results won't be published. This is useful for auditing or logging without
+ > interfering with the primary request flow.
+--- a/articles/sdk/configuration.md
++++ b/articles/sdk/configuration.md
+@@ -5,20 +5,9 @@
+ 
+ 1. **Environment Variables**: e.g., `export FLUXZERO_BASE_URL=...`
+ 2. **System Properties**: e.g., `-Dfluxzero.base-url=...`
+-3. **Additional Config Locations**: files configured with `FLUXZERO_CONFIG_LOCATIONS`
+-4. **Environment-Specific Properties**: `application-{environment}.properties` (set `ENVIRONMENT` variable)
+-5. **Base Properties**: `application.properties`
+-6. **Fluxzero SDK Defaults**: `fluxzero.properties` or `fluxzero.json`
+-7. **Spring Environment**: (If Spring is active)
+-
+-All classpath `application.properties` resources are merged. Put shared defaults in one common module and let dependent
+-executables inherit them; do not copy the same key into every executable. If different modules define conflicting
+-values for one key, resolution depends on class-loader order and Fluxzero logs a warning. Use a higher-priority source
+-for intentional overrides. Always resolve feature configuration through `ApplicationProperties` or, at a builder or
+-configuration boundary, the component's configured `PropertySource`; never read environment variables, system
+-properties, or files directly and never introduce a feature-specific property utility.
+-Custom uber-JAR packaging that collapses equal resource names must merge overlapping `application.properties` files
+-itself; Spring integration cannot recover a resource removed during packaging.
++3. **Environment-Specific Properties**: `application-{environment}.properties` (set `ENVIRONMENT` variable)
++4. **Base Properties**: `application.properties`
++5. **Spring Environment**: (If Spring is active)
+ 
+ ### Typed Access
+ 
+@@ -34,7 +23,7 @@
+ 
+ ---
+ 
+-<a name="serialization-type-aliases"></a>
++<a name="core-properties"></a>
+ 
+ ## Core properties
+ 
+--- a/articles/sdk/configuration/advanced-builder.md
++++ b/articles/sdk/configuration/advanced-builder.md
+@@ -1,6 +1,4 @@
+ Use `DefaultFluxzero.builder()` only at application bootstrap. In Spring, apply these changes through one
+-
+-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use [Models](/docs/sdk/entities). Migration requires an explicit data plan.
+ `FluxzeroCustomizer` so auto-configuration, tests, and production use the same extension set.
+ 
+ ## Custom parameter resolution and validation
+@@ -65,14 +63,3 @@
+ explicit `ClientConfig` is for a standalone non-Spring client that must connect to a configured runtime. Normal Cloud
+ applications should use template/auto-configuration and supplied connection properties rather than constructing
+ protocol clients inside domain code.
+-## Bound transport work with versioned defaults
+-
+-`fluxzero.eventsourcing.maxFetchBytes` bounds serialized payload per aggregate-history page; it is independent of
+-`fluxzero.tracking.maxFetchBytes` for consumer fetches. Compatibility mode retains count-only history pages;
+-`fluxzero.defaults.version >= 2026.09.10` selects 100 MiB. An explicit `0` keeps count-only pages. One oversized event
+-is still returned to make progress, and older Runtimes ignore the optional byte limit. Read history fetching before
+-treating this as a strict memory cap.
+-
+-`fluxzero.websocket.reconnectBackoff.enabled` enables capped exponential equal-jitter retries instead of fixed
+-one-second retries. The versioned default enables it from `2026.09.09`; an explicit value overrides the default.
+-Read WebSocket recovery for client/task identity and bounded diagnostics.
+--- a/articles/sdk/configuration/websocket-recovery.md
++++ /dev/null
+@@ -1,33 +0,0 @@
+-Use the configured `WebSocketClient` and SDK properties for connection recovery. Do not add application-level
+-reconnect loops around individual command/query calls; distinguish transport reconnection from business retries.
+-
+-## Reconnect backoff
+-
+-Compatibility mode retries failed WebSocket connections every second. Enable capped exponential equal-jitter
+-backoff explicitly:
+-
+-```properties
+-fluxzero.websocket.reconnectBackoff.enabled=true
+-```
+-
+-The environment variable is `FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED`. The behavior is also enabled by
+-`fluxzero.defaults.version >= 2026.09.09`. An explicit `false` overrides the defaults version and retains fixed retries.
+-With the default reconnect delay, backoff grows with consecutive failures, is jittered, and is capped at sixteen
+-seconds. A custom initial delay above sixteen seconds also raises that ceiling. Successful connection recovery
+-resets the failure sequence. Avoid asserting one exact randomized delay in an application test.
+-
+-Transport diagnostics are single-flight per client on a dedicated timeboxed worker. A failure to publish diagnostic
+-metrics must not queue unbounded work on result-completion workers. Reconnect behavior should therefore remain bounded
+-even while both the connection and its diagnostic publication fail.
+-
+-## Task and client identity
+-
+-`FLUXZERO_TASK_ID` identifies the platform task/pod. It supplies authoritative `$taskId` correlation metadata and is
+-used as a prefix for generated client IDs. It is not itself the complete unique client identity.
+-
+-`FLUXZERO_CLIENT_ID` can set an explicitly unique client/process ID. Otherwise the SDK generates a task-ID-prefixed
+-UUID, or a random UUID when no task ID is configured. Preserve uniqueness when several clients run in the same task.
+-Readiness or correlation logic that requires the exact client ID must use that ID rather than equate it to the task ID.
+-
+-Use `ApplicationProperties` or the component's configured `PropertySource` for these settings. Keep explicit client
+-builder configuration near bootstrap; application handlers should use the SDK facade and typed messages.
+--- a/articles/sdk/entities/assert-legal.md
++++ b/articles/sdk/entities/assert-legal.md
+@@ -28,29 +28,3 @@
+ 
+ Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
+ direct target and related ancestor resolved for the action. They must not perform nested model writes.
+-
+-Interception selects the payloads to which assertions apply:
+-
+-| Interceptor outcome | Assertions and application |
+-|:--------------------|:---------------------------|
+-| Retain the payload | Its matching immediate `@AssertLegal` methods run before `@Apply` |
+-| Suppress the payload | Neither its assertions nor its apply methods run |
+-| Replace the payload | Only the replacement's matching assertions and apply methods run |
+-| Split the payload | Each part's immediate assertions and apply run in order; later parts see earlier changes |
+-
+-Never assume an `@AssertLegal` method that only matches the original payload will run after replacement. Put an
+-invariant that must survive rewriting on the effective replacement or in shared/Model-side assertion logic that also
+-matches it. `@AssertLegal(afterHandler = true)` retains its deferred handler-completion timing.
+-
+-## Recursive Model assertions
+-
+-Return a validation object (or collection) from `@AssertLegal` to run its matching checks recursively. The original
+-payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
+-and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
+-
+-Returned objects are traversed in the returning method's before/after phase. Annotated fields and record components
+-delegate in both phases; their nested methods determine timing, not `afterHandler` on the field. Use a field for a
+-validator shared across phases: a no-arg assertion method is not called again after apply. `Fluxzero.assertLegal`
+-runs only immediate checks. Nulls are ignored; collection order is preserved. Identity-based cycle detection visits
+-an object once per payload or Model assertion phase; nesting beyond 256 levels fails. Direct accessor methods remain
+-eligible even when their return value has already been traversed.
+--- a/articles/sdk/entities/commit-effect-boundary.md
++++ b/articles/sdk/entities/commit-effect-boundary.md
+@@ -22,10 +22,3 @@
+ - `FAIL`: return the conflict.
+ 
+ If multiple applies request different policies, the stricter applicable policy wins; failure is not weakened by retry.
+-
+-The implicit update policy is `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
+-`fluxzero.model.conflictPolicy` and explicit builder/Model/Apply settings override it. Implicit first creations still
+-fail on conflict: the new default must not turn create-if-absent into an upsert. Explicit RETRY also reevaluates creation
+-and requires create-only assertions when appropriate. ACCEPT validates apply dependencies and writes, excluding
+-assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
+-commits use the same cached-head/atomic-boundary optimization regardless of policy.
+--- a/articles/sdk/entities/global-invariants.md
++++ b/articles/sdk/entities/global-invariants.md
+@@ -50,10 +50,3 @@
+ - `FAIL`: return the conflict.
+ 
+ If multiple applies request different policies, the stricter applicable policy wins; failure is not weakened by retry.
+-
+-The implicit update policy is `RETRY` from defaults version `2026.09.09`, otherwise `ACCEPT`.
+-`fluxzero.model.conflictPolicy` and explicit builder/Model/Apply settings override it. Implicit first creations still
+-fail on conflict: the new default must not turn create-if-absent into an upsert. Explicit RETRY also reevaluates creation
+-and requires create-only assertions when appropriate. ACCEPT validates apply dependencies and writes, excluding
+-assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
+-commits use the same cached-head/atomic-boundary optimization regardless of policy.
+--- a/articles/sdk/entities/history-fetching.md
++++ /dev/null
+@@ -1,23 +0,0 @@
+-Aggregate reconstruction fetches historical events in pages. Use a payload-byte bound when large events would make a
+-
+-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use [Models](/docs/sdk/entities). Migration requires an explicit data plan.
+-count-only page too large; this changes transport page size, not the aggregate's event ordering or logical history.
+-
+-```properties
+-fluxzero.eventsourcing.maxFetchBytes=104857600
+-```
+-
+-The conventional environment variable is `FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES`. Compatibility mode keeps
+-count-only paging. `fluxzero.defaults.version >= 2026.09.10` selects a 100 MiB serialized-event-payload limit;
+-an explicit property overrides that default. Set `0` to retain count-only pages.
+-
+-The existing event-count page bound still applies. A page returns one oversized event when necessary to make
+-progress, so this is not an absolute process-memory limit or a rule rejecting large individual events. Older Runtimes
+-ignore the optional byte bound; byte-bounded paging requires runtime support as well as the updated SDK.
+-
+-Keep this separate from `fluxzero.tracking.maxFetchBytes`, which controls consumer tracking fetches. Increasing or
+-reducing one does not configure the other. Configure through `ApplicationProperties`; do not introduce a custom
+-environment-variable reader in an aggregate loader.
+-
+-Test reconstruction and ordering across page boundaries with large payloads. Include an event larger than the bound
+-and verify progress. The same event stream must reconstruct the same state regardless of the page size.
+--- a/articles/sdk/entities/intercept-apply.md
++++ b/articles/sdk/entities/intercept-apply.md
+@@ -28,16 +28,3 @@
+ 
+ Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
+ direct target and related ancestor resolved for the action. They must not perform nested model writes.
+-
+-Interception selects the payloads to which assertions apply:
+-
+-| Interceptor outcome | Assertions and application |
+-|:--------------------|:---------------------------|
+-| Retain the payload | Its matching immediate `@AssertLegal` methods run before `@Apply` |
+-| Suppress the payload | Neither its assertions nor its apply methods run |
+-| Replace the payload | Only the replacement's matching assertions and apply methods run |
+-| Split the payload | Each part's immediate assertions and apply run in order; later parts see earlier changes |
+-
+-Never assume an `@AssertLegal` method that only matches the original payload will run after replacement. Put an
+-invariant that must survive rewriting on the effective replacement or in shared/Model-side assertion logic that also
+-matches it. `@AssertLegal(afterHandler = true)` retains its deferred handler-completion timing.
+--- a/articles/sdk/messages/local-only.md
++++ /dev/null
+@@ -1,27 +0,0 @@
+-Use `io.fluxzero.sdk.publishing.LocalOnly` sparingly when publishing a message outside this process would cross a
+-security boundary. Ordinary `@LocalHandler` dispatch can fall back to the runtime when there is no matching local
+-handler. `@LocalOnly` makes that external fallback impossible for the annotated payload scope.
+-
+-```java
+-@LocalOnly
+-public record ReadLocalSetting(String key) implements Request<String> {}
+-```
+-
+-Import `Request` from `io.fluxzero.sdk.tracking.handling`. Kotlin payloads can use the same annotation and contract.
+-The annotation can be placed on payload types, meta-annotations and packages. A package declaration includes child
+-packages; `@LocalOnly(false)` on a more specific package or payload type restores normal fallback for that scope.
+-
+-## Dispatch contract
+-
+-- Only matching local handlers may run. The message is never serialized or published externally.
+-- `logMessage` does not publish a copy of a local-only message.
+-- A request without a matching local handler returns a future failed with `LocalOnlyDispatchException`.
+-- An unhandled non-request completes normally without external publication.
+-- If a dispatch interceptor replaces the payload, a marked original stays local-only; a marked replacement also
+-  activates the restriction. Rewriting cannot remove the original boundary.
+-
+-Handler code can still perform its own side effects, including sending other messages. The annotation constrains
+-dispatch of this message; it is not a sandbox or an authorization check for everything the handler executes.
+-
+-Verify successful local handling, unmatched requests, unmatched non-requests, inherited package scope, explicit
+-opt-out and interceptor replacement. Include a negative assertion that no external message or log copy was sent.
+--- a/articles/sdk/messages/queries/exact-aggregate-lookup.md
++++ b/articles/sdk/messages/queries/exact-aggregate-lookup.md
+@@ -44,11 +44,6 @@
+ ```
+ [//]: # (@formatter:on)
+ 
+-Use `@LocalOnly` sparingly on a payload or package when external publication would cross a security boundary. It invokes
+-local handlers only and suppresses `logMessage`; an unhandled request returns a failed future while an unhandled
+-non-request completes normally. Parent packages include child packages and `@LocalOnly(false)` restores normal fallback
+-for a more specific package or payload type.
+-
+ > **Passive Listening**: All requests (commands, queries, web requests) can be handled passively using e.g.
+ `@HandleQuery(passive = true)`, meaning results won't be published. This is useful for auditing or logging without
+ > interfering with the primary request flow.
+--- a/articles/sdk/project-setup/gradle.md
++++ b/articles/sdk/project-setup/gradle.md
+@@ -59,12 +59,12 @@
+ 
+ java {
+     toolchain {
+-        languageVersion = JavaLanguageVersion.of(25)
++        languageVersion = JavaLanguageVersion.of(21)
+     }
+ }
+ ```
+ 
+-Generated Gradle starters may use Java 25. Install and use that declared toolchain for the generated project instead of lowering it to whatever the host already has. Java 25 is the minimum for this SDK release, including existing projects. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
++Generated Gradle starters may use Java 25. Install and use that declared toolchain for the generated project instead of lowering it to whatever the host already has. For an existing project, keep Java 21+ unless the user explicitly wants to change the toolchain. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
+ 
+ Kotlin setup adds kapt and Kotlin Spring support:
+ 
+--- a/articles/sdk/project-setup/index.md
++++ b/articles/sdk/project-setup/index.md
+@@ -4,7 +4,7 @@
+ 
+ - Build tool: Maven or Gradle.
+ - Language: Java or Kotlin.
+-- Runtime: Spring Boot app using the Java toolchain declared by the project. Existing supported projects may remain on Java 25 or newer; generated starters pin their own requirement.
++- Runtime: Spring Boot app using the Java toolchain declared by the project. Existing supported projects may remain on Java 21 or newer; generated starters pin their own requirement.
+ - SDK version: use the project's effective Fluxzero BOM and select matching versioned documentation.
+ 
+ For a generated project, keep the starter's declared Java toolchain and install that JDK when it is missing; do not lower the project just because the host starts without Java. For an existing project, keep its chosen Java version when it is supported. Read the focused toolchain article before invoking a wrapper or starting the development server on a new machine.
+--- a/articles/sdk/project-setup/java/sdk-imports.md
++++ b/articles/sdk/project-setup/java/sdk-imports.md
+@@ -29,9 +29,7 @@
+ | outbound HTTP message | `io.fluxzero.sdk.web.WebRequest` |
+ | outbound HTTP gateway | `io.fluxzero.sdk.publishing.WebRequestGateway` |
+ | application properties | `io.fluxzero.sdk.configuration.ApplicationProperties` |
+-| fail-closed local dispatch | `io.fluxzero.sdk.publishing.LocalOnly` |
+-| unhandled local-only request | `io.fluxzero.sdk.publishing.LocalOnlyDispatchException` |
+-| registered wire/JSON type names | `io.fluxzero.common.serialization.RegisterType` |
++| registered JSON type names | `io.fluxzero.common.serialization.RegisterType` |
+ 
+ The most common wrong guesses are important: `Apply` is not in `io.fluxzero.sdk.modeling`; `RoutingKey` is not in `io.fluxzero.sdk.tracking`; and `Metadata` is in the `common` artifact's `io.fluxzero.common.api` package. `AggregateEventRouting` is a modeling enum; use `AGGREGATE_ID` when every event published from an aggregate must share its aggregate-ID message segment. A domain query implements `io.fluxzero.sdk.tracking.handling.Request<R>`, not the runtime transport DTO `io.fluxzero.common.api.Request`.
+ 
+--- a/articles/sdk/project-setup/maven.md
++++ b/articles/sdk/project-setup/maven.md
+@@ -1,6 +1,6 @@
+ Use this to validate or repair the Maven project generated by `fz init`, or to update an existing Maven project. Keep the POM focused, then add domain code through the recipes. Prefer the current `io.fluxzero:sdk` artifact; older prose that names `fluxzero-sdk` is stale.
+ 
+-For an existing project, keep its supported Java 25-or-newer toolchain. For a CLI-generated project, keep the starter's declared JDK and install it when missing instead of lowering the compiler release. In either case, keep the Fluxzero annotation processor explicit so generated metadata stays reliable. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
++For an existing project, keep its supported Java 21-or-newer toolchain. For a CLI-generated project, keep the starter's declared JDK and install it when missing instead of lowering the compiler release. In either case, keep the Fluxzero annotation processor explicit so generated metadata stays reliable. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
+ 
+ When selecting a new SDK release or verifying an upgrade, consult the Fluxzero Packages metadata for the Fluxzero BOM:
+ 
+@@ -19,13 +19,13 @@
+ 
+ Commit `mvnw`, `mvnw.cmd`, and `.mvn/wrapper/maven-wrapper.properties` together, plus the wrapper JAR when the chosen wrapper mode requires it. Inspect `distributionUrl`: the wrapper plugin version is not the Maven distribution version. Do not create a shell script that only runs `mvn "$@"`, and do not leave an empty `.mvn` directory: that silently uses whichever Maven version happens to be installed on the machine and makes the build non-reproducible. Read reproducible Maven model guidance before choosing Spring Boot parent versus parentless BOM management.
+ 
+-This SDK release is compiled for Java 25. Use Java 25 or newer even when an earlier SDK version in the project supported Java 21; a lower toolchain cannot load this release.
++Generated Maven starters may set a newer release such as Java 25. Use that declared release for the generated project, but do not copy it into an existing Java 21+ app unless the user wants the toolchain upgrade.
+ 
+ After selecting the concrete, Fluxzero Packages-verified `fluxzero.version`, use it for dependency management:
+ 
+ ```xml
+ <properties>
+-  <java.version>25</java.version>
++  <java.version>21</java.version>
+ </properties>
+ 
+ <dependencyManagement>
+--- a/articles/sdk/project-setup/toolchain.md
++++ b/articles/sdk/project-setup/toolchain.md
+@@ -8,7 +8,7 @@
+ - Maven projects normally pin `java.version`, the compiler `release`, and sometimes an enforcer range in `pom.xml`.
+ - Gradle projects normally pin `JavaLanguageVersion` or `jvmToolchain` in `build.gradle.kts`.
+ 
+-These declarations should agree. For a generated starter, keep them as generated. For an existing Fluxzero project, preserve a supported Java 25-or-newer choice unless the user requested an upgrade. Do not lower a generated project's toolchain merely because `java` is missing or older on the host.
++These declarations should agree. For a generated starter, keep them as generated. For an existing Fluxzero project, preserve a supported Java 21-or-newer choice unless the user requested an upgrade. Do not lower a generated project's toolchain merely because `java` is missing or older on the host.
+ 
+ ## Install only what is missing
+ 
+--- a/articles/sdk/serialization.md
++++ b/articles/sdk/serialization.md
+@@ -1,6 +1,4 @@
+ Use serialization guidance before changing a payload, document, aggregate state, or stateful handler type that may already be stored. Historical messages are immutable; compatibility is handled during deserialization.
+-
+-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use [Models](/docs/sdk/entities). Migration requires an explicit data plan.
+ 
+ Default path:
+ 
+@@ -8,8 +6,7 @@
+ - When a stored top-level type has a breaking schema change, increment `@Revision`.
+ - Ask whether the app has deployed historical data before adding an upcaster.
+ - Verify upcasters with `TestFixture.whenUpcasting(...)` before deployment.
+-- For a compatible class/package rename, configure a type alias instead of inventing a revision migration.
+-- For current producers using stable short type names, use `@RegisterType` and preserve generated registry resources.
++- Use fully qualified names for serialized types; `@RegisterType` also supports generated type lookup.
+ 
+ ```java
+ @Revision(2)
+@@ -34,8 +31,7 @@
+ }
+ ```
+ 
+-Use a full `Data<JsonNode>` upcaster when a revision migration also changes the type, revision, or format. For a
+-pure compatible class/package rename, follow the type-aliases article instead:
++Use a full `Data<JsonNode>` upcaster when changing the type, revision, or format:
+ 
+ ```java
+ @Component
+--- a/articles/sdk/serialization/registered-type-names.md
++++ b/articles/sdk/serialization/registered-type-names.md
+@@ -1,44 +1,18 @@
+-Use `io.fluxzero.common.serialization.RegisterType` when producers or JSON fixtures should use a stable short type
+-name instead of a Java fully qualified name. Annotate a message class or a root package and enable annotation
+-processing in every module contributing registered types.
++`@RegisterType` registers classes or packages in the generated `TypeRegistry`. It is available for
++fixture/type lookup in this SDK version, but do not assume the SDK normalizes short names in every serialized
++message, document, or snapshot envelope. Fully qualified names remain the most explicit choice. Registered simple or distinguishing suffix names also resolve through `ReflectionUtils` and the generated registry for JSON/fixture class lookup. This does not supply configurable historical class/package aliases or the later envelope-normalization contract.
+ 
+ ```java
+ @RegisterType
+-public record ChangeLabel(String label) {}
++package com.example.app;
++
++import io.fluxzero.common.serialization.RegisterType;
+ ```
+ 
+-```kotlin
+-@RegisterType
+-data class ChangeLabel(val label: String)
+-```
++Kotlin can put `@RegisterType(root = "com.example.app")` on a marker or application class.
++Annotation processing must run in each contributing module. Preserve generated
++`META-INF/io.fluxzero.common.serialization.TypeRegistry` resources when assembling a multi-module application.
++Use unambiguous fully qualified names rather than relying on collision resolution for equal simple names.
+ 
+-The examples assume the annotation import and the project's normal Kotlin/Jackson setup. A producer or fixture can
+-then refer to `ChangeLabel`. When simple names collide, use a distinguishing suffix such as `labels.ChangeLabel`.
+-Do not use an ambiguous simple name. FQNs remain valid for both registered and unregistered types.
+-
+-## Where resolution applies
+-
+-The generated registry resolves serialized envelope types for messages, documents, snapshots and other data, and
+-root/nested JSON `@class` values. Fixture JSON can therefore use a unique registered simple name:
+-
+-```json
+-{"@class": "ChangeLabel", "label": "Primary"}
+-```
+-
+-`Serializer.resolveTypeName` resolves aliases before registered names. Registered envelope names are normalized before
+-revision upcasters are selected. Historical aliases remain post-upcast so a caster for an old FQN still runs. Use
+-aliases for names already stored or queued after a package move; short names do not replace that historical migration.
+-
+-## Preserve all generated indexes
+-
+-The processor writes `META-INF/io.fluxzero.common.serialization.TypeRegistry`. Separate classpath entries and Spring
+-Boot nested JARs retain the contributing indexes. A custom uber-JAR must combine overlapping index resources rather
+-than keep only one module's file. For Maven Shade, configure an `AppendingTransformer` for this resource in the
+-application's own packaging configuration.
+-
+-Java annotation processing and Kotlin kapt must run for each participating module. The `common` processor supplies
+-the registry; the SDK also supplies request, OpenAPI and web-parameter processors. Keep both required kapt artifacts
+-in Kotlin projects as described in project setup.
+-
+-Verify simple names, suffix disambiguation, ambiguity rejection, nested JSON and the packaged multi-module artifact.
+-A successful IDE/test-classpath lookup alone does not prove the merged application JAR retains its indexes.
++Use a `Data<JsonNode>` upcaster when a historical serialized type must change. Test the actual message/fixture
++path when using abbreviated type lookup.
+--- a/articles/sdk/serialization/split-event-upcasters.md
++++ b/articles/sdk/serialization/split-event-upcasters.md
+@@ -1,6 +1,4 @@
+ Use this for reconstruction from a serialized historical event, whether one old event becomes one current event or
+-
+-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use [Models](/docs/sdk/entities). Migration requires an explicit data plan.
+ several. Keep the caster pure and test the registered event deserialization path with a legacy `SerializedMessage`, not
+ only an already-current Java object.
+ 
+--- a/articles/sdk/serialization/type-aliases.md
++++ /dev/null
+@@ -1,53 +0,0 @@
+-Use a type alias when a stored or queued class/package name changes but its payload shape and revision remain
+-compatible. Use an upcaster for an actual schema/revision migration. Combining an upcaster with an alias is valid:
+-keep `@Upcast.type` on the historical source name and let the alias map the result to its current class.
+-
+-## Prefer application configuration
+-
+-Put the complete alias list in one `application.properties` value:
+-
+-```properties
+-fluxzero.serialization.typeAliases=com.example.legacy.RenameLabel=com.example.labels.ChangeLabel,com.example.legacy.events.*=com.example.labels.events.*
+-```
+-
+-The conventional environment variable is `FLUXZERO_SERIALIZATION_TYPE_ALIASES`; the compact
+-`FLUXZERO_SERIALIZATION_TYPEALIASES` spelling is also supported. An environment value takes precedence over system
+-and application properties and replaces the complete list; it does not append entries from lower-priority sources.
+-Entries can be separated by commas, semicolons or newlines. Package aliases use `.*` on both sides.
+-
+-For aliases deliberately owned by application code or a test, configure the builder:
+-
+-```java
+-DefaultFluxzero.builder()
+-        .addTypeAlias("com.example.legacy.RenameLabel", "com.example.labels.ChangeLabel")
+-        .addPackageAlias("com.example.legacy.events", "com.example.labels.events");
+-```
+-
+-The same calls are available in Kotlin. Programmatic aliases override property aliases with the same source.
+-Builder aliases reach the primary serializer, snapshot serializer and serializer-backed document serializer.
+-
+-## Matching and ordering
+-
+-- Exact aliases win over package aliases.
+-- The longest matching package prefix wins; package boundaries are respected.
+-- Aliases may chain, but cycles are rejected during registration.
+-- Revision upcasters select the historical serialized type first. Aliases map the resulting type before deserialization,
+-  so a class rename does not skip an upcaster registered for that historical FQN.
+-- Registered simple envelope names are normalized before selecting revision upcasters; this is separate from the
+-  post-upcast mapping of historical aliases. Read registered type names when combining both mechanisms.
+-
+-Aliases apply to serialized envelope types, root and nested polymorphic JSON `@class` values, and JSON-encoded
+-metadata read through typed `Metadata.get(...)`. Raw metadata strings remain unchanged.
+-
+-## Fixture and resource boundaries
+-
+-`TestFixture` uses the configured aliases for JSON resources. It also offers `registerTypeAlias(...)` and
+-`registerPackageAlias(...)`. Non-revisioned `@class` values are resolved before Jackson loads the class; a revisioned
+-root preserves the historical type until its upcasters have run. Use `@revision`, not a payload field named `revision`.
+-
+-Direct untyped `JsonUtils` reads outside the fixture have no ambient application serializer. Supply its resolver through
+-`JsonUtils.fromFileWithTypeMapper(...)` when aliases or registered names are needed. `Serializer.resolveTypeName`
+-combines alias and registered-name resolution; `upcastType` alone only handles aliases.
+-
+-Verify exact and package renames, overlapping packages, nested polymorphic values, typed metadata, and a historical
+-type that needs both a revision upcaster and an alias. Do not introduce an upcaster solely to rewrite a compatible FQN.
+--- a/articles/sdk/testing.md
++++ b/articles/sdk/testing.md
+@@ -29,8 +29,7 @@
+ 
+ JSON fixtures use Fluxzero serialization metadata such as `@class` and `@extends`. Keep JSON examples close to the domain test resources and use them when historical payload shape matters.
+ 
+-For registered types, `@class` may be a unique simple name or distinguishing suffix; otherwise use an FQN. Use
+-`@revision` for historical serialized roots, and type aliases for compatible historical class/package renames.
++Use the full Java class name in JSON `@class`. Use `@revision` for historical serialized roots and `Data.withType(...)` upcasters when a historical class or package name changes. This RC has no configured aliases for historical class/package renames.
+ Arrays and NDJSON resources can mix current and revisioned records. Read the focused JSON-fixture and revisioned-JSON
+ articles before constructing migration fixtures.
+ 
+--- a/articles/sdk/testing/json-fixtures.md
++++ b/articles/sdk/testing/json-fixtures.md
+@@ -3,8 +3,7 @@
+ 
+ ## Store complete type information
+ 
+-Put resources under `src/test/resources`. For a type indexed by `@RegisterType`, prefer its unique simple name or a
+-distinguishing suffix in `@class`. Use the fully qualified name for an unregistered type:
++Put resources under `src/test/resources`. Use the fully qualified name in `@class`:
+ 
+ ```json
+ {
+@@ -14,13 +13,11 @@
+ }
+ ```
+ 
+-An FQN remains valid and makes the target explicit. Registered names must be unambiguous. Historical FQNs may be kept
+-after a class/package move when the corresponding type alias is configured. A compatible rename uses an alias; an
+-actual schema migration uses a revision upcaster. Root and nested `@class` values use the configured resolver.
++An FQN makes the target explicit. Use a `Data<JsonNode>` upcaster when a historical type must change.
+ 
+-Add root-level `@revision` beside `@class` for historical serialized data. The fixture runs the revision upcaster chain
+-and then resolves aliases. The field `revision` without `@` is ordinary payload data. Follow the revisioned-JSON article
+-for the exact resource contract and the registered-type-names article for annotation processing and packaging.
++Add root-level `@revision` beside `@class` for historical serialized data. The fixture runs the revision upcaster
++chain. The field `revision` without `@` is ordinary payload data. Follow the revisioned-JSON article for the
++exact resource contract.
+ 
+ ## Derive variants with `@extends`
+ 
+--- a/articles/sdk/testing/revisioned-json.md
++++ b/articles/sdk/testing/revisioned-json.md
+@@ -1,6 +1,4 @@
+ Use root-level `@class` and `@revision` when a fixture resource represents historical serialized data that must pass
+-
+-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use [Models](/docs/sdk/entities). Migration requires an explicit data plan.
+ through the normal upcaster chain. `@Revision` is the Java/Kotlin annotation declaring a type's revision; `@revision`
+ is the case-sensitive JSON serialization field.
+ 
+@@ -14,7 +12,7 @@
+ ```
+ 
+ The fixture uses `@class` as `Data.type` and `@revision` as `Data.revision`, removes both markers from the payload,
+-runs the revision upcasters, then resolves historical type aliases. The plain `revision: 42` remains application data.
++runs the revision upcasters. The plain `revision: 42` remains application data.
+ Do not use a field named `revision` as a substitute for `@revision`.
+ 
+ Test a caster directly with `TestFixture.whenUpcasting(...)`. For a production behavior claim, also pass the historical
+@@ -24,10 +22,8 @@
+ ## Untyped versus typed JSON reads
+ 
+ Untyped `JsonUtils.fromFile(...)` and `JsonUtils.fromJson(...)` interpret a revisioned object as `Data<JsonNode>`.
+-Explicitly typed overloads retain their declared return type. Non-revisioned fixture objects can use registered
+-simple names or distinguishing suffixes; historical data keeps the source identity needed by its upcaster.
+-Direct untyped reads outside a fixture need an explicit type mapper when application aliases or registered-name
+-resolution are required.
++Explicitly typed overloads retain their declared return type. Use fully qualified names in fixture objects;
++historical data keeps the source identity needed by its upcaster.
+ 
+ ## Arrays and newline-delimited resources
+ 
+--- a/articles/sdk/validation.md
++++ b/articles/sdk/validation.md
+@@ -2,7 +2,7 @@
+ 
+ ## Model event boundary
+ 
+-Durable Model events redact protected fields and restore retained values during reconstruction in this RC. Protection does not cover a secret copied into Model state, documents or snapshots. Applies must tolerate erased private values; vault-read failures must remain visible.
++This RC protects the ordinary dispatch path, but direct Model application and interceptor-produced Model events do not have complete durable redaction/restoration. Do not rely on `@ProtectData` to keep raw secrets out of Model-event storage. Receive protected data at a trusted handler, derive a safe value, and apply a separate update containing only that safe value. Never copy the raw value into Model state, documents or snapshots.
+ 
+ 1. **Fail Fast**: Validation and security checks are performed **before** a message reaches its handler.
+ 2. **Declarative Security**: Use annotations to define access rules on payload classes or handler methods.
+@@ -105,22 +105,11 @@
+ 
+ ### @ProtectData
+ 
+-Fields annotated with `@ProtectData` are removed from the message payload before it is serialized. They are stored
+-temporarily in an external Key-Value (KV) store when the message is externally published.
++Fields annotated with `@ProtectData` are removed from the message payload before it is serialized and are stored
++temporarily in an external Key-Value (KV) store.
+ 
+-When the message is eventually handled, the Fluxzero SDK **automatically re-injects** the retained value into the
+-payload, making it available to the handler.
+-
+-For a message handled only by a local handler with `logMessage = false`, the original value remains in memory and is
+-passed directly to the handler without KV I/O. External fallback and `logMessage = true` use the KV-backed path;
+-`@LocalOnly` prevents external command dispatch, not durable domain writes performed by the handler.
+-
+-Independent `@Model` updates also redact stored/published events, including local automatic commands, explicit
+-`assertAndApply`, and `@InterceptApply` replacements. Durable Model events require vault-backed references.
+-Unchanged restored values retain their references without recreating erased values. Reconstruction restores only
+-retained values; applies must tolerate erased (`null`) private data, while vault read failures fail reconstruction.
+-Protection does not extend to secrets copied into Model state, documents, or snapshots. JSON aliases and configured
+-property naming are respected; custom serializers must expose their serialized property paths.
++When the message is eventually handled, the Fluxzero SDK **automatically re-injects** the value from the KV store back
++into the payload, making it available to the handler.
+ 
+ `@ProtectData` protects the annotated field **as a whole** when its value is:
+ 
+--- a/articles/sdk/validation/protected-data.md
++++ b/articles/sdk/validation/protected-data.md
+@@ -1,6 +1,6 @@
+ # Protected Data At A Model Boundary
+ 
+-Model event serialization also protects annotated properties for automatic commands, explicit applications and interceptor replacements. Reconstruction restores retained values and preserves erased references. Do not copy raw secrets into Model state, documents or snapshots, which are outside this protection.
++This RC does not protect every durable Model-event path. In particular, direct application and interceptor replacements can bypass ordinary dispatch protection. Keep raw private values out of Model updates; apply a separate safe update as below. Do not store raw secrets in Model state, documents or snapshots.
+ 
+ Use a protected incoming command only at a trusted processing boundary. The handler derives the value permitted in durable state and performs a separate Model update:
+ 
+@@ -31,4 +31,4 @@
+ 
+ Repeat with a handler that throws after restoration and verify that the key remains absent. A second ordinary command handler is not a later observer: requests select one result handler. Use an explicitly passive observer for that scenario and configure its missing-data policy deliberately.
+ 
+-Purely local handling with `logMessage = false` retains protected values in memory without KV access. External fallback and logged messages use KV. `@LocalOnly` controls external command dispatch; durable Model writes inside the handler still need vault-backed references.
++This RC uses the KV-backed dispatch interceptor; do not infer the later in-memory local optimization.
+--- a/articles/sdk/web/api-discovery-options.md
++++ b/articles/sdk/web/api-discovery-options.md
+@@ -36,10 +36,6 @@
+ fields. Close each alternative of a `oneOf` union separately. `@Size` maps to text length, array/collection item count,
+ or map property count according to the annotated type.
+ 
+-Required metadata on a body or body/form parameter sets `requestBody.required: true`; without it, the body remains
+-optional. Map-value type-use constraints describe `additionalProperties`. OpenAPI 3.1 emits supported string-compatible
+-map-key constraints as `propertyNames`; OpenAPI 3.0 omits that unsupported keyword. Jackson polymorphism with a real
+-type property preserves discriminator/mapping; `Id.DEDUCTION` emits `oneOf` alternatives without a synthetic discriminator.
+ 
+ ## Select document and reference rendering
+ 
+--- a/articles/sdk/web/api-discovery.md
++++ b/articles/sdk/web/api-discovery.md
+@@ -42,11 +42,6 @@
+ - Jakarta validation annotations on endpoint parameters and model fields/record components are reflected in schemas
+   where possible, including required flags, numeric bounds, sizes, patterns, and email format. `@Size` maps to
+   length constraints for text, item constraints for arrays/collections, and property constraints for maps.
+-- Required metadata on a body or body/form parameter sets `requestBody.required: true`; a body without such metadata
+-  remains optional. Map-value type-use constraints apply to `additionalProperties`. OpenAPI 3.1 also emits supported
+-  string-compatible map-key constraints as `propertyNames`; OpenAPI 3.0 omits that unsupported keyword.
+-- Jackson polymorphism with a real type property retains its discriminator and mapping. `Id.DEDUCTION` is represented
+-  only by its `oneOf` alternatives and never by a synthetic discriminator.
+ - Array properties in response models are required by default; array properties in input models must be made required
+   explicitly with validation or `@ApiDoc(required = true)`.
+ - Render JSON with `OpenApiRenderer.render(...)`, `renderJson(...)`, or `renderPrettyJson(...)` and configure global
+@@ -55,12 +50,6 @@
+   contain web handlers opted in with `@ApiDoc`. Configure it with javac options like `-Afluxzero.openapi.title=...`,
+   `-Afluxzero.openapi.version=...`, `-Afluxzero.openapi.servers=...`, `-Afluxzero.openapi.specVersion=3.1.0`, or
+   disable it with `-Afluxzero.openapi.enabled=false`.
+-- The automatic endpoint discovers every `META-INF/fluxzero/openapi.json` visible to the handler classloader and merges
+-  compatible paths, components, and metadata in stable resource order. Exact duplicates are accepted; conflicting
+-  values and duplicate operation ids fail during handler registration with source and JSON-path context. A manual
+-  document at the same path follows these rules. Spring Boot nested JARs are discovered normally. A classic shaded JAR
+-  must preserve overlapping resources itself; an application-configured Maven Shade `AppendingTransformer` is
+-  supported because consecutive JSON documents are read separately.
+ - If route paths depend on runtime `@Path` properties, use `ApiDocExtractor.extract(handlerInstance)` for exact runtime
+   docs; the compile-time processor can only see static annotation values.
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -584,8 +584,6 @@
+         "io.fluxzero.sdk.test.Then",
+         "ResultValidator",
+         "Fluxzero Java imports",
+-        "LocalOnly",
+-        "LocalOnlyDispatchException",
+         "RegisterType"
+       ],
+       "links": [
+@@ -1314,10 +1312,6 @@
+         {
+           "description": "Control request wait deadlines and expired tracked handler execution",
+           "path": "/docs/sdk/messages/request-timeouts"
+-        },
+-        {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+         }
+       ]
+     },
+@@ -1378,10 +1372,6 @@
+           "path": "/docs/sdk/messages/commands/self-handling"
+         },
+         {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+-        },
+-        {
+           "path": "/docs/sdk/entities",
+           "description": "Default Model API for new 2.x state"
+         }
+@@ -1462,10 +1452,6 @@
+         {
+           "description": "Exact primary-ID aggregate lookup mapped to a public view",
+           "path": "/docs/sdk/messages/queries/exact-aggregate-lookup"
+-        },
+-        {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+         },
+         {
+           "path": "/docs/sdk/entities",
+@@ -2047,10 +2033,6 @@
+         {
+           "description": "Choose dispatch handler or tracker-batch interception boundaries",
+           "path": "/docs/sdk/extensions/interceptors"
+-        },
+-        {
+-          "description": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-          "path": "/docs/sdk/messages/local-only"
+         }
+       ]
+     },
+@@ -2508,10 +2490,6 @@
+         {
+           "description": "Choose deliberate namespaced runtime observation recovery or deletion",
+           "path": "/docs/sdk/operations"
+-        },
+-        {
+-          "description": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-          "path": "/docs/sdk/configuration/websocket-recovery"
+         },
+         {
+           "path": "/docs/sdk/entities",
+@@ -2985,10 +2963,6 @@
+         {
+           "description": "Maintain search state through DocumentStore and Search first",
+           "path": "/docs/sdk/operations/search-maintenance"
+-        },
+-        {
+-          "description": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-          "path": "/docs/sdk/entities/history-fetching"
+         },
+         {
+           "path": "/docs/sdk/entities",
+@@ -4246,10 +4220,6 @@
+           "path": "/docs/sdk/serialization/split-event-upcasters"
+         },
+         {
+-          "description": "Map historical class/package names without inventing schema migrations.",
+-          "path": "/docs/sdk/serialization/type-aliases"
+-        },
+-        {
+           "description": "Resolve unique simple names and suffixes and preserve generated module indexes.",
+           "path": "/docs/sdk/serialization/registered-type-names"
+         },
+@@ -4708,14 +4678,6 @@
+         {
+           "description": "Store supported configuration secrets as encrypted property values",
+           "path": "/docs/sdk/configuration/encrypted-properties"
+-        },
+-        {
+-          "description": "Map historical class/package names without inventing schema migrations.",
+-          "path": "/docs/sdk/serialization/type-aliases"
+-        },
+-        {
+-          "description": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-          "path": "/docs/sdk/configuration/websocket-recovery"
+         }
+       ]
+     },
+@@ -5019,14 +4981,6 @@
+           "path": "/docs/sdk/operations/low-level-clients"
+         },
+         {
+-          "description": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-          "path": "/docs/sdk/configuration/websocket-recovery"
+-        },
+-        {
+-          "description": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-          "path": "/docs/sdk/entities/history-fetching"
+-        },
+-        {
+           "path": "/docs/sdk/entities",
+           "description": "Default Model API for new 2.x state"
+         }
+@@ -5150,10 +5104,6 @@
+         {
+           "description": "Publish and consume deliberately named custom topics",
+           "path": "/docs/sdk/messages/custom-topics"
+-        },
+-        {
+-          "description": "Map historical class/package names without inventing schema migrations.",
+-          "path": "/docs/sdk/serialization/type-aliases"
+         },
+         {
+           "description": "Resolve unique simple names and suffixes and preserve generated module indexes.",
+@@ -5575,10 +5525,6 @@
+         {
+           "description": "Reconstruct supplied aggregate history in new fixtures",
+           "path": "/docs/sdk/testing/reconstruction"
+-        },
+-        {
+-          "description": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-          "path": "/docs/sdk/entities/history-fetching"
+         }
+       ]
+     },
+@@ -5687,9 +5633,7 @@
+         "oneOf",
+         "additionalProperties",
+         "ApiDoc.AdditionalProperties.DENY",
+-        "propertyNames",
+-        "requestBody.required",
+-        "Id.DEDUCTION"
++        "requestBody.required"
+       ],
+       "links": [
+         {
+@@ -6234,20 +6178,13 @@
+       ]
+     },
+     {
+-      "path": "/docs/sdk/serialization/type-aliases",
+-      "title": "Serialization Type Aliases",
+-      "summary": "Map historical class/package names without inventing schema migrations.",
+-      "source": "articles/sdk/serialization/type-aliases.md",
+-      "symbols": [
+-        "type aliases",
+-        "fluxzero.serialization.typeAliases",
+-        "FLUXZERO_SERIALIZATION_TYPE_ALIASES",
+-        "registerTypeAlias",
+-        "registerPackageAlias",
+-        "addTypeAlias",
+-        "addPackageAlias",
+-        "upcastType",
+-        "Metadata.get"
++      "path": "/docs/sdk/serialization/registered-type-names",
++      "title": "Registered Type Lookup",
++      "summary": "Register classes for type lookup while using fully qualified serialized names.",
++      "source": "articles/sdk/serialization/registered-type-names.md",
++      "symbols": [
++        "@RegisterType",
++        "TypeRegistry"
+       ],
+       "links": [
+         {
+@@ -6255,52 +6192,16 @@
+           "path": "/docs/sdk/serialization"
+         },
+         {
+-          "description": "Configuration",
+-          "path": "/docs/sdk/configuration"
++          "description": "Java Project Shape",
++          "path": "/docs/sdk/project-setup/java"
++        },
++        {
++          "description": "Kotlin Project Shape",
++          "path": "/docs/sdk/project-setup/kotlin"
+         },
+         {
+           "description": "JSON Fixtures And Custom Message Assertions",
+           "path": "/docs/sdk/testing/json-fixtures"
+-        },
+-        {
+-          "description": "Combine aliases with registered type resolution",
+-          "path": "/docs/sdk/serialization/registered-type-names"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/serialization/registered-type-names",
+-      "title": "Registered Wire and JSON Type Names",
+-      "summary": "Resolve unique simple names and suffixes and preserve generated module indexes.",
+-      "source": "articles/sdk/serialization/registered-type-names.md",
+-      "symbols": [
+-        "@RegisterType",
+-        "Serializer.resolveTypeName",
+-        "TypeRegistry",
+-        "short type names",
+-        "simple names",
+-        "AppendingTransformer"
+-      ],
+-      "links": [
+-        {
+-          "description": "Serialization And Schema Evolution",
+-          "path": "/docs/sdk/serialization"
+-        },
+-        {
+-          "description": "Java Project Shape",
+-          "path": "/docs/sdk/project-setup/java"
+-        },
+-        {
+-          "description": "Kotlin Project Shape",
+-          "path": "/docs/sdk/project-setup/kotlin"
+-        },
+-        {
+-          "description": "JSON Fixtures And Custom Message Assertions",
+-          "path": "/docs/sdk/testing/json-fixtures"
+-        },
+-        {
+-          "description": "Migrate historical class and package names",
+-          "path": "/docs/sdk/serialization/type-aliases"
+         }
+       ]
+     },
+@@ -6334,104 +6235,8 @@
+           "path": "/docs/sdk/serialization"
+         },
+         {
+-          "description": "Resolve historical names after revision upcasting",
+-          "path": "/docs/sdk/serialization/type-aliases"
+-        },
+-        {
+           "description": "Verify one-to-many event reconstruction",
+           "path": "/docs/sdk/serialization/split-event-upcasters"
+-        },
+-        {
+-          "path": "/docs/sdk/entities",
+-          "description": "Default Model API for new 2.x state"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/messages/local-only",
+-      "title": "Fail-Closed Local Dispatch",
+-      "summary": "Keep security-sensitive payloads inside local dispatch with @LocalOnly.",
+-      "source": "articles/sdk/messages/local-only.md",
+-      "symbols": [
+-        "@LocalOnly",
+-        "@LocalOnly(false)",
+-        "LocalOnlyDispatchException",
+-        "local-only",
+-        "logMessage"
+-      ],
+-      "links": [
+-        {
+-          "description": "Messages",
+-          "path": "/docs/sdk/messages"
+-        },
+-        {
+-          "description": "Commands",
+-          "path": "/docs/sdk/messages/commands"
+-        },
+-        {
+-          "description": "Queries",
+-          "path": "/docs/sdk/messages/queries"
+-        },
+-        {
+-          "description": "Handlers",
+-          "path": "/docs/sdk/handlers"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/configuration/websocket-recovery",
+-      "title": "WebSocket Recovery and Client Identity",
+-      "summary": "Configure bounded reconnect retries and distinguish task identity from unique client identity.",
+-      "source": "articles/sdk/configuration/websocket-recovery.md",
+-      "symbols": [
+-        "FLUXZERO_CLIENT_ID",
+-        "FLUXZERO_TASK_ID",
+-        "$taskId",
+-        "fluxzero.websocket.reconnectBackoff.enabled",
+-        "FLUXZERO_WEBSOCKET_RECONNECT_BACKOFF_ENABLED",
+-        "WebSocketClient",
+-        "equal jitter"
+-      ],
+-      "links": [
+-        {
+-          "description": "Configuration",
+-          "path": "/docs/sdk/configuration"
+-        },
+-        {
+-          "description": "Advanced Application Builder Configuration",
+-          "path": "/docs/sdk/configuration/advanced-builder"
+-        },
+-        {
+-          "description": "Runtime Interaction Model",
+-          "path": "/docs/sdk/runtime-interaction"
+-        }
+-      ]
+-    },
+-    {
+-      "path": "/docs/sdk/entities/history-fetching",
+-      "title": "Bounded Aggregate History Fetching",
+-      "summary": "Bound serialized history-page bytes while preserving reconstruction and progress.",
+-      "source": "articles/sdk/entities/history-fetching.md",
+-      "symbols": [
+-        "fluxzero.eventsourcing.maxFetchBytes",
+-        "FLUXZERO_EVENTSOURCING_MAX_FETCH_BYTES",
+-        "aggregate history",
+-        "100 MiB",
+-        "oversized event",
+-        "GetEvents"
+-      ],
+-      "links": [
+-        {
+-          "description": "Event Publication And Entity History",
+-          "path": "/docs/sdk/entities/publication-and-history"
+-        },
+-        {
+-          "description": "Advanced Application Builder Configuration",
+-          "path": "/docs/sdk/configuration/advanced-builder"
+-        },
+-        {
+-          "description": "Low-Level Runtime Clients",
+-          "path": "/docs/sdk/operations/low-level-clients"
+         },
+         {
+           "path": "/docs/sdk/entities",

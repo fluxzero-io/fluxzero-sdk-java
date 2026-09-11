@@ -1,0 +1,37 @@
+--- a/articles/sdk/validation/protected-data.md
++++ b/articles/sdk/validation/protected-data.md
+@@ -42,10 +42,8 @@
+ be annotated with `@ProtectData`.
+ 
+ Choose the dropping handler carefully. Another independent handler for the same message may run after it and see the
+-protected field as `null`. Missing protected data is controlled by `MissingProtectedDataPolicy`: handler-level
+-`onMissingProtectedData` overrides the consumer setting, which overrides the application default. Use `FAIL` when a
+-missing value must stop handling, `SKIP` when the handler should not run, `WARN` for a null-tolerant warned path, and
+-`HANDLE` only when passing `null` is intentional.
++protected field as `null`. Design later handlers to tolerate the missing value or reject it explicitly in application
++logic; this SDK version has no configurable missing-protected-data policy.
+ 
+ ## Prove sanitization, restoration, and deletion separately
+ 
+@@ -94,9 +92,7 @@
+ }
+ 
+ final class LaterPassiveObserver {
+-    @HandleCommand(
+-            passive = true,
+-            onMissingProtectedData = MissingProtectedDataPolicy.HANDLE)
++    @HandleCommand(passive = true)
+     void observe(OpenSupportTicket command) {
+         laterValue.set(command.rawContactAddress());
+     }
+--- a/manifest.json
++++ b/manifest.json
+@@ -4121,8 +4121,6 @@
+         "Fluxzero.loadAggregate(...).assertAndApply(...)",
+         "@Component",
+         "Fluxzero.registerHandlers(...)",
+-        "MissingProtectedDataPolicy",
+-        "onMissingProtectedData",
+         "@HandleCommand(passive = true)",
+         "later passive observer",
+         "fan-out protected event",

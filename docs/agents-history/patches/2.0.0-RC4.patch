@@ -1,0 +1,269 @@
+--- a/articles/recipes/create-app.md
++++ b/articles/recipes/create-app.md
+@@ -16,7 +16,7 @@
+ 8. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
+ 
+ ```java
+-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
++@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+ public record Project(
+         @EntityId ProjectId projectId,
+         ProjectDetails details,
+@@ -29,14 +29,13 @@
+ 
+ Important settings:
+ 
+-- `persistence`: selects a non-empty set of durable representations:
+-  - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
+-  - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and also maintain a current document.
+-  - `{DOCUMENT}`: load authoritative current state from the current document.
++- `persistence`: selects exactly one durable/load contract:
++  - `EVENT_SOURCED` (default): reconstruct from Model events, without a direct public document.
++  - `EVENT_SOURCED_WITH_DOCUMENT`: reconstruct from events and maintain a direct searchable current document.
++  - `DOCUMENT`: load authoritative current state from the direct document.
+ - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
+-- `document`: optional `@DocumentProjection` configuration for the direct collection, timestamp paths, and public
+-  searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
+-  should remain available by Model ID, alias, parent relation and Graph composition without entering typed search.
++- `document`: optional `@DocumentProjection` configuration for the direct collection and timestamp paths. It is valid
++  only when `persistence` stores a direct document.
+ - `eventPublication`: controls whether unchanged transitions create an event.
+ - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
+ - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
+--- a/articles/recipes/search-list-count.md
++++ b/articles/recipes/search-list-count.md
+@@ -4,29 +4,20 @@
+ 
+ ### Model documents and @Searchable values
+ 
+-Include `DOCUMENT` in a Model's persistence set to store a direct document. Use `@Searchable` for an ordinary document
+-value; do not annotate a Model with it.
++Choose a Model persistence option that stores a direct document. Use `@Searchable` for an ordinary document value;
++do not annotate a Model with it.
+ 
+ [//]: # (@formatter:off)
+ ```java
+ @Model(
+-        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
++        persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+         document = @DocumentProjection(collection = "active_projects"))
+ public record Project(...) {}
+-
+-@Model(
+-        persistence = ModelPersistence.DOCUMENT,
+-        document = @DocumentProjection(searchable = false))
+-public record UserPreferences(@EntityId UserId userId, ...) {}
+ 
+ @Searchable(collection = "custom_docs")
+ public record ExternalDocument(...) {}
+ ```
+ [//]: # (@formatter:on)
+-
+-`DocumentProjection.searchable = false` keeps a Model document in private type-isolated storage. Direct Model loads,
+-aliases, parent relations and Graph composition still work, while `Fluxzero.search(UserPreferences.class)` does not
+-expose the document.
+ 
+ <a name="facets-sorting"></a>
+ 
+@@ -63,8 +54,8 @@
+ 
+ <a name="searching"></a>
+ 
+-Public Model documents selected by including `DOCUMENT` and keeping `DocumentProjection.searchable = true` are
+-**synchronous with Model-commit completion**.
++Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` are **synchronous with Model-commit
++completion**.
+ 
+ - **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
+   document.
+--- a/articles/sdk/entities/graph-search.md
++++ b/articles/sdk/entities/graph-search.md
+@@ -2,8 +2,8 @@
+ 
+ ## Search and graph composition
+ 
+-Public Model documents selected by including `DOCUMENT` and keeping `DocumentProjection.searchable = true` are
+-synchronous with successful commit completion:
++Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` are synchronous with successful commit
++completion:
+ 
+ ```java
+ List<Task> open = Fluxzero.search(Task.class)
+@@ -22,22 +22,15 @@
+         .fetchAll();
+ ```
+ 
+-Use `.whereParent(projectId)` or `.whereAncestor(organisationId)` when the related typed ID is known. This traverses
+-durable relationships directly and needs no parent or ancestor document. Use the ID-plus-Model-class overload for
+-untyped functional IDs and a loaded `Graph` for parent-scoped identities. The returned target must still have either a
+-public document or a private current document maintained for Graph participation; standalone event-sourced targets
+-without one should be loaded by ID.
+-
+-Use the class-and-constraint `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` overloads when related
+-IDs must first be selected by current Model content. They use that Model's own public or type-isolated private current
+-document; `materializeGraph = true` supplies a private root document but does not make the whole Graph projection the
+-related predicate source. Prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` over a broad forced-live
++Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Use
++class-based relationship constraints for selective parent or Graph search through either a searchable child or a
++type-isolated private Graph component; Fluxzero searches matching child IDs before traversing relationships and
++composing targets. Prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` over a broad forced-live
+ nested-path filter when the child type is known. Use
+ `searchGraph(Root.class).stream()` for complete typed lazy `Graph<Root>` results without a cast or type witness. It
+ reads a configured `@GraphProjection` by default and otherwise stitches public or private current documents live;
+ `searchGraph(Root.class, true)`
+ forces live composition. Use `fetch(..., ObjectNode.class)` for explicit raw JSON. Enable materialization with
+-`@Model(materializeGraph = true)`. Include `DOCUMENT` separately only when the Model itself needs a current document;
+-set `DocumentProjection.searchable = false` when that document is reference-only. A blank projection collection
+-appends `-graphs` to the direct Model collection when one exists, or to the
++`@Model(materializeGraph = true)`. Select `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` separately only for direct public
++Model search. A blank projection collection appends `-graphs` to the direct Model collection when one exists, or to the
+ simple root-model name otherwise; explicit lower-level composition limits fail rather than returning a partial graph.
+--- a/articles/sdk/entities/index.md
++++ b/articles/sdk/entities/index.md
+@@ -20,7 +20,7 @@
+ ## Define a model
+ 
+ ```java
+-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
++@Model(persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT)
+ @lombok.With
+ public record Project(
+         @EntityId ProjectId projectId,
+@@ -34,14 +34,13 @@
+ 
+ Important settings:
+ 
+-- `persistence`: selects a non-empty set of durable representations:
+-  - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
+-  - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and also maintain a current document.
+-  - `{DOCUMENT}`: load authoritative current state from the current document.
++- `persistence`: selects exactly one durable/load contract:
++  - `EVENT_SOURCED` (default): reconstruct from Model events, without a direct public document.
++  - `EVENT_SOURCED_WITH_DOCUMENT`: reconstruct from events and maintain a direct searchable current document.
++  - `DOCUMENT`: load authoritative current state from the direct document.
+ - `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
+-- `document`: optional `@DocumentProjection` configuration for the direct collection, timestamp paths, and public
+-  searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
+-  should remain available by Model ID, alias, parent relation and Graph composition without entering typed search.
++- `document`: optional `@DocumentProjection` configuration for the direct collection and timestamp paths. It is valid
++  only when `persistence` stores a direct document.
+ - `eventPublication`: controls whether unchanged transitions create an event.
+ - `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
+ - `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
+--- a/articles/sdk/principles.md
++++ b/articles/sdk/principles.md
+@@ -37,7 +37,7 @@
+     `DepositMoney` command solely to see what changed. Reserve `Entity<T>` for legacy Aggregate and persistence code.
+ 20. **The Uber-Document Pattern**: Use `@HandleDocument` within a `@Stateful` saga to maintain a complex view of the
+     system that updates whenever source documents change.
+-21. **The Consistency Window**: Direct Model documents selected by including `DOCUMENT` in the persistence set
++21. **The Consistency Window**: Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT`
+     complete with the Model commit. Materialized Graph
+     projections are asynchronous unless the operation selects `GraphProjectionCompletion.AWAIT`; unrelated handler
+     side effects remain eventually consistent.
+--- a/articles/sdk/runtime-interaction.md
++++ b/articles/sdk/runtime-interaction.md
+@@ -26,7 +26,7 @@
+ 
+ ### Command Followed by Query
+ 
+-For Models whose persistence set contains `DOCUMENT`, the direct document is part of Model-commit completion.
++For Models using `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT`, the direct document is part of Model-commit completion.
+ A command followed by a direct Model query therefore reads committed state. Whole-Graph projections and documents
+ written by event handlers remain asynchronous unless their own completion boundary is awaited.
+ 
+--- a/articles/sdk/search.md
++++ b/articles/sdk/search.md
+@@ -1,7 +1,8 @@
+ # Model Search
+ 
+ 1. **No SQL**: Data retrieval is performed exclusively via the `Fluxzero.search()` API or by loading entities.
+-2. **Automatic Indexing**: Models whose persistence set contains `DOCUMENT` maintain a direct current-state document.
++2. **Automatic Indexing**: Models with `EVENT_SOURCED_WITH_DOCUMENT` or `DOCUMENT` persistence maintain a direct
++   current-state document.
+ 3. **Stateful Handlers**: `@Stateful` handlers are automatically searchable as they are backed by the document store.
+ 4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
+ 5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
+@@ -21,29 +22,20 @@
+ 
+ ### Model documents and @Searchable values
+ 
+-Include `DOCUMENT` in a Model's persistence set to store a direct document. Use `@Searchable` for an ordinary document
+-value; do not annotate a Model with it.
++Choose a Model persistence option that stores a direct document. Use `@Searchable` for an ordinary document value;
++do not annotate a Model with it.
+ 
+ [//]: # (@formatter:off)
+ ```java
+ @Model(
+-        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
++        persistence = ModelPersistence.EVENT_SOURCED_WITH_DOCUMENT,
+         document = @DocumentProjection(collection = "active_projects"))
+ public record Project(...) {}
+-
+-@Model(
+-        persistence = ModelPersistence.DOCUMENT,
+-        document = @DocumentProjection(searchable = false))
+-public record UserPreferences(@EntityId UserId userId, ...) {}
+ 
+ @Searchable(collection = "custom_docs")
+ public record ExternalDocument(...) {}
+ ```
+ [//]: # (@formatter:on)
+-
+-`DocumentProjection.searchable = false` keeps a Model document in private type-isolated storage. Direct Model loads,
+-aliases, parent relations and Graph composition still work, while `Fluxzero.search(UserPreferences.class)` does not
+-expose the document.
+ 
+ <a name="facets-sorting"></a>
+ 
+@@ -82,8 +74,8 @@
+ 
+ ## Consistency
+ 
+-Public Model documents selected by including `DOCUMENT` and keeping `DocumentProjection.searchable = true` are
+-**synchronous with Model-commit completion**.
++Direct Model documents selected by `DOCUMENT` or `EVENT_SOURCED_WITH_DOCUMENT` are **synchronous with Model-commit
++completion**.
+ 
+ - **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
+   document.
+--- a/articles/sdk/search/model-relationships.md
++++ b/articles/sdk/search/model-relationships.md
+@@ -10,31 +10,11 @@
+     .fetchAll();
+ ```
+ 
+-When a parent or ancestor ID is already known, avoid a document predicate:
+-
+-```java
+-List<Task> projectTasks = Fluxzero.search(Task.class)
+-    .whereParent(projectId)
+-    .fetch(100);
+-
+-List<Task> organisationTasks = Fluxzero.search(Task.class)
+-    .whereAncestor(organisationId)
+-    .fetch(100);
+-```
+-
+-The ID overload starts from durable relationships and does not require a document for the parent or ancestor. A typed
+-`Id<T>` supplies its Model type; otherwise pass the functional ID and Model class. Use a loaded `Graph` for a
+-parent-scoped identity. Depth-bounded overloads support exact grandparents and further traversal.
+-
+-Use the class-and-constraint overload when IDs must be selected by related Model content. It requires that related
+-Model's own public or private current document; an explicit composition path or `materializeGraph = true` supplies a
+-private one, while the whole materialized Graph projection is not searched as the Model itself. The returned target
+-also needs a public document or relation-scoped private Graph-component document. A standalone event-sourced target
+-without either is loaded by ID rather than searched.
+-
+-Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant` for content-based traversal. Prefer
+-`searchGraph(Root.class).whereDescendant(Child.class, constraint)` for selective live Graph search based on children.
+-`searchGraph(Root.class).stream()` returns typed lazy `Graph<Root>` values through
++Use `whereParent`, `whereAncestor`, `whereChild` and `whereDescendant`. Depth-bounded overloads support grandparents
++and further traversal. Class-based constraints use the related Model's actual current-document collection, including
++the type-isolated private collection of a Graph-only Model component. They select matching related IDs before
++relationship traversal, so prefer `searchGraph(Root.class).whereDescendant(Child.class, constraint)` for selective
++live Graph search based on children. `searchGraph(Root.class).stream()` returns typed lazy `Graph<Root>` values through
+ explicit `@Parent(pathInParent = "...")` paths. It prefers a configured materialized graph projection and otherwise stitches
+ live; pass `true` as the second argument to force live composition. Use `fetch(..., ObjectNode.class)` only for an
+ explicit raw JSON boundary. Full-graph constraints mean the same on both routes, but broad free-form child filtering,

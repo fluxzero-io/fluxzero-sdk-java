@@ -1,0 +1,159 @@
+--- a/articles/sdk/messages/commands.md
++++ b/articles/sdk/messages/commands.md
+@@ -42,7 +42,7 @@
+ 
+ The client supplies only `articleId`; the persisted transition receives the authenticated sender and message timestamp from Fluxzero.
+ 
+-`@HandleCommand` defaults `skipExpiredRequests` to `false` so command semantics are preserved during replays. Set it deliberately only when historical requests should be skipped.
++A sender timeout does not cancel the command. Do not assume an old indexed request is skipped automatically.
+ 
+ Use `Request<R>` on command payloads when callers need a typed result from `Fluxzero.sendCommand(...)` or `Fluxzero.sendCommandAndWait(...)`. Use fire-and-forget sends only when the caller does not need a result; a fire-and-forget command cannot return one later.
+ 
+--- a/articles/sdk/messages/queries.md
++++ b/articles/sdk/messages/queries.md
+@@ -13,7 +13,7 @@
+ 
+ Standalone query handlers can be Spring components. Include the typed query payload as a handler parameter so routing is constrained. Add `@LocalHandler` when the query must run synchronously in the publication thread. For list screens and filters, prefer a search-backed query using `Fluxzero.search(...)`.
+ 
+-`@HandleQuery` defaults `skipExpiredRequests` to `true`. That is usually correct for reads because older indexed requests can be stale by the time a replay reaches them.
++A sender timeout does not prevent a tracked query handler from running later. This version has no expired-request filtering option.
+ 
+ Keep query handlers read-only. They may load aggregates, read documents, or search, but they should not apply updates or publish side effects.
+ 
+--- a/articles/sdk/messages/request-timeouts.md
++++ b/articles/sdk/messages/request-timeouts.md
+@@ -1,6 +1,6 @@
+-Use `@Timeout` on a request payload when its command/query/custom/web gateway result has a product-specific maximum
+-wait. A caller timeout limits waiting for the response; it is not automatic cancellation or rollback of already
+-dispatched work.
++A caller timeout limits waiting for a response; it does not cancel or roll back dispatched work.
++For blocking sends, `@Timeout` on the payload selects the wait duration; the default blocking wait is one minute.
++Do not assume this annotation controls the asynchronous gateway request timeout in this historical SDK version.
+ 
+ ```java
+ @Timeout(value = 5, timeUnit = TimeUnit.SECONDS)
+@@ -8,42 +8,9 @@
+ }
+ ```
+ 
+-The annotation applies to asynchronous `send(...)` and blocking `sendAndWait(...)` request/response methods. Without
+-it, blocking waits retain the gateway's standard one-minute timeout while asynchronous requests use normal gateway
+-request handling. Put the policy on the request type so every sender uses the same expectation; do not scatter longer
+-blocking waits around call sites to mask a missing handler.
++A timed-out command can still execute and commit. This version does not stamp the later effective request deadline
++or expose `skipExpiredRequests`/ignored-expired-request metrics. Model cancellation explicitly when needed.
+ 
+-## Timeout and handler execution are separate
+-
+-For runtime-indexed requests, the SDK records the effective timeout in metadata. A tracked handler may skip the
+-request when that deadline has already passed:
+-
+-- `@HandleCommand(skipExpiredRequests = false)` is the default, preserving command execution even after the sender
+-  stopped waiting;
+-- `@HandleQuery(skipExpiredRequests = true)` is the default, avoiding work for a stale read result;
+-- ordinary HTTP web handlers also default to skipping expired indexed requests;
+-- local requests without a message-log index are not skipped by this mechanism.
+-
+-Changing `skipExpiredRequests` changes execution semantics. Keep commands enabled unless the product explicitly says
+-expired intent must be discarded. Set it to `false` on a replay/debug query handler only when processing historical
+-requests is intentional.
+-
+-## Diagnose and test the boundary
+-
+-`FZ-SDK-0002` reports request timeout but does not identify the root cause. Check handler discovery, namespace/topic,
+-routing/filtering, passive handlers, missing results, and actual duration before increasing the annotation.
+-`IgnoreMessageEvent` with reason `expiredRequest` proves a tracked handler skipped a stale indexed request; absence of
+-a response alone does not.
+-
+-Test these separately:
+-
+-- a normal result before the deadline;
+-- no matching/result-producing handler;
+-- a slow result that exceeds the caller deadline;
+-- expired command behavior with the default execution policy;
+-- expired query behavior with the default skip policy;
+-- the deliberate override used by replay/debug code.
+-
+-Use fixed/injected time and asynchronous fixture/local-runtime coordination, not a long sleep. Assert both the caller
+-result/error and observable application effects, because a timed-out command may still commit after the caller stops
+-waiting.
++Check handler discovery, namespace/topic, routing, passive handlers, missing results, and actual duration before
++increasing a timeout. Test a timely result, no result-producing handler, and slow completion separately. Assert
++both caller outcome and observable effects using deterministic coordination instead of a long sleep.
+--- a/articles/sdk/metrics/built-in.md
++++ b/articles/sdk/metrics/built-in.md
+@@ -15,17 +15,12 @@
+ | `HandleMessageEvent` | `consumer`, `handler`, `messageIndex`, `messageType`, `topic`, `payloadType`, `exceptionalResult`, `nanosecondDuration`, and `completed`. A false `completed` means an asynchronous result still has a later completion signal. |
+ | `CompleteMessageEvent` | The final success/failure and total duration of an asynchronous handler result. Correlate by consumer, handler, index, type, topic, and payload type. |
+ | `ProcessBatchEvent` | `consumer`, `trackerId`, message type/topic, segment, last index, batch size, and duration. Use successive observations to diagnose throughput and stalled consumers. |
+-| `IgnoreMessageEvent` | A matching handler was deliberately not invoked. `reason=expiredRequest` means its effective request timeout elapsed before invocation; this is not a handler failure. |
+ | `PauseTrackerEvent` | Identifies a consumer and tracker that paused while idle or backing off. A pause alone is not failure evidence. |
+ 
+ `HandlerMonitor` and `TrackerMonitor` publish the standard handler and tracker signals. For an asynchronous handler,
+ do not count an initial `HandleMessageEvent(completed=false)` as a completed success; wait for the matching
+ `CompleteMessageEvent`.
+ 
+-Expired-request behavior is handler-specific. Commands preserve execution by default after a sender-side timeout,
+-while queries and ordinary HTTP request handlers normally skip an indexed request that expired before invocation.
+-Local requests without a log index are not skipped by this mechanism. During deliberate historical replay, set
+-`skipExpiredRequests = false` only when those old requests really should run.
+ 
+ ## Runtime operation inventory
+ 
+@@ -107,12 +102,6 @@
+         }
+     }
+ 
+-    @HandleMetrics
+-    void on(IgnoreMessageEvent metric) {
+-        if (IgnoreMessageEvent.EXPIRED_REQUEST.equals(metric.getReason())) {
+-            // Count or alert on unexpected expiry by handler and payload type.
+-        }
+-    }
+ }
+ ```
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -1260,8 +1260,7 @@
+         "@HandleQuery",
+         "@HandleEvent",
+         "Request<T>",
+-        "requestId",
+-        "skipExpiredRequests"
++        "requestId"
+       ],
+       "links": [
+         {
+@@ -1309,7 +1308,6 @@
+         "@Consumer",
+         "Fluxzero.loadAggregate(...)",
+         "assertAndApply",
+-        "skipExpiredRequests",
+         "Request<R>",
+         "allowedClasses",
+         "Guarantee.STORED",
+@@ -1406,7 +1404,6 @@
+         "local self-handler",
+         "tracked self-handler",
+         "Fluxzero.memoize(...)",
+-        "skipExpiredRequests",
+         "Fluxzero.queryAndWait(...)"
+       ],
+       "links": [
+@@ -2611,7 +2608,6 @@
+         "HandleMessageEvent",
+         "CompleteMessageEvent",
+         "ProcessBatchEvent",
+-        "IgnoreMessageEvent",
+         "PauseTrackerEvent",
+         "Append.Metric",
+         "ReadResult.Metric",
+@@ -5415,7 +5411,6 @@
+         "@Timeout",
+         "Timeout",
+         "sendAndWait",
+-        "skipExpiredRequests",
+         "IgnoreMessageEvent.EXPIRED_REQUEST",
+         "FZ-SDK-0002"
+       ],

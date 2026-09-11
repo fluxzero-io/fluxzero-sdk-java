@@ -1,0 +1,60 @@
+--- a/articles/sdk/configuration.md
++++ b/articles/sdk/configuration.md
+@@ -27,7 +27,7 @@
+ 
+ Spring auto-configuration registers annotated handlers, upcasters, downcasters, user providers, and other SDK integration beans in normal Spring Boot apps. Use a `FluxzeroCustomizer` when the app needs to adjust the default client/builder instead of forking setup code.
+ 
+-`DefaultFluxzero.builder()` is for infrastructure-level tuning: custom property resolvers, validator, consumer defaults, replay behavior, secondary behavior, correlation, host metrics, and web request forwarding. Keep these settings centralized near application bootstrap.
++`DefaultFluxzero.builder()` is for infrastructure-level tuning: custom property resolvers, validator, consumer defaults, replay behavior, secondary behavior, correlation, and web request forwarding. Keep these settings centralized near application bootstrap.
+ 
+ Use `application.properties`, environment variables, and runtime configuration for deploy-specific values. Access them through `ApplicationProperties.getProperty(...)`, its default-value overload, or `ApplicationProperties.requireProperty(...)`. The required accessor is `requireProperty`, not `require`. Read the focused property-access article for a typed configuration boundary and `TestFixture.withProperty(...)` scenarios.
+ 
+--- a/articles/sdk/configuration/advanced-builder.md
++++ b/articles/sdk/configuration/advanced-builder.md
+@@ -38,11 +38,8 @@
+ A different consumer name has an independent position and ordering boundary even when routing keys are equal. Confirm
+ replay safety and effect idempotency before adding a historical consumer.
+ 
+-## Host metrics and fetch limits
++## Runtime tuning
+ 
+-`enableHostMetrics()` publishes application-process CPU/JVM/memory/thread/disk signals when enabled. Configure a
+-deliberate interval and never put sensitive payload data in labels. Host metrics do not expose managed database or
+-cluster internals.
+ 
+ 
+ ## Compatibility forwarding and direct clients
+--- a/articles/sdk/metrics/built-in.md
++++ b/articles/sdk/metrics/built-in.md
+@@ -82,10 +82,7 @@
+ `VoidResult`, `BooleanResult`, and `StringResult` are ordinary runtime acknowledgements or values. `ErrorResult`
+ indicates a failed runtime request. `ConnectEvent` and `DisconnectEvent` report WebSocket session lifecycle.
+ 
+-Host collection can publish `HostMetrics` and focused CPU, container, disk, file-descriptor, JVM class, garbage
+-collection, memory, thread, and uptime payloads when host metrics are enabled. `CacheEvictionEvent` can expose SDK
+-cache pressure. Treat these as application-process health signals; managed database and cluster internals remain a
+-platform concern.
++SDK handler, tracking and cache metrics remain available; process CPU, JVM and disk collection requires application-owned monitoring in this version.
+ 
+ ## Consume selectively
+ 
+--- a/manifest.json
++++ b/manifest.json
+@@ -2611,7 +2611,6 @@
+         "BulkUpdateDocuments.Metric",
+         "ConnectEvent",
+         "DisconnectEvent",
+-        "HostMetrics",
+         "CacheEvictionEvent",
+         "HandlerMonitor",
+         "TrackerMonitor",
+@@ -4737,8 +4736,7 @@
+         "registerUserProvider",
+         "replaceIdentityProvider",
+         "forwardWebRequestsToLocalServer",
+-        "disableTrackingMetrics",
+-        "enableHostMetrics"
++        "disableTrackingMetrics"
+       ],
+       "links": [
+         {

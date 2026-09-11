@@ -1,0 +1,76 @@
+--- a/articles/sdk/serialization.md
++++ b/articles/sdk/serialization.md
+@@ -59,8 +59,8 @@
+ ```
+ 
+ `@class` and `@revision` provide the serialized source type and revision and are removed before the payload reaches
+-the upcaster. A plain field named `revision` remains payload data. The revisioned-JSON article explains arrays,
+-NDJSON and fixture versus direct `JsonUtils` resource reads.
++the upcaster. A plain field named `revision` remains payload data. Read revisioned JSON for fixture versus direct
++`JsonUtils` resource reads.
+ 
+ ```java
+ fixture.whenUpcasting("/project/project-rev1.json")
+--- a/articles/sdk/testing.md
++++ b/articles/sdk/testing.md
+@@ -29,8 +29,7 @@
+ 
+ Use fully qualified names in `@class`. Use
+ `@revision` for historical serialized roots.
+-Arrays and NDJSON resources can mix current and revisioned records. Read the focused JSON-fixture and revisioned-JSON
+-articles before constructing migration fixtures.
++Read the focused JSON-fixture and revisioned-JSON articles before constructing migration fixtures.
+ 
+ The default fixture wrapper returns the system user when no active user is present and delegates ID lookup to a provider registered on the builder. Use `whenCommandByUser`, `whenQueryByUser`, and related helpers for user-sensitive rules. To exercise a configured provider's `getUserById(...)`, keep the normal fixture wrapper and pass a user ID, not a constructed `User`, in at least one scenario. Use `withProductionUserProvider()` separately for unauthenticated/no-fallback behavior; it switches to the process-wide `UserProvider.defaultUserProvider` and does not preserve an arbitrary provider registered only on that fixture builder.
+ 
+--- a/articles/sdk/testing/json-fixtures.md
++++ b/articles/sdk/testing/json-fixtures.md
+@@ -34,9 +34,7 @@
+ 
+ ## Seed large preconditions deliberately
+ 
+-`givenCommands("/setup/baseline.json")` can load a resource containing a command or command array. A `.ndjson` or
+-`.jsonl` resource can supply one command per record. Each command needs its own `@class`, may carry its own
+-`@revision`, and executes in source order. `givenCommandsByUser(...)` applies the selected user to every command.
++`givenCommands("/setup/baseline.json")` can load a resource containing a command or command array.
+ All Given commands
+ and their registered side effects run fully, then their outputs are cleared before the When/Then assertion window.
+ Use direct durable reconstruction methods instead when the objective is behavior from supplied stored artifacts rather
+--- a/articles/sdk/testing/revisioned-json.md
++++ b/articles/sdk/testing/revisioned-json.md
+@@ -25,22 +25,6 @@
+ Explicitly typed overloads retain their declared return type. Use fully qualified names in fixture objects;
+ historical data keeps the source identity needed by its upcaster.
+ 
+-## Arrays and newline-delimited resources
+-
+-Untyped root arrays and multiple root JSON values return an `ArrayList`. Each element/record is interpreted
+-independently with the same `@class` and `@revision` rules. A `.ndjson` or `.jsonl` resource always returns an
+-`ArrayList`, even when it contains just one record.
+-
+-Use an array or NDJSON resource for ordered command setup:
+-
+-```java
+-fixture.givenCommands("/labels/baseline.ndjson");
+-```
+-
+-Each command needs its own `@class` and may carry its own `@revision`. Commands execute in source order;
+-`givenCommandsByUser(...)` applies the selected user to each command. Array failures identify the zero-based
+-element index; NDJSON failures identify the source line. These resource rules are the same for Java and Kotlin tests.
+-
+-Cover a revisioned object with an ordinary `revision` payload field, mixed current/historical array entries,
+-multiple NDJSON records, a one-record NDJSON file and invalid metadata. Assert the resulting behavior or normalized
+-payload, not only that reading the file returned a collection.
++Use a JSON command-array resource with `givenCommands("/labels/baseline.json")` for ordered setup.
++Test a revisioned object with an ordinary `revision` payload field and assert the normalized payload or
++resulting behavior through the relevant fixture boundary.
+--- a/manifest.json
++++ b/manifest.json
+@@ -6168,7 +6168,6 @@
+       "symbols": [
+         "@revision",
+         "@class",
+-        "NDJSON",
+         "JSONL",
+         "JsonUtils.fromFile",
+         "JsonUtils.fromJson",
