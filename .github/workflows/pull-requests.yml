@@ -36,6 +36,11 @@ jobs:
       - name: Test release version policy
         run: bash .github/scripts/resolve-release-version.test.sh
 
+      - name: Validate agent documentation graph
+        run: |
+          python3 .github/scripts/validate-agent-docs.py
+          python3 .github/scripts/build-agent-docs.test.py
+
       - name: Run Maven build
         run: ./mvnw -B install
 
@@ -54,3 +59,4 @@ jobs:
           for artifact in annotation-processor-tests java-downstream-project kotlin-downstream-project; do
             test ! -e "$repository/io/fluxzero/$artifact"
           done
+          python3 .github/scripts/verify-agent-docs-publication.py "$repository"
