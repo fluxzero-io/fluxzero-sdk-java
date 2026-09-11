@@ -39,6 +39,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Value
+@NonFinal
 public class CommitModels extends Command implements RetryAwareRequest {
 
     /**
@@ -144,6 +145,12 @@ public class CommitModels extends Command implements RetryAwareRequest {
     @Override
     public void markPossibleDuplicate() {
         possibleDuplicate = true;
+    }
+
+    /** Relationship selections read by the evaluation; ordinary commits carry no such dependencies. */
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    public List<ModelRelationshipRead> getReadRelationships() {
+        return List.of();
     }
 
     /**

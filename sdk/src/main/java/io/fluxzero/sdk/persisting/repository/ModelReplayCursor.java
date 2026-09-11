@@ -805,11 +805,13 @@ final class ModelReplayCursor {
         }
 
         Long ancestorStateIndex = null;
+        ModelAncestorResolver.AncestorReads ancestorReads = null;
         if (resolution.hasAncestorDependencies()) {
             AncestorResult ancestors = resolveAncestors(
                     resolution, boundary, stagedValues, pendingAncestor);
             resolution = ancestors.resolution();
             ancestorStateIndex = ancestors.stateIndex();
+            ancestorReads = ancestors.reads();
             boundary = ModelReadBoundary.at(ancestorStateIndex);
         }
 
@@ -1032,7 +1034,7 @@ final class ModelReplayCursor {
                 }
             }
         }
-        return CommitAttempt.create(stateIndex, resolution, loaded);
+        return CommitAttempt.create(stateIndex, resolution, loaded).withAncestorReads(ancestorReads);
     }
 
     private static final class IncompleteDocumentBoundaryException
@@ -1503,7 +1505,10 @@ final class ModelReplayCursor {
         }
         return new AncestorResult(
                 graph.getEvents().getStateIndex(),
-                resolution.withResolvedModels(List.copyOf(selected.values())));
+                resolution.withResolvedModels(List.copyOf(selected.values())),
+                new ModelAncestorResolver.AncestorReads(graph.getEvents().getStateIndex(),
+                        java.util.stream.Stream.concat(roots.stream(), reachable.stream().map(Graphs.AncestorPlacement::id))
+                                .collect(java.util.stream.Collectors.toSet()), knownTypes));
     }
 
     private boolean addPendingAncestorValues(
@@ -2650,7 +2655,8 @@ final class ModelReplayCursor {
 
     record AncestorResult(
             long stateIndex,
-            MutationPlan.Resolution resolution) {
+            MutationPlan.Resolution resolution,
+            ModelAncestorResolver.AncestorReads reads) {
     }
 
     private record CurrentProjection(

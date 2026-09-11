@@ -46,6 +46,7 @@ import io.fluxzero.common.api.modeling.ModelGraphProjectionConfiguration;
 import io.fluxzero.common.api.modeling.ModelGraphProjectionStatus;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelRelationship;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelUpdate;
 import io.fluxzero.common.api.modeling.ModelUpdateKind;
@@ -156,6 +157,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
     private final Map<String, LinkedHashMap<ModelRelationship, MutableModelRelationship>> currentModelRelationships =
             new ConcurrentHashMap<>();
     private final Map<String, Long> modelRelationStateIndices = new ConcurrentHashMap<>();
+    private final Map<ModelRelationshipRead, Long> relationshipReadPositions = new HashMap<>();
+    private long lastModelErasureIndex = -1L;
     private final LongSupplier modelStateTimeIndexSupplier;
     private long modelStateIndex = -1L;
 
@@ -284,6 +287,24 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                     modelStateIndex);
             if (conflict != null) {
                 return new ModelCommitOutcome(conflict, List.of());
+            }
+            if (!commit.getReadRelationships().isEmpty()) {
+                conflict = ModelCommitConflicts.result(commit,
+                        ModelCommitConflicts.detectRelationships(commit, List.of(), read ->
+                                Math.max(lastModelErasureIndex, relationshipReadPositions.getOrDefault(read, -1L))),
+                        modelStateIndex);
+                if (conflict != null) {
+                    return new ModelCommitOutcome(conflict, List.of());
+                }
+            }
+            if (lastModelErasureIndex > commit.getReadStateIndex()) {
+                conflict = ModelCommitConflicts.result(commit,
+                        ModelCommitConflicts.detectErasedReads(commit, List.of(), id ->
+                                erasedModelTokens.contains(protectedToken(id)) ? lastModelErasureIndex : -1L),
+                        modelStateIndex);
+                if (conflict != null) {
+                    return new ModelCommitOutcome(conflict, List.of());
+                }
             }
             conflict = cascadeConflict(commit, description);
             if (conflict != null) {
@@ -987,6 +1008,8 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             long deletionStateIndex =
                     modelStateIndex =
                             nextModelStateIndex();
+            lastModelErasureIndex = deletionStateIndex;
+            relationshipReadPositions.keySet().removeIf(read -> selected.contains(read.modelId()));
             ModelDeletionResult result =
                     new ModelDeletionResult(
                             request.getRequestId(),
@@ -1469,6 +1492,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
         modelRelationStateIndices.put(change.childId(), stateIndex);
         for (ModelRelationship relationship : removed) {
             actual.remove(relationship).validUntil = stateIndex;
+            recordRelationshipChange(change.childId(), relationship, stateIndex);
             modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
         }
         for (ModelRelationship relationship : desired) {
@@ -1477,6 +1501,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                         change.childId(), relationship, stateIndex);
                 actual.put(relationship, opened);
                 modelRelationshipHistory.add(opened);
+                recordRelationshipChange(change.childId(), relationship, stateIndex);
                 modelRelationStateIndices.put(relationship.getParentId(), stateIndex);
             }
         }
@@ -1503,6 +1528,7 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
                 }
                 iterator.remove();
                 relationship.validUntil = stateIndex;
+                recordRelationshipChange(childId, relationship.relationship, stateIndex);
                 relationship.parentDeleted = true;
                 modelRelationStateIndices.put(childId, stateIndex);
                 modelRelationStateIndices.put(
@@ -1514,6 +1540,16 @@ public class InMemoryEventStore extends InMemoryMessageStore implements EventSto
             }
         });
         emptyChildren.forEach(currentModelRelationships::remove);
+    }
+
+    private void recordRelationshipChange(String childId, ModelRelationship relationship, long stateIndex) {
+        for (var direction : ModelRelationshipRead.Direction.values()) {
+            String source = direction == ModelRelationshipRead.Direction.CHILDREN
+                    ? relationship.getParentId() : childId;
+            relationshipReadPositions.put(new ModelRelationshipRead(source, direction, null), stateIndex);
+            relationshipReadPositions.put(new ModelRelationshipRead(source, direction,
+                    Objects.requireNonNullElse(relationship.getPath(), "")), stateIndex);
+        }
     }
 
     @Override

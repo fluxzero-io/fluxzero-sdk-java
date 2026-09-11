@@ -17,7 +17,10 @@
 package io.fluxzero.sdk.modeling;
 
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
+import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 
 import java.lang.reflect.Executable;
 import java.util.ArrayList;
@@ -25,11 +28,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -37,6 +42,261 @@ import java.util.function.Supplier;
  * Instances used only as a handler read context leave the evaluation and completion portions empty.
  */
 public final class CommitAttempt {
+    private static final ThreadLocal<CommitAttempt> graphInvocation = new ThreadLocal<>();
+    private volatile CommitAttempt activeGraphInvocation;
+    private List<GraphReadProof> graphCaptures;
+    private ModelAncestorResolver.AncestorReads ancestorReads;
+    private CommitAttempt graphReadOwner;
+    private Map<String, Class<?>> graphReadTypes;
+    private Set<String> graphApplyReads;
+    private Set<ModelRelationshipRead> graphRelationships;
+    private Set<ModelRelationshipRead> graphApplyRelationships;
+    private long graphReadGeneration;
+
+    void resetGraphReads() {
+        graphReadGeneration++;
+        graphReadTypes = null;
+        graphApplyReads = null;
+        graphRelationships = null;
+        graphApplyRelationships = null;
+    }
+
+    <T> Graph<T> trackGraph(Graph<T> graph, ModelRepository repository) {
+        return graphReadOwner == null ? graph : Graphs.withReadContext(graph,
+                new GraphReadContext(graphReadOwner, graphReadOwner.graphReadGeneration, repository, readStateIndex));
+    }
+
+    record GraphReadContext(CommitAttempt owner, long generation, ModelRepository repository, long boundary) {
+    }
+
+    static <T> Graph<T> historicalGraph(Graph<T> graph) {
+        return graph == null || !(graph instanceof GraphView<?> view)
+               || view.context().readContext() == null ? graph : Graphs.withReadContext(graph, null);
+    }
+
+    void bindGraphReads(CommitAttempt owner) {
+        graphReadOwner = owner;
+        recordAncestorReads(false);
+    }
+
+    /** Retains identity-only proof used to resolve indirect injected Models at this context's pinned boundary. */
+    public CommitAttempt withAncestorReads(ModelAncestorResolver.AncestorReads reads) {
+        if (reads != null && reads.stateIndex() != readStateIndex) {
+            throw new IllegalArgumentException("Ancestor proof must use the loaded context's pinned boundary");
+        }
+        ancestorReads = reads;
+        return this;
+    }
+
+    /** Returns the proof accompanying this context's ancestor selection, or {@code null} for direct targets. */
+    public ModelAncestorResolver.AncestorReads ancestorReads() {
+        return ancestorReads;
+    }
+
+    void recordAncestorReads(boolean apply) {
+        if (ancestorReads == null || graphReadOwner == null) {
+            return;
+        }
+        Set<String> previous = readCollector;
+        if (apply && readCollector == null) {
+            throw new IllegalStateException("Apply ancestor reads require an active apply collector");
+        }
+        if (!apply) {
+            readCollector = null;
+        }
+        try {
+            ancestorReads.modelTypes().forEach((id, type) -> recordGraphValue(this, id, type));
+            ancestorReads.parentCollections().forEach(id -> recordGraphRelationship(this,
+                    new ModelRelationshipRead(id, ModelRelationshipRead.Direction.PARENTS, null)));
+        } finally {
+            readCollector = previous;
+        }
+    }
+
+    static <R> R withGraphReads(CommitAttempt context, Supplier<R> action) {
+        CommitAttempt previous = graphInvocation.get();
+        CommitAttempt owner = context.graphReadOwner;
+        if (owner == null && previous == null) {
+            return action.get();
+        }
+        CommitAttempt previousInvocation = owner == null ? null : owner.activeGraphInvocation;
+        if (owner != null) {
+            owner.activeGraphInvocation = context;
+        }
+        graphInvocation.set(context);
+        try {
+            return action.get();
+        } finally {
+            if (owner != null) {
+                owner.activeGraphInvocation = previousInvocation;
+            }
+            if (previous == null) {
+                graphInvocation.remove();
+            } else {
+                graphInvocation.set(previous);
+            }
+        }
+    }
+
+    static void graphValueRead(GraphView<?> graph) {
+        CommitAttempt context = graphReadContext(graph);
+        if (context == null) {
+            return;
+        }
+        replayGraphReads(graph, graph.context().readProof());
+        recordGraphValue(context, graph.node().data().id(), graph.node().data().type());
+    }
+
+    private static void recordGraphValue(CommitAttempt context, String id, Class<?> type) {
+        CommitAttempt owner = context.graphReadOwner;
+        synchronized (owner) {
+            if (owner.graphReadTypes == null) {
+                owner.graphReadTypes = new LinkedHashMap<>();
+                owner.graphApplyReads = new LinkedHashSet<>();
+            }
+            owner.graphReadTypes.putIfAbsent(id, type);
+            if (context.readCollector != null) {
+                owner.graphApplyReads.add(id);
+            }
+            if (owner.graphCaptures != null) {
+                for (GraphReadProof capture : owner.graphCaptures) {
+                    capture.values.putIfAbsent(id, type);
+                }
+            }
+        }
+    }
+
+    static void graphRelationshipRead(GraphView<?> graph,
+                                     ModelRelationshipRead.Direction direction, String path) {
+        CommitAttempt context = graphReadContext(graph);
+        if (context == null) {
+            return;
+        }
+        replayGraphReads(graph, graph.context().readProof());
+        recordGraphRelationship(context, new ModelRelationshipRead(graph.id().toString(), direction, path));
+    }
+
+    private static void recordGraphRelationship(CommitAttempt context, ModelRelationshipRead read) {
+        CommitAttempt owner = context.graphReadOwner;
+        synchronized (owner) {
+            if (owner.graphRelationships == null) {
+                owner.graphRelationships = new LinkedHashSet<>();
+                owner.graphApplyRelationships = new LinkedHashSet<>();
+            }
+            owner.graphRelationships.add(read);
+            if (context.readCollector != null) {
+                owner.graphApplyRelationships.add(read);
+            }
+            if (owner.graphCaptures != null) {
+                for (GraphReadProof capture : owner.graphCaptures) {
+                    capture.relationships.add(read);
+                }
+            }
+        }
+    }
+
+    static boolean tracksGraph(GraphView<?> graph) {
+        return graphReadContext(graph) != null;
+    }
+
+    static void graphAncestorsRead(GraphView<?> graph, ModelAncestorResolver.AncestorReads reads) {
+        CommitAttempt context = graphReadContext(graph);
+        if (context != null) {
+            if (reads.stateIndex() != graph.stateIndex()) {
+                throw new IllegalStateException("Ancestor traversal changed the pinned Graph boundary");
+            }
+            reads.modelTypes().forEach((id, type) -> recordGraphValue(context, id, type));
+            reads.parentCollections().forEach(id -> recordGraphRelationship(context,
+                    new ModelRelationshipRead(id, ModelRelationshipRead.Direction.PARENTS, null)));
+        }
+    }
+
+    /** Carries reads through cached transformations without running user mappers or predicates a second time. */
+    static final class GraphReadProof {
+        private final CommitAttempt owner;
+        private final long generation;
+        private final Map<String, Class<?>> values = new LinkedHashMap<>();
+        private final Set<ModelRelationshipRead> relationships = new LinkedHashSet<>();
+
+        private GraphReadProof(CommitAttempt owner) {
+            this.owner = owner;
+            generation = owner.graphReadGeneration;
+        }
+    }
+
+    static <T> T captureGraphReads(GraphView<?> graph, Supplier<T> action, Consumer<GraphReadProof> result) {
+        CommitAttempt context = graphReadContext(graph);
+        if (context == null) {
+            return action.get();
+        }
+        GraphReadProof proof = new GraphReadProof(context.graphReadOwner);
+        synchronized (proof.owner) {
+            if (proof.owner.graphCaptures == null) {
+                proof.owner.graphCaptures = new ArrayList<>();
+            }
+            proof.owner.graphCaptures.add(proof);
+        }
+        try {
+            T value = action.get();
+            result.accept(proof);
+            return value;
+        } finally {
+            synchronized (proof.owner) {
+                proof.owner.graphCaptures.remove(proof);
+            }
+        }
+    }
+
+    static void replayGraphReads(GraphView<?> graph, GraphReadProof proof) {
+        if (proof == null) {
+            return;
+        }
+        CommitAttempt context = graphReadContext(graph);
+        if (context != null && proof.owner == context.graphReadOwner
+            && proof.generation == context.graphReadOwner.graphReadGeneration) {
+            synchronized (proof.owner) {
+                proof.values.forEach((id, type) -> recordGraphValue(context, id, type));
+                proof.relationships.forEach(read -> recordGraphRelationship(context, read));
+            }
+        }
+    }
+
+    private static CommitAttempt graphReadContext(GraphView<?> graph) {
+        GraphReadContext provenance = graph.context().readContext();
+        if (provenance == null) {
+            return null;
+        }
+        CommitAttempt context = graphInvocation.get();
+        if (context != null && context.graphReadOwner == null) {
+            return null;
+        }
+        if (context == null) {
+            // Joined parallel scans still belong to the synchronous invocation that owns this injected Graph.
+            // Work escaping that invocation cannot silently attach reads to a completed evaluation.
+            context = provenance.owner().activeGraphInvocation;
+        }
+        if (context == null) {
+            return null;
+        }
+        if (provenance.owner() != context.graphReadOwner
+            || provenance.generation() != context.graphReadOwner.graphReadGeneration
+            || provenance.repository() != graph.state().repository()
+            || graph.state().boundary().before()
+            || graph.state().boundary().commitId() != null || graph.state().boundary().eventIndex() != null
+            || provenance.boundary() != graph.stateIndex()) {
+            return null;
+        }
+        return context;
+    }
+
+    /** Returns the relationship dependencies relevant to the policy; ACCEPT excludes assertion-only reads. */
+    public List<ModelRelationshipRead> readRelationships(ModelConflictPolicy policy) {
+        Set<ModelRelationshipRead> reads =
+                ModelConflictPolicy.resolve(policy) == ModelConflictPolicy.ACCEPT
+                        ? graphApplyRelationships : graphRelationships;
+        return reads == null ? List.of() : List.copyOf(reads);
+    }
+
     private static final MutationPlan.Resolution EMPTY_RESOLUTION =
             new MutationPlan.Resolution(List.of(), List.of());
 
@@ -305,6 +565,8 @@ public final class CommitAttempt {
         result.readStateIndex = readStateIndex;
         result.resolution = resolution;
         result.entities = immutable(updated);
+        result.graphReadOwner = graphReadOwner;
+        result.ancestorReads = ancestorReads;
         return result;
     }
 
@@ -326,6 +588,17 @@ public final class CommitAttempt {
         readModelIds = List.copyOf(readIds);
         applyReadModelIds = readIds == applyReadIds ? readModelIds : List.copyOf(applyReadIds);
         readModelTypes = Map.copyOf(readTypes);
+        if (graphReadTypes != null) {
+            LinkedHashSet<String> combinedReads = new LinkedHashSet<>(readModelIds);
+            combinedReads.addAll(graphReadTypes.keySet());
+            readModelIds = List.copyOf(combinedReads);
+            LinkedHashSet<String> combinedApplyReads = new LinkedHashSet<>(applyReadModelIds);
+            combinedApplyReads.addAll(graphApplyReads);
+            applyReadModelIds = List.copyOf(combinedApplyReads);
+            LinkedHashMap<String, Class<?>> combinedTypes = new LinkedHashMap<>(readModelTypes);
+            graphReadTypes.forEach(combinedTypes::putIfAbsent);
+            readModelTypes = Map.copyOf(combinedTypes);
+        }
         this.steps = List.copyOf(steps);
         ArrayList<Change> ordered = new ArrayList<>();
         for (Step step : this.steps) {

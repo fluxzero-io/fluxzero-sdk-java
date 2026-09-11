@@ -489,6 +489,19 @@ and requires create-only assertions when appropriate. ACCEPT validates apply dep
 assertion-/interceptor-only reads; RETRY and FAIL validate the full evaluation readset. Conflict-free eligible Runtime
 commits use the same cached-head/atomic-boundary optimization regardless of policy.
 
+Injected Graph reads also count: values/type/alias/revision reads protect Model heads; child collections (including empty
+ones), parent navigation and indirect ancestor selection protect inspected relationships. Scans include rejected candidates.
+Do not replace graph invariants with an extra guard Model solely to detect membership races on a matching post-RC8
+SDK/Runtime. RETRY reevaluates on a fresh pinned boundary; FAIL rejects; ACCEPT retains only apply dependencies through
+every rebase. Complete reads within evaluation, including joined parallel scans. Historical views, external search and
+unrelated repository reads are not implicitly transactional. Types sharing a path share a conservative dependency;
+remapped paths protect all source paths, and physical erasure invalidates older Graph reads namespace-wide.
+Upgrade all Runtime instances first: older Runtimes reject the new relationship-aware wire request. Eligible reads at
+the exact cached namespace boundary retain atomic-CAS planning; older reads need database validation. Head-only writes
+remain batchable. Physical cleanup advances the namespace and an identity-free cleanup position. Stored Model
+payload/history formats are unchanged. Custom repositories must return SDK views such as `Graphs.compose` for
+transactional navigation; opaque custom Graphs fail explicitly, while ordinary custom reads remain supported.
+
 ## Deletion
 
 - Returning `null` from `@Apply` is logical deletion and preserves history.

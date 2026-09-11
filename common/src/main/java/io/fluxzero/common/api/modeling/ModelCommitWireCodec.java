@@ -213,7 +213,7 @@ public final class ModelCommitWireCodec {
             if (!(request instanceof CommitModels commit)) {
                 return false;
             }
-            if (commit.isMigration()) {
+            if (commit.isMigration() || !commit.getReadRelationships().isEmpty()) {
                 return false;
             }
             ModelCommitTarget target = commit.singleTarget();

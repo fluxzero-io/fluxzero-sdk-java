@@ -36,6 +36,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitConflictsTest {
 
     @Test
+    void erasedReadsConflictOnlyAfterTheirBoundaryAndMergeExistingEvidence() {
+        CommitModels commit = commit(ModelConflictPolicy.RETRY, List.of("erased", "fresh-absence", "live", "erased"));
+        var existing = List.of(new ModelCommitConflict("erased", 11L, 12L));
+        var positions = Map.of("erased", 14L, "fresh-absence", 10L);
+        assertEquals(List.of(new ModelCommitConflict("erased", 14L, 12L)),
+                ModelCommitConflicts.detectErasedReads(commit, existing, id -> positions.getOrDefault(id, -1L)));
+        assertTrue(ModelCommitConflicts.detectErasedReads(commit, List.of(), id -> 10L).isEmpty());
+    }
+
+    @Test
     void detectsAndDeduplicatesReadAndSequenceConflictsInRequestOrder() {
         CommitModels commit = commit(
                 ModelConflictPolicy.FAIL,

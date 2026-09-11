@@ -255,9 +255,32 @@ and interceptors during rebase. RETRY and FAIL retain the full evaluation readse
 the same cached-head planning and atomic namespace-boundary check regardless of policy; a failed boundary check falls
 back to current-head validation under the state lock.
 
-Apply-ancestor dependencies include the loaded roots that determined their selection, including the absence of a
-nullable ancestor. A concurrent reparenting therefore still triggers rebase even if the old ancestor's own value is
+Apply-ancestor dependencies include the relationship collections that determined their selection, including intermediate
+ancestors and the absence of a nullable ancestor. A concurrent reparenting therefore still triggers rebase even if the old ancestor's own value is
 unchanged; assertions are not rerun to reload these roots.
+
+An injected `Graph` contributes its inspected Model values and relationship collections, not every eagerly loaded node.
+`children("children", Child.class)` protects that membership even when empty: another writer cannot bypass a capacity
+assertion merely by creating a different child ID. Filters and scans protect examined candidates, including rejected
+values and negative results. Cached transformations and joined parallel scans retain their evidence; work escaping the
+synchronous evaluation does not. Explicit history, external search and unrelated repository reads are not live dependencies.
+
+LocalClient and JDBC validate those reads atomically with the write. RETRY reruns evaluation at a fresh pinned snapshot;
+FAIL rejects. ACCEPT excludes assertion-/interceptor-only reads and preserves apply dependencies through repeated rebases.
+Path-scoped reads conservatively include every child type at that path; remapped paths include all paths of their source.
+Physical erasure invalidates older Graph reads namespace-wide because it removes historical evidence. Physical cleanup
+advances the namespace atomically, also protecting reads made after erasure preparation. Stale erased-value reads
+conflict, while fresh reads of their absence remain valid. Eligible reads at the exact
+cached namespace boundary retain JDBC's atomic-CAS route; older reads require database validation. Head-only writes
+remain batchable, while relationship writers separate dependent readers into ordered waves.
+
+Custom repositories must construct SDK Graph views (for example with `Graphs.compose`) for transactional navigation.
+Opaque custom Graph implementations fail explicitly; ordinary non-transactional custom reads remain supported.
+
+Upgrade the Runtime before using the matching post-RC8 SDK: relationship-aware commits use a distinct wire request that
+older Runtimes reject rather than ignore. Upgrade all Runtime instances first. Existing SDK requests remain supported.
+New JDBC indexes and an identity-free erasure-cleanup position do not change stored Model payloads or require
+graph materialization to record read dependencies.
 
 This is intentionally not the organizing principle of the model API. It is an optional consistency policy for the
 uncommon case where multiple writers race on the same model.

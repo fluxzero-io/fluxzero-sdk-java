@@ -3866,6 +3866,34 @@ rebasing, not Models read solely by assertions or interceptors. `FAIL` and `RETR
 The loaded roots used to select an apply ancestor also count as apply dependencies, including nullable missing ancestors.
 This validation does not turn arbitrary external searches or unrelated repository reads into transactional reads.
 
+Graphs injected into a Model evaluation contribute the state actually inspected: `get()` and revision/alias/type reads
+protect the Model head; `children(path, type)` protects membership at that persisted path even when empty; parent and
+ancestor navigation protects the relationship selections that determine the result. Filters/scans also protect rejected
+candidates and negative results. Loading a Graph does not by itself make every descendant a dependency. Cached views and
+joined parallel scans preserve the same evidence, without rerunning user predicates or mappers. Reads must complete
+within evaluation; detached work after a handler returns is not a transactional read. Explicit history (`previous`,
+`atStateIndex`, event playback), external search and unrelated repository reads remain outside this live readset.
+
+Membership validation is atomic in LocalClient and JDBC, including add/remove/reparent. `RETRY` reevaluates at a fresh
+pinned boundary, `FAIL` rejects, and `ACCEPT` only rebases for apply dependencies, retaining them through every rebase.
+Different child types on the same path share a conservative dependency; remapped paths protect all direct paths of that
+source. Physical erasure conservatively invalidates older Graph reads in the namespace because their historical evidence
+is removed. History and relationship cleanup advance the namespace atomically, including when a Graph was read after
+deletion preparation. Stale reads of erased values also conflict; fresh reads of their absence remain valid.
+Eligible relationship reads at the exact cached namespace boundary retain JDBC's cached-head/atomic-CAS route;
+older reads require database validation. Head-only writes remain batchable; relationship writers separate dependent
+readers into ordered waves. Additional validation has a cost and is not a zero-overhead optimization.
+
+Custom `ModelRepository` implementations must return SDK Graph views (for example, through `Graphs.compose`) for
+transactional navigation. An opaque custom `Graph` fails explicitly instead of silently losing dependencies or
+materializing its entire graph. Ordinary non-transactional custom Graph reads retain their existing behavior.
+
+This requires matching relationship-read-capable SDK and Runtime versions (after RC8). Such commits use the distinct
+`commitModelsWithRelationships` wire type so an older Runtime rejects them instead of silently dropping dependencies.
+Deploy the Runtime first. Older SDK requests remain supported; ordinary commits retain their existing compact wire
+format. Upgrade all Runtime instances first. JDBC adds indexes and an identity-free erasure-cleanup position,
+not a new Model payload/history format or a rewrite of existing Models.
+
 With `fluxzero.defaults.version >= 2026.09.10`, or `fluxzero.model.automaticRouting=true`, a command with one statically
 unambiguous, non-collection Model apply gets a routing fallback based on its canonical Model ID, including typed-ID
 affixes and parent scope. No Model is loaded and no apply is executed to find that ID. Intercepted, dynamic and

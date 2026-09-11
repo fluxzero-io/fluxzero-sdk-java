@@ -22,6 +22,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsWithRelationships;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
@@ -103,6 +104,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -849,6 +851,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Class<A> ancestorType,
             ModelReadBoundary boundary,
             boolean all) {
+        return loadAncestorGraphs(modelId, modelType, ancestorType, boundary, all, null);
+    }
+
+    @Override
+    public <A> Optional<Graph<A>> loadAncestorGraph(
+            String modelId, Class<?> modelType, Class<A> ancestorType, ModelReadBoundary boundary,
+            Consumer<ModelAncestorResolver.AncestorReads> observer) {
+        return loadAncestorGraphs(modelId, modelType, ancestorType, boundary, false, observer).stream().findFirst();
+    }
+
+    private <A> List<Graph<A>> loadAncestorGraphs(
+            String modelId, Class<?> modelType, Class<A> ancestorType, ModelReadBoundary boundary, boolean all,
+            Consumer<ModelAncestorResolver.AncestorReads> observer) {
         modelName(modelType);
         modelName(ancestorType);
         EntityMetadata sourceMetadata = EntityMetadata.validate(modelType);
@@ -888,6 +903,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 stagedValues, boundary.includeMessageBatch(),
                 false, !all, all,
                 UNBOUNDED, UNBOUNDED);
+        if (observer != null) {
+            observer.accept(resolved.reads());
+        }
         List<MutationPlan.ResolvedModel> targets =
                 resolved.resolution().models().stream()
                         .filter(candidate ->
@@ -1175,7 +1193,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         : null,
                 requireAncestors, closestAncestorsOnly, allowMultipleAncestors,
                 maxDepth, maxModels);
-        return new AncestorResolution(result.stateIndex(), result.resolution());
+        return new AncestorResolution(result.stateIndex(), result.resolution(), result.reads());
     }
 
     /**
@@ -1417,7 +1435,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private record AncestorResolution(
             long stateIndex,
-            MutationPlan.Resolution resolution) {
+            MutationPlan.Resolution resolution,
+            ModelAncestorResolver.AncestorReads reads) {
     }
 
     /** Receives a cache value and the boundaries that prove it current. */
@@ -1814,6 +1833,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(conflictPolicy),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
                     possibleDuplicate, migration);
+            var relationshipReads = evaluation.readRelationships(conflictPolicy);
+            if (!relationshipReads.isEmpty()) {
+                commit = new CommitModelsWithRelationships(commit, relationshipReads);
+            }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
 
@@ -1836,6 +1859,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     candidate.getConflictPolicy(), original.commit().getGuarantee(),
                     original.commit().isPossibleDuplicate(),
                     original.commit().isMigration());
+            if (!candidate.getReadRelationships().isEmpty()) {
+                commit = new CommitModelsWithRelationships(
+                        commit, candidate.getReadRelationships());
+            }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }
 

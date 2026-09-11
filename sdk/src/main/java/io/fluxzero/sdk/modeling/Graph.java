@@ -53,6 +53,17 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * is itself a graph view, so root, parent, history and update operations remain available without exposing the
  * persistence-only {@link Entity} wrapper.
  * <p>
+ * When injected into a Model evaluation, inspected values and relationship collections become conflict dependencies.
+ * Empty child collections and examined/rejected filter candidates count too; merely loading a graph does not protect
+ * every descendant. Cached transformations retain their read evidence. Reads, including joined parallel scans, must
+ * finish within the synchronous evaluation. Explicit historical views and unrelated repository/search reads are not
+ * implicitly live dependencies. Membership protection is path-scoped (conservative across types); remapped paths
+ * protect all direct paths of their source. Matching relationship-read-capable SDK and Runtime versions are required.
+ * RETRY/FAIL validate the full evaluation readset; ACCEPT preserves only apply dependencies through rebase.
+ * Custom repositories must return SDK views (e.g. {@link Graphs#compose(String, long, java.util.Map, java.util.List,
+ * io.fluxzero.sdk.persisting.repository.ModelRepository, boolean)}) for transactional navigation. Opaque custom Graph
+ * implementations fail explicitly on that path; ordinary non-transactional reads remain supported.
+ * <p>
  * As the sole parameter of an event or notification handler, a graph subscribes to durable changes of that root and
  * any descendant. The handler runs once per affected root. {@link #previous()} then returns the complete graph directly
  * before the change; a child move therefore invokes the handler once for the old root and once for the new root. One

@@ -21,6 +21,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
@@ -38,12 +39,14 @@ import java.util.Deque;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -92,8 +95,9 @@ public final class Graphs {
 
     /** Creates a graph that reuses all values loaded for the same handler boundary. */
     static <T> Graph<T> lazy(Entity<T> entity, CommitAttempt context, ModelRepository repository) {
-        return GraphState.entity(entity, context.readStateIndex(), repository, context.entities(), false, true,
-                                 handlerBoundary(context.readStateIndex()), Map.of()).root();
+        return context.trackGraph(GraphState.entity(
+                entity, context.readStateIndex(), repository, context.entities(), false, true,
+                handlerBoundary(context.readStateIndex()), Map.of()).root(), repository);
     }
 
     private static ModelReadBoundary handlerBoundary(long stateIndex) {
@@ -316,6 +320,18 @@ public final class Graphs {
         return source.context().withContext(values).view(source.node());
     }
 
+    static <T> Graph<T> withReadContext(Graph<T> graph, CommitAttempt.GraphReadContext reads) {
+        if (!(graph instanceof GraphView<?>)) {
+            if (reads != null) {
+                throw new UnsupportedOperationException("Transactional Graph navigation requires SDK Graph views; "
+                        + "custom ModelRepository implementations can construct them with Graphs.compose");
+            }
+            return graph;
+        }
+        GraphView<T> source = adapt(graph);
+        return source.context().withReadContext(reads).view(source.node());
+    }
+
     /** Returns a graph view containing matching branches and the ancestors required to reach them. */
     public static <T> Graph<T> filterBranches(Graph<T> graph, Predicate<? super Graph<?>> predicate) {
         Objects.requireNonNull(predicate, "predicate");
@@ -325,20 +341,24 @@ public final class Graphs {
         }
         Set<GraphState.Node> retained = identitySet();
         Set<GraphState.Node> inside = identitySet();
-        source.stream().map(Graphs::asView).forEach(view -> {
-            boolean matches = view.isPresent() && predicate.test(view);
-            boolean inBranch = matches || view.node().parent() != null && inside.contains(view.node().parent());
-            if (inBranch) {
-                inside.add(view.node());
-                retained.add(view.node());
-            }
-            if (matches) {
-                for (GraphState.Node parent = view.node().parent(); parent != null; parent = parent.parent()) {
-                    retained.add(parent);
+        CommitAttempt.GraphReadProof[] proof = new CommitAttempt.GraphReadProof[1];
+        CommitAttempt.captureGraphReads(source, () -> {
+            source.stream().map(Graphs::asView).forEach(view -> {
+                boolean matches = view.isPresent() && predicate.test(view);
+                boolean inBranch = matches || view.node().parent() != null && inside.contains(view.node().parent());
+                if (inBranch) {
+                    inside.add(view.node());
+                    retained.add(view.node());
                 }
-            }
-        });
-        return source.context().retain(retained, predicate).view(source.node());
+                if (matches) {
+                    for (GraphState.Node parent = view.node().parent(); parent != null; parent = parent.parent()) {
+                        retained.add(parent);
+                    }
+                }
+            });
+            return null;
+        }, reads -> proof[0] = reads);
+        return source.context().retain(retained, predicate, proof[0]).view(source.node());
     }
 
     /** Returns a lazy immutable view containing only selected serialized relationship paths. */
@@ -371,7 +391,7 @@ public final class Graphs {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> GraphView<T> adapt(Graph<T> graph) {
+    static <T> GraphView<T> adapt(Graph<T> graph) {
         Objects.requireNonNull(graph, "graph");
         return graph instanceof GraphView<?> view
                 ? (GraphView<T>) view : GraphState.external(graph).rootView();
@@ -998,8 +1018,9 @@ final class GraphState {
     }
 
     static final class ViewContext {
+        private static final Function<String, String> IDENTITY_PATH = Function.identity();
         private final GraphState state;
-        private final Function<Node, Object> value;
+        private final BiFunction<Node, CommitAttempt.GraphReadContext, Object> value;
         private final Function<String, String> path;
         private final List<?> values;
         private final ViewContext contextFallback;
@@ -1007,13 +1028,19 @@ final class GraphState {
         private final Map<Node, Set<String>> selection;
         private final boolean hideEmpty;
         private final Graph<?> previousRoot;
-        private final UnaryOperator<Graph<?>> decorator;
+        private final BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator;
+        private final boolean mappedValues;
+        private final CommitAttempt.GraphReadProof readProof;
+        private final CommitAttempt.GraphReadContext readContext;
         private final Map<Node, GraphView<?>> views = new IdentityHashMap<>();
 
         private ViewContext(
-                GraphState state, Function<Node, Object> value, Function<String, String> path, List<?> values,
+                GraphState state, BiFunction<Node, CommitAttempt.GraphReadContext, Object> value,
+                Function<String, String> path, List<?> values,
                 ViewContext contextFallback, Set<Node> retained, Map<Node, Set<String>> selection,
-                boolean hideEmpty, Graph<?> previousRoot, UnaryOperator<Graph<?>> decorator) {
+                boolean hideEmpty, Graph<?> previousRoot,
+                BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator,
+                boolean mappedValues, CommitAttempt.GraphReadProof readProof, CommitAttempt.GraphReadContext readContext) {
             this.state = state;
             this.value = value;
             this.path = path;
@@ -1024,11 +1051,44 @@ final class GraphState {
             this.hideEmpty = hideEmpty;
             this.previousRoot = previousRoot;
             this.decorator = decorator;
+            this.mappedValues = mappedValues;
+            this.readProof = readProof;
+            this.readContext = readContext;
         }
 
         static ViewContext canonical(GraphState state) {
-            return new ViewContext(state, node -> node.data().value(), Function.identity(), List.of(), null, null, null,
-                                   false, null, UnaryOperator.identity());
+            return new ViewContext(state, (node, reads) -> node.data().value(), IDENTITY_PATH, List.of(), null, null, null,
+                                   false, null, (graph, reads) -> graph, false, null, null);
+        }
+
+        CommitAttempt.GraphReadProof readProof() {
+            return readProof;
+        }
+
+        CommitAttempt.GraphReadContext readContext() {
+            return readContext;
+        }
+
+        ViewContext withReadContext(CommitAttempt.GraphReadContext reads) {
+            if (reads == readContext) {
+                return this;
+            }
+            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previousRoot,
+                    (graph, actualReads) -> Graphs.withReadContext(Graphs.cast(decorator.apply(graph, actualReads)), actualReads),
+                    mappedValues, readProof, reads);
+        }
+
+        boolean mappedValues() {
+            return mappedValues;
+        }
+
+        String readPath(String requested) {
+            // A view may merge/remap persisted paths. All paths is a safe bounded dependency when inversion is unknown.
+            return pathRemapped() ? null : requested;
+        }
+
+        private boolean pathRemapped() {
+            return path != IDENTITY_PATH;
         }
 
         synchronized <T> GraphView<T> view(Node node) {
@@ -1038,7 +1098,7 @@ final class GraphState {
         }
 
         Object value(Node node) {
-            return value.apply(node);
+            return value.apply(node, readContext);
         }
 
         String path(Node node) {
@@ -1079,34 +1139,42 @@ final class GraphState {
         }
 
         Graph<?> decorate(Graph<?> graph) {
-            return decorator.apply(graph);
+            return decorator.apply(graph, readContext);
+        }
+
+        Graph<?> decorateHistorical(Graph<?> graph) {
+            return decorator.apply(graph, null);
         }
 
         ViewContext mapValues(Function<? super Graph<?>, ?> mapper) {
             ViewContext source = this;
-            return new ViewContext(state, node -> mapper.apply(source.view(node)), path, values, contextFallback,
+            return new ViewContext(state, (node, reads) -> mapper.apply(source.withReadContext(reads).view(node)), path, values, contextFallback,
                                    retained, selection, hideEmpty, previousRoot,
-                                   graph -> Graphs.mapValues(Graphs.cast(decorator.apply(graph)), mapper));
+                                   (graph, reads) -> Graphs.mapValues(Graphs.cast(decorator.apply(graph, reads)), mapper), true, readProof,
+                                   readContext);
         }
 
         ViewContext remapPaths(UnaryOperator<String> mapper, Map<String, String> overrides) {
             Function<String, String> previous = path;
             return new ViewContext(state, value, raw -> mapper.apply(previous.apply(raw)), values, contextFallback,
                                    retained, selection, hideEmpty, previousRoot,
-                                   graph -> Graphs.remapPaths(Graphs.cast(decorator.apply(graph)), overrides));
+                                   (graph, reads) -> Graphs.remapPaths(Graphs.cast(decorator.apply(graph, reads)), overrides),
+                                   mappedValues, readProof, readContext);
         }
 
         ViewContext withContext(Collection<?> added) {
             List<?> stable = List.copyOf(added);
             return new ViewContext(state, value, path, stable, this, retained, selection, hideEmpty, previousRoot,
-                                   graph -> Graphs.withContext(Graphs.cast(decorator.apply(graph)), stable));
+                                   (graph, reads) -> Graphs.withContext(Graphs.cast(decorator.apply(graph, reads)), stable),
+                                   mappedValues, readProof, readContext);
         }
 
-        ViewContext retain(Set<Node> retained, Predicate<? super Graph<?>> predicate) {
+        ViewContext retain(Set<Node> retained, Predicate<? super Graph<?>> predicate, CommitAttempt.GraphReadProof proof) {
             ViewContext source = this;
-            return new ViewContext(state, node -> retained.contains(node) ? source.value(node) : null, path, values,
+            return new ViewContext(state, (node, reads) -> retained.contains(node) ? source.value.apply(node, reads) : null, path, values,
                                    contextFallback, retained, selection, true, previousRoot,
-                                   graph -> Graphs.filterBranches(Graphs.cast(decorator.apply(graph)), predicate));
+                                   (graph, reads) -> Graphs.filterBranches(Graphs.cast(decorator.apply(graph, reads)), predicate),
+                                   mappedValues, proof == null ? readProof : proof, readContext);
         }
 
         ViewContext select(Set<String> selected) {
@@ -1115,7 +1183,8 @@ final class GraphState {
             Set<Node> visible = Collections.newSetFromMap(new IdentityHashMap<>());
             visible.addAll(byNode.keySet());
             return new ViewContext(state, value, path, values, contextFallback, visible, byNode, hideEmpty, previousRoot,
-                                   graph -> Graphs.selectPaths(Graphs.cast(decorator.apply(graph)), selected));
+                                   (graph, reads) -> Graphs.selectPaths(Graphs.cast(decorator.apply(graph, reads)), selected),
+                                   mappedValues, readProof, readContext);
         }
 
         private void collectSelection(Node node, Set<String> selected, Map<Node, Set<String>> byNode) {
@@ -1130,7 +1199,7 @@ final class GraphState {
 
         ViewContext withPrevious(Graph<?> previous) {
             return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previous,
-                                   UnaryOperator.identity());
+                                   (graph, reads) -> graph, mappedValues, readProof, readContext);
         }
 
         Graph<?> previous(Node node) {
@@ -1173,6 +1242,7 @@ final class GraphView<T> implements Graph<T> {
     private final GraphState.Node node;
     private final GraphState.ViewContext context;
     private volatile List<Graph<?>> directParents;
+    private CommitAttempt.GraphReadProof valueReadProof;
     private volatile boolean valueResolved;
     private T value;
 
@@ -1204,11 +1274,15 @@ final class GraphView<T> implements Graph<T> {
         if (!valueResolved) {
             synchronized (this) {
                 if (!valueResolved) {
-                    value = (T) context.value(node);
+                    value = (T) (context.mappedValues()
+                            ? CommitAttempt.captureGraphReads(this, () -> context.value(node), proof -> valueReadProof = proof)
+                            : context.value(node));
                     valueResolved = true;
                 }
             }
         }
+        CommitAttempt.graphValueRead(this);
+        CommitAttempt.replayGraphReads(this, valueReadProof);
         return value;
     }
 
@@ -1220,6 +1294,7 @@ final class GraphView<T> implements Graph<T> {
     @Override
     @SuppressWarnings("unchecked")
     public Class<T> type() {
+        CommitAttempt.graphValueRead(this);
         return (Class<T>) node.data().type();
     }
 
@@ -1227,6 +1302,7 @@ final class GraphView<T> implements Graph<T> {
     public Collection<?> aliases() {
         Entity<?> entity = node.data().entity();
         Object value = node.data().value();
+        CommitAttempt.graphValueRead(this);
         return entity != null ? entity.aliases()
                 : value == null ? List.of() : EntityMetadata.of(type()).aliases(value);
     }
@@ -1238,6 +1314,8 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public String relationshipPath() {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         return context.path(node);
     }
 
@@ -1248,6 +1326,7 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public long revisionStateIndex() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity instanceof ModelRoot<?> root ? root.stateIndex()
                 : entity != null ? stateIndex() : node.data().durable().revisionStateIndex();
@@ -1255,24 +1334,28 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public String lastEventId() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().lastEventId() : entity.lastEventId();
     }
 
     @Override
     public Long lastEventIndex() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().lastEventIndex() : entity.lastEventIndex();
     }
 
     @Override
     public long sequenceNumber() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().sequenceNumber() : entity.sequenceNumber();
     }
 
     @Override
     public Instant timestamp() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().timestamp() : entity.timestamp();
     }
@@ -1282,6 +1365,8 @@ final class GraphView<T> implements Graph<T> {
         if (node.parent() != null) {
             GraphState.Node result = node;
             while (result.parent() != null) {
+                CommitAttempt.graphRelationshipRead(context.view(result),
+                        ModelRelationshipRead.Direction.PARENTS, null);
                 result = result.parent();
             }
             return context.view(result);
@@ -1291,6 +1376,8 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public Optional<Graph<?>> parent() {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         if (node.parent() != null) {
             return Optional.of(context.view(node.parent()));
         }
@@ -1306,6 +1393,8 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public List<Graph<?>> parents() {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
         if (node.parent() != null) {
             Graph<?> placed = context.view(node.parent());
@@ -1332,6 +1421,8 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public <P> Optional<Graph<P>> parent(Class<P> parentType) {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         if (node.parent() != null) {
             Graph<?> placed = context.view(node.parent());
             if (parentType.isAssignableFrom(placed.type())) {
@@ -1352,26 +1443,25 @@ final class GraphView<T> implements Graph<T> {
         Objects.requireNonNull(ancestorType, "ancestorType");
         GraphState.Node placed = node;
         while (placed != null) {
+            CommitAttempt.graphValueRead(context.view(placed));
             if (ancestorType.isAssignableFrom(placed.data().type())) {
                 return Optional.of(Graphs.cast(context.view(placed)));
             }
+            CommitAttempt.graphRelationshipRead(context.view(placed),
+                    ModelRelationshipRead.Direction.PARENTS, null);
             placed = placed.parent();
         }
         GraphState.Identity identity = state.identity();
         if (identity != null && EntityMetadata.of(type()).isModel()
             && state.repository() instanceof ModelAncestorResolver resolver) {
-            Optional<Graph<A>> resolved = resolver.loadAncestorGraph(
-                    identity.repositoryId(), identity.type(), ancestorType,
-                    state.boundary());
+            Optional<Graph<A>> resolved = resolveAncestor(resolver, identity.repositoryId(), identity.type(), ancestorType);
             if (resolved.isPresent()) {
                 return resolved.map(graph -> Graphs.cast(context.decorate(graph)));
             }
             node.data().entity();
             String resolvedId = node.data().id();
             if (identity.detachedLookup()) {
-                resolved = resolver.loadAncestorGraph(
-                        resolvedId, identity.type(), ancestorType,
-                        state.boundary());
+                resolved = resolveAncestor(resolver, resolvedId, identity.type(), ancestorType);
                 if (resolved.isPresent()) {
                     return resolved.map(graph -> Graphs.cast(context.decorate(graph)));
                 }
@@ -1401,17 +1491,61 @@ final class GraphView<T> implements Graph<T> {
         return Optional.empty();
     }
 
+    private <A> Optional<Graph<A>> resolveAncestor(
+            ModelAncestorResolver resolver, String id, Class<?> type, Class<A> ancestorType) {
+        if (!CommitAttempt.tracksGraph(this)) {
+            return resolver.loadAncestorGraph(id, type, ancestorType, state.boundary());
+        }
+        boolean[] observed = {false};
+        Optional<Graph<A>> result = resolver.loadAncestorGraph(id, type, ancestorType, state.boundary(), reads -> {
+            CommitAttempt.graphAncestorsRead(this, reads);
+            observed[0] = true;
+        });
+        if (!observed[0]) {
+            // Preserve custom resolvers. Repositories without identity-only proof use the existing parent fallback.
+            List<Graph<?>> frontier = List.of(this);
+            Set<Object> visited = new HashSet<>();
+            while (!frontier.isEmpty()) {
+                List<Graph<?>> next = new ArrayList<>();
+                for (Graph<?> candidate : frontier) {
+                    if (visited.add(candidate.id())) {
+                        next.addAll(candidate.parents());
+                    }
+                }
+                frontier = next;
+            }
+        }
+        return result;
+    }
+
     @Override
     public List<Graph<?>> children() {
+        return childrenAtPath(null);
+    }
+
+    private List<Graph<?>> childrenAtPath(String path) {
         if (!state.complete()) {
-            return expanded().children();
+            Graph<?> expanded = expanded();
+            if (expanded instanceof GraphView<?> view) {
+                return view.childrenAtPath(path);
+            }
+            return path == null ? expanded.children() : expanded.children().stream()
+                    .filter(child -> Objects.equals(path, child.relationshipPath())).toList();
         }
-        var children = context.children(node).stream().<Graph<?>>map(context::view);
-        return (context.hideEmpty() ? children.filter(Graph::isPresent) : children).toList();
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.CHILDREN, context.readPath(path));
+        var children = context.children(node).stream();
+        if (path != null) {
+            children = children.filter(child -> Objects.equals(path, context.path(child)));
+        }
+        var views = children.<Graph<?>>map(context::view);
+        return (context.hideEmpty() ? views.filter(Graph::isPresent) : views).toList();
     }
 
     @Override
     public List<String> childPaths() {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.CHILDREN, null);
         return state.complete() ? context.childPaths(node) : expanded().childPaths();
     }
 
@@ -1419,7 +1553,8 @@ final class GraphView<T> implements Graph<T> {
     public <C> List<Graph<C>> children(Class<C> childType) {
         LinkedHashMap<String, List<Graph<C>>> byPath = new LinkedHashMap<>();
         children().stream().filter(child -> childType.isAssignableFrom(child.type())).map(Graphs::<C>cast)
-                .forEach(child -> byPath.computeIfAbsent(child.relationshipPath(), ignored -> new ArrayList<>()).add(child));
+                .forEach(child -> byPath.computeIfAbsent(viewPath(child),
+                        ignored -> new ArrayList<>()).add(child));
         if (byPath.size() > 1) {
             throw new IllegalStateException("Model %s has %s children at multiple paths %s; request an explicit path"
                                                     .formatted(id(), childType.getName(), byPath.keySet()));
@@ -1429,8 +1564,12 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public <C> List<Graph<C>> children(String path, Class<C> childType) {
-        return children().stream().filter(child -> Objects.equals(path, child.relationshipPath()))
+        return childrenAtPath(path).stream().filter(child -> Objects.equals(path, viewPath(child)))
                 .filter(child -> childType.isAssignableFrom(child.type())).map(Graphs::<C>cast).toList();
+    }
+
+    private static String viewPath(Graph<?> graph) {
+        return graph instanceof GraphView<?> view ? view.context.path(view.node) : graph.relationshipPath();
     }
 
     @Override
@@ -1585,16 +1724,16 @@ final class GraphView<T> implements Graph<T> {
     public Graph<T> previous() {
         Graph<?> explicit = context.previous(node);
         if (explicit != null) {
-            return Graphs.cast(explicit);
+            return CommitAttempt.historicalGraph(Graphs.cast(explicit));
         }
         if (node.data().previousStateIndex() != null && node == state.rootNode()) {
-            return Graphs.cast(context.decorate(state.repository().loadGraphAt(
-                    id().toString(), type(), node.data().previousStateIndex(), Graph.Options.DEFAULT)));
+            return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(
+                    id().toString(), node.data().type(), node.data().previousStateIndex(), Graph.Options.DEFAULT))));
         }
         Entity<T> entity = castEntity(node.data().entity());
         if (entity == null) {
             Graph<T> previous = Graphs.<T>cast(node.data().durable()).previous();
-            return previous == null ? null : Graphs.cast(context.decorate(previous));
+            return previous == null ? null : CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(previous)));
         }
         Entity<T> previous = entity.previous();
         if (previous == null) {
@@ -1611,7 +1750,7 @@ final class GraphView<T> implements Graph<T> {
         Graph<T> result = GraphState.entity(
                 previous, currentStateIndex, state.repository(), Map.of(previous.id().toString(), previous),
                 state.historical(), true, boundary, Map.of()).root();
-        return Graphs.cast(context.decorate(result));
+        return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(result)));
     }
 
     @Override
@@ -1619,8 +1758,8 @@ final class GraphView<T> implements Graph<T> {
         if (stateIndex < -1L) {
             throw new IllegalArgumentException("Graph stateIndex must be at least -1");
         }
-        return Graphs.cast(context.decorate(state.repository().loadGraphAt(
-                id().toString(), type(), stateIndex, Graph.Options.DEFAULT)));
+        return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(
+                id().toString(), node.data().type(), stateIndex, Graph.Options.DEFAULT))));
     }
 
     @Override
@@ -1632,7 +1771,7 @@ final class GraphView<T> implements Graph<T> {
                         previous, previous instanceof ModelRoot<?> root ? root.stateIndex() : state.stateIndex(),
                         state.repository(), Map.of(previous.id().toString(), previous), true, true,
                         ModelReadBoundary.state(state.stateIndex(), false), Map.of()).<T>root());
-        return result.map(graph -> Graphs.cast(context.decorate(graph)));
+        return result.map(graph -> CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(graph))));
     }
 
     @Override
