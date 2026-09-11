@@ -147,6 +147,11 @@ jobs:
         id: maven-build
         run: ./mvnw -B install
 
+      - name: Check executor isolation
+        run: |
+          python3 .github/scripts/check-executor-isolation.test.py
+          python3 .github/scripts/check-executor-isolation.py
+
       - name: Reserve release tag
         env:
           RELEASE_TAG: ${{ steps.tag_version.outputs.new_tag }}

@@ -41,6 +41,11 @@ jobs:
       - name: Run Maven build
         run: ./mvnw -B install
 
+      - name: Check executor isolation
+        run: |
+          python3 .github/scripts/check-executor-isolation.test.py
+          python3 .github/scripts/check-executor-isolation.py
+
       - name: Verify standard Maven publication and release attachments
         run: |
           repository="$RUNNER_TEMP/maven-publication"

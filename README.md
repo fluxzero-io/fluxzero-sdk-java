@@ -6750,6 +6750,8 @@ Key options include:
 
 ### Runtime Data Dispatch Isolation
 
+SDK-controlled Model retry/reevaluation and migration continuations use named virtual workers. CPU-bound bulk serialization, packed Model-event decoding and multi-Model replay use a shared, SDK-owned CPU pool, not the JVM common pool. Existing batching, admission and ordering limits still apply; a virtual thread is not a concurrency limit. Native/forwarded HTTP response processing uses explicit workers too. This does not replace application-supplied executors or the caller-controlled `AggregateEventStream.parallel()` contract. The JDK HTTP/WebSocket implementation can still use its own internal common pool for transport completion; explicit HTTP executors do not eliminate that JDK dependency.
+
 WebSocket connection retries use the historical fixed one-second interval in compatibility mode. With
 `fluxzero.defaults.version >= 2026.09.09`, or an explicit
 `fluxzero.websocket.reconnectBackoff.enabled=true`, consecutive failures instead use a capped exponential ceiling of

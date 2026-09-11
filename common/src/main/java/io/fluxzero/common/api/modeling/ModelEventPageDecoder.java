@@ -19,12 +19,21 @@ package io.fluxzero.common.api.modeling;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.serialization.SerializedMessagePackCodec;
 import io.fluxzero.common.serialization.compression.CompressionAlgorithm;
+import lombok.SneakyThrows;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+
+import static io.fluxzero.common.ObjectUtils.cpuExecutor;
+import static io.fluxzero.common.ObjectUtils.cpuParallelism;
 
 /**
  * Expands the persisted blocks in a canonical model-event page into its logical payloads and stream memberships.
@@ -99,10 +108,7 @@ public final class ModelEventPageDecoder {
             }
         }
         int selected = 0;
-        List<DecodedPayloadBlock> decodedBlocks =
-                payloadBlocks.size() < 8
-                        ? payloadBlocks.stream().map(ModelEventPageDecoder::decodePayloadBlock).toList()
-                        : payloadBlocks.parallelStream().map(ModelEventPageDecoder::decodePayloadBlock).toList();
+        List<DecodedPayloadBlock> decodedBlocks = decodeBlocks(payloadBlocks, ModelEventPageDecoder::decodePayloadBlock);
         for (DecodedPayloadBlock decoded : decodedBlocks) {
             ModelEventPayloadBlock block = decoded.block();
             List<SerializedMessage> messages = decoded.messages();
@@ -166,10 +172,7 @@ public final class ModelEventPageDecoder {
                     storedId, ignored -> new ArrayList<>()).add(ordinal);
             memberships.add(new ArrayList<>(stream.getMemberships()));
         }
-        List<List<ModelStreamBatchDecoder.Entry>> decodedBlocks =
-                blocks.size() < 8
-                        ? blocks.stream().map(ModelStreamBatchDecoder::decode).toList()
-                        : blocks.parallelStream().map(ModelStreamBatchDecoder::decode).toList();
+        List<List<ModelStreamBatchDecoder.Entry>> decodedBlocks = decodeBlocks(blocks, ModelStreamBatchDecoder::decode);
         for (List<ModelStreamBatchDecoder.Entry> block : decodedBlocks) {
             for (ModelStreamBatchDecoder.Entry entry : block) {
                 for (int ordinal : ordinalsByModel.getOrDefault(
@@ -203,6 +206,36 @@ public final class ModelEventPageDecoder {
                             existing.getModelId(), existing.getHead(), List.copyOf(selected)));
         }
         return List.copyOf(expanded);
+    }
+
+    @SneakyThrows
+    private static <T, R> List<R> decodeBlocks(List<T> blocks, Function<T, R> decoder) {
+        if (blocks.size() < 8) {
+            return blocks.stream().map(decoder).toList();
+        }
+        // Keep the caller productive: moving this entire small terminal operation to a worker adds an avoidable hop.
+        // Background chunks never fork parallel streams, even when the caller itself is on an unrelated pool.
+        // Preallocate the list: workers only replace disjoint elements and joins publish their writes.
+        List<R> result = new ArrayList<>(Collections.nCopies(blocks.size(), null));
+        AtomicInteger nextBlock = new AtomicInteger();
+        Runnable decode = () -> {
+            for (int index; (index = nextBlock.getAndIncrement()) < blocks.size();) {
+                result.set(index, decoder.apply(blocks.get(index)));
+            }
+        };
+        List<CompletableFuture<Void>> pending = new ArrayList<>();
+        for (int worker = 1; worker < Math.min(blocks.size(), cpuParallelism()); worker++) {
+            pending.add(CompletableFuture.runAsync(decode, cpuExecutor()));
+        }
+        decode.run();
+        for (CompletableFuture<Void> worker : pending) {
+            try {
+                worker.join();
+            } catch (CompletionException failure) {
+                throw failure.getCause();
+            }
+        }
+        return result;
     }
 
     private static DecodedPayloadBlock decodePayloadBlock(ModelEventPayloadBlock block) {

@@ -124,6 +124,8 @@ import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         implements ModelRepository, ModelAncestorResolver, ModelTypeResolver {
     private static final int COMMITTED_CACHE_UPDATE_BATCH_SIZE = 128;
+    private static final java.util.concurrent.Executor MIGRATION_EXECUTOR =
+            io.fluxzero.common.ObjectUtils.newWorkerExecutor("fluxzero-model-migration-");
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
     private static final long INITIAL_MIGRATION_POLL_NANOS = Duration.ofMillis(10).toNanos();
@@ -523,7 +525,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         // Trampoline between batches so a large, immediately completed in-memory migration
         // cannot grow the caller stack once per thousand adopted Models.
         return batch.thenComposeAsync(ignored ->
-                adoptModelMigrationBatch(adopted + migrations.size()));
+                adoptModelMigrationBatch(adopted + migrations.size()), MIGRATION_EXECUTOR);
     }
 
     private CompletableFuture<Void> rebuildApplicationGraphProjections() {

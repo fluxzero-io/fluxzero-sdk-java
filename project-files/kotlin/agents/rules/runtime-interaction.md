@@ -20,6 +20,8 @@ and how applications can collaborate without direct app-to-app coupling.
 
 ## Command-to-Result Flow Across Apps
 
+SDK-controlled Model retry/reevaluation and migration continuations use named virtual workers. CPU-bound bulk serialization, packed Model-event decoding and multi-Model replay use a shared, SDK-owned CPU pool, not the JVM common pool. Existing batching, admission and ordering limits still apply; a virtual thread is not a concurrency limit. Native/forwarded HTTP response processing uses explicit workers too. This does not replace application-supplied executors or the caller-controlled `AggregateEventStream.parallel()` contract. The JDK HTTP/WebSocket implementation can still use its own internal common pool for transport completion; explicit HTTP executors do not eliminate that JDK dependency.
+
 Fluxzero uses request/result logs in the runtime. Apps do not call each other directly.
 
 1. App A sends command `C`.

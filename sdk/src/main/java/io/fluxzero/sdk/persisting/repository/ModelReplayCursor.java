@@ -73,8 +73,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
@@ -86,6 +84,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.fluxzero.common.MessageType.EVENT;
+import static io.fluxzero.common.ObjectUtils.cpuParallelism;
+import static io.fluxzero.common.ObjectUtils.inParallel;
+import static io.fluxzero.common.ObjectUtils.runInParallel;
 
 /**
  * Owns bounded model-stream reads and the reconstruction sessions that consume them.
@@ -1830,13 +1831,11 @@ final class ModelReplayCursor {
             PayloadLookup payloads = page.payloads();
             List<ModelEventStream> streams = response.getStreams();
             ThreadLocalContext.Snapshot replayContext = streams.size() >= 32 ? ThreadLocalContext.capture() : null;
-            ForkJoinPool pool = replayContext == null ? null : ForkJoinTask.getPool();
-            int parallelism = replayContext == null ? 1
-                    : pool == null ? ForkJoinPool.getCommonPoolParallelism() : pool.getParallelism();
+            int parallelism = replayContext == null ? 1 : cpuParallelism();
             int chunkSize = Math.max(1, (streams.size() + parallelism * 4 - 1) / (parallelism * 4));
             int chunkCount = (streams.size() + chunkSize - 1) / chunkSize;
             boolean independent = replayContext != null
-                                  && IntStream.range(0, chunkCount).parallel().allMatch(chunk -> {
+                                  && inParallel(() -> IntStream.range(0, chunkCount).parallel().allMatch(chunk -> {
                                       try (var context = ThreadLocalContext.openActivation()) {
                                           int end = Math.min(streams.size(), (chunk + 1) * chunkSize);
                                           for (int index = chunk * chunkSize; index < end; index++) {
@@ -1849,7 +1848,7 @@ final class ModelReplayCursor {
                                           }
                                           return true;
                                       }
-                                  });
+                                  }));
             Consumer<ModelEventStream> replayStream = stream -> {
                 MutableReconstruction state = states.get(stream.getModelId());
                 if (state == null) {
@@ -1887,7 +1886,7 @@ final class ModelReplayCursor {
             if (independent) {
                 // Activate once per chunk. Reusing the same snapshot is free of context switches unless a
                 // serializer or apply handler changed participating values while replaying the previous model.
-                IntStream.range(0, chunkCount).parallel().forEach(chunk -> {
+                runInParallel(() -> IntStream.range(0, chunkCount).parallel().forEach(chunk -> {
                     try (var context = ThreadLocalContext.openActivation()) {
                         int end = Math.min(streams.size(), (chunk + 1) * chunkSize);
                         for (int index = chunk * chunkSize; index < end; index++) {
@@ -1895,7 +1894,7 @@ final class ModelReplayCursor {
                             replayStream.accept(streams.get(index));
                         }
                     }
-                });
+                }));
             } else {
                 streams.forEach(replayStream);
             }

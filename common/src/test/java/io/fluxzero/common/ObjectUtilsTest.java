@@ -21,15 +21,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -39,6 +44,74 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ObjectUtilsTest {
+    @Test
+    void continuationWorkersAreIndependentAndDoNotInheritCallerState() throws Exception {
+        InheritableThreadLocal<String> local = new InheritableThreadLocal<>();
+        local.set("must-not-leak");
+        var executor = ObjectUtils.newWorkerExecutor("isolated-continuation-");
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CompletableFuture<Void> blocked = CompletableFuture.runAsync(() -> {
+            entered.countDown();
+            assertTrue(await(release, 5, TimeUnit.SECONDS));
+        }, executor);
+        try {
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            CompletableFuture<Thread> other = CompletableFuture.supplyAsync(() -> {
+                assertNull(local.get());
+                return Thread.currentThread();
+            }, executor);
+            Thread worker = other.get(5, TimeUnit.SECONDS);
+            assertTrue(worker.isVirtual());
+            assertTrue(worker.getName().startsWith("isolated-continuation-"));
+            assertFalse(blocked.isDone());
+        } finally {
+            local.remove();
+            release.countDown();
+            blocked.get(5, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void parallelTerminalsUseOneOwnedPoolAndRetainOrderAndNestedProgress() throws Exception {
+        try (ForkJoinPool callerPool = new ForkJoinPool(1)) {
+            List<Integer> actual = callerPool.submit(() -> ObjectUtils.inParallel(() -> {
+                var ownedPool = ForkJoinTask.getPool();
+                assertNotSame(callerPool, ownedPool);
+                assertNotSame(ForkJoinPool.commonPool(), ownedPool);
+                return IntStream.range(0, 128).parallel().map(index -> {
+                    assertSame(ownedPool, ForkJoinTask.getPool());
+                    assertTrue(Thread.currentThread().getName().startsWith("fluxzero-cpu-"));
+                    return ObjectUtils.inParallel(() -> {
+                        assertSame(ownedPool, ForkJoinTask.getPool());
+                        return index;
+                    });
+                }).boxed().toList();
+            })).get(5, TimeUnit.SECONDS);
+            assertEquals(IntStream.range(0, 128).boxed().toList(), actual);
+        }
+    }
+
+    @Test
+    void parallelTerminalPreservesFailureIdentityAndDoesNotInheritThreadLocals() {
+        InheritableThreadLocal<String> local = new InheritableThreadLocal<>();
+        local.set("must-not-leak");
+        try {
+            assertNull(ObjectUtils.inParallel(local::get));
+            IllegalArgumentException failure = new IllegalArgumentException("same failure");
+            assertSame(failure, assertThrows(IllegalArgumentException.class,
+                    () -> ObjectUtils.inParallel(() -> { throw failure; })));
+            var wrapped = new java.util.concurrent.CompletionException(failure);
+            assertSame(wrapped, assertThrows(java.util.concurrent.CompletionException.class,
+                    () -> ObjectUtils.inParallel(() -> { throw wrapped; })));
+            AssertionError error = new AssertionError("same error");
+            assertSame(error, assertThrows(AssertionError.class,
+                    () -> ObjectUtils.runInParallel(() -> { throw error; })));
+        } finally {
+            local.remove();
+        }
+    }
+
     @Test
     void testDeduplicateList() {
         List<Object> list = List.of("a", "b", "b", "c", "b", "a", "a");

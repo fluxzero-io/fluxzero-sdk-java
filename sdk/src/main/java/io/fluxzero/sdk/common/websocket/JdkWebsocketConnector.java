@@ -93,7 +93,8 @@ public class JdkWebsocketConnector implements WebsocketConnector {
      * Creates a connector backed by the supplied HTTP client and executor.
      *
      * <p>The executor is used for the internal HTTP client derived from the supplied client, native JDK WebSocket
-     * listener callbacks, and SDK runtime messages.</p>
+     * listener callbacks, and SDK runtime messages. Connection-open callbacks run on an independent virtual worker,
+     * so opening a connection cannot depend on available data-callback capacity.</p>
      *
      * @param httpClient base client whose proxy, SSL, authenticator, cookie, and timeout settings are reused
      * @param executor   executor for JDK websocket and listener callback work

@@ -37,13 +37,17 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.Spliterators;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -484,6 +488,86 @@ public class ObjectUtils {
     }
 
     /**
+     * Creates a named virtual-thread-per-task executor without a queue or persistent worker resources.
+     * Inheritable thread locals are not copied; callers must propagate their intended context explicitly.
+     * The submitting component owns admission, task completion and cancellation. There is no executor shutdown phase,
+     * so late continuations of already accepted operations can still run during component shutdown.
+     *
+     * @param prefix worker thread name prefix
+     * @return an executor for independently completable, potentially blocking tasks
+     */
+    public static Executor newWorkerExecutor(String prefix) {
+        ThreadFactory factory = Thread.ofVirtual().name(prefix, 0).inheritInheritableThreadLocals(false).factory();
+        return task -> factory.newThread(task).start();
+    }
+
+    /**
+     * Returns the classloader-wide executor for bounded chunks of CPU work, isolated from the JVM common pool.
+     * Workers are daemon threads and may clear thread locals between submissions. Callers own batching and context
+     * propagation; blocking I/O belongs on a worker executor instead. This shared executor must not be shut down by
+     * individual components. Nested parallel work must use {@link #inParallel(Supplier)}.
+     */
+    public static Executor cpuExecutor() {
+        return CpuWorkers.EXECUTOR;
+    }
+
+    /** Returns the target CPU parallelism, including the work formerly performed by a parallel stream's caller. */
+    public static int cpuParallelism() {
+        return CpuWorkers.POOL.getParallelism();
+    }
+
+    /** Runs a parallel terminal operation with the same isolation and completion contract as {@link #inParallel(Supplier)}. */
+    public static void runInParallel(Runnable operation) {
+        inParallel(() -> {
+            operation.run();
+            return null;
+        });
+    }
+
+    /**
+     * Evaluates a parallel stream terminal operation on the isolated CPU pool and awaits its result.
+     * Nested calls already on that pool run directly. A caller's unrelated fork/join pool is never reused.
+     * The operation must complete its parallel work before returning; returning a lazy stream does not isolate it.
+     * Context must be propagated explicitly to the operation and its parallel tasks.
+     *
+     * @param operation terminal operation
+     * @param <T> result type
+     * @return the operation's result
+     */
+    @SneakyThrows
+    public static <T> T inParallel(Supplier<T> operation) {
+        if (ForkJoinTask.getPool() == CpuWorkers.POOL) {
+            return operation.get();
+        }
+        CompletableFuture<ParallelResult<T>> result = new CompletableFuture<>();
+        CpuWorkers.POOL.execute(() -> {
+            try {
+                result.complete(new ParallelResult<>(operation.get(), null));
+            } catch (Throwable failure) {
+                result.complete(new ParallelResult<>(null, failure));
+            }
+        });
+        ParallelResult<T> completed = result.join();
+        if (completed.failure() != null) {
+            throw completed.failure();
+        }
+        return completed.value();
+    }
+
+    private record ParallelResult<T>(T value, Throwable failure) {}
+
+    private static final class CpuWorkers {
+        private static final ForkJoinPool POOL = new ForkJoinPool(
+                // Even with one reported CPU, parallel streams previously used one common worker plus their caller.
+                Math.max(2, Runtime.getRuntime().availableProcessors()), pool -> {
+                    ForkJoinWorkerThread worker = new ForkJoinWorkerThread(null, pool, false) {};
+                    worker.setName("fluxzero-cpu-" + worker.threadId());
+                    return worker;
+                }, null, false);
+        private static final Executor EXECUTOR = POOL::execute;
+    }
+
+    /**
      * Returns {@code true}: virtual workers are available on every supported Java runtime.
      *
      * @deprecated SDK v2 requires Java 25 or newer, so callers no longer need a runtime-version check.
@@ -523,30 +607,6 @@ public class ObjectUtils {
                 outputStream.write(i);
             }
             return outputStream.toByteArray();
-        }
-    }
-
-    private static class PrefixedThreadFactory implements ThreadFactory {
-        private static final Map<String, AtomicInteger> poolCount = new ConcurrentHashMap<>();
-        private final ThreadGroup group = Thread.currentThread().getThreadGroup();
-        private final AtomicInteger threadNumber = new AtomicInteger(1);
-        private final String namePrefix;
-
-        public PrefixedThreadFactory(String poolPrefix) {
-            namePrefix = poolPrefix + "-pool-" + poolCount.computeIfAbsent(poolPrefix, k -> new AtomicInteger(1))
-                    .getAndIncrement() + "-thread-";
-        }
-
-        @SuppressWarnings("NullableProblems")
-        public Thread newThread(Runnable task) {
-            Thread t = new Thread(group, task, namePrefix + threadNumber.getAndIncrement(), 0);
-            if (t.isDaemon()) {
-                t.setDaemon(false);
-            }
-            if (t.getPriority() != Thread.NORM_PRIORITY) {
-                t.setPriority(Thread.NORM_PRIORITY);
-            }
-            return t;
         }
     }
 

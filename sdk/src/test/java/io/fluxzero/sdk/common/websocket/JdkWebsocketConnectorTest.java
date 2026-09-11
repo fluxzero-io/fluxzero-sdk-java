@@ -210,6 +210,7 @@ class JdkWebsocketConnectorTest {
 
             assertTrue(messageReceived.await(1, TimeUnit.SECONDS));
             assertEquals("custom-websocket-executor", callbackThread.get());
+            assertTrue(endpoint.openThreadName.get().startsWith("fluxzero-websocket-open-"));
             assertEquals("shared-caller-owned", session.runtimeDataWorkerMode());
         } finally {
             executor.shutdownNow();
@@ -237,7 +238,16 @@ class JdkWebsocketConnectorTest {
 
     @Test
     void openCallbackDoesNotDependOnCallbackExecutorCapacity() throws Exception {
-        RecordingEndpoint endpoint = new RecordingEndpoint();
+        ThreadLocal<String> context = io.fluxzero.sdk.common.ThreadLocalContext.create();
+        AtomicReference<String> observedContext = new AtomicReference<>();
+        RecordingEndpoint endpoint = new RecordingEndpoint() {
+            @Override
+            public void onOpen(WebsocketSession session) {
+                super.onOpen(session);
+                observedContext.set(context.get());
+                assertTrue(Thread.currentThread().isVirtual());
+            }
+        };
         JdkWebsocketConnector connector = new JdkWebsocketConnector();
         JdkWebSocketSession session = new JdkWebSocketSession(
                 connector, endpoint,
@@ -249,8 +259,15 @@ class JdkWebsocketConnectorTest {
                 });
         WebSocket webSocket = mock(WebSocket.class);
 
-        session.createListener().onOpen(webSocket);
-        session.awaitOpen();
+        context.set("opening-context");
+        try {
+            session.createListener().onOpen(webSocket);
+            session.awaitOpen();
+            assertEquals("opening-context", context.get());
+            assertEquals("opening-context", observedContext.get());
+        } finally {
+            context.remove();
+        }
 
         assertSame(session, endpoint.session.get());
         assertTrue(session.isOpen());

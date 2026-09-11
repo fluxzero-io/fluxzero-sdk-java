@@ -686,7 +686,8 @@ public final class ModelBatchScope {
         <T> CompletableFuture<T> afterDependencies(Supplier<T> action, boolean asynchronous) {
             int count = dependencyCount();
             CompletableFuture<T> result = asynchronous
-                    ? dependenciesComplete().thenCompose(ignored -> CompletableFuture.supplyAsync(action))
+                    ? dependenciesComplete().thenCompose(ignored ->
+                            CompletableFuture.supplyAsync(action, ModelPipeline.ASYNC_EXECUTOR))
                     : dependenciesComplete().thenApply(ignored -> action.get());
             return result.thenCompose(value -> dependencyCount() == count
                     ? CompletableFuture.completedFuture(value)

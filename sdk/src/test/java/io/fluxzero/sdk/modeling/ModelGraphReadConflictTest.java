@@ -206,8 +206,11 @@ class ModelGraphReadConflictTest {
             commit(fluxzero, new CreateParent("parent", 1));
             attempts.set(0);
             client.armed.set(true);
+            // A CompletableFuture wait can help execute queued common-pool tasks on the waiting test thread.
+            // The gated contender must run independently so that this thread can release its transport gate.
             CompletableFuture<?> first = CompletableFuture.supplyAsync(() ->
-                    commit(fluxzero, new CreateChild("first", "parent")));
+                    commit(fluxzero, new CreateChild("first", "parent")),
+                    task -> Thread.ofVirtual().name("graph-conflict-contender").start(task));
             first.whenComplete((result, failure) -> {
                 if (failure != null) {
                     client.entered.completeExceptionally(failure);

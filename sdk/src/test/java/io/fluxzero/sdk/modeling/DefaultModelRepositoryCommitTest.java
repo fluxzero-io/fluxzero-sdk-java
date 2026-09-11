@@ -1302,6 +1302,8 @@ class DefaultModelRepositoryCommitTest {
         });
         ModelPipeline.RetryEvaluator evaluator = (response, attempt) -> {
             assertSame(expected, Fluxzero.instance.get(), "evaluation context");
+            assertTrue(Thread.currentThread().isVirtual(), "reevaluation must not occupy a common-pool worker");
+            assertTrue(Thread.currentThread().getName().startsWith("fluxzero-model-async-"));
             evaluated.countDown();
             return completedEvaluation ? CompletableFuture.completedFuture(rebased) : deferredEvaluation;
         };
@@ -1311,7 +1313,11 @@ class DefaultModelRepositoryCommitTest {
             completion = ModelPipeline.commit(contextProtocol, "context", original,
                     accepting ? ModelConflictPolicy.ACCEPT : ModelConflictPolicy.RETRY,
                     accepting ? ModelPipeline.Retry.accepting(evaluator)
-                            : ModelPipeline.Retry.conflicts(ignored -> ModelConflictResolver.Resolution.RETRY, 1, evaluator),
+                            : ModelPipeline.Retry.conflicts(ignored -> {
+                                assertTrue(Thread.currentThread().isVirtual(), "conflict resolver must use a virtual worker");
+                                assertSame(expected, Fluxzero.instance.get(), "conflict resolver context");
+                                return ModelConflictResolver.Resolution.RETRY;
+                            }, 1, evaluator),
                     null, -1, true);
         } finally {
             Fluxzero.instance.remove();

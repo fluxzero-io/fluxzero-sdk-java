@@ -47,6 +47,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -59,6 +60,7 @@ import java.util.function.Supplier;
  */
 @Slf4j
 final class ModelPipeline {
+    static final Executor ASYNC_EXECUTOR = io.fluxzero.common.ObjectUtils.newWorkerExecutor("fluxzero-model-async-");
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
 
@@ -668,7 +670,7 @@ final class ModelPipeline {
                                 retry.resolver().resolve(
                                         new ModelConflictResolver.Context(
                                                 result, attempts, retry.maxAttempts())),
-                                "Model conflict resolver returned null")))
+                                "Model conflict resolver returned null")), ASYNC_EXECUTOR)
                 .thenCompose(resolution ->
                         resolution == ModelConflictResolver.Resolution.RETRY
                         && result.isRetryAllowed()
@@ -683,7 +685,7 @@ final class ModelPipeline {
             Supplier<CompletableFuture<T>> operation,
             String nullMessage) {
         return CompletableFuture.supplyAsync(context.wrap(() ->
-                        Objects.requireNonNull(operation.get(), nullMessage)))
+                        Objects.requireNonNull(operation.get(), nullMessage)), ASYNC_EXECUTOR)
                 .thenCompose(Function.identity());
     }
 
