@@ -18,7 +18,6 @@ package io.fluxzero.sdk.configuration;
 
 import io.fluxzero.common.Registration;
 import io.fluxzero.common.api.tracking.Position;
-import io.fluxzero.common.reflection.ReflectionUtils;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.common.serialization.Serializer;
@@ -263,7 +262,7 @@ public final class PublishedEventModelMigration implements AutoCloseable {
             Collection<Class<?>> explicitTypes, Collection<String> modelPackages) {
         LinkedHashSet<Class<?>> result = new LinkedHashSet<>(explicitTypes);
         if (!modelPackages.isEmpty()) {
-            ReflectionUtils.getRegisteredTypes().stream()
+            io.fluxzero.sdk.modeling.ModelTypes.discover().stream()
                     .filter(type -> modelPackages.stream().anyMatch(root -> inPackage(type, root)))
                     .filter(type -> EntityMetadata.of(type).isModel())
                     .forEach(result::add);

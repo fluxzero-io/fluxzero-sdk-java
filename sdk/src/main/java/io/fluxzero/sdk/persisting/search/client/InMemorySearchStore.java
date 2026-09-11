@@ -90,6 +90,7 @@ import java.util.stream.Stream;
 
 import static io.fluxzero.common.api.search.SearchCollectionType.auditTrail;
 import static io.fluxzero.common.api.search.SearchCollectionType.regular;
+import static io.fluxzero.common.modeling.ModelDocumentProof.of;
 import static java.util.Comparator.comparing;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.groupingBy;
@@ -415,9 +416,14 @@ public class InMemorySearchStore implements SearchClient {
                 asIdentifier(request.getCollection(), request.getId()));
         ModelHeadState head = version != null && version.collection().equals(request.getCollection())
                 ? version.head() : null;
+        SerializedDocument document = head == null ? null
+                : documents.get(asIdentifier(request.getCollection(), request.getId()));
+        if (request.isVerifyModelState() && version != null && !Objects.equals(version.proof(), of(document, head))) {
+            throw new IllegalStateException("Model document body no longer matches its durable version: " + request.getId()
+                                            + "; use a Model commit to update state, not an ordinary document write");
+        }
         return new GetDocumentResult(
-                request.getRequestId(), head == null ? null
-                        : documents.get(asIdentifier(request.getCollection(), request.getId())), head);
+                request.getRequestId(), document, head, request.isVerifyModelState());
     }
 
     @Override
@@ -528,7 +534,7 @@ public class InMemorySearchStore implements SearchClient {
         modelDocumentVersions.put(
                 productionKey,
                 new DirectDocumentVersion(
-                        request.getCollection(), migration.head()));
+                        request.getCollection(), migration.head(), documents.get(productionKey)));
         documents.remove(migrationKey);
         documentIndices.remove(migrationKey);
         modelDocumentVersions.remove(migrationKey);
@@ -859,7 +865,7 @@ public class InMemorySearchStore implements SearchClient {
                                             collection, new ModelHeadState(
                                                     target.getModelId(), modelType,
                                                     position.getSequenceNumber(), stateIndex,
-                                                    position.isHistoryComplete(), target.isDelete())));
+                                                    position.isHistoryComplete(), target.isDelete()), document));
                             if (!commit.isMigration()) {
                                 adoptedModelIds.remove(target.getModelId());
                                 adoptedModelSources.remove(target.getModelId());
@@ -908,7 +914,10 @@ public class InMemorySearchStore implements SearchClient {
         }
     }
 
-    private record DirectDocumentVersion(String collection, ModelHeadState head) {
+    private record DirectDocumentVersion(String collection, ModelHeadState head, String proof) {
+        private DirectDocumentVersion(String collection, ModelHeadState head, SerializedDocument document) {
+            this(collection, head, of(document, head));
+        }
     }
 
     /**

@@ -1,5 +1,20 @@
 # Models and state
 
+Model discovery is independent of optional `@RegisterType` serialization aliases. Enable SDK annotation processing
+(Kotlin: kapt) in every Model contract module; Model declarations contribute
+`META-INF/io.fluxzero.sdk.modeling.Model`. Rebuild older contract JARs to generate this index. A classic shaded JAR
+must append all contributing Model indexes (Maven Shade: `AppendingTransformer`); service merging alone is insufficient.
+Cold discovery uses locally available classes and never registers their handlers or loads missing JARs automatically.
+Abstract/interface contracts with an identity remain discoverable; identity-less inheritance templates are excluded.
+
+For explicit replay-free current state, use `Fluxzero.loadCurrentModelState(id, ModelType.class)` (Kotlin:
+`ModelType::class.java`) or the typed-ID overload. It returns read-only `ModelState<T>`, verified against a durable
+head, and requires a maintained Model document plus shared state contracts. Missing/deleted Models are distinct from
+missing/stale/unversioned documents, which fail. It does not populate replay caches or join transaction readsets.
+It also requires a matching Runtime and a document whose body/head proof was captured during trusted Model
+materialization/adoption. Older unproven documents and ordinary search overwrites are not silently accepted.
+Use injected Models/Graphs for invariants; `loadCurrentGraph` still uses the authoritative load path, not this API.
+
 Use `@Model` for persisted domain state. Do not introduce `@Aggregate` in new code. Existing aggregate APIs remain the
 compatibility boundary for already persisted aggregate state.
 

@@ -1097,6 +1097,21 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
+     * Reads a verified current Model document without replaying historical events. The exact persisted identity is
+     * required. The read-only result does not inherit a handler boundary or become a transaction read dependency.
+     * Missing/deleted state is distinct from an unavailable/stale document, which fails explicitly.
+     * @see ModelRepository#loadCurrentState(String, Class)
+     */
+    static <T> io.fluxzero.sdk.modeling.ModelState<T> loadCurrentModelState(String modelId, Class<T> modelType) {
+        return currentModelRepository().loadCurrentState(modelId, modelType);
+    }
+
+    /** Reads a current document-backed Model using its typed identity. */
+    static <T> io.fluxzero.sdk.modeling.ModelState<T> loadCurrentModelState(Id<T> modelId) {
+        return currentModelRepository().loadCurrentState(modelId);
+    }
+
+    /**
      * Lazily loads the independently stored model identified by the typed ID as a relationship graph.
      * <p>
      * The source model is loaded only when its value, history or relationship contents are requested. A typed ancestor

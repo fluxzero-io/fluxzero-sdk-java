@@ -66,6 +66,7 @@ import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.Change;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.ModelState;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
@@ -1363,6 +1364,48 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return (Entity<T>) entity;
     }
 
+    @Override
+    public <T> ModelState<T> loadCurrentState(@NonNull String modelId, @NonNull Class<T> modelType) {
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        modelName(modelType);
+        if (metadata.modelDocumentCollection(modelNamePrefix).isEmpty()) {
+            throw new EventSourcingException(
+                    "Current-state read for Model '%s' (%s) requires a maintained Model document; enable DOCUMENT "
+                    .formatted(modelId, modelType.getName()) + "on the writer or use ordinary model replay");
+        }
+        for (int attempt = 0; attempt < 8; attempt++) {
+            var observed = replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current());
+            ModelHeadState expected = observed.heads().get(modelId);
+            ModelReplayCursor.DocumentVersion document;
+            try {
+                document = loadDocumentUnchecked(modelId, modelType, metadata, false, true);
+            } catch (RuntimeException failure) {
+                throw new EventSourcingException(
+                        "Current-state read for Model '%s' (%s) failed document verification or decoding"
+                                .formatted(modelId, modelType.getName()), failure);
+            }
+            if (Objects.equals(expected, document.head())) {
+                if ((expected == null || expected.isDeleted()) != document.entity().isEmpty()) {
+                    throw new EventSourcingException(
+                            "Current-state read for Model '%s' (%s) found a document inconsistent with its Model head"
+                                    .formatted(modelId, modelType.getName()));
+                }
+                return new ModelState<>(modelId, modelType, modelType.cast(document.entity().get()),
+                                        expected, observed.stateIndex());
+            }
+            // A newer document can race the head read. Retry from a new boundary, never replay or accept stale state.
+            if (document.head() == null || expected != null
+                && document.head().getStateIndex() <= expected.getStateIndex()) {
+                throw new EventSourcingException(
+                        "Current-state read for Model '%s' (%s) has no document matching head %s; "
+                        .formatted(modelId, modelType.getName(), expected)
+                        + "check the shared state contract and document materialization before retrying");
+            }
+        }
+        throw new EventSourcingException("Current-state read for Model '%s' (%s) kept moving during verification; retry"
+                                                .formatted(modelId, modelType.getName()));
+    }
+
     private ModelReplayCursor.DocumentVersion loadDocumentProjection(
             String modelId, Class<?> modelType, boolean migration) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
@@ -1374,13 +1417,26 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
             boolean migration) {
+        return loadDocumentUnchecked(modelId, modelType, metadata, migration, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
+            String modelId, Class<?> modelType, EntityMetadata metadata,
+            boolean migration, boolean verifyState) {
         String collection = metadata.modelDocumentReadCollection(modelNamePrefix);
         GetDocumentResult result = client.getSearchClient().fetchModelDocument(
                 new GetDocument(
                         modelId,
                         migration
                                 ? ModelDocumentMutation.MIGRATION_COLLECTION
-                                : collection));
+                                : collection, true, verifyState));
+        if (verifyState && !result.isModelStateVerified()) {
+            throw new EventSourcingException(
+                    "Current-state read for Model '%s' (%s) requires body/head verification from the Runtime; "
+                    .formatted(modelId, modelType.getName())
+                    + "use a matching Runtime and a document written by a proof-capable Model materializer");
+        }
         ModelHeadState head = result.getModelHead();
         if (head != null) {
             if (!modelId.equals(head.getModelId())) {

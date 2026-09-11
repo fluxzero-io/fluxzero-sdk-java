@@ -1901,6 +1901,18 @@ public class ReflectionUtils {
         return registeredTypesSupplier.get();
     }
 
+    /**
+     * Loads an exact binary class name without executing its static initializer or resolving serialization aliases.
+     * Uses the supplied index-owning classloader. Intended for generated structural indexes;
+     * the JVM owns class identity and {@link #getTypeMetadata(Class)} owns subsequent structural reflection.
+     *
+     * @throws ClassNotFoundException when the named class is unavailable
+     */
+    public static Class<?> loadClassWithoutInitialization(String binaryName, ClassLoader classLoader)
+            throws ClassNotFoundException {
+        return Class.forName(binaryName, false, classLoader);
+    }
+
     @SneakyThrows
     private static Optional<Class<?>> computeClassForFqn(String type) {
         try {

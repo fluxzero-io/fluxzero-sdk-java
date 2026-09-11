@@ -6,8 +6,14 @@ import org.junit.jupiter.api.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class ModelKotlinTest {
+    @Test
+    fun discoversModelsFromKaptWithoutRegisterType() {
+        assertTrue(ModelTypes.discover().contains(io.fluxzero.models.KotlinDiscoveredModel::class.java))
+    }
+
     @Test
     fun modelApiIsAvailableToKotlinProjects() {
         val annotation = KotlinModel::class.java.getAnnotation(Model::class.java)

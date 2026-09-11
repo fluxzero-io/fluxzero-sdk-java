@@ -3409,6 +3409,34 @@ Logical names must be unique within an application namespace. Applications shari
 exists is therefore an application-managed data transition. Serializer upcasters and `Data<T>` envelopes remain the
 separate mechanism for evolving serialized event/document payload types.
 
+### Model discovery and contract packaging
+
+Enable SDK annotation processing in every module that defines Models (Kotlin: kapt with the SDK processor).
+`@Model` declarations, including inherited Models, are written to
+`META-INF/io.fluxzero.sdk.modeling.Model`. The SDK combines those indexes from the contract JARs visible to its
+classloader and maps each logical Model name to its class. Discovery does not execute Model static initializers or
+register the contract's command/event handlers. Conflicting logical names and missing indexed classes fail explicitly.
+Identified abstract/interface contracts remain discoverable, including deleted Models with no concrete value.
+Identity-less abstract/interface inheritance templates are not standalone Models and are omitted from the catalog.
+Automatic processor discovery puts the Model observer before Fluxzero's claiming processors, regardless of SDK/common
+JAR order. In explicit processor lists, put `io.fluxzero.sdk.modeling.ModelTypeProcessor` first, before any processors
+that exclusively claim annotations (including `TypeRegistryProcessor` and `WebParameterProcessor`).
+
+`@RegisterType` remains optional for resolving short type names, for example in fixture JSON; it is not Model
+discovery and does not rename stored event/document types.
+Previously compiled contract JARs must be rebuilt with this SDK's processor to contribute the new index. Sharing a
+store does not supply missing classes: consuming applications still need the relevant Model contracts on their classpath.
+
+Separate JARs and Spring Boot nested JARs preserve individual indexes. A classic shaded/fat JAR must merge them, just
+like other overlapping generated resources. In Maven Shade, add this transformer (ordinary service merging alone
+is insufficient):
+
+```xml
+<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+    <resource>META-INF/io.fluxzero.sdk.modeling.Model</resource>
+</transformer>
+```
+
 ### Model persistence
 
 Every model ID is an independent persistence and lifecycle boundary. Depending on its `@Model` settings, it has its own
@@ -3501,6 +3529,36 @@ and deletion with the root. Collection shape, convenient embedding, searchabilit
 load strategy do not decide this boundary. Choose `persistence`, snapshots and caching only after the lifecycle
 boundary is correct. Splitting independently living children often turns one enormous legacy stream into many very
 small streams that are ideal for event sourcing.
+
+### Current state without replay
+
+Use `Fluxzero.loadCurrentModelState("account-id", Account.class)` (or its typed-ID overload) when a consumer
+shares the Model state contract but not the writer's historical event contracts. The corresponding repository method
+is `loadCurrentState`. This is an explicit document read, not a fallback after replay fails.
+
+The returned `ModelState<T>` contains the value, exact persisted ID, durable Model head and the namespace-wide
+boundary at which that head was verified. It checks the current document against the durable head without loading
+events, updating the ordinary Model cache, or inheriting an event handler's historical boundary. The writer must
+maintain a Model document through `DOCUMENT` or graph composition, and the consumer must share its document
+configuration and value schema (including nested value types and upcasters).
+
+Verified reads require a matching Runtime. Trusted Model document materialization/adoption records a SHA-256
+fingerprint of the complete durable head and serialized state atomically with the document fence. This detects an
+ordinary search write that replaces the body without advancing the Model version. Ordinary reads do not compute
+this fingerprint; maintaining a direct Model document does. Existing documents with no proof are not retroactively
+certified: they need a new trusted Model materialization/adoption at an eligible boundary. An old Runtime response,
+an unproven fence, or mismatched body/version fails explicitly; there is no weaker verification fallback.
+
+A missing Model has a null head/value; a deleted Model has a deleted head and null value. A missing, unversioned or
+lagging document for a live Model fails explicitly. If the document advances between the two reads, verification
+retries at most eight times; it never silently accepts stale state or replays events. This is current as observed
+during the operation, not a promise that concurrent writers cannot change it immediately afterwards.
+
+This first-class result is deliberately read-only: it has no Graph mutation/history methods and does not join a
+commit readset. Use injected Models/Graphs for transactional assertions; separate state reads are not a coherent
+multi-model snapshot. Supporting document-based Graph mutations would additionally require retaining the read
+strategy through the complete evaluation and retries. Ordinary `loadModel`, `loadGraph` and `loadCurrentGraph`
+retain their existing authoritative/replay contracts; sharing only Model classes does not guarantee replay compatibility.
 
 ### Combining payload and Model handlers
 

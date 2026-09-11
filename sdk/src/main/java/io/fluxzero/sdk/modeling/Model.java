@@ -74,6 +74,14 @@ import java.lang.annotation.Target;
  * applicable apply, Fluxzero applies the payload first and invokes the model method against that intermediate state.
  * This lets one instance method consistently enforce model-owned behavior for both creation and later updates.
  *
+ * Model declarations are indexed at compilation by {@link ModelTypeProcessor}. Enable SDK annotation processing
+ * (Kotlin: kapt) in each contract module and preserve {@link ModelTypes#INDEX} when packaging. This index discovers
+ * classes without registering message handlers; the optional serialization {@code @RegisterType} is not required.
+ * Contract JARs built before this index was introduced must be rebuilt for cold discovery. A shaded JAR must append
+ * all contributing Model indexes rather than retain only one.
+ * Identified abstract/interface contracts remain discoverable; identity-less abstract/interface inheritance templates
+ * are not standalone Models and are omitted from the runtime catalog.
+ *
  * @see Aggregate
  * @see io.fluxzero.sdk.Fluxzero#loadModel(Id)
  * @see io.fluxzero.sdk.persisting.repository.ModelRepository
