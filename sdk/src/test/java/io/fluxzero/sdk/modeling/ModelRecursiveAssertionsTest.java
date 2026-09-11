@@ -441,6 +441,9 @@ class ModelRecursiveAssertionsTest {
 
     record TestUser(String name) implements User {
         @Override
+        public String id() { return name; }
+
+        @Override
         public String getName() { return name; }
 
         @Override

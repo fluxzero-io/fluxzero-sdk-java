@@ -52,10 +52,12 @@ class AbstractUserProviderTest {
     }
 
     @Test
-    void defaultIdentityDelegatesToPrincipalName() {
-        MockUser user = new MockUser("metadata");
-
-        assertEquals(user.getName(), user.id());
+    void defaultPrincipalNameUsesExplicitIdentity() {
+        User user = new User() {
+            public String id() { return "stable-id"; }
+            public boolean hasRole(String role) { return false; }
+        };
+        assertEquals("stable-id", user.getName());
     }
 
     @Test
@@ -79,7 +81,7 @@ class AbstractUserProviderTest {
     }
 
     @Test
-    void newDefaultsStoreDefaultUserIdAndResolveItById() {
+    void newDefaultsStoreUserIdAndResolveItById() {
         withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
             MockUser metadataUser = new MockUser("metadata");
             Metadata metadata = provider.addToMetadata(Metadata.empty(), metadataUser);
@@ -126,6 +128,50 @@ class AbstractUserProviderTest {
             assertEquals(SYSTEM_USER_ID, metadata.get(DEFAULT_USER_KEY));
             assertSame(systemUser, provider.fromMessage(message(metadata)));
             assertNull(provider.requestedUserId);
+        });
+    }
+
+    @Test
+    void idMetadataDoesNotConsultPrincipalName() {
+        withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
+            User identity = new User() {
+                public String id() { return "stable-123"; }
+                public String getName() { throw new AssertionError("No name lookup for identity"); }
+                public boolean hasRole(String role) { return false; }
+            };
+            assertEquals("stable-123", provider.addToMetadata(Metadata.empty(), identity).get(DEFAULT_USER_KEY));
+        });
+    }
+
+    @Test
+    void newDefaultsReadUnchangedLegacyJsonWithoutAnIdProperty() {
+        withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
+            String legacy = """
+                    {"@class":"io.fluxzero.sdk.tracking.handling.authentication.MockUser",
+                     "roles":["legacy"],"name":"mockUser"}
+                    """;
+            User restored = provider.fromMessage(message(Metadata.of(DEFAULT_USER_KEY, legacy)));
+            assertEquals("mockUser", restored.id());
+            assertEquals(new MockUser("legacy"), restored);
+            assertNull(provider.requestedUserId);
+        });
+    }
+
+    @Test
+    void mixedVersionIdMetadataIsResolvedByExplicitProviderAliases() {
+        withConfiguration(USER_ID_DEFAULTS_VERSION, null, () -> {
+            AbstractUserProvider aliases = new AbstractUserProvider(MockUser.class) {
+                @Override
+                public User getUserById(Object id) {
+                    return java.util.Map.of("old-principal", resolvedUser, "stable-123", resolvedUser).get(id);
+                }
+
+                @Override
+                public User getSystemUser() { return systemUser; }
+            };
+            assertSame(resolvedUser, aliases.fromMessage(message(Metadata.of(DEFAULT_USER_KEY, "old-principal"))));
+            assertSame(resolvedUser, aliases.fromMessage(message(Metadata.of(DEFAULT_USER_KEY, "stable-123"))));
+            assertNull(aliases.fromMessage(message(Metadata.of(DEFAULT_USER_KEY, "new-display-name"))));
         });
     }
 

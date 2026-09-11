@@ -36,6 +36,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DownstreamProjectTest {
 
     @Test
+    void downstreamUserRequiresOnlyStableIdentityAndRoles() {
+        var user = new io.fluxzero.sdk.tracking.handling.authentication.User() {
+            public String id() { return "downstream-user"; }
+            public boolean hasRole(String role) { return false; }
+        };
+        java.security.Principal principal = user;
+        assertEquals("downstream-user", user.id());
+        assertEquals(user.id(), principal.getName());
+    }
+
+    @Test
     void bomManagedMainAndTestArtifactsAreUsableWithoutInheritedParentDependencies() {
         assertEquals("io.fluxzero.testserver.TestServer", TestServer.class.getName());
         assertEquals("io.fluxzero.proxy.ProxyServer", ProxyServer.class.getName());

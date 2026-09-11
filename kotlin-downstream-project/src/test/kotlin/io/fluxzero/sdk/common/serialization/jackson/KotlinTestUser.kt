@@ -7,5 +7,5 @@ class KotlinTestUser(
 ) : User {
     override fun hasRole(role: String): Boolean = roles.contains(role)
 
-    override fun getName(): String = "kotlinTestUser"
+    override fun id(): String = "kotlinTestUser"
 }
