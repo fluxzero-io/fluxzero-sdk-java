@@ -77,10 +77,11 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * persist those evolved node schemas into the derived projection without changing the authoritative Models or
  * relationships.
  *
- * Metadata-first child selection does not reconstruct selected child values. Resolving an as-yet unresolved root
- * with aliases may still require its authoritative lookup/replay; use an already resolved root or
- * {@link Graphs#lazyRepositoryId(String, Class, io.fluxzero.sdk.persisting.repository.ModelRepository)} when the
- * exact persisted root ID is known.
+ * Metadata-first child selection does not reconstruct selected child values. The default repository also resolves
+ * lazy root aliases from head metadata without replay. Initial alias lookup uses the current alias table, including
+ * for historical reads; the resulting identity (or absence), values and relationships then stay pinned. This does not
+ * introduce transaction-level alias-mapping conflict detection. Custom repositories may retain value-based lookup.
+ * Remote alias navigation requires a Runtime transport that preserves canonical IDs in alias heads.
  *
  * @param <T> model value type at the current graph placement
  */

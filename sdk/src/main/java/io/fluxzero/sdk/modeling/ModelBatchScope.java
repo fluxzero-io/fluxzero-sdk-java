@@ -255,9 +255,24 @@ public final class ModelBatchScope {
 
         /** Resolves one exact identity or alias against the snapshot, preserving exact-ID precedence. */
         public Entity<?> overlay(String requestedId, Class<?> type, Entity<?> durable) {
+            PendingValue exact = pending.get(requestedId);
+            if (exact != null && type.isAssignableFrom(exact.type())) {
+                dependOn(exact);
+                return values.get(exact.modelId());
+            }
+            Entity<?> overlay = overlayIdentity(requestedId, type, String.valueOf(durable.id()),
+                                                 exact == null && durable.isPresent());
+            return overlay == null ? durable : overlay;
+        }
+
+        /**
+         * Returns a pending identity override, or null to retain the durable identity. Presence comes from the head,
+         * not a fabricated empty value, so an existing exact ID still takes precedence over pending aliases.
+         */
+        public Entity<?> overlayIdentity(String requestedId, Class<?> type, String durableId, boolean durablePresent) {
             PendingValue match = pending.get(requestedId);
-            if (match == null && durable.isPresent() && requestedId.equals(String.valueOf(durable.id()))) {
-                return durable;
+            if (match == null && durablePresent && requestedId.equals(durableId)) {
+                return null;
             }
             if (match == null) {
                 for (PendingValue candidate : pending.values()) {
@@ -270,12 +285,12 @@ public final class ModelBatchScope {
                 dependOn(match);
                 return values.get(match.modelId());
             }
-            PendingValue owner = pending.get(String.valueOf(durable.id()));
+            PendingValue owner = pending.get(durableId);
             if (owner != null && !requestedId.equals(owner.modelId()) && type.isAssignableFrom(owner.type())) {
                 dependOn(owner);
                 return ImmutableModelRoot.initial(requestedId, type, EntityMetadata.of(type).entityIdName(), null);
             }
-            return durable;
+            return null;
         }
     }
 

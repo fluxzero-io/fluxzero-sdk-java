@@ -824,9 +824,15 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public Graph<?> loadGraphProjection(String rootId, Class<?> rootType, ModelReadBoundary boundary, boolean historical) {
+        return loadGraphProjection(rootId, rootType, boundary, historical, null);
+    }
+
+    @Override
+    public Graph<?> loadGraphProjection(String rootId, Class<?> rootType, ModelReadBoundary boundary,
+                                        boolean historical, Entity<?> resolvedRoot) {
         modelName(rootType);
         return replayCursor.graphAtBoundary(rootId, rootType, Graph.Options.DEFAULT, boundary.withoutMessageBatch(),
-                                            messageBatchNamespace(), Map.of(), historical);
+                                            messageBatchNamespace(), Map.of(), historical, resolvedRoot);
     }
 
     @Override
@@ -840,6 +846,27 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
         ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
         ModelGraphResolver.Value result = graphValue(modelId, exact, modelType, selected);
+        pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveGraphIdentity(
+            Object modelId, Class<?> modelType, ModelReadBoundary boundary) {
+        modelName(modelType);
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
+        ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
+        String primary = metadata.repositoryId(modelId);
+        ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
+                                                                        selected.historical());
+        if (!result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
+            ModelGraphResolver.Identity alias = replayCursor.graphIdentity(
+                    modelId.toString(), modelType, result.boundary(), selected.historical());
+            if (alias.present()) {
+                result = alias;
+            }
+        }
         pin(handlerBoundary, result.boundary().stateIndex());
         return result;
     }

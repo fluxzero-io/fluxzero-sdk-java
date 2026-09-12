@@ -3591,10 +3591,13 @@ automatic current-state fallback or unknown-event skipping occurs. Full Graph ma
 still requires the contracts for the values being materialized. Custom repositories without metadata navigation
 retain their existing loading behavior and cannot promise unknown-type-safe selection.
 
-Root identity is a separate prerequisite: an unresolved root whose type declares `@Alias` can still require
-its authoritative root lookup/replay, even if the supplied String happens to be its canonical ID. Use an
-already resolved Graph or `Graphs.lazyRepositoryId(canonicalId, Root.class, repository)` when the exact
-persisted ID is known and root replay is unavailable. Root lookup failures remain errors, not empty children.
+The default repository resolves lazy root aliases through head metadata without replay. Initial lookup uses the
+current alias table, also when reading historical Model state. The selected canonical ID (or absence) then stays
+fixed together with the value/relationship boundary: reassigning the alias cannot redirect an existing Graph.
+This preserves snapshot identity; it does not add transaction-level alias-mapping conflict detection.
+Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
+transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
+Exact-ID and non-alias value reads retain their existing path. Root lookup failures remain errors, not empty children.
 
 ### Combining payload and Model handlers
 

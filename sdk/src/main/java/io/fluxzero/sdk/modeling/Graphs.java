@@ -509,6 +509,7 @@ final class GraphState {
     private final ViewContext canonical;
     private volatile Navigation navigation;
     private volatile ModelGraphResolver.Value sourceRead;
+    private volatile ModelGraphResolver.Identity identityRead;
 
     private GraphState(
             long stateIndex, ModelRepository repository, boolean complete, boolean historical, boolean exactBoundary,
@@ -765,13 +766,16 @@ final class GraphState {
             }
             Graph<?> loaded = loadProjection(data.id(), data.type());
             Map<String, Entity<?>> overlay = navigation == null ? knownModels : navigation.staged;
-            if (!(loaded instanceof GraphView<?> graph) || !graph.state().complete() || overlay.isEmpty()) {
+            if (!(loaded instanceof GraphView<?> graph) || !graph.state().complete()
+                || overlay.isEmpty() && (identityRead == null || identityRead.present())) {
                 return loaded;
             }
             if (overlay.containsKey(data.id()) && overlay.get(data.id()).get() == null) {
                 return GraphState.composed(data.id(), stateIndex(), Map.of(data.id(), overlay.get(data.id())), List.of(),
                                            repository, historical, boundary(), Map.of())
-                        .valueHistory(navigation == null ? historicalValues : navigation.historicalValues).root();
+                        .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                        .retainIdentity(identityRead)
+                        .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
             }
             LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(graph.state().knownModels);
             LinkedHashSet<ModelGraphEdge> mergedEdges = new LinkedHashSet<>(graph.state().edges);
@@ -787,16 +791,30 @@ final class GraphState {
                 }
             }
             models.putAll(overlay);
-            return GraphState.composed(
+            return graph.context().decorate(GraphState.composed(
                     data.id(), stateIndex(), models, List.copyOf(mergedEdges),
                     repository, historical, boundary(), Map.of())
-                    .valueHistory(navigation == null ? historicalValues : navigation.historicalValues).root();
+                    .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                    .retainIdentity(identityRead)
+                    .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root());
         });
     }
 
     private Graph<?> loadProjection(String id, Class<?> type) {
-        return navigation == null ? repository.loadGraph(id, type, boundary(), Graph.Options.DEFAULT)
+        if (navigation == null) {
+            return repository.loadGraph(id, type, boundary(), Graph.Options.DEFAULT);
+        }
+        return identityRead != null && !identityRead.present() && identityRead.modelId().equals(id)
+                ? navigation.resolver.loadGraphProjection(id, type, boundary(), navigation.historicalValues,
+                                                         root.data().entity())
                 : navigation.resolver.loadGraphProjection(id, type, boundary(), navigation.historicalValues);
+    }
+
+    private GraphState retainIdentity(ModelGraphResolver.Identity identity) {
+        if (identity != null && identity.modelId().equals(root.data().id)) {
+            this.identityRead = identity;
+        }
+        return this;
     }
 
     private static void addParentEdges(String modelId, Entity<?> entity, Collection<ModelGraphEdge> edges) {
@@ -865,6 +883,7 @@ final class GraphState {
         return GraphState.entity(entity, stateIndex(), repository, updated, historical,
                                  exactBoundary || navigation != null, boundary(), changes)
                 .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                .retainIdentity(identityRead)
                 .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
     }
 
@@ -874,6 +893,7 @@ final class GraphState {
         return GraphState.entity(entity, stateIndex(), repository, updated, historical,
                                  exactBoundary || navigation != null, boundary(), Map.of())
                 .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                .retainIdentity(identityRead)
                 .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
     }
 
@@ -901,11 +921,64 @@ final class GraphState {
     ModelReadBoundary boundary() {
         Navigation current = navigation;
         ModelGraphResolver.Value source = sourceRead;
-        return current != null ? current.boundary : source != null ? source.boundary() : boundary;
+        ModelGraphResolver.Identity identity = identityRead;
+        return current != null ? current.boundary : source != null ? source.boundary()
+                : identity != null ? identity.boundary() : boundary;
+    }
+
+    /** Called with the source node locked; no path holding the navigation lock may resolve an ID. */
+    synchronized ModelGraphResolver.Identity sourceIdentity(NodeData node) {
+        if (identityRead == null) {
+            ModelGraphResolver resolver = (ModelGraphResolver) repository;
+            if (navigation != null) {
+                synchronized (navigation) {
+                    identityRead = resolveSourceIdentity(node, navigation.stagedSnapshot, navigation.boundary);
+                    if (identityRead != null) {
+                        navigation.boundary = identityRead.boundary();
+                        navigation.historicalValues = identityRead.historical();
+                        navigation.rememberSourceIdentity(node, identityRead);
+                    }
+                }
+            } else {
+                if (initialSnapshot == null) {
+                    initialSnapshot = resolver.graphStagedValues(boundary);
+                }
+                identityRead = resolveSourceIdentity(node, initialSnapshot, boundary);
+            }
+            if (identityRead != null) {
+                historicalValues = identityRead.historical();
+            }
+        }
+        return identityRead;
+    }
+
+    private ModelGraphResolver.Identity resolveSourceIdentity(
+            NodeData node, ModelBatchScope.Snapshot snapshot, ModelReadBoundary selected) {
+        NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
+        ModelGraphResolver.Identity loaded = ((ModelGraphResolver) repository).resolveGraphIdentity(
+                identity.requestedId(), node.type(), selected);
+        if (loaded == null) {
+            return null;
+        }
+        Entity<?> overlay = snapshot.overlayIdentity(node.id, node.type(), loaded.modelId(), loaded.present());
+        boolean present = overlay == null ? loaded.present() : overlay.isPresent();
+        if (!present && !node.id.equals(identity.requestedId().toString())) {
+            Entity<?> alias = snapshot.overlayIdentity(identity.requestedId().toString(), node.type(),
+                                                       loaded.modelId(), loaded.present());
+            if (alias != null && alias.isPresent()) {
+                overlay = alias;
+            }
+        }
+        Entity<?> value = overlay;
+        return value == null ? loaded : new ModelGraphResolver.Identity(
+                value.id().toString(), value.isPresent(), loaded.boundary(), loaded.historical(), () -> value);
     }
 
     /** Value-only access retains its snapshot without allocating the relationship indexes. */
     synchronized Entity<?> sourceValue(NodeData node) {
+        if (identityRead != null) {
+            return identityRead.entity().get();
+        }
         if (navigation != null) {
             return navigation.sourceValue(node);
         }
@@ -989,11 +1062,26 @@ final class GraphState {
             this.stagedSnapshot = initialSnapshot == null ? resolver.graphStagedValues(boundary) : initialSnapshot;
             LinkedHashMap<String, Entity<?>> overlay = new LinkedHashMap<>(stagedSnapshot.values());
             overlay.putAll(knownModels);
+            if (identityRead != null && !identityRead.present()) {
+                Entity<?> source = overlay.get(identityRead.modelId());
+                if (source != null && source.isEmpty() && !ModelBatchScope.existedBefore(source)
+                    && !stagedSnapshot.values().containsKey(identityRead.modelId())) {
+                    // An absent value is not a deletion of relationships pointing to that ID.
+                    overlay.remove(identityRead.modelId());
+                }
+            }
             this.staged = Map.copyOf(overlay);
             byId.forEach((id, nodes) -> data.put(id, nodes.getFirst().data()));
             if (repository instanceof ModelTypeResolver types) {
                 data.values().stream().map(NodeData::type).filter(Objects::nonNull).distinct().forEach(types::modelName);
             }
+            if (identityRead != null) {
+                rememberSourceIdentity(root.data(), identityRead);
+            }
+        }
+
+        private void rememberSourceIdentity(NodeData node, ModelGraphResolver.Identity identity) {
+            data.put(identity.modelId(), node);
         }
 
         synchronized void prepare(List<String> ids, ModelRelationshipRead.Direction direction) {
@@ -1242,8 +1330,18 @@ final class GraphState {
         }
 
         String id() {
-            if (resolveId) {
-                entity();
+            if (resolveId && !entityResolved) {
+                synchronized (this) {
+                    if (!entityResolved) {
+                        if (resolver.state.metadataNavigation()) {
+                            ModelGraphResolver.Identity identity = resolver.state.sourceIdentity(this);
+                            if (identity != null) {
+                                return identity.modelId();
+                            }
+                        }
+                        entity();
+                    }
+                }
             }
             Entity<?> resolved = entityResolved ? entity : null;
             return resolved != null && resolved.id() != null ? resolved.id().toString() : id;
@@ -1321,6 +1419,8 @@ final class GraphState {
                     if (!node.entityResolved) {
                         if (node.resolution instanceof NodeData.Metadata metadata) {
                             node.entity = Objects.requireNonNull(metadata.node().entity().get(), "Resolved graph entity");
+                        } else if (state.identityRead != null && node == state.root.data()) {
+                            node.entity = state.sourceValue(node);
                         } else if (state.navigation != null && state.navigation.boundary.stateIndex() != null) {
                             ModelGraphResolver.ModelNode metadata = state.navigation.model(node.id);
                             node.entity = metadata != null ? metadata.entity().get()

@@ -19,6 +19,7 @@ import io.fluxzero.common.api.modeling.GetModelGraph;
 import io.fluxzero.common.api.modeling.GetModelEvents;
 import io.fluxzero.common.api.modeling.CommitModels;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
@@ -28,15 +29,20 @@ import io.fluxzero.sdk.configuration.client.LocalClient;
 import io.fluxzero.sdk.persisting.eventsourcing.Apply;
 import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
+import io.fluxzero.sdk.persisting.repository.ModelRepository;
 import io.fluxzero.sdk.tracking.handling.IllegalCommandException;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -191,7 +197,7 @@ class GraphMetadataNavigationTest {
     }
 
     @Test
-    void anExactRepositoryRootSkipsAliasReplayWhileUnresolvedRootsRetainIt() {
+    void canonicalAndAliasRootsNavigateWithoutReplayingTheirValues() {
         var client = new ObservedClient();
         var rejected = new AtomicInteger();
         try (Fluxzero writer = app(client, new JacksonSerializer());
@@ -202,9 +208,192 @@ class GraphMetadataNavigationTest {
             Graph<Aliased> exact = Graphs.lazyRepositoryId("canonical", Aliased.class, reader.modelRepository());
             assertEquals(1, exact.namedChildren("AliasChild").size());
             assertEquals(0, rejected.get());
-            assertThrows(RuntimeException.class,
-                         () -> Graphs.lazy("canonical", Aliased.class, reader.modelRepository()).namedChildren("AliasChild"));
+            for (String id : List.of("canonical", "alias")) {
+                Graph<Aliased> graph = Graphs.lazy(id, Aliased.class, reader.modelRepository());
+                assertEquals("canonical", graph.id());
+                assertEquals("Aliased", graph.modelName());
+                assertEquals(1, graph.namedChildren("AliasChild").size());
+                assertEquals(1, graph.namedDescendants("AliasChild").size());
+                assertEquals(0, rejected.get());
+            }
+            Graph<Aliased> alias = Graphs.lazy("alias", Aliased.class, reader.modelRepository());
+            assertEquals("canonical", alias.id());
+            assertThrows(RuntimeException.class, alias::get);
             assertTrue(rejected.get() > 0);
+        }
+    }
+
+    @Test
+    void resolvedAliasesNeverRebindEvenWhenTheNewOwnerExistedAtThePinnedBoundary() {
+        for (boolean valueFirst : List.of(false, true)) {
+            var client = new ObservedClient();
+            try (Fluxzero writer = app(client, new JacksonSerializer());
+                 Fluxzero reader = app(client, new JacksonSerializer())) {
+                commit(writer, new CreateAliased("first", "shared", 1));
+                commit(writer, new CreateAliased("second", "other", 1));
+                commit(writer, new CreateAliasChild("first-child", "first"));
+                commit(writer, new CreateAliasChild("second-child", "second"));
+                catalog(reader, Aliased.class, AliasChild.class);
+                Graph<Aliased> graph = Graphs.lazy("shared", Aliased.class, reader.modelRepository());
+                assertEquals("first", graph.id());
+                long boundary = graph.stateIndex();
+                commit(writer, new CreateAliased("first", "moved", 2));
+                commit(writer, new CreateAliased("second", "shared", 2));
+                commit(writer, new CreateAliasChild("later", "first"));
+                if (valueFirst) {
+                    assertEquals(new Aliased("first", "shared", 1), graph.get());
+                }
+                assertEquals(List.of("first-child"), ids(graph.namedChildren("AliasChild")));
+                assertEquals(new Aliased("first", "shared", 1), graph.get());
+                assertEquals(boundary, graph.stateIndex());
+                assertEquals(List.of("first-child"), ids(graph.children()));
+                assertEquals(List.of("first-child"), ids(graph.update(value -> value).children()));
+                assertEquals("second", Graphs.lazy("shared", Aliased.class, reader.modelRepository()).id());
+            }
+        }
+    }
+
+    @Test
+    void resolvedMissingAliasesStayAbsentAfterAssignmentToAnExistingModel() {
+        var client = new ObservedClient();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, new JacksonSerializer())) {
+            commit(writer, new CreateAliased("existing", "old", 1));
+            commit(writer, new CreateAliasChild("child", "existing"));
+            Graph<Aliased> graph = Graphs.lazy("missing", Aliased.class, reader.modelRepository());
+            assertEquals("missing", graph.id());
+            long boundary = graph.stateIndex();
+            commit(writer, new CreateAliased("existing", "missing", 2));
+            assertTrue(graph.namedChildren("AliasChild").isEmpty());
+            assertTrue(graph.parents().isEmpty());
+            assertTrue(graph.isEmpty());
+            assertTrue(graph.children().isEmpty());
+            assertEquals(1, graph.stream().count());
+            assertTrue(graph.update(value -> value).children().isEmpty());
+            assertEquals("missing", graph.id());
+            assertEquals(boundary, graph.stateIndex());
+            assertEquals("existing", Graphs.lazy("missing", Aliased.class, reader.modelRepository()).id());
+        }
+    }
+
+    @Test
+    void affixedIdentityPrecedenceAndMissingFallbackRemainMetadataOnly() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            commit(writer, new CreateAffixed("first", "raw-alias"));
+            commit(writer, new CreateAffixed("second", "first"));
+            for (var entry : Map.of("first", "prefix-first", "raw-alias", "prefix-first",
+                                    "absent", "prefix-absent").entrySet()) {
+                Graph<Affixed> graph = Graphs.lazy(entry.getKey(), Affixed.class, reader.modelRepository());
+                assertEquals(entry.getValue(), graph.id());
+                assertTrue(graph.namedChildren("AliasChild").isEmpty());
+            }
+            assertEquals(0, rejected.get());
+        }
+    }
+
+    @Test
+    void absentAliasRootsKeepTheirOwnDanglingChildrenAfterAliasAssignment() {
+        var client = new ObservedClient();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, new JacksonSerializer())) {
+            commit(writer, new CreateAliased("existing", "old", 1));
+            commit(writer, new CreateAliasChild("own-child", "missing"));
+            commit(writer, new CreateAliasChild("foreign-child", "existing"));
+            catalog(reader, Aliased.class, AliasChild.class);
+            Graph<Aliased> graph = Graphs.lazy("missing", Aliased.class, reader.modelRepository());
+            assertEquals("missing", graph.id());
+            commit(writer, new CreateAliased("existing", "missing", 2));
+            assertEquals(List.of("own-child"), ids(graph.children(AliasChild.class)));
+            assertTrue(graph.isEmpty());
+            assertEquals(List.of("own-child"), ids(graph.children()));
+            assertEquals(List.of("own-child"), ids(graph.update(value -> value).children()));
+            assertEquals(List.of("own-child"), ids(graph.update(value -> value).children(AliasChild.class)));
+            assertTrue(graph.stream().findFirst().orElseThrow().isEmpty());
+        }
+    }
+
+    @Test
+    void identityPresenceAndValuesRespectBeforeCreationAndDeletion() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            var repository = (DefaultModelRepository) app.modelRepository();
+            commit(app, new CreateAliased("root", "alias", 1));
+            long creation = repository.resolveGraphIdentity("root", Aliased.class, ModelReadBoundary.current())
+                    .boundary().stateIndex();
+            var beforeCreation = repository.resolveGraphIdentity("root", Aliased.class,
+                    ModelReadBoundary.at(creation).asBefore());
+            assertFalse(beforeCreation.present());
+            assertTrue(beforeCreation.entity().get().isEmpty());
+            commit(app, new DeleteAliased("root"));
+            long deletion = repository.resolveGraphIdentity("root", Aliased.class, ModelReadBoundary.current())
+                    .boundary().stateIndex();
+            var beforeDeletion = repository.resolveGraphIdentity("root", Aliased.class,
+                    ModelReadBoundary.at(deletion).asBefore());
+            assertTrue(beforeDeletion.present());
+            assertEquals(new Aliased("root", "alias", 1), beforeDeletion.entity().get().get());
+        }
+    }
+
+    @Test
+    void metadataFirstMissingRootRetainsMutationAndValidationSupport() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            app.apply(fc -> {
+                Graph<Aliased> graph = Graphs.lazy("new", Aliased.class, fc.modelRepository());
+                assertEquals("new", graph.id());
+                assertThrows(IllegalCommandException.class, () -> graph.assertLegal(new RejectAlias()));
+                assertEquals(new Aliased("new", "alias", 1), graph.apply(new CreateAliased("new", "alias", 1)).get());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void erasingAResolvedRootCannotTurnItsPinnedValueIntoFreshAbsence() {
+        var client = new ObservedClient();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, new JacksonSerializer())) {
+            commit(writer, new CreateAliased("root", "alias", 1));
+            Graph<Aliased> graph = Graphs.lazy("alias", Aliased.class, reader.modelRepository());
+            assertEquals("root", graph.id());
+            writer.modelRepository().deleteModel("root", io.fluxzero.common.api.modeling.ModelDeletionCascade.NONE).join();
+            assertThrows(RuntimeException.class, graph::get);
+            assertEquals("root", graph.id());
+        }
+    }
+
+    @Test
+    void historicalAliasLookupRetainsCurrentLookupSemanticsButPinsTheSelectedModelsState() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            commit(app, new CreateAliased("second", "other", 1));
+            commit(app, new CreateAliased("first", "shared", 1));
+            commit(app, new CreateAliased("first", "moved", 2));
+            commit(app, new CreateAliased("second", "shared", 2));
+            app.apply(fc -> fc.eventStore().getEvents("first").findFirst().orElseThrow().apply(event -> {
+                Graph<Aliased> graph = Graphs.lazy("shared", Aliased.class, fc.modelRepository());
+                assertEquals("second", graph.id(), "Initial alias lookup uses the current alias table");
+                assertEquals(new Aliased("second", "other", 1), graph.get(), "Value uses the handler boundary");
+                return null;
+            }));
+        }
+    }
+
+    @Test
+    void aliasMetadataKeepsCurrentDocumentAuthorityWithoutReplay() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            commit(writer, new CreateAliasedDocument("document", "alias"));
+            Graph<AliasedDocument> graph = Graphs.lazy("alias", AliasedDocument.class, reader.modelRepository());
+            assertEquals("document", graph.id());
+            assertTrue(graph.namedChildren("AliasChild").isEmpty());
+            assertEquals(new AliasedDocument("document", "alias"), graph.get());
+            assertEquals(0, rejected.get());
         }
     }
 
@@ -276,6 +465,15 @@ class GraphMetadataNavigationTest {
         try (Fluxzero app = app(client, new JacksonSerializer())) {
             commit(app, new CreateAliased("canonical", "old", 1));
             inPendingBatch(app, client, new CreateAliased("canonical", "new", 2), () -> {
+                Graph<Aliased> named = Graphs.lazy("new", Aliased.class, app.modelRepository());
+                assertEquals("canonical", named.id());
+                assertTrue(named.namedChildren("AliasChild").isEmpty());
+                assertEquals(new Aliased("canonical", "new", 2), named.get());
+                Graph<Aliased> removed = Graphs.lazy("old", Aliased.class, app.modelRepository());
+                assertEquals("old", removed.id());
+                assertTrue(removed.namedChildren("AliasChild").isEmpty());
+                assertTrue(removed.isEmpty());
+                assertTrue(removed.children().isEmpty());
                 assertEquals(new Aliased("canonical", "new", 2),
                              Graphs.lazy("new", Aliased.class, app.modelRepository()).get());
                 assertTrue(Graphs.lazy("old", Aliased.class, app.modelRepository()).isEmpty());
@@ -305,6 +503,96 @@ class GraphMetadataNavigationTest {
                 assertEquals("leaf", updated.children().getFirst().children().getFirst().id());
                 assertEquals(new Root("other", 2), updated.get());
             });
+        }
+    }
+
+    @Test
+    void pendingRootDeletionSuppressesRelationshipsRegardlessOfIdentityReadOrder() {
+        for (boolean idFirst : List.of(false, true)) {
+            var client = new ObservedClient();
+            try (Fluxzero app = app(client, new JacksonSerializer())) {
+                commit(app, new CreateAliased("root", "alias", 1));
+                commit(app, new CreateAliasChild("child", "root"));
+                inPendingBatch(app, client, new DeleteAliased("root"), () -> {
+                    Graph<Aliased> graph = Graphs.lazy("root", Aliased.class, app.modelRepository());
+                    if (idFirst) {
+                        assertEquals("root", graph.id());
+                    }
+                    assertTrue(graph.children(AliasChild.class).isEmpty());
+                    assertTrue(graph.isEmpty());
+                    assertTrue(graph.children().isEmpty());
+                    assertTrue(graph.update(value -> value).children(AliasChild.class).isEmpty());
+                    assertTrue(graph.stream().findFirst().orElseThrow().update(value -> value)
+                            .children(AliasChild.class).isEmpty());
+                });
+            }
+        }
+    }
+
+    @Test
+    void customMetadataResolverRetainsValueLookupAndMaterializedProjectionsWithoutOptingIn() {
+        Entity<Aliased> empty = ImmutableModelRoot.initial("missing", Aliased.class, "rootId", null);
+        var value = new java.util.concurrent.atomic.AtomicReference<Entity<Aliased>>(empty);
+        var complete = Graphs.materialized(List.of(
+                new Graphs.MaterializedNode("missing", Aliased.class, -1, null, () -> null),
+                new Graphs.MaterializedNode("child", AliasChild.class, 0, "children", () -> new AliasChild("child", "missing"))),
+                Aliased.class, 0L, null, null, Map.of(), Map.of());
+        ModelGraphResolver resolver = (ModelGraphResolver) Proxy.newProxyInstance(
+                ModelGraphResolver.class.getClassLoader(), new Class<?>[]{ModelGraphResolver.class, ModelRepository.class},
+                (proxy, method, args) -> {
+                    if (method.isDefault()) {
+                        return InvocationHandler.invokeDefault(proxy, method, args);
+                    }
+                    return switch (method.getName()) {
+                        case "loadGraphValue" -> new ModelGraphResolver.Value(value.get(), ModelReadBoundary.at(0L), false);
+                        case "loadGraphProjection" -> complete;
+                        case "graphStagedValues" -> ModelBatchScope.Snapshot.EMPTY;
+                        default -> throw new UnsupportedOperationException(method.getName());
+                    };
+                });
+        assertNull(resolver.resolveGraphIdentity("missing", Aliased.class, ModelReadBoundary.current()));
+        Graph<Aliased> graph = Graphs.lazy("missing", Aliased.class, (ModelRepository) resolver);
+        assertEquals("missing", graph.id());
+        assertTrue(graph.isEmpty());
+        assertEquals(List.of("child"), ids(graph.children()));
+        assertThrows(UnsupportedOperationException.class,
+                () -> resolver.loadGraphProjection("missing", Aliased.class, ModelReadBoundary.at(0L), false, empty));
+    }
+
+    @Test
+    void concurrentIdentityValueAndRelationshipReadsShareOneResolution() throws Exception {
+        var client = new ObservedClient();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, new JacksonSerializer())) {
+            commit(writer, new CreateAliased("root", "alias", 1));
+            commit(writer, new CreateAliasChild("child", "root"));
+            catalog(reader, Aliased.class, AliasChild.class);
+            Graph<Aliased> graph = Graphs.lazy("alias", Aliased.class, reader.modelRepository());
+            var entered = new CompletableFuture<Void>();
+            var release = new CompletableFuture<Void>();
+            var lookups = new AtomicInteger();
+            client.beforeEvents = request -> {
+                if (request.getRequests().getFirst().getModelId().equals("alias")) {
+                    lookups.incrementAndGet();
+                    entered.complete(null);
+                    release.join();
+                }
+            };
+            var identity = new CompletableFuture<Object>();
+            var value = new CompletableFuture<Object>();
+            var children = new CompletableFuture<Object>();
+            try {
+                Thread.ofVirtual().start(() -> identity.completeAsync(graph::id, Runnable::run));
+                entered.get(5, TimeUnit.SECONDS);
+                Thread.ofVirtual().start(() -> value.completeAsync(graph::get, Runnable::run));
+                Thread.ofVirtual().start(() -> children.completeAsync(() -> ids(graph.children(AliasChild.class)), Runnable::run));
+            } finally {
+                release.complete(null);
+            }
+            assertEquals("root", identity.get(5, TimeUnit.SECONDS));
+            assertEquals(new Aliased("root", "alias", 1), value.get(5, TimeUnit.SECONDS));
+            assertEquals(List.of("child"), children.get(5, TimeUnit.SECONDS));
+            assertEquals(1, lookups.get());
         }
     }
 
@@ -481,9 +769,10 @@ class GraphMetadataNavigationTest {
     }
 
     private static class ObservedClient extends LocalClient {
-        final List<GetModelGraph> queries = new ArrayList<>();
-        final List<GetModelEvents> eventQueries = new ArrayList<>();
+        final List<GetModelGraph> queries = new CopyOnWriteArrayList<>();
+        final List<GetModelEvents> eventQueries = new CopyOnWriteArrayList<>();
         Consumer<CommitModels> beforeCommit = ignored -> {};
+        Consumer<GetModelEvents> beforeEvents = ignored -> {};
         CompletableFuture<Void> commitGate;
 
         ObservedClient() { super(null); }
@@ -496,6 +785,7 @@ class GraphMetadataNavigationTest {
                             queries.add((GetModelGraph) arguments[0]);
                         }
                         if (method.getName().equals("getModelEvents")) {
+                            beforeEvents.accept((GetModelEvents) arguments[0]);
                             eventQueries.add((GetModelEvents) arguments[0]);
                         }
                         if (method.getName().equals("commitModels")) {
@@ -515,6 +805,17 @@ class GraphMetadataNavigationTest {
 
     @Model(name = "root") record Root(@EntityId String rootId, int version) {}
     @Model record Aliased(@EntityId String rootId, @Alias String alias, int version) {}
+    record DeleteAliased(String rootId) { @Apply Aliased apply() { return null; } }
+    record RejectAlias() { @AssertLegal void check() { throw new IllegalCommandException("rejected"); } }
+    @Model record Affixed(@EntityId(prefix = "prefix-") String rootId, @Alias String alias) {}
+    record CreateAffixed(String rootId, String alias) {
+        @Apply Affixed apply() { return new Affixed(rootId, alias); }
+    }
+    @Model(persistence = ModelPersistence.DOCUMENT)
+    record AliasedDocument(@EntityId String documentId, @Alias String alias) {}
+    record CreateAliasedDocument(String documentId, String alias) {
+        @Apply AliasedDocument apply() { return new AliasedDocument(documentId, alias); }
+    }
     @Model record AliasChild(@EntityId String childId, @Parent(Aliased.class) String rootId) {}
     @Model(persistence = ModelPersistence.DOCUMENT)
     record Document(@EntityId String documentId, @Parent(Document.class) String parentId) {}

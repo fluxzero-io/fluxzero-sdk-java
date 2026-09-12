@@ -47,9 +47,33 @@ public interface ModelGraphResolver {
     /** Strictly materializes a full graph at the selected boundary without consulting later batch state. */
     Graph<?> loadGraphProjection(String rootId, Class<?> rootType, ModelReadBoundary boundary, boolean historical);
 
+    /**
+     * Materializes relationships while retaining a root value whose identity or absence was already resolved.
+     * A resolver opting into metadata-only identity resolution must implement this operation for absent roots;
+     * silently resolving the supplied identity again could bind it to a different model.
+     */
+    default Graph<?> loadGraphProjection(String rootId, Class<?> rootType, ModelReadBoundary boundary,
+                                        boolean historical, Entity<?> resolvedRoot) {
+        throw new UnsupportedOperationException("Graph resolver must retain the resolved root identity: " + rootId);
+    }
+
     /** Loads a source value and retains the coherent boundary that ordinary single-value APIs do not expose. */
     Value loadGraphValue(Object modelId, boolean exact, Class<?> modelType,
                          ModelReadBoundary boundary);
+
+    /**
+     * Resolves an identity without requiring its value. The returned supplier must retain the resolved identity,
+     * absence and boundary even if the alias changes later. Returning {@code null} (the default) retains a custom
+     * repository's existing value-based identity lookup, without opting into metadata-only identity resolution.
+     */
+    default Identity resolveGraphIdentity(Object modelId, Class<?> modelType, ModelReadBoundary boundary) {
+        return null;
+    }
+
+    /** One resolved identity and lazy value at a shared boundary; absent identities must not be resolved again. */
+    record Identity(String modelId, boolean present, ModelReadBoundary boundary, boolean historical,
+                    Supplier<Entity<?>> entity) {
+    }
 
     /** Reconstructs explicitly requested values together; unrelated metadata nodes must remain unloaded. */
     Map<String, Entity<?>> loadGraphValues(Map<String, Class<?>> modelTypes, ModelReadBoundary boundary,

@@ -398,8 +398,11 @@ Their identities/relations can be traversed, but type/value/history/update acces
 Model is absent. Class-based selection matches only locally known assignable types; unknown intermediate
 nodes do not hide known descendants. Values remain lazy and pinned; injected membership reads, including
 empty selections, participate in conflict handling. Full materialization still requires the value/replay contracts.
-An unresolved alias-capable root may still require root replay to establish its identity; an already resolved root
-or `Graphs.lazyRepositoryId(canonicalId, Root.class, repository)` avoids that separate alias lookup.
+Lazy root aliases resolve through head metadata without replay in the default repository. The initial lookup uses
+the current alias table, even for historical reads; its canonical ID or absence and value/relationship boundary
+then stay pinned. This is not a new transaction-level alias-mapping conflict dependency.
+Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
+transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
 
 Use `@Alias` for a current alternative identity of an independently stored model:
 

@@ -1115,6 +1115,43 @@ final class ModelReplayCursor {
                 : new CurrentProjection(sharedValidThrough, Map.copyOf(entities));
     }
 
+    ModelGraphResolver.Identity graphIdentity(String requestedId, Class<?> type, ModelReadBoundary boundary,
+                                               boolean historical) {
+        LoadResult loaded = loadHeads(List.of(requestedId), boundary);
+        ModelHeadState head = loaded.heads().get(requestedId);
+        String id = head == null ? requestedId : head.getModelId();
+        Class<?> storedType = head == null ? type : modelType(head.getModelType(), id);
+        if (!type.isAssignableFrom(storedType)) {
+            throw new EventSourcingException("Graph root '%s' has stored type %s instead of %s"
+                    .formatted(id, storedType.getName(), type.getName()));
+        }
+        ModelReadBoundary pinned = boundary.resolved(loaded.stateIndex());
+        ModelHeadState presenceHead = head;
+        if (boundary.before() && head != null && head.getStateIndex() == loaded.stateIndex()) {
+            presenceHead = loadHeads(List.of(id), ModelReadBoundary.at(loaded.stateIndex() - 1)).heads().get(id);
+        }
+        boolean present = presenceHead != null && id.equals(presenceHead.getModelId()) && !presenceHead.isDeleted();
+        return new ModelGraphResolver.Identity(id, present, pinned, historical, () -> {
+            if (head == null) {
+                return ImmutableModelRoot.initial(id, type, EntityMetadata.validate(type).entityId().orElseThrow().name(),
+                                                   null, entityHelper, serializer);
+            }
+            MutationPlan.ResolvedModel target = new MutationPlan.ResolvedModel(
+                    id, storedType, MutationPlan.Access.READ_ONLY,
+                    List.of(EntityMetadata.validate(storedType).entityId().orElseThrow().name()));
+            Entity<?> entity = reconstructProjection(List.of(target), Map.of(id, head), loaded.stateIndex(), historical).get(id);
+            if (!id.equals(entity.id().toString())) {
+                throw new EventSourcingException("Resolved Graph identity changed from '%s' to '%s'".formatted(id, entity.id()));
+            }
+            if (!(entity instanceof ModelRoot<?> root)
+                || root.sequenceNumber() != head.getSequenceNumber() || root.stateIndex() != head.getStateIndex()) {
+                throw new EventSourcingException("Resolved Graph revision is no longer available for '%s' at state %d"
+                        .formatted(id, head.getStateIndex()));
+            }
+            return boundary.before() ? beforeBoundary(entity, loaded.stateIndex()) : entity;
+        });
+    }
+
     ModelGraphResolver.Value graphValue(String id, Class<?> type, ModelReadBoundary boundary,
                                         ModelCacheTracker cacheTracker, boolean historical) {
         EntityMetadata metadata = EntityMetadata.validate(type);
@@ -1204,7 +1241,7 @@ final class ModelReplayCursor {
         });
         LinkedHashMap<String, ModelHeadState> heads = new LinkedHashMap<>();
         response.getEvents().getStreams().forEach(stream -> {
-            if (stream.getHead() != null) {
+            if (stream.getHead() != null && stream.getModelId().equals(stream.getHead().getModelId())) {
                 heads.put(stream.getModelId(), stream.getHead());
             }
         });
@@ -1214,7 +1251,11 @@ final class ModelReplayCursor {
             if (loaded.stateIndex() != stateIndex) {
                 throw new GraphBoundaryMovedException("Graph heads changed their pinned state boundary");
             }
-            heads.putAll(loaded.heads());
+            loaded.heads().forEach((id, head) -> {
+                if (head != null && id.equals(head.getModelId())) {
+                    heads.put(id, head);
+                }
+            });
         }
         Map<String, ModelGraphResolver.ModelNode> nodes = new LinkedHashMap<>();
         for (String id : selected) {
@@ -1300,6 +1341,12 @@ final class ModelReplayCursor {
             ModelReadBoundary boundary,
             String namespace,
             Map<String, Entity<?>> staged, boolean historicalBoundary) {
+        return graphAtBoundary(rootId, rootType, options, boundary, namespace, staged, historicalBoundary, null);
+    }
+
+    <T> Graph<T> graphAtBoundary(
+            String rootId, Class<T> rootType, Graph.Options options, ModelReadBoundary boundary,
+            String namespace, Map<String, Entity<?>> staged, boolean historicalBoundary, Entity<?> resolvedRoot) {
         GetModelGraph request = new GetModelGraph(
                 rootId, boundary, options.maxDepth(), options.maxModels(), 0, 0L, false);
         GetModelGraphResult response = getModelGraph(request);
@@ -1324,6 +1371,9 @@ final class ModelReplayCursor {
         }
         List<MutationPlan.ResolvedModel> targets = new ArrayList<>(streams.size());
         for (ModelEventStream stream : streams) {
+            if (resolvedRoot != null && rootId.equals(stream.getModelId())) {
+                continue;
+            }
             Class<?> modelType = graphModelType(
                     stream, heads.get(stream.getModelId()), rootId, rootType);
             targets.add(new MutationPlan.ResolvedModel(
@@ -1358,6 +1408,9 @@ final class ModelReplayCursor {
         }
         if (boundary.before()) {
             models.replaceAll((ignored, entity) -> beforeBoundary(entity, stateIndex));
+        }
+        if (resolvedRoot != null) {
+            models.put(rootId, resolvedRoot);
         }
         ModelReadBoundary resolvedBoundary = boundary.resolved(stateIndex);
         return Graphs.compose(

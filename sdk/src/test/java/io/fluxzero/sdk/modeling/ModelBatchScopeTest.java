@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -755,8 +756,15 @@ class ModelBatchScopeTest {
                 assertEquals(after, snapshot.values().get("model-1").get());
                 assertTrue(Invocation.resultPublicationBarrier(current).isDone(), "Capturing is not reading");
                 assertSame(primary, snapshot.overlay("new", AliasModel.class, primary));
+                assertNull(snapshot.overlayIdentity("new", AliasModel.class, "new", true));
                 assertTrue(Invocation.resultPublicationBarrier(current).isDone(), "Unrelated primary wins without dependency");
+                assertEquals(after, snapshot.overlayIdentity("new", AliasModel.class, "model-1", true).get());
+                assertTrue(snapshot.overlayIdentity("old", AliasModel.class, "model-1", true).isEmpty());
                 assertEquals(after, snapshot.overlay("model-1", AliasModel.class, durable).get());
+                Entity<?> opaque = mock(Entity.class);
+                doThrow(new AssertionError("A pending exact value must not inspect the durable value"))
+                        .when(opaque).isPresent();
+                assertEquals(after, snapshot.overlay("model-1", AliasModel.class, opaque).get());
                 assertEquals(after, snapshot.overlay("new", AliasModel.class, durable).get());
                 assertTrue(snapshot.overlay("old", AliasModel.class, durable).isEmpty());
                 barrier.set(Invocation.resultPublicationBarrier(current));
