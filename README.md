@@ -2,7 +2,7 @@
 
 # Fluxzero SDK for Java and Kotlin
 
-The SDK connects Java and Kotlin applications to [Fluxzero](https://fluxzero.io). Use it to build product behavior with models, messages, web handlers, schedules, validation, authorization, persistence, search, and tests.
+This is the SDK for building applications on [Fluxzero](https://fluxzero.io). It supports both Java and Kotlin.
 
 [![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
 [![Packages](https://img.shields.io/badge/packages-releases-blue)](https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-bom/)
@@ -11,16 +11,13 @@ The SDK connects Java and Kotlin applications to [Fluxzero](https://fluxzero.io)
 
 [Documentation](https://fluxzero.io/docs) · [Get started](https://fluxzero.io/get-started) · [Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) · [Packages](https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-bom/) · [Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases)
 
-## What the SDK does
+## Build product behavior
 
-- Models product state and persists changes.
-- Handles commands, events, queries, web requests, WebSockets, and scheduled work.
-- Applies validation and authorization where product behavior is defined.
-- Routes work across application instances and exposes runtime metrics.
-- Tests complete flows locally with `TestFixture` and the in-memory runtime.
-- Supports Java, Kotlin, Spring, Maven, and Gradle projects.
+Use the SDK to describe a feature with plain messages, immutable models, and small handler methods. A handler can change product state, answer a query, expose a web endpoint, react to an event, or schedule work. Validation and authorization stay close to the behavior they protect.
 
-The full guides, tutorials, configuration reference, and examples live in the [Fluxzero documentation](https://fluxzero.io/docs).
+Fluxzero handles delivery, routing, persistence, retries, and observability around that code. You can test complete product flows locally with `TestFixture` and run the same application behavior on Fluxzero.
+
+Explore the [core concepts](https://fluxzero.io/docs/getting-started/core-concepts) or browse the full [guides, tutorials, and reference documentation](https://fluxzero.io/docs).
 
 ## Start building
 
