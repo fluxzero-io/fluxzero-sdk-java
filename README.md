@@ -1,6 +1,6 @@
 <a href="https://fluxzero.io"><img src="https://raw.githubusercontent.com/fluxzero-io/.github/3fa8f79df95d07678a730147bc1bd0402ae660d5/assets/brand/2026-09/repository-header.svg" alt="Fluxzero — The European cloud for AI-built apps" width="1280"></a>
 
-# Fluxzero SDK for Java and Kotlin
+# Fluxzero SDK
 
 This is the SDK for building applications on [Fluxzero](https://fluxzero.io). It supports both Java and Kotlin.
 
