@@ -60,6 +60,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -79,6 +80,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -2328,40 +2330,54 @@ class ProxyServerTest {
         return payload;
     }
 
+    @Test
+    void smallPartsPublisherPreservesBytesWithReentrantDemand() {
+        byte[] payload = requestPayload(29);
+        var received = new ByteArrayOutputStream();
+        var completed = new AtomicInteger();
+        var publisher = chunkedBodyPublisher(payload, 3);
+        assertEquals(payload.length, publisher.contentLength());
+        publisher.subscribe(new Flow.Subscriber<>() {
+            private Flow.Subscription subscription;
+
+            @Override
+            public void onSubscribe(Flow.Subscription subscription) {
+                this.subscription = subscription;
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(ByteBuffer item) {
+                assertTrue(item.remaining() <= 3);
+                byte[] bytes = new byte[item.remaining()];
+                item.get(bytes);
+                received.writeBytes(bytes);
+                // Bound a broken publisher too, so duplication fails without overflowing the stack.
+                if (received.size() < payload.length * 2) {
+                    subscription.request(1);
+                }
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                throw new AssertionError(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                completed.incrementAndGet();
+            }
+        });
+        assertArrayEquals(payload, received.toByteArray());
+        assertEquals(1, completed.get());
+    }
+
     private static HttpRequest.BodyPublisher chunkedBodyPublisher(byte[] payload, int publisherChunkSize) {
-        return new HttpRequest.BodyPublisher() {
-            @Override
-            public long contentLength() {
-                return payload.length;
-            }
-
-            @Override
-            public void subscribe(Flow.Subscriber<? super ByteBuffer> subscriber) {
-                subscriber.onSubscribe(new Flow.Subscription() {
-                    private int offset;
-                    private boolean completed;
-
-                    @Override
-                    public void request(long n) {
-                        long remainingDemand = n;
-                        while (remainingDemand-- > 0 && offset < payload.length && !completed) {
-                            int length = Math.min(publisherChunkSize, payload.length - offset);
-                            subscriber.onNext(ByteBuffer.wrap(Arrays.copyOfRange(payload, offset, offset + length)));
-                            offset += length;
-                        }
-                        if (offset >= payload.length && !completed) {
-                            completed = true;
-                            subscriber.onComplete();
-                        }
-                    }
-
-                    @Override
-                    public void cancel() {
-                        completed = true;
-                    }
-                });
-            }
-        };
+        List<byte[]> parts = new ArrayList<>();
+        for (int offset = 0; offset < payload.length; offset += publisherChunkSize) {
+            parts.add(Arrays.copyOfRange(payload, offset, Math.min(payload.length, offset + publisherChunkSize)));
+        }
+        return BodyPublishers.fromPublisher(BodyPublishers.ofByteArrays(parts), payload.length);
     }
 
     private static class TestProxyRequestHandler extends ProxyRequestHandler {

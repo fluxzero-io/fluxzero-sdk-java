@@ -238,6 +238,12 @@ The global event log is independent.
 
 ## The model commit package
 
+A singular Model-returning `@Apply` may update an injected parent or further ancestor through the existing `@Parent`
+relation. A directly supplied write-target ID keeps precedence; when none exists, the selected ancestor supplies the
+write identity without duplicating its ID in the command. Merely injecting an ancestor does not update it. Selection
+uses the pinned state before applying the changes, so a command may delete a child and update its parent atomically.
+Ambiguous ancestors must be qualified with `@Association("parentPath")`; replay retains the corresponding dependencies.
+
 The SDK evaluates one complete model commit and submits:
 
 - the original applied events;

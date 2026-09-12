@@ -44,7 +44,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
+import static io.fluxzero.common.ObjectUtils.memoize;
 import static io.fluxzero.common.handling.HandlerInspector.inspect;
 import static io.fluxzero.common.reflection.ReflectionUtils.getGenericPropertyType;
 import static io.fluxzero.common.reflection.ReflectionUtils.getPropertyName;
@@ -509,7 +511,7 @@ public final class MutationPlan {
                 ancestors.add(new AncestorDependency(
                         parameter.modelType(), parameter.associationProperty(),
                         plan.executable().toGenericString(),
-                        !ReflectionUtils.isNullable(parameter.parameter())));
+                        !ReflectionUtils.isNullable(parameter.parameter()), Access.READ_ONLY));
             } else if (direct.modelId() != null) {
                 String source = parameter.associationProperty() == null
                         ? EntityMetadata.of(parameter.modelType()).entityIdName()
@@ -725,9 +727,49 @@ public final class MutationPlan {
                     .forEach(type -> slots.add(new Slot(type, payload.required(type, "@AssertLegal fields"),
                                                        false, Access.READ_ONLY, null, true, false, null)));
         }
+        List<EntityMetadata.HandlerMethod> immutableHandlers = List.copyOf(handlers);
         return new TargetPlan(
                 payloadType, List.copyOf(slots), List.copyOf(deferred), List.copyOf(ancestors),
-                Map.copyOf(handlerMethods));
+                Map.copyOf(handlerMethods),
+                ancestors.stream().noneMatch(ancestor -> ancestor.dependency().access().writes())
+                        ? null : memoize(() -> ancestorSelectionRoots(payload, immutableHandlers, slots, ancestors)));
+    }
+
+    private static List<Slot> ancestorSelectionRoots(
+            Payload payload, Collection<EntityMetadata.HandlerMethod> handlers,
+            List<Slot> slots, Set<PlannedAncestor> ancestors) {
+        if (ancestors.stream().noneMatch(ancestor -> ancestor.dependency().access().writes())) {
+            return List.of();
+        }
+        // Replay executes only the handlers for its own stream, but ancestor selection still starts
+        // at the original payload's directly addressed models. These readers never authorize writes
+        // or execute another handler, and absent optional roots do not become required payload IDs.
+        List<Slot> roots = new ArrayList<>();
+        for (EntityMetadata.HandlerMethod handler : EntityMetadata.of(payload.type).handlerMethods()) {
+            if (!handlers.contains(handler)) {
+                compile(payload, handler, roots, new ArrayList<>(), new LinkedHashSet<>());
+            }
+        }
+        payload.properties.values().forEach(property -> property.modelType()
+                .filter(type -> EntityMetadata.of(type).isModel())
+                .filter(type -> ancestors.stream().noneMatch(ancestor ->
+                        EntityMetadata.compatibleTypes(type, ancestor.dependency().modelType())))
+                .ifPresent(type -> roots.add(
+                        new Slot(type, property, false, Access.READ_ONLY, null, false, true, null))));
+        List<Slot> unique = new ArrayList<>();
+        for (Slot root : roots) {
+            if (!root.property.missing()
+                && slots.stream().noneMatch(slot -> sameReader(slot, root))
+                && unique.stream().noneMatch(slot -> sameReader(slot, root))) {
+                unique.add(root);
+            }
+        }
+        return List.copyOf(unique);
+    }
+
+    private static boolean sameReader(Slot left, Slot right) {
+        return left.modelType.equals(right.modelType) && left.property.equals(right.property)
+               && left.collection == right.collection;
     }
 
     private static void compile(
@@ -739,6 +781,7 @@ public final class MutationPlan {
         String signature = handler.executable().toGenericString();
         boolean apply = handler.kind() == EntityMetadata.HandlerKind.APPLY;
         List<Slot> local = new ArrayList<>();
+        List<AncestorDependency> localAncestors = new ArrayList<>();
         if (handler.receiverModelType() != null) {
             local.add(new Slot(
                     handler.receiverModelType(), payload.required(handler.receiverModelType(), signature),
@@ -759,17 +802,19 @@ public final class MutationPlan {
                                 payload.type.getName(), parameter.associationProperty(), signature)),
                         true, Access.READ_ONLY, signature, false, apply, parameter));
             } else {
-                ancestors.add(new PlannedAncestor(new AncestorDependency(
+                localAncestors.add(new AncestorDependency(
                         parameter.modelType(), parameter.associationProperty(), signature,
-                        !ReflectionUtils.isNullable(parameter.parameter())), apply));
+                        !ReflectionUtils.isNullable(parameter.parameter()), Access.READ_ONLY));
             }
         }
         if (handler.kind() == EntityMetadata.HandlerKind.APPLY) {
             if (handler.dynamicApplyResult()) {
                 local.forEach(Slot::write);
             }
-            handler.targetModelTypes().forEach(type -> writeSlot(payload, handler, type, local, deferred));
+            handler.targetModelTypes().forEach(type ->
+                    writeSlot(payload, handler, type, local, localAncestors, deferred));
         }
+        localAncestors.forEach(dependency -> ancestors.add(new PlannedAncestor(dependency, apply)));
         slots.addAll(local);
     }
 
@@ -778,6 +823,7 @@ public final class MutationPlan {
             EntityMetadata.HandlerMethod handler,
             Class<?> type,
             List<Slot> slots,
+            List<AncestorDependency> ancestors,
             List<Deferred> deferred) {
         String signature = handler.executable().toGenericString();
         List<Slot> candidates = slots.stream().filter(slot -> slot.modelType.equals(type)).toList();
@@ -786,9 +832,16 @@ public final class MutationPlan {
             (receiver == null ? candidates.getFirst() : receiver).write();
         } else if (candidates.isEmpty()) {
             if (!handler.collectionApplyResult()) {
-                slots.add(new Slot(
-                        type, payload.required(type, signature), false,
-                        Access.WRITE_ONLY, signature, false, true, null));
+                Property direct = payload.direct(type, null);
+                if (direct == null && ancestors.stream().anyMatch(dependency -> dependency.modelType().equals(type))) {
+                    // Use the injected ancestor only when no direct return-target identity was supplied.
+                    ancestors.replaceAll(dependency -> dependency.modelType().equals(type)
+                            ? dependency.write() : dependency);
+                } else {
+                    slots.add(new Slot(
+                            type, direct == null ? payload.required(type, signature) : direct, false,
+                            Access.WRITE_ONLY, signature, false, true, null));
+                }
             }
         } else {
             Property exact = payload.exact(type);
@@ -892,6 +945,7 @@ public final class MutationPlan {
         private final List<Deferred> deferred;
         private final List<PlannedAncestor> ancestors;
         private final Map<String, EntityMetadata.HandlerMethod> handlerMethods;
+        private final Supplier<List<Slot>> ancestorRoots;
         private final Slot routingTarget;
 
         private TargetPlan(
@@ -899,12 +953,14 @@ public final class MutationPlan {
                 List<Slot> slots,
                 List<Deferred> deferred,
                 List<PlannedAncestor> ancestors,
-                Map<String, EntityMetadata.HandlerMethod> handlerMethods) {
+                Map<String, EntityMetadata.HandlerMethod> handlerMethods,
+                Supplier<List<Slot>> ancestorRoots) {
             this.payloadType = payloadType;
             this.slots = slots;
             this.deferred = deferred;
             this.ancestors = ancestors;
             this.handlerMethods = handlerMethods;
+            this.ancestorRoots = ancestorRoots;
             List<EntityMetadata.HandlerMethod> applies = handlerMethods.values().stream()
                     .filter(handler -> handler.kind() == EntityMetadata.HandlerKind.APPLY).toList();
             List<Slot> writes = slots.stream().filter(slot -> slot.access.writes()).toList();
@@ -950,6 +1006,14 @@ public final class MutationPlan {
             return resolve(input, null, false);
         }
 
+        /**
+         * Resolves replay inputs, binding a unique write ancestor to the authoritative stream identity.
+         * Multiple same-type dependencies still require historical relationship selection.
+         */
+        public Resolution resolveReplay(Object input, ResolvedModel replayTarget) {
+            return resolve(input, null, null, false, Objects.requireNonNull(replayTarget));
+        }
+
         Resolution resolve(Object input, Class<?> explicitType, boolean appliesOnly) {
             return resolve(input, null, explicitType, appliesOnly);
         }
@@ -959,6 +1023,12 @@ public final class MutationPlan {
                 String explicitId,
                 Class<?> explicitType,
                 boolean appliesOnly) {
+            return resolve(input, explicitId, explicitType, appliesOnly, null);
+        }
+
+        private Resolution resolve(
+                Object input, String explicitId, Class<?> explicitType, boolean appliesOnly,
+                ResolvedModel replayTarget) {
             // Apply ancestors can have been selected through a root injected only by an assertion.
             // Rebase must reload those selection roots without executing the assertion again.
             boolean applyOnlyTargets = appliesOnly && ancestors.stream().noneMatch(PlannedAncestor::apply);
@@ -1016,9 +1086,6 @@ public final class MutationPlan {
                 merge(result, new ResolvedModel(
                         explicitId, explicitType, Access.READ_WRITE, sources));
             }
-            if (!ancestors.isEmpty()) {
-                addProspectiveParents(payload, result);
-            }
             List<AncestorDependency> unresolvedAncestors = ancestors.stream()
                     .filter(dependency -> !appliesOnly || dependency.apply)
                     .filter(dependency -> acceptsExplicitTarget(
@@ -1026,6 +1093,37 @@ public final class MutationPlan {
                     .map(PlannedAncestor::dependency)
                     .filter(dependency -> !compatibleExplicit(
                             dependency.modelType(), explicitType)).toList();
+            if (replayTarget != null && ancestorRoots != null) {
+                List<AncestorDependency> matching = unresolvedAncestors.stream()
+                        .filter(dependency -> EntityMetadata.compatibleTypes(
+                                dependency.modelType(), replayTarget.modelType())).toList();
+                if (matching.size() == 1 && matching.getFirst().access().writes()) {
+                    AncestorDependency dependency = matching.getFirst();
+                    merge(result, new ResolvedModel(
+                            replayTarget.modelId(), replayTarget.modelType(), Access.READ_WRITE,
+                            List.of(dependency.association() == null
+                                    ? EntityMetadata.of(dependency.modelType()).entityIdName()
+                                    : dependency.association())));
+                    unresolvedAncestors = unresolvedAncestors.stream().filter(d -> d != dependency).toList();
+                }
+            }
+            if (ancestorRoots != null && !unresolvedAncestors.isEmpty()) {
+                for (Slot root : ancestorRoots.get()) {
+                    Object raw = root.property.read(payload);
+                    if (raw != null) {
+                        List<String> ids = root.collection
+                                ? ids(raw, root.modelType, root.property.name(), root.handler, payload)
+                                : List.of(repositoryId(raw, root, payload));
+                        for (String id : ids) {
+                            merge(result, new ResolvedModel(
+                                    id, root.modelType, Access.READ_ONLY, List.of(root.property.name())));
+                        }
+                    }
+                }
+            }
+            if (!ancestors.isEmpty()) {
+                addProspectiveParents(payload, result);
+            }
             return new Resolution(
                     List.copyOf(result.values()), unresolved,
                     unresolvedAncestors,
@@ -1156,16 +1254,22 @@ public final class MutationPlan {
         }
     }
 
-    /** Read-only dependency resolved through temporal parent relations. */
+    /** Dependency and its planned access, resolved through temporal parent relations. */
     public record AncestorDependency(
-            Class<?> modelType, String association, String handler, boolean required) {
+            Class<?> modelType, String association, String handler, boolean required, Access access) {
+        /** Creates a required read-only ancestor dependency for navigation or handler injection. */
         public AncestorDependency(Class<?> modelType, String association, String handler) {
-            this(modelType, association, handler, true);
+            this(modelType, association, handler, true, Access.READ_ONLY);
         }
 
         public AncestorDependency {
             Objects.requireNonNull(modelType, "modelType");
             Objects.requireNonNull(handler, "handler");
+            Objects.requireNonNull(access, "access");
+        }
+
+        private AncestorDependency write() {
+            return new AncestorDependency(modelType, association, handler, required, Access.READ_WRITE);
         }
     }
 

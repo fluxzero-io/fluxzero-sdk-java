@@ -97,6 +97,12 @@ public record RenameProject(ProjectId projectId,
 Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
 direct target and related ancestor resolved for the action. They must not perform nested model writes.
 
+A singular Model-returning `@Apply` may update an injected parent or further ancestor through the existing `@Parent`
+relation. A directly supplied write-target ID keeps precedence; when none exists, the selected ancestor supplies the
+write identity without duplicating its ID in the command. Merely injecting an ancestor does not update it. Selection
+uses the pinned state before applying the changes, so a command may delete a child and update its parent atomically.
+Ambiguous ancestors must be qualified with `@Association("parentPath")`; replay retains the corresponding dependencies.
+
 Interception selects the payloads to which assertions apply:
 
 | Interceptor outcome | Assertions and application |

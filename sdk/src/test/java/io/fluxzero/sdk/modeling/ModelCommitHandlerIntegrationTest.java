@@ -1173,6 +1173,7 @@ class ModelCommitHandlerIntegrationTest {
     @Test
     void receiverApplyUsesConsumerConfiguredForCommandRootPackage()
             throws Throwable {
+        RootConsumerModel.observedConsumer.set(null);
         LocalClient client = LocalClient.newInstance(null);
         try (Fluxzero fluxzero = DefaultFluxzero.builder()
                 .disableKeepalive()
@@ -1195,14 +1196,20 @@ class ModelCommitHandlerIntegrationTest {
 
                 assertEventually(() -> assertEquals(
                         new RootConsumerModel(
-                                modelId, "root"),
+                                modelId, "applied"),
                         fluxzero.modelRepository()
                                 .load(modelId,
                                       RootConsumerModel.class)
                                 .get()));
+                assertEquals("root", RootConsumerModel.observedConsumer.get());
+                fluxzero.cache().clear();
+                assertEquals(new RootConsumerModel(modelId, "applied"),
+                             fluxzero.modelRepository().load(modelId, RootConsumerModel.class).get());
             } finally {
                 registration.cancel();
             }
+        } finally {
+            RootConsumerModel.observedConsumer.set(null);
         }
     }
 
@@ -3257,14 +3264,16 @@ class ModelCommitHandlerIntegrationTest {
     @Model
     private record RootConsumerModel(
             @EntityId String rootConsumerModelId,
-            String consumerName) {
+            String state) {
+        private static final AtomicReference<String> observedConsumer = new AtomicReference<>();
+
         @Apply
         RootConsumerModel apply(
                 RootConsumerModelCommand command) {
-            return new RootConsumerModel(
-                    rootConsumerModelId,
-                    Tracker.current().orElseThrow()
-                            .getName());
+            if (!Entity.isLoading()) {
+                observedConsumer.set(Tracker.current().orElseThrow().getName());
+            }
+            return new RootConsumerModel(rootConsumerModelId, "applied");
         }
     }
 

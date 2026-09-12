@@ -1752,7 +1752,7 @@ final class ModelReplayCursor {
                         : dependency.association();
                 MutationPlan.merge(
                         selected, new MutationPlan.ResolvedModel(
-                                modelId, modelType, MutationPlan.Access.READ_ONLY,
+                                modelId, modelType, dependency.access(),
                                 List.of(sourceProperty)));
             }
         }
@@ -2565,8 +2565,7 @@ final class ModelReplayCursor {
                                 || definition.direct()
                                         ? null
                                         : definition.targets()
-                                                .resolve(
-                                                        event.getPayload()));
+                                                .resolveReplay(event.getPayload(), target));
                     })
                     .toList();
         }

@@ -3875,6 +3875,12 @@ document, custom and web handlers use one current handler load context. Event-so
 repository boundary; document-loaded targets remain current-only direct-document reads. Use
 `@Association("alternativeId")` to select another payload or metadata field when IDs are ambiguous, or
 `@Association(value = "alternativeId", excludeMetadata = true)` to require the payload field.
+A singular Model-returning `@Apply` may update an injected parent or further ancestor through the existing `@Parent`
+relation. A directly supplied write-target ID keeps precedence; when none exists, the selected ancestor supplies the
+write identity without duplicating its ID in the command. Merely injecting an ancestor does not update it. Selection
+uses the pinned state before applying the changes, so a command may delete a child and update its parent atomically.
+Ambiguous ancestors must be qualified with `@Association("parentPath")`; replay retains the corresponding dependencies.
+
 An ordered ID collection can be loaded at that same pinned boundary without an application-side repository loop:
 
 ```java
