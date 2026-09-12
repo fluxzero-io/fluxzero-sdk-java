@@ -76,6 +76,17 @@
     "varArgs" : false,
     "documentation" : " Indicates whether this user has the specified role.\n\n @param role a role string such as {@code \"admin\"} or {@code \"viewer\"}\n @return {@code true} if the user has the role, {@code false} otherwise\n"
   }, {
+    "name" : "id",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#id",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Returns the stable identifier of this user.\n <p>\n The default delegates to {@link #getName()} so existing {@code User} implementations remain source-, binary-,\n and behavior-compatible. Implementations should override this method when the principal name is not a stable\n application user identifier. Fluxzero uses this value for user metadata, provider lookups, and diagnostics that\n identify the acting user.\n\n @return the stable user identifier\n"
+  }, {
     "name" : "run",
     "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.User#run",
     "returnType" : "void",

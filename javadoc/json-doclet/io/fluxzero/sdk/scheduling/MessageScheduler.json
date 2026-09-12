@@ -5,13 +5,29 @@
   "kind" : "interface",
   "modifiers" : [ "abstract", "public" ],
   "annotations" : [ ],
-  "documentation" : " Interface for scheduling deferred or periodic execution of messages in the Fluxzero Runtime.\n <p>\n The {@code MessageScheduler} provides functionality for:\n <ul>\n   <li><strong>Deferring arbitrary payloads</strong> (to be handled via {@link io.fluxzero.sdk.tracking.handling.HandleSchedule}).</li>\n   <li><strong>Scheduling commands</strong> (to be handled via standard {@code @HandleCommand} handlers).</li>\n   <li><strong>Recurring execution</strong> using cron expressions via the {@link Periodic}\n       annotation.</li>\n </ul>\n\n <h2>Scheduling semantics</h2>\n <p>When using {@code schedule(...)}:\n <ul>\n   <li>Scheduled payloads are delivered to handler methods annotated with {@code @HandleSchedule}.</li>\n   <li>Used when the intention is to invoke scheduling-specific logic or workflows.</li>\n </ul>\n <p>\n When using {@code scheduleCommand(...)}:\n <ul>\n   <li>The scheduled payload will be dispatched as a command at the configured deadline.</li>\n   <li>Handlers annotated with {@code @HandleCommand} will receive the message, just like normal commands.</li>\n   <li>This is useful for scenarios where both immediate and delayed invocation use the same handler logic.</li>\n </ul>\n\n <h2>Schedule identity</h2>\n <p>All schedules are identified by a {@code scheduleId}. It is recommended to always pass a scheduleId. However,\n if one is not given, it is obtained from the toString() value of the Schedule payload.\n If a schedule with the same ID already exists:\n <ul>\n   <li>It is replaced by default.</li>\n   <li>Use {@code ifAbsent = true} to ensure the schedule is only created if it does not already exist.</li>\n </ul>\n\n <h2>Typical usage</h2>\n This interface underpins the static helpers in {@link io.fluxzero.sdk.Fluxzero}, such as:\n <pre>\n     Fluxzero.schedule(myPayload, Duration.ofMinutes(5));\n     Fluxzero.scheduleCommand(myCommand, Instant.now().plusSeconds(10));\n </pre>\n\n @see io.fluxzero.sdk.scheduling.Schedule\n @see Periodic\n @see io.fluxzero.sdk.tracking.handling.HandleSchedule\n @see ScheduledCommandHandler\n",
+  "documentation" : " Interface for scheduling deferred or periodic execution of messages in the Fluxzero Runtime.\n <p>\n The {@code MessageScheduler} provides functionality for:\n <ul>\n   <li><strong>Deferring arbitrary payloads</strong> (to be handled via {@link io.fluxzero.sdk.tracking.handling.HandleSchedule}).</li>\n   <li><strong>Scheduling commands</strong> (to be handled via standard {@code @HandleCommand} handlers).</li>\n   <li><strong>Recurring execution</strong> using cron expressions via the {@link Periodic}\n       annotation.</li>\n </ul>\n\n <h2>Scheduling semantics</h2>\n <p>When using {@code schedule(...)}:\n <ul>\n   <li>Scheduled payloads are delivered to handler methods annotated with {@code @HandleSchedule}.</li>\n   <li>Used when the intention is to invoke scheduling-specific logic or workflows.</li>\n </ul>\n <p>\n When using {@code scheduleCommand(...)}:\n <ul>\n   <li>The scheduled payload will be dispatched as a command at the configured deadline.</li>\n   <li>Handlers annotated with {@code @HandleCommand} will receive the message, just like normal commands.</li>\n   <li>This is useful for scenarios where both immediate and delayed invocation use the same handler logic.</li>\n </ul>\n\n <h2>Schedule identity</h2>\n <p>All schedules are identified by a {@code scheduleId}. Use {@link ScheduleId} when the same domain identifier can\n occur in different schedule categories. Typed overloads convert it to its stable string representation before the\n schedule reaches the low-level client. If no ID is given, it is obtained from the {@code toString()} value of the\n schedule payload.\n If a schedule with the same ID already exists:\n <ul>\n   <li>It is replaced by default.</li>\n   <li>Use {@code ifAbsent = true} to ensure the schedule is only created if it does not already exist.</li>\n </ul>\n\n <h2>Typical usage</h2>\n This interface underpins the static helpers in {@link io.fluxzero.sdk.Fluxzero}, such as:\n <pre>\n     Fluxzero.schedule(myPayload, Duration.ofMinutes(5));\n     Fluxzero.scheduleCommand(myCommand, Instant.now().plusSeconds(10));\n </pre>\n\n @see io.fluxzero.sdk.scheduling.Schedule\n @see ScheduleId\n @see Periodic\n @see io.fluxzero.sdk.tracking.handling.HandleSchedule\n @see ScheduledCommandHandler\n",
   "typeParameters" : [ ],
   "superClass" : null,
   "interfaces" : [ "io.fluxzero.sdk.common.Namespaced<io.fluxzero.sdk.scheduling.MessageScheduler>" ],
   "fields" : [ ],
   "constructors" : [ ],
   "methods" : [ {
+    "name" : "cancelSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#cancelSchedule",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Cancel a previously scheduled message or command by typed ID.\n\n @param scheduleId the typed schedule ID\n"
+  }, {
     "name" : "cancelSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#cancelSchedule",
     "returnType" : "void",
@@ -30,6 +46,22 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Cancel a previously scheduled message or command by ID.\n\n @param scheduleId the ID of the schedule to cancel\n"
+  }, {
+    "name" : "getSchedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#getSchedule",
+    "returnType" : "java.util.Optional<io.fluxzero.sdk.scheduling.Schedule>",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Look up an existing schedule by typed ID.\n\n @param scheduleId the typed schedule ID\n @return the schedule if found\n"
   }, {
     "name" : "getSchedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#getSchedule",
@@ -195,6 +227,74 @@
       "annotations" : [ ]
     }, {
       "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a message with metadata and a typed ID using a delay.\n\n @param schedulePayload the message payload\n @param metadata        metadata to attach\n @param scheduleId      the typed schedule ID\n @param delay           the delay until triggering\n"
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedulePayload",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a message with metadata and a typed ID.\n\n @param schedulePayload the message payload\n @param metadata        metadata to attach\n @param scheduleId      the typed schedule ID\n @param deadline        the deadline for triggering the schedule\n"
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedulePayload",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleId",
       "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
@@ -241,6 +341,64 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Schedule a message with payload and metadata, using the {@link Guarantee#STORED} guarantee.\n\n @param schedulePayload the message payload\n @param metadata        metadata to attach\n @param scheduleId      the unique schedule ID\n @param deadline        the deadline for triggering the schedule\n"
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a message with a typed ID using a delay.\n\n @param schedule   the message to schedule\n @param scheduleId the typed schedule ID\n @param delay      the delay until triggering\n"
+  }, {
+    "name" : "schedule",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a message with a typed ID at a deadline.\n\n @param schedule   the message to schedule\n @param scheduleId the typed schedule ID\n @param deadline   the deadline for triggering the schedule\n"
   }, {
     "name" : "schedule",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedule",
@@ -438,6 +596,74 @@
       "annotations" : [ ]
     }, {
       "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a command with metadata and a typed ID using a delay.\n\n @param schedulePayload payload of the command\n @param metadata        metadata to attach\n @param scheduleId      the typed schedule ID\n @param delay           delay until execution\n"
+  }, {
+    "name" : "scheduleCommand",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedulePayload",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a command with metadata and a typed ID.\n\n @param schedulePayload payload of the command\n @param metadata        metadata to attach\n @param scheduleId      the typed schedule ID\n @param deadline        execution deadline\n"
+  }, {
+    "name" : "scheduleCommand",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedulePayload",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "scheduleId",
       "type" : "java.lang.Object",
       "varArgs" : false,
       "annotations" : [ ]
@@ -484,6 +710,64 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Schedule a command message with attached metadata, using the {@link Guarantee#STORED} guarantee.\n\n @param schedulePayload payload of the command\n @param metadata        metadata to attach\n @param scheduleId      schedule ID\n @param deadline        execution deadline\n"
+  }, {
+    "name" : "scheduleCommand",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "delay",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a command with a typed ID using a delay.\n\n @param schedule   the command to schedule\n @param scheduleId the typed schedule ID\n @param delay      the delay until execution\n"
+  }, {
+    "name" : "scheduleCommand",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
+    "returnType" : "void",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "schedule",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "deadline",
+      "type" : "java.time.Instant",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a command with a typed ID at a deadline.\n\n @param schedule   the command to schedule\n @param scheduleId the typed schedule ID\n @param deadline   the deadline for triggering the command\n"
   }, {
     "name" : "scheduleCommand",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#scheduleCommand",
@@ -590,6 +874,30 @@
     "thrownTypes" : [ ],
     "varArgs" : false,
     "documentation" : " Schedule a command message for future execution. This is similar to {@link #schedule} but ensures the message is\n dispatched as a command, using the {@link Guarantee#STORED} guarantee.\n <p>\n The schedule ID will be determined by calling schedule#toString.\n\n @param schedule the command to schedule\n @param deadline the deadline for execution\n @return the schedule ID\n"
+  }, {
+    "name" : "schedulePeriodic",
+    "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedulePeriodic",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "value",
+      "type" : "java.lang.@lombok.NonNull Object",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    }, {
+      "name" : "scheduleId",
+      "type" : "io.fluxzero.sdk.scheduling.ScheduleId",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Schedule a periodic message using a typed schedule ID.\n\n @param value      the payload to schedule periodically\n @param scheduleId the typed schedule ID\n @return the effective schedule ID\n @see #schedulePeriodic(Object, Object)\n"
   }, {
     "name" : "schedulePeriodic",
     "qualifiedName" : "io.fluxzero.sdk.scheduling.MessageScheduler#schedulePeriodic",
