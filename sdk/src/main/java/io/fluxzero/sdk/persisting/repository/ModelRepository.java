@@ -184,6 +184,9 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      * Event and notification handlers carrying model-commit metadata must be reconstructed at that exact commit
      * boundary. Other handlers use one current load context. Implementations should batch direct targets and ancestor
      * traversal rather than loading each parameter independently.
+     * Resolved ancestors must preserve their planned {@link MutationPlan.AncestorDependency#access() access}:
+     * reading a parent does not authorize a write, while a planned parent write must not be silently downgraded to
+     * read-only. Implementations unable to preserve the requested access and boundary must reject that capability.
      */
     default CommitAttempt loadContext(
             @NonNull MutationPlan.Resolution

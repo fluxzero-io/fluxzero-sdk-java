@@ -217,6 +217,12 @@ class AnalyticsHandler {
 [//]: # (@formatter:on)
 
 Directly addressed models and their parents, grandparents or further ancestors can be injected as `T` or `Graph<T>`.
+A singular Model-returning `@Apply` may update an injected parent or further ancestor through the existing `@Parent`
+relation. A directly supplied write-target ID keeps precedence; when none exists, the selected ancestor supplies the
+write identity without duplicating its ID in the command. Merely injecting an ancestor does not update it. Selection
+uses the pinned state before applying the changes, so a command may delete a child and update its parent atomically.
+Ambiguous ancestors must be qualified with `@Association("parentPath")`; replay retains the corresponding dependencies.
+
 For events and notifications carrying a model-commit boundary, Fluxzero loads the exact historical model state and
 relations for that event. Use `@Association("property")` to select another payload or metadata ID or to qualify an
 ancestor path; add `excludeMetadata = true` to require the payload. `Graph<T>` can be empty after logical deletion;

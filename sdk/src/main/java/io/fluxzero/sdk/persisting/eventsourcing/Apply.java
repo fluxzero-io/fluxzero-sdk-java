@@ -83,6 +83,12 @@ import java.lang.annotation.Target;
  *     <li>Other context such as the {@link io.fluxzero.sdk.tracking.handling.authentication.User} performing the update</li>
  * </ul>
  * Injected models are read inputs. Only models returned by an apply are targeted by that apply.
+ * A singular Model-returning apply may use an injected parent or further ancestor as its write target when no
+ * direct write-target ID is supplied. The existing
+ * {@link io.fluxzero.sdk.modeling.Parent @Parent} relation supplies that identity at the pinned pre-apply boundary,
+ * including when another apply deletes the child in the same atomic commit. An explicit direct write ID retains
+ * precedence; ambiguous ancestors must be qualified with
+ * {@link io.fluxzero.sdk.tracking.handling.Association @Association}.
  *
  * <p>
  * Note that empty entities (where the value of the entity is {@code null}) are not injected unless the parameter
