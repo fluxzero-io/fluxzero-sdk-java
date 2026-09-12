@@ -17,6 +17,7 @@
 package io.fluxzero.sdk.persisting.repository;
 
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
 import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.sdk.modeling.Entity;
@@ -68,6 +69,34 @@ public interface ModelGraphResolver {
      */
     default Identity resolveGraphIdentity(Object modelId, Class<?> modelType, ModelReadBoundary boundary) {
         return null;
+    }
+
+    /** Resolves an exact persisted key without applying functional-ID affixes a second time. */
+    default Identity resolveGraphIdentity(Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
+        return exact ? null : resolveGraphIdentity(modelId, modelType, boundary);
+    }
+
+    /** Optional metadata-first current root; the default retains the existing current-value route. */
+    default Identity resolveCurrentGraphIdentity(Object modelId, Class<?> modelType) {
+        return null;
+    }
+
+    /** Optional untyped root discovery; an implementation supplies its resolved class through {@link HeadValue}. */
+    default Identity resolveUntypedGraphIdentity(Object modelId) {
+        return null;
+    }
+
+    /**
+     * Optional head evidence carried by a lazy entity supplier, without allocating a separate metadata wrapper per
+     * node. Reading the head never reconstructs the value. Custom resolvers may continue returning ordinary suppliers
+     * when revision evidence is unavailable.
+     */
+    interface HeadValue extends Supplier<Entity<?>> {
+        /** Returns the locally resolved class, Object for an absent untyped root, or null for an unknown child. */
+        Class<?> type();
+
+        /** Returns the pinned revision without value reconstruction, or null for proven absence. */
+        ModelHeadState head();
     }
 
     /** One resolved identity and lazy value at a shared boundary; absent identities must not be resolved again. */

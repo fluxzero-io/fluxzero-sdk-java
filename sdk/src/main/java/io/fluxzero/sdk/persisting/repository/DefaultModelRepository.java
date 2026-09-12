@@ -853,21 +853,55 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     @Override
     public ModelGraphResolver.Identity resolveGraphIdentity(
             Object modelId, Class<?> modelType, ModelReadBoundary boundary) {
-        modelName(modelType);
-        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        return resolveGraphIdentity(modelId, false, modelType, boundary);
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveGraphIdentity(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
         PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
         ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
-        String primary = metadata.repositoryId(modelId);
+        ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected);
+        pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveCurrentGraphIdentity(Object modelId, Class<?> modelType) {
+        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest());
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveUntypedGraphIdentity(Object modelId) {
+        return resolveGraphIdentity(modelId, false, Object.class, ModelReadBoundary.current());
+    }
+
+    private ModelGraphResolver.Identity graphIdentity(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected) {
+        if (modelType != Object.class) {
+            modelName(modelType);
+        }
+        EntityMetadata metadata = EntityMetadata.of(modelType);
+        String primary = exact || modelType == Object.class ? modelId.toString() : metadata.repositoryId(modelId);
+        if (!selected.historical() && !selected.before() && modelCacheTracker != null
+            && metadata.rootConfiguration().filter(c -> c.cached() && c.eventSourced()).isPresent()) {
+            modelCacheTracker.prepare();
+            ModelCacheTracker.CurrentModel current = modelCacheTracker.peekCurrentVersion(primary, modelType);
+            if (current != null && !(current.entity().isEmpty() && metadata.hasAliases())) {
+                Entity<?> entity = current.entity();
+                return new ModelGraphResolver.Identity(entity.id().toString(), entity.isPresent(),
+                        selected.resolved(current.validThrough()), false, () -> entity);
+            }
+        }
         ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
-                                                                        selected.historical());
-        if (!result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
+                                                                        selected.historical(), modelCacheTracker);
+        if (!exact && !result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
             ModelGraphResolver.Identity alias = replayCursor.graphIdentity(
-                    modelId.toString(), modelType, result.boundary(), selected.historical());
+                    modelId.toString(), modelType, result.boundary(), selected.historical(), modelCacheTracker);
             if (alias.present()) {
                 result = alias;
             }
         }
-        pin(handlerBoundary, result.boundary().stateIndex());
         return result;
     }
 

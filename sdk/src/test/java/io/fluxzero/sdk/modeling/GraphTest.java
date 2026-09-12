@@ -410,6 +410,9 @@ class GraphTest {
         assertEquals(List.of(childValue, grandchildValue), graph.descendantModels(Object.class));
         assertEquals(List.of(), graph.descendantModels("children", Child.class));
         assertNull(graph.children(Child.class).getFirst().relationshipPath());
+        Graph<?> selected = graph.children(Child.class).getFirst().selectPaths("unused");
+        assertEquals(List.of(childValue), selected.parent().orElseThrow().childModels(Child.class));
+        assertEquals(List.of(childValue), selected.root().childModels(Child.class));
     }
 
     @Test

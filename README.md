@@ -3597,6 +3597,20 @@ fixed together with the value/relationship boundary: reassigning the alias canno
 This preserves snapshot identity; it does not add transaction-level alias-mapping conflict detection.
 Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
 transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
+
+
+With metadata-capable repositories, `selectPaths(...)` selects before reconstruction: creating a view performs
+no storage reads. Its paths are relative to the selected Graph, including a child Graph, and its ancestor placements
+remain navigable. Custom repositories retain their existing value-based fallback. Exact-ID `find(...)` scans relationship metadata
+before inspecting aliases; typed lookup registers the requested local contract and excludes unrelated unknown
+types. Alias and parent-scoped functional-ID matching may still require values of matching types.
+`sequenceNumber()` and `revisionStateIndex()` use pinned head evidence for still-lazy persisted nodes; pending
+and custom revisions retain their own semantics.
+
+The default repository discovers roots for `loadCurrentGraph(...)` and untyped `Fluxzero.loadGraph(id)` from
+head metadata without replay. These factories pin their boundary during the call; later value and relationship
+reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
+changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
 Exact-ID and non-alias value reads retain their existing path. Root lookup failures remain errors, not empty children.
 
 ### Combining payload and Model handlers

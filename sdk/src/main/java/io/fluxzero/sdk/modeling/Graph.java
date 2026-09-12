@@ -243,6 +243,8 @@ public interface Graph<T> {
      * <p>
      * Unlike {@link #stateIndex()}, which describes the pinned boundary shared by the complete graph, this value can
      * differ between nodes and therefore provides a stable ordering for otherwise ambiguous functional-ID lookups.
+     * For still-lazy persisted nodes, a metadata-capable repository can provide this from the pinned head without
+     * reconstructing the value. Pending and custom graph revisions retain their own version semantics.
      */
     default long revisionStateIndex() {
         return stateIndex();
@@ -256,7 +258,7 @@ public interface Graph<T> {
     @Nullable
     Long lastEventIndex();
 
-    /** Returns the model-local sequence number. */
+    /** Returns the model-local sequence number, using pinned head evidence without replay when available. */
     long sequenceNumber();
 
     /** Returns the timestamp of this model revision. */
@@ -393,9 +395,11 @@ public interface Graph<T> {
     }
 
     /**
-     * Returns an immutable graph view containing only the selected serialized relationship paths and their ancestors.
+     * Returns an immutable graph view containing only the selected serialized relationship paths, relative to this
+     * graph, and their ancestors.
      * Model values and graph nodes are shared with this graph; no models are copied or loaded merely by creating the
-     * view. An empty selection returns this complete graph.
+     * view. Metadata-capable repositories select paths before reconstructing any values. An empty selection returns
+     * this graph unchanged.
      */
     default Graph<T> selectPaths(String... paths) {
         return Graphs.selectPaths(this, List.of(paths));
@@ -520,29 +524,29 @@ public interface Graph<T> {
     /**
      * Finds a graph by exact persisted identity or alias. Exact identities take precedence over aliases throughout
      * the complete graph, even when an earlier graph owns a colliding alias.
+     * Metadata-capable repositories search identities before reading alias values. Unknown Model nodes can be found
+     * by exact identity; inspecting their aliases still requires their local contract.
      */
     default Optional<Graph<?>> find(Object idOrAlias) {
         if (idOrAlias == null) {
             return Optional.empty();
         }
         String requested = idOrAlias.toString();
-        Graph<?> aliasMatch = null;
-        var iterator = stream().iterator();
+        var iterator = Graphs.lookupStream(this).iterator();
         while (iterator.hasNext()) {
             Graph<?> candidate = iterator.next();
             if (candidate.id() != null && requested.equals(candidate.id().toString())) {
                 return Optional.of(candidate);
             }
-            if (aliasMatch == null && matchesAlias(candidate, requested)) {
-                aliasMatch = candidate;
-            }
         }
-        return Optional.ofNullable(aliasMatch);
+        return Graphs.lookupStream(this).filter(candidate -> matchesAlias(candidate, requested)).findFirst();
     }
 
     /**
      * Finds a graph by functional identity or alias and expected model type. The expected type applies the same
      * {@link EntityId} and nested {@link Id} affixes as a typed model load.
+     * The expected type participates in local Model discovery; unrelated unknown types are excluded. Alias matching
+     * and parent-scoped functional-ID matching may require values of matching types, never unrelated model values.
      */
     default <M> Optional<Graph<M>> find(Object idOrAlias, Class<M> modelType) {
         return find(idOrAlias, modelType, GraphLookupPolicy.MOST_RECENT);
@@ -560,6 +564,9 @@ public interface Graph<T> {
         }
         Objects.requireNonNull(modelType, "modelType");
         Objects.requireNonNull(lookupPolicy, "lookupPolicy");
+        if (this instanceof GraphView<?> view) {
+            view.registerRequestedType(modelType);
+        }
         String requested = idOrAlias.toString();
         EntityMetadata metadata = EntityMetadata.of(modelType);
         String repositoryId = metadata.parentScopedEntityId()
@@ -568,10 +575,10 @@ public interface Graph<T> {
         Graph<M> aliasMatch = null;
         int identityMatches = 0;
         int aliasMatches = 0;
-        var iterator = stream().iterator();
+        var iterator = Graphs.lookupStream(this).iterator();
         while (iterator.hasNext()) {
             Graph<?> candidate = iterator.next();
-            if (!modelType.isAssignableFrom(candidate.type())) {
+            if (candidate.knownType().filter(modelType::isAssignableFrom).isEmpty()) {
                 continue;
             }
             @SuppressWarnings("unchecked") Graph<M> typed = (Graph<M>) candidate;
@@ -587,17 +594,22 @@ public interface Graph<T> {
                        && repositoryId.equals(candidate.id().toString())) {
                 return Optional.of(typed);
             }
-            if (matchesAlias(candidate, requested)) {
-                aliasMatches++;
-                aliasMatch = selectLookupMatch(
-                        aliasMatch, typed);
-            }
         }
         if (identityMatch != null) {
             validateLookupAmbiguity(
                     identityMatches, requested, modelType,
                     lookupPolicy);
             return Optional.of(identityMatch);
+        }
+        iterator = Graphs.lookupStream(this).iterator();
+        while (iterator.hasNext()) {
+            Graph<?> candidate = iterator.next();
+            if (candidate.knownType().filter(modelType::isAssignableFrom).isPresent()
+                && matchesAlias(candidate, requested)) {
+                aliasMatches++;
+                @SuppressWarnings("unchecked") Graph<M> typed = (Graph<M>) candidate;
+                aliasMatch = selectLookupMatch(aliasMatch, typed);
+            }
         }
         validateLookupAmbiguity(
                 aliasMatches, requested, modelType,
@@ -638,6 +650,9 @@ public interface Graph<T> {
     }
 
     private static boolean matchesAlias(Graph<?> graph, String requested) {
+        if (graph instanceof GraphView<?> view && view.aliasesKnownAbsent()) {
+            return false;
+        }
         Collection<?> aliases = graph.aliases();
         return aliases != null && aliases.stream().filter(Objects::nonNull)
                 .map(Object::toString).anyMatch(requested::equals);

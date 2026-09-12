@@ -51,6 +51,297 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GraphMetadataNavigationTest {
     @Test
+    void pathViewsAndExactLookupsDoNotReplayUnrelatedValues() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            seed(writer);
+            catalog(reader, Root.class, KnownChild.class, Leaf.class);
+            client.queries.clear();
+            client.eventQueries.clear();
+            Graph<Root> graph = Graphs.lazy("root", Root.class, reader.modelRepository());
+            Graph<Root> selected = graph.selectPaths("children/leaves");
+            assertTrue(client.queries.isEmpty());
+            assertTrue(client.eventQueries.isEmpty());
+            assertEquals(List.of(), graph.selectPaths("unrelated").children());
+            assertEquals(List.of("known", "foreign"), ids(selected.children()));
+            assertEquals(List.of("leaf"), ids(selected.descendants("children/leaves", false)));
+            assertEquals("known", graph.find("known").orElseThrow().id());
+            assertEquals("known", graph.find("known", KnownChild.class).orElseThrow().id());
+            assertEquals("foreign", graph.find("foreign").orElseThrow().id());
+            assertTrue(graph.selectPaths("unrelated").find("known", KnownChild.class).isEmpty());
+            assertEquals(0, rejected.get());
+            assertThrows(RuntimeException.class, selected::get);
+        }
+    }
+
+    @Test
+    void aliasLookupPreservesSuppliedEntitiesAndCustomMetadataResolvers() {
+        var client = new ObservedClient();
+        try (Fluxzero app = app(client, new JacksonSerializer())) {
+            commit(app, new CreateRoot("root", 1));
+            Entity<Root> stored = app.modelRepository().load("root", Root.class);
+            @SuppressWarnings("unchecked")
+            Entity<Root> wrapped = (Entity<Root>) Proxy.newProxyInstance(
+                    Entity.class.getClassLoader(), new Class<?>[]{Entity.class}, (proxy, method, args) -> {
+                        if (method.getName().equals("aliases")) {
+                            return List.of("external-alias");
+                        }
+                        try {
+                            return method.invoke(stored, args);
+                        } catch (InvocationTargetException e) {
+                            throw e.getCause();
+                        }
+                    });
+            long boundary = ((ModelRoot<?>) stored).stateIndex();
+            Graph<Root> supplied = Graphs.lazy(wrapped, boundary, app.modelRepository());
+            assertEquals("root", supplied.find("external-alias").orElseThrow().id());
+
+            ModelRepository custom = (ModelRepository) Proxy.newProxyInstance(
+                    ModelRepository.class.getClassLoader(), new Class<?>[]{ModelRepository.class, ModelGraphResolver.class},
+                    (proxy, method, args) -> {
+                        if (method.getName().equals("resolveGraphIdentity")) {
+                            return new ModelGraphResolver.Identity("root", true, ModelReadBoundary.at(boundary), false,
+                                                                   () -> wrapped);
+                        }
+                        if (method.getName().equals("loadGraphRelations")) {
+                            return new ModelGraphResolver.Relations(ModelReadBoundary.at(boundary),
+                                    java.util.Map.of("root", new ModelGraphResolver.ModelNode("root", "root", Root.class,
+                                                                                            () -> wrapped)),
+                                    List.of(), java.util.Set.of("root"), false);
+                        }
+                        try {
+                            return method.invoke(app.modelRepository(), args);
+                        } catch (InvocationTargetException e) {
+                            throw e.getCause();
+                        }
+                    });
+            Graph<Root> graph = Graphs.lazy("root", Root.class, custom);
+            assertEquals("root", graph.find("external-alias", Root.class).orElseThrow().id());
+            assertEquals("root", graph.find("external-alias").orElseThrow().id());
+        }
+    }
+
+    @Test
+    void currentAndUntypedFactoriesPinRootsWithoutReplay() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            seed(writer);
+            commit(writer, new CreateAliased("canonical", "alias", 1));
+            catalog(reader, Root.class, Aliased.class, KnownChild.class);
+            Graph<Root> current = reader.apply(fc -> Fluxzero.loadCurrentGraph("root", Root.class));
+            Graph<?> untyped = reader.apply(fc -> Fluxzero.loadGraph((Object) "root"));
+            Graph<?> alias = reader.apply(fc -> Fluxzero.loadGraph((Object) "alias"));
+            assertEquals("root", current.id());
+            assertEquals(Root.class, untyped.type());
+            assertEquals("canonical", alias.id());
+            assertEquals(1, current.namedChildren("known").size());
+            assertEquals(1, untyped.namedChildren("known").size());
+            assertEquals(0, rejected.get());
+            assertTrue(reader.<Boolean>apply(fc -> Fluxzero.loadGraph((Object) "missing").isEmpty()));
+            assertThrows(RuntimeException.class, current::get);
+        }
+    }
+
+    @Test
+    void factoriesRetainTheirCreationBoundaryForLaterValuesAndRelationships() {
+        var client = new ObservedClient();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, new JacksonSerializer())) {
+            seed(writer);
+            catalog(reader, Root.class, KnownChild.class);
+            Graph<Root> current = reader.apply(fc -> Fluxzero.loadCurrentGraph("root", Root.class));
+            Graph<?> untyped = reader.apply(fc -> Fluxzero.loadGraph((Object) "root"));
+            commit(writer, new CreateRoot("root", 2));
+            commit(writer, new CreateKnown("later", "root"));
+            assertEquals(new Root("root", 1), current.get());
+            assertEquals(new Root("root", 1), untyped.get());
+            assertEquals(List.of("known"), ids(current.children(KnownChild.class)));
+            assertEquals(List.of("known"), ids(untyped.children(KnownChild.class)));
+        }
+    }
+
+    @Test
+    void currentGraphValuesSeedTheValidatedCacheWithoutWeakeningSnapshotBoundaries() {
+        var client = new ObservedClient();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, new JacksonSerializer())) {
+            commit(writer, new CreateRoot("root", 1));
+            Graph<Root> cold = Graphs.lazyCurrent("root", Root.class, reader.modelRepository());
+            assertEquals(new Root("root", 1), cold.get());
+            // Tracking bootstrap is asynchronous. Once it has validated this load, new roots need no storage request.
+            Graph<Root> cached = assertTimeoutPreemptively(java.time.Duration.ofSeconds(5), () -> {
+                while (!Thread.currentThread().isInterrupted()) {
+                    int requests = client.eventQueries.size();
+                    Graph<Root> candidate = Graphs.lazyCurrent("root", Root.class, reader.modelRepository());
+                    assertEquals(new Root("root", 1), candidate.get());
+                    if (client.eventQueries.size() == requests) {
+                        return candidate;
+                    }
+                    Thread.yield();
+                }
+                throw new AssertionError("The current Graph value never became reusable");
+            });
+            long revision = cached.sequenceNumber();
+            ModelGraphResolver.Identity beforeCreation = ((ModelGraphResolver) reader.modelRepository())
+                    .resolveGraphIdentity("root", Root.class, ModelReadBoundary.current().asBefore());
+            assertFalse(beforeCreation.present());
+            assertTrue(beforeCreation.entity().get().isEmpty(), "A current cache entry is not a before-current revision");
+            commit(writer, new CreateRoot("root", 2));
+            assertEquals(new Root("root", 1), cached.get());
+            assertEquals(revision, cached.sequenceNumber());
+        }
+    }
+
+    @Test
+    void headRevisionGettersRemainReplayFreeAndPinned() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            seed(writer);
+            catalog(reader, Root.class, KnownChild.class);
+            long rootRevision = writer.modelRepository().load("root", Root.class).sequenceNumber();
+            Graph<Root> graph = Graphs.lazy("root", Root.class, reader.modelRepository());
+            assertEquals(rootRevision, graph.sequenceNumber());
+            long index = graph.revisionStateIndex();
+            Graph<?> child = graph.namedChildren("known").getFirst();
+            assertEquals(0, child.sequenceNumber());
+            long childIndex = child.revisionStateIndex();
+            commit(writer, new CreateRoot("root", 2));
+            int queries = client.eventQueries.size();
+            assertEquals(rootRevision, graph.sequenceNumber());
+            assertEquals(index, graph.revisionStateIndex());
+            assertEquals(childIndex, child.revisionStateIndex());
+            assertEquals(queries, client.eventQueries.size());
+            assertEquals(0, rejected.get());
+            assertEquals(-1, Graphs.lazy("missing", Root.class, reader.modelRepository()).sequenceNumber());
+            assertThrows(RuntimeException.class, graph::get);
+        }
+    }
+
+    @Test
+    void typedLookupRegistersItsContractAndProvesAbsenceWithoutReplay() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            seed(writer);
+            catalog(reader, Root.class);
+            Graph<Root> graph = Graphs.lazy("root", Root.class, reader.modelRepository());
+            assertEquals("known", graph.find("known", KnownChild.class).orElseThrow().id());
+            assertTrue(graph.find("missing", KnownChild.class).isEmpty());
+            assertEquals(0, rejected.get());
+        }
+    }
+
+    @Test
+    void lazyPathSelectionPreservesRemappingAndSuccessiveNarrowing() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            seed(writer);
+            catalog(reader, Root.class, KnownChild.class, Leaf.class);
+            Graph<Root> graph = Graphs.lazy("root", Root.class, reader.modelRepository());
+            Graph<Root> before = Graphs.remapPaths(graph.selectPaths("children/leaves"), Map.of("children", "items"));
+            Graph<Root> after = Graphs.remapPaths(graph, Map.of("children", "items")).selectPaths("items/leaves");
+            assertEquals(List.of("known", "foreign"), ids(before.children()));
+            assertEquals(List.of("known", "foreign"), ids(after.children()));
+            assertEquals(List.of("items"), before.childPaths());
+            assertEquals(List.of("items"), after.childPaths());
+            assertEquals(List.of("leaf"), ids(before.descendants("items/leaves", false)));
+            assertEquals(List.of("leaf"), ids(after.descendants("items/leaves", false)));
+            Graph<?> foreign = graph.namedChildren("foreign", false).getFirst();
+            Graph<?> selectedChild = foreign.selectPaths("leaves");
+            assertEquals(List.of("leaf"), ids(selectedChild.children()));
+            assertEquals(List.of("foreign"), ids(selectedChild.parent().orElseThrow().children()));
+            assertEquals(List.of("foreign"), ids(selectedChild.root().children()));
+            assertTrue(graph.selectPaths("children").selectPaths("children/leaves")
+                               .descendants("children/leaves", false).isEmpty());
+            client.queries.clear();
+            assertTrue(Graphs.lazy("root", Root.class, reader.modelRepository())
+                               .selectPaths("children").descendants(Leaf.class).isEmpty());
+            assertEquals(1, client.queries.size(), "Selected leaves must not fetch their excluded descendants");
+            assertEquals(0, rejected.get());
+        }
+    }
+
+    @Test
+    void selectingAPathlessChildRetainsItsAncestorsWithoutReplayingValues() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            seed(writer);
+            commit(writer, new PutRevisionChild("pathless", "root", 1));
+            catalog(reader, Root.class, RevisionChild.class);
+            Graph<?> child = Graphs.lazy("root", Root.class, reader.modelRepository())
+                    .children(RevisionChild.class).getFirst();
+            assertNull(child.relationshipPath());
+            Graph<?> selected = child.selectPaths("unused");
+            assertTrue(selected.children().isEmpty());
+            assertEquals(List.of("pathless"), ids(selected.parent().orElseThrow().children()));
+            assertEquals(List.of("pathless"), ids(selected.root().children()));
+            assertEquals(0, rejected.get());
+        }
+    }
+
+    @Test
+    void lateIdentityLookupBatchesSiblingRelationshipReads() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, rejecting(rejected))) {
+            commit(writer, new CreateRoot("root", 1));
+            for (int i = 0; i < 100; i++) commit(writer, new CreateKnown("child-%03d".formatted(i), "root"));
+            catalog(reader, Root.class, KnownChild.class);
+            client.queries.clear();
+            Graph<Root> graph = Graphs.lazy("root", Root.class, reader.modelRepository());
+            assertEquals("child-099", graph.find("child-099", KnownChild.class).orElseThrow().id());
+            assertTrue(client.queries.size() <= 2, "Root and one bounded sibling frontier: " + client.queries.size());
+            assertEquals(0, rejected.get());
+        }
+    }
+
+    @Test
+    void headOnlyRevisionReadParticipatesInRetryWithoutReplayingTheReadModel() {
+        var client = new ObservedClient();
+        var rejected = new AtomicInteger();
+        try (Fluxzero writer = app(client, new JacksonSerializer());
+             Fluxzero reader = app(client, new JacksonSerializer() {
+                 @Override protected boolean isKnownType(String type) {
+                     if (type.endsWith("GraphMetadataNavigationTest$PutRevisionChild")) {
+                         rejected.incrementAndGet();
+                         return false;
+                     }
+                     return super.isKnownType(type);
+                 }
+             })) {
+            commit(writer, new CreateRoot("root", 1));
+            commit(writer, new PutRevisionChild("versioned", "root", 1));
+            catalog(reader, Root.class, RevisionChild.class, Receipt.class);
+            var once = new AtomicBoolean();
+            client.beforeCommit = request -> {
+                if (request.getReadModelIds().contains("receipt") && once.compareAndSet(false, true)) {
+                    assertTrue(request.getReadModelIds().contains("versioned"));
+                    commit(writer, new PutRevisionChild("versioned", "root", 2));
+                }
+            };
+            RuntimeException error = assertThrows(RuntimeException.class, () -> commit(reader, new CheckRevision("receipt", "root")));
+            Throwable cause = error;
+            while (cause.getCause() != null) cause = cause.getCause();
+            assertInstanceOf(IllegalCommandException.class, cause);
+            assertTrue(once.get());
+            assertEquals(0, rejected.get());
+            assertTrue(reader.modelRepository().load("receipt", Receipt.class).isEmpty());
+        }
+    }
+
+    @Test
     void selectsPathsAndNamesWithoutReadingKnownOrUnknownValues() {
         var client = new ObservedClient();
         var rejected = new AtomicInteger();
@@ -80,6 +371,8 @@ class GraphMetadataNavigationTest {
             assertThrows(IllegalStateException.class, foreign::type);
             assertThrows(IllegalStateException.class, foreign::get);
             assertThrows(IllegalStateException.class, foreign::isEmpty);
+            assertThrows(IllegalStateException.class, foreign::sequenceNumber);
+            assertThrows(IllegalStateException.class, foreign::revisionStateIndex);
             assertThrows(IllegalStateException.class, () -> foreign.filterNodes(ignored -> false).get());
             assertThrows(IllegalStateException.class, () -> Graphs.mapValues(foreign, ignored -> null).get());
             assertThrows(IllegalStateException.class, () -> foreign.apply(new Object()));
@@ -841,6 +1134,18 @@ class GraphMetadataNavigationTest {
     record CreateLeaf(String leafId, String childId) { @Apply Leaf apply() { return new Leaf(leafId, childId); } }
     record DeleteForeign(String childId) { @Apply Foreign apply() { return null; } }
     @Model record Receipt(@EntityId String receiptId, int count) {}
+    @Model record RevisionChild(@EntityId String childId, @Parent(Root.class) String rootId, int version) {}
+    record PutRevisionChild(String childId, String rootId, int version) {
+        @Apply RevisionChild apply() { return new RevisionChild(childId, rootId, version); }
+    }
+    record CheckRevision(String receiptId, String rootId) {
+        @AssertLegal void check(Graph<Root> root) {
+            if (root.find("versioned", RevisionChild.class).orElseThrow().sequenceNumber() != 0) {
+                throw new IllegalCommandException("Revision changed");
+            }
+        }
+        @Apply(conflictPolicy = ModelConflictPolicy.RETRY) Receipt apply() { return new Receipt(receiptId, 0); }
+    }
     record CheckCapacity(String receiptId, String rootId) {
         @AssertLegal void check(Graph<Root> root) {
             if (!root.namedChildren("foreign", false).isEmpty()) {

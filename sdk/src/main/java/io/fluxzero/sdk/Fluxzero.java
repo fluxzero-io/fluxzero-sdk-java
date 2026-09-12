@@ -1123,15 +1123,12 @@ public interface Fluxzero extends AutoCloseable {
     }
 
     /**
-     * Loads a model whose concrete type is resolved from storage as a lazy relationship graph. The source must be
-     * loaded once to discover that type; subsequent relationship navigation uses the ordinary graph API.
+     * Loads a model whose concrete type is resolved from storage as a lazy relationship graph. The default repository
+     * discovers its type from the head and pins the boundary during this call, without replaying the root value.
+     * The root Model contract must be locally known. Custom repositories may retain value-based discovery.
      */
     static Graph<?> loadGraph(Object modelId) {
-        Entity<?> entity = loadModel(modelId);
-        long stateIndex = entity instanceof io.fluxzero.sdk.modeling.ModelRoot<?> root
-                ? root.stateIndex() : -1L;
-        return io.fluxzero.sdk.modeling.Graphs.lazy(
-                entity, stateIndex, currentModelRepository());
+        return io.fluxzero.sdk.modeling.Graphs.lazy(modelId, currentModelRepository());
     }
 
     /**
@@ -1145,6 +1142,8 @@ public interface Fluxzero extends AutoCloseable {
     /**
      * Loads the latest state of an independently stored model as a relationship graph, without inheriting an event or
      * notification handler's historical read boundary.
+     * The default repository pins the current head during this call and defers authoritative value reconstruction
+     * until needed. This is not the document-only {@link #loadCurrentModelState(String, Class)} read contract.
      * <p>
      * Use this after a synchronous nested command when the remainder of the handler deliberately needs that command's
      * updated Model state. Ordinary {@link #loadGraph(Object, Class)} reads remain coherent with the message being
