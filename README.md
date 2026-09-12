@@ -15,7 +15,8 @@ functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
 Application-building documentation is available as [human/developer guides](docs/developer) and a
 [versioned agent documentation graph](docs/agents/README.md). The graph contains focused articles, searchable symbols
-and explicit links; use the graph from the SDK release matching your project.
+and explicit links for Java and Kotlin applications using the 2.x Model and Graph APIs, with compatibility guidance
+for existing Aggregate state. Use the graph from the SDK release matching your project.
 Each release publishes the graph as an `agent-docs` ZIP on Fluxzero Packages, with the same ZIP and SHA-256 checksum
 attached to the GitHub release for backup. Download coordinates and archive metadata are described in the graph README.
 

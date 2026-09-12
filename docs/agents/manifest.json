@@ -6537,6 +6537,38 @@
         {
           "description": "Maintain legacy aggregate state without an implicit migration",
           "path": "/docs/sdk/entities"
+        },
+        {
+          "path": "/docs/sdk/entities/relationships",
+          "description": "Independent Model Relationships — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/graphs",
+          "description": "Loading Models And Temporal Graphs — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-events",
+          "description": "Graph Change Subscriptions — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/graph-search",
+          "description": "Model Search And Graph Composition — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/legacy-migration",
+          "description": "Legacy Aggregate Migration — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/testing/model-transitions",
+          "description": "Testing Model Transitions — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/search/model-relationships",
+          "description": "Search Through Model Relationships — supplementary examples"
+        },
+        {
+          "path": "/docs/sdk/entities/kotlin-models",
+          "description": "Kotlin Models And Updates — supplementary examples"
         }
       ]
     },
@@ -6792,6 +6824,184 @@
         {
           "description": "Model commands and atomic commits",
           "path": "/docs/sdk/models/actions-kotlin"
+        }
+      ]
+    },
+    {
+      "path": "/docs/sdk/entities/relationships",
+      "source": "articles/sdk/entities/relationships.md",
+      "symbols": [
+        "Parent",
+        "Member",
+        "io.fluxzero.sdk.modeling.Parent"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/state-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Independent Model Relationships",
+      "summary": "Independent Model Relationships for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/graphs",
+      "source": "articles/sdk/entities/graphs.md",
+      "symbols": [
+        "Graph",
+        "Fluxzero.loadModel",
+        "Fluxzero.loadGraph"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Loading Models And Temporal Graphs",
+      "summary": "Loading Models And Temporal Graphs for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/graph-events",
+      "source": "articles/sdk/entities/graph-events.md",
+      "symbols": [
+        "Graph",
+        "HandleEvent"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Graph Change Subscriptions",
+      "summary": "Graph Change Subscriptions for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/graph-search",
+      "source": "articles/sdk/entities/graph-search.md",
+      "symbols": [
+        "GraphProjection",
+        "Fluxzero.searchGraph"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Model Search And Graph Composition",
+      "summary": "Model Search And Graph Composition for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/legacy-migration",
+      "source": "articles/sdk/entities/legacy-migration.md",
+      "symbols": [
+        "PublishedEventModelMigration"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/migration",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Legacy Aggregate Migration",
+      "summary": "Legacy Aggregate Migration for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/testing/model-transitions",
+      "source": "articles/sdk/testing/model-transitions.md",
+      "symbols": [
+        "TestFixture",
+        "Fluxzero.loadModel"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/actions-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Testing Model Transitions",
+      "summary": "Testing Model Transitions for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/search/model-relationships",
+      "source": "articles/sdk/search/model-relationships.md",
+      "symbols": [
+        "Search.whereParent",
+        "Search.whereAncestor",
+        "Search.whereDescendant"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model concepts and related topics"
+        },
+        {
+          "path": "/docs/sdk/models/graphs-java",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
+        }
+      ],
+      "title": "Search Through Model Relationships",
+      "summary": "Search Through Model Relationships for this SDK version."
+    },
+    {
+      "path": "/docs/sdk/entities/kotlin-models",
+      "title": "Kotlin Models And Updates",
+      "summary": "Define immutable Kotlin Models and pure command applies with the current persistence-set syntax, nullable deletion and typed Graph access.",
+      "source": "articles/sdk/entities/kotlin-models.md",
+      "symbols": [
+        "Kotlin Model",
+        "data class",
+        "copy",
+        "ModelPersistence",
+        "Graph",
+        "Apply"
+      ],
+      "links": [
+        {
+          "path": "/docs/sdk/models",
+          "description": "Model lifecycle, persistence and relationship rules"
+        },
+        {
+          "path": "/docs/sdk/models/actions-kotlin",
+          "description": "Automatic handling, apply phases and commit behavior"
+        },
+        {
+          "path": "/docs/sdk/entities/graphs",
+          "description": "Load typed Models and temporal Graphs"
+        },
+        {
+          "path": "/docs/sdk/project-setup/kotlin",
+          "description": "Kotlin annotation processing and project setup"
+        },
+        {
+          "path": "/docs/sdk/models/state-kotlin",
+          "description": "Read the current detailed Model contract and compatibility boundaries"
         }
       ]
     }

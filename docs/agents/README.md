@@ -24,8 +24,8 @@ The SDK tag/checkout identifies which SDK the graph describes. Do not hard-code 
 or a moving `latest` version in the manifest. Documentation corrections ship with a normal SDK release, including
 a patch release when only documentation changes; published release contents are immutable.
 
-The graph is data, independent of MCP transport. Its presence here does not yet make it available through the local
-dev-server MCP. The downloader, cache and MCP integration are separate changes. Existing
+The graph is data, independent of MCP transport. A documentation bridge must load the archive matching the project's
+SDK version; transport, download and cache ownership remain outside this archive. Existing
 `project-java.zip` and `project-kotlin.zip` release consumers continue to use the legacy `project-files` tree during
 that transition; it is not the source for new graph articles.
 
@@ -57,6 +57,8 @@ Packaging requires Python 3.9+ and Git. `-Dagent-docs.python=<executable>` selec
 - Keep every supported concept reachable. Split advanced detail into a focused article instead of deleting correct
   information to shorten a parent. Preserve both Java and Kotlin behavior; use language-specific examples where needed.
 - Add an article to the manifest, link to it from a relevant existing article, and link back to its parent.
+- Keep logical article IDs in manifest links. In article prose, write paths such as `/docs/sdk/models` as code;
+  these are documentation lookup keys, not root-relative filesystem links.
 - Index exact API symbols and useful task language. Do not make a search return the entire graph by default.
 - Match instructions to the project version. A documentation mismatch must not cause an automatic SDK upgrade.
 - Obtain current CLI options and dev configuration from the installed tools; these have independent release cycles.

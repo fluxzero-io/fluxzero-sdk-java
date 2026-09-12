@@ -1,4 +1,23 @@
-Events are for asynchronous reactions. Most Fluxzero aggregate events are the applied command payload itself, so avoid inventing duplicate past-tense event classes unless there is a separate external fact.
+Events are for asynchronous reactions. Model and legacy aggregate events normally carry the applied command payload,
+so avoid inventing duplicate past-tense event classes unless there is a separate external fact.
+
+## Model state and event boundaries
+
+Directly addressed Models and their parents or further ancestors can be injected as `T` or `Graph<T>`.
+For events/notifications with Model-commit metadata, Fluxzero uses that event's exact historical state and relations.
+Use `@Association("property")` for a different payload/metadata ID or a qualified ancestor path;
+`excludeMetadata = true` excludes metadata lookup; payload IDs and reachable Graph ancestors remain usable.
+An empty `Graph<T>` can represent logical deletion; a non-null `T`
+requires a present value. An ordinary indexed event without a Model boundary resolves directly addressed Models at
+one current pinned boundary, unless an Aggregate-to-Model migration maps it to a historical Model commit.
+Follow `/docs/sdk/models/migration` for explicit migration-following configuration during live catch-up.
+
+Other handler kinds can resolve these parameters when the payload or metadata addresses a Model, using their
+coherent handler load context. Document-authoritative values remain current-only document reads; they are not an
+implicit historical document snapshot. Prefer direct `T` for a value and `Graph<T>` for navigation/history; injected
+Graph reads retain the scoped conflict dependencies documented under `/docs/sdk/models/conflicts`.
+
+## Reactions and legacy streams
 
 Use `@HandleEvent` for side effects, projections, notifications, and follow-up commands. Add a named `@Consumer` when the handler needs its own tracking and retry stream.
 
