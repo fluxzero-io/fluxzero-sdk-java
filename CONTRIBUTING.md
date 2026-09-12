@@ -6,7 +6,7 @@ Use an [issue](https://github.com/fluxzero-io/fluxzero-sdk-java/issues/new/choos
 
 ## Work locally
 
-The SDK requires JDK 21 or newer. Clone the repository and run the full build:
+Clone the repository and run the full build:
 
 ```shell
 git clone https://github.com/fluxzero-io/fluxzero-sdk-java.git

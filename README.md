@@ -39,7 +39,7 @@ See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility)
 
 ## Work on the SDK
 
-The SDK is a Maven multi-module project and requires JDK 21 or newer.
+The SDK is a Maven multi-module project.
 
 ```shell
 git clone https://github.com/fluxzero-io/fluxzero-sdk-java.git
