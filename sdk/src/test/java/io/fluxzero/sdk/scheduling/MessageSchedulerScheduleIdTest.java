@@ -31,13 +31,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MessageSchedulerScheduleIdTest {
 
     private static final Instant START = Instant.parse("2026-01-01T00:00:00Z");
-    private static final ScheduleId SCHEDULE_ID = new ScheduleId("expiry", "42");
+    private static final ScheduleId SCHEDULE_ID = ScheduleId.of("expiry", "42");
+
+    @Test
+    void factoryCreatesStableScheduleId() {
+        assertEquals(new ScheduleId("expiry", "42"), SCHEDULE_ID);
+        assertEquals("expiry:42", SCHEDULE_ID.toString());
+    }
 
     @Test
     void typedScheduleIdSurvivesSchedulingLookupAndCancellation() {
         Instant deadline = START.plus(Duration.ofHours(1));
 
-        assertEquals("expiry:42", SCHEDULE_ID.toString());
         TestFixture.create().atFixedTime(START)
                 .whenExecuting(fluxzero -> fluxzero.messageScheduler().schedule("payload", SCHEDULE_ID, deadline))
                 .expectOnlySchedules((Predicate<Schedule>) schedule ->

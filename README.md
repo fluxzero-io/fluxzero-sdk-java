@@ -1423,7 +1423,7 @@ Use `ScheduleId` when different kinds of schedules can share the same domain ID.
 used consistently for scheduling and cancellation:
 
 ```java
-ScheduleId expiryId = new ScheduleId("account-expiry", event.getUserId());
+ScheduleId expiryId = ScheduleId.of("account-expiry", event.getUserId());
 Fluxzero.schedule(new TerminateAccount(event.getUserId()), expiryId, Duration.ofDays(30));
 Fluxzero.cancelSchedule(expiryId);
 ```

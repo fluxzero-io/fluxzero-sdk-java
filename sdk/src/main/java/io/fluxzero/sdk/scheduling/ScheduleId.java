@@ -50,6 +50,17 @@ public class ScheduleId {
     String id;
 
     /**
+     * Creates a schedule ID from a schedule type and domain identifier.
+     *
+     * @param type the type or category of the schedule
+     * @param id   the domain identifier; {@link Id} values use their functional ID
+     * @return the schedule ID
+     */
+    public static ScheduleId of(String type, Object id) {
+        return new ScheduleId(type, id);
+    }
+
+    /**
      * Constructs a new ScheduleId object using the specified type and identifier.
      *
      * @param type the type or category associated with the schedule. This parameter is used to distinguish schedules

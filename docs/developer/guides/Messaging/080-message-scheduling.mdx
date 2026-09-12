@@ -18,7 +18,7 @@ representation for scheduling, lookup and cancellation.
 <TabItem value="Java" label="Java">
 
 ```java
-ScheduleId expiryId = new ScheduleId("account-expiry", userId);
+ScheduleId expiryId = ScheduleId.of("account-expiry", userId);
 Fluxzero.schedule(new TerminateAccount(userId), expiryId, Duration.ofDays(30));
 Fluxzero.cancelSchedule(expiryId);
 ```
@@ -27,7 +27,7 @@ Fluxzero.cancelSchedule(expiryId);
 <TabItem value="Kotlin" label="Kotlin">
 
 ```kotlin
-val expiryId = ScheduleId("account-expiry", userId)
+val expiryId = ScheduleId.of("account-expiry", userId)
 Fluxzero.schedule(TerminateAccount(userId), expiryId, Duration.ofDays(30))
 Fluxzero.cancelSchedule(expiryId)
 ```
