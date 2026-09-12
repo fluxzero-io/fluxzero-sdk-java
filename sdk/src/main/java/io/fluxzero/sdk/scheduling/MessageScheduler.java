@@ -59,8 +59,10 @@ import static io.fluxzero.sdk.Fluxzero.currentTime;
  * </ul>
  *
  * <h2>Schedule identity</h2>
- * <p>All schedules are identified by a {@code scheduleId}. It is recommended to always pass a scheduleId. However,
- * if one is not given, it is obtained from the toString() value of the Schedule payload.
+ * <p>All schedules are identified by a {@code scheduleId}. Use {@link ScheduleId} when the same domain identifier can
+ * occur in different schedule categories. Typed overloads convert it to its stable string representation before the
+ * schedule reaches the low-level client. If no ID is given, it is obtained from the {@code toString()} value of the
+ * schedule payload.
  * If a schedule with the same ID already exists:
  * <ul>
  *   <li>It is replaced by default.</li>
@@ -75,6 +77,7 @@ import static io.fluxzero.sdk.Fluxzero.currentTime;
  * </pre>
  *
  * @see io.fluxzero.sdk.scheduling.Schedule
+ * @see ScheduleId
  * @see Periodic
  * @see io.fluxzero.sdk.tracking.handling.HandleSchedule
  * @see ScheduledCommandHandler
@@ -90,7 +93,7 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      * @throws IllegalArgumentException if the annotation is missing or misconfigured
      */
     default String schedulePeriodic(Object value) {
-        return schedulePeriodic(value, null);
+        return schedulePeriodic(value, (Object) null);
     }
 
     /**
@@ -115,6 +118,18 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
             schedule(periodicSchedule(value, effectiveScheduleId, firstDeadline, periodic));
         }
         return effectiveScheduleId;
+    }
+
+    /**
+     * Schedule a periodic message using a typed schedule ID.
+     *
+     * @param value      the payload to schedule periodically
+     * @param scheduleId the typed schedule ID
+     * @return the effective schedule ID
+     * @see #schedulePeriodic(Object, Object)
+     */
+    default String schedulePeriodic(@NonNull Object value, ScheduleId scheduleId) {
+        return schedulePeriodic(value, (Object) scheduleId);
     }
 
     private static Schedule periodicSchedule(Object value, String scheduleId, Instant deadline, Periodic periodic) {
@@ -172,6 +187,17 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
+     * Schedule a message with a typed ID using a delay.
+     *
+     * @param schedule   the message to schedule
+     * @param scheduleId the typed schedule ID
+     * @param delay      the delay until triggering
+     */
+    default void schedule(@NonNull Object schedule, ScheduleId scheduleId, Duration delay) {
+        schedule(schedule, (Object) scheduleId, delay);
+    }
+
+    /**
      * Schedule a message with payload and metadata, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload the message payload
@@ -184,6 +210,19 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
+     * Schedule a message with metadata and a typed ID.
+     *
+     * @param schedulePayload the message payload
+     * @param metadata        metadata to attach
+     * @param scheduleId      the typed schedule ID
+     * @param deadline        the deadline for triggering the schedule
+     */
+    default void schedule(@NonNull Object schedulePayload, Metadata metadata, ScheduleId scheduleId,
+                          Instant deadline) {
+        schedule(schedulePayload, metadata, (Object) scheduleId, deadline);
+    }
+
+    /**
      * Schedule a message with payload and metadata using a delay, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload the message payload
@@ -193,6 +232,18 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
      */
     default void schedule(@NonNull Object schedulePayload, Metadata metadata, Object scheduleId, Duration delay) {
         schedule(new Message(schedulePayload, metadata), scheduleId, delay);
+    }
+
+    /**
+     * Schedule a message with metadata and a typed ID using a delay.
+     *
+     * @param schedulePayload the message payload
+     * @param metadata        metadata to attach
+     * @param scheduleId      the typed schedule ID
+     * @param delay           the delay until triggering
+     */
+    default void schedule(@NonNull Object schedulePayload, Metadata metadata, ScheduleId scheduleId, Duration delay) {
+        schedule(schedulePayload, metadata, (Object) scheduleId, delay);
     }
 
     /**
@@ -211,6 +262,17 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
         } else {
             schedule(new Schedule(schedule, effectiveScheduleId, deadline));
         }
+    }
+
+    /**
+     * Schedule a message with a typed ID at a deadline.
+     *
+     * @param schedule   the message to schedule
+     * @param scheduleId the typed schedule ID
+     * @param deadline   the deadline for triggering the schedule
+     */
+    default void schedule(@NonNull Object schedule, ScheduleId scheduleId, Instant deadline) {
+        schedule(schedule, (Object) scheduleId, deadline);
     }
 
     /**
@@ -289,6 +351,17 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
+     * Schedule a command with a typed ID using a delay.
+     *
+     * @param schedule   the command to schedule
+     * @param scheduleId the typed schedule ID
+     * @param delay      the delay until execution
+     */
+    default void scheduleCommand(@NonNull Object schedule, ScheduleId scheduleId, Duration delay) {
+        scheduleCommand(schedule, (Object) scheduleId, delay);
+    }
+
+    /**
      * Schedule a command message with attached metadata, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload payload of the command
@@ -302,6 +375,19 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     }
 
     /**
+     * Schedule a command with metadata and a typed ID.
+     *
+     * @param schedulePayload payload of the command
+     * @param metadata        metadata to attach
+     * @param scheduleId      the typed schedule ID
+     * @param deadline        execution deadline
+     */
+    default void scheduleCommand(@NonNull Object schedulePayload, Metadata metadata, ScheduleId scheduleId,
+                                 Instant deadline) {
+        scheduleCommand(schedulePayload, metadata, (Object) scheduleId, deadline);
+    }
+
+    /**
      * Schedule a command with metadata and delay, using the {@link Guarantee#STORED} guarantee.
      *
      * @param schedulePayload payload to schedule
@@ -312,6 +398,19 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     default void scheduleCommand(@NonNull Object schedulePayload, Metadata metadata, Object scheduleId,
                                  Duration delay) {
         scheduleCommand(new Message(schedulePayload, metadata), scheduleId, delay);
+    }
+
+    /**
+     * Schedule a command with metadata and a typed ID using a delay.
+     *
+     * @param schedulePayload payload of the command
+     * @param metadata        metadata to attach
+     * @param scheduleId      the typed schedule ID
+     * @param delay           delay until execution
+     */
+    default void scheduleCommand(@NonNull Object schedulePayload, Metadata metadata, ScheduleId scheduleId,
+                                 Duration delay) {
+        scheduleCommand(schedulePayload, metadata, (Object) scheduleId, delay);
     }
 
     /**
@@ -330,6 +429,17 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
         } else {
             scheduleCommand(new Schedule(schedule, effectiveScheduleId, deadline));
         }
+    }
+
+    /**
+     * Schedule a command with a typed ID at a deadline.
+     *
+     * @param schedule   the command to schedule
+     * @param scheduleId the typed schedule ID
+     * @param deadline   the deadline for triggering the command
+     */
+    default void scheduleCommand(@NonNull Object schedule, ScheduleId scheduleId, Instant deadline) {
+        scheduleCommand(schedule, (Object) scheduleId, deadline);
     }
 
     /**
@@ -375,11 +485,30 @@ public interface MessageScheduler extends Namespaced<MessageScheduler> {
     void cancelSchedule(@NonNull Object scheduleId);
 
     /**
+     * Cancel a previously scheduled message or command by typed ID.
+     *
+     * @param scheduleId the typed schedule ID
+     */
+    default void cancelSchedule(ScheduleId scheduleId) {
+        cancelSchedule((Object) scheduleId);
+    }
+
+    /**
      * Look up an existing schedule.
      *
      * @param scheduleId the ID of the schedule
      * @return the schedule if found
      */
     Optional<Schedule> getSchedule(@NonNull Object scheduleId);
+
+    /**
+     * Look up an existing schedule by typed ID.
+     *
+     * @param scheduleId the typed schedule ID
+     * @return the schedule if found
+     */
+    default Optional<Schedule> getSchedule(ScheduleId scheduleId) {
+        return getSchedule((Object) scheduleId);
+    }
 
 }

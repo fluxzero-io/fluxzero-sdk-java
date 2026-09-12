@@ -1425,6 +1425,15 @@ Fluxzero will automatically discover and register them at startup.
 
 Fluxzero allows scheduling messages for future delivery using the `MessageScheduler`.
 
+Use `ScheduleId` when different kinds of schedules can share the same domain ID. Its stable `type:id` representation is
+used consistently for scheduling and cancellation:
+
+```java
+ScheduleId expiryId = ScheduleId.of("account-expiry", event.getUserId());
+Fluxzero.schedule(new TerminateAccount(event.getUserId()), expiryId, Duration.ofDays(30));
+Fluxzero.cancelSchedule(expiryId);
+```
+
 Here’s an example that schedules a termination event 30 days after an account is closed:
 
 ```java

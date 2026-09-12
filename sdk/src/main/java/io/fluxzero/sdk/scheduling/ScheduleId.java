@@ -12,8 +12,8 @@ import lombok.experimental.NonFinal;
  * This class is typically used to encapsulate and uniquely identify schedules within a system. The combination of type
  * and id can be used to distinguish between different schedule categories or instances.
  * <p>
- * Note: when a ScheduleId is used to schedule a message the scheduler actually persists the schedule with a String
- * schedule obtained via {@link #toString()}.
+ * The typed overloads on {@link MessageScheduler} accept this value directly. The scheduler persists its stable
+ * {@link #toString()} representation, so the same instance can be used to schedule, look up and cancel a message.
  * <p>
  * ScheduleIds can be used as-is or extended to form strongly typed schedule ids:
  * <pre>{@code
@@ -48,6 +48,17 @@ public class ScheduleId {
      * It is expected to be non-null and non-empty to provide meaningful schedule identification.
      */
     String id;
+
+    /**
+     * Creates a schedule ID from a schedule type and domain identifier.
+     *
+     * @param type the type or category of the schedule
+     * @param id   the domain identifier; {@link Id} values use their functional ID
+     * @return the schedule ID
+     */
+    public static ScheduleId of(String type, Object id) {
+        return new ScheduleId(type, id);
+    }
 
     /**
      * Constructs a new ScheduleId object using the specified type and identifier.

@@ -11,6 +11,30 @@ import { Aside } from '@astrojs/starlight/components';
 
 Fluxzero allows scheduling messages for future delivery using the `MessageScheduler`.
 
+Use `ScheduleId` when different schedule categories can share the same domain ID. Fluxzero uses its stable `type:id`
+representation for scheduling, lookup and cancellation.
+
+<Tabs>
+<TabItem value="Java" label="Java">
+
+```java
+ScheduleId expiryId = ScheduleId.of("account-expiry", userId);
+Fluxzero.schedule(new TerminateAccount(userId), expiryId, Duration.ofDays(30));
+Fluxzero.cancelSchedule(expiryId);
+```
+
+</TabItem>
+<TabItem value="Kotlin" label="Kotlin">
+
+```kotlin
+val expiryId = ScheduleId.of("account-expiry", userId)
+Fluxzero.schedule(TerminateAccount(userId), expiryId, Duration.ofDays(30))
+Fluxzero.cancelSchedule(expiryId)
+```
+
+</TabItem>
+</Tabs>
+
 Here's an example that schedules a termination event 30 days after an account is closed:
 
 <Tabs>
