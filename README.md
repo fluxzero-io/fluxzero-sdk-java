@@ -49,12 +49,9 @@ cd fluxzero-sdk-java
 
 ## Contributing
 
-We welcome your ideas, issues, and pull requests.
+Builders, developers, and coding agents are welcome. Open an [issue](https://github.com/fluxzero-io/fluxzero-sdk-java/issues/new/choose) or [pull request](https://github.com/fluxzero-io/fluxzero-sdk-java/compare) whenever you have something useful to share; it does not need to be polished.
 
-- [Open an issue](https://github.com/fluxzero-io/fluxzero-sdk-java/issues/new) for a bug, idea, or question.
-- Keep pull requests focused and include tests for changed behavior.
-- Run `./mvnw -B install` before opening a pull request.
-- Coding agents should read [AGENTS.md](AGENTS.md) before changing the repository.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the local build and a few practical pointers. Please report suspected vulnerabilities privately by following [SECURITY.md](SECURITY.md).
 
 This project is available under the [Apache License 2.0](LICENSE).
 
