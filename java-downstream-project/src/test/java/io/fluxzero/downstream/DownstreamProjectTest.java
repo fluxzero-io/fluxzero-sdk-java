@@ -19,6 +19,7 @@ import io.fluxzero.common.serialization.TypeRegistryProcessor;
 import io.fluxzero.proxy.ProxyServer;
 import io.fluxzero.sdk.modeling.Model;
 import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.ModelTypes;
 import io.fluxzero.sdk.modeling.Parent;
 import io.fluxzero.sdk.test.TestFixture;
 import io.fluxzero.sdk.web.OpenApiProcessor;
@@ -36,6 +37,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DownstreamProjectTest {
 
     @Test
+    void downstreamUserRequiresOnlyStableIdentityAndRoles() {
+        var user = new io.fluxzero.sdk.tracking.handling.authentication.User() {
+            public String id() { return "downstream-user"; }
+            public boolean hasRole(String role) { return false; }
+        };
+        java.security.Principal principal = user;
+        assertEquals("downstream-user", user.id());
+        assertEquals(user.id(), principal.getName());
+    }
+
+    @Test
     void bomManagedMainAndTestArtifactsAreUsableWithoutInheritedParentDependencies() {
         assertEquals("io.fluxzero.testserver.TestServer", TestServer.class.getName());
         assertEquals("io.fluxzero.proxy.ProxyServer", ProxyServer.class.getName());
@@ -51,6 +63,9 @@ class DownstreamProjectTest {
         String registry = readResource(TypeRegistryProcessor.TYPES_FILE);
         assertTrue(registry.contains(DownstreamCommand.class.getName()));
         assertTrue(registry.contains(DownstreamResult.class.getName()));
+        assertNotNull(DownstreamProjectTest.class.getClassLoader().getResource(ModelTypes.INDEX));
+        assertTrue(ModelTypes.discover().contains(DownstreamModel.class));
+        assertTrue(ModelTypes.discover().contains(DownstreamModel.Child.class));
 
         var openApi = JsonUtils.readTree(resourceBytes(OpenApiProcessor.DEFAULT_OUTPUT));
         assertEquals("Downstream Project API", openApi.path("info").path("title").asText());

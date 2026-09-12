@@ -1,7 +1,5 @@
 Use this when a product brief contains several validation rules, role levels, searchable fields, or state transitions. Turn each independent rule into a scenario that would fail if that one rule were removed.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Start with a requirement matrix
 
 Before writing tests, expand words such as "and", "only", "unless", and "inherits" into rows:

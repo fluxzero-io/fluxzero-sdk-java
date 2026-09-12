@@ -1,6 +1,4 @@
 Use this focused signature map when Java inference turns a fixture result into `Object`, a schedule constructor is
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 unclear, or a helper returns the wrong phase type. These are the application-facing signatures; keep conceptual test
 design in the linked testing articles.
 

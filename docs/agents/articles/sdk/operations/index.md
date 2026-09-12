@@ -1,6 +1,4 @@
 Use these articles when an agent must inspect, recover, or deliberately change a running Fluxzero application's
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 durable state. These are application operations executed through the SDK inside the configured namespace; they are
 not PostgreSQL, Kubernetes, cluster, or Fluxzero platform administration.
 

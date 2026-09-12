@@ -1,7 +1,5 @@
 Use this section for durable processes that correlate several independently arriving messages, cross a deadline, or coordinate external side effects.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Choose the state owner first:
 
 - Use an aggregate when the workflow is naturally one domain consistency boundary. Add namespaced `@Alias` fields for alternate aggregate lookup.

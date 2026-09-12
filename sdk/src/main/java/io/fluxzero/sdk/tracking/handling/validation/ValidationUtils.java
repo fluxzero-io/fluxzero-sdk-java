@@ -481,7 +481,7 @@ public class ValidationUtils {
             if (r.value() != null && user.hasRole(r.value().substring(1))) {
                 if (r.throwIfUnauthorized()) {
                     throw new UnauthorizedException(
-                            format("User %s is unauthorized to execute %s", user.getName(), action));
+                            format("User %s is unauthorized to execute %s", user.id(), action));
                 }
                 return false;
             }
@@ -498,7 +498,7 @@ public class ValidationUtils {
             }
             if (throwIfUnauthorized) {
                 throw new UnauthorizedException(
-                        format("User %s is unauthorized to execute %s", user.getName(), action));
+                        format("User %s is unauthorized to execute %s", user.id(), action));
             }
             return false;
         }

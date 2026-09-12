@@ -1,6 +1,4 @@
 Use this when a routing key, alias, document ID, idempotency key, or global-invariant key contains more than one opaque
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 value. Fluxzero converts a `@RoutingKey` value with `toString()`, and `Id` stores a scalar string. The application must
 therefore make the mapping from component tuple to string unambiguous and stable.
 

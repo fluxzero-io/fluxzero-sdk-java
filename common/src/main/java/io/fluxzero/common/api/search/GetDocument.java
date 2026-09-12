@@ -14,6 +14,7 @@
 
 package io.fluxzero.common.api.search;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.fluxzero.common.api.Request;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
@@ -45,14 +46,26 @@ public class GetDocument extends Request {
      */
     boolean includeModelHead;
 
+    /** Require proof that the returned body still belongs to the durable Model fence; old Runtimes cannot attest it. */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean verifyModelState;
+
     public GetDocument(String id, String collection) {
         this(id, collection, false);
     }
 
-    @ConstructorProperties({"id", "collection", "includeModelHead"})
     public GetDocument(String id, String collection, boolean includeModelHead) {
+        this(id, collection, includeModelHead, false);
+    }
+
+    @ConstructorProperties({"id", "collection", "includeModelHead", "verifyModelState"})
+    public GetDocument(String id, String collection, boolean includeModelHead, boolean verifyModelState) {
         this.id = id;
         this.collection = collection;
         this.includeModelHead = includeModelHead;
+        if (verifyModelState && !includeModelHead) {
+            throw new IllegalArgumentException("Verified Model state requires its durable head");
+        }
+        this.verifyModelState = verifyModelState;
     }
 }

@@ -1,65 +1,30 @@
-# Models And State
+# Legacy aggregates and entities
 
-Use `@Model` for new persisted domain state in this SDK. Keep existing Aggregate state on its compatibility API until an explicit migration.
+This topic preserves the aggregate API for already persisted 1.x state. Use `@Model` for new v2 code and follow the
+Models topic for lifecycle boundaries, commands, graph navigation and conflict detection. Do not migrate stored state
+by changing only its annotation.
 
-## Core rules
+Aggregates and entities are immutable state holders. They should contain data, not orchestration.
 
-1. Implement model state as immutable records or value objects.
-2. Put action-specific `@AssertLegal`, `@InterceptApply` and `@Apply` methods on the command/update payload by default.
-3. Keep `@Apply` pure and deterministic. It is reused during event sourcing.
-4. Do not load, search, publish or perform I/O from `@Apply`.
-5. Choose every model boundary by lifecycle first. State that can be created, changed, retained, deleted, or whose
-   history matters independently is a separate `@Model`, even when it is normally placed in a parent's collection.
-6. Treat a meaningful identity, separate retention, or independent updates as evidence for that boundary, not as
-   competing criteria. A child without a globally unique functional ID can use `@EntityId(parentScoped = true)`.
-7. Use `@Member` only when creation, every change, history, stream, document, cache, retention, and deletion all
-   deliberately belong to the root. Collection shape, searchability, storage choice, and update frequency never make
-   independently living state a member.
-8. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
-
-## Define a model
+For an existing legacy aggregate consistency boundary:
 
 ```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
-@lombok.With
+@Aggregate(searchable = true)
 public record Project(
         @EntityId ProjectId projectId,
         ProjectDetails details,
-        UserId ownerId) {
+        @Member List<Task> tasks) {
 }
 ```
 
-Assume conventional typed `ProjectId` and `ProjectDetails` value types; do not expand obvious ID or details
-definitions unless the user asks for them.
+In a legacy aggregate, `@Member` identifies nested entities within the same persisted root. For new v2 state, independently created, changed or retained state is a separate `@Model` connected with `@Parent`. Use value objects for details that are replaced as a whole.
 
-Important settings:
+State transitions belong in command payload methods annotated with `@Apply`; invariants belong in `@AssertLegal`.
 
-- `name`: durable logical Model type name; defaults to the concrete class's simple name. Keep an explicit value stable
-  across Java class/package renames. It is separate from serializer payload types and has no aliases or FQN fallback.
-  `fluxzero.model.namePrefix` is prepended literally for applications sharing a namespace (`billing` + `Invoice` =
-  `billingInvoice`). Changing either value after data exists requires an application-managed data transition.
-- `persistence`: selects a non-empty set of durable representations:
-  - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
-  - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and also maintain a current document.
-  - `{DOCUMENT}`: load authoritative current state from the current document.
-- `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
-- `document`: optional `@DocumentProjection` configuration for the direct collection, timestamp paths, and public
-  searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
-  should remain available by Model ID, alias, parent relation and Graph composition without entering typed search.
-- `eventPublication`: controls whether unchanged transitions create an event.
-- `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
-- `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
-- `checkpointPeriod`: bounds repeated replay work within one reconstruction session.
-- `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
-- `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
-- `commitPolicy`: controls commit timing and completion-phase concurrency; normally keep `DEFAULT`.
-- `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
-- `materializeGraph`: enables the optional durable whole-tree read model.
-- `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
-  Model collection plus `-graphs` when a direct document exists, or `<logical Model name>-graphs` otherwise, and
-  materializes the complete finite graph without implicit size limits.
+`@Aggregate` controls more than the class marker. Use it to opt into search indexing, event sourcing, snapshots, caching, commit policy, publication behavior, routing, and aggregate-level search behavior when those defaults matter.
 
-Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
-`publicationStrategy` and per-apply overrides. Internal Graph-component documents are also orthogonal: they neither
-make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
-`ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT` Models.
+Use `@Alias` when an aggregate or member needs alternate lookup IDs. Fluxzero maintains entity-to-aggregate relationships for app-facing lookup and repairs stale relationships as state changes; use entity loading APIs instead of depending on runtime storage details. For independently arriving component messages, read durable multi-key correlation: namespace alias families with prefixes and use the identical prefix in `Fluxzero.loadEntity(...)`.
+
+`@Member` marks nested entities that have their own identity inside the aggregate. Member updates rebuild immutable parent state for you, so model nested mutable concepts as members instead of mutating collections manually in handlers.
+
+Event-sourced aggregate updates are stored as structured batches ordered per aggregate ID. Normal applied events also enter the tracking stream; store-only events stay in aggregate history and are not visible as tracked event messages.

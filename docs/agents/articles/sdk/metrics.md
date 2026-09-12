@@ -1,6 +1,4 @@
 Use custom metrics for operational observations, diagnostics, and dashboards. Metrics are
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 `MessageType.METRICS` messages; they are not domain events and must never reconstruct or decide business state.
 
 ## Publish after successful domain changes

@@ -1,7 +1,5 @@
 Use scheduling when a message should run later or periodically. Keep time deterministic with `Fluxzero.currentTime()` or injected time; do not use `Instant.now()` in scheduling logic.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 For deadline tests, prove the required boundary rather than only the happy-path delivery: exact active-schedule counts,
 cleanup after every relevant terminal path, stale or duplicate delivery, and the distinction between synthetic schedule
 seeding and persistence-backed restart belong in the verification-boundaries and reconstruction guidance.
@@ -40,6 +38,9 @@ Fluxzero.scheduleCommand(
 ```
 
 Schedule IDs are part of the contract. If a schedule with the same ID already exists, the default behavior replaces it.
+Prefer `ScheduleId.of(type, id)` when different schedule categories use the same domain ID. Pass the same typed value
+to schedule, look up and cancel; Fluxzero persists its stable `type:id` string representation. `MessageScheduler`
+exposes typed default overloads, so custom scheduler implementations do not need additional methods.
 Use the overloads with `ifAbsent = true` when a create-if-missing semantic is required. That flag checks the active set;
 it does not remember that an ID existed before cancellation. In a tracked event consumer, replaying an older event can
 therefore recreate cancelled work. Reconcile the complete desired active set from current aggregate state instead of

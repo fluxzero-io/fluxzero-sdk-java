@@ -1,6 +1,4 @@
 Fluxzero publishes SDK and runtime activity as `MessageType.METRICS` messages. Consume these signals with
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 `@HandleMetrics` for diagnostics, dashboards, alerting, and application operations. They are not domain events and
 must not reconstruct state, authorize behavior, or decide a business transition.
 

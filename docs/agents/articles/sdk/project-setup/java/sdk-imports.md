@@ -1,7 +1,5 @@
 Use this reference when Java compilation cannot resolve a Fluxzero symbol or when several packages expose similarly named types. Do not guess an import from the simple class name.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Use the exact `io.fluxzero:fluxzero-bom` version resolved by the project and its matching documentation. Use the exact imports below for the APIs shown. If a resolved artifact does not contain a listed type, inspect that artifact before changing an import; do not copy an older package from an example or local source checkout and do not guess from the simple class name.
 
 ## Core application imports
@@ -59,9 +57,3 @@ import io.fluxzero.sdk.test.Then;
 `when...` methods return `Then<R>` (implemented by `ResultValidator<R>`). `Then.andThen()` returns the next `Given<?>` phase. `andThen()` is not a method on `TestFixture`, so keep helper parameters and return types at the phase interfaces instead of casting them to the fixture implementation.
 
 If a symbol remains uncertain, read the resolved Maven repository location from `settings.localRepository`, then use `jar tf` or `javap` against the exact resolved SDK/common/test JAR. Do not assume that repository is `~/.m2/repository`.
-
-## Model imports
-
-Use `io.fluxzero.sdk.modeling.Model`, `Graph`, `Parent` and `EntityId` for independent Models and their graph. The shared `@Apply` annotation is `io.fluxzero.sdk.persisting.eventsourcing.Apply`; `ModelConflictPolicy` is in `io.fluxzero.common.api.modeling`. The Aggregate imports above support existing persisted Aggregate code.
-
-`ModelPersistence` and `DocumentProjection` are in `io.fluxzero.sdk.modeling`. The current API takes a non-empty persistence set: use `{ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT}` in Java or `[ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT]` in Kotlin when both representations are needed.

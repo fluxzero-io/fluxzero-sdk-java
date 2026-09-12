@@ -14,8 +14,8 @@ This is the Fluxzero Java SDK, built as a Maven multi-module project.
 - `annotation-processor-tests`, `java-downstream-project`, and `kotlin-downstream-project`: compatibility checks that
   must keep working when annotations, reflection, handlers, serialization, public artifacts, or downstream project
   setup change.
-- `docs/agents`: canonical documentation graph for agents building Java and Kotlin applications with SDK 2.x.
-- `project-files`: legacy Java/Kotlin manuals retained for existing project-ZIP consumers during migration.
+- `docs/agents`: canonical, namespace-aware documentation graph for agents building applications with the SDK.
+- `project-files`: legacy Java/Kotlin manual trees retained for existing project-ZIP consumers during migration.
 
 Keep durable product documentation, API guidance, and release-relevant decisions in this repository. Store feature
 plans, progress notes, experiment journals, measurements, checkpoint history, and other backlog work records in the
@@ -106,8 +106,8 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 ## Build And Test
 
 - Use the Maven wrapper: `./mvnw`.
-- Packaging the agent documentation ZIP requires Python 3.9+; see `docs/agents/README.md` for source-archive builds.
 - SDK v2 requires Java 25 or newer and compiles with `maven.compiler.release=25`; CI and Docker images use Java 25.
+- Packaging the agent documentation ZIP also requires Python 3.9+; see `docs/agents/README.md` for source-archive builds.
 - Full PR-equivalent verification is `./mvnw -B install`.
 - For focused work, prefer targeted Maven runs such as `./mvnw -pl sdk -am test` or `./mvnw -pl proxy -am -Dtest=ProxyServerTest test`.
 - Apply the Regression Safety workflow for code changes and run checks proportionate to the affected modules, execution paths, and downstream projects.
@@ -123,7 +123,7 @@ For wire or persisted formats, also test old-data reads and new-data round trips
 - Preserve supported public API compatibility by default, but treat it as a design trade-off rather than an overriding constraint. Java visibility alone does not make an API supported, and downstream use of an internal or implementation API does not require preserving it. During the final review, identify source- or binary-incompatible changes and verify whether they affect a supported or intentionally consumed extension point. Seek explicit user agreement before committing such a break to a supported API. Do not contort internal design to retain obsolete methods or constructors; if compatibility would materially harm correctness, reliability, performance, or maintainability, explain the trade-off instead.
 - When a field is added to a data or value type, let an existing all-fields constructor evolve with the fields by default, especially when Lombok annotations such as `@AllArgsConstructor` own constructor generation. Do not add a legacy constructor overload merely to preserve the previous field set. During the final review, check whether the old constructor was a documented or intentionally supported external contract; raise the compatibility question only in that case. Add an overload only when it has independent domain meaning or the user explicitly requests it.
 - Document new or changed public API surface. Prefer field/type/method Javadoc for data objects and Lombok-backed classes; constructor-level Javadoc may be omitted when Lombok or field documentation already makes the constructor contract clear.
-- For every new or changed feature, review and update all relevant documentation surfaces together: the root `README.md`, human/developer documentation under `docs/`, and the canonical graph under `docs/agents/`. Preserve Java and Kotlin guidance, article links and discoverable symbols. While project-ZIP consumers remain supported, also review the matching legacy manuals under `project-files/`. If a surface needs no change, verify that deliberately rather than overlooking it. Run `python3 .github/scripts/validate-agent-docs.py` after graph changes.
+- For every new or changed feature, review and update all relevant documentation surfaces together: the root `README.md`, human documentation under `docs/developer/`, and the graph under `docs/agents/`. Preserve both Java and Kotlin guidance and keep graph links/symbols discoverable. While legacy project-ZIP consumers remain supported, also review the relevant `project-files/` compatibility manuals. If a surface needs no change, verify that deliberately rather than overlooking it. Run `python3 .github/scripts/validate-agent-docs.py` after graph changes.
 - Never create a feature-specific property utility or resolve configuration by reading environment variables, system properties, or property files directly. Always use the `ApplicationProperties` infrastructure; at builder or configuration boundaries, read from that component's configured `PropertySource` so application-local overrides and tests remain isolated. This shared path owns source precedence, conventional environment-variable normalization, placeholders, and decryption. Document the property key and conventional environment-variable name prominently, with builder methods presented as programmatic overrides or alternatives.
 - Prefer existing extension points before adding new abstractions: interceptors, gateways, handlers, registries, parameter resolvers, clients, stores, and `TestFixture`.
 - Choose `@Model` versus `@Member` by domain lifecycle before storage or object shape. State with independent creation,

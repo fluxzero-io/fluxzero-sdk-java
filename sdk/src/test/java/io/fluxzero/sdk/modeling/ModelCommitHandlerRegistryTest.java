@@ -33,7 +33,6 @@ import io.fluxzero.common.api.modeling.ModelUpdateKind;
 import io.fluxzero.common.handling.Handler;
 import io.fluxzero.common.handling.HandlerFilter;
 import io.fluxzero.common.handling.HandlerInvoker;
-import io.fluxzero.common.serialization.RegisterType;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.ThreadLocalContext;
@@ -99,7 +98,7 @@ class ModelCommitHandlerRegistryTest {
             new LinkedBlockingQueue<>();
 
     @Test
-    void registeredModelsContributeStructuralGraphMetadataWithoutBecomingHandlers() {
+    void indexedModelsContributeStructuralGraphMetadataWithoutBecomingHandlers() {
         ModelCommitHandlerRegistry subject =
                 subject(AutomaticModelHandling.ENABLED);
 
@@ -2614,7 +2613,6 @@ class ModelCommitHandlerRegistryTest {
     }
 
     @Model
-    @RegisterType
     private record RegistryKnownModel(
             @EntityId String id) {
     }

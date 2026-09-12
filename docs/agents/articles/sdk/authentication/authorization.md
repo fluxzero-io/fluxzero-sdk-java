@@ -1,7 +1,5 @@
 Use this to connect validated identity to application permissions. Authentication says who the caller is; authorization decides what that caller may do in this domain.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Create an application-owned `Sender`:
 
 ```java
@@ -10,7 +8,7 @@ public record Sender(UserId userId, Role userRole) implements User {
             new Sender(new UserId("system"), Role.OWNER);
 
     @Override
-    public String getName() {
+    public String id() {
         return userId.toString();
     }
 
@@ -35,6 +33,16 @@ public record Sender(UserId userId, Role userRole) implements User {
     }
 }
 ```
+
+Use `User.id()` wherever application behavior needs the stable actor identity. SDK 2.0 requires an explicit `id()`
+implementation; there is no identity fallback to a name. `User` remains a `Principal`, but `getName()` is optional and
+defaults to `id()`. A separate principal/display name must stay outside identity comparisons. Recompile older
+getName-only implementations after adding `id()`.
+
+When ID metadata is enabled (`fluxzero.defaults.version >= 2026.08.04` or `fluxzero.auth.useUserIdMetadata=true`),
+`AbstractUserProvider` writes this ID and passes it to `getUserById(...)` on receipt. Compatibility defaults retain
+complete-user JSON, without adding an automatic `id` property; new readers still accept that older format. If IDs
+change, explicitly resolve earlier stored identity values in the provider while old messages remain in flight.
 
 Create roles in the app, not in the IDP client:
 

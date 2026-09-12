@@ -1,103 +1,80 @@
-# Model Search
+Use `Fluxzero.search(...)` for indexed read models. Push user-facing filtering, sorting, pagination, and counting into the search builder. Do not fetch an entire collection and then use Java streams to implement browse, search, or count behavior.
 
-1. **No SQL**: Data retrieval is performed exclusively via the `Fluxzero.search()` API or by loading entities.
-2. **Automatic Indexing**: Models whose persistence set contains `DOCUMENT` maintain a direct current-state document.
-3. **Stateful Handlers**: `@Stateful` handlers are automatically searchable as they are backed by the document store.
-4. **Case & Accent Insensitive**: Text searches and matches are case and accent insensitive by default.
-5. **Last Known State**: The document store represents the "last known state" of an object. While the event stream is
-   historical, search is optimized for current data.
-6. **Collection Naming**: By default, collections are named after the class (e.g., `Project`). Configure a Model's
-   direct collection through `document = @DocumentProjection(collection = "...")`.
-7. **Server-side Search Logic**: Keep filtering and sorting in Fluxzero search calls (`match`, `any/all`, `sortBy`,
-   etc.). Avoid re-implementing filtering/sorting in client app code.
+Co-locate sortable model paths with the query that uses them:
 
----
-
-<a name="configuration"></a>
-
-## Document configuration
-
-<a name="searchable"></a>
-
-### Model documents and @Searchable values
-
-Include `DOCUMENT` in a Model's persistence set to store a direct document. Use `@Searchable` for an ordinary document
-value; do not annotate a Model with it.
-
-[//]: # (@formatter:off)
 ```java
-@Model(
-        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-        document = @DocumentProjection(collection = "active_projects"))
-public record Project(...) {}
+import io.fluxzero.common.search.Sortable;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.EntityId;
 
-@Model(
-        persistence = ModelPersistence.DOCUMENT,
-        document = @DocumentProjection(searchable = false))
-public record UserPreferences(@EntityId UserId userId, ...) {}
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+public record Project(
+        @EntityId ProjectId projectId,
+        @Sortable String name,
+        String description,
+        ProjectStatus status) {
+}
 
-@Searchable(collection = "custom_docs")
-public record ExternalDocument(...) {}
+@HandleQuery
+List<Project> handle(FindProjects query) {
+    var search = Fluxzero.search(Project.class);
+    if (query.status() != null) {
+        search = search.match(query.status(), true, "status");
+    }
+    if (query.term() != null && !query.term().isBlank()) {
+        search = search.lookAhead(query.term(), "name", "description");
+    }
+    return search.sortBy("name").fetch(query.limit(), Project.class);
+}
 ```
-[//]: # (@formatter:on)
 
-`DocumentProjection.searchable = false` keeps a Model document out of unrestricted typed Model search. Without a
-separate Graph role it stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
-configured collection—but its summary/reversary, facets and sortables are empty. Keeping the collection stable supports
-adoption of existing documents. Direct Model loads, aliases and exact parent/ancestor-ID relations still work. If the
-same Model participates in Graph composition, its current component document retains the independently required
-indexes without becoming publicly searchable; shape those with `@SearchExclude`, `@Facet` and `@Sortable`.
+For a filtered count, apply the same constraints and finish with `count()`:
 
-<a name="facets-sorting"></a>
-
-### Facets & Sorting
-
-- **@Facet**: Marks a field for high-performance exact matching and statistics collection.
-- **@Sortable**: Required for any field you intend to use in a `sortBy(...)` clause. It is also required for **quantity
-  filtering** (e.g., `greaterThan`) and checking for field existence.
-
-[//]: # (@formatter:off)
 ```java
-public record Product(
-    @EntityId ProductId productId,
-    @Facet String category,
-    @Sortable BigDecimal price,
-    String description
-) {}
+long activeProjects = Fluxzero.search(Project.class)
+        .match(ProjectStatus.ACTIVE, true, "status")
+        .count();
 ```
-[//]: # (@formatter:on)
 
-<a name="exclude-include"></a>
+Avoid this anti-pattern for product search:
 
-### Exclusion & Inclusion
+```java
+Fluxzero.search(Project.class).fetchAll(Project.class).stream()
+        .filter(project -> matchesUserInput(project))
+        .sorted(...)
+        .toList();
+```
 
-Use `@SearchExclude` to keep sensitive or internal data out of the search index. Conversely, use `@SearchInclude` to
-explicitly include fields that might otherwise be ignored (e.g., specific getters).
+`fetchAll()` is appropriate only when the contract genuinely requires the complete, bounded matching set. It is not a substitute for indexed constraints, `sortBy(...)`, `fetch(limit, type)`, or `count()`.
 
-For response shaping, prefer search projections instead of post-processing in app code:
+Keep search query construction in query handlers so it stays testable and reusable.
 
-- `exclude("path")` to remove fields from returned documents.
-- `includeOnly("path1", "path2")` to return only specific fields.
+Supported indexing choices:
 
----
+| Model | How it becomes searchable | Use it for |
+| --- | --- | --- |
+| Model state | Include `ModelPersistence.DOCUMENT`; successful Model commits maintain the public direct document synchronously | Independent current domain state |
+| Stateful projection | `@Stateful` is searchable and maintains its projection document | Event-driven read models with explicit lifecycle/state |
+| Plain read-model record | Add `@Searchable` plus `@EntityId` and call `Fluxzero.index(value)`, or call `Fluxzero.index(value, stableId, collection)` with an explicit ID and collection | Release notes, denormalized views, and durable query projections that do not need aggregate behavior |
+| Transient socket update | Send through `SocketSession`; do not index it unless the product also requires searchable history | Live delivery only |
 
-<a name="searching"></a>
+Plain records are supported indexing targets. Give them a stable document ID so later updates replace the intended document instead of creating accidental duplicates. `@Searchable` supplies default collection/timestamp metadata; it does not publish a plain record by itself. The two-argument overload `Fluxzero.index(value, secondArgument)` treats the second argument as the collection, not the document ID. Read manual indexing before choosing an overload, deciding how handler completion observes storage failure, or testing replay-safe replacement. Use `@SearchExclude` and `@SearchInclude` to control indexed shape.
 
-## Consistency
+Never discard the `CompletableFuture<Void>` returned by `Fluxzero.index(...)` from a `void` tracked projection handler. The handler may finish and its consumer may advance before an asynchronous storage failure is observed. For straightforward projections, use `prepareIndex(...).indexAndWait()`. If a handler returns the future instead, configure the owning tracked consumer with `awaitAsyncResults = true` when its position must not advance before indexing completes.
 
-Public Model documents selected by including `DOCUMENT` and keeping `DocumentProjection.searchable = true` are
-**synchronous with Model-commit completion**.
+Use the search builder for match/query filters, time windows, logical groups, pagination, sorting, async results, aggregations, facets, histograms, and stats. Keep this logic server-side in a query handler instead of rebuilding it in clients. Read complete lists and pagination before returning a capped `List<T>`: an inaccessible fixed maximum is not pagination and cannot satisfy “all/current” contracts. Read facet filters and counts when a response needs categorical value counts or exact facet filtering; it maps `@Facet`, `matchFacet(...)`, and `facetStats()` with a concrete test.
 
-- **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
-  document.
-- **Graph projection window**: a materialized whole-root graph is asynchronous by default. Use
-  `GraphProjectionCompletion.AWAIT` for an operation whose result must wait for affected roots to reach its state
-  boundary.
-- **Guarantee Boundary**: Do not assume immediate search consistency when the document is indexed as a downstream side
-  effect, such as in an event handler or projection handler. In that case, wait for the projection's own completion
-  signal or return the needed state from the command handler.
-- **UI Tip**: For immediate feedback, return the new state directly from the command handler or use WebSockets to notify the UI when the projection is ready.
+Fields used for sorting, quantity filters, and existence filters need `@Sortable`. Put it on the field/getter that owns the exact path used by `sortBy(...)`, `between(...)`, or existence constraints; every literal `sortBy("field")` in a query should have a visible matching `@Sortable` model property. Default runtime sort is newest first by timestamp, and sortable paths are indexed for performance. Public direct Model documents are synchronous with successful Model commit completion. Separate secondary projections (including default Graph projections) may remain eventually consistent; do not confuse those completion boundaries.
 
----
+For compound ordering, sort keys are applied from left to right: the first `sortBy(...)` is primary and later calls are
+tie-breakers. Read compound search sorting when a query chains keys, uses a derived technical rank, or must keep that
+rank out of its public response without losing a testable indexed shape.
 
-<a name="retention"></a>
+Test the indexed behavior with `givenDocument(...)` plus `whenSearching(type, search -> ...)`, and test the public query separately with `whenQuery(...)`. A result-only query test cannot reveal whether production code fetched everything and filtered in memory, so retain the explicit no-`fetchAll` rule during code review.
+
+Manual indexing and bulk updates overwrite existing documents by ID unless `ifNotExists` is set. The focused manual-indexing article maps every overload, stable-ID alternatives, and an executable replacement test. Use collection deletion APIs deliberately; document collections are also exposed as read-only message logs of document updates for handlers such as `@HandleDocument`.
+
+Runtime search pushes filtering and sorting into managed storage when possible and may use an in-memory fallback for unsupported parts. Application code should express the required indexed constraints and verify their behavior; storage extensions and database tuning belong to the managed platform.
+
+Runtime search supports PostgreSQL full-text style indexes, facets, histograms, stats, bulk updates, and document collection messages. Do not promise embedding, semantic, or vector search unless a future implementation adds it.

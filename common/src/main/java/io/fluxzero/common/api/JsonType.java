@@ -28,6 +28,7 @@ import io.fluxzero.common.api.keyvalue.GetValueResult;
 import io.fluxzero.common.api.keyvalue.StoreValueIfAbsent;
 import io.fluxzero.common.api.keyvalue.StoreValues;
 import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsWithRelationships;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.DeleteModel;
@@ -135,6 +136,7 @@ import io.fluxzero.common.api.tracking.StorePosition;
 
         //modeling
         @JsonSubTypes.Type(value = CommitModels.class, name = "commitModels"),
+        @JsonSubTypes.Type(value = CommitModelsWithRelationships.class, name = "commitModelsWithRelationships"),
         @JsonSubTypes.Type(value = CommitModelsResult.class, name = "commitModelsResult"),
         @JsonSubTypes.Type(value = GetModelEvents.class, name = "getModelEvents"),
         @JsonSubTypes.Type(value = GetModelEventsResult.class, name = "getModelEventsResult"),

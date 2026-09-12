@@ -138,7 +138,7 @@ public final class ModelReducer {
             return NO_INTERCEPTION;
         }
         HandlerInvoker selected = applicable;
-        Object output = message.apply(ignored -> selected.invoke());
+        Object output = message.apply(ignored -> CommitAttempt.withGraphReads(context, selected::invoke));
         return output == null ? SUPPRESSED : output;
     }
 
@@ -248,7 +248,7 @@ public final class ModelReducer {
             Set<String> applyReads) {
         Set<String> previous = context.collectReads(applyReads);
         try {
-            return applyPhase(applies, message, context, previousPhase);
+            return CommitAttempt.withGraphReads(context, () -> applyPhase(applies, message, context, previousPhase));
         } finally {
             context.collectReads(previous);
         }
@@ -274,6 +274,7 @@ public final class ModelReducer {
             for (EntityMetadata.ModelParameter parameter : handler.modelParameters()) {
                 if (context.references(parameter) == null) {
                     context.entities();
+                    context.recordAncestorReads(true);
                     break;
                 }
             }
@@ -347,6 +348,17 @@ public final class ModelReducer {
             CommitAttempt context,
             boolean after,
             AssertionLoader assertionLoader) {
+        if (!assertions.isEmpty()) {
+            CommitAttempt.withGraphReads(context, () -> {
+                assertAllInContext(assertions, message, context, after, assertionLoader);
+                return null;
+            });
+        }
+    }
+
+    private void assertAllInContext(
+            List<MutationPlan.Assertion> assertions, DeserializingMessage message, CommitAttempt context,
+            boolean after, AssertionLoader assertionLoader) {
         IdentityHashMap<Object, Boolean> visited = null;
         for (int i = 0; i < assertions.size(); i++) {
             MutationPlan.Assertion assertion = assertions.get(i);
@@ -414,12 +426,17 @@ public final class ModelReducer {
                     if (invoker == null) {
                         continue;
                     }
-                    result = invoker.invoke();
+                    result = CommitAttempt.withGraphReads(assertionContext, invoker::invoke);
                 } else {
                     context.attachTo(message);
                     result = assertion.field().property().read(value);
                 }
-                assertResult(result, message, assertionContext, after, visited, depth + 1, assertionLoader);
+                CommitAttempt resultContext = assertionContext;
+                Object assertionResult = result;
+                CommitAttempt.withGraphReads(resultContext, () -> {
+                    assertResult(assertionResult, message, resultContext, after, visited, depth + 1, assertionLoader);
+                    return null;
+                });
             } finally {
                 context.attachTo(message);
             }
@@ -761,6 +778,7 @@ public final class ModelReducer {
             DeserializingMessage initialMessage,
             Mode mode) {
         Objects.requireNonNull(resolver, "resolver");
+        attempt.resetGraphReads();
         CommitAttempt originalContext = initialMessage == null ? null
                 : initialMessage.getContext(CommitAttempt.class).orElse(null);
         CommitAttempt commitBeginContext = null;
@@ -840,6 +858,7 @@ public final class ModelReducer {
                                     .formatted(resolved.context().readStateIndex(), readStateIndex));
                 }
                 CommitAttempt context = resolved.context().withValues(stagedValues);
+                context.bindGraphReads(attempt);
                 resolved.context().targets().forEach(target -> {
                     readModelIds.add(target.modelId());
                     readModelTypes.putIfAbsent(
@@ -863,10 +882,13 @@ public final class ModelReducer {
                     Object interception = resolved.reducer().intercept(
                             current.message(), context, interceptionPhase);
                     if (resolved.reducer().intercepted(interception)) {
-                        enqueueOutputs(
-                                current.message(),
-                                resolved.reducer().interceptionOutput(interception),
-                                pending, interceptionPhase);
+                        DeserializingMessage source = current.message();
+                        Object output = resolved.reducer().interceptionOutput(interception);
+                        InterceptionPhase completedPhase = interceptionPhase;
+                        CommitAttempt.withGraphReads(context, () -> {
+                            enqueueOutputs(source, output, pending, completedPhase);
+                            return null;
+                        });
                         resolver.prefetch(
                                 pending.stream()
                                         .filter(substep -> substep.stagedChange() == null)
@@ -882,6 +904,7 @@ public final class ModelReducer {
                         ? (message, parameters, assertionContext) -> {
                             CommitAttempt loaded = resolver.resolveAssertion(
                                     message, parameters, assertionContext, stagedValues);
+                            loaded.bindGraphReads(attempt);
                             if (loaded.readStateIndex() != assertionContext.readStateIndex()) {
                                 throw new IllegalStateException("Nested assertion changed the pinned model read boundary");
                             }

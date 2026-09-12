@@ -1,84 +1,84 @@
-# Recipe: Search Model State
+Use this recipe when a product asks for a browse page, text search, filters, sorting, pagination, totals, or grouped counts.
 
-<a name="searchable"></a>
+1. Include `ModelPersistence.DOCUMENT` on the Model, or maintain a separate searchable projection.
+2. Put `@Sortable` on fields used for sorting, numeric/range filtering, or existence checks.
+3. Model the user intent as a typed `Request<T>`.
+4. Build every supplied filter in `Fluxzero.search(...)` inside the query handler.
+5. Choose a complete, paged, or explicitly top-N contract. For a page, expose offset or continuation plus page metadata; a hidden maximum is not pagination.
+6. Test both the search constraints and the public query.
 
-### Model documents and @Searchable values
-
-Include `DOCUMENT` in a Model's persistence set to store a direct document. Use `@Searchable` for an ordinary document
-value; do not annotate a Model with it.
-
-[//]: # (@formatter:off)
 ```java
-@Model(
-        persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT},
-        document = @DocumentProjection(collection = "active_projects"))
-public record Project(...) {}
+import io.fluxzero.common.search.Sortable;
+import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelPersistence;
+import io.fluxzero.sdk.modeling.EntityId;
 
-@Model(
-        persistence = ModelPersistence.DOCUMENT,
-        document = @DocumentProjection(searchable = false))
-public record UserPreferences(@EntityId UserId userId, ...) {}
+@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
+public record KnowledgeArticle(
+        @EntityId @Sortable ArticleId articleId,
+        @Sortable String title,
+        String description,
+        Topic topic,
+        Visibility visibility) {
+}
 
-@Searchable(collection = "custom_docs")
-public record ExternalDocument(...) {}
+public record BrowseArticles(
+        String term,
+        Topic topic,
+        @PositiveOrZero int offset,
+        @Min(1) @Max(100) int limit)
+        implements Request<ArticlePage> {
+
+    @HandleQuery
+    ArticlePage handle() {
+        var search = Fluxzero.search(KnowledgeArticle.class);
+        if (term != null && !term.isBlank()) {
+            search = search.lookAhead(term, "title", "description");
+        }
+        if (topic != null) {
+            search = search.match(topic, true, "topic");
+        }
+        long total = search.count();
+        var items = search.sortBy("title").sortBy("articleId")
+                .skip(offset).fetch(limit, KnowledgeArticle.class);
+        return new ArticlePage(items, offset, limit, total,
+                (long) offset + items.size() < total);
+    }
+}
+
+public record ArticlePage(
+        List<KnowledgeArticle> items, int offset, int limit, long total, boolean hasMore) {
+}
 ```
-[//]: # (@formatter:on)
 
-`DocumentProjection.searchable = false` keeps a Model document out of unrestricted typed Model search. Without a
-separate Graph role it stays in the normal resolved collection—by default the resolved logical Model name or the explicitly
-configured collection—but its summary/reversary, facets and sortables are empty. Keeping the collection stable supports
-adoption of existing documents. Direct Model loads, aliases and exact parent/ancestor-ID relations still work. If the
-same Model participates in Graph composition, its current component document retains the independently required
-indexes without becoming publicly searchable; shape those with `@SearchExclude`, `@Facet` and `@Sortable`.
+Map `offset` and `limit` as documented HTTP query parameters, including the default and maximum. The maximum is safe only because callers can request the next offset; validate the same bounds for non-HTTP query callers.
 
-<a name="facets-sorting"></a>
+Use the same constraint shape for counts:
 
-### Facets & Sorting
-
-- **@Facet**: Marks a field for high-performance exact matching and statistics collection.
-- **@Sortable**: Required for any field you intend to use in a `sortBy(...)` clause. It is also required for **quantity
-  filtering** (e.g., `greaterThan`) and checking for field existence.
-
-[//]: # (@formatter:off)
 ```java
-public record Product(
-    @EntityId ProductId productId,
-    @Facet String category,
-    @Sortable BigDecimal price,
-    String description
-) {}
+long published = Fluxzero.search(KnowledgeArticle.class)
+        .match(Visibility.PUBLISHED, true, "visibility")
+        .count();
 ```
-[//]: # (@formatter:on)
 
-<a name="exclude-include"></a>
+For grouped product statistics, prefer facets or aggregations over loading documents and grouping them in Java. Read facet filters and counts before implementing categorical totals: put `@Facet` on the exact indexed paths, use `matchFacet(...)` for exact category filters, and return `facetStats()` tuples from the constrained search.
 
-### Exclusion & Inclusion
+Never implement a user-facing search as `fetchAll(...).stream().filter(...).sorted(...)`. That moves work and memory use into the application, bypasses indexed behavior, and becomes incorrect once pagination or a large collection matters. `fetchAll()` remains acceptable for genuinely small, bounded, complete-set contracts. Read complete lists and pagination for page metadata, stable ordering, WebSocket snapshot completeness, and a test with more documents than one page.
 
-Use `@SearchExclude` to keep sensitive or internal data out of the search index. Conversely, use `@SearchInclude` to
-explicitly include fields that might otherwise be ignored (e.g., specific getters).
+```java
+var access = new KnowledgeArticle(new ArticleId("access"), "Access policy", "Identity rules", Topic.SECURITY, Visibility.PUBLISHED);
+var backup = new KnowledgeArticle(new ArticleId("backup"), "Backup guide", "Recovery steps", Topic.SECURITY, Visibility.PUBLISHED);
 
-For response shaping, prefer search projections instead of post-processing in app code:
+TestFixture.create()
+        .givenDocument(backup)
+        .givenDocument(access)
+        .whenSearching(KnowledgeArticle.class,
+                search -> search.match(Topic.SECURITY, true, "topic")
+                                .sortBy("title"))
+        .expectResult(List.of(access, backup));
+```
 
-- `exclude("path")` to remove fields from returned documents.
-- `includeOnly("path1", "path2")` to return only specific fields.
+The reversed seed order makes this test prove the `@Sortable title` path and ascending sort instead of merely proving membership. Also send `BrowseArticles` through `whenQuery(...)` to verify the typed contract. Keep the direct `whenSearching(...)` scenario because a query-result assertion alone does not show which indexed constraints the application is expected to use.
 
----
-
-<a name="searching"></a>
-
-Public Model documents selected by including `DOCUMENT` and keeping `DocumentProjection.searchable = true` are
-**synchronous with Model-commit completion**.
-
-- **Direct model guarantee**: `sendCommandAndWait` followed by a direct model search observes the committed direct
-  document.
-- **Graph projection window**: a materialized whole-root graph is asynchronous by default. Use
-  `GraphProjectionCompletion.AWAIT` for an operation whose result must wait for affected roots to reach its state
-  boundary.
-- **Guarantee Boundary**: Do not assume immediate search consistency when the document is indexed as a downstream side
-  effect, such as in an event handler or projection handler. In that case, wait for the projection's own completion
-  signal or return the needed state from the command handler.
-- **UI Tip**: For immediate feedback, return the new state directly from the command handler or use WebSockets to notify the UI when the projection is ready.
-
----
-
-<a name="retention"></a>
+When chaining sort keys, read compound search sorting: the first key is primary and each later key only breaks ties.
+Include duplicate primary values in the direct search test so a reversed key order cannot pass accidentally.

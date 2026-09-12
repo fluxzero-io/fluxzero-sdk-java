@@ -23,6 +23,34 @@ record Account(
 
 The persisted key is exactly `accountId.toString()`. A model name or Java type is not concatenated into the identity.
 
+## Model discovery and contract packaging
+
+Enable SDK annotation processing in every module that defines Models (Kotlin: kapt with the SDK processor).
+`@Model` declarations, including inherited Models, are written to
+`META-INF/io.fluxzero.sdk.modeling.Model`. The SDK combines those indexes from the contract JARs visible to its
+classloader and maps each logical Model name to its class. Discovery does not execute Model static initializers or
+register the contract's command/event handlers. Conflicting logical names and missing indexed classes fail explicitly.
+Identified abstract/interface contracts remain discoverable, including deleted Models with no concrete value.
+Identity-less abstract/interface inheritance templates are not standalone Models and are omitted from the catalog.
+Automatic processor discovery puts the Model observer before Fluxzero's claiming processors, regardless of SDK/common
+JAR order. In explicit processor lists, put `io.fluxzero.sdk.modeling.ModelTypeProcessor` first, before any processors
+that exclusively claim annotations (including `TypeRegistryProcessor` and `WebParameterProcessor`).
+
+`@RegisterType` remains optional for resolving short type names, for example in fixture JSON; it is not Model
+discovery and does not rename stored event/document types.
+Previously compiled contract JARs must be rebuilt with this SDK's processor to contribute the new index. Sharing a
+store does not supply missing classes: consuming applications still need the relevant Model contracts on their classpath.
+
+Separate JARs and Spring Boot nested JARs preserve individual indexes. A classic shaded/fat JAR must merge them, just
+like other overlapping generated resources. In Maven Shade, add this transformer (ordinary service merging alone
+is insufficient):
+
+```xml
+<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+    <resource>META-INF/io.fluxzero.sdk.modeling.Model</resource>
+</transformer>
+```
+
 ## Event-sourced models
 
 Event sourcing is the default:
@@ -56,6 +84,89 @@ changes reconstructed state and is not a substitute for upcasting or retaining o
 
 Independent models prevent unrelated histories from accumulating in one enormous stream. An order line, payment
 attempt or short-lived process can keep its own small history while still participating in one multi-model commit.
+
+## Current state without replay
+
+Use `Fluxzero.loadCurrentModelState("account-id", Account.class)` (or its typed-ID overload) when a consumer
+shares the Model state contract but not the writer's historical event contracts. The corresponding repository method
+is `loadCurrentState`. This is an explicit document read, not a fallback after replay fails.
+
+The returned `ModelState<T>` contains the value, exact persisted ID, durable Model head and the namespace-wide
+boundary at which that head was verified. It checks the current document against the durable head without loading
+events, updating the ordinary Model cache, or inheriting an event handler's historical boundary. The writer must
+maintain a Model document through `DOCUMENT` or graph composition, and the consumer must share its document
+configuration and value schema (including nested value types and upcasters).
+
+Verified reads require a matching Runtime. Trusted Model document materialization/adoption records a SHA-256
+fingerprint of the complete durable head and serialized state atomically with the document fence. This detects an
+ordinary search write that replaces the body without advancing the Model version. Ordinary reads do not compute
+this fingerprint; maintaining a direct Model document does. Existing documents with no proof are not retroactively
+certified: they need a new trusted Model materialization/adoption at an eligible boundary. An old Runtime response,
+an unproven fence, or mismatched body/version fails explicitly; there is no weaker verification fallback.
+
+A missing Model has a null head/value; a deleted Model has a deleted head and null value. A missing, unversioned or
+lagging document for a live Model fails explicitly. If the document advances between the two reads, verification
+retries at most eight times; it never silently accepts stale state or replays events. This is current as observed
+during the operation, not a promise that concurrent writers cannot change it immediately afterwards.
+
+This first-class result is deliberately read-only: it has no Graph mutation/history methods and does not join a
+commit readset. Use injected Models/Graphs for transactional assertions; separate state reads are not a coherent
+multi-model snapshot. Supporting document-based Graph mutations would additionally require retaining the read
+strategy through the complete evaluation and retries. Ordinary `loadModel`, `loadGraph` and `loadCurrentGraph`
+retain their existing authoritative/replay contracts; sharing only Model classes does not guarantee replay compatibility.
+
+## Selective Graph navigation across applications
+
+Use `children(path)`, `children(path, modelName)`, or `namedChildren(modelName)` for metadata-first
+selection returning `List<Graph<?>>`. The corresponding `descendants`/`namedDescendants` methods traverse
+deeper placements. Each accepts a final `boolean knownOnly`, defaulting to `true`: this selects only locally
+known Model types, not necessarily every stored child. Pass `false` when a quota or inventory must include
+unknown types:
+
+```java
+var reservations = graph.namedChildren("stock-reservation", false);
+int count = reservations.size(); // No child values or historical events are loaded.
+```
+
+Names are exact resolved logical Model names, including any configured prefix, not serializer aliases or
+Java supertypes. The same name in two applications denotes the same shared contract, not separate ownership.
+Counting remains metadata-only even when that name is known locally but historical event classes are unavailable.
+`modelName()` exposes the logical name; `knownType()` is empty for a locally unknown Model. Such nodes retain
+IDs and relationship navigation, but reading their type/value/history or updating them fails explicitly.
+Unknown does not mean absent or deleted. A known class likewise does not suppress replay or application errors.
+
+Class-based selection matches locally known assignable types only, including when querying `Object.class`.
+Unknown intermediate nodes do not hide known descendants. Direct child paths are exact (`null` means pathless);
+descendant paths are root-relative slash-separated paths (`null` means all paths). Counts count placements:
+a shared Model reached through different graph paths can occur more than once.
+
+Selections share a pinned boundary and preserve injected Graph relationship dependencies, including empty
+results, add/remove/reparent and retries. Values are reconstructed only when requested at that boundary; no
+automatic current-state fallback or unknown-event skipping occurs. Full Graph materialization/serialization
+still requires the contracts for the values being materialized. Custom repositories without metadata navigation
+retain their existing loading behavior and cannot promise unknown-type-safe selection.
+
+The default repository resolves lazy root aliases through head metadata without replay. Initial lookup uses the
+current alias table, also when reading historical Model state. The selected canonical ID (or absence) then stays
+fixed together with the value/relationship boundary: reassigning the alias cannot redirect an existing Graph.
+This preserves snapshot identity; it does not add transaction-level alias-mapping conflict detection.
+Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
+transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
+
+
+With metadata-capable repositories, `selectPaths(...)` selects before reconstruction: creating a view performs
+no storage reads. Its paths are relative to the selected Graph, including a child Graph, and its ancestor placements
+remain navigable. Custom repositories retain their existing value-based fallback. Exact-ID `find(...)` scans relationship metadata
+before inspecting aliases; typed lookup registers the requested local contract and excludes unrelated unknown
+types. Alias and parent-scoped functional-ID matching may still require values of matching types.
+`sequenceNumber()` and `revisionStateIndex()` use pinned head evidence for still-lazy persisted nodes; pending
+and custom revisions retain their own semantics.
+
+The default repository discovers roots for `loadCurrentGraph(...)` and untyped `Fluxzero.loadGraph(id)` from
+head metadata without replay. These factories pin their boundary during the call; later value and relationship
+reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
+changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
+Exact-ID and non-alias value reads retain their existing path. Root lookup failures remain errors, not empty children.
 
 ## Document-based models
 
@@ -255,9 +366,36 @@ and interceptors during rebase. RETRY and FAIL retain the full evaluation readse
 the same cached-head planning and atomic namespace-boundary check regardless of policy; a failed boundary check falls
 back to current-head validation under the state lock.
 
-Apply-ancestor dependencies include the loaded roots that determined their selection, including the absence of a
-nullable ancestor. A concurrent reparenting therefore still triggers rebase even if the old ancestor's own value is
+Apply-ancestor dependencies include the relationship collections that determined their selection, including intermediate
+ancestors and the absence of a nullable ancestor. A concurrent reparenting therefore still triggers rebase even if the old ancestor's own value is
 unchanged; assertions are not rerun to reload these roots.
+
+An injected `Graph` contributes its inspected Model values and relationship collections, not every eagerly loaded node.
+`children("children", Child.class)` protects that membership even when empty: another writer cannot bypass a capacity
+assertion merely by creating a different child ID. Filters and scans protect examined candidates, including rejected
+values and negative results. Cached transformations and joined parallel scans retain their evidence; work escaping the
+synchronous evaluation does not. Explicit history, external search and unrelated repository reads are not live dependencies.
+
+LocalClient and JDBC validate those reads atomically with the write. RETRY reruns evaluation at a fresh pinned snapshot;
+FAIL rejects. ACCEPT excludes assertion-/interceptor-only reads and preserves apply dependencies through repeated rebases.
+Path-scoped reads conservatively include every child type at that path; remapped paths include all paths of their source.
+Physical erasure invalidates older Graph reads namespace-wide because it removes historical evidence. Physical cleanup
+advances the namespace atomically, also protecting reads made after erasure preparation. Stale erased-value reads
+conflict, while fresh reads of their absence remain valid. Eligible reads at the exact cached boundary or across known
+contiguous head-only writes by that Runtime retain JDBC's atomic-CAS route; other older reads require database validation.
+Unused or value-only Graph injection resolved directly by ID adds no membership proof or query. Indirect ancestor
+injection still protects the relationships traversed to select that ancestor. Head-only writes remain batchable,
+while relationship writers separate dependent readers into ordered waves. New child memberships use existing indexes;
+only closed relationships require extra change-index entries. Removing or reparenting still retains evidence when the
+writer does not inject a Graph, since another transaction may have read the affected collection.
+
+Custom repositories must construct SDK Graph views (for example with `Graphs.compose`) for transactional navigation.
+Opaque custom Graph implementations fail explicitly; ordinary non-transactional custom reads remain supported.
+
+Upgrade the Runtime before using the matching post-RC8 SDK: relationship-aware commits use a distinct wire request that
+older Runtimes reject rather than ignore. Upgrade all Runtime instances first. Existing SDK requests remain supported.
+New JDBC indexes and an identity-free erasure-cleanup position do not change stored Model payloads or require
+graph materialization to record read dependencies.
 
 This is intentionally not the organizing principle of the model API. It is an optional consistency policy for the
 uncommon case where multiple writers race on the same model.

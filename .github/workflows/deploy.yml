@@ -64,8 +64,8 @@ jobs:
           java-version: "25"
           cache: maven
           server-id: fluxzero
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_DEPLOY_TOKEN
+          server-username-env-var: MAVEN_USERNAME
+          server-password-env-var: MAVEN_DEPLOY_TOKEN
 
       - name: Find existing release tag
         id: existing_tag
@@ -102,17 +102,19 @@ jobs:
             echo "package_channel_tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Calculate release version
-        uses: mathieudutour/github-tag-action@v6.2
+      - name: Expose release version
         id: tag_version
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          default_bump: minor
-          tag_prefix: ""
-          custom_tag: ${{ steps.existing_tag.outputs.tag || steps.release_version.outputs.version }}
-          fetch_all_tags: true
-          custom_release_rules: "deps:patch:Dependency updates"
-          dry_run: true
+        env:
+          EXISTING_TAG: ${{ steps.existing_tag.outputs.tag }}
+          RESOLVED_VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          version="${EXISTING_TAG:-$RESOLVED_VERSION}"
+          if [ -z "$version" ]; then
+            echo "No release version was resolved" >&2
+            exit 1
+          fi
+          echo "new_version=$version" >> "$GITHUB_OUTPUT"
+          echo "new_tag=$version" >> "$GITHUB_OUTPUT"
 
       - name: Generate release notes
         id: release_notes
@@ -141,12 +143,14 @@ jobs:
             --certificate-oidc-issuer https://accounts.google.com \
             "$base_image"
 
-      - name: Test Maven Central publication recovery
-        run: bash .github/scripts/recover-central-publication.test.sh
-
       - name: Build and test
         id: maven-build
         run: ./mvnw -B install
+
+      - name: Check executor isolation
+        run: |
+          python3 .github/scripts/check-executor-isolation.test.py
+          python3 .github/scripts/check-executor-isolation.py
 
       - name: Reserve release tag
         env:
@@ -230,28 +234,48 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Job 2: Deploy to Maven Central (runs in parallel after tagging and image publication)
+  # Job 2: Deploy to Maven Central before the 1 October 2026 cutoff
   maven-central:
     needs: build-and-test
     runs-on: ubuntu-latest
     steps:
+      - name: Determine Maven Central publication window
+        id: central_window
+        shell: bash
+        run: |
+          release_date="$(TZ=Europe/Amsterdam date +%F)"
+          if [[ "$release_date" < "2026-10-01" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Maven Central publication"
+              echo
+              echo "Skipped: releases started on or after 1 October 2026 are published only to https://packages.fluxzero.io/maven."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Check out Git repository
+        if: steps.central_window.outputs.publish == 'true'
         uses: actions/checkout@v7
 
       - name: Set release timestamp
+        if: steps.central_window.outputs.publish == 'true'
         run: echo "RELEASE_TIMESTAMP=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
 
       - name: Install Java and Maven
+        if: steps.central_window.outputs.publish == 'true'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "25"
           cache: maven
           server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
+          server-username-env-var: MAVEN_USERNAME
+          server-password-env-var: MAVEN_PASSWORD
 
       - name: Download artifacts
+        if: steps.central_window.outputs.publish == 'true'
         uses: actions/download-artifact@v8
         with:
           name: maven-artifacts
@@ -259,40 +283,21 @@ jobs:
       # setting versions again as we checked out the sources clean in this step
       # the artifacts only contain the built jars
       - name: Set maven version
+        if: steps.central_window.outputs.publish == 'true'
         run: |
           ./mvnw -B versions:set -DnewVersion=${{ needs.build-and-test.outputs.version-tag }} -DprocessAllModules=true
 
       - name: Deploy to Maven Central
+        if: steps.central_window.outputs.publish == 'true'
         shell: bash
         run: |
-          deployment_log="$(mktemp)"
-          trap 'rm -f "$deployment_log"' EXIT
-
           maven_arguments=(-P "sign,central" -B deploy -DskipTests)
           if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
-            # A previous attempt may have completed the immutable publication
-            # after losing its final status response.
+            # A previous attempt may already have uploaded some immutable components.
             maven_arguments+=(-DignorePublishedComponents=true)
           fi
 
-          set +e
-          ./mvnw "${maven_arguments[@]}" 2>&1 | tee "$deployment_log"
-          pipeline_status=("${PIPESTATUS[@]}")
-          set -e
-
-          maven_status="${pipeline_status[0]}"
-          tee_status="${pipeline_status[1]}"
-
-          if [ "$maven_status" -eq 0 ]; then
-            exit "$tee_status"
-          fi
-          if [ "$tee_status" -ne 0 ]; then
-            exit "$tee_status"
-          fi
-
-          # Uploading the same immutable version again is unsafe. Resume polling
-          # the deployment that Maven already uploaded instead.
-          bash .github/scripts/recover-central-publication.sh "$deployment_log"
+          ./mvnw "${maven_arguments[@]}"
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
@@ -333,8 +338,8 @@ jobs:
           tag_name: ${{ needs.build-and-test.outputs.version-tag }}
           name: Fluxzero ${{ needs.build-and-test.outputs.version }}
           body_path: release-assets/release-notes.md
-          fail_on_unmatched_files: true
           prerelease: ${{ needs.build-and-test.outputs.prerelease }}
+          fail_on_unmatched_files: true
           files: |
             release-assets/project-java.zip
             release-assets/project-kotlin.zip
@@ -351,7 +356,7 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.SITE_BUILD_DISPATCHER_APP_ID }}
+          client-id: ${{ secrets.SITE_BUILD_DISPATCHER_APP_ID }}
           private-key: ${{ secrets.SITE_BUILD_DISPATCHER_PRIVATE_KEY }}
           owner: fluxzero-io
           repositories: fluxzero-site

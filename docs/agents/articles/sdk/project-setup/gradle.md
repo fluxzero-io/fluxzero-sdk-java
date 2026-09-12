@@ -64,7 +64,7 @@ java {
 }
 ```
 
-Generated Gradle starters may use Java 25. Install and use that declared toolchain for the generated project instead of lowering it to whatever the host already has. Java 25 is the minimum for this SDK release, including existing projects. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
+SDK v2 requires Java 25 or newer. Install and use that declared toolchain for the generated project instead of lowering it to whatever the host already has. For an existing project, keep Java 25+ unless the user explicitly wants to change the toolchain. Read the focused toolchain article before invoking the wrapper on a machine that may not have Java.
 
 Kotlin setup adds kapt and Kotlin Spring support:
 

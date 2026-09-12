@@ -1,56 +1,28 @@
-# Model Assertions
-
-## Assertions and interceptors
+`@AssertLegal` validates whether a command may be applied. Use it for business invariants and ownership checks that depend on current state or sender context.
 
 ```java
-public record RenameProject(ProjectId projectId,
-                            String name) {
-    @AssertLegal
-    void assertOwner(Project project, Sender sender) {
-        if (!project.ownerId().equals(sender.userId())) {
-            throw ProjectErrors.unauthorized;
-        }
-    }
-
-    @InterceptApply
-    Object ignoreNoChange(Project project) {
-        return project.details().name().equals(name)
-                ? null : this;
-    }
-
-    @Apply
-    Project apply(Project project) {
-        return project.withDetails(
-                project.details().withName(name));
+@AssertLegal
+void assertOwner(Project project, Sender sender) {
+    if (!project.ownerId().equals(sender.userId())) {
+        throw ProjectErrors.unauthorized;
     }
 }
 ```
 
-Returning `null` from `@InterceptApply` suppresses that update. Assertions, interceptors and applies may inject every
-direct target and related ancestor resolved for the action. They must not perform nested model writes.
+Assertions may load or query data when needed, but they must not perform updates. Keep error types grouped in a domain error interface so tests can assert the exact rule that failed.
 
-Interception selects the payloads to which assertions apply:
+Assertion methods can inject the current entity, ancestors, the payload, metadata, the full message, and user context. Use nullable parameters when absent entities are legal for a create path.
 
-| Interceptor outcome | Assertions and application |
-|:--------------------|:---------------------------|
-| Retain the payload | Its matching immediate `@AssertLegal` methods run before `@Apply` |
-| Suppress the payload | Neither its assertions nor its apply methods run |
-| Replace the payload | Only the replacement's matching assertions and apply methods run |
-| Split the payload | Each part's immediate assertions and apply run in order; later parts see earlier changes |
+If an assertion returns a non-null object, Fluxzero inspects that object for further `@AssertLegal` methods. Use this only when it makes nested legality reusable; otherwise return `void`.
 
-Never assume an `@AssertLegal` method that only matches the original payload will run after replacement. Put an
-invariant that must survive rewriting on the effective replacement or in shared/Model-side assertion logic that also
-matches it. `@AssertLegal(afterHandler = true)` retains its deferred handler-completion timing.
+Use `priority` and `afterHandler` only when assertion ordering changes behavior. Most domains should keep assertions independent enough that ordering does not matter.
 
-## Recursive Model assertions
+Throw domain errors built from Fluxzero `FunctionalException` helpers/constants so callers receive functional failures instead of infrastructure errors.
 
-Return a validation object (or collection) from `@AssertLegal` to run its matching checks recursively. The original
-payload, metadata, user and application resolvers remain available; injected Models use the pinned commit boundary
-and count toward RETRY/FAIL dependencies. ACCEPT rebase and replay do not rerun assertions.
+Security annotations are good coarse gates. Put state-dependent authorization, ownership, quota, and cross-aggregate legality in `@AssertLegal` so the rule is tested with the domain behavior.
 
-Returned objects are traversed in the returning method's before/after phase. Annotated fields and record components
-delegate in both phases; their nested methods determine timing, not `afterHandler` on the field. Use a field for a
-validator shared across phases: a no-arg assertion method is not called again after apply. `Fluxzero.assertLegal`
-runs only immediate checks. Nulls are ignored; collection order is preserved. Identity-based cycle detection visits
-an object once per payload or Model assertion phase; nesting beyond 256 levels fails. Direct accessor methods remain
-eligible even when their return value has already been traversed.
+Use Jakarta validation for payload shape, nullability, and scalar constraints. Use `@AssertLegal` for rules that depend on existing state, user context, other aggregates, or current search/query results.
+
+For Models, injected state and actual Graph navigation participate in the evaluation read set. Use `RETRY` or `FAIL`
+for assertion invariants; `ACCEPT` retains apply dependencies only. Empty child scopes count, whereas arbitrary
+search/query results are not automatically protected. Read Model and Graph conflicts for the precise boundaries.

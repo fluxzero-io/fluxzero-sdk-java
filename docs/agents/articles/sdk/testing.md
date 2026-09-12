@@ -1,7 +1,5 @@
 Use `TestFixture` for local behavior tests. Register external handler components and annotation-driven class handlers that participate in the scenario. Do not register every ordinary local self-handling command/query payload class: dispatching its payload lets the local registry discover its own handler, while explicit registration of a zero-component class with a zero-parameter method can make that method match unrelated messages.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 During an active Fluxzero dev session, write and change these tests normally but let the dev server execute them. It
 selects changed or impacted tests and reports the exact decision through `get_test_status`; do not start a parallel
 wrapper test run. Selective execution changes how quickly evidence is produced, not what evidence the test must prove.

@@ -32,12 +32,15 @@ class GetDocumentTest {
     void ordinaryDocumentRequestDefaultsToNoModelHead() {
         ObjectNode json = JsonUtils.valueToTree(
                 new GetDocument("model-1", "models"));
+        assertFalse(json.has("verifyModelState"), "Ordinary requests should not gain unused wire metadata");
         json.remove("includeModelHead");
+        json.remove("verifyModelState");
         GetDocument result = JsonUtils.convertValue(json, GetDocument.class);
 
         assertEquals("model-1", result.getId());
         assertEquals("models", result.getCollection());
         assertFalse(result.isIncludeModelHead());
+        assertFalse(result.isVerifyModelState());
     }
 
     @Test
@@ -51,5 +54,18 @@ class GetDocumentTest {
         assertNull(result.getDocument());
         assertEquals(head, result.getModelHead());
         assertTrue(result.getModelHead().isDeleted());
+        assertFalse(result.isModelStateVerified());
+    }
+
+    @Test
+    void verificationIsExplicitAndOldResponsesNeverAttestIt() {
+        assertFalse(JsonUtils.valueToTree(new GetDocumentResult(1, null)).has("modelStateVerified"));
+        var request = JsonUtils.convertValue(new GetDocument("model", "models", true, true), GetDocument.class);
+        assertTrue(request.isVerifyModelState());
+        assertTrue(request.isIncludeModelHead());
+        ObjectNode json = JsonUtils.valueToTree(new GetDocumentResult(1, null, null, true));
+        assertTrue(JsonUtils.convertValue(json, GetDocumentResult.class).isModelStateVerified());
+        json.remove("modelStateVerified");
+        assertFalse(JsonUtils.convertValue(json, GetDocumentResult.class).isModelStateVerified());
     }
 }

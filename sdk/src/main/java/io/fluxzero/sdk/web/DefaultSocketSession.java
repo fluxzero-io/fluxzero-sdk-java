@@ -32,7 +32,6 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Value;
 import lombok.experimental.Accessors;
-import lombok.experimental.Delegate;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 
@@ -243,8 +242,11 @@ public class DefaultSocketSession implements SocketSession {
     @Value
     static class PendingRequest<R> {
         Request<R> request;
-        @Delegate
         CompletableFuture<R> callback;
+
+        public void completeExceptionally(Throwable failure) {
+            callback.completeExceptionally(failure);
+        }
 
         @SuppressWarnings("unchecked")
         public void completeSafely(Object result) {

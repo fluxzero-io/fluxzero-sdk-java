@@ -1,7 +1,5 @@
 Build a symmetric scenario matrix for workflows with two independently correlated components. A happy path plus one failure is not enough: code can accidentally route both message types through one reference, compensate only one component, or resend an old compensation on an unrelated later event.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Core matrix
 
 | Dimension | Required rows |

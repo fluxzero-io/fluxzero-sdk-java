@@ -1,86 +1,40 @@
-# Model Apply Actions
+This article describes the retained aggregate/entity path. For new `@Model` state, use the Model actions, Graphs
+and conflicts articles; legacy cross-aggregate limitations do not describe one atomic multi-Model commit.
 
-## Apply actions
+`@Apply` methods perform deterministic state transitions and are reused when Fluxzero rebuilds an entity from its event stream.
 
-Creation:
+Signatures determine intent:
 
 ```java
-public record CreateProject(ProjectId projectId,
-                            ProjectDetails details) {
-    @Apply
-    Project apply(Sender sender) {
-        return new Project(
-                projectId, details, sender.userId());
-    }
+@Apply
+Project apply() { ... }              // create
+
+@Apply
+Project apply(Project current) { ... } // update
+
+@Apply
+Project apply(Project current) {
+    return null;                       // delete
 }
 ```
 
-Update:
+Keep `@Apply` pure: no searches, no loading other entities, no external requests, no random IDs, no `User.getCurrent()`, and no current wall clock. If an update does not change state, consider aggregate settings such as `EventPublication.IF_MODIFIED` to reduce noise.
+
+Calling `assertAndApply(...).get()` in a handler exposes the updated in-memory aggregate; it does not prove that the event has committed or that new aliases are queryable. Do not schedule, cancel, publish a command, or send an external request immediately afterward in the same handler. Persist the transition/intent, then perform effects from a registered tracked post-commit consumer as described in aggregate commit and effect boundaries.
+
+When actor identity affects persisted state, inject the application's concrete `Sender` as an `@Apply` parameter. Fluxzero records the dispatch user in message metadata, and parameter injection resolves that stored user again while rebuilding the aggregate. Do not read ambient thread-local user state and do not add a client-supplied user ID to the command.
 
 ```java
-public record RenameProject(ProjectId projectId,
-                            String name) {
-    @Apply
-    Project apply(Project project) {
-        return new Project(
-                projectId,
-                project.details().withName(name),
-                project.ownerId());
-    }
+@Apply
+KnowledgeArticle apply(KnowledgeArticle current, Sender sender) {
+    return current.withApprovedBy(sender.userId());
 }
 ```
 
-Logical deletion:
+When time affects a transition, inject the message timestamp as an `Instant` parameter or use `Fluxzero.currentTime()` at the handling/legal boundary. Never call `Instant.now()`, `LocalDate.now()`, or another system clock from `@Apply`; replay must produce the same state.
 
-```java
-public record DeleteProject(ProjectId projectId) {
-    @Apply
-    Project apply(Project project) {
-        return null;
-    }
-}
-```
+Returning `null` deletes an entity or clears a member. Child/member updates rebuild parent state automatically, and a single update payload can define multiple `@Apply` methods when it needs to affect both a child and a root aggregate shape.
 
-Returning `null` deletes the current value but still stores/publishes the update according to the model policy. Do not
-use `void` for model applies.
+Apply methods can inject the current state, ancestor entities, the update payload, `Message`, `Metadata`, the message timestamp, and concrete user context when needed. Prefer those explicit parameters over static ambient access. If existing state is required and absent, Fluxzero raises a not-found style failure; mark the state parameter nullable only for create-or-upsert paths that intentionally allow absence. Creating state that already exists raises an already-exists style failure unless the aggregate/update settings explicitly relax that behavior.
 
-`@Apply` compatibility checks are inferred:
-
-- A factory without current state requires the model to be absent.
-- A non-null current-model parameter requires it to exist.
-- `@Nullable` allows either state.
-- Use `disableCompatibilityCheck = true` only for deliberate advanced behavior.
-
-Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
-Use an explicit handler only for real orchestration:
-
-```java
-@HandleCommand
-CompletableFuture<Void> handle(ImportProject command) {
-    // Orchestrate external work, then execute one model commit.
-    return Fluxzero.assertAndApplyAsync(command);
-}
-```
-
-Fluxzero commits automatically. Only when a later step in the same handling context must force an already produced
-automatic Model commit to durability, use `Fluxzero.commit()` and compose on its returned `CompletableFuture<Void>`.
-It is a release of the existing commit, not another mutation path: repeated calls share its completion, automatic
-commit remains enabled, and a context without pending changes completes without Runtime transport. Do not call or wait
-on it inside `@Apply`; the apply has not returned its change yet.
-
-## Combine payload and Model handlers
-
-Keep action-specific handlers on the payload. Put genuinely cross-cutting state behavior on the Model when several
-payload types share it. If both owners have an applicable handler, Fluxzero always evaluates the payload phase before
-the Model phase for each annotation family:
-
-1. payload `@InterceptApply`, then Model `@InterceptApply`;
-2. payload immediate `@AssertLegal`, then Model immediate `@AssertLegal`;
-3. all payload `@Apply` results, then all Model `@Apply` results;
-4. payload `afterHandler = true` assertions, then Model after-handler assertions.
-
-`priority` orders handlers only within a phase. Model applies receive the complete intermediate state produced by all
-payload applies. This lets an instance Model apply finalize a newly created Model and makes multi-Model finalization
-independent of Model-handler iteration order. Both phases are reduced to one atomic `Change` per Model ID. Static Model
-applies remain valid; an independent static creation factory is used only when the payload did not already create its
-target. Keep every phase pure and deterministic because live handling, retry, rebase and replay share this route.
+Use `@InterceptApply` when an update must be rewritten, suppressed, or expanded before legality and apply methods run. Interceptors may load or query because they are orchestration around the transition, but keep the final `@Apply` method deterministic.

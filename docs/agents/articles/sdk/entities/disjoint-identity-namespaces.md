@@ -1,7 +1,5 @@
 Use this when an aggregate has both a public primary identifier and one or more `@Alias` families. Post-load equality guards prevent mutation of a wrong root, but they cannot recover a valid alias after root-ID precedence selected another aggregate.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Prefix the repository ID, not the public value
 
 Suppose a processor decision loads `"caption-ref-" + raw`. If another aggregate's repository ID is exactly that text, `Fluxzero.loadEntity(...)` returns that root before considering aliases. A field-equality guard rejects the wrong root, but lookup does not fall back to the intended alias. The valid processor decision is silently dropped.

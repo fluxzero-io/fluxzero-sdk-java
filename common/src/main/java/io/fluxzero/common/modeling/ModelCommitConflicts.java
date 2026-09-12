@@ -22,9 +22,11 @@ import io.fluxzero.common.api.modeling.ModelCommitConflict;
 import io.fluxzero.common.api.modeling.ModelCommitStep;
 import io.fluxzero.common.api.modeling.ModelCommitTarget;
 import io.fluxzero.common.api.modeling.ModelConflictPolicy;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.ToLongFunction;
 
@@ -150,6 +152,50 @@ public final class ModelCommitConflicts {
             }
         }
         return false;
+    }
+
+    /** Adds conflicts for physically erased read identities without rejecting fresh reads of their absence. */
+    public static List<ModelCommitConflict> detectErasedReads(
+            CommitModels commit, List<ModelCommitConflict> existing, ToLongFunction<String> erasedPositions) {
+        Map<String, ModelCommitConflict> conflicts = null;
+        for (String modelId : commit.getReadModelIds()) {
+            long position = erasedPositions.applyAsLong(modelId);
+            if (position > commit.getReadStateIndex()) {
+                if (conflicts == null) {
+                    conflicts = new LinkedHashMap<>();
+                    for (ModelCommitConflict conflict : existing) {
+                        conflicts.put(conflict.getModelId(), conflict);
+                    }
+                }
+                conflicts.merge(modelId, new ModelCommitConflict(modelId, position, -1L),
+                        (left, right) -> new ModelCommitConflict(modelId,
+                                Math.max(left.getCurrentStateIndex(), right.getCurrentStateIndex()),
+                                left.getCurrentRelationStateIndex()));
+            }
+        }
+        return conflicts == null ? existing : List.copyOf(conflicts.values());
+    }
+
+    /** Adds membership conflicts using relationship positions read under the same atomic boundary as the write. */
+    public static List<ModelCommitConflict> detectRelationships(
+            CommitModels commit, List<ModelCommitConflict> existing,
+            ToLongFunction<ModelRelationshipRead> positions) {
+        Map<String, ModelCommitConflict> conflicts = null;
+        for (ModelRelationshipRead read : commit.getReadRelationships()) {
+            long position = positions.applyAsLong(read);
+            if (position > commit.getReadStateIndex()) {
+                if (conflicts == null) {
+                    conflicts = new LinkedHashMap<>();
+                    for (ModelCommitConflict conflict : existing) {
+                        conflicts.put(conflict.getModelId(), conflict);
+                    }
+                }
+                conflicts.merge(read.modelId(), new ModelCommitConflict(read.modelId(), -1L, position),
+                        (left, right) -> new ModelCommitConflict(left.getModelId(), left.getCurrentStateIndex(),
+                                Math.max(left.getCurrentRelationStateIndex(), right.getCurrentRelationStateIndex())));
+            }
+        }
+        return conflicts == null ? existing : List.copyOf(conflicts.values());
     }
 
     private ModelCommitConflicts() {

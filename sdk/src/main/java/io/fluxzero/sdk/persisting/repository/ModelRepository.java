@@ -27,6 +27,7 @@ import io.fluxzero.sdk.modeling.Entity;
 import io.fluxzero.sdk.modeling.Graph;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.Model;
+import io.fluxzero.sdk.modeling.ModelState;
 import io.fluxzero.sdk.modeling.CommitAttempt;
 import io.fluxzero.sdk.modeling.EntityMetadata;
 import io.fluxzero.sdk.modeling.MutationPlan;
@@ -120,6 +121,25 @@ public interface ModelRepository extends Namespaced<ModelRepository> {
      */
     default <T> Entity<T> loadCurrent(@NonNull String modelId, @NonNull Class<T> modelType) {
         return load(modelId, modelType);
+    }
+
+    /**
+     * Reads a current document-backed Model value without replaying historical events.
+     * The returned state is read-only, independently current (not handler-historical), and not an implicit commit
+     * dependency. A missing/deleted Model has no value; a live Model with an unavailable, stale or unversioned
+     * document fails explicitly. No automatic replay, event skipping or ordinary Model-cache update takes place.
+     * The Runtime must attest a body/head proof captured with trusted Model materialization/adoption; older
+     * unproven documents require a new eligible trusted write and are never retroactively certified by a read.
+     * Custom repositories must implement the verified document capability; the default never emulates it by replay.
+     * This overload uses the exact persisted identity, not an alias.
+     */
+    default <T> ModelState<T> loadCurrentState(@NonNull String modelId, @NonNull Class<T> modelType) {
+        throw new UnsupportedOperationException("Verified document-backed Model reads are not supported by this repository");
+    }
+
+    /** Reads a current document-backed Model using its typed identity, including its prefix/postfix. */
+    default <T> ModelState<T> loadCurrentState(@NonNull Id<T> modelId) {
+        return loadCurrentState(EntityMetadata.validate(modelId.getType()).repositoryId(modelId), modelId.getType());
     }
 
     /**

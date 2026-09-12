@@ -32,6 +32,7 @@ import io.fluxzero.sdk.persisting.eventsourcing.client.EventStoreClient;
 import io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
 import io.fluxzero.sdk.persisting.repository.DefaultModelRepository.Commit;
+import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
 import io.fluxzero.sdk.persisting.search.DocumentSerializer;
 import io.fluxzero.sdk.publishing.DispatchInterceptor;
 import io.fluxzero.sdk.tracking.handling.Invocation;
@@ -46,6 +47,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -58,6 +60,7 @@ import java.util.function.Supplier;
  */
 @Slf4j
 final class ModelPipeline {
+    static final Executor ASYNC_EXECUTOR = io.fluxzero.common.ObjectUtils.newWorkerExecutor("fluxzero-model-async-");
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
 
@@ -667,7 +670,7 @@ final class ModelPipeline {
                                 retry.resolver().resolve(
                                         new ModelConflictResolver.Context(
                                                 result, attempts, retry.maxAttempts())),
-                                "Model conflict resolver returned null")))
+                                "Model conflict resolver returned null")), ASYNC_EXECUTOR)
                 .thenCompose(resolution ->
                         resolution == ModelConflictResolver.Resolution.RETRY
                         && result.isRetryAllowed()
@@ -682,7 +685,7 @@ final class ModelPipeline {
             Supplier<CompletableFuture<T>> operation,
             String nullMessage) {
         return CompletableFuture.supplyAsync(context.wrap(() ->
-                        Objects.requireNonNull(operation.get(), nullMessage)))
+                        Objects.requireNonNull(operation.get(), nullMessage)), ASYNC_EXECUTOR)
                 .thenCompose(Function.identity());
     }
 
@@ -963,8 +966,12 @@ final class ModelPipeline {
         private final DeserializingMessage directMessage;
         private final PrefetchSlot prefetched;
         private final Map<String, Entity<?>> commitEntities = new LinkedHashMap<>();
-        private final Map<AncestorPlanKey, List<MutationPlan.ResolvedModel>> ancestorPlans =
+        private final Map<AncestorPlanKey, AncestorPlan> ancestorPlans =
                 new LinkedHashMap<>();
+
+        private record AncestorPlan(List<MutationPlan.ResolvedModel> targets,
+                                    ModelAncestorResolver.AncestorReads reads) {
+        }
 
         private CommitLoader(Long pinnedStateIndex) {
             this(pinnedStateIndex, false, false, false, null, null);
@@ -1066,8 +1073,9 @@ final class ModelPipeline {
                 MutationPlan.Resolution resolution, Long boundary, Map<String, Object> stagedValues) {
             AncestorPlanKey planKey = resolution.hasAncestorDependencies()
                     ? ancestorPlanKey(resolution, stagedValues) : null;
+            AncestorPlan ancestorPlan = ancestorPlans.get(planKey);
             List<MutationPlan.ResolvedModel> effectiveTargets = planKey == null
-                    ? resolution.models() : ancestorPlans.get(planKey);
+                    ? resolution.models() : ancestorPlan == null ? null : ancestorPlan.targets();
             List<MutationPlan.ResolvedModel> missing = effectiveTargets == null ? List.of()
                     : effectiveTargets.stream()
                             .filter(target -> !commitEntities.containsKey(target.modelId()))
@@ -1077,7 +1085,8 @@ final class ModelPipeline {
                 CommitAttempt loaded = load(resolution, boundary, stagedValues);
                 stateIndex = loaded.readStateIndex();
                 effectiveTargets = targets(loaded);
-                ancestorPlans.put(planKey, effectiveTargets);
+                ancestorPlan = new AncestorPlan(effectiveTargets, loaded.ancestorReads());
+                ancestorPlans.put(planKey, ancestorPlan);
             } else if (boundary == null
                        || !missing.isEmpty()) {
                 MutationPlan.Resolution loadResolution =
@@ -1094,7 +1103,8 @@ final class ModelPipeline {
                     target.modelId(), Objects.requireNonNull(
                             commitEntities.get(target.modelId()),
                             "Missing commit-scoped model " + target.modelId())));
-            return CommitAttempt.create(stateIndex, effectiveResolution, selected);
+            return CommitAttempt.create(stateIndex, effectiveResolution, selected)
+                    .withAncestorReads(ancestorPlan == null ? null : ancestorPlan.reads());
         }
 
         @Override

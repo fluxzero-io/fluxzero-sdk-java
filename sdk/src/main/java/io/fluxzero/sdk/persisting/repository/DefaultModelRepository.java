@@ -22,6 +22,7 @@ import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.common.api.internal.BinaryWire;
 import io.fluxzero.common.api.modeling.AwaitModelGraphProjection;
 import io.fluxzero.common.api.modeling.CommitModels;
+import io.fluxzero.common.api.modeling.CommitModelsWithRelationships;
 import io.fluxzero.common.api.modeling.CommitModelsResult;
 import io.fluxzero.common.api.modeling.DeleteModel;
 import io.fluxzero.common.api.modeling.GetModelGraphProjectionStatus;
@@ -65,6 +66,7 @@ import io.fluxzero.sdk.modeling.EntityHelper;
 import io.fluxzero.sdk.modeling.Change;
 import io.fluxzero.sdk.modeling.DirectModelUpdate;
 import io.fluxzero.sdk.modeling.Graph;
+import io.fluxzero.sdk.modeling.ModelState;
 import io.fluxzero.sdk.modeling.GraphProjectionCompletion;
 import io.fluxzero.sdk.modeling.Id;
 import io.fluxzero.sdk.modeling.ImmutableModelRoot;
@@ -103,6 +105,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -120,8 +123,10 @@ import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
  * loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.
  */
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
-        implements ModelRepository, ModelAncestorResolver, ModelTypeResolver {
+        implements ModelRepository, ModelAncestorResolver, ModelTypeResolver, ModelGraphResolver {
     private static final int COMMITTED_CACHE_UPDATE_BATCH_SIZE = 128;
+    private static final java.util.concurrent.Executor MIGRATION_EXECUTOR =
+            io.fluxzero.common.ObjectUtils.newWorkerExecutor("fluxzero-model-migration-");
     private static final CompletableFuture<Void> COMPLETED_VOID =
             CompletableFuture.completedFuture(null);
     private static final long INITIAL_MIGRATION_POLL_NANOS = Duration.ofMillis(10).toNanos();
@@ -521,7 +526,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         // Trampoline between batches so a large, immediately completed in-memory migration
         // cannot grow the caller stack once per thousand adopted Models.
         return batch.thenComposeAsync(ignored ->
-                adoptModelMigrationBatch(adopted + migrations.size()));
+                adoptModelMigrationBatch(adopted + migrations.size()), MIGRATION_EXECUTOR);
     }
 
     private CompletableFuture<Void> rebuildApplicationGraphProjections() {
@@ -625,17 +630,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public Class<?> modelType(String modelName, String modelId) {
+        return knownModelType(modelName, modelId).orElseThrow(() -> new IllegalStateException(
+                "Stored Model type '%s' for %s is not registered in this application"
+                        .formatted(modelName, modelId)));
+    }
+
+    @Override
+    public Optional<Class<?>> knownModelType(String modelName, String modelId) {
         if (modelName == null || modelName.isBlank()) {
             throw new IllegalStateException("Model '%s' has no stored type metadata".formatted(modelId));
         }
         modelTypes.get().forEach(this::modelName);
-        Class<?> result = modelTypesByName.get(modelName);
-        if (result == null) {
-            throw new IllegalStateException(
-                    "Stored Model type '%s' for %s is not registered in this application"
-                            .formatted(modelName, modelId));
-        }
-        return result;
+        return Optional.ofNullable(modelTypesByName.get(modelName));
     }
 
     /** Returns the application-resolved durable definition owned by this repository. */
@@ -811,6 +817,130 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     }
 
     @Override
+    public ModelBatchScope.Snapshot graphStagedValues(ModelReadBoundary boundary) {
+        return boundary.includeMessageBatch()
+                ? ModelBatchScope.snapshot(messageBatchNamespace()) : ModelBatchScope.Snapshot.EMPTY;
+    }
+
+    @Override
+    public Graph<?> loadGraphProjection(String rootId, Class<?> rootType, ModelReadBoundary boundary, boolean historical) {
+        return loadGraphProjection(rootId, rootType, boundary, historical, null);
+    }
+
+    @Override
+    public Graph<?> loadGraphProjection(String rootId, Class<?> rootType, ModelReadBoundary boundary,
+                                        boolean historical, Entity<?> resolvedRoot) {
+        modelName(rootType);
+        return replayCursor.graphAtBoundary(rootId, rootType, Graph.Options.DEFAULT, boundary.withoutMessageBatch(),
+                                            messageBatchNamespace(), Map.of(), historical, resolvedRoot);
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadCurrentGraphValue(Object modelId, Class<?> modelType) {
+        return graphValue(modelId, false, modelType, ModelReadBoundary.current().forRequest());
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadGraphValue(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
+        PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
+        ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
+        ModelGraphResolver.Value result = graphValue(modelId, exact, modelType, selected);
+        pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveGraphIdentity(
+            Object modelId, Class<?> modelType, ModelReadBoundary boundary) {
+        return resolveGraphIdentity(modelId, false, modelType, boundary);
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveGraphIdentity(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
+        PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
+        ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
+        ModelGraphResolver.Identity result = graphIdentity(modelId, exact, modelType, selected);
+        pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveCurrentGraphIdentity(Object modelId, Class<?> modelType) {
+        return graphIdentity(modelId, false, modelType, ModelReadBoundary.current().forRequest());
+    }
+
+    @Override
+    public ModelGraphResolver.Identity resolveUntypedGraphIdentity(Object modelId) {
+        return resolveGraphIdentity(modelId, false, Object.class, ModelReadBoundary.current());
+    }
+
+    private ModelGraphResolver.Identity graphIdentity(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary selected) {
+        if (modelType != Object.class) {
+            modelName(modelType);
+        }
+        EntityMetadata metadata = EntityMetadata.of(modelType);
+        String primary = exact || modelType == Object.class ? modelId.toString() : metadata.repositoryId(modelId);
+        if (!selected.historical() && !selected.before() && modelCacheTracker != null
+            && metadata.rootConfiguration().filter(c -> c.cached() && c.eventSourced()).isPresent()) {
+            modelCacheTracker.prepare();
+            ModelCacheTracker.CurrentModel current = modelCacheTracker.peekCurrentVersion(primary, modelType);
+            if (current != null && !(current.entity().isEmpty() && metadata.hasAliases())) {
+                Entity<?> entity = current.entity();
+                return new ModelGraphResolver.Identity(entity.id().toString(), entity.isPresent(),
+                        selected.resolved(current.validThrough()), false, () -> entity);
+            }
+        }
+        ModelGraphResolver.Identity result = replayCursor.graphIdentity(primary, modelType, selected,
+                                                                        selected.historical(), modelCacheTracker);
+        if (!exact && !result.present() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
+            ModelGraphResolver.Identity alias = replayCursor.graphIdentity(
+                    modelId.toString(), modelType, result.boundary(), selected.historical(), modelCacheTracker);
+            if (alias.present()) {
+                result = alias;
+            }
+        }
+        return result;
+    }
+
+    private ModelGraphResolver.Value graphValue(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
+        modelName(modelType);
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        String primary = exact ? modelId.toString() : metadata.repositoryId(modelId);
+        ModelGraphResolver.Value result = replayCursor.graphValue(primary, modelType, boundary, modelCacheTracker,
+                                                                  boundary.historical());
+        if (!exact && result.entity().isEmpty() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
+            ModelGraphResolver.Value alias = replayCursor.graphValue(
+                    modelId.toString(), modelType, result.boundary(), modelCacheTracker, boundary.historical());
+            if (alias.entity().isPresent()) {
+                result = alias;
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Entity<?>> loadGraphValues(Map<String, Class<?>> modelTypes, ModelReadBoundary boundary,
+                                                 Map<String, Entity<?>> staged, boolean historical) {
+        return replayCursor.graphValues(modelTypes, boundary, staged, historical);
+    }
+
+    @Override
+    public ModelGraphResolver.Relations loadGraphRelations(
+            List<String> modelIds, io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction direction,
+            ModelReadBoundary boundary, Map<String, Entity<?>> staged, boolean historical) {
+        PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
+        ModelGraphResolver.Relations result = replayCursor.graphRelations(
+                modelIds, direction, handlerBoundary == null ? boundary : boundary(handlerBoundary), staged,
+                historical || handlerBoundary != null && boundary(handlerBoundary).historical());
+        pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    @Override
     public <T> Graph<T> loadGraph(
             @NonNull String rootId,
             @NonNull Class<T> rootType,
@@ -849,6 +979,19 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
             Class<A> ancestorType,
             ModelReadBoundary boundary,
             boolean all) {
+        return loadAncestorGraphs(modelId, modelType, ancestorType, boundary, all, null);
+    }
+
+    @Override
+    public <A> Optional<Graph<A>> loadAncestorGraph(
+            String modelId, Class<?> modelType, Class<A> ancestorType, ModelReadBoundary boundary,
+            Consumer<ModelAncestorResolver.AncestorReads> observer) {
+        return loadAncestorGraphs(modelId, modelType, ancestorType, boundary, false, observer).stream().findFirst();
+    }
+
+    private <A> List<Graph<A>> loadAncestorGraphs(
+            String modelId, Class<?> modelType, Class<A> ancestorType, ModelReadBoundary boundary, boolean all,
+            Consumer<ModelAncestorResolver.AncestorReads> observer) {
         modelName(modelType);
         modelName(ancestorType);
         EntityMetadata sourceMetadata = EntityMetadata.validate(modelType);
@@ -888,6 +1031,9 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                 stagedValues, boundary.includeMessageBatch(),
                 false, !all, all,
                 UNBOUNDED, UNBOUNDED);
+        if (observer != null) {
+            observer.accept(resolved.reads());
+        }
         List<MutationPlan.ResolvedModel> targets =
                 resolved.resolution().models().stream()
                         .filter(candidate ->
@@ -1175,7 +1321,7 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                         : null,
                 requireAncestors, closestAncestorsOnly, allowMultipleAncestors,
                 maxDepth, maxModels);
-        return new AncestorResolution(result.stateIndex(), result.resolution());
+        return new AncestorResolution(result.stateIndex(), result.resolution(), result.reads());
     }
 
     /**
@@ -1343,6 +1489,48 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return (Entity<T>) entity;
     }
 
+    @Override
+    public <T> ModelState<T> loadCurrentState(@NonNull String modelId, @NonNull Class<T> modelType) {
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        modelName(modelType);
+        if (metadata.modelDocumentCollection(modelNamePrefix).isEmpty()) {
+            throw new EventSourcingException(
+                    "Current-state read for Model '%s' (%s) requires a maintained Model document; enable DOCUMENT "
+                    .formatted(modelId, modelType.getName()) + "on the writer or use ordinary model replay");
+        }
+        for (int attempt = 0; attempt < 8; attempt++) {
+            var observed = replayCursor.loadHeads(List.of(modelId), ModelReadBoundary.current());
+            ModelHeadState expected = observed.heads().get(modelId);
+            ModelReplayCursor.DocumentVersion document;
+            try {
+                document = loadDocumentUnchecked(modelId, modelType, metadata, false, true);
+            } catch (RuntimeException failure) {
+                throw new EventSourcingException(
+                        "Current-state read for Model '%s' (%s) failed document verification or decoding"
+                                .formatted(modelId, modelType.getName()), failure);
+            }
+            if (Objects.equals(expected, document.head())) {
+                if ((expected == null || expected.isDeleted()) != document.entity().isEmpty()) {
+                    throw new EventSourcingException(
+                            "Current-state read for Model '%s' (%s) found a document inconsistent with its Model head"
+                                    .formatted(modelId, modelType.getName()));
+                }
+                return new ModelState<>(modelId, modelType, modelType.cast(document.entity().get()),
+                                        expected, observed.stateIndex());
+            }
+            // A newer document can race the head read. Retry from a new boundary, never replay or accept stale state.
+            if (document.head() == null || expected != null
+                && document.head().getStateIndex() <= expected.getStateIndex()) {
+                throw new EventSourcingException(
+                        "Current-state read for Model '%s' (%s) has no document matching head %s; "
+                        .formatted(modelId, modelType.getName(), expected)
+                        + "check the shared state contract and document materialization before retrying");
+            }
+        }
+        throw new EventSourcingException("Current-state read for Model '%s' (%s) kept moving during verification; retry"
+                                                .formatted(modelId, modelType.getName()));
+    }
+
     private ModelReplayCursor.DocumentVersion loadDocumentProjection(
             String modelId, Class<?> modelType, boolean migration) {
         EntityMetadata metadata = EntityMetadata.validate(modelType);
@@ -1354,13 +1542,26 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
     private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
             String modelId, Class<?> modelType, EntityMetadata metadata,
             boolean migration) {
+        return loadDocumentUnchecked(modelId, modelType, metadata, migration, false);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ModelReplayCursor.DocumentVersion loadDocumentUnchecked(
+            String modelId, Class<?> modelType, EntityMetadata metadata,
+            boolean migration, boolean verifyState) {
         String collection = metadata.modelDocumentReadCollection(modelNamePrefix);
         GetDocumentResult result = client.getSearchClient().fetchModelDocument(
                 new GetDocument(
                         modelId,
                         migration
                                 ? ModelDocumentMutation.MIGRATION_COLLECTION
-                                : collection));
+                                : collection, true, verifyState));
+        if (verifyState && !result.isModelStateVerified()) {
+            throw new EventSourcingException(
+                    "Current-state read for Model '%s' (%s) requires body/head verification from the Runtime; "
+                    .formatted(modelId, modelType.getName())
+                    + "use a matching Runtime and a document written by a proof-capable Model materializer");
+        }
         ModelHeadState head = result.getModelHead();
         if (head != null) {
             if (!modelId.equals(head.getModelId())) {
@@ -1417,7 +1618,8 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     private record AncestorResolution(
             long stateIndex,
-            MutationPlan.Resolution resolution) {
+            MutationPlan.Resolution resolution,
+            ModelAncestorResolver.AncestorReads reads) {
     }
 
     /** Receives a cache value and the boundaries that prove it current. */
@@ -1814,6 +2016,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     commitId, evaluation.readStateIndex(), evaluation.readModelIds(conflictPolicy),
                     List.copyOf(protocolSteps), conflictPolicy, STORED,
                     possibleDuplicate, migration);
+            var relationshipReads = evaluation.readRelationships(conflictPolicy);
+            if (!relationshipReads.isEmpty()) {
+                commit = new CommitModelsWithRelationships(commit, relationshipReads);
+            }
             return new Outcome(commit, preparedChanges, existingEvent);
         }
 
@@ -1836,6 +2042,10 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
                     candidate.getConflictPolicy(), original.commit().getGuarantee(),
                     original.commit().isPossibleDuplicate(),
                     original.commit().isMigration());
+            if (!candidate.getReadRelationships().isEmpty()) {
+                commit = new CommitModelsWithRelationships(
+                        commit, candidate.getReadRelationships());
+            }
             return new Outcome(commit, rebased.changes, original.existingEvent);
         }
 

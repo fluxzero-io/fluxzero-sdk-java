@@ -1,7 +1,5 @@
 Use durable correlation when later messages identify a workflow by processor reference, payment reference, or another secondary key instead of its primary domain ID.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 The API-sensitive examples use these Fluxzero imports:
 
 ```java

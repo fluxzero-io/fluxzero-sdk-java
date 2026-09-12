@@ -79,6 +79,10 @@ public interface UserProvider {
     /**
      * Retrieves a {@link User} by their unique identifier.
      * <p>
+     * {@link AbstractUserProvider} passes the value stored from {@link User#id()} to this method. During a migration to
+     * an ID that differs from {@link User#getName()}, implementations should also resolve earlier principal-name
+     * values while messages written by an older SDK can still be processed.
+     * <p>
      * This method is primarily used in {@code TestFixture}-based access control tests, such as when using
      * {@code whenCommandByUser(...)}, to simulate requests by a specific user.
      * <p>

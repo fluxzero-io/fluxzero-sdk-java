@@ -20,14 +20,19 @@ import io.fluxzero.common.MessageType;
 import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.modeling.ModelEventMetadata;
 import io.fluxzero.common.api.modeling.ModelGraphEdge;
+import io.fluxzero.common.api.modeling.ModelHeadState;
 import io.fluxzero.common.api.modeling.ModelReadBoundary;
+import io.fluxzero.common.api.modeling.ModelRelationshipRead;
 import io.fluxzero.common.modeling.ModelRelationshipTraversal;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
 import io.fluxzero.sdk.common.serialization.DeserializingMessage;
 import io.fluxzero.sdk.persisting.eventsourcing.EventSourcingException;
 import io.fluxzero.sdk.persisting.repository.ModelAncestorResolver;
+import io.fluxzero.sdk.persisting.repository.DefaultModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelGraphResolver;
 import io.fluxzero.sdk.persisting.repository.ModelRepository;
+import io.fluxzero.sdk.persisting.repository.ModelTypeResolver;
 
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -36,18 +41,25 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Construction boundary for the single indexed {@link Graph} implementation.
@@ -72,9 +84,66 @@ public final class Graphs {
 
     /** Creates a graph whose root deliberately resolves to the latest state instead of a handler boundary. */
     public static <T> Graph<T> lazyCurrent(Object modelId, Class<T> modelType, ModelRepository repository) {
+        if (repository instanceof ModelGraphResolver resolver) {
+            ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
+            ModelGraphResolver.Identity identity = resolver.resolveCurrentGraphIdentity(modelId, modelType);
+            if (identity != null) {
+                return resolvedRoot(modelId, modelType, repository, snapshot, identity);
+            }
+            ModelGraphResolver.Value loaded = resolver.loadCurrentGraphValue(modelId, modelType);
+            String primary = EntityMetadata.validate(modelType).repositoryId(modelId);
+            Entity<?> overlaid = snapshot.overlay(primary, modelType, loaded.entity());
+            if (overlaid.isEmpty() && !primary.equals(modelId.toString())) {
+                Entity<?> alias = snapshot.overlay(modelId.toString(), modelType, loaded.entity());
+                if (alias.isPresent()) {
+                    overlaid = alias;
+                }
+            }
+            @SuppressWarnings("unchecked") Entity<T> entity = (Entity<T>) overlaid;
+            return GraphState.entity(entity, loaded.boundary().stateIndex(), repository,
+                    Map.of(entity.id().toString(), entity), false, true, loaded.boundary(), Map.of())
+                    .valueHistory(loaded.historical()).batchSnapshot(snapshot).root();
+        }
         Entity<T> entity = repository.loadCurrent(modelId, modelType);
         long stateIndex = entity instanceof ModelRoot<?> root ? root.stateIndex() : -1L;
         return lazy(entity, stateIndex, repository);
+    }
+
+    /** Discovers an untyped root from its head while leaving its authoritative value lazy. */
+    public static Graph<?> lazy(Object modelId, ModelRepository repository) {
+        if (repository instanceof ModelGraphResolver resolver) {
+            ModelBatchScope.Snapshot snapshot = resolver.graphStagedValues(ModelReadBoundary.current());
+            Class<?> expected = modelId instanceof Id<?> id ? id.getType() : Object.class;
+            ModelGraphResolver.Identity identity = expected == Object.class
+                    ? resolver.resolveUntypedGraphIdentity(modelId)
+                    : resolver.resolveGraphIdentity(modelId, expected, ModelReadBoundary.current());
+            if (identity != null && (expected != Object.class
+                                     || identity.entity() instanceof ModelGraphResolver.HeadValue)) {
+                return resolvedRoot(modelId, expected, repository, snapshot, identity);
+            }
+        }
+        Entity<?> entity = repository.load(modelId);
+        return lazy(entity, entity instanceof ModelRoot<?> root ? root.stateIndex() : -1L, repository);
+    }
+
+    private static <T> Graph<T> resolvedRoot(Object requested, Class<T> expected, ModelRepository repository,
+                                            ModelBatchScope.Snapshot snapshot, ModelGraphResolver.Identity identity) {
+        String primary = expected == Object.class ? requested.toString() : EntityMetadata.validate(expected).repositoryId(requested);
+        Entity<?> overlay = snapshot.overlayIdentity(primary, expected, identity.modelId(), identity.present());
+        if ((overlay == null ? !identity.present() : overlay.isEmpty()) && !primary.equals(requested.toString())) {
+            Entity<?> alias = snapshot.overlayIdentity(requested.toString(), expected, identity.modelId(), identity.present());
+            if (alias != null && alias.isPresent()) {
+                overlay = alias;
+            }
+        }
+        if (overlay != null) {
+            return GraphState.entity(overlay, identity.boundary().stateIndex(), repository,
+                    Map.of(overlay.id().toString(), overlay), false, true, identity.boundary(), Map.of())
+                    .valueHistory(identity.historical()).batchSnapshot(snapshot).root();
+        }
+        Class<?> type = identity.entity() instanceof ModelGraphResolver.HeadValue value ? value.type() : expected;
+        return GraphState.identity(identity.modelId(), identity.modelId(), true, type, repository)
+                .retainIdentity(identity).valueHistory(identity.historical()).batchSnapshot(snapshot).root();
     }
 
     /** Creates a detached graph for an exact persisted identity. */
@@ -92,8 +161,9 @@ public final class Graphs {
 
     /** Creates a graph that reuses all values loaded for the same handler boundary. */
     static <T> Graph<T> lazy(Entity<T> entity, CommitAttempt context, ModelRepository repository) {
-        return GraphState.entity(entity, context.readStateIndex(), repository, context.entities(), false, true,
-                                 handlerBoundary(context.readStateIndex()), Map.of()).root();
+        return context.trackGraph(GraphState.entity(
+                entity, context.readStateIndex(), repository, context.entities(), false, true,
+                handlerBoundary(context.readStateIndex()), Map.of()).root(), repository);
     }
 
     private static ModelReadBoundary handlerBoundary(long stateIndex) {
@@ -212,7 +282,7 @@ public final class Graphs {
                 repository, historical, boundary, Map.of()).root();
     }
 
-    private static LinkedHashSet<String> selectedIds(
+    static LinkedHashSet<String> selectedIds(
             String rootId, Collection<ModelGraphEdge> edges, Graph.Options options) {
         LinkedHashMap<String, List<ModelGraphEdge>> children = new LinkedHashMap<>();
         edges.forEach(edge -> children.computeIfAbsent(
@@ -316,6 +386,18 @@ public final class Graphs {
         return source.context().withContext(values).view(source.node());
     }
 
+    static <T> Graph<T> withReadContext(Graph<T> graph, CommitAttempt.GraphReadContext reads) {
+        if (!(graph instanceof GraphView<?>)) {
+            if (reads != null) {
+                throw new UnsupportedOperationException("Transactional Graph navigation requires SDK Graph views; "
+                        + "custom ModelRepository implementations can construct them with Graphs.compose");
+            }
+            return graph;
+        }
+        GraphView<T> source = adapt(graph);
+        return source.context().withReadContext(reads).view(source.node());
+    }
+
     /** Returns a graph view containing matching branches and the ancestors required to reach them. */
     public static <T> Graph<T> filterBranches(Graph<T> graph, Predicate<? super Graph<?>> predicate) {
         Objects.requireNonNull(predicate, "predicate");
@@ -325,20 +407,24 @@ public final class Graphs {
         }
         Set<GraphState.Node> retained = identitySet();
         Set<GraphState.Node> inside = identitySet();
-        source.stream().map(Graphs::asView).forEach(view -> {
-            boolean matches = view.isPresent() && predicate.test(view);
-            boolean inBranch = matches || view.node().parent() != null && inside.contains(view.node().parent());
-            if (inBranch) {
-                inside.add(view.node());
-                retained.add(view.node());
-            }
-            if (matches) {
-                for (GraphState.Node parent = view.node().parent(); parent != null; parent = parent.parent()) {
-                    retained.add(parent);
+        CommitAttempt.GraphReadProof[] proof = new CommitAttempt.GraphReadProof[1];
+        CommitAttempt.captureGraphReads(source, () -> {
+            source.stream().map(Graphs::asView).forEach(view -> {
+                boolean matches = view.isPresent() && predicate.test(view);
+                boolean inBranch = matches || view.node().parent() != null && inside.contains(view.node().parent());
+                if (inBranch) {
+                    inside.add(view.node());
+                    retained.add(view.node());
                 }
-            }
-        });
-        return source.context().retain(retained, predicate).view(source.node());
+                if (matches) {
+                    for (GraphState.Node parent = view.node().parent(); parent != null; parent = parent.parent()) {
+                        retained.add(parent);
+                    }
+                }
+            });
+            return null;
+        }, reads -> proof[0] = reads);
+        return source.context().retain(retained, predicate, proof[0]).view(source.node());
     }
 
     /** Returns a lazy immutable view containing only selected serialized relationship paths. */
@@ -358,10 +444,10 @@ public final class Graphs {
             normalized.add(value);
         }
         GraphView<T> source = adapt(graph);
-        if (!source.state().complete()) {
+        if (!source.state().complete() && !source.state().metadataNavigation()) {
             return selectPaths(cast(source.expanded()), normalized);
         }
-        return source.context().select(Set.copyOf(normalized)).view(source.node());
+        return source.context().select(source.node(), Set.copyOf(normalized)).view(source.node());
     }
 
     /** Returns a graph-change view with an explicitly pinned preceding graph. */
@@ -371,7 +457,7 @@ public final class Graphs {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> GraphView<T> adapt(Graph<T> graph) {
+    static <T> GraphView<T> adapt(Graph<T> graph) {
         Objects.requireNonNull(graph, "graph");
         return graph instanceof GraphView<?> view
                 ? (GraphView<T>) view : GraphState.external(graph).rootView();
@@ -389,6 +475,133 @@ public final class Graphs {
     static <T> Graph<T> cast(Graph<?> graph) {
         return (Graph<T>) graph;
     }
+
+    static boolean matchesType(Graph<?> graph, Class<?> requested) {
+        Class<?> known = graph instanceof GraphView<?> view ? view.node().data().type() : graph.type();
+        return known != null && requested.isAssignableFrom(known);
+    }
+
+    static <T> List<T> modelValues(List<Graph<T>> graphs) {
+        if (graphs.size() > 1) {
+            Map<GraphState, List<GraphState.NodeData>> batches = new IdentityHashMap<>();
+            for (Graph<T> graph : graphs) {
+                if (graph instanceof GraphView<T> view && view.state().metadataNavigation()
+                    && !view.context().mappedValues() && !view.node().data().entityResolved) {
+                    batches.computeIfAbsent(view.state(), ignored -> new ArrayList<>()).add(view.node().data());
+                }
+            }
+            batches.forEach((state, nodes) -> state.navigation().loadValues(nodes));
+        }
+        return graphs.stream().map(Graph::get).filter(Objects::nonNull).toList();
+    }
+
+    static List<Graph<?>> selectDescendants(Graph<?> graph, String path, String name, boolean knownOnly) {
+        return descendants(graph, path, candidate -> (name == null || name.equals(candidate.modelName()))
+                && (!knownOnly || candidate.knownType().isPresent()));
+    }
+
+    static List<Graph<?>> descendants(Graph<?> graph, String path, Predicate<Graph<?>> matches) {
+        String selectedPath = GraphView.normalizePath(path);
+        List<Graph<?>> result = new ArrayList<>();
+        List<GraphView.PathGraph> frontier = List.of(new GraphView.PathGraph(graph, ""));
+        while (!frontier.isEmpty()) {
+            Map<GraphState, List<GraphState.Node>> batches = new IdentityHashMap<>();
+            frontier.forEach(candidate -> {
+                if (candidate.graph() instanceof GraphView<?> view && view.state().metadataNavigation()
+                    && view.context().mayReadChildren(view.node())) {
+                    batches.computeIfAbsent(view.state(), ignored -> new ArrayList<>()).add(view.node());
+                }
+            });
+            batches.forEach(GraphState::prepareChildren);
+            List<GraphView.PathGraph> next = new ArrayList<>();
+            for (GraphView.PathGraph parent : frontier) {
+                List<Graph<?>> children = parent.graph() instanceof GraphView<?> view
+                        ? view.scopedChildren(null, null, false, true) : parent.graph().children();
+                for (Graph<?> child : children) {
+                    String childPath = child.relationshipPath();
+                    String absolute = parent.path() == null || childPath == null ? null
+                            : parent.path().isEmpty() ? childPath : parent.path() + '/' + childPath;
+                    if ((selectedPath == null || Objects.equals(selectedPath, absolute)) && matches.test(child)) {
+                        result.add(child);
+                    }
+                    if (selectedPath == null || absolute != null && selectedPath.startsWith(absolute + '/')) {
+                        next.add(new GraphView.PathGraph(child, absolute));
+                    }
+                }
+            }
+            frontier = next;
+        }
+        return List.copyOf(result);
+    }
+
+    /** Identity lookup traverses metadata; ordinary stream/serialization retains its full-value contract. */
+    static Stream<Graph<?>> lookupStream(Graph<?> graph) {
+        if (!(graph instanceof GraphView<?> view) || !view.state().metadataNavigation()) {
+            return graph.stream();
+        }
+        class Level {
+            final List<Graph<?>> graphs;
+            final Iterator<Graph<?>> iterator;
+            boolean prepared;
+
+            Level(List<Graph<?>> graphs) {
+                this.graphs = graphs;
+                iterator = graphs.iterator();
+            }
+
+            void prepare() {
+                if (!prepared) {
+                    Map<GraphState, List<GraphState.Node>> batches = new IdentityHashMap<>();
+                    for (Graph<?> candidate : graphs) {
+                        GraphView<?> child = (GraphView<?>) candidate;
+                        if (child.context().mayReadChildren(child.node())) {
+                            batches.computeIfAbsent(child.state(), ignored -> new ArrayList<>()).add(child.node());
+                        }
+                    }
+                    batches.forEach(GraphState::prepareChildren);
+                    prepared = true;
+                }
+            }
+        }
+        var iterator = new Iterator<Graph<?>>() {
+            final Deque<Level> remaining = new ArrayDeque<>();
+            Graph<?> next = graph;
+            Graph<?> expand;
+
+            public boolean hasNext() {
+                if (next != null) {
+                    return true;
+                }
+                if (expand != null) {
+                    if (!remaining.isEmpty()) {
+                        remaining.peekLast().prepare();
+                    }
+                    remaining.addLast(new Level(((GraphView<?>) expand).scopedChildren(null, null, false, true)));
+                    expand = null;
+                }
+                while (!remaining.isEmpty()) {
+                    if (remaining.peekLast().iterator.hasNext()) {
+                        next = remaining.peekLast().iterator.next();
+                        return true;
+                    }
+                    remaining.removeLast();
+                }
+                return false;
+            }
+
+            public Graph<?> next() {
+                if (!hasNext()) {
+                    throw new java.util.NoSuchElementException();
+                }
+                Graph<?> result = next;
+                next = null;
+                expand = result;
+                return result;
+            }
+        };
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(
+                iterator, Spliterator.ORDERED | Spliterator.NONNULL), false);
+    }
 }
 
 /** One immutable placement/index state shared by every graph source and view. */
@@ -399,6 +612,8 @@ final class GraphState {
     final boolean historical;
     private final boolean exactBoundary;
     private final ModelReadBoundary boundary;
+    private boolean historicalValues;
+    private ModelBatchScope.Snapshot initialSnapshot;
     final Map<String, Entity<?>> knownModels;
     final List<ModelGraphEdge> edges;
     private final Map<String, GraphMutation> stagedChanges;
@@ -410,6 +625,9 @@ final class GraphState {
     private final NodeResolver nodeResolver;
     private final Map<String, Graph<?>> expansions = new ConcurrentHashMap<>();
     private final ViewContext canonical;
+    private volatile Navigation navigation;
+    private volatile ModelGraphResolver.Value sourceRead;
+    private volatile ModelGraphResolver.Identity identityRead;
 
     private GraphState(
             long stateIndex, ModelRepository repository, boolean complete, boolean historical, boolean exactBoundary,
@@ -422,6 +640,7 @@ final class GraphState {
         this.historical = historical;
         this.exactBoundary = exactBoundary;
         this.boundary = boundary;
+        this.historicalValues = boundary.historical();
         this.knownModels = Map.copyOf(knownModels);
         this.edges = List.copyOf(edges);
         this.stagedChanges = stagedChanges.isEmpty() ? Map.of()
@@ -429,7 +648,7 @@ final class GraphState {
         this.declaredPaths = Map.copyOf(declaredPaths);
         this.root = root;
         this.identity = identity;
-        this.nodeResolver = new NodeResolver(repository, stateIndex);
+        this.nodeResolver = new NodeResolver(this);
         Set<NodeData> bound = Collections.newSetFromMap(new IdentityHashMap<>());
         placements.stream().map(Node::data).filter(bound::add).forEach(data -> data.bind(nodeResolver));
         LinkedHashMap<String, List<Node>> indexed = new LinkedHashMap<>();
@@ -465,6 +684,18 @@ final class GraphState {
                        new Identity(root.id(), root.id().toString(), true, root.type(), false));
     }
 
+    /** Construction-only override: pinning a current read does not turn document authority into historical replay. */
+    GraphState valueHistory(boolean historicalValues) {
+        this.historicalValues = historicalValues;
+        return this;
+    }
+
+    /** Construction-only snapshot handoff for deliberately current reads. */
+    GraphState batchSnapshot(ModelBatchScope.Snapshot snapshot) {
+        this.initialSnapshot = snapshot;
+        return this;
+    }
+
     static GraphState identity(
             Object requestedId, String repositoryId, boolean exact, Class<?> modelType, ModelRepository repository) {
         Identity identity = new Identity(requestedId, repositoryId, exact, modelType, true);
@@ -487,7 +718,7 @@ final class GraphState {
         Node root = build(rootId, null, null, data, byParent, new LinkedHashSet<>(), placements);
         addDetached(data, placements);
         return indexed(stateIndex, repository, true, historical, true, boundary, models, edges,
-                       changes, placements, Map.of(), root, null);
+                       changes, placements, Map.of(), root, null).valueHistory(historical);
     }
 
     static GraphState materialized(
@@ -645,20 +876,63 @@ final class GraphState {
         return expansions.computeIfAbsent(node.data().id(), ignored -> {
             NodeData data = node.data();
             data.entity();
-            Graph<?> loaded = repository.loadGraph(
-                    data.id(), data.type(), boundary, Graph.Options.DEFAULT);
-            if (!(loaded instanceof GraphView<?> graph) || !graph.state().complete() || knownModels.isEmpty()) {
+            if (metadataNavigation()) {
+                navigation();
+            }
+            if (navigation != null) {
+                navigation.stagedSnapshot.readRelationships();
+            }
+            Graph<?> loaded = loadProjection(data.id(), data.type());
+            Map<String, Entity<?>> overlay = navigation == null ? knownModels : navigation.staged;
+            if (!(loaded instanceof GraphView<?> graph) || !graph.state().complete()
+                || overlay.isEmpty() && (identityRead == null || identityRead.present())) {
                 return loaded;
             }
+            if (overlay.containsKey(data.id()) && overlay.get(data.id()).get() == null) {
+                return GraphState.composed(data.id(), stateIndex(), Map.of(data.id(), overlay.get(data.id())), List.of(),
+                                           repository, historical, boundary(), Map.of())
+                        .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                        .retainIdentity(identityRead)
+                        .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
+            }
             LinkedHashMap<String, Entity<?>> models = new LinkedHashMap<>(graph.state().knownModels);
-            models.putAll(knownModels);
             LinkedHashSet<ModelGraphEdge> mergedEdges = new LinkedHashSet<>(graph.state().edges);
-            mergedEdges.removeIf(edge -> knownModels.containsKey(edge.getChildId()));
-            knownModels.forEach((modelId, known) -> addParentEdges(modelId, known, mergedEdges));
-            return Graphs.compose(
-                    data.id(), stateIndex, models, List.copyOf(mergedEdges),
-                    repository, historical, boundary);
+            mergedEdges.removeIf(edge -> overlay.containsKey(edge.getChildId()));
+            overlay.forEach((modelId, known) -> addParentEdges(modelId, known, mergedEdges));
+            for (String id : Graphs.selectedIds(data.id(), mergedEdges, Graph.Options.DEFAULT)) {
+                Entity<?> staged = overlay.get(id);
+                if (staged != null && !models.containsKey(id) && ModelBatchScope.existedBefore(staged)) {
+                    GraphView<?> supplemental = Graphs.adapt(loadProjection(id, staged.type()));
+                    models.putAll(supplemental.state().knownModels);
+                    supplemental.state().edges.stream().filter(edge -> !overlay.containsKey(edge.getChildId()))
+                            .forEach(mergedEdges::add);
+                }
+            }
+            models.putAll(overlay);
+            return graph.context().decorate(GraphState.composed(
+                    data.id(), stateIndex(), models, List.copyOf(mergedEdges),
+                    repository, historical, boundary(), Map.of())
+                    .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                    .retainIdentity(identityRead)
+                    .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root());
         });
+    }
+
+    private Graph<?> loadProjection(String id, Class<?> type) {
+        if (navigation == null) {
+            return repository.loadGraph(id, type, boundary(), Graph.Options.DEFAULT);
+        }
+        return identityRead != null && !identityRead.present() && identityRead.modelId().equals(id)
+                ? navigation.resolver.loadGraphProjection(id, type, boundary(), navigation.historicalValues,
+                                                         root.data().entity())
+                : navigation.resolver.loadGraphProjection(id, type, boundary(), navigation.historicalValues);
+    }
+
+    GraphState retainIdentity(ModelGraphResolver.Identity identity) {
+        if (identity != null && identity.modelId().equals(root.data().id)) {
+            this.identityRead = identity;
+        }
+        return this;
     }
 
     private static void addParentEdges(String modelId, Entity<?> entity, Collection<ModelGraphEdge> edges) {
@@ -667,6 +941,9 @@ final class GraphState {
     }
 
     List<Graph<?>> directParents(Node node, ViewContext context) {
+        if (metadataNavigation()) {
+            return navigation().parents(node, context);
+        }
         Object value = node.data().value();
         if (value == null) {
             return List.of();
@@ -712,28 +989,35 @@ final class GraphState {
     }
 
     <T> Graph<T> replace(Entity<T> entity, UnaryOperator<Entity<?>> replay) {
-        LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(knownModels);
+        LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(navigation == null ? knownModels : navigation.staged);
         String modelId = entity.id().toString();
         updated.put(modelId, entity);
         LinkedHashMap<String, GraphMutation> changes = new LinkedHashMap<>(stagedChanges);
         Long expectedStateIndex = entity instanceof ModelRoot<?> root && root.stateIndex() >= 0L
-                ? root.stateIndex() : stateIndex >= 0L ? stateIndex : null;
+                ? root.stateIndex() : stateIndex() >= 0L ? stateIndex() : null;
         GraphMutation addition = new GraphMutation(
                 modelId, entity.type(), expectedStateIndex, entity.get(), replay);
         changes.merge(modelId, addition, GraphMutation::then);
-        return GraphState.entity(entity, stateIndex, repository, updated, historical, exactBoundary, boundary, changes)
-                .root();
+        return GraphState.entity(entity, stateIndex(), repository, updated, historical,
+                                 exactBoundary || navigation != null, boundary(), changes)
+                .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                .retainIdentity(identityRead)
+                .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
     }
 
     <T> Graph<T> replaceUnstaged(Entity<T> entity) {
-        LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(knownModels);
+        LinkedHashMap<String, Entity<?>> updated = new LinkedHashMap<>(navigation == null ? knownModels : navigation.staged);
         updated.put(entity.id().toString(), entity);
-        return GraphState.entity(entity, stateIndex, repository, updated, historical, exactBoundary, boundary, Map.of())
-                .root();
+        return GraphState.entity(entity, stateIndex(), repository, updated, historical,
+                                 exactBoundary || navigation != null, boundary(), Map.of())
+                .valueHistory(navigation == null ? historicalValues : navigation.historicalValues)
+                .retainIdentity(identityRead)
+                .batchSnapshot(navigation == null ? initialSnapshot : navigation.stagedSnapshot).root();
     }
 
     long stateIndex() {
-        return stateIndex;
+        Long resolved = boundary().stateIndex();
+        return resolved == null ? stateIndex : resolved;
     }
 
     boolean complete() {
@@ -753,7 +1037,285 @@ final class GraphState {
     }
 
     ModelReadBoundary boundary() {
-        return boundary;
+        Navigation current = navigation;
+        ModelGraphResolver.Value source = sourceRead;
+        ModelGraphResolver.Identity identity = identityRead;
+        return current != null ? current.boundary : source != null ? source.boundary()
+                : identity != null ? identity.boundary() : boundary;
+    }
+
+    /** Called with the source node locked; no path holding the navigation lock may resolve an ID. */
+    synchronized ModelGraphResolver.Identity sourceIdentity(NodeData node) {
+        if (identityRead == null) {
+            ModelGraphResolver resolver = (ModelGraphResolver) repository;
+            if (navigation != null) {
+                synchronized (navigation) {
+                    identityRead = resolveSourceIdentity(node, navigation.stagedSnapshot, navigation.boundary);
+                    if (identityRead != null) {
+                        navigation.boundary = identityRead.boundary();
+                        navigation.historicalValues = identityRead.historical();
+                        navigation.rememberSourceIdentity(node, identityRead);
+                    }
+                }
+            } else {
+                if (initialSnapshot == null) {
+                    initialSnapshot = resolver.graphStagedValues(boundary);
+                }
+                identityRead = resolveSourceIdentity(node, initialSnapshot, boundary);
+            }
+            if (identityRead != null) {
+                historicalValues = identityRead.historical();
+            }
+        }
+        return identityRead;
+    }
+
+    private ModelGraphResolver.Identity resolveSourceIdentity(
+            NodeData node, ModelBatchScope.Snapshot snapshot, ModelReadBoundary selected) {
+        NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
+        ModelGraphResolver.Identity loaded = ((ModelGraphResolver) repository).resolveGraphIdentity(
+                identity.exact() ? node.id : identity.requestedId(), identity.exact(), node.type(), selected);
+        if (loaded == null) {
+            return null;
+        }
+        Entity<?> overlay = snapshot.overlayIdentity(node.id, node.type(), loaded.modelId(), loaded.present());
+        boolean present = overlay == null ? loaded.present() : overlay.isPresent();
+        if (!present && !node.id.equals(identity.requestedId().toString())) {
+            Entity<?> alias = snapshot.overlayIdentity(identity.requestedId().toString(), node.type(),
+                                                       loaded.modelId(), loaded.present());
+            if (alias != null && alias.isPresent()) {
+                overlay = alias;
+            }
+        }
+        Entity<?> value = overlay;
+        return value == null ? loaded : new ModelGraphResolver.Identity(
+                value.id().toString(), value.isPresent(), loaded.boundary(), loaded.historical(), () -> value);
+    }
+
+    /** Value-only access retains its snapshot without allocating the relationship indexes. */
+    synchronized Entity<?> sourceValue(NodeData node) {
+        if (identityRead != null) {
+            return identityRead.entity().get();
+        }
+        if (navigation != null) {
+            return navigation.sourceValue(node);
+        }
+        ModelGraphResolver resolver = (ModelGraphResolver) repository;
+        if (initialSnapshot == null) {
+            initialSnapshot = resolver.graphStagedValues(boundary);
+        }
+        NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
+        ModelGraphResolver.Value loaded = resolver.loadGraphValue(
+                identity.exact() ? node.id : identity.requestedId(), identity.exact(), node.type(), boundary);
+        Entity<?> entity = overlaySource(initialSnapshot, node, identity, loaded.entity());
+        sourceRead = loaded;
+        historicalValues = loaded.historical();
+        return entity;
+    }
+
+    private Entity<?> overlaySource(ModelBatchScope.Snapshot snapshot, NodeData node,
+                                    NodeData.LazyIdentity identity, Entity<?> durable) {
+        Entity<?> entity = snapshot.overlay(node.id, node.type(), durable);
+        if (!identity.exact() && entity.isEmpty() && !node.id.equals(identity.requestedId().toString())) {
+            Entity<?> alias = snapshot.overlay(identity.requestedId().toString(), node.type(), durable);
+            if (alias.isPresent()) {
+                entity = alias;
+            }
+        }
+        return knownModels.getOrDefault(entity.id().toString(), entity);
+    }
+
+    boolean metadataNavigation() {
+        return !complete && repository instanceof ModelGraphResolver;
+    }
+
+    Navigation navigation() {
+        Navigation result = navigation;
+        if (result == null) {
+            synchronized (this) {
+                result = navigation;
+                if (result == null) {
+                    navigation = result = new Navigation((ModelGraphResolver) repository);
+                }
+            }
+        }
+        return result;
+    }
+
+    void prepareChildren(List<Node> nodes) {
+        if (metadataNavigation()) {
+            navigation().prepare(nodes.stream().map(node -> node.data().id()).toList(),
+                                 ModelRelationshipRead.Direction.CHILDREN);
+        }
+    }
+
+    void registerKnownType(String name, Class<?> type) {
+        Navigation current = navigation;
+        if (current != null) {
+            current.registerKnownType(name, type);
+        }
+    }
+
+    List<Node> metadataChildren(Node node) {
+        return metadataNavigation() ? navigation().children(node) : node.children();
+    }
+
+    /** Metadata caches belong to this immutable graph boundary, not to the application-wide Model cache. */
+    final class Navigation {
+        private final ModelGraphResolver resolver;
+        private final ModelBatchScope.Snapshot stagedSnapshot;
+        private boolean historicalValues;
+        private final Map<String, Entity<?>> staged;
+        private volatile ModelReadBoundary boundary;
+        private final Map<String, ModelGraphResolver.ModelNode> models = new LinkedHashMap<>();
+        private final Map<String, NodeData> data = new LinkedHashMap<>();
+        private final Map<String, List<ModelGraphEdge>> childEdges = new LinkedHashMap<>();
+        private final Map<String, List<ModelGraphEdge>> parentEdges = new LinkedHashMap<>();
+        private final Map<Node, List<Node>> children = new IdentityHashMap<>();
+
+        private Navigation(ModelGraphResolver resolver) {
+            this.resolver = resolver;
+            this.boundary = GraphState.this.boundary();
+            this.historicalValues = GraphState.this.historicalValues;
+            this.stagedSnapshot = initialSnapshot == null ? resolver.graphStagedValues(boundary) : initialSnapshot;
+            LinkedHashMap<String, Entity<?>> overlay = new LinkedHashMap<>(stagedSnapshot.values());
+            overlay.putAll(knownModels);
+            if (identityRead != null && !identityRead.present()) {
+                Entity<?> source = overlay.get(identityRead.modelId());
+                if (source != null && source.isEmpty() && !ModelBatchScope.existedBefore(source)
+                    && !stagedSnapshot.values().containsKey(identityRead.modelId())) {
+                    // An absent value is not a deletion of relationships pointing to that ID.
+                    overlay.remove(identityRead.modelId());
+                }
+            }
+            this.staged = Map.copyOf(overlay);
+            byId.forEach((id, nodes) -> data.put(id, nodes.getFirst().data()));
+            if (repository instanceof ModelTypeResolver types) {
+                data.values().stream().map(NodeData::type).filter(Objects::nonNull).distinct().forEach(types::modelName);
+            }
+            if (identityRead != null) {
+                rememberSourceIdentity(root.data(), identityRead);
+            }
+        }
+
+        private void rememberSourceIdentity(NodeData node, ModelGraphResolver.Identity identity) {
+            data.put(identity.modelId(), node);
+        }
+
+        synchronized void prepare(List<String> ids, ModelRelationshipRead.Direction direction) {
+            Map<String, List<ModelGraphEdge>> index = direction == ModelRelationshipRead.Direction.CHILDREN
+                    ? childEdges : parentEdges;
+            List<String> missing = ids.stream().distinct().filter(id -> !index.containsKey(id)).toList();
+            for (int offset = 0; offset < missing.size(); offset += 128) {
+                List<String> batch = missing.subList(offset, Math.min(offset + 128, missing.size()));
+                stagedSnapshot.readRelationships();
+                ModelGraphResolver.Relations relations = resolver.loadGraphRelations(batch, direction, boundary, staged,
+                                                                                     historicalValues);
+                if (boundary.stateIndex() != null && !boundary.stateIndex().equals(relations.boundary().stateIndex())) {
+                    throw new IllegalStateException("Graph metadata changed its pinned boundary");
+                }
+                boundary = relations.boundary();
+                historicalValues = relations.historical();
+                relations.models().forEach((id, model) -> {
+                    NodeData existing = data.get(id);
+                    if (existing != null && !(existing.resolution instanceof NodeData.Metadata)) {
+                        boolean compatible = model.knownType() == null
+                                ? existing.modelName().equals(model.modelName())
+                                : existing.type().isAssignableFrom(model.knownType());
+                        if (!compatible) {
+                            throw new IllegalStateException("Graph Model '%s' has stored logical type '%s', not %s"
+                                                                    .formatted(id, model.modelName(), existing.type().getName()));
+                        }
+                        if (model.knownType() != null) {
+                            existing.type = model.knownType();
+                        }
+                    }
+                    models.putIfAbsent(id, model);
+                    data.computeIfAbsent(id, ignored -> {
+                        NodeData value = NodeData.metadata(model);
+                        value.bind(nodeResolver);
+                        return value;
+                    });
+                });
+                Set<String> newlyLoaded = new HashSet<>(relations.completeCollections());
+                newlyLoaded.removeAll(index.keySet());
+                newlyLoaded.forEach(id -> index.put(id, new ArrayList<>()));
+                for (ModelGraphEdge edge : relations.edges()) {
+                    String id = direction == ModelRelationshipRead.Direction.CHILDREN ? edge.getParentId() : edge.getChildId();
+                    if (newlyLoaded.contains(id)) {
+                        index.get(id).add(edge);
+                    }
+                }
+            }
+        }
+
+        List<Node> children(Node parent) {
+            String parentId = parent.data().id();
+            Set<String> ancestors = new HashSet<>();
+            for (Node ancestor = parent; ancestor != null; ancestor = ancestor.parent()) {
+                ancestors.add(ancestor.data().id());
+            }
+            synchronized (this) {
+                prepare(List.of(parentId), ModelRelationshipRead.Direction.CHILDREN);
+                return children.computeIfAbsent(parent, ignored -> childEdges.get(parentId).stream().map(edge -> {
+                    if (ancestors.contains(edge.getChildId())) {
+                        throw new IllegalStateException("Graph contains a cycle through " + edge.getChildId());
+                    }
+                    NodeData childData = Objects.requireNonNull(data.get(edge.getChildId()), "Graph child metadata");
+                    Node child = new Node(childData, parent, edge.getPath(), false);
+                    child.freeze();
+                    return child;
+                }).toList());
+            }
+        }
+
+        List<Graph<?>> parents(Node child, ViewContext context) {
+            String childId = child.data().id();
+            synchronized (this) {
+                prepare(List.of(childId), ModelRelationshipRead.Direction.PARENTS);
+                return parentEdges.get(childId).stream().<Graph<?>>map(edge -> {
+                    NodeData parentData = Objects.requireNonNull(data.get(edge.getParentId()), "Graph parent metadata");
+                    Node parent = new Node(parentData, null, null, true);
+                    parent.freeze();
+                    return (Graph<?>) context.view(parent);
+                }).toList();
+            }
+        }
+
+        synchronized ModelGraphResolver.ModelNode model(String id) {
+            return models.get(id);
+        }
+
+        synchronized Entity<?> sourceValue(NodeData node) {
+            NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
+            ModelGraphResolver.Value loaded = resolver.loadGraphValue(
+                    identity.exact() ? node.id : identity.requestedId(), identity.exact(), node.type(), boundary);
+            if (boundary.stateIndex() != null && !boundary.stateIndex().equals(loaded.boundary().stateIndex())) {
+                throw new IllegalStateException("Graph source value changed its pinned boundary");
+            }
+            boundary = loaded.boundary();
+            historicalValues = loaded.historical();
+            return overlaySource(stagedSnapshot, node, identity, loaded.entity());
+        }
+
+        void loadValues(List<NodeData> nodes) {
+            LinkedHashMap<String, Class<?>> types = new LinkedHashMap<>();
+            nodes.forEach(node -> types.put(node.id(), node.type()));
+            Map<String, Entity<?>> loaded = resolver.loadGraphValues(types, boundary, staged, historicalValues);
+            nodes.forEach(node -> {
+                synchronized (node) {
+                    if (!node.entityResolved) {
+                        node.entity = Objects.requireNonNull(loaded.get(node.id()), "Loaded Graph value");
+                        node.entityResolved = true;
+                    }
+                }
+            });
+        }
+
+        synchronized void registerKnownType(String name, Class<?> type) {
+            data.values().stream().filter(node -> node.type() == null && name.equals(node.modelName()))
+                    .forEach(node -> node.type = type);
+        }
     }
 
     Node rootNode() {
@@ -820,11 +1382,11 @@ final class GraphState {
 
     static final class NodeData {
         private final String id;
-        private final Class<?> type;
+        private volatile Class<?> type;
         private final Resolution resolution;
         private final boolean resolveId;
         private NodeResolver resolver;
-        private volatile boolean entityResolved;
+        volatile boolean entityResolved;
         private Entity<?> entity;
         private volatile boolean valueResolved;
         private Object value;
@@ -861,6 +1423,23 @@ final class GraphState {
             return new NodeData(graph.id().toString(), graph.type(), new External(graph), false);
         }
 
+        static NodeData metadata(ModelGraphResolver.ModelNode node) {
+            return new NodeData(node.id(), node.knownType(), new Metadata(node), false);
+        }
+
+        String modelName() {
+            if (resolution instanceof Metadata metadata) {
+                return metadata.node().modelName();
+            }
+            return resolver.repository instanceof ModelTypeResolver types ? types.modelName(type) : ModelNames.name(type);
+        }
+
+        IllegalStateException unknownType() {
+            return new IllegalStateException(
+                    "Graph Model '%s' of logical type '%s' is unknown in this application; register its shared Model "
+                    .formatted(id, modelName()) + "contract to access its type, value, history or updates");
+        }
+
         void bind(NodeResolver resolver) {
             if (this.resolver != null && this.resolver != resolver) {
                 throw new IllegalStateException("Graph node belongs to multiple states");
@@ -869,8 +1448,18 @@ final class GraphState {
         }
 
         String id() {
-            if (resolveId) {
-                entity();
+            if (resolveId && !entityResolved) {
+                synchronized (this) {
+                    if (!entityResolved) {
+                        if (resolver.state.metadataNavigation()) {
+                            ModelGraphResolver.Identity identity = resolver.state.sourceIdentity(this);
+                            if (identity != null) {
+                                return identity.modelId();
+                            }
+                        }
+                        entity();
+                    }
+                }
             }
             Entity<?> resolved = entityResolved ? entity : null;
             return resolved != null && resolved.id() != null ? resolved.id().toString() : id;
@@ -886,6 +1475,28 @@ final class GraphState {
 
         Entity<?> entity() {
             return resolver.entity(this);
+        }
+
+        /** Returns optional pinned head evidence without adding metadata-only state to ordinary value nodes. */
+        synchronized ModelGraphResolver.HeadValue headValue() {
+            if (type == null || entityResolved || hasDurableProjection()) {
+                return null;
+            }
+            Supplier<Entity<?>> supplier = resolution instanceof Metadata metadata ? metadata.node().entity() : null;
+            if (supplier == null && this == resolver.state.root.data() && resolver.state.identityRead != null) {
+                supplier = resolver.state.identityRead.entity();
+            }
+            if (supplier == null && resolver.state.metadataNavigation()) {
+                ModelGraphResolver.ModelNode metadata = resolver.state.navigation == null ? null
+                        : resolver.state.navigation.model(id());
+                if (metadata != null) {
+                    supplier = metadata.entity();
+                } else {
+                    ModelGraphResolver.Identity identity = resolver.state.sourceIdentity(this);
+                    supplier = identity == null ? null : identity.entity();
+                }
+            }
+            return supplier instanceof ModelGraphResolver.HeadValue value ? value : null;
         }
 
         Object value() {
@@ -918,19 +1529,27 @@ final class GraphState {
 
         private record External(Graph<?> graph) implements Resolution {
         }
+
+        private record Metadata(ModelGraphResolver.ModelNode node) implements Resolution {
+        }
     }
 
     /** One lazy resolution lifecycle shared by every typed node view on this state. */
     private static final class NodeResolver {
         private final ModelRepository repository;
         private final long stateIndex;
+        private final GraphState state;
 
-        private NodeResolver(ModelRepository repository, long stateIndex) {
-            this.repository = repository;
-            this.stateIndex = stateIndex;
+        private NodeResolver(GraphState state) {
+            this.state = state;
+            this.repository = state.repository;
+            this.stateIndex = state.stateIndex;
         }
 
         private Entity<?> entity(NodeData node) {
+            if (node.type == null) {
+                throw node.unknownType();
+            }
             if (node.resolution instanceof NodeData.Materialized
                 || node.resolution instanceof NodeData.External) {
                 return null;
@@ -938,12 +1557,23 @@ final class GraphState {
             if (!node.entityResolved) {
                 synchronized (node) {
                     if (!node.entityResolved) {
-                        NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
-                        node.entity = Objects.requireNonNull(
+                        if (node.resolution instanceof NodeData.Metadata metadata) {
+                            node.entity = Objects.requireNonNull(metadata.node().entity().get(), "Resolved graph entity");
+                        } else if (state.identityRead != null && node == state.root.data()) {
+                            node.entity = state.sourceValue(node);
+                        } else if (state.navigation != null && state.navigation.boundary.stateIndex() != null) {
+                            ModelGraphResolver.ModelNode metadata = state.navigation.model(node.id);
+                            node.entity = metadata != null ? metadata.entity().get()
+                                    : Graphs.adapt(repository.loadGraph(node.id, node.type, state.navigation.boundary,
+                                                                     new Graph.Options(0, 1))).node().data().entity();
+                        } else {
+                            NodeData.LazyIdentity identity = (NodeData.LazyIdentity) node.resolution;
+                            node.entity = state.metadataNavigation() ? state.sourceValue(node) : Objects.requireNonNull(
                                 identity.exact()
                                         ? repository.load(node.id, node.type)
                                         : repository.load(identity.requestedId(), node.type),
                                 "Resolved graph entity");
+                        }
                         node.entityResolved = true;
                     }
                 }
@@ -998,22 +1628,29 @@ final class GraphState {
     }
 
     static final class ViewContext {
+        private static final Function<String, String> IDENTITY_PATH = Function.identity();
         private final GraphState state;
-        private final Function<Node, Object> value;
+        private final BiFunction<Node, CommitAttempt.GraphReadContext, Object> value;
         private final Function<String, String> path;
         private final List<?> values;
         private final ViewContext contextFallback;
         private final Set<Node> retained;
-        private final Map<Node, Set<String>> selection;
+        private final PathSelection selection;
         private final boolean hideEmpty;
         private final Graph<?> previousRoot;
-        private final UnaryOperator<Graph<?>> decorator;
+        private final BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator;
+        private final boolean mappedValues;
+        private final CommitAttempt.GraphReadProof readProof;
+        private final CommitAttempt.GraphReadContext readContext;
         private final Map<Node, GraphView<?>> views = new IdentityHashMap<>();
 
         private ViewContext(
-                GraphState state, Function<Node, Object> value, Function<String, String> path, List<?> values,
-                ViewContext contextFallback, Set<Node> retained, Map<Node, Set<String>> selection,
-                boolean hideEmpty, Graph<?> previousRoot, UnaryOperator<Graph<?>> decorator) {
+                GraphState state, BiFunction<Node, CommitAttempt.GraphReadContext, Object> value,
+                Function<String, String> path, List<?> values,
+                ViewContext contextFallback, Set<Node> retained, PathSelection selection,
+                boolean hideEmpty, Graph<?> previousRoot,
+                BiFunction<Graph<?>, CommitAttempt.GraphReadContext, Graph<?>> decorator,
+                boolean mappedValues, CommitAttempt.GraphReadProof readProof, CommitAttempt.GraphReadContext readContext) {
             this.state = state;
             this.value = value;
             this.path = path;
@@ -1024,11 +1661,44 @@ final class GraphState {
             this.hideEmpty = hideEmpty;
             this.previousRoot = previousRoot;
             this.decorator = decorator;
+            this.mappedValues = mappedValues;
+            this.readProof = readProof;
+            this.readContext = readContext;
         }
 
         static ViewContext canonical(GraphState state) {
-            return new ViewContext(state, node -> node.data().value(), Function.identity(), List.of(), null, null, null,
-                                   false, null, UnaryOperator.identity());
+            return new ViewContext(state, (node, reads) -> node.data().value(), IDENTITY_PATH, List.of(), null, null, null,
+                                   false, null, (graph, reads) -> graph, false, null, null);
+        }
+
+        CommitAttempt.GraphReadProof readProof() {
+            return readProof;
+        }
+
+        CommitAttempt.GraphReadContext readContext() {
+            return readContext;
+        }
+
+        ViewContext withReadContext(CommitAttempt.GraphReadContext reads) {
+            if (reads == readContext) {
+                return this;
+            }
+            return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previousRoot,
+                    (graph, actualReads) -> Graphs.withReadContext(Graphs.cast(decorator.apply(graph, actualReads)), actualReads),
+                    mappedValues, readProof, reads);
+        }
+
+        boolean mappedValues() {
+            return mappedValues;
+        }
+
+        String readPath(String requested) {
+            // A view may merge/remap persisted paths. All paths is a safe bounded dependency when inversion is unknown.
+            return pathRemapped() ? null : requested;
+        }
+
+        private boolean pathRemapped() {
+            return path != IDENTITY_PATH;
         }
 
         synchronized <T> GraphView<T> view(Node node) {
@@ -1038,7 +1708,7 @@ final class GraphState {
         }
 
         Object value(Node node) {
-            return value.apply(node);
+            return value.apply(node, readContext);
         }
 
         String path(Node node) {
@@ -1050,21 +1720,39 @@ final class GraphState {
         }
 
         List<Node> children(Node node) {
-            if (selection == null) {
-                return node.children().stream().filter(this::visible).toList();
+            return filterChildren(node.children());
+        }
+
+        List<Node> metadataChildren(Node node) {
+            if (!mayReadChildren(node)) {
+                return List.of();
             }
-            Set<String> paths = selection.getOrDefault(node, Set.of());
-            return node.children().stream().filter(child -> visible(child) && includes(paths, path(child))).toList();
+            if (selection == null && retained == null && !state.complete) {
+                return state.metadataChildren(node);
+            }
+            return filterChildren(state.metadataChildren(node));
+        }
+
+        boolean mayReadChildren(Node node) {
+            return selection == null || selection.ancestors.containsKey(node) || !selection.paths(node).isEmpty();
+        }
+
+        private List<Node> filterChildren(List<Node> children) {
+            if (selection == null) {
+                return children.stream().filter(this::visible).toList();
+            }
+            return children.stream().filter(this::visible)
+                    .filter(selection::includes).toList();
         }
 
         List<String> childPaths(Node node) {
             LinkedHashSet<String> result = new LinkedHashSet<>();
-            state.declaredPaths(node.data().type()).stream().map(path).forEach(result::add);
-            children(node).stream().map(this::path).filter(value -> value != null && !value.isBlank()).forEach(result::add);
-            if (selection != null) {
-                Set<String> selected = selection.getOrDefault(node, Set.of());
-                result.removeIf(candidate -> !includes(selected, candidate));
+            if (node.data().type() != null) {
+                state.declaredPaths(node.data().type()).stream()
+                        .filter(raw -> selection == null || selection.includesPath(node, raw))
+                        .map(path).forEach(result::add);
             }
+            metadataChildren(node).stream().map(this::path).filter(value -> value != null && !value.isBlank()).forEach(result::add);
             return List.copyOf(result);
         }
 
@@ -1079,58 +1767,95 @@ final class GraphState {
         }
 
         Graph<?> decorate(Graph<?> graph) {
-            return decorator.apply(graph);
+            return decorator.apply(graph, readContext);
+        }
+
+        Graph<?> decorateHistorical(Graph<?> graph) {
+            return decorator.apply(graph, null);
         }
 
         ViewContext mapValues(Function<? super Graph<?>, ?> mapper) {
             ViewContext source = this;
-            return new ViewContext(state, node -> mapper.apply(source.view(node)), path, values, contextFallback,
+            return new ViewContext(state, (node, reads) -> mapper.apply(source.withReadContext(reads).view(node)), path, values, contextFallback,
                                    retained, selection, hideEmpty, previousRoot,
-                                   graph -> Graphs.mapValues(Graphs.cast(decorator.apply(graph)), mapper));
+                                   (graph, reads) -> Graphs.mapValues(Graphs.cast(decorator.apply(graph, reads)), mapper), true, readProof,
+                                   readContext);
         }
 
         ViewContext remapPaths(UnaryOperator<String> mapper, Map<String, String> overrides) {
             Function<String, String> previous = path;
             return new ViewContext(state, value, raw -> mapper.apply(previous.apply(raw)), values, contextFallback,
                                    retained, selection, hideEmpty, previousRoot,
-                                   graph -> Graphs.remapPaths(Graphs.cast(decorator.apply(graph)), overrides));
+                                   (graph, reads) -> Graphs.remapPaths(Graphs.cast(decorator.apply(graph, reads)), overrides),
+                                   mappedValues, readProof, readContext);
         }
 
         ViewContext withContext(Collection<?> added) {
             List<?> stable = List.copyOf(added);
             return new ViewContext(state, value, path, stable, this, retained, selection, hideEmpty, previousRoot,
-                                   graph -> Graphs.withContext(Graphs.cast(decorator.apply(graph)), stable));
+                                   (graph, reads) -> Graphs.withContext(Graphs.cast(decorator.apply(graph, reads)), stable),
+                                   mappedValues, readProof, readContext);
         }
 
-        ViewContext retain(Set<Node> retained, Predicate<? super Graph<?>> predicate) {
+        ViewContext retain(Set<Node> retained, Predicate<? super Graph<?>> predicate, CommitAttempt.GraphReadProof proof) {
             ViewContext source = this;
-            return new ViewContext(state, node -> retained.contains(node) ? source.value(node) : null, path, values,
+            return new ViewContext(state, (node, reads) -> retained.contains(node) ? source.value.apply(node, reads) : null, path, values,
                                    contextFallback, retained, selection, true, previousRoot,
-                                   graph -> Graphs.filterBranches(Graphs.cast(decorator.apply(graph)), predicate));
+                                   (graph, reads) -> Graphs.filterBranches(Graphs.cast(decorator.apply(graph, reads)), predicate),
+                                   mappedValues, proof == null ? readProof : proof, readContext);
         }
 
-        ViewContext select(Set<String> selected) {
-            Map<Node, Set<String>> byNode = new IdentityHashMap<>();
-            collectSelection(state.root, selected, byNode);
-            Set<Node> visible = Collections.newSetFromMap(new IdentityHashMap<>());
-            visible.addAll(byNode.keySet());
-            return new ViewContext(state, value, path, values, contextFallback, visible, byNode, hideEmpty, previousRoot,
-                                   graph -> Graphs.selectPaths(Graphs.cast(decorator.apply(graph)), selected));
+        ViewContext select(Node root, Set<String> selected) {
+            PathSelection selectedPaths = new PathSelection(root, selected, path, selection);
+            return new ViewContext(state, value, path, values, contextFallback, retained, selectedPaths, hideEmpty, previousRoot,
+                                   (graph, reads) -> Graphs.selectPaths(Graphs.cast(decorator.apply(graph, reads)), selected),
+                                   mappedValues, readProof, readContext);
         }
 
-        private void collectSelection(Node node, Set<String> selected, Map<Node, Set<String>> byNode) {
-            byNode.put(node, selected);
-            for (Node child : node.children()) {
-                String childPath = path(child);
-                if (includes(selected, childPath)) {
-                    collectSelection(child, below(selected, childPath), byNode);
+        /** Placement-local selection, computed without loading relationships or values. */
+        private static final class PathSelection {
+            private final Map<Node, Set<String>> paths = new IdentityHashMap<>();
+            private final Map<Node, Node> ancestors;
+            private final Function<String, String> path;
+            private final PathSelection previous;
+
+            private PathSelection(Node root, Set<String> selected, Function<String, String> path, PathSelection previous) {
+                paths.put(root, selected);
+                this.path = path;
+                this.previous = previous;
+                ancestors = root.parent() == null ? Map.of() : new IdentityHashMap<>();
+                for (Node child = root; child.parent() != null; child = child.parent()) {
+                    ancestors.put(child.parent(), child);
+                    String childPath = path.apply(child.path());
+                    paths.put(child.parent(), childPath == null ? Set.of() : Set.of(childPath));
                 }
+            }
+
+            synchronized Set<String> paths(Node node) {
+                Set<String> result = paths.get(node);
+                if (result == null) {
+                    result = node.parent() == null ? Set.of() : below(paths(node.parent()), path.apply(node.path()));
+                    paths.put(node, result);
+                }
+                return result;
+            }
+
+            boolean includes(Node node) {
+                Node ancestorChild = ancestors.get(node.parent());
+                return (ancestorChild != null ? ancestorChild == node
+                        : node.parent() != null && includesPath(node.parent(), node.path()))
+                        && (previous == null || previous.includes(node));
+            }
+
+            boolean includesPath(Node parent, String rawPath) {
+                return ViewContext.includes(paths(parent), path.apply(rawPath))
+                        && (previous == null || previous.includesPath(parent, rawPath));
             }
         }
 
         ViewContext withPrevious(Graph<?> previous) {
             return new ViewContext(state, value, path, values, contextFallback, retained, selection, hideEmpty, previous,
-                                   UnaryOperator.identity());
+                                   (graph, reads) -> graph, mappedValues, readProof, readContext);
         }
 
         Graph<?> previous(Node node) {
@@ -1173,6 +1898,7 @@ final class GraphView<T> implements Graph<T> {
     private final GraphState.Node node;
     private final GraphState.ViewContext context;
     private volatile List<Graph<?>> directParents;
+    private CommitAttempt.GraphReadProof valueReadProof;
     private volatile boolean valueResolved;
     private T value;
 
@@ -1201,14 +1927,21 @@ final class GraphView<T> implements Graph<T> {
     @Override
     @SuppressWarnings("unchecked")
     public T get() {
+        if (node.data().type() == null) {
+            throw node.data().unknownType();
+        }
         if (!valueResolved) {
             synchronized (this) {
                 if (!valueResolved) {
-                    value = (T) context.value(node);
+                    value = (T) (context.mappedValues()
+                            ? CommitAttempt.captureGraphReads(this, () -> context.value(node), proof -> valueReadProof = proof)
+                            : context.value(node));
                     valueResolved = true;
                 }
             }
         }
+        CommitAttempt.graphValueRead(this);
+        CommitAttempt.replayGraphReads(this, valueReadProof);
         return value;
     }
 
@@ -1220,15 +1953,38 @@ final class GraphView<T> implements Graph<T> {
     @Override
     @SuppressWarnings("unchecked")
     public Class<T> type() {
+        if (node.data().type() == null) {
+            throw node.data().unknownType();
+        }
+        CommitAttempt.graphValueRead(this);
         return (Class<T>) node.data().type();
+    }
+
+    @Override
+    public String modelName() {
+        return node.data().modelName();
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Optional<Class<T>> knownType() {
+        return Optional.ofNullable((Class<T>) node.data().type());
     }
 
     @Override
     public Collection<?> aliases() {
         Entity<?> entity = node.data().entity();
         Object value = node.data().value();
+        CommitAttempt.graphValueRead(this);
         return entity != null ? entity.aliases()
                 : value == null ? List.of() : EntityMetadata.of(type()).aliases(value);
+    }
+
+    boolean aliasesKnownAbsent() {
+        // Custom resolvers and supplied Entity wrappers may expose aliases without declaring @Alias properties.
+        return state.metadataNavigation() && state.repository().getClass() == DefaultModelRepository.class
+                && !node.data().entityResolved && !node.data().hasDurableProjection()
+                && node.data().type() != null && !EntityMetadata.of(node.data().type()).hasAliases();
     }
 
     @Override
@@ -1238,6 +1994,8 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public String relationshipPath() {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         return context.path(node);
     }
 
@@ -1248,6 +2006,12 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public long revisionStateIndex() {
+        CommitAttempt.graphValueRead(this);
+        ModelGraphResolver.HeadValue revision = node.data().headValue();
+        if (revision != null) {
+            ModelHeadState head = revision.head();
+            return head == null ? -1L : head.getStateIndex();
+        }
         Entity<?> entity = node.data().entity();
         return entity instanceof ModelRoot<?> root ? root.stateIndex()
                 : entity != null ? stateIndex() : node.data().durable().revisionStateIndex();
@@ -1255,24 +2019,33 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public String lastEventId() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().lastEventId() : entity.lastEventId();
     }
 
     @Override
     public Long lastEventIndex() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().lastEventIndex() : entity.lastEventIndex();
     }
 
     @Override
     public long sequenceNumber() {
+        CommitAttempt.graphValueRead(this);
+        ModelGraphResolver.HeadValue revision = node.data().headValue();
+        if (revision != null) {
+            ModelHeadState head = revision.head();
+            return head == null ? -1L : head.getSequenceNumber();
+        }
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().sequenceNumber() : entity.sequenceNumber();
     }
 
     @Override
     public Instant timestamp() {
+        CommitAttempt.graphValueRead(this);
         Entity<?> entity = node.data().entity();
         return entity == null ? node.data().durable().timestamp() : entity.timestamp();
     }
@@ -1282,6 +2055,8 @@ final class GraphView<T> implements Graph<T> {
         if (node.parent() != null) {
             GraphState.Node result = node;
             while (result.parent() != null) {
+                CommitAttempt.graphRelationshipRead(context.view(result),
+                        ModelRelationshipRead.Direction.PARENTS, null);
                 result = result.parent();
             }
             return context.view(result);
@@ -1291,6 +2066,8 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public Optional<Graph<?>> parent() {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         if (node.parent() != null) {
             return Optional.of(context.view(node.parent()));
         }
@@ -1306,13 +2083,15 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public List<Graph<?>> parents() {
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         LinkedHashMap<String, Graph<?>> result = new LinkedHashMap<>();
         if (node.parent() != null) {
             Graph<?> placed = context.view(node.parent());
-            result.put(placed.type().getName() + ':' + placed.id(), placed);
+            result.put(Objects.toString(placed.id()), placed);
         }
         if (!context.selected()) {
-            directParents().forEach(parent -> result.putIfAbsent(parent.type().getName() + ':' + parent.id(), parent));
+            directParents().forEach(parent -> result.putIfAbsent(Objects.toString(parent.id()), parent));
         }
         return List.copyOf(result.values());
     }
@@ -1332,13 +2111,17 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public <P> Optional<Graph<P>> parent(Class<P> parentType) {
+        registerRequestedType(parentType);
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.PARENTS, null);
         if (node.parent() != null) {
             Graph<?> placed = context.view(node.parent());
-            if (parentType.isAssignableFrom(placed.type())) {
+            if (Graphs.matchesType(placed, parentType)) {
                 return Optional.of(Graphs.cast(placed));
             }
         }
-        List<Graph<P>> matches = parents().stream().filter(candidate -> parentType.isAssignableFrom(candidate.type()))
+        List<Graph<P>> matches = parents().stream()
+                .filter(candidate -> Graphs.matchesType(candidate, parentType))
                 .map(Graphs::<P>cast).toList();
         if (matches.size() > 1) {
             throw new IllegalStateException(
@@ -1350,28 +2133,27 @@ final class GraphView<T> implements Graph<T> {
     @Override
     public <A> Optional<Graph<A>> ancestor(Class<A> ancestorType) {
         Objects.requireNonNull(ancestorType, "ancestorType");
+        registerRequestedType(ancestorType);
         GraphState.Node placed = node;
         while (placed != null) {
-            if (ancestorType.isAssignableFrom(placed.data().type())) {
+            if (placed.data().type() != null && ancestorType.isAssignableFrom(placed.data().type())) {
                 return Optional.of(Graphs.cast(context.view(placed)));
             }
+            CommitAttempt.graphRelationshipRead(context.view(placed),
+                    ModelRelationshipRead.Direction.PARENTS, null);
             placed = placed.parent();
         }
         GraphState.Identity identity = state.identity();
-        if (identity != null && EntityMetadata.of(type()).isModel()
+        if (!state.metadataNavigation() && identity != null && EntityMetadata.of(type()).isModel()
             && state.repository() instanceof ModelAncestorResolver resolver) {
-            Optional<Graph<A>> resolved = resolver.loadAncestorGraph(
-                    identity.repositoryId(), identity.type(), ancestorType,
-                    state.boundary());
+            Optional<Graph<A>> resolved = resolveAncestor(resolver, identity.repositoryId(), identity.type(), ancestorType);
             if (resolved.isPresent()) {
                 return resolved.map(graph -> Graphs.cast(context.decorate(graph)));
             }
             node.data().entity();
             String resolvedId = node.data().id();
             if (identity.detachedLookup()) {
-                resolved = resolver.loadAncestorGraph(
-                        resolvedId, identity.type(), ancestorType,
-                        state.boundary());
+                resolved = resolveAncestor(resolver, resolvedId, identity.type(), ancestorType);
                 if (resolved.isPresent()) {
                     return resolved.map(graph -> Graphs.cast(context.decorate(graph)));
                 }
@@ -1380,7 +2162,8 @@ final class GraphView<T> implements Graph<T> {
         List<Graph<?>> level = List.of(this);
         Set<String> visited = new LinkedHashSet<>();
         while (!level.isEmpty()) {
-            List<Graph<A>> matches = level.stream().filter(candidate -> ancestorType.isAssignableFrom(candidate.type()))
+            List<Graph<A>> matches = level.stream()
+                    .filter(candidate -> Graphs.matchesType(candidate, ancestorType))
                     .map(Graphs::<A>cast).toList();
             if (matches.size() > 1) {
                 throw new IllegalStateException(
@@ -1391,7 +2174,7 @@ final class GraphView<T> implements Graph<T> {
             }
             List<Graph<?>> next = new ArrayList<>();
             for (Graph<?> candidate : level) {
-                String key = candidate.type().getName() + ':' + candidate.id();
+                String key = Objects.toString(candidate.id());
                 if (visited.add(key)) {
                     next.addAll(candidate.parents());
                 }
@@ -1401,25 +2184,108 @@ final class GraphView<T> implements Graph<T> {
         return Optional.empty();
     }
 
+    private <A> Optional<Graph<A>> resolveAncestor(
+            ModelAncestorResolver resolver, String id, Class<?> type, Class<A> ancestorType) {
+        if (!CommitAttempt.tracksGraph(this)) {
+            return resolver.loadAncestorGraph(id, type, ancestorType, state.boundary());
+        }
+        boolean[] observed = {false};
+        Optional<Graph<A>> result = resolver.loadAncestorGraph(id, type, ancestorType, state.boundary(), reads -> {
+            CommitAttempt.graphAncestorsRead(this, reads);
+            observed[0] = true;
+        });
+        if (!observed[0]) {
+            // Preserve custom resolvers. Repositories without identity-only proof use the existing parent fallback.
+            List<Graph<?>> frontier = List.of(this);
+            Set<Object> visited = new HashSet<>();
+            while (!frontier.isEmpty()) {
+                List<Graph<?>> next = new ArrayList<>();
+                for (Graph<?> candidate : frontier) {
+                    if (visited.add(candidate.id())) {
+                        next.addAll(candidate.parents());
+                    }
+                }
+                frontier = next;
+            }
+        }
+        return result;
+    }
+
     @Override
     public List<Graph<?>> children() {
-        if (!state.complete()) {
-            return expanded().children();
+        if (state.complete() || node.data().type() != null) {
+            return childrenAtPath(null);
         }
-        var children = context.children(node).stream().<Graph<?>>map(context::view);
-        return (context.hideEmpty() ? children.filter(Graph::isPresent) : children).toList();
+        return scopedChildren(null, null, false, true);
+    }
+
+    @Override
+    public List<Graph<?>> children(String path, String modelName, boolean knownOnly) {
+        return scopedChildren(path, modelName, knownOnly, false);
+    }
+
+    @Override
+    public List<Graph<?>> namedChildren(String modelName, boolean knownOnly) {
+        return scopedChildren(null, Objects.requireNonNull(modelName, "modelName"), knownOnly, true);
+    }
+
+    List<Graph<?>> scopedChildren(String path, String modelName, boolean knownOnly, boolean allPaths) {
+        if (!state.complete() && !state.metadataNavigation()) {
+            Graph<?> expanded = expanded();
+            return expanded instanceof GraphView<?> view
+                    ? view.scopedChildren(path, modelName, knownOnly, allPaths)
+                    : expanded.children().stream()
+                            .filter(child -> allPaths || Objects.equals(path, child.relationshipPath()))
+                            .filter(child -> modelName == null || modelName.equals(child.modelName()))
+                            .filter(child -> !knownOnly || child.knownType().isPresent()).toList();
+        }
+        List<GraphState.Node> children = context.metadataChildren(node);
+        CommitAttempt.graphRelationshipRead(this, ModelRelationshipRead.Direction.CHILDREN,
+                                            context.readPath(allPaths ? null : path == null ? "" : path));
+        return children.stream().filter(child -> allPaths || Objects.equals(path, context.path(child)))
+                .filter(child -> modelName == null || modelName.equals(child.data().modelName()))
+                .filter(child -> !knownOnly || child.data().type() != null)
+                .<Graph<?>>map(context::view)
+                .filter(child -> !context.hideEmpty() || child.isPresent()).toList();
+    }
+
+    private List<Graph<?>> childrenAtPath(String path) {
+        if (state.metadataNavigation() && context.selected()) {
+            return scopedChildren(path, null, false, path == null);
+        }
+        if (!state.complete()) {
+            Graph<?> expanded = expanded();
+            if (expanded instanceof GraphView<?> view) {
+                return view.childrenAtPath(path);
+            }
+            return path == null ? expanded.children() : expanded.children().stream()
+                    .filter(child -> Objects.equals(path, child.relationshipPath())).toList();
+        }
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.CHILDREN, context.readPath(path));
+        var children = context.children(node).stream();
+        if (path != null) {
+            children = children.filter(child -> Objects.equals(path, context.path(child)));
+        }
+        var views = children.<Graph<?>>map(context::view);
+        return (context.hideEmpty() ? views.filter(Graph::isPresent) : views).toList();
     }
 
     @Override
     public List<String> childPaths() {
-        return state.complete() ? context.childPaths(node) : expanded().childPaths();
+        CommitAttempt.graphRelationshipRead(this,
+                ModelRelationshipRead.Direction.CHILDREN, null);
+        return state.complete() || state.metadataNavigation() ? context.childPaths(node) : expanded().childPaths();
     }
 
     @Override
     public <C> List<Graph<C>> children(Class<C> childType) {
+        registerRequestedType(childType);
         LinkedHashMap<String, List<Graph<C>>> byPath = new LinkedHashMap<>();
-        children().stream().filter(child -> childType.isAssignableFrom(child.type())).map(Graphs::<C>cast)
-                .forEach(child -> byPath.computeIfAbsent(child.relationshipPath(), ignored -> new ArrayList<>()).add(child));
+        scopedChildren(null, null, true, true).stream()
+                .filter(child -> Graphs.matchesType(child, childType)).map(Graphs::<C>cast)
+                .forEach(child -> byPath.computeIfAbsent(viewPath(child),
+                        ignored -> new ArrayList<>()).add(child));
         if (byPath.size() > 1) {
             throw new IllegalStateException("Model %s has %s children at multiple paths %s; request an explicit path"
                                                     .formatted(id(), childType.getName(), byPath.keySet()));
@@ -1429,8 +2295,14 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public <C> List<Graph<C>> children(String path, Class<C> childType) {
-        return children().stream().filter(child -> Objects.equals(path, child.relationshipPath()))
-                .filter(child -> childType.isAssignableFrom(child.type())).map(Graphs::<C>cast).toList();
+        registerRequestedType(childType);
+        return scopedChildren(path, null, true, false).stream()
+                .filter(child -> Graphs.matchesType(child, childType))
+                .map(Graphs::<C>cast).toList();
+    }
+
+    private static String viewPath(Graph<?> graph) {
+        return graph instanceof GraphView<?> view ? view.context.path(view.node) : graph.relationshipPath();
     }
 
     @Override
@@ -1440,26 +2312,42 @@ final class GraphView<T> implements Graph<T> {
 
     @Override
     public <D> List<Graph<D>> descendants(String path, Class<D> descendantType) {
-        String selectedPath = normalizePath(path);
-        List<Graph<D>> result = new ArrayList<>();
-        Deque<PathGraph> remaining = new ArrayDeque<>();
-        children().forEach(child -> remaining.addLast(new PathGraph(child, child.relationshipPath())));
-        while (!remaining.isEmpty()) {
-            PathGraph candidate = remaining.removeFirst();
-            if ((selectedPath == null || Objects.equals(selectedPath, candidate.path()))
-                && descendantType.isAssignableFrom(candidate.graph().type())) {
-                result.add(Graphs.cast(candidate.graph()));
+        if (!state.metadataNavigation()) {
+            String selectedPath = normalizePath(path);
+            List<Graph<D>> result = new ArrayList<>();
+            Deque<PathGraph> remaining = new ArrayDeque<>();
+            children().forEach(child -> remaining.addLast(new PathGraph(child, child.relationshipPath())));
+            while (!remaining.isEmpty()) {
+                PathGraph candidate = remaining.removeFirst();
+                if ((selectedPath == null || Objects.equals(selectedPath, candidate.path()))
+                    && Graphs.matchesType(candidate.graph(), descendantType)) {
+                    result.add(Graphs.cast(candidate.graph()));
+                }
+                if (selectedPath == null || candidate.path() != null && selectedPath.startsWith(candidate.path() + '/')) {
+                    candidate.graph().children().forEach(child -> remaining.addLast(new PathGraph(
+                            child, candidate.path() == null || child.relationshipPath() == null ? null
+                            : candidate.path() + '/' + child.relationshipPath())));
+                }
             }
-            if (selectedPath == null || candidate.path() != null && selectedPath.startsWith(candidate.path() + '/')) {
-                candidate.graph().children().forEach(child -> remaining.addLast(new PathGraph(
-                        child, candidate.path() == null || child.relationshipPath() == null ? null
-                        : candidate.path() + '/' + child.relationshipPath())));
-            }
+            return List.copyOf(result);
         }
-        return List.copyOf(result);
+        registerRequestedType(descendantType);
+        return Graphs.descendants(this, path,
+                                  candidate -> Graphs.matchesType(candidate, descendantType))
+                .stream().map(Graphs::<D>cast).toList();
     }
 
-    private static String normalizePath(String path) {
+    void registerRequestedType(Class<?> type) {
+        Objects.requireNonNull(type, "modelType");
+        if (state.repository() instanceof ModelTypeResolver types) {
+            EntityMetadata metadata = EntityMetadata.of(type);
+            if (metadata.isModel() && metadata.entityId().isPresent()) {
+                state.registerKnownType(types.modelName(type), type);
+            }
+        }
+    }
+
+    static String normalizePath(String path) {
         if (path == null) {
             return null;
         }
@@ -1476,7 +2364,7 @@ final class GraphView<T> implements Graph<T> {
         return result;
     }
 
-    private record PathGraph(Graph<?> graph, String path) {
+    record PathGraph(Graph<?> graph, String path) {
     }
 
     @Override
@@ -1585,16 +2473,16 @@ final class GraphView<T> implements Graph<T> {
     public Graph<T> previous() {
         Graph<?> explicit = context.previous(node);
         if (explicit != null) {
-            return Graphs.cast(explicit);
+            return CommitAttempt.historicalGraph(Graphs.cast(explicit));
         }
         if (node.data().previousStateIndex() != null && node == state.rootNode()) {
-            return Graphs.cast(context.decorate(state.repository().loadGraphAt(
-                    id().toString(), type(), node.data().previousStateIndex(), Graph.Options.DEFAULT)));
+            return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(
+                    id().toString(), node.data().type(), node.data().previousStateIndex(), Graph.Options.DEFAULT))));
         }
         Entity<T> entity = castEntity(node.data().entity());
         if (entity == null) {
             Graph<T> previous = Graphs.<T>cast(node.data().durable()).previous();
-            return previous == null ? null : Graphs.cast(context.decorate(previous));
+            return previous == null ? null : CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(previous)));
         }
         Entity<T> previous = entity.previous();
         if (previous == null) {
@@ -1611,7 +2499,7 @@ final class GraphView<T> implements Graph<T> {
         Graph<T> result = GraphState.entity(
                 previous, currentStateIndex, state.repository(), Map.of(previous.id().toString(), previous),
                 state.historical(), true, boundary, Map.of()).root();
-        return Graphs.cast(context.decorate(result));
+        return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(result)));
     }
 
     @Override
@@ -1619,8 +2507,11 @@ final class GraphView<T> implements Graph<T> {
         if (stateIndex < -1L) {
             throw new IllegalArgumentException("Graph stateIndex must be at least -1");
         }
-        return Graphs.cast(context.decorate(state.repository().loadGraphAt(
-                id().toString(), type(), stateIndex, Graph.Options.DEFAULT)));
+        if (node.data().type() == null) {
+            throw node.data().unknownType();
+        }
+        return CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(state.repository().loadGraphAt(
+                id().toString(), node.data().type(), stateIndex, Graph.Options.DEFAULT))));
     }
 
     @Override
@@ -1632,7 +2523,7 @@ final class GraphView<T> implements Graph<T> {
                         previous, previous instanceof ModelRoot<?> root ? root.stateIndex() : state.stateIndex(),
                         state.repository(), Map.of(previous.id().toString(), previous), true, true,
                         ModelReadBoundary.state(state.stateIndex(), false), Map.of()).<T>root());
-        return result.map(graph -> Graphs.cast(context.decorate(graph)));
+        return result.map(graph -> CommitAttempt.historicalGraph(Graphs.cast(context.decorateHistorical(graph))));
     }
 
     @Override

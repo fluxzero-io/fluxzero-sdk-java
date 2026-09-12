@@ -1,7 +1,5 @@
 Use this when a task adds or changes frontend-callable HTTP operations. Test the domain deeply, but also prove that every advertised operation crosses Fluxzero's web router with the intended caller, request mapping, and response conversion.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Before completion, map every advertised operation and required contract field to direct routed or structural evidence.
 Use the verification-boundaries inventory so one successful route or broad OpenAPI substring check does not stand in for
 independent binding, requiredness, failure, and response-shape proof.

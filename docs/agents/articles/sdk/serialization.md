@@ -1,7 +1,5 @@
 Use serialization guidance before changing a payload, document, aggregate state, or stateful handler type that may already be stored. Historical messages are immutable; compatibility is handled during deserialization.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Default path:
 
 - Add fields in a backward-compatible way when possible.

@@ -1,7 +1,5 @@
 Use this recipe to prove one complete durable coordination slice instead of testing state, schedules, correlation, outbound HTTP, and queries in disconnected helpers. Keep the broader symmetric matrix as separate tests after this executable spine passes.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Build one observable spine
 
 Register the real command/state handlers, secondary-reference resolver, deadline handler, outbound publisher, and query. Pin time and required properties. One start phase should prove the accepted command, recorded event/state, active deadline, and exact processor requests together:

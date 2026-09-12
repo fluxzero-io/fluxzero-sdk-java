@@ -13,11 +13,12 @@
 This repository contains the official Java SDK for [Fluxzero](https://fluxzero.io). For a short overview of 
 functionalities, check out this [cheatsheet](docs/cheatsheet.pdf).
 
-Coding agents can use the versioned [SDK documentation graph](docs/agents/README.md).
-It covers Java and Kotlin applications built with the 2.x Model and Graph APIs,
-including explicit compatibility guidance for existing Aggregate state. Maven
-packages it as the `agent-docs` ZIP classifier of `io.fluxzero:fluxzero-sdk-java`;
-the standalone stdio MCP bridge loads the archive matching the project's SDK version.
+Application-building documentation is available as [human/developer guides](docs/developer) and a
+[versioned agent documentation graph](docs/agents/README.md). The graph contains focused articles, searchable symbols
+and explicit links for Java and Kotlin applications using the 2.x Model and Graph APIs, with compatibility guidance
+for existing Aggregate state. Use the graph from the SDK release matching your project.
+Each release publishes the graph as an `agent-docs` ZIP on Fluxzero Packages, with the same ZIP and SHA-256 checksum
+attached to the GitHub release for backup. Download coordinates and archive metadata are described in the graph README.
 
 ---
 
@@ -1379,10 +1380,15 @@ Your `UserProvider` implementation can also support testing and system behavior 
 
 This ensures your custom user logic is consistently applied, even in automated tests and background execution.
 
-With `fluxzero.defaults.version >= 2026.08.04`, `AbstractUserProvider` stores `User.getName()` in its metadata field for
+With `fluxzero.defaults.version >= 2026.08.04`, `AbstractUserProvider` stores `User.id()` in its metadata field for
 regular users and `$system` for the system user, instead of serializing the complete user. On receipt, `$system` resolves
 through `getSystemUser()` and other IDs through `getUserById(...)`; complete user objects from older messages remain
-readable. Applications using compatibility defaults keep the complete-user format. Set
+readable. In SDK 2.0, every `User` must implement `String id()` explicitly, regardless of the defaults version.
+Identity never falls back to `getName()`. `User` remains a `Principal`; its optional `getName()` defaults to `id()` and
+may be overridden for a separate name. Implementations that previously supplied only `getName()` must add `id()` and
+be recompiled. Do not use principal/display names for identity comparisons. If the ID changes during an upgrade,
+`getUserById(...)` must explicitly resolve earlier stored identity values while old messages remain in flight.
+Applications using compatibility defaults keep the complete-user format. Set
 `fluxzero.auth.useUserIdMetadata` explicitly to `true` or `false` to select either format independently of the defaults
 version.
 
@@ -1419,6 +1425,15 @@ Fluxzero will automatically discover and register them at startup.
 ## Scheduling
 
 Fluxzero allows scheduling messages for future delivery using the `MessageScheduler`.
+
+Use `ScheduleId` when different kinds of schedules can share the same domain ID. Its stable `type:id` representation is
+used consistently for scheduling and cancellation:
+
+```java
+ScheduleId expiryId = ScheduleId.of("account-expiry", event.getUserId());
+Fluxzero.schedule(new TerminateAccount(event.getUserId()), expiryId, Duration.ofDays(30));
+Fluxzero.cancelSchedule(expiryId);
+```
 
 Here’s an example that schedules a termination event 30 days after an account is closed:
 
@@ -2090,6 +2105,10 @@ JSON resources can **extend** other resources using the `@extends` keyword:
 
 This will recursively merge the referenced file (`/org/example/create-user.json`) with the current one, allowing you
 to override or augment deeply nested structures.
+
+Each object in a root or nested array resolves its own inheritance relative to the file containing it.
+Array containers are preserved, including single-element arrays and explicitly typed array reads.
+JSONL/NDJSON resources retain their independent record boundaries.
 
 > 🧠 This is especially useful for composing test scenarios with shared defaults or inheritance-like setups.
 
@@ -3400,6 +3419,34 @@ Logical names must be unique within an application namespace. Applications shari
 exists is therefore an application-managed data transition. Serializer upcasters and `Data<T>` envelopes remain the
 separate mechanism for evolving serialized event/document payload types.
 
+### Model discovery and contract packaging
+
+Enable SDK annotation processing in every module that defines Models (Kotlin: kapt with the SDK processor).
+`@Model` declarations, including inherited Models, are written to
+`META-INF/io.fluxzero.sdk.modeling.Model`. The SDK combines those indexes from the contract JARs visible to its
+classloader and maps each logical Model name to its class. Discovery does not execute Model static initializers or
+register the contract's command/event handlers. Conflicting logical names and missing indexed classes fail explicitly.
+Identified abstract/interface contracts remain discoverable, including deleted Models with no concrete value.
+Identity-less abstract/interface inheritance templates are not standalone Models and are omitted from the catalog.
+Automatic processor discovery puts the Model observer before Fluxzero's claiming processors, regardless of SDK/common
+JAR order. In explicit processor lists, put `io.fluxzero.sdk.modeling.ModelTypeProcessor` first, before any processors
+that exclusively claim annotations (including `TypeRegistryProcessor` and `WebParameterProcessor`).
+
+`@RegisterType` remains optional for resolving short type names, for example in fixture JSON; it is not Model
+discovery and does not rename stored event/document types.
+Previously compiled contract JARs must be rebuilt with this SDK's processor to contribute the new index. Sharing a
+store does not supply missing classes: consuming applications still need the relevant Model contracts on their classpath.
+
+Separate JARs and Spring Boot nested JARs preserve individual indexes. A classic shaded/fat JAR must merge them, just
+like other overlapping generated resources. In Maven Shade, add this transformer (ordinary service merging alone
+is insufficient):
+
+```xml
+<transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+    <resource>META-INF/io.fluxzero.sdk.modeling.Model</resource>
+</transformer>
+```
+
 ### Model persistence
 
 Every model ID is an independent persistence and lifecycle boundary. Depending on its `@Model` settings, it has its own
@@ -3456,7 +3503,7 @@ by content-based Graph and relationship queries without becoming publicly search
 and `@Sortable` to shape those internal indexes explicitly.
 
 Event-sourcing-only settings such as `ignoreUnknownEvents`, `snapshotPeriod`, `maxSnapshotCount` and
-`checkpointPeriod` are rejected on `DOCUMENT` Models instead of being silently ignored.
+`checkpointPeriod` are rejected on `DOCUMENT`-only Models instead of being silently ignored.
 
 ```java
 public record UpdateProfile(
@@ -3492,6 +3539,89 @@ and deletion with the root. Collection shape, convenient embedding, searchabilit
 load strategy do not decide this boundary. Choose `persistence`, snapshots and caching only after the lifecycle
 boundary is correct. Splitting independently living children often turns one enormous legacy stream into many very
 small streams that are ideal for event sourcing.
+
+### Current state without replay
+
+Use `Fluxzero.loadCurrentModelState("account-id", Account.class)` (or its typed-ID overload) when a consumer
+shares the Model state contract but not the writer's historical event contracts. The corresponding repository method
+is `loadCurrentState`. This is an explicit document read, not a fallback after replay fails.
+
+The returned `ModelState<T>` contains the value, exact persisted ID, durable Model head and the namespace-wide
+boundary at which that head was verified. It checks the current document against the durable head without loading
+events, updating the ordinary Model cache, or inheriting an event handler's historical boundary. The writer must
+maintain a Model document through `DOCUMENT` or graph composition, and the consumer must share its document
+configuration and value schema (including nested value types and upcasters).
+
+Verified reads require a matching Runtime. Trusted Model document materialization/adoption records a SHA-256
+fingerprint of the complete durable head and serialized state atomically with the document fence. This detects an
+ordinary search write that replaces the body without advancing the Model version. Ordinary reads do not compute
+this fingerprint; maintaining a direct Model document does. Existing documents with no proof are not retroactively
+certified: they need a new trusted Model materialization/adoption at an eligible boundary. An old Runtime response,
+an unproven fence, or mismatched body/version fails explicitly; there is no weaker verification fallback.
+
+A missing Model has a null head/value; a deleted Model has a deleted head and null value. A missing, unversioned or
+lagging document for a live Model fails explicitly. If the document advances between the two reads, verification
+retries at most eight times; it never silently accepts stale state or replays events. This is current as observed
+during the operation, not a promise that concurrent writers cannot change it immediately afterwards.
+
+This first-class result is deliberately read-only: it has no Graph mutation/history methods and does not join a
+commit readset. Use injected Models/Graphs for transactional assertions; separate state reads are not a coherent
+multi-model snapshot. Supporting document-based Graph mutations would additionally require retaining the read
+strategy through the complete evaluation and retries. Ordinary `loadModel`, `loadGraph` and `loadCurrentGraph`
+retain their existing authoritative/replay contracts; sharing only Model classes does not guarantee replay compatibility.
+
+### Selective Graph navigation across applications
+
+Use `children(path)`, `children(path, modelName)`, or `namedChildren(modelName)` for metadata-first
+selection returning `List<Graph<?>>`. The corresponding `descendants`/`namedDescendants` methods traverse
+deeper placements. Each accepts a final `boolean knownOnly`, defaulting to `true`: this selects only locally
+known Model types, not necessarily every stored child. Pass `false` when a quota or inventory must include
+unknown types:
+
+```java
+var reservations = graph.namedChildren("stock-reservation", false);
+int count = reservations.size(); // No child values or historical events are loaded.
+```
+
+Names are exact resolved logical Model names, including any configured prefix, not serializer aliases or
+Java supertypes. The same name in two applications denotes the same shared contract, not separate ownership.
+Counting remains metadata-only even when that name is known locally but historical event classes are unavailable.
+`modelName()` exposes the logical name; `knownType()` is empty for a locally unknown Model. Such nodes retain
+IDs and relationship navigation, but reading their type/value/history or updating them fails explicitly.
+Unknown does not mean absent or deleted. A known class likewise does not suppress replay or application errors.
+
+Class-based selection matches locally known assignable types only, including when querying `Object.class`.
+Unknown intermediate nodes do not hide known descendants. Direct child paths are exact (`null` means pathless);
+descendant paths are root-relative slash-separated paths (`null` means all paths). Counts count placements:
+a shared Model reached through different graph paths can occur more than once.
+
+Selections share a pinned boundary and preserve injected Graph relationship dependencies, including empty
+results, add/remove/reparent and retries. Values are reconstructed only when requested at that boundary; no
+automatic current-state fallback or unknown-event skipping occurs. Full Graph materialization/serialization
+still requires the contracts for the values being materialized. Custom repositories without metadata navigation
+retain their existing loading behavior and cannot promise unknown-type-safe selection.
+
+The default repository resolves lazy root aliases through head metadata without replay. Initial lookup uses the
+current alias table, also when reading historical Model state. The selected canonical ID (or absence) then stays
+fixed together with the value/relationship boundary: reassigning the alias cannot redirect an existing Graph.
+This preserves snapshot identity; it does not add transaction-level alias-mapping conflict detection.
+Remote alias navigation requires the accompanying Runtime update: alias heads use the existing general
+transport to preserve both requested and canonical IDs; non-alias compact replies remain unchanged.
+
+
+With metadata-capable repositories, `selectPaths(...)` selects before reconstruction: creating a view performs
+no storage reads. Its paths are relative to the selected Graph, including a child Graph, and its ancestor placements
+remain navigable. Custom repositories retain their existing value-based fallback. Exact-ID `find(...)` scans relationship metadata
+before inspecting aliases; typed lookup registers the requested local contract and excludes unrelated unknown
+types. Alias and parent-scoped functional-ID matching may still require values of matching types.
+`sequenceNumber()` and `revisionStateIndex()` use pinned head evidence for still-lazy persisted nodes; pending
+and custom revisions retain their own semantics.
+
+The default repository discovers roots for `loadCurrentGraph(...)` and untyped `Fluxzero.loadGraph(id)` from
+head metadata without replay. These factories pin their boundary during the call; later value and relationship
+reads retain that boundary. Untyped root discovery still requires a locally known root Model contract. This
+changes when values are reconstructed, not their authoritative persistence/replay contract or transaction scope.
+Exact-ID and non-alias value reads retain their existing path. Root lookup failures remain errors, not empty children.
 
 ### Combining payload and Model handlers
 
@@ -3871,6 +4001,39 @@ the compatibility default. `ACCEPT` preserves the original event: only apply dep
 rebasing, not Models read solely by assertions or interceptors. `FAIL` and `RETRY` retain the complete evaluation readset.
 The loaded roots used to select an apply ancestor also count as apply dependencies, including nullable missing ancestors.
 This validation does not turn arbitrary external searches or unrelated repository reads into transactional reads.
+
+Graphs injected into a Model evaluation contribute the state actually inspected: `get()` and revision/alias/type reads
+protect the Model head; `children(path, type)` protects membership at that persisted path even when empty; parent and
+ancestor navigation protects the relationship selections that determine the result. Filters/scans also protect rejected
+candidates and negative results. Loading a Graph does not by itself make every descendant a dependency. Cached views and
+joined parallel scans preserve the same evidence, without rerunning user predicates or mappers. Reads must complete
+within evaluation; detached work after a handler returns is not a transactional read. Explicit history (`previous`,
+`atStateIndex`, event playback), external search and unrelated repository reads remain outside this live readset.
+
+Membership validation is atomic in LocalClient and JDBC, including add/remove/reparent. `RETRY` reevaluates at a fresh
+pinned boundary, `FAIL` rejects, and `ACCEPT` only rebases for apply dependencies, retaining them through every rebase.
+Different child types on the same path share a conservative dependency; remapped paths protect all direct paths of that
+source. Physical erasure conservatively invalidates older Graph reads in the namespace because their historical evidence
+is removed. History and relationship cleanup advance the namespace atomically, including when a Graph was read after
+deletion preparation. Stale reads of erased values also conflict; fresh reads of their absence remain valid.
+Eligible relationship reads retain JDBC's cached-head/atomic-CAS route at the exact cached boundary or across known
+contiguous head-only writes by that Runtime. Other older reads require database validation. Without inspected
+relationships, commits skip membership queries and retain the ordinary wire format, including unused or value-only
+Graph injection resolved directly by ID. An indirectly resolved ancestor still protects the relationships used to select
+it, even if the handler only reads its value. Head-only writes remain batchable; relationship writers separate dependent readers into ordered waves.
+Adding a child uses the existing relation indexes; extra change-index entries are limited to closed relationships.
+Removing or reparenting must retain that evidence even without Graph injection in the writer, since another transaction
+may have read the affected collection. Additional validation is not a zero-overhead guarantee.
+
+Custom `ModelRepository` implementations must return SDK Graph views (for example, through `Graphs.compose`) for
+transactional navigation. An opaque custom `Graph` fails explicitly instead of silently losing dependencies or
+materializing its entire graph. Ordinary non-transactional custom Graph reads retain their existing behavior.
+
+This requires matching relationship-read-capable SDK and Runtime versions (after RC8). Such commits use the distinct
+`commitModelsWithRelationships` wire type so an older Runtime rejects them instead of silently dropping dependencies.
+Deploy the Runtime first. Older SDK requests remain supported; ordinary commits retain their existing compact wire
+format. Upgrade all Runtime instances first. JDBC adds indexes and an identity-free erasure-cleanup position,
+not a new Model payload/history format or a rewrite of existing Models.
 
 With `fluxzero.defaults.version >= 2026.09.10`, or `fluxzero.model.automaticRouting=true`, a command with one statically
 unambiguous, non-collection Model apply gets a routing fallback based on its canonical Model ID, including typed-ID
@@ -6126,7 +6289,7 @@ earlier versions, and each behavior can still be overridden with its dedicated p
 | `>= 2026.05.20` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perHandler` | Handlers without an explicit `@Consumer` or matching custom `ConsumerConfiguration` get their own generated default consumer per handler class, instead of sharing one application default consumer per message type. This isolates tracking positions and handler failures for unconfigured handlers. |
 | `>= 2026.05.21` | `fluxzero.scheduling.periodic.useDefaultInitialDelay = true` | `@Periodic` annotations that omit `initialDelay` use the schedule's natural first deadline: fixed-delay schedules first run after `delay`, and cron schedules first run at the next cron match. Set `initialDelay = 0` to request an immediate first run. |
 | `>= 2026.07.27` | `fluxzero.tracking.unconfiguredHandlerConsumerMode = perPackage` | Unconfigured handlers share one generated consumer per exact handler package and message type. Explicit consumers and matching custom configurations remain more specific. |
-| `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.getName()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. |
+| `>= 2026.08.04` | `fluxzero.auth.useUserIdMetadata = true` | `AbstractUserProvider` stores `$system` for the system user and `User.id()` for regular users instead of storing a complete user object. It resolves `$system` through `getSystemUser()` and other IDs through `getUserById(...)`. SDK 2.0 requires an explicit `id()` implementation independently of this metadata-format setting. |
 | `>= 2026.08.26` | `fluxzero.web.defaultRedirectPolicy = SAME_ORIGIN` | Outbound requests whose `redirectPolicy` is `DEFAULT` only follow redirects that keep the original scheme, host, and effective port, both directly and through the proxy. Compatibility mode uses `ALLOW`; set the dedicated property to `ALLOW`, `SAME_ORIGIN`, or `NEVER` to override either default explicitly. |
 | `>= 2026.09.09` | `fluxzero.websocket.reconnectBackoff.enabled = true` | WebSocket reconnect attempts use equal jitter over a capped exponential delay instead of a fixed one-second interval. Set the dedicated property to `false` to retain fixed retries. |
 | `>= 2026.09.10` | `fluxzero.eventsourcing.maxFetchBytes = 104857600` | Aggregate-history pages request at most 100 MiB of serialized event payload. Set the dedicated property to `0` to retain count-only pages. |
@@ -6711,6 +6874,8 @@ Key options include:
 ---
 
 ### Runtime Data Dispatch Isolation
+
+SDK-controlled Model retry/reevaluation and migration continuations use named virtual workers. CPU-bound bulk serialization, packed Model-event decoding and multi-Model replay use a shared, SDK-owned CPU pool, not the JVM common pool. Existing batching, admission and ordering limits still apply; a virtual thread is not a concurrency limit. Native/forwarded HTTP response processing uses explicit workers too. This does not replace application-supplied executors or the caller-controlled `AggregateEventStream.parallel()` contract. The JDK HTTP/WebSocket implementation can still use its own internal common pool for transport completion; explicit HTTP executors do not eliminate that JDK dependency.
 
 WebSocket connection retries use the historical fixed one-second interval in compatibility mode. With
 `fluxzero.defaults.version >= 2026.09.09`, or an explicit

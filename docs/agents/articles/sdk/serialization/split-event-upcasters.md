@@ -1,6 +1,4 @@
 Use this for reconstruction from a serialized historical event, whether one old event becomes one current event or
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 several. Keep the caster pure and test the registered event deserialization path with a legacy `SerializedMessage`, not
 only an already-current Java object.
 

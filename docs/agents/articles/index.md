@@ -5,7 +5,10 @@ This is the SDK documentation graph. Its content can be read locally or served t
 For application work, prefer this order:
 
 1. Read the SDK overview.
-2. Model commands, entities, legal assertions, and handlers.
+2. Model commands and independent `@Model` state, legal assertions, and handlers.
 3. Test behavior locally with `TestFixture`.
 4. Add search/read models and thin web endpoints.
 5. Read cloud pages only when the user asks about publishing or demo deployment.
+
+This checkout documents SDK v2 (Java 25+). For new state, start with Models and Graphs. Retained aggregate articles
+serve existing persisted state; they are not a recommendation to introduce aggregates in new v2 code.

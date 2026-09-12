@@ -1,7 +1,5 @@
 Write tests at the behavior boundary the user cares about.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 In an active Fluxzero dev session, the agent writes these tests while the dev server selects and executes them. Follow
 the post-edit, cursored test events to a terminal lifecycle state and corroborate the current test service status; do
 not run the wrapper in parallel just to obtain a second copy of the same result.

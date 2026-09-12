@@ -1,6 +1,4 @@
 Use `DefaultFluxzero.builder()` only at application bootstrap. In Spring, apply these changes through one
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 `FluxzeroCustomizer` so auto-configuration, tests, and production use the same extension set.
 
 ## Custom parameter resolution and validation

@@ -1,7 +1,5 @@
 Use this when a real HTTP or WebSocket client must establish the `User` consumed by `@RequiresUser`, role annotations, and `Sender` injection. Keep four provider responsibilities distinct:
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 | Method | Responsibility |
 | --- | --- |
 | `fromMessage(...)` | Authenticate an incoming request or consume an already trusted Fluxzero `$user` |

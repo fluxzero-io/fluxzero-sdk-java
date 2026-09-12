@@ -1,6 +1,4 @@
 Use root-level `@class` and `@revision` when a fixture resource represents historical serialized data that must pass
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 through the normal upcaster chain. `@Revision` is the Java/Kotlin annotation declaring a type's revision; `@revision`
 is the case-sensitive JSON serialization field.
 

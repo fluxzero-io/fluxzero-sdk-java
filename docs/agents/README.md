@@ -4,6 +4,9 @@ This is the canonical agent documentation graph for applications built with this
 [`docs/developer`](../developer) documentation. Read the graph selectively: start at `/docs`, search titles, summaries
 and symbols for the task, then read the relevant articles and follow links only for missing detail.
 
+On SDK v2, start new persisted state at `/docs/sdk/models`: Java 25+, independent Model lifecycle, automatic commands,
+atomic commits and lazy Graph reads. The retained entity topics serve existing aggregate state, not new v2 modeling.
+
 ## Graph contract
 
 `manifest.json` declares `schemaVersion: 1`, the documentation `namespace: sdk`, the root article, and the article
@@ -17,16 +20,14 @@ namespaces may reuse the same paths; consumers must not treat a path or numeric 
 This repository currently supplies only `sdk`. Existing application-facing CLI, IDP and Cloud guidance is retained
 in this graph; it does not claim that those independently released tools share the SDK version.
 
-This branch describes SDK 2.x: new domain state uses `@Model` and `Graph<T>`; Aggregate examples are explicitly retained for existing persisted state and migration. SDK 2.x requires Java 25.
-
 The SDK tag/checkout identifies which SDK the graph describes. Do not hard-code the dashboard's dependency version
 or a moving `latest` version in the manifest. Documentation corrections ship with a normal SDK release, including
 a patch release when only documentation changes; published release contents are immutable.
 
-The graph is data, independent of MCP transport. The dev server's standalone stdio MCP bridge downloads the matching
-release archive into its shared versioned cache and exposes the documentation tools. Existing
+The graph is data, independent of MCP transport. A documentation bridge must load the archive matching the project's
+SDK version; transport, download and cache ownership remain outside this archive. Existing
 `project-java.zip` and `project-kotlin.zip` release consumers continue to use the legacy `project-files` tree during
-the transition. New current articles belong here; preserve matching Java and Kotlin guidance in the graph.
+that transition; it is not the source for new graph articles.
 
 ## Release archive
 
@@ -56,8 +57,8 @@ Packaging requires Python 3.9+ and Git. `-Dagent-docs.python=<executable>` selec
 - Keep every supported concept reachable. Split advanced detail into a focused article instead of deleting correct
   information to shorten a parent. Preserve both Java and Kotlin behavior; use language-specific examples where needed.
 - Add an article to the manifest, link to it from a relevant existing article, and link back to its parent.
-- Keep logical article IDs in manifest links. In article prose, write paths such as `/docs/sdk/entities` as code;
-  these are MCP lookup keys, not root-relative filesystem links for the repository's Markdown link checker.
+- Keep logical article IDs in manifest links. In article prose, write paths such as `/docs/sdk/models` as code;
+  these are documentation lookup keys, not root-relative filesystem links.
 - Index exact API symbols and useful task language. Do not make a search return the entire graph by default.
 - Match instructions to the project version. A documentation mismatch must not cause an automatic SDK upgrade.
 - Obtain current CLI options and dev configuration from the installed tools; these have independent release cycles.

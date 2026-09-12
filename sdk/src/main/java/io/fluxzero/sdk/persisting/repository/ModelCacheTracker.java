@@ -183,6 +183,11 @@ final class ModelCacheTracker implements AutoCloseable {
         return currentVersion(modelId, modelType, null);
     }
 
+    /** Reuses only already-current evidence; metadata-only reads must not trigger a value refresh/replay. */
+    CurrentModel peekCurrentVersion(String modelId, Class<?> modelType) {
+        return currentVersion(modelId, modelType, null, false);
+    }
+
     boolean supplyCurrentVersion(
             String modelId,
             Class<?> modelType,
@@ -194,6 +199,11 @@ final class ModelCacheTracker implements AutoCloseable {
             String modelId,
             Class<?> modelType,
             DefaultModelRepository.CurrentModelSink sink) {
+        return currentVersion(modelId, modelType, sink, true);
+    }
+
+    private CurrentModel currentVersion(String modelId, Class<?> modelType,
+                                        DefaultModelRepository.CurrentModelSink sink, boolean refreshStale) {
         if (!healthy || unsupported || closed.get()) {
             return null;
         }
@@ -205,6 +215,9 @@ final class ModelCacheTracker implements AutoCloseable {
             return null;
         }
         if (entry.stale) {
+            if (!refreshStale) {
+                return null;
+            }
             if (entry.latestUpdate
                 > materializedCursor) {
                 return null;

@@ -1,6 +1,4 @@
 Use this when a tracked event consumer creates or cancels delayed work after an aggregate transition. A historical
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 event is a trigger to inspect current state, not sufficient proof that its creation-time schedule still belongs in the
 active set.
 

@@ -392,7 +392,7 @@ public class DefaultGenericGateway extends AbstractNamespaced<GenericGateway> im
                     result[index] = messages.get(index)
                             .serialize(serializer);
                 }
-            }));
+            }), io.fluxzero.common.ObjectUtils.cpuExecutor());
         }
         CompletableFuture.allOf(tasks).join();
         return java.util.Arrays.asList(result);

@@ -1,7 +1,5 @@
 Use manual indexing for plain projections, release notes, and other search documents whose lifecycle is not maintained automatically by an aggregate or `@Stateful` handler. Choose the document identity before writing the handler: replaying the same logical update should normally address the same document.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Know the overloads
 
 The overloads differ by collection and ID, even though both values have type `Object`:

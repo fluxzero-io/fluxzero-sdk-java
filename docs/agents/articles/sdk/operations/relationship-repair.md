@@ -1,6 +1,4 @@
 Fluxzero stores entity-to-aggregate relationships for `@Member`, `@Alias`, `loadFor(...)`, and reverse aggregate
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 lookup. After an entity-hierarchy or alias refactor, stored relationships can disagree with the aggregate reconstructed
 from its events. Use repository repair instead of editing relationship storage directly.
 

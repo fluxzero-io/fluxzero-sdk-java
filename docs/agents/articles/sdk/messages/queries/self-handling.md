@@ -1,7 +1,5 @@
 Use this when query behavior lives on the query payload itself or when several query classes are registered in one fixture. Choose local or tracked delivery deliberately; do not use `@TrackSelf` merely as a routing patch.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Local self-handling queries
 
 A query record with an `@HandleQuery` method and no `@TrackSelf` is discovered from the dispatched payload type and handled immediately as a local self-handler:
@@ -10,7 +8,7 @@ A query record with an `@HandleQuery` method and no `@TrackSelf` is discovered f
 public record GetProject(ProjectId projectId) implements Request<Project> {
     @HandleQuery
     Project handle() {
-        return Fluxzero.loadAggregate(projectId).get();
+        return Fluxzero.loadModel(projectId).get();
     }
 }
 
@@ -80,3 +78,6 @@ final class UserQueries {
 ```
 
 Test two different zero-component queries in the same fixture configuration and assert each typed result. This catches a broad handler answering the wrong query and causing a late `ClassCastException`. In fixture setup, explicitly register external handler components and annotation-driven class handlers that need registration; do not collect every ordinary local self-handling payload class into the handler list.
+
+These examples assume `@Model` state. For existing persisted aggregates, keep their aggregate loading API until a
+deliberate migration. Use `Fluxzero.loadGraph(...)` when the query needs lazy relationships, not only the model value.

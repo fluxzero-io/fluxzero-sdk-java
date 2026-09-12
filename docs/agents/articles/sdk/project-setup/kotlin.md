@@ -1,7 +1,5 @@
 Use this for Kotlin source layout after `fz init --template flux-basic-kotlin` has generated the project, or when validating an existing Kotlin build. Treat the starter packages and handlers as replaceable scaffolding.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Recommended folders:
 
 ```text
@@ -59,10 +57,14 @@ Notes:
 - For aggregate shapes that need Java-style builder ergonomics, define that builder manually rather than relying on Lombok-style generation.
 - Generate typed IDs before constructing commands, usually in an endpoint or command boundary, not in `@Apply`.
 
-Add `src/main/resources/fluxzero.properties`:
+For a new SDK v2 application, opt into its current defaults in `src/main/resources/fluxzero.properties`:
 
 ```properties
-fluxzero.defaults.version=2026.06.20
+fluxzero.defaults.version=2026.09.10
 ```
 
 Continue with the create-app recipe once the source layout compiles.
+
+Preserve an existing application's defaults marker and explicit feature overrides unless changing them is part of
+the requested migration. This marker enables Model RETRY defaults (2026.09.09) and automatic routing (2026.09.10);
+the Model conflicts article explains their dedicated overrides and unchanged create-if-absent semantics.

@@ -1,10 +1,16 @@
 Use a command when the user or system asks the app to change state.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Do not put the sending user's ID in the command payload. Inject `Sender` in the handler, legal assertion, or `@Apply` method, and keep the payload focused on domain intent plus typed IDs. Direct `Sender` injection in `@Apply` is replay-safe because Fluxzero resolves it from the applied message metadata; `User.getCurrent()` inside `@Apply` is not the supported pattern.
 
-Recommended aggregate update shape:
+For new Model updates, put `@Apply` on the payload and let Fluxzero handle it automatically. Use an explicit handler
+only for orchestration and invoke `Fluxzero.assertAndApply` once. One action may update several Models atomically;
+separate externally dispatched commands are still separate operations.
+
+Single-target Model routing is a fallback from defaults version `2026.09.10`, or with
+`fluxzero.model.automaticRouting=true`; explicitly configuring `false` disables it. Explicit segments and routing
+declarations retain precedence. Read Model conflicts for eligibility, identity and missing-value boundaries.
+
+Retained legacy aggregate update shape:
 
 ```java
 @TrackSelf
@@ -55,7 +61,8 @@ being mutated. Route every claimant by that invariant key through the same named
 and write in one invocation. Read global invariants across aggregate roots before implementing a `loadEntity(key)`
 check followed by an update to another aggregate ID.
 
-For bulk commands, define the required failure semantics before implementation. Choose the shape from the consistency boundary instead of treating every batch as one atomic command:
+The following bulk guidance describes legacy aggregate or externally dispatched command workflows, not one atomic
+multi-Model apply. For bulk commands, define the required failure semantics before implementation. Choose the shape from the consistency boundary instead of treating every batch as one atomic command:
 
 - If every item updates one aggregate, model one bulk command on that aggregate, validate the whole payload, and apply one state transition.
 - If items update different aggregate IDs, an outer bulk command is an orchestrator. Child commands keep their own legality rules, but their completion boundary depends on dispatch. A nested command handled locally reuses the active invocation, so aggregates touched by that invocation can roll back when the outer handler fails. A child dispatched externally has an independent request and persistence boundary, so an earlier child can commit before a later request fails. Do not promise either outcome without testing the actual routing boundary and querying every affected aggregate after a late failure.

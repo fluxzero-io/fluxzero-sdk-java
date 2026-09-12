@@ -18,6 +18,11 @@ This separation makes Fluxzero highly flexible: you can isolate workloads into d
 
 ## Tracking flow
 
+SDK-controlled Model retries and reevaluation use named virtual workers; bulk serialization, packed Model-event
+decoding and multi-Model replay use an SDK-owned CPU pool. Existing ordering, batching and admission limits still
+apply. These execution paths do not schedule work on the JVM common pool. This is not a promise about application
+executors or JDK internals: native HTTP/WebSocket transport completion can still depend on the JDK's internal pool.
+
 The following diagram shows the lifecycle flow of a single tracker, responsible for fetching messages from the log and invoking the right handlers.
 The process repeats in a continuous loop:
 

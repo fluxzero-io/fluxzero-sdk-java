@@ -35,6 +35,7 @@ import lombok.Getter;
 import lombok.With;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -43,13 +44,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 import static io.fluxzero.common.MessageType.RESULT;
+import static io.fluxzero.common.ObjectUtils.cpuExecutor;
+import static io.fluxzero.common.ObjectUtils.cpuParallelism;
 import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.common.reflection.ReflectionUtils.ifClass;
 
@@ -187,12 +189,22 @@ public class DefaultResultGateway extends AbstractNamespaced<ResultGateway> impl
         if (size < PARALLEL_SERIALIZATION_THRESHOLD) {
             prepareRange(responses, messages, serialized, failures, 0, size);
         } else {
-            int taskCount = Math.min(size, Math.max(2, ForkJoinPool.getCommonPoolParallelism() * 4));
-            IntStream.range(0, taskCount).parallel().forEach(taskIndex -> {
-                int start = (int) ((long) size * taskIndex / taskCount);
-                int end = (int) ((long) size * (taskIndex + 1) / taskCount);
-                prepareRange(responses, messages, serialized, failures, start, end);
-            });
+            int taskCount = Math.min(size, Math.max(2, (cpuParallelism() - 1) * 4));
+            AtomicInteger nextTask = new AtomicInteger();
+            Runnable prepare = () -> {
+                for (int taskIndex; (taskIndex = nextTask.getAndIncrement()) < taskCount;) {
+                    int start = (int) ((long) size * taskIndex / taskCount);
+                    int end = (int) ((long) size * (taskIndex + 1) / taskCount);
+                    prepareRange(responses, messages, serialized, failures, start, end);
+                }
+            };
+            // Preserve the backlog worker's CPU contribution and let workers claim additional ranges as needed.
+            List<CompletableFuture<Void>> workers = new ArrayList<>();
+            for (int worker = 1; worker < Math.min(taskCount, cpuParallelism()); worker++) {
+                workers.add(CompletableFuture.runAsync(prepare, cpuExecutor()));
+            }
+            prepare.run();
+            workers.forEach(CompletableFuture::join);
         }
 
         PreparedResponse[] published = new PreparedResponse[size];

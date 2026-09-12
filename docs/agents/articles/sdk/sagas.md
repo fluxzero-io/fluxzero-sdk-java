@@ -1,7 +1,5 @@
 Use `@Stateful` when a workflow needs its own persisted memory, explicit correlation keys, timers, or a lifecycle that is not naturally owned by one aggregate. Use a stateless Spring `@Component` when the handler can derive progress from aggregates or queries every time.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Default path:
 
 - Keep domain state in aggregates.

@@ -24,6 +24,7 @@ import io.fluxzero.common.api.Metadata;
 import io.fluxzero.common.api.SerializedMessage;
 import io.fluxzero.sdk.Fluxzero;
 import io.fluxzero.sdk.common.Message;
+import io.fluxzero.sdk.common.ThreadLocalContext;
 import io.fluxzero.sdk.common.serialization.Serializer;
 import io.fluxzero.sdk.common.serialization.jackson.JacksonSerializer;
 import io.fluxzero.sdk.configuration.client.Client;
@@ -63,6 +64,8 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -70,6 +73,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.fluxzero.common.ObjectUtils.memoize;
+import static io.fluxzero.common.ObjectUtils.newWorkerPool;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getBooleanProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getIntegerProperty;
 import static io.fluxzero.sdk.configuration.ApplicationProperties.getLongProperty;
@@ -89,6 +93,10 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     static final int DEFAULT_MAX_OUTSTANDING_REQUESTS = 1024;
     static final Duration DEFAULT_BATCH_COMPLETION_GRACE = Duration.ofMillis(250);
 
+    private static final ExecutorService forwardWorkerPool =
+            newWorkerPool("forward-proxy-", DEFAULT_MAX_CONCURRENT_REQUESTS);
+    private static final Executor forwardContinuationExecutor = task ->
+            forwardWorkerPool.execute(ThreadLocalContext.capture().wrap(task));
     private static final RedirectClients sharedHttpClients = new RedirectClients(
             newHttpClient(HttpClient.Redirect.NORMAL), () -> newHttpClient(HttpClient.Redirect.NEVER));
     protected static final WebRequestSettings defaultSettings = WebRequestSettings.builder().build();
@@ -221,7 +229,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
 
     private static HttpClient newHttpClient(HttpClient.Redirect redirectPolicy) {
         return HttpClient.newBuilder()
-                .followRedirects(redirectPolicy).connectTimeout(Duration.ofSeconds(5)).build();
+                .executor(forwardWorkerPool).followRedirects(redirectPolicy)
+                .connectTimeout(Duration.ofSeconds(5)).build();
     }
 
     static int configuredMaxConcurrentRequests() {
@@ -538,7 +547,8 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
     private CompletableFuture<HttpOutcome> followSameOrigin(
             HttpRequest request, URI origin, Instant deadline, CancellableResponseFuture requestFuture,
             int redirects) {
-        return sendOnce(httpClients.client(RedirectPolicy.NEVER), request, requestFuture).thenCompose(outcome -> {
+        return sendOnce(httpClients.client(RedirectPolicy.NEVER), request, requestFuture)
+                .thenCompose(outcome -> {
             if (outcome.response() == null || !hasRedirectLocation(outcome.response())) {
                 return CompletableFuture.completedFuture(outcome);
             }
@@ -573,8 +583,11 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             return CompletableFuture.completedFuture(new HttpOutcome(null, e));
         }
         requestFuture.track(attempt);
-        return attempt.handle((response, error) -> new HttpOutcome(
-                response, error == null ? null : unwrap(error)));
+        return attempt.isDone()
+                ? attempt.handle((response, error) -> new HttpOutcome(
+                        response, error == null ? null : unwrap(error)))
+                : attempt.handleAsync((response, error) -> new HttpOutcome(
+                        response, error == null ? null : unwrap(error)), forwardContinuationExecutor);
     }
 
     private HttpRequest redirectedRequest(HttpRequest request, URI target, int status, Duration timeout) {
@@ -658,7 +671,7 @@ public class ForwardProxyConsumer implements Consumer<List<SerializedMessage>> {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.runAsync(
-                () -> {}, CompletableFuture.delayedExecutor(duration.toNanos(), NANOSECONDS));
+                () -> {}, CompletableFuture.delayedExecutor(duration.toNanos(), NANOSECONDS, forwardWorkerPool));
     }
 
     private static void complete(CancellableResponseFuture target, WebResponse response, Throwable error) {

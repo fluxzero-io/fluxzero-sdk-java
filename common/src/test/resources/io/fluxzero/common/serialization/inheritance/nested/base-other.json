@@ -1,0 +1,5 @@
+{
+  "@class": "io.fluxzero.common.serialization.JsonUtilsTest$SamplePayload",
+  "revision": 2,
+  "value": "base other"
+}

@@ -1,7 +1,5 @@
 Use facets when a product needs fast counts or filters by categorical values such as status, type, labels, or tags. Use `count()` for one total; use `facetStats()` when the response needs counts per value.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Index the categorical paths
 
 Put `@Facet` on the field/getter whose exact path should appear in facet results:

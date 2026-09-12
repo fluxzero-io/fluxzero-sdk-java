@@ -42,6 +42,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelCommitWireCodecTest {
 
     @Test
+    void relationshipReadsUseADistinctLosslessWireType() throws Exception {
+        CommitModels ordinary = commit("relationship-transport", false);
+        CommitModels request = new CommitModelsWithRelationships(ordinary, List.of(
+                new ModelRelationshipRead("parent", ModelRelationshipRead.Direction.CHILDREN, "children"),
+                new ModelRelationshipRead("child", ModelRelationshipRead.Direction.PARENTS, null)));
+        assertFalse(JsonUtils.valueToTree(ordinary).has("readRelationships"));
+        assertEquals("commitModelsWithRelationships", JsonUtils.valueToTree(request).get("@type").asText());
+        assertNull(ModelCommitWireCodec.tryEncode(new RequestBatch<>(List.of(request))));
+        for (WebSocketTransportFormat format : WebSocketTransportFormat.values()) {
+            var codec = WebSocketTransportCodecs.forFormat(format, JsonUtils.writer);
+            RequestBatch<?> decoded = assertInstanceOf(RequestBatch.class,
+                    codec.decode(codec.encode(new RequestBatch<>(List.of(request)))));
+            CommitModelsWithRelationships restored = assertInstanceOf(CommitModelsWithRelationships.class,
+                    decoded.getRequests().getFirst());
+            assertEquals(request, restored, format.toString());
+            assertEquals(ordinary.getRequestId(), restored.getRequestId());
+        }
+    }
+
+    @Test
     void migrationFlagUsesJsonFallbackWithoutChangingOrdinaryCompactRequests()
             throws Exception {
         CommitModels ordinary = commit("ordinary", false);

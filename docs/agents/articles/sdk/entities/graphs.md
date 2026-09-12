@@ -13,14 +13,24 @@ Graph<Project> previous = graph.previous();
 ```
 
 Prefer direct `T` injection when only the current value is needed. Inject `Graph<T>` when code needs parents,
-children, descendants, history or staged updates. Resolving the graph itself costs the same model load as direct value
-injection; relationships are fetched only when traversed. Typed ancestor lookup follows relationship identities first
+children, descendants, history or staged updates. A lazy Graph can resolve identity and revision metadata without
+reconstructing its value; relationships are fetched when traversed. Typed ancestor lookup follows relationship identities first
 and loads only the selected ancestor value. Every child is itself a graph, so `parent()`, `root()`,
 `previous()`, `atStateIndex(...)`, `apply(...)` and `assertAndApply(...)` remain available at every placement.
 
 `id()` is the collision-safe repository identity; `functionalId()` is the public ID from the current or last present
 model value and omits repository affixes or parent scope. `stateIndex()` pins the complete graph read, while
 `revisionStateIndex()` reports when the selected node revision became current.
+
+For selective, cross-application reads, use the detailed Java or Kotlin Graph guide under `/docs/sdk/models`.
+Path/name queries and explicit unknown-node inclusion can inspect relationship metadata without unrelated replay.
+Known-only results may omit stored children; use `knownOnly = false` for complete metadata counts in the selected
+scope. Full serialization and value reads still require compatible contracts.
+Only actually inspected relationships become transactional membership dependencies, including empty selections.
+With the default repository or a custom resolver supporting metadata navigation, current factories and
+`selectPaths(...)` preserve their pinned boundary without eager root replay; revision getters use available head
+evidence. Custom repositories without that capability retain their existing materialization fallback. These are not
+implicit document-backed value reads.
 
 Ordinary `loadGraph(...)` calls inside a handler inherit its coherent message or historical event boundary. Use
 `loadCurrentGraph(...)` only after a synchronous nested command when later handler logic deliberately needs that

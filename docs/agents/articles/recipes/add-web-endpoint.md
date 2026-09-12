@@ -1,7 +1,5 @@
 Only add a web endpoint after command/query behavior exists.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 Use `@Path` at class level for a stable base path and `@HandleGet`, `@HandlePost`, `@HandlePut`, or related annotations at method level. Read web routing and parameter binding when package and class paths compose: a relative child `@Path` appends, while a child `@Path` beginning with `/` resets the inherited prefix. Put `@PathParam`, `@QueryParam`, and other web injection annotations on handler method parameters, not request-record components.
 
 Before writing the adapter, make a small field map from the product request to the endpoint DTO, command/query, aggregate identity, and response. Preserve every product-relevant field across that path.

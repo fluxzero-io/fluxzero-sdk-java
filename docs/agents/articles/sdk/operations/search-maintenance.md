@@ -1,6 +1,4 @@
 `DocumentStore` and `Search` expose namespaced document maintenance without database access. Use these operations for
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 application-owned projections, read models, and audit collections. They do not delete the aggregate events or other
 sources from which a projection may later be rebuilt.
 

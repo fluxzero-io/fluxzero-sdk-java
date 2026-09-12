@@ -21,6 +21,9 @@ import io.fluxzero.sdk.modeling.Graph;
 
 import java.util.Optional;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Optional repository capability for resolving a typed ancestor from relationship identities before loading model
@@ -38,6 +41,25 @@ public interface ModelAncestorResolver {
             Class<?> modelType,
             Class<A> ancestorType,
             ModelReadBoundary boundary);
+
+    /**
+     * Resolves an ancestor while reporting the identities inspected by the relationship traversal, including a
+     * negative result. Implementations can override this to preserve identity-only traversal for transactional
+     * Graph reads. The default reports no proof; the Graph then gathers dependencies through its ordinary parents.
+     */
+    default <A> Optional<Graph<A>> loadAncestorGraph(
+            String modelId, Class<?> modelType, Class<A> ancestorType, ModelReadBoundary boundary,
+            Consumer<AncestorReads> observer) {
+        return loadAncestorGraph(modelId, modelType, ancestorType, boundary);
+    }
+
+    /** The pinned relationship collections and Model types examined without materializing intermediate values. */
+    record AncestorReads(long stateIndex, Set<String> parentCollections, Map<String, Class<?>> modelTypes) {
+        public AncestorReads {
+            parentCollections = Set.copyOf(parentCollections);
+            modelTypes = Map.copyOf(modelTypes);
+        }
+    }
 
     /**
      * Resolves every reachable ancestor assignable to {@code ancestorType} at one boundary.

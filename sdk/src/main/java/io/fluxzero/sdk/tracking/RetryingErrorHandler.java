@@ -47,7 +47,8 @@ import static java.lang.String.format;
  *     <li>If all retries fail:
  *       <ul>
  *         <li>And {@code stopConsumerOnFailure} is {@code true}, the original error is rethrown, halting tracking.</li>
- *         <li>Otherwise, the error is logged and passed through {@link RetryConfiguration#getErrorMapper()}.</li>
+ *         <li>Otherwise, the error is logged and passed through the configured
+ *         {@link RetryConfiguration} error mapper.</li>
  *       </ul>
  *     </li>
  *     <li>If the error does not match the filter, no retries are performed and the handler either continues or propagates, based on configuration.</li>

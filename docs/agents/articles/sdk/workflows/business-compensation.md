@@ -1,7 +1,5 @@
 Use this article for ordinary business compensation after cancellation, expiry, rejection, or a late successful component. These are domain outcomes, not `@HandleError` corrections.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Emit effects from transition deltas
 
 Persisted state describes what is true now. It does not by itself prove that a side effect is new. Never send compensation merely because `compensationRequested` is currently `true`: every later event would send it again.

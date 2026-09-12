@@ -79,6 +79,7 @@ class ModelCacheTrackerTest {
             tracker.loaded("sample-1", SampleModel.class, 10L);
             CompletableFuture<TrackModelUpdatesResult> first = awaitNext(polls);
             assertSame(cached, awaitCurrent(tracker, "sample-1", SampleModel.class));
+            assertSame(cached, tracker.peekCurrentVersion("sample-1", SampleModel.class).entity());
             first.completeExceptionally(new IllegalStateException("temporary transport failure"));
             CompletableFuture<TrackModelUpdatesResult> recovery = awaitNext(polls);
             assertNull(tracker.current("sample-1", SampleModel.class));
@@ -166,6 +167,9 @@ class ModelCacheTrackerTest {
                     List.of(new ModelUpdate(ModelUpdateKind.COMMIT, "remote", 0, 11L, null,
                                             List.of(new ModelCommitTargetResult("sample-1", 1L, true))))));
             assertTrue(refreshStarted.await(5, TimeUnit.SECONDS));
+            assertTimeoutPreemptively(Duration.ofSeconds(1),
+                    () -> assertNull(tracker.peekCurrentVersion("sample-1", SampleModel.class)),
+                    "Metadata inspection must not wait for an in-flight value refresh");
             CompletableFuture<Entity<?>> lookup = new CompletableFuture<>();
             Thread reader = Thread.ofVirtual().start(() -> {
                 try {

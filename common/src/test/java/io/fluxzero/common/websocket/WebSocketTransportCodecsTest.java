@@ -136,6 +136,25 @@ class WebSocketTransportCodecsTest {
     private final WebSocketTransportCodec binaryCodec = WebSocketTransportCodecs.binary(objectMapper, payloadCodecs);
 
     @Test
+    void preservesCanonicalHeadsForDirectAndBatchedAliasReads() throws Exception {
+        var result = new GetModelEventsResult(1L, 2L, List.of(), List.of(new ModelEventStream(
+                "alias", new ModelHeadState("canonical", "Root", 0, 2, true, false), List.of())));
+        for (WebSocketTransportCodec codec : List.of(jsonCodec, cborCodec, binaryCodec)) {
+            assertEquals(result, roundTrip(codec, result));
+            assertEquals(new ResultBatch(List.of(result)), roundTrip(codec, new ResultBatch(List.of(result))));
+            var replay = new GetModelEventsResult(2L, 2L, false,
+                    List.of(new ModelEventPayload(2L, new SerializedMessage(
+                            new Data<>(new byte[]{1, 2}, "event", 0, "application/json"), Metadata.empty(),
+                            "event-id", 1234L))),
+                    List.of(new ModelEventStream("alias", result.getStreams().getFirst().getHead(),
+                            List.of(new ModelEventMembership(0, 2, 1, "commit", 0)))));
+            assertEquals(replay, roundTrip(codec, replay));
+            assertEquals(new ResultBatch(List.of(result, replay)),
+                         roundTrip(codec, new ResultBatch(List.of(result, replay))));
+        }
+    }
+
+    @Test
     void forFormatDefaultsToJson() {
         assertEquals(JSON, WebSocketTransportCodecs.forFormat(null, objectMapper).format());
     }

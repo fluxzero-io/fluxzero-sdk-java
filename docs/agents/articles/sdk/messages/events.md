@@ -1,57 +1,36 @@
-# Model Events And Notifications
+Events are for asynchronous reactions. Model and legacy aggregate events normally carry the applied command payload,
+so avoid inventing duplicate past-tense event classes unless there is a separate external fact.
 
-Events are handled asynchronously. Usually the flow is: `Command -> @Apply -> Event payload`, or when an event is
-published explicitly via `Fluxzero.publishEvent(...)`.
+## Model state and event boundaries
 
-#### @HandleEvent
+Directly addressed Models and their parents or further ancestors can be injected as `T` or `Graph<T>`.
+For events/notifications with Model-commit metadata, Fluxzero uses that event's exact historical state and relations.
+Use `@Association("property")` for a different payload/metadata ID or a qualified ancestor path;
+`excludeMetadata = true` excludes metadata lookup; payload IDs and reachable Graph ancestors remain usable.
+An empty `Graph<T>` can represent logical deletion; a non-null `T`
+requires a present value. An ordinary indexed event without a Model boundary resolves directly addressed Models at
+one current pinned boundary, unless an Aggregate-to-Model migration maps it to a historical Model commit.
+Follow `/docs/sdk/models/migration` for explicit migration-following configuration during live catch-up.
 
-Used for side effects like sending emails or updating secondary projections within a specific context.
+Other handler kinds can resolve these parameters when the payload or metadata addresses a Model, using their
+coherent handler load context. Document-authoritative values remain current-only document reads; they are not an
+implicit historical document snapshot. Prefer direct `T` for a value and `Graph<T>` for navigation/history; injected
+Graph reads retain the scoped conflict dependencies documented under `/docs/sdk/models/conflicts`.
 
-[//]: # (@formatter:off)
-```java
-@Component
-@Consumer(name = "analytics")
-class AnalyticsHandler {
-    @HandleEvent
-    void handle(CreateOrder event,
-                Order order,
-                Graph<Order> graph) {
-        // order/graph are exact state after this model event.
-    }
-}
-```
-[//]: # (@formatter:on)
+## Reactions and legacy streams
 
-Directly addressed models and their parents, grandparents or further ancestors can be injected as `T` or `Graph<T>`.
-For events and notifications carrying a model-commit boundary, Fluxzero loads the exact historical model state and
-relations for that event. Use `@Association("property")` to select another payload or metadata ID or to qualify an
-ancestor path; add `excludeMetadata = true` to require the payload. `Graph<T>` can be empty after logical deletion;
-bare non-null `T` only matches a present model. Ordinary indexed events without a model-commit boundary resolve
-directly addressed Models at one current pinned boundary. If an Aggregate-to-Model migration linked that global event,
-the same parameters resolve its exact historical Model boundary. During live catch-up, configure the owning
-`ModelRepository` with `followPublishedEventMigration(theStableConsumerName)`: only a missing mapping consults the
-durable consumer position, waits while it is behind and retries the exact boundary after catch-up.
+Use `@HandleEvent` for side effects, projections, notifications, and follow-up commands. Add a named `@Consumer` when the handler needs its own tracking and retry stream.
 
-The same parameters work in command, query, schedule, result, error, metrics, document, custom and web handlers when
-their payload or metadata addresses at least one model. Those non-event handlers use one current handler load context.
-Event-sourced models share its pinned repository boundary; document-loaded models remain current-only direct-document
-reads.
+Do not put side effects in `@Apply`. Apply methods must be replayable. If an update should trigger email, metrics, or a secondary document, apply the state first and react from an event handler.
 
-#### @HandleNotification
+`Fluxzero.publishEvent(...)` is for explicit side effects and projections. It is not the persisted event-sourcing stream for an aggregate; aggregate history is built from applied updates flowing through the entity apply path.
 
-Enables handling ALL events of a filtered type across all message segments. This is often used for global statistics
-collection or broadcasting updates over WebSockets.
+Use the specialized handlers when the stream is not a normal aggregate event:
 
-[//]: # (@formatter:off)
-```java
-@Component
-class GlobalStatsHandler {
-    @HandleNotification
-    void handle(CompletePayment event) {
-        // Collect statistics globally
-    }
-}
-```
-[//]: # (@formatter:on)
+- `@HandleNotification` reacts to published notifications.
+- `@HandleDocument` reacts to search/document collection updates, usually from a stateful projection or document store.
+- `@HandleError` reacts to handler errors; inject the failed payload with `@Trigger` when retry, compensation, or a correction needs the original command/query/event. Read error corrections for trigger filters, idempotency, replay, and an asynchronous fixture recipe.
 
-<a name="specialized-handlers"></a>
+When testing error handlers, document handlers, or other asynchronous consumers, use `TestFixture.createAsync(...)` so tracking behavior is exercised.
+
+Runtime aggregate events are stored in ordered batches per aggregate ID. Events published with a store-only strategy remain in aggregate history but are not emitted as tracked event messages for normal event consumers.

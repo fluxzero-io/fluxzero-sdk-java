@@ -1,6 +1,4 @@
 This is a curated application-facing symbol map, not a dump of every class shipped in the SDK/common artifacts. Read
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 the linked task article before using advanced symbols.
 
 ## Application, configuration, and messages
@@ -29,6 +27,7 @@ Do not import `io.fluxzero.common.api.Request` for a domain query; that is a run
 | --- | --- |
 | aggregate/entity annotations | `io.fluxzero.sdk.modeling.Aggregate`, `EntityId`, `Member`, `Alias`; `io.fluxzero.sdk.tracking.handling.Association` |
 | entity wrapper | `io.fluxzero.sdk.modeling.Entity` |
+| Model graph and metadata selection | `io.fluxzero.sdk.modeling.Graph`, `Graphs`; `children`, `namedChildren`, `descendants`, `namedDescendants`, `modelName`, `knownType` |
 | legality/apply | `io.fluxzero.sdk.modeling.AssertLegal`, `io.fluxzero.sdk.persisting.eventsourcing.Apply` |
 | update interception | `io.fluxzero.sdk.persisting.eventsourcing.InterceptApply` |
 | event publication/routing | `io.fluxzero.sdk.modeling.EventPublication`, `EventPublicationStrategy`, `AggregateEventRouting` |

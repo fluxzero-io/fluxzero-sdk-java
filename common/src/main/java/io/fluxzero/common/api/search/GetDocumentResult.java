@@ -14,6 +14,7 @@
 
 package io.fluxzero.common.api.search;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.fluxzero.common.api.AbstractRequestResult;
 import io.fluxzero.common.api.modeling.ModelHeadState;
 import lombok.Value;
@@ -48,6 +49,10 @@ public class GetDocumentResult extends AbstractRequestResult {
      */
     ModelHeadState modelHead;
 
+    /** True only when the store verified the actual document body against evidence captured with its Model fence. */
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+    boolean modelStateVerified;
+
     /**
      * The system time (in milliseconds since epoch) at which this result was generated.
      */
@@ -57,9 +62,14 @@ public class GetDocumentResult extends AbstractRequestResult {
         this(requestId, document, null);
     }
 
-    @ConstructorProperties({"requestId", "document", "modelHead"})
     public GetDocumentResult(
             long requestId, SerializedDocument document, ModelHeadState modelHead) {
+        this(requestId, document, modelHead, false);
+    }
+
+    @ConstructorProperties({"requestId", "document", "modelHead", "modelStateVerified"})
+    public GetDocumentResult(
+            long requestId, SerializedDocument document, ModelHeadState modelHead, boolean modelStateVerified) {
         if (modelHead != null && modelHead.isDeleted() != (document == null)) {
             throw new IllegalArgumentException(
                     "Direct Model document presence does not match its durable head");
@@ -67,6 +77,7 @@ public class GetDocumentResult extends AbstractRequestResult {
         this.requestId = requestId;
         this.document = document;
         this.modelHead = modelHead;
+        this.modelStateVerified = modelStateVerified;
     }
 
     /**

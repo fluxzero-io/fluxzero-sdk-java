@@ -95,6 +95,11 @@ class DefaultGenericGatewayTest {
                 .toArray(Message[]::new);
         User user = new User() {
             @Override
+            public String id() {
+                return "tenant-a";
+            }
+
+            @Override
             public String getName() {
                 return "tenant-a";
             }

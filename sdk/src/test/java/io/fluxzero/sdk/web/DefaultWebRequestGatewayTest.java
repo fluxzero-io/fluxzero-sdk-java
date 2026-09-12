@@ -197,6 +197,32 @@ class DefaultWebRequestGatewayTest {
     }
 
     @Test
+    void cancellingBeforeDeferredRedirectProcessingDoesNotSendAnotherRequest() {
+        HttpClient httpClient = mock(HttpClient.class);
+        AtomicReference<Runnable> continuation = new AtomicReference<>();
+        CompletableFuture<HttpResponse<byte[]>> attempt = new CompletableFuture<>() {
+            @Override
+            public <U> CompletableFuture<U> handleAsync(
+                    java.util.function.BiFunction<? super HttpResponse<byte[]>, Throwable, ? extends U> handler,
+                    java.util.concurrent.Executor executor) {
+                return super.handleAsync(handler, continuation::set);
+            }
+        };
+        when(httpClient.sendAsync(any(), anyByteArrayBodyHandler())).thenReturn(attempt);
+        HttpResponse<byte[]> redirect = response(307, "redirect");
+        when(redirect.headers()).thenReturn(HttpHeaders.of(Map.of("Location", List.of("/next")), (k, v) -> true));
+        try (NativeWebRequestClient client = new NativeWebRequestClient(httpClient, new JacksonSerializer())) {
+            CompletableFuture<WebResponse> result = client.send(WebRequest.get("https://example.com/start").build(),
+                    WebRequestSettings.builder().redirectPolicy(RedirectPolicy.SAME_ORIGIN).build());
+            attempt.complete(redirect);
+            assertTrue(result.cancel(true));
+            continuation.get().run();
+            verify(httpClient).sendAsync(any(), anyByteArrayBodyHandler());
+            assertTrue(result.isCancelled());
+        }
+    }
+
+    @Test
     void cancellingNativeSendDuringRetryDelayPreventsNextAttempt() {
         GenericGateway delegate = mock(GenericGateway.class);
         HttpClient httpClient = mock(HttpClient.class);

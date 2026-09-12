@@ -1,7 +1,5 @@
 Use this when a result needs more than one sort key, a stable page order, or a derived technical ordering value.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Declare precedence in query order
 
 Chained sort instructions are applied from left to right. The first `sortBy(...)` is the primary key; later calls only

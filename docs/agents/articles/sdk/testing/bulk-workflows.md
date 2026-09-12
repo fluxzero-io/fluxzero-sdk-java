@@ -1,7 +1,5 @@
 Use this when one public command accepts multiple items, especially imports that create or update more than one aggregate. The test contract must name the consistency and continuation semantics; the word "bulk" does not imply one transaction.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Choose the consistency boundary first
 
 | Shape | Meaning | Required result/test |

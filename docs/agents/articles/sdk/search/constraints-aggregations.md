@@ -1,6 +1,4 @@
 Use this article when a query needs more than a simple exact match and page. Express filtering and aggregation in the
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 Fluxzero search builder so managed storage can execute it and tests can verify the exact constraint tree.
 
 ## Text, equality, range, and existence

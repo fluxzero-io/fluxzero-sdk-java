@@ -1,119 +1,41 @@
-# Runtime Interaction
+Fluxzero apps communicate through the runtime, not by direct app-to-app calls. Use this page when a feature crosses handler, consumer, namespace, or replay boundaries.
 
-Fluxzero uses request/result logs in the runtime. Apps do not call each other directly.
+SDK-controlled Model retry/reevaluation and migration continuations use named virtual workers. CPU-bound bulk serialization, packed Model-event decoding and multi-Model replay use a shared, SDK-owned CPU pool, not the JVM common pool. Existing batching, admission and ordering limits still apply; a virtual thread is not a concurrency limit. Native/forwarded HTTP response processing uses explicit workers too. This does not replace application-supplied executors or the caller-controlled `AggregateEventStream.parallel()` contract. The JDK HTTP/WebSocket implementation can still use its own internal common pool for transport completion; explicit HTTP executors do not eliminate that JDK dependency.
 
-1. App A sends command `C`.
-2. SDK in App A sets `source = clientId(A)` on the request message.
-3. A tracker in App B consumes a batch containing `C`.
-4. A handler in App B handles `C`.
-5. App B appends the handler result to the result log; SDK sets `target = clientId(A)`.
-6. Request consumer in App A tails the result log and receives the result.
-7. App A completes the pending command call.
+Command/result flow:
 
-```mermaid
-sequenceDiagram
-    participant A as "App A (clientId=A)"
-    participant R as "Fluxzero Runtime"
-    participant B as "App B (clientId=B)"
+1. App A sends a command.
+2. The SDK marks the request source.
+3. App B consumes and handles the command.
+4. App B appends a result targeted back to App A.
+5. App A's request consumer receives the result and completes the pending call.
 
-    A->>R: sendCommand(C) + source=A
-    R-->>B: batch to consumer/tracker includes C
-    B->>B: handler processes C
-    B->>R: append result + target=A
-    R-->>A: request consumer receives result for A
-    A->>A: complete pending command
-```
+For command handlers that update aggregates, the SDK waits for asynchronous after-handler aggregate commits by default before returning the handler result. A command followed by a query can often read the committed aggregate/search state. Do not rely on this for downstream projections or event-handler side effects; return needed state from the command or wait for the projection's own signal.
 
-### Command Followed by Query
+Handler delivery is effectively at-least-once. A tracker fetches a batch, processes it, then commits position. If it crashes before committing, some messages can be processed again.
 
-For Models whose persistence set contains `DOCUMENT`, the direct document is part of Model-commit completion.
-A command followed by a direct Model query therefore reads committed state. Whole-Graph projections and documents
-written by event handlers remain asynchronous unless their own completion boundary is awaited.
+Agent defaults:
 
----
+- Make external side effects idempotent or compensatable. Emit ordinary business compensation from a newly persisted false-to-true intent, not whenever an old flag remains true.
+- Treat replays as intentional duplicate delivery.
+- Do not handle the same command type in multiple result-producing consumers unless the user explicitly asks for that advanced pattern.
+- Do not use `exclusive = false` on command handlers by default.
 
-<a name="delivery-semantics"></a>
-
-## Delivery
-
-Fluxzero aims to prevent duplicates, but the effective delivery contract for handlers is **at-least-once**.
-
-Tracking loop (conceptually):
-
-1. Get batch.
-2. Process batch.
-3. Commit tracking position in runtime.
-
-If a consumer crashes before step 3, part of the batch can be handled again.
-
-### Agent Rules
-
-- Handlers with external side effects MUST be idempotent or compensatable.
-- Replays/resetting consumer position intentionally re-deliver messages.
-- If replay impact is unclear, ask the user before executing replay changes.
-
-```mermaid
-flowchart TD
-    A["Fetch batch"] --> B["Process messages"]
-    B --> C["Commit consumer position"]
-    B --> X["Crash before commit"]
-    X --> A
-```
-
----
-
-<a name="scaling-model"></a>
-
-## Consumers
+Scaling terms:
 
 - Segment space is `[0, 128)`.
-- Each message is hashed to one segment via routing key.
-- Per consumer, each segment is assigned to exactly one active tracker.
-- If you run multiple instances of the same app, trackers from all instances share that consumer's segment space.
+- A message is hashed to one segment through its routing key.
+- For one consumer, each segment belongs to one active tracker.
+- Multiple app instances sharing the same consumer divide the same segment space across their trackers.
+- Equal routing keys are ordered within the same named consumer. The same key in another consumer has an independent
+  position and claim, so it does not extend that serialization boundary.
 
-Example:
+Boundaries:
 
-- 2 app instances
-- Same consumer config with `threads = 3`
-- Total active trackers for that consumer = 6
-- Segment space is divided over those 6 trackers
+- Application name scopes generated default consumer names.
+- Consumer name owns distribution, replay position, and claiming.
+- Namespace is environment or tenant isolation. Assume cross-namespace access is off unless explicitly configured and authorized.
 
-```mermaid
-flowchart LR
-    M["Message"] --> H["Hash routing key"]
-    H --> S["Segment in [0,128)"]
-    S --> T["Assigned tracker for consumer"]
+Replay safety depends on side effects. Before adding replay logic, identify the consumer, handler, side effect type, idempotency risk, replay window, live-processing plan, and success signal. Ask the user before replaying handlers with unclear external or business impact.
 
-    subgraph C["Consumer Y (shared across app instances)"]
-      T1["Tracker 1"]
-      T2["Tracker 2"]
-      T3["Tracker 3"]
-      T4["Tracker 4"]
-      T5["Tracker 5"]
-      T6["Tracker 6"]
-    end
-
-    T --> T1
-    T --> T2
-    T --> T3
-    T --> T4
-    T --> T5
-    T --> T6
-```
-
-### Important Clarification
-
-If multiple **different consumers** handle the same command type, that command can be handled multiple times and multiple
-results can be produced.
-
-Current request/result behavior:
-
-- The first result appended to the runtime result log (lowest insertion index) is delivered first and used to complete the
-  waiting request.
-- Later results for the same request are currently ignored by the SDK.
-
-This multi-consumer same-command setup is an advanced pattern and is discouraged by default unless explicitly requested.
-
----
-
-<a name="boundaries"></a>
+Use Fluxzero web request/proxy handling for outgoing integrations by default. Read one-way outbound HTTP for absolute URLs, explicit JSON content type, `WebRequestGateway.sendAndForget`, and `SENT` versus `STORED`. Direct networking can be used when explicitly required, but keep idempotency and tracking implications visible in the code review.

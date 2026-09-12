@@ -1,6 +1,4 @@
 `Fluxzero.get().client()` exposes the configured low-level `Client`. It is a supported advanced boundary for runtime
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 capabilities that have no complete application-level facade, but it also makes partial and destructive operations
 possible. Prefer `aggregateRepository()`, `documentStore()`, message gateways, schedulers, and `Fluxzero.search(...)`
 whenever they express the full intent.

@@ -50,7 +50,7 @@ import static io.fluxzero.common.reflection.ReflectionUtils.getAnnotation;
  *
  * @see DispatchInterceptor
  * @see ConsistentHashing
- * @see SerializedMessage#setSegment(Integer)
+ * @see SerializedMessage
  */
 @Slf4j
 public class MessageRoutingInterceptor implements DispatchInterceptor {

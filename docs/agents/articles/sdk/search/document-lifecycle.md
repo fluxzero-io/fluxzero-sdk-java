@@ -1,6 +1,4 @@
 Search documents represent current indexed state, not an immutable history. Choose identity, indexed time, retention,
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 update observation, rebuild, and deletion as separate contracts.
 
 ## Define indexed time deliberately

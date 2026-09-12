@@ -1,91 +1,16 @@
-# Recipe: Add A Model Command
+To add a command:
 
-Choose the owning Model lifecycle, typed IDs and invariants. Put pure `@Apply` methods on the command; automatic handling performs the commit. Add a handler only for orchestration.
+1. Name the payload imperatively, for example `CreateProject`.
+2. Include a typed Model ID and validated details.
+3. Use automatic Model command handling; add `@HandleCommand` only for real orchestration.
+4. Add `@Apply` methods for create/update/delete state.
+5. Add `@AssertLegal` for business rules and ownership.
+6. Write a `TestFixture` scenario before adding an endpoint.
 
-Creation:
+Generate IDs outside `@Apply`. Use `@Association` only for ambiguous same-type targets or paths. Use `@Parent` for independent children and `@Member` only for deliberately root-owned state.
 
-```java
-public record CreateProject(ProjectId projectId,
-                            ProjectDetails details) {
-    @Apply
-    Project apply(Sender sender) {
-        return new Project(
-                projectId, details, sender.userId());
-    }
-}
-```
+Do not add the sending user's ID to the payload. Inject `Sender` in the handler or legal assertion and keep authorization checks close to the command behavior.
 
-Update:
-
-```java
-public record RenameProject(ProjectId projectId,
-                            String name) {
-    @Apply
-    Project apply(Project project) {
-        return new Project(
-                projectId,
-                project.details().withName(name),
-                project.ownerId());
-    }
-}
-```
-
-Logical deletion:
-
-```java
-public record DeleteProject(ProjectId projectId) {
-    @Apply
-    Project apply(Project project) {
-        return null;
-    }
-}
-```
-
-Returning `null` deletes the current value but still stores/publishes the update according to the model policy. Do not
-use `void` for model applies.
-
-`@Apply` compatibility checks are inferred:
-
-- A factory without current state requires the model to be absent.
-- A non-null current-model parameter requires it to exist.
-- `@Nullable` allows either state.
-- Use `disableCompatibilityCheck = true` only for deliberate advanced behavior.
-
-Fluxzero automatically handles commands with applicable model applies. Do not add a pass-through `@HandleCommand`.
-Use an explicit handler only for real orchestration:
-
-```java
-@HandleCommand
-CompletableFuture<Void> handle(ImportProject command) {
-    // Orchestrate external work, then execute one model commit.
-    return Fluxzero.assertAndApplyAsync(command);
-}
-```
-
-Fluxzero commits automatically. Only when a later step in the same handling context must force an already produced
-automatic Model commit to durability, use `Fluxzero.commit()` and compose on its returned `CompletableFuture<Void>`.
-It is a release of the existing commit, not another mutation path: repeated calls share its completion, automatic
-commit remains enabled, and a context without pending changes completes without Runtime transport. Do not call or wait
-on it inside `@Apply`; the apply has not returned its change yet.
-
-## Verify behavior
-
-Cover model behavior through commands and observable results:
-
-```java
-TestFixture.create()
-        .givenCommands(
-                new CreateProject(projectId, details))
-        .whenCommand(
-                new RenameProject(projectId, "New"))
-        .expectEvents(
-                new RenameProject(projectId, "New"))
-        .expectThat(fluxzero ->
-                assertEquals(
-                        "New",
-                        Fluxzero.loadModel(projectId)
-                                .get().details().name()));
-```
-
-For relationship and persistence changes, also cover direct search, modelstream reconstruction, logical/hard deletion,
-event-boundary injection and a real runtime integration flow.
+One payload may update several Models atomically. Use Model/Graph injected read dependencies for invariants; an
+arbitrary external search is not automatically a protected read set. Explicit routing still takes precedence over
+inferred single-target routing.

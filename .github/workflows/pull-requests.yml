@@ -30,9 +30,6 @@ jobs:
           java-version: '25'
           cache: 'maven'
 
-      - name: Test Maven Central publication recovery
-        run: bash .github/scripts/recover-central-publication.test.sh
-
       - name: Test release version policy
         run: bash .github/scripts/resolve-release-version.test.sh
 
@@ -43,6 +40,11 @@ jobs:
 
       - name: Run Maven build
         run: ./mvnw -B install
+
+      - name: Check executor isolation
+        run: |
+          python3 .github/scripts/check-executor-isolation.test.py
+          python3 .github/scripts/check-executor-isolation.py
 
       - name: Verify standard Maven publication and release attachments
         run: |

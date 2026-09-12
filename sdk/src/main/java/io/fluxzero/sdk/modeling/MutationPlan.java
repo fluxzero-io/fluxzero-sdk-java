@@ -533,7 +533,7 @@ public final class MutationPlan {
         private final CopyOnWriteArrayList<Class<?>> knownModelTypes = new CopyOnWriteArrayList<>();
         private final ConcurrentHashMap<Class<?>, MutationPlan> definitions = new ConcurrentHashMap<>();
         private volatile CachedDefinition recentDefinition;
-        private volatile boolean registeredModelTypesDiscovered;
+        private volatile boolean indexedModelTypesDiscovered;
 
         Catalog(
                 Compiler compiler,
@@ -547,7 +547,7 @@ public final class MutationPlan {
         }
 
         List<Class<?>> knownModelTypes() {
-            discoverRegisteredModelTypes();
+            discoverIndexedModelTypes();
             return List.copyOf(knownModelTypes);
         }
 
@@ -662,18 +662,16 @@ public final class MutationPlan {
                    != AutomaticModelHandling.DISABLED;
         }
 
-        private void discoverRegisteredModelTypes() {
-            if (registeredModelTypesDiscovered) {
+        private void discoverIndexedModelTypes() {
+            if (indexedModelTypesDiscovered) {
                 return;
             }
             synchronized (knownModelTypes) {
-                if (registeredModelTypesDiscovered) {
+                if (indexedModelTypesDiscovered) {
                     return;
                 }
-                ReflectionUtils.getRegisteredTypes().stream()
-                        .filter(type -> ReflectionUtils.getTypeMetadata(type).typeAnnotation(Model.class) != null)
-                        .forEach(knownModelTypes::addIfAbsent);
-                registeredModelTypesDiscovered = true;
+                knownModelTypes.addAllAbsent(ModelTypes.discover());
+                indexedModelTypesDiscovered = true;
             }
         }
 

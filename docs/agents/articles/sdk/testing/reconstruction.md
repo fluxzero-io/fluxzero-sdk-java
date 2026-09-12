@@ -1,6 +1,4 @@
 Use reconstruction tests when behavior depends on aggregate events, stateful documents, associations, aliases, or
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 schedules that are treated as durable inputs. Continuing with `.andThen()` on one fixture is useful multi-step behavior
 coverage, but it does not cross a reconstruction boundary because the same registry, stores, and caches remain alive.
 

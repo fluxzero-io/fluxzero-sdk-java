@@ -157,6 +157,8 @@ Fluxzero.publishResult(new CommandResult(commandId, resultPayload));
 ## Schedules
 
 Use schedules to trigger schedule messages in the future or periodically.
+Prefer `ScheduleId.of(type, id)` when different schedule categories can share a domain ID, and reuse the same typed
+value for scheduling, lookup and cancellation. Fluxzero persists its stable `type:id` representation.
 
 **Example: One-off Schedule**
 

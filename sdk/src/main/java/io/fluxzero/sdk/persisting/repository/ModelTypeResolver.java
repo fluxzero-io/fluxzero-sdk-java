@@ -16,6 +16,8 @@
 
 package io.fluxzero.sdk.persisting.repository;
 
+import java.util.Optional;
+
 /** Resolves application-scoped logical Model names in both directions. */
 public interface ModelTypeResolver {
 
@@ -24,4 +26,12 @@ public interface ModelTypeResolver {
 
     /** Resolves a stored logical name to a registered concrete Model type. */
     Class<?> modelType(String modelName, String modelId);
+
+    /**
+     * Looks up a logical name without interpreting missing local registration as corrupt stored data. Implementations
+     * that do not support unknown types retain their strict resolution; application or registry failures still fail.
+     */
+    default Optional<Class<?>> knownModelType(String modelName, String modelId) {
+        return Optional.of(modelType(modelName, modelId));
+    }
 }

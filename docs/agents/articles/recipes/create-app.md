@@ -1,82 +1,15 @@
-# Recipe: Create A Model Application
+Start from an existing Fluxzero project or generate one with the Fluxzero CLI. For a new workspace, follow CLI project generation, select the Java or Kotlin template and Maven or Gradle, then validate the generated build before writing domain code. The starter is not the product: replace its generic behavior, names, routes, and tests with the requested application.
 
-Generate the Java or Kotlin project with `fz init`. Read the project setup and local development articles for wrapper, Java and runtime setup. Choose independent Model lifecycles, commands, query contracts and endpoint DTOs.
+Then use a minimal package layout:
 
-1. Implement model state as immutable records or value objects.
-2. Put action-specific `@AssertLegal`, `@InterceptApply` and `@Apply` methods on the command/update payload by default.
-3. Keep `@Apply` pure and deterministic. It is reused during event sourcing.
-4. Do not load, search, publish or perform I/O from `@Apply`.
-5. Choose every model boundary by lifecycle first. State that can be created, changed, retained, deleted, or whose
-   history matters independently is a separate `@Model`, even when it is normally placed in a parent's collection.
-6. Treat a meaningful identity, separate retention, or independent updates as evidence for that boundary, not as
-   competing criteria. A child without a globally unique functional ID can use `@EntityId(parentScoped = true)`.
-7. Use `@Member` only when creation, every change, history, stream, document, cache, retention, and deletion all
-   deliberately belong to the root. Collection shape, searchability, storage choice, and update frequency never make
-   independently living state a member.
-8. Use typed `Id<T>` values. The exact `Id.toString()` is the persisted model identity.
+- `...domain.api` for command/query payloads and typed IDs.
+- `...domain.api.model` for Models and value objects.
+- `...domain` for handlers and endpoints.
 
-```java
-@Model(persistence = {ModelPersistence.EVENT_SOURCED, ModelPersistence.DOCUMENT})
-public record Project(
-        @EntityId ProjectId projectId,
-        ProjectDetails details,
-        UserId ownerId) {
-}
-```
+Keep the generated Spring Boot main class and package-level registration/security annotations. Use the Fluxzero dev
+server for the local runtime instead of adding a test-classpath bootstrap. Then create one Model, one typed ID, one
+command, and one behavior test. Do not start by creating HTTP endpoints.
 
-Assume conventional typed `ProjectId` and `ProjectDetails` value types; do not expand obvious ID or details
-definitions unless the user asks for them.
+Keep the first slice small: create a thing, load or search it, and verify the behavior with `TestFixture`. Add authentication only if the user needs accounts, ownership, permissions, teams, or protected demo endpoints.
 
-Important settings:
-
-- `name`: durable logical Model type name; defaults to the concrete class's simple name. Keep an explicit value stable
-  across Java class/package renames. It is separate from serializer payload types and has no aliases or FQN fallback.
-  `fluxzero.model.namePrefix` is prepended literally for applications sharing a namespace (`billing` + `Invoice` =
-  `billingInvoice`). Changing either value after data exists requires an application-managed data transition.
-- `persistence`: selects a non-empty set of durable representations:
-  - `{EVENT_SOURCED}` (default): reconstruct from Model events, without a direct document.
-  - `{EVENT_SOURCED, DOCUMENT}`: reconstruct from events and also maintain a current document.
-  - `{DOCUMENT}`: load authoritative current state from the current document.
-- `ignoreUnknownEvents`: deliberately tolerates unhandled stored events during event-sourced reconstruction.
-- `document`: optional `@DocumentProjection` configuration for the direct collection, timestamp paths, and public
-  searchability. It is valid only when `persistence` contains `DOCUMENT`; use `searchable = false` for a document that
-  should remain available by Model ID, alias, parent relation and Graph composition without entering typed search.
-- `eventPublication`: controls whether unchanged transitions create an event.
-- `publicationStrategy`: `DEFAULT`, `STORE_AND_PUBLISH`, `STORE_ONLY` or `PUBLISH_ONLY`.
-- `snapshotPeriod` and `maxSnapshotCount`: event-sourcing optimizations.
-- `checkpointPeriod`: bounds repeated replay work within one reconstruction session.
-- `cached` and `cachingDepth`: current and previous revisions retained in the SDK cache.
-- `conflictPolicy`: `ACCEPT`, `RETRY`, `FAIL` or inherited `DEFAULT` for concurrent writes.
-- `commitPolicy`: controls commit timing and completion-phase concurrency; normally keep `DEFAULT`.
-- `automaticHandling`: opt out when an explicit command handler must call `Fluxzero.assertAndApply`.
-- `materializeGraph`: enables the optional durable whole-tree read model.
-- `graphProjection`: optional advanced `@GraphProjection` configuration; its collection defaults to the resolved direct
-  Model collection plus `-graphs` when a direct document exists, or `<logical Model name>-graphs` otherwise, and
-  materializes the complete finite graph without implicit size limits.
-
-Persistence does not control event storage or publication. Those remain owned by `eventPublication`,
-`publicationStrategy` and per-apply overrides. Internal Graph-component documents are also orthogonal: they neither
-make an `EVENT_SOURCED` Model directly searchable nor change its load path. Event-sourcing-only options such as
-`ignoreUnknownEvents`, snapshots and replay checkpoints are rejected on `DOCUMENT` Models.
-
-## First test
-
-Cover model behavior through commands and observable results:
-
-```java
-TestFixture.create()
-        .givenCommands(
-                new CreateProject(projectId, details))
-        .whenCommand(
-                new RenameProject(projectId, "New"))
-        .expectEvents(
-                new RenameProject(projectId, "New"))
-        .expectThat(fluxzero ->
-                assertEquals(
-                        "New",
-                        Fluxzero.loadModel(projectId)
-                                .get().details().name()));
-```
-
-For relationship and persistence changes, also cover direct search, modelstream reconstruction, logical/hard deletion,
-event-boundary injection and a real runtime integration flow.
+Keep the finished surface equally focused. Implement only product-requested commands, queries, endpoints, roles, and reusable abstractions. Do not add speculative role mutation, admin operations, custom wrapper annotations used once, or unrelated framework demonstrations. Planning checklists may guide the build, but do not leave backlog/planning artifacts in the delivered application unless the user requested them.

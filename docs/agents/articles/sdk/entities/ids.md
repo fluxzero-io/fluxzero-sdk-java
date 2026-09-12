@@ -1,7 +1,5 @@
 Use typed IDs instead of raw strings at domain boundaries.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ```java
 public final class ProjectId extends Id<Project> {
     public ProjectId(String id) {

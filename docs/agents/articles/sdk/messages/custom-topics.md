@@ -1,6 +1,4 @@
 Use a custom topic when a durable message flow does not fit commands, queries, aggregate events, metrics, schedules, or
-
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
 web requests and benefits from its own retention, replay, and consumer positions. Do not use a custom topic merely to
 avoid defining the correct domain message type.
 

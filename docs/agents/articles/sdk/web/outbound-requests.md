@@ -1,7 +1,5 @@
 Use `WebRequestGateway` for auditable outbound HTTP through the Fluxzero runtime proxy. One-way processor submissions and compensations are messages; they are not inbound endpoint handlers.
 
-Examples using `@Aggregate`, `Entity<T>` or aggregate repository methods on this page cover existing 1.x persisted state. For new 2.x domain state, use Models (`/docs/sdk/entities`). Migration requires an explicit data plan.
-
 ## Build an exact one-way POST
 
 The proxy forwards only absolute `http://` or `https://` URLs. Validate required base URLs at configuration startup, resolve the operation path, and preserve the typed body contract.

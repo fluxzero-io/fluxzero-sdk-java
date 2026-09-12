@@ -1895,10 +1895,22 @@ public class ReflectionUtils {
     /**
      * Returns the loadable types from the generated application type registry.
      * <p>
-     * The result is resolved once and uses the same class cache as {@link #getClass(String)}.
+     * The result is resolved once and uses the same class cache as {@link #classForName(String)}.
      */
     public static List<Class<?>> getRegisteredTypes() {
         return registeredTypesSupplier.get();
+    }
+
+    /**
+     * Loads an exact binary class name without executing its static initializer or resolving serialization aliases.
+     * Uses the supplied index-owning classloader. Intended for generated structural indexes;
+     * the JVM owns class identity and {@link #getTypeMetadata(Class)} owns subsequent structural reflection.
+     *
+     * @throws ClassNotFoundException when the named class is unavailable
+     */
+    public static Class<?> loadClassWithoutInitialization(String binaryName, ClassLoader classLoader)
+            throws ClassNotFoundException {
+        return Class.forName(binaryName, false, classLoader);
     }
 
     @SneakyThrows

@@ -1,65 +1,47 @@
-# Exact Model Lookup
+Use this for a public query that retrieves one event-sourced aggregate by its primary ID. This is not a search/list query and does not require a searchable projection.
 
-Use the typed ID with `Fluxzero.loadModel(id).get()`. Keep exact identity lookups separate from content search. Define absence explicitly in the query contract.
+## Load the aggregate by its primary ID
 
-<a name="handlequery"></a>
+Declare the unwrapped public view type and map persisted aggregate state without applying an update or publishing an effect:
 
-Used for read-only requests. Usually self-handling. Queries MUST implement `Request<T>` to define the return type.
-
-Prefer creating a dedicated query payload (with `@HandleQuery`) for data retrieval or computation instead of static utility methods. This keeps behavior explicit, reusable via messaging, and easy to test with `TestFixture`.
-
-**Example: Self-Handling Query**
-
-[//]: # (@formatter:off)
 ```java
-public record GetUserProfile(@NotNull UserId userId) implements Request<UserProfile> {
+import io.fluxzero.sdk.Fluxzero;
+import io.fluxzero.sdk.modeling.Entity;
+import io.fluxzero.sdk.tracking.handling.HandleQuery;
+import io.fluxzero.sdk.tracking.handling.Request;
+
+public record GetAssetJob(AssetJobId assetJobId) implements Request<AssetJobView> {
     @HandleQuery
-    UserProfile handleQuery() {
-        return Fluxzero.loadModel(userId).get();
+    AssetJobView handle() {
+        Entity<AssetJob> loaded = Fluxzero.loadAggregate(assetJobId);
+        AssetJob job = loaded.get();
+        return job == null ? null : AssetJobView.from(job);
     }
 }
 ```
-[//]: # (@formatter:on)
 
-**Memoization**
+`Fluxzero.loadAggregate(assetJobId)` is the exact primary-ID path. When the aggregate also has aliases, make `AssetJobId` extend `Id<AssetJob>` with a disjoint internal repository prefix such as `asset-job-id-`. Constructing `AssetJobId` from the public value then performs the translation consistently for start, get, cancel, expiry, and internal transitions. Do not concatenate repository prefixes at query call sites. Do not use `Fluxzero.loadEntity(aliasKey)` for this query; that API deliberately accepts aliases and can therefore select by a secondary key. Do not substitute `Fluxzero.getDocument(...)` unless the state owner is actually a `@Stateful` document or an intentionally indexed projection.
 
-For self-handling commands or queries, use `Fluxzero.memoize(...)` or `Fluxzero.memoizeIfAbsent(...)` for lightweight
-runtime caching. Values are scoped to the current `Fluxzero` instance and, by default, to the calling class.
+Keep `Request<AssetJobView>`, even though the handler can return `null` for an unknown ID. `Request<Optional<AssetJobView>>` is invalid because Fluxzero unwraps handler `Optional` values before validating the request result type. Read query result contracts for the equivalent `Optional<AssetJobView>` handler form.
 
-**Example: Standalone Query Handler**
+The view should expose only the promised public fields. For a durable coordinator, include its accepted request values, creation/deadline timestamps, stable component references and statuses, terminal status, and compensation-requested flags. A terminal aggregate remains loadable only when its terminal `@Apply` transitions retain a non-null aggregate. Recorded events alone do not guarantee a present aggregate: replaying an `@Apply` method that returns `null` yields an empty entity. Do not return `null` from a terminal transition when the public contract requires later lookup.
 
-Queries can also be handled in a separate component. Adding `@LocalHandler` ensures the query is handled synchronously
-in the publication thread. Without `@LocalHandler`, a standalone handler defaults to **tracking** (asynchronous).
+## Prove present, absent, terminal, and reconstructed lookup
 
-[//]: # (@formatter:off)
 ```java
-@Component
-@LocalHandler
-class UserQueryHandler {
-    @HandleQuery
-    UserProfile handle(GetUserProfile query) {
-        return Fluxzero.loadModel(query.userId()).get();
-    }
-}
+fixture.givenAppliedEvents(assetJobId, recordedStart, recordedTerminalDecision)
+        .whenQuery(new GetAssetJob(assetJobId))
+        .expectResult((AssetJobView view) ->
+                view.assetJobId().equals(assetJobId)
+                && view.status() == AssetJobStatus.FAILED
+                && view.artworkCancellationRequested());
+
+TestFixture.create()
+        .whenQuery(new GetAssetJob(new AssetJobId("missing")))
+        .expectNoResult();
 ```
-[//]: # (@formatter:on)
 
-Use `@LocalOnly` sparingly on a payload or package when external publication would cross a security boundary. It invokes
-local handlers only and suppresses `logMessage`; an unhandled request returns a failed future while an unhandled
-non-request completes normally. Parent packages include child packages and `@LocalOnly(false)` restores normal fallback
-for a more specific package or payload type.
-
-> **Passive Listening**: All requests (commands, queries, web requests) can be handled passively using e.g.
-`@HandleQuery(passive = true)`, meaning results won't be published. This is useful for auditing or logging without
-> interfering with the primary request flow.
-
-> **Expired Requests**: `skipExpiredRequests` controls whether an indexed request may be skipped when its effective
-> timeout already expired before handler invocation. Commands default to `false`; queries and HTTP web handlers default
-> to `true`. Skipped requests publish `IgnoreMessageEvent` metrics instead of handler metrics.
-
-**Advanced Tip (Rare): Incremental Identifiers**
-
-If random IDs are not acceptable, implement incremental ID allocation as a dedicated query backed by persisted counter
-state. For the full consumer-pattern details, see Tracking: Incremental Identifiers (`/docs/sdk/tracking`).
-
-<a name="events-notifications"></a>
+Use a new default fixture for the synthetic reconstruction row and seed the recorded aggregate events before querying.
+That proves lookup from supplied history, not persistence survival. Test every terminal outcome that the public contract
+must retain. `expectNoResult()` is ordinary successful absence; a handler exception belongs under
+`expectExceptionalResult(...)`.
