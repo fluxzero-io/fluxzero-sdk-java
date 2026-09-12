@@ -41,13 +41,7 @@ cd fluxzero-sdk-java
 ./mvnw -B install
 ```
 
-For a focused SDK test run:
-
-```shell
-./mvnw -pl sdk -am test
-```
-
-The main modules are `sdk`, `common`, `test-server`, `proxy`, and `fluxzero-bom`. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
+Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
 
 ## Contributing
 
