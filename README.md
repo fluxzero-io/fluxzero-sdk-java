@@ -2,7 +2,7 @@
 
 # Fluxzero Java SDK
 
-Build product behavior on [Fluxzero](https://fluxzero.io), the European cloud for AI-built apps. The Java SDK gives Java and Kotlin applications one programming model for state, messaging, validation, authorization, scheduling, and web flows, so developers and coding agents can stay focused on the product.
+The Java and Kotlin SDK for [Fluxzero](https://fluxzero.io).
 
 For a short overview of capabilities, see the [cheatsheet](docs/cheatsheet.pdf).
 
