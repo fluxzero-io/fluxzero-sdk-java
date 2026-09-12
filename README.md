@@ -5,11 +5,11 @@
 This is the SDK for building applications on [Fluxzero](https://fluxzero.io). It supports both Java and Kotlin.
 
 [![Build](https://github.com/fluxzero-io/fluxzero-sdk-java/actions/workflows/deploy.yml/badge.svg)](https://github.com/fluxzero-io/fluxzero-sdk-java/actions)
-[![Packages](https://img.shields.io/badge/packages-releases-blue)](https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-bom/)
+[![Packages](https://img.shields.io/badge/packages-releases-blue)](https://packages.fluxzero.io)
 [![Javadoc](https://img.shields.io/badge/javadoc-main-blue)](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 
-[Documentation](https://fluxzero.io/docs) · [Get started](https://fluxzero.io/get-started) · [Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) · [Packages](https://packages.fluxzero.io/maven/io/fluxzero/fluxzero-bom/) · [Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases)
+[Documentation](https://fluxzero.io/docs) · [Get started](https://fluxzero.io/get-started) · [Javadoc](https://fluxzero-io.github.io/fluxzero-sdk-java/javadoc/apidocs/) · [Packages](https://packages.fluxzero.io) · [Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases)
 
 ## Build product behavior
 
