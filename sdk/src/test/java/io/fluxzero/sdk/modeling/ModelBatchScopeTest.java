@@ -740,6 +740,36 @@ class ModelBatchScopeTest {
     }
 
     @Test
+    void capturedSnapshotPreservesAliasChangesWithoutDependingOnUninspectedValues() {
+        AliasModel before = new AliasModel("model-1", "old", 1);
+        AliasModel after = new AliasModel("model-1", "new", 2);
+        Entity<AliasModel> durable = entity(before);
+        Entity<AliasModel> primary = entity(new AliasModel("new", "primary", 7));
+        AtomicReference<CompletableFuture<Object>> producer = new AtomicReference<>();
+        AtomicReference<CompletableFuture<Void>> barrier = new AtomicReference<>();
+        DeserializingMessage.forEachInBatch(List.of(message("producer"), message("consumer")), current -> {
+            if (DeserializingMessage.getMessageBatchIndex() == 0) {
+                producer.set(stagePending(null, evaluation(current, before, after)));
+            } else {
+                ModelBatchScope.Snapshot snapshot = ModelBatchScope.snapshot(null);
+                assertEquals(after, snapshot.values().get("model-1").get());
+                assertTrue(Invocation.resultPublicationBarrier(current).isDone(), "Capturing is not reading");
+                assertSame(primary, snapshot.overlay("new", AliasModel.class, primary));
+                assertTrue(Invocation.resultPublicationBarrier(current).isDone(), "Unrelated primary wins without dependency");
+                assertEquals(after, snapshot.overlay("model-1", AliasModel.class, durable).get());
+                assertEquals(after, snapshot.overlay("new", AliasModel.class, durable).get());
+                assertTrue(snapshot.overlay("old", AliasModel.class, durable).isEmpty());
+                barrier.set(Invocation.resultPublicationBarrier(current));
+                assertFalse(barrier.get().isDone());
+                producer.get().complete(null);
+                assertEquals(after, snapshot.overlay("model-1", AliasModel.class, durable).get(),
+                             "A captured view does not change when its pending producer becomes durable");
+            }
+        });
+        assertTrue(barrier.get().isDone());
+    }
+
+    @Test
     void pendingValuesDoNotCrossOrderedRoutingSegments() {
         AliasModel before = new AliasModel("model-1", "old", 1);
         AliasModel after = new AliasModel("model-1", "new", 2);

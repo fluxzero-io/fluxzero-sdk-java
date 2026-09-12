@@ -3560,6 +3560,42 @@ multi-model snapshot. Supporting document-based Graph mutations would additional
 strategy through the complete evaluation and retries. Ordinary `loadModel`, `loadGraph` and `loadCurrentGraph`
 retain their existing authoritative/replay contracts; sharing only Model classes does not guarantee replay compatibility.
 
+### Selective Graph navigation across applications
+
+Use `children(path)`, `children(path, modelName)`, or `namedChildren(modelName)` for metadata-first
+selection returning `List<Graph<?>>`. The corresponding `descendants`/`namedDescendants` methods traverse
+deeper placements. Each accepts a final `boolean knownOnly`, defaulting to `true`: this selects only locally
+known Model types, not necessarily every stored child. Pass `false` when a quota or inventory must include
+unknown types:
+
+```java
+var reservations = graph.namedChildren("stock-reservation", false);
+int count = reservations.size(); // No child values or historical events are loaded.
+```
+
+Names are exact resolved logical Model names, including any configured prefix, not serializer aliases or
+Java supertypes. The same name in two applications denotes the same shared contract, not separate ownership.
+Counting remains metadata-only even when that name is known locally but historical event classes are unavailable.
+`modelName()` exposes the logical name; `knownType()` is empty for a locally unknown Model. Such nodes retain
+IDs and relationship navigation, but reading their type/value/history or updating them fails explicitly.
+Unknown does not mean absent or deleted. A known class likewise does not suppress replay or application errors.
+
+Class-based selection matches locally known assignable types only, including when querying `Object.class`.
+Unknown intermediate nodes do not hide known descendants. Direct child paths are exact (`null` means pathless);
+descendant paths are root-relative slash-separated paths (`null` means all paths). Counts count placements:
+a shared Model reached through different graph paths can occur more than once.
+
+Selections share a pinned boundary and preserve injected Graph relationship dependencies, including empty
+results, add/remove/reparent and retries. Values are reconstructed only when requested at that boundary; no
+automatic current-state fallback or unknown-event skipping occurs. Full Graph materialization/serialization
+still requires the contracts for the values being materialized. Custom repositories without metadata navigation
+retain their existing loading behavior and cannot promise unknown-type-safe selection.
+
+Root identity is a separate prerequisite: an unresolved root whose type declares `@Alias` can still require
+its authoritative root lookup/replay, even if the supplied String happens to be its canonical ID. Use an
+already resolved Graph or `Graphs.lazyRepositoryId(canonicalId, Root.class, repository)` when the exact
+persisted ID is known and root replay is unavailable. Root lookup failures remain errors, not empty children.
+
 ### Combining payload and Model handlers
 
 Action-specific logic normally belongs on the payload. A Model may additionally own cross-cutting state logic that

@@ -77,12 +77,20 @@ import static io.fluxzero.common.api.search.ModelGraphComposition.UNBOUNDED;
  * persist those evolved node schemas into the derived projection without changing the authoritative Models or
  * relationships.
  *
+ * Metadata-first child selection does not reconstruct selected child values. Resolving an as-yet unresolved root
+ * with aliases may still require its authoritative lookup/replay; use an already resolved root or
+ * {@link Graphs#lazyRepositoryId(String, Class, io.fluxzero.sdk.persisting.repository.ModelRepository)} when the
+ * exact persisted root ID is known.
+ *
  * @param <T> model value type at the current graph placement
  */
 @JsonSerialize(using = GraphJsonSerializer.class)
 public interface Graph<T> {
 
-    /** Returns the current model value, or {@code null} for a missing or deleted model. */
+    /**
+     * Returns the current model value, or {@code null} for a missing or deleted model. An unknown metadata node fails
+     * explicitly instead of masquerading as absent; inspect {@link #knownType()} before accessing its value.
+     */
     @Nullable
     T get();
 
@@ -198,8 +206,24 @@ public interface Graph<T> {
         return null;
     }
 
-    /** Returns the concrete model type. */
+    /** Returns the concrete Model type, failing explicitly for an unknown metadata node. See {@link #knownType()}. */
     Class<T> type();
+
+    /**
+     * Returns the resolved logical Model name, including its configured prefix. Unlike {@link #type()}, this is
+     * available for an unknown node returned by metadata navigation and does not require its Java contract.
+     */
+    default String modelName() {
+        return ModelNames.name(type());
+    }
+
+    /**
+     * Returns the locally known Model class without loading its value, or an empty optional for an unknown node.
+     * A known class does not guarantee that its historical event contracts or replay logic are available.
+     */
+    default Optional<Class<T>> knownType() {
+        return Optional.of(type());
+    }
 
     /** Returns the model aliases without loading relationship context. */
     default Collection<?> aliases() {
@@ -278,6 +302,82 @@ public interface Graph<T> {
     /** Returns all direct children in deterministic relationship-path order. */
     List<Graph<?>> children();
 
+    /** Returns locally known direct children at the exact relationship path; {@code null} selects pathless children. */
+    default List<Graph<?>> children(String path) {
+        return children(path, true);
+    }
+
+    /**
+     * Returns direct children at the exact relationship path without loading values. {@code knownOnly=true} excludes
+     * locally unknown types and is not a complete count of all children. False includes unknown metadata nodes:
+     * their identity and relationships remain available, but {@link #get()}, {@link #type()} and mutations fail.
+     * A null path selects only pathless children. Inspected memberships, including empty results, are tracked.
+     */
+    default List<Graph<?>> children(String path, boolean knownOnly) {
+        return children(path, null, knownOnly);
+    }
+
+    /** Returns locally known direct children matching an exact relationship path and resolved logical Model name. */
+    default List<Graph<?>> children(String path, String modelName) {
+        return children(path, modelName, true);
+    }
+
+    /**
+     * Combines exact path and logical-name selection. Null names impose no name filter; null paths select pathless
+     * children. Names are already resolved, including any application prefix. See {@link #children(String, boolean)}.
+     */
+    default List<Graph<?>> children(String path, String modelName, boolean knownOnly) {
+        return children().stream().filter(child -> Objects.equals(path, child.relationshipPath()))
+                .filter(child -> modelName == null || modelName.equals(child.modelName()))
+                .filter(child -> !knownOnly || child.knownType().isPresent()).toList();
+    }
+
+    /** Returns locally known direct children with this exact resolved logical Model name, across all paths. */
+    default List<Graph<?>> namedChildren(String modelName) {
+        return namedChildren(modelName, true);
+    }
+
+    /** Selects a logical Model name across all direct paths. False also includes locally unknown metadata nodes. */
+    default List<Graph<?>> namedChildren(String modelName, boolean knownOnly) {
+        Objects.requireNonNull(modelName, "modelName");
+        return children().stream().filter(child -> modelName.equals(child.modelName()))
+                .filter(child -> !knownOnly || child.knownType().isPresent()).toList();
+    }
+
+    /** Returns locally known descendants at the root-relative relationship path, excluding this node. */
+    default List<Graph<?>> descendants(String path) {
+        return descendants(path, true);
+    }
+
+    /**
+     * Selects descendants at a root-relative relationship path without reading values. Unknown intermediate nodes
+     * do not hide reachable matches. True selects only locally known types; false also returns unknown nodes.
+     * A null path selects every reachable path. Membership reads remain pinned and conflict tracked.
+     */
+    default List<Graph<?>> descendants(String path, boolean knownOnly) {
+        return descendants(path, null, knownOnly);
+    }
+
+    /** Returns locally known descendants matching a root-relative path and exact resolved logical Model name. */
+    default List<Graph<?>> descendants(String path, String modelName) {
+        return descendants(path, modelName, true);
+    }
+
+    /** Combines descendant path and exact logical-name selection. See {@link #descendants(String, boolean)}. */
+    default List<Graph<?>> descendants(String path, String modelName, boolean knownOnly) {
+        return Graphs.selectDescendants(this, path, modelName, knownOnly);
+    }
+
+    /** Returns locally known descendants of this exact resolved logical Model name, across all paths. */
+    default List<Graph<?>> namedDescendants(String modelName) {
+        return namedDescendants(modelName, true);
+    }
+
+    /** Selects descendants by logical Model name across every path, optionally including unknown metadata nodes. */
+    default List<Graph<?>> namedDescendants(String modelName, boolean knownOnly) {
+        return descendants(null, Objects.requireNonNull(modelName, "modelName"), knownOnly);
+    }
+
     /**
      * Returns the declared serialized child paths in deterministic order, including paths that currently have no
      * children. Pathless relationships are deliberately absent because they are graph context rather than JSON
@@ -326,7 +426,11 @@ public interface Graph<T> {
         return Graphs.filterBranches(this, predicate);
     }
 
-    /** Returns direct children of the requested type. */
+    /**
+     * Returns direct children assignable to the requested locally known type, without reconstructing values.
+     * Unknown logical types are not matches, including for {@code Object.class}. Multiple matching relationship
+     * paths require the explicit-path overload.
+     */
     <C> List<Graph<C>> children(Class<C> childType);
 
     /** Returns direct children placed at the requested explicit relationship path. */
@@ -334,15 +438,18 @@ public interface Graph<T> {
 
     /** Returns direct child values of the requested type. */
     default <C> List<C> childModels(Class<C> childType) {
-        return children(childType).stream().map(Graph::get).filter(Objects::nonNull).toList();
+        return Graphs.modelValues(children(childType));
     }
 
     /** Returns direct child values placed at the requested explicit relationship path. */
     default <C> List<C> childModels(String path, Class<C> childType) {
-        return children(path, childType).stream().map(Graph::get).filter(Objects::nonNull).toList();
+        return Graphs.modelValues(children(path, childType));
     }
 
-    /** Returns all descendants assignable to the requested type in deterministic graph order. */
+    /**
+     * Returns locally known assignable descendants in deterministic graph order without reconstructing values.
+     * Unknown intermediate nodes are traversed but are never type matches, including for {@code Object.class}.
+     */
     <D> List<Graph<D>> descendants(Class<D> descendantType);
 
     /** Returns descendants reached through the requested relationship path. */
@@ -350,12 +457,12 @@ public interface Graph<T> {
 
     /** Returns all descendant values assignable to the requested type. */
     default <D> List<D> descendantModels(Class<D> descendantType) {
-        return descendants(descendantType).stream().map(Graph::get).filter(Objects::nonNull).toList();
+        return Graphs.modelValues(descendants(descendantType));
     }
 
     /** Returns descendant values reached through the requested relationship path. */
     default <D> List<D> descendantModels(String path, Class<D> descendantType) {
-        return descendants(path, descendantType).stream().map(Graph::get).filter(Objects::nonNull).toList();
+        return Graphs.modelValues(descendants(path, descendantType));
     }
 
     /**

@@ -389,6 +389,18 @@ For one response-wide lookup that several nodes consume, attach the already-batc
 `graph.withContext(value)` and read it inside the property method with `graph.context(ValueType.class)`; graph context
 is immutable, shared across the view and never persisted as Model state.
 
+Use `children(path)`, `children(path, modelName)`, `namedChildren(modelName)` and the corresponding
+`descendants`/`namedDescendants` forms for metadata-first Graph selection. They return Graph nodes and
+accept a final `knownOnly` boolean, default `true`. Pass `false` to include unknown types when counting all
+matching placements; known-only results are not a complete cross-app quota. Names match exact resolved
+Model names, including any prefix. `modelName()` remains readable for unknown nodes; `knownType()` is empty.
+Their identities/relations can be traversed, but type/value/history/update access fails, never pretends the
+Model is absent. Class-based selection matches only locally known assignable types; unknown intermediate
+nodes do not hide known descendants. Values remain lazy and pinned; injected membership reads, including
+empty selections, participate in conflict handling. Full materialization still requires the value/replay contracts.
+An unresolved alias-capable root may still require root replay to establish its identity; an already resolved root
+or `Graphs.lazyRepositoryId(canonicalId, Root.class, repository)` avoids that separate alias lookup.
+
 Use `@Alias` for a current alternative identity of an independently stored model:
 
 ```java

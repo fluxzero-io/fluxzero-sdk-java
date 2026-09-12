@@ -143,6 +143,9 @@ public final class CommitAttempt {
         if (context == null) {
             return;
         }
+        if (graph.node().data().type() == null) {
+            throw graph.node().data().unknownType();
+        }
         replayGraphReads(graph, graph.context().readProof());
         recordGraphValue(context, graph.node().data().id(), graph.node().data().type());
     }

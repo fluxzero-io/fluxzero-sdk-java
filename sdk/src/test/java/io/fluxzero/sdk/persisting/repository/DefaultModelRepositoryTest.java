@@ -1985,7 +1985,7 @@ class DefaultModelRepositoryTest {
                     new GraphRoot(rootId, "updated root"), root.get());
             var graphRequests = org.mockito.ArgumentCaptor.forClass(
                     GetModelGraph.class);
-            verify(eventStoreClient, times(2)).getModelGraph(
+            verify(eventStoreClient, times(1)).getModelGraph(
                     graphRequests.capture());
             GetModelGraph ancestors = graphRequests.getAllValues().stream()
                     .filter(request -> request.getDirection() == GetModelGraph.TraversalDirection.ANCESTORS)
@@ -2002,13 +2002,11 @@ class DefaultModelRepositoryTest {
             assertEquals(-1,
                          ancestors.getMaxModels());
 
-            GetModelGraph loaded = graphRequests.getAllValues().stream()
-                    .filter(request -> request.getDirection() == GetModelGraph.TraversalDirection.DESCENDANTS)
-                    .findFirst().orElseThrow();
-            assertEquals(List.of(rootId.toString()),
-                         loaded.getModelIds());
-            assertEquals(0, loaded.getMaxDepth());
-            assertEquals(1, loaded.getMaxModels());
+            var eventRequests = org.mockito.ArgumentCaptor.forClass(GetModelEvents.class);
+            verify(eventStoreClient, atLeastOnce()).getModelEvents(eventRequests.capture());
+            assertEquals(Set.of(rootId.toString()), eventRequests.getAllValues().stream()
+                    .flatMap(request -> request.getRequests().stream()).filter(request -> request.getMaxSize() != 0)
+                    .map(ModelEventStreamRequest::getModelId).collect(java.util.stream.Collectors.toSet()));
         }
     }
 

@@ -210,10 +210,80 @@ public final class ModelBatchScope {
 
     /** Returns pending exact values visible to the current message, in message order. */
     public static Map<String, Entity<?>> currentValues(String namespace) {
+        List<Map.Entry<ModelKey, PendingValue>> entries = visiblePendingValues(namespace);
+        if (entries.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
+        entries.forEach(entry -> {
+            PendingValue candidate = entry.getValue();
+            dependOn(candidate);
+            result.put(entry.getKey().modelId(), stagedEntity(candidate));
+        });
+        return result.isEmpty() ? Map.of() : Collections.unmodifiableMap(result);
+    }
+
+    /** Captures pending state without making uninspected Models commit dependencies. */
+    public static Snapshot snapshot(String namespace) {
+        List<Map.Entry<ModelKey, PendingValue>> entries = visiblePendingValues(namespace);
+        if (entries.isEmpty()) {
+            return Snapshot.EMPTY;
+        }
+        LinkedHashMap<String, PendingValue> pending = new LinkedHashMap<>();
+        entries.forEach(entry -> pending.put(entry.getKey().modelId(), entry.getValue()));
+        return new Snapshot(pending);
+    }
+
+    /** Frozen batch overlay. Dependencies are acquired only when the snapshot is inspected. */
+    public static final class Snapshot {
+        public static final Snapshot EMPTY = new Snapshot(Map.of());
+        private final Map<String, PendingValue> pending;
+        private final Map<String, Entity<?>> values;
+
+        private Snapshot(Map<String, PendingValue> pending) {
+            this.pending = Collections.unmodifiableMap(new LinkedHashMap<>(pending));
+            LinkedHashMap<String, Entity<?>> values = new LinkedHashMap<>();
+            pending.forEach((id, value) -> values.put(id, stagedEntity(value)));
+            this.values = Collections.unmodifiableMap(values);
+        }
+
+        /** Returns captured exact values without registering reads. */
+        public Map<String, Entity<?>> values() { return values; }
+
+        /** Records the pending writes inspected while composing relationship metadata. */
+        public void readRelationships() { pending.values().forEach(ModelBatchScope::dependOn); }
+
+        /** Resolves one exact identity or alias against the snapshot, preserving exact-ID precedence. */
+        public Entity<?> overlay(String requestedId, Class<?> type, Entity<?> durable) {
+            PendingValue match = pending.get(requestedId);
+            if (match == null && durable.isPresent() && requestedId.equals(String.valueOf(durable.id()))) {
+                return durable;
+            }
+            if (match == null) {
+                for (PendingValue candidate : pending.values()) {
+                    if (type.isAssignableFrom(candidate.type()) && aliases(candidate.value(), candidate.type()).contains(requestedId)) {
+                        match = candidate;
+                    }
+                }
+            }
+            if (match != null && type.isAssignableFrom(match.type())) {
+                dependOn(match);
+                return values.get(match.modelId());
+            }
+            PendingValue owner = pending.get(String.valueOf(durable.id()));
+            if (owner != null && !requestedId.equals(owner.modelId()) && type.isAssignableFrom(owner.type())) {
+                dependOn(owner);
+                return ImmutableModelRoot.initial(requestedId, type, EntityMetadata.of(type).entityIdName(), null);
+            }
+            return durable;
+        }
+    }
+
+    private static List<Map.Entry<ModelKey, PendingValue>> visiblePendingValues(String namespace) {
         ModelBatchScope scope = current();
         int position = DeserializingMessage.getMessageBatchIndex();
         if (scope == null || position < 0) {
-            return Map.of();
+            return List.of();
         }
         String effectiveNamespace = normalize(namespace);
         List<Map.Entry<ModelKey, PendingValue>> visible = new ArrayList<>();
@@ -228,13 +298,7 @@ public final class ModelBatchScope {
                 .comparingInt((Map.Entry<ModelKey, PendingValue> entry) ->
                         entry.getValue().position())
                 .thenComparing(entry -> entry.getKey().modelId()));
-        LinkedHashMap<String, Entity<?>> result = new LinkedHashMap<>();
-        visible.forEach(entry -> {
-            PendingValue candidate = entry.getValue();
-            dependOn(candidate);
-            result.put(entry.getKey().modelId(), stagedEntity(candidate));
-        });
-        return result.isEmpty() ? Map.of() : Collections.unmodifiableMap(result);
+        return visible;
     }
 
     /** Returns one pending exact value; aliases are deliberately not resolved. */

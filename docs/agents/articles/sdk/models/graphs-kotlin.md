@@ -130,6 +130,42 @@ without model-commit metadata may inject directly addressed Models at one curren
 linked that global event to a Model commit, the same injection resolves its exact historical state instead. Such an
 event is not implicitly a complete graph-change subscription; that requires the durable Model commit metadata.
 
+## Selective Graph navigation across applications
+
+Use `children(path)`, `children(path, modelName)`, or `namedChildren(modelName)` for metadata-first
+selection returning `List<Graph<?>>`. The corresponding `descendants`/`namedDescendants` methods traverse
+deeper placements. Each accepts a final `boolean knownOnly`, defaulting to `true`: this selects only locally
+known Model types, not necessarily every stored child. Pass `false` when a quota or inventory must include
+unknown types:
+
+```kotlin
+val reservations = graph.namedChildren("stock-reservation", false)
+val count = reservations.size // No child values or historical events are loaded.
+```
+
+Names are exact resolved logical Model names, including any configured prefix, not serializer aliases or
+Java supertypes. The same name in two applications denotes the same shared contract, not separate ownership.
+Counting remains metadata-only even when that name is known locally but historical event classes are unavailable.
+`modelName()` exposes the logical name; `knownType()` is empty for a locally unknown Model. Such nodes retain
+IDs and relationship navigation, but reading their type/value/history or updating them fails explicitly.
+Unknown does not mean absent or deleted. A known class likewise does not suppress replay or application errors.
+
+Class-based selection matches locally known assignable types only, including when querying `Object.class`.
+Unknown intermediate nodes do not hide known descendants. Direct child paths are exact (`null` means pathless);
+descendant paths are root-relative slash-separated paths (`null` means all paths). Counts count placements:
+a shared Model reached through different graph paths can occur more than once.
+
+Selections share a pinned boundary and preserve injected Graph relationship dependencies, including empty
+results, add/remove/reparent and retries. Values are reconstructed only when requested at that boundary; no
+automatic current-state fallback or unknown-event skipping occurs. Full Graph materialization/serialization
+still requires the contracts for the values being materialized. Custom repositories without metadata navigation
+retain their existing loading behavior and cannot promise unknown-type-safe selection.
+
+An unresolved `@Alias`-capable root can still require root replay to resolve its identity, even with a
+canonical-looking String. Use an already resolved root or
+`Graphs.lazyRepositoryId(canonicalId, Root::class.java, repository)` when the exact persisted ID is known.
+Root lookup errors are not empty child collections.
+
 ## Complete graph-change handlers
 
 Use an unqualified `Graph<T>` as the sole handler parameter to subscribe to every durable change of that root or one

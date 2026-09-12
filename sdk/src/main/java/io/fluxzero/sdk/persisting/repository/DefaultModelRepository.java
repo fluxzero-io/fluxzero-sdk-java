@@ -123,7 +123,7 @@ import static io.fluxzero.common.api.tracking.SegmentRange.MAX_SEGMENT;
  * loads use the model-stream protocol and reconstruct every selected stream at one pinned {@code stateIndex}.
  */
 public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
-        implements ModelRepository, ModelAncestorResolver, ModelTypeResolver {
+        implements ModelRepository, ModelAncestorResolver, ModelTypeResolver, ModelGraphResolver {
     private static final int COMMITTED_CACHE_UPDATE_BATCH_SIZE = 128;
     private static final java.util.concurrent.Executor MIGRATION_EXECUTOR =
             io.fluxzero.common.ObjectUtils.newWorkerExecutor("fluxzero-model-migration-");
@@ -630,17 +630,18 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
 
     @Override
     public Class<?> modelType(String modelName, String modelId) {
+        return knownModelType(modelName, modelId).orElseThrow(() -> new IllegalStateException(
+                "Stored Model type '%s' for %s is not registered in this application"
+                        .formatted(modelName, modelId)));
+    }
+
+    @Override
+    public Optional<Class<?>> knownModelType(String modelName, String modelId) {
         if (modelName == null || modelName.isBlank()) {
             throw new IllegalStateException("Model '%s' has no stored type metadata".formatted(modelId));
         }
         modelTypes.get().forEach(this::modelName);
-        Class<?> result = modelTypesByName.get(modelName);
-        if (result == null) {
-            throw new IllegalStateException(
-                    "Stored Model type '%s' for %s is not registered in this application"
-                            .formatted(modelName, modelId));
-        }
-        return result;
+        return Optional.ofNullable(modelTypesByName.get(modelName));
     }
 
     /** Returns the application-resolved durable definition owned by this repository. */
@@ -813,6 +814,69 @@ public class DefaultModelRepository extends AbstractNamespaced<ModelRepository>
         return reconstructGraph(
                 rootId, rootType, options, boundary(handlerBoundary),
                 handlerBoundary, true);
+    }
+
+    @Override
+    public ModelBatchScope.Snapshot graphStagedValues(ModelReadBoundary boundary) {
+        return boundary.includeMessageBatch()
+                ? ModelBatchScope.snapshot(messageBatchNamespace()) : ModelBatchScope.Snapshot.EMPTY;
+    }
+
+    @Override
+    public Graph<?> loadGraphProjection(String rootId, Class<?> rootType, ModelReadBoundary boundary, boolean historical) {
+        modelName(rootType);
+        return replayCursor.graphAtBoundary(rootId, rootType, Graph.Options.DEFAULT, boundary.withoutMessageBatch(),
+                                            messageBatchNamespace(), Map.of(), historical);
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadCurrentGraphValue(Object modelId, Class<?> modelType) {
+        return graphValue(modelId, false, modelType, ModelReadBoundary.current().forRequest());
+    }
+
+    @Override
+    public ModelGraphResolver.Value loadGraphValue(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
+        PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
+        ModelReadBoundary selected = handlerBoundary == null ? boundary : boundary(handlerBoundary);
+        ModelGraphResolver.Value result = graphValue(modelId, exact, modelType, selected);
+        pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
+    }
+
+    private ModelGraphResolver.Value graphValue(
+            Object modelId, boolean exact, Class<?> modelType, ModelReadBoundary boundary) {
+        modelName(modelType);
+        EntityMetadata metadata = EntityMetadata.validate(modelType);
+        String primary = exact ? modelId.toString() : metadata.repositoryId(modelId);
+        ModelGraphResolver.Value result = replayCursor.graphValue(primary, modelType, boundary, modelCacheTracker,
+                                                                  boundary.historical());
+        if (!exact && result.entity().isEmpty() && !primary.equals(modelId.toString()) && metadata.hasAliases()) {
+            ModelGraphResolver.Value alias = replayCursor.graphValue(
+                    modelId.toString(), modelType, result.boundary(), modelCacheTracker, boundary.historical());
+            if (alias.entity().isPresent()) {
+                result = alias;
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Entity<?>> loadGraphValues(Map<String, Class<?>> modelTypes, ModelReadBoundary boundary,
+                                                 Map<String, Entity<?>> staged, boolean historical) {
+        return replayCursor.graphValues(modelTypes, boundary, staged, historical);
+    }
+
+    @Override
+    public ModelGraphResolver.Relations loadGraphRelations(
+            List<String> modelIds, io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction direction,
+            ModelReadBoundary boundary, Map<String, Entity<?>> staged, boolean historical) {
+        PinnedBoundary handlerBoundary = boundary.historical() ? null : handlerBoundary();
+        ModelGraphResolver.Relations result = replayCursor.graphRelations(
+                modelIds, direction, handlerBoundary == null ? boundary : boundary(handlerBoundary), staged,
+                historical || handlerBoundary != null && boundary(handlerBoundary).historical());
+        pin(handlerBoundary, result.boundary().stateIndex());
+        return result;
     }
 
     @Override
