@@ -31,6 +31,12 @@ The [Fluxzero agent plugins](https://plugins.fluxzero.io) guide your agent throu
 
 Prefer to work directly in the code? [Install the Fluxzero CLI](https://fluxzero.io/docs/getting-started/installation) and use it to create projects, start the development server, run builds, and deploy applications.
 
+## Versions and releases
+
+SDK packages are published through [Fluxzero Packages](https://packages.fluxzero.io). Maven Central contains releases published before 1 October 2026; releases from that date onward are published only through Fluxzero Packages.
+
+See [Compatibility & dependencies](https://fluxzero.io/docs/about/compatibility) for supported Java versions and SDK/runtime compatibility. Follow the [changelog](https://fluxzero.io/docs/changelog) or [GitHub Releases](https://github.com/fluxzero-io/fluxzero-sdk-java/releases) for changes. Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
+
 ## Work on the SDK
 
 The SDK is a Maven multi-module project and requires JDK 21 or newer.
@@ -40,8 +46,6 @@ git clone https://github.com/fluxzero-io/fluxzero-sdk-java.git
 cd fluxzero-sdk-java
 ./mvnw -B install
 ```
-
-Release maintainers can find the publication process in [RELEASING.md](RELEASING.md).
 
 ## Contributing
 
