@@ -1,0 +1,126 @@
+{
+  "name" : "Entry",
+  "qualifiedName" : "io.fluxzero.common.search.Document$Entry",
+  "packageName" : "io.fluxzero.common.search",
+  "kind" : "class",
+  "modifiers" : [ "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.AllArgsConstructor",
+    "values" : {}
+  } ],
+  "documentation" : " Represents a typed field value within a document (e.g. text, number, boolean).\n <p>\n Each entry is associated with one or more paths in the document and may be normalized for search.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "java.lang.Comparable<io.fluxzero.common.search.Document.Entry>" ],
+  "fields" : [ {
+    "name" : "asNumber",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry.asNumber",
+    "type" : "java.math.BigDecimal",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " A lazily evaluated numeric representation of the entry's value.\n <p>\n If the entry's type is {@link EntryType#NUMERIC}, the value is converted into a {@link BigDecimal}. If the\n type is not numeric, this property is null.\n",
+    "constantValue" : null
+  }, {
+    "name" : "asPhrase",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry.asPhrase",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ {
+      "annotationType" : "com.fasterxml.jackson.annotation.JsonIgnore",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.Getter",
+      "values" : {
+        "lazy" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.experimental.Accessors",
+      "values" : {
+        "fluent" : "true"
+      }
+    }, {
+      "annotationType" : "lombok.EqualsAndHashCode.Exclude",
+      "values" : {}
+    }, {
+      "annotationType" : "lombok.ToString.Exclude",
+      "values" : {}
+    } ],
+    "documentation" : " A lazily evaluated string representation of the entry's value, suitable for phrase-based search or display.\n If the entry's type is {@link EntryType#TEXT}, the value is normalized using\n {@link SearchUtils#normalize(String)}. Otherwise, the raw value is returned.\n",
+    "constantValue" : null
+  }, {
+    "name" : "type",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry.type",
+    "type" : "io.fluxzero.common.search.Document.EntryType",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Specifies the type of the document entry value.\n",
+    "constantValue" : null
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry.value",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Represents the value of an entry in a document. This value is typically a string representation that may need\n to be interpreted depending on the entry type (e.g., as text or numeric). It is often used to store\n normalized or processed data for search and comparison purposes.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Entry",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry#Entry",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "compareTo",
+    "qualifiedName" : "io.fluxzero.common.search.Document$Entry#compareTo",
+    "returnType" : "int",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "io.fluxzero.common.search.Document.@lombok.NonNull Entry",
+      "varArgs" : false,
+      "annotations" : [ {
+        "annotationType" : "lombok.NonNull",
+        "values" : {}
+      } ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Compares this entry with the specified entry for order. The comparison is primarily based on the type of the\n entries. If both entries are numeric, their numeric values are compared. Otherwise, their string values are\n compared case-insensitively.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

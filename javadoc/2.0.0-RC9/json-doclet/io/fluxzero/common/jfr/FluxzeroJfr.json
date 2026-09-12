@@ -1,0 +1,140 @@
+{
+  "name" : "FluxzeroJfr",
+  "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr",
+  "packageName" : "io.fluxzero.common.jfr",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Shared low-overhead JFR events for Fluxzero batch operations across SDK and Runtime components.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "BATCH_TYPE",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr.BATCH_TYPE",
+    "type" : "jdk.jfr.EventType",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "FluxzeroJfr",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr#FluxzeroJfr",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "batchEnabled",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr#batchEnabled",
+    "returnType" : "boolean",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Returns whether batch diagnostics are enabled in the active recording. "
+  }, {
+    "name" : "finish",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr#finish",
+    "returnType" : "void",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "event",
+      "type" : "io.fluxzero.common.jfr.FluxzeroJfr.Batch",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "failure",
+      "type" : "java.lang.Throwable",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Completes and conditionally commits a batch event. "
+  }, {
+    "name" : "startBatch",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr#startBatch",
+    "returnType" : "io.fluxzero.common.jfr.FluxzeroJfr.Batch",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "component",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "operation",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "messageType",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "itemCount",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "bytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "queueDepth",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "queueBytes",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Starts one batch event, returning {@code null} without allocating an event when batch diagnostics are disabled.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "Batch",
+    "qualifiedName" : "io.fluxzero.common.jfr.FluxzeroJfr$Batch",
+    "kind" : "class",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "jdk.jfr.Name",
+      "values" : {
+        "value" : "io.fluxzero.Batch"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.Label",
+      "values" : {
+        "value" : "Fluxzero batch"
+      }
+    }, {
+      "annotationType" : "jdk.jfr.Category",
+      "values" : {
+        "value" : "\"Fluxzero\",\"Pipeline\""
+      }
+    }, {
+      "annotationType" : "jdk.jfr.StackTrace",
+      "values" : {
+        "value" : "false"
+      }
+    } ]
+  } ]
+}

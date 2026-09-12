@@ -1,0 +1,116 @@
+{
+  "name" : "DefaultMemoizingSupplier",
+  "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier",
+  "packageName" : "io.fluxzero.common",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A default implementation of the {@link MemoizingSupplier} interface that memoizes (caches)\n the result of a computation performed by a supplied {@link Supplier}.\n\n <p>The result is computed the first time {@link #get()} is called and then cached for subsequent calls\n until explicitly cleared with {@link #clear()}. This implementation also supports an optional expiration\n duration for the cached value.\n\n @param <T> the type of the value supplied and memoized\n",
+  "typeParameters" : [ "T" ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ "io.fluxzero.common.MemoizingSupplier<T>" ],
+  "fields" : [ {
+    "name" : "delegate",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier.delegate",
+    "type" : "io.fluxzero.common.MemoizingFunction<java.lang.Object,T>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "singleton",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier.singleton",
+    "type" : "java.lang.Object",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DefaultMemoizingSupplier",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier#DefaultMemoizingSupplier",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "DefaultMemoizingSupplier",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier#DefaultMemoizingSupplier",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "delegate",
+      "type" : "java.util.function.Supplier<T>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "lifespan",
+      "type" : "java.time.Duration",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "clock",
+      "type" : "java.time.Clock",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "clear",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier#clear",
+    "returnType" : "void",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "get",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier#get",
+    "returnType" : "T",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "isCached",
+    "qualifiedName" : "io.fluxzero.common.DefaultMemoizingSupplier#isCached",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

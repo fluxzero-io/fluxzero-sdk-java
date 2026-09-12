@@ -1,0 +1,91 @@
+{
+  "name" : "ModelConflictPolicy",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Runtime behavior when an commit-scoped model changed after the commit's {@code readStateIndex}.\n <p>\n Conflict rejection is deliberately optional. {@link #ACCEPT} preserves Fluxzero's normal single-writer-friendly\n behavior: the original event is accepted, while stale derived documents, snapshots, and relationships are rebased\n by reapplying it to the latest values of the models actually read by the commit. Rejecting policies roll back the\n complete runtime commit; any retry is a new SDK evaluation against freshly loaded models.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.common.api.modeling.ModelConflictPolicy>",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ModelConflictPolicy",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy#ModelConflictPolicy",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy#resolve",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "policy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Resolves a missing wire value to the compatibility default.\n"
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy#valueOf",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy#values",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelConflictPolicy[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "ACCEPT",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy.ACCEPT",
+    "annotations" : [ ],
+    "documentation" : " Accept the original event and silently rebase stale derived state. This is the default.\n"
+  }, {
+    "name" : "DEFAULT",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy.DEFAULT",
+    "annotations" : [ ],
+    "documentation" : " Inherit from the next broader model-commit scope.\n"
+  }, {
+    "name" : "FAIL",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy.FAIL",
+    "annotations" : [ ],
+    "documentation" : " Reject a stale commit and let the client map the conflict to an application decision.\n"
+  }, {
+    "name" : "RETRY",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelConflictPolicy.RETRY",
+    "annotations" : [ ],
+    "documentation" : " Reject a stale commit and permit a bounded complete reevaluation against freshly loaded models and relations.\n"
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,71 @@
+{
+  "name" : "ModelEventMembership",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Lightweight membership of one shared event payload in one model stream.\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Object",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "commitId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership.commitId",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "readStateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership.readStateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Exact state boundary read by the commit before this membership was produced.\n",
+    "constantValue" : null
+  }, {
+    "name" : "sequenceNumber",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership.sequenceNumber",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "stateIndex",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership.stateIndex",
+    "type" : "long",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " Opaque namespace-wide boundary at which this membership was stored.\n",
+    "constantValue" : null
+  }, {
+    "name" : "substep",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership.substep",
+    "type" : "int",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelEventMembership",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelEventMembership#ModelEventMembership",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

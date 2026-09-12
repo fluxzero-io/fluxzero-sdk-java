@@ -1,0 +1,28 @@
+{
+  "name" : "ApplicationPropertiesSource",
+  "qualifiedName" : "io.fluxzero.common.application.ApplicationPropertiesSource",
+  "packageName" : "io.fluxzero.common.application",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ ],
+  "documentation" : " A {@link PropertySource} implementation that loads properties from an {@code application.properties} file located on\n the classpath.\n <p>\n This is a conventional source for static configuration values such as credentials, service endpoints, or application\n settings. The file is expected to be in the root of the classpath (e.g., inside {@code resources/}).\n\n <h2>Example {@code application.properties}:</h2>\n <pre>\n service.url=https://api.example.com\n retry.count=3\n </pre>\n\n <p>The loaded properties are backed by a {@link java.util.Properties} instance and exposed via the\n {@link #get(String)} method.\n\n <p>This class uses {@link FileUtils#loadProperties(String)} which supports merging multiple files with the\n same name from the classpath and logs duplicate key warnings.\n\n @see JavaPropertiesSource\n @see FileUtils#loadProperties(String)\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.application.JavaPropertiesSource",
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "ApplicationPropertiesSource",
+    "qualifiedName" : "io.fluxzero.common.application.ApplicationPropertiesSource#ApplicationPropertiesSource",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Constructs a new {@code ApplicationPropertiesSource} by loading the {@code application.properties} file from the\n classpath.\n"
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

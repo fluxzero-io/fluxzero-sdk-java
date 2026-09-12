@@ -1,0 +1,24 @@
+{
+  "package" : {
+    "name" : "logging",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "ConsoleError.json",
+    "name" : "ConsoleError",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.ConsoleError",
+    "kind" : "class"
+  }, {
+    "file" : "ConsoleWarning.json",
+    "name" : "ConsoleWarning",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.ConsoleWarning",
+    "kind" : "class"
+  }, {
+    "file" : "FluxzeroLogbackAppender.json",
+    "name" : "FluxzeroLogbackAppender",
+    "qualifiedName" : "io.fluxzero.sdk.common.logging.FluxzeroLogbackAppender",
+    "kind" : "class"
+  } ],
+  "subdirectories" : [ ]
+}

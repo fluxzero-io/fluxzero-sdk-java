@@ -1,0 +1,56 @@
+{
+  "name" : "ForbidsAnyRole",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "annotation_type",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.annotation.Documented",
+    "values" : {}
+  }, {
+    "annotationType" : "java.lang.annotation.Target",
+    "values" : {
+      "value" : "TYPE,CONSTRUCTOR,METHOD,ANNOTATION_TYPE,PACKAGE"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Retention",
+    "values" : {
+      "value" : "RUNTIME"
+    }
+  }, {
+    "annotationType" : "java.lang.annotation.Inherited",
+    "values" : {}
+  } ],
+  "documentation" : " Indicates that a handler method, class, package, or payload should not be invoked or processed if the current user\n has any of the specified roles.\n\n <h2>Usage</h2>\n This annotation acts as a negative filter for message handling based on user roles.\n <ul>\n   <li>On a <strong>handler method</strong>, <strong>class</strong>, or <strong>package</strong>: the handler is\n       <strong>skipped</strong> if the user has a forbidden role. This allows other handlers to take over instead.</li>\n   <li>On a <strong>payload</strong>: an <strong>exception is thrown</strong> if the user has a forbidden role.</li>\n </ul>\n\n <p>\n This is useful in scenarios where certain roles (e.g. admins) should receive different behavior or be excluded from\n specific processing paths.\n\n <h2>Example: Preventing admin users from handling a message</h2>\n <pre>{@code\n @ForbidsAnyRole(\"admin\")\n @HandleCommand\n void handle(UserRequest request) {\n     // This handler will only run if the user is NOT an admin\n }\n }</pre>\n\n <h2>Fallback pattern with multiple handlers</h2>\n <pre>{@code\n @ForbidsAnyRole(\"admin\")\n @HandleCommand\n void handleAsUserOnly(MyCommand command) { ... }\n\n @RequiresAnyRole(value = \"admin\", throwIfUnauthorized = false)\n @HandleCommand\n void handleAsAdmin(MyCommand command) { ... }\n }</pre>\n\n <h2>Notes</h2>\n <ul>\n   <li>Role checks are performed via the configured {@link io.fluxzero.sdk.tracking.handling.authentication.UserProvider}.</li>\n   <li>For unauthenticated users or missing roles, this restriction does <em>not</em> apply.</li>\n   <li>This annotation supports usage as a meta-annotation for reusable constraints.</li>\n </ul>\n\n @see RequiresAnyRole\n @see io.fluxzero.sdk.tracking.handling.authentication.User\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ "java.lang.annotation.Annotation" ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "throwIfUnauthorized",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole#throwIfUnauthorized",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Determines whether an exception should be thrown when the authorization check fails.\n <p>\n If {@code true} (the default), an exception will be thrown when the user is unauthorized:\n <ul>\n   <li>{@link UnauthenticatedException} – if no authenticated user is present</li>\n   <li>{@link UnauthorizedException} – if the user is present but has forbidden roles</li>\n </ul>\n <p>\n If {@code false}, the annotated handler or message will be silently skipped instead.\n This opt-out strategy is useful for conditionally invoked handlers where fallback behavior is preferred.\n <p>\n Defaults to {@code true}.\n"
+  }, {
+    "name" : "value",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.ForbidsAnyRole#value",
+    "returnType" : "java.lang.String[]",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " One or more roles that should be excluded. If the user has any of these roles, the handler or payload will not be\n used.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

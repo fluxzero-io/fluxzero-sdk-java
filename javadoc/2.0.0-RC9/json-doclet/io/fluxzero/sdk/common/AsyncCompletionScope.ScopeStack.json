@@ -1,0 +1,124 @@
+{
+  "name" : "ScopeStack",
+  "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack",
+  "packageName" : "io.fluxzero.sdk.common",
+  "kind" : "record",
+  "modifiers" : [ "final", "private", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack.parent",
+    "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.ScopeStack",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "scope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack.scope",
+    "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ScopeStack",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack#ScopeStack",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "scope",
+      "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "parent",
+      "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.ScopeStack",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "parent",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack#parent",
+    "returnType" : "io.fluxzero.sdk.common.AsyncCompletionScope.ScopeStack",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "scope",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack#scope",
+    "returnType" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.common.AsyncCompletionScope$ScopeStack#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "parent",
+    "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.ScopeStack",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "scope",
+    "type" : "io.fluxzero.sdk.common.AsyncCompletionScope.Scope",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

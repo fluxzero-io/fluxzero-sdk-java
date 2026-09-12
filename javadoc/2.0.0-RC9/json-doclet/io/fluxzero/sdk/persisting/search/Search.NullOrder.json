@@ -1,0 +1,89 @@
+{
+  "name" : "NullOrder",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder",
+  "packageName" : "io.fluxzero.sdk.persisting.search",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.persisting.search.Search.NullOrder>",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "suffix",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder.suffix",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "NullOrder",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder#NullOrder",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "suffix",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "suffix",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder#suffix",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder#valueOf",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search.NullOrder",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder#values",
+    "returnType" : "io.fluxzero.sdk.persisting.search.Search.NullOrder[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "FIRST",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder.FIRST",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "LAST",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.Search$NullOrder.LAST",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

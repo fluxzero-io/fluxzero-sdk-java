@@ -1,0 +1,132 @@
+{
+  "name" : "RelationshipStep",
+  "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep",
+  "packageName" : "io.fluxzero.common.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Relationship changes and final parent deletions applied at one state index. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "EMPTY",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep.EMPTY",
+    "type" : "io.fluxzero.common.modeling.ModelCommitAssignment.RelationshipStep",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "changes",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep.changes",
+    "type" : "java.util.List<io.fluxzero.common.modeling.ModelCommitAssignment.RelationshipChange>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "finalDeletedParentIds",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep.finalDeletedParentIds",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "RelationshipStep",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep#RelationshipStep",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "changes",
+      "type" : "java.util.List<io.fluxzero.common.modeling.ModelCommitAssignment.RelationshipChange>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "finalDeletedParentIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "changes",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep#changes",
+    "returnType" : "java.util.List<io.fluxzero.common.modeling.ModelCommitAssignment.RelationshipChange>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "finalDeletedParentIds",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep#finalDeletedParentIds",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.modeling.ModelCommitAssignment$RelationshipStep#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "changes",
+    "type" : "java.util.List<io.fluxzero.common.modeling.ModelCommitAssignment.RelationshipChange>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "finalDeletedParentIds",
+    "type" : "java.util.Set<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

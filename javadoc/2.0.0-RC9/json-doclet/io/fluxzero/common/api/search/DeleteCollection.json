@@ -1,0 +1,66 @@
+{
+  "name" : "DeleteCollection",
+  "qualifiedName" : "io.fluxzero.common.api.search.DeleteCollection",
+  "packageName" : "io.fluxzero.common.api.search",
+  "kind" : "class",
+  "modifiers" : [ "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.Value",
+    "values" : {}
+  } ],
+  "documentation" : " Command to delete an entire search collection, removing all documents within it.\n <p>\n This operation is irreversible and should be used with caution. It is useful in test environments\n or in cases where all data in a collection has become obsolete and needs to be cleared.\n <p>\n Deletion behavior is governed by the provided {@link Guarantee}.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.Command",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "collection",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteCollection.collection",
+    "type" : "java.lang.String",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The name of the collection to delete.\n",
+    "constantValue" : null
+  }, {
+    "name" : "guarantee",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteCollection.guarantee",
+    "type" : "io.fluxzero.common.Guarantee",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "documentation" : " The delivery/storage guarantee applied to the deletion operation.\n",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "DeleteCollection",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteCollection#DeleteCollection",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "routingKey",
+    "qualifiedName" : "io.fluxzero.common.api.search.DeleteCollection#routingKey",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Uses the collection name as the routing key for consistency and traceability.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

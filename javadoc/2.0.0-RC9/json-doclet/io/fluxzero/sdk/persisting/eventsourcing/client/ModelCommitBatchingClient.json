@@ -1,0 +1,66 @@
+{
+  "name" : "ModelCommitBatchingClient",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient",
+  "packageName" : "io.fluxzero.sdk.persisting.eventsourcing.client",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : "Allows already-prepared, independent model commits to enter the websocket queue as one batch. ",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "beginModelCommitBatch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient#beginModelCommitBatch",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitBatch",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "capacity",
+      "type" : "int",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "beginReadyModelCommitBatch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient#beginReadyModelCommitBatch",
+    "returnType" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient.ModelCommitBatch",
+    "modifiers" : [ "default", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Begins a transport batch for commits that become ready independently during handler execution.\n <p>\n Unlike {@link #beginModelCommitBatch(int)}, this batch does not imply that commit execution waits for the batch\n boundary. Implementations may release bounded full chunks immediately and use {@link ModelCommitBatch#flush()}\n only to release the remaining tail. Returning {@code null} retains individual commit transport.\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ {
+    "name" : "ModelCommitBatch",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitBatch",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelCommitCompletion",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitCompletion",
+    "kind" : "record",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  }, {
+    "name" : "ModelCommitResultProcessor",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.eventsourcing.client.ModelCommitBatchingClient$ModelCommitResultProcessor",
+    "kind" : "interface",
+    "modifiers" : [ "abstract", "public", "static" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.FunctionalInterface",
+      "values" : {}
+    } ]
+  } ]
+}

@@ -1,0 +1,124 @@
+{
+  "name" : "CommitModelsWithRelationships",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithRelationships",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "class",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ {
+    "annotationType" : "lombok.Getter",
+    "values" : {}
+  }, {
+    "annotationType" : "lombok.EqualsAndHashCode",
+    "values" : {
+      "callSuper" : "true"
+    }
+  }, {
+    "annotationType" : "lombok.ToString",
+    "values" : {
+      "callSuper" : "true"
+    }
+  } ],
+  "documentation" : " A Model commit that additionally validates relationship selections. Its distinct wire type is intentional:\n runtimes without relationship-read validation must reject the request instead of silently committing it.\n",
+  "typeParameters" : [ ],
+  "superClass" : "io.fluxzero.common.api.modeling.CommitModels",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "readRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithRelationships.readRelationships",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : "Collections inspected at the commit's read boundary, including selections that returned no Models. ",
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "CommitModelsWithRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithRelationships#CommitModelsWithRelationships",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "commit",
+      "type" : "io.fluxzero.common.api.modeling.CommitModels",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRelationships",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Adds immutable relationship dependencies while retaining the original request and commit identity. "
+  }, {
+    "name" : "CommitModelsWithRelationships",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.CommitModelsWithRelationships#CommitModelsWithRelationships",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.beans.ConstructorProperties",
+      "values" : {
+        "value" : "\"requestId\",\"commitId\",\"readStateIndex\",\"readModelIds\",\"substeps\",\"conflictPolicy\",\"guarantee\",\"possibleDuplicate\",\"migration\",\"readRelationships\""
+      }
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "requestId",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "commitId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readStateIndex",
+      "type" : "long",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readModelIds",
+      "type" : "java.util.List<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "substeps",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelCommitStep>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "conflictPolicy",
+      "type" : "io.fluxzero.common.api.modeling.ModelConflictPolicy",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "guarantee",
+      "type" : "io.fluxzero.common.Guarantee",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "possibleDuplicate",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "migration",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "readRelationships",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelRelationshipRead>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

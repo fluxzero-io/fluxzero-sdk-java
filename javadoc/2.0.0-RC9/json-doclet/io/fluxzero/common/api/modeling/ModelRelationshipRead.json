@@ -1,0 +1,180 @@
+{
+  "name" : "ModelRelationshipRead",
+  "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead",
+  "packageName" : "io.fluxzero.common.api.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : " A relationship selection observed at the commit's read boundary, including a selection that returned no edges.\n Values of the selected Models are separate head dependencies. A {@code null} path selects every relationship path;\n an empty path selects only pathless relationships. Type filtering is conservatively protected at path granularity.\n\n @param modelId canonical identity at the source of the selection\n @param direction whether incoming children or outgoing parents were selected\n @param path exact persisted relationship path, or {@code null} for all paths\n",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "direction",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.direction",
+    "type" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.modelId",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.path",
+    "type" : "java.lang.String",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "ModelRelationshipRead",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#ModelRelationshipRead",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "modelId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "direction",
+      "type" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "path",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "direction",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#direction",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "matches",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#matches",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "childId",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "relationship",
+      "type" : "io.fluxzero.common.api.modeling.ModelRelationship",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : "Whether an edge belongs to this selection, independently of its temporal validity. "
+  }, {
+    "name" : "modelId",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#modelId",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#path",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "direction",
+    "type" : "io.fluxzero.common.api.modeling.ModelRelationshipRead.Direction",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "modelId",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "path",
+    "type" : "java.lang.String",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ {
+    "name" : "Direction",
+    "qualifiedName" : "io.fluxzero.common.api.modeling.ModelRelationshipRead$Direction",
+    "kind" : "enum",
+    "modifiers" : [ "final", "public", "static" ],
+    "annotations" : [ ]
+  } ]
+}

@@ -1,0 +1,73 @@
+{
+  "name" : "HandlerDescriptor",
+  "qualifiedName" : "io.fluxzero.common.handling.HandlerDescriptor",
+  "packageName" : "io.fluxzero.common.handling",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public" ],
+  "annotations" : [ ],
+  "documentation" : " Describes the handler method that is involved in a handling operation.\n\n <p>A descriptor carries stable metadata only. It does not imply that the handler is already bound to a specific\n message, nor that it can be invoked through this interface.</p>\n\n @see HandlerInvoker\n @see HandlerMethod\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "expectResult",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerDescriptor#expectResult",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether the handler method has a return value.\n\n @return {@code true} if the method returns a value; {@code false} if it is {@code void}\n"
+  }, {
+    "name" : "getMethod",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerDescriptor#getMethod",
+    "returnType" : "java.lang.reflect.Executable",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The {@link Executable} representing the handler method (can be a static or instance {@link Method} or\n {@link Constructor}).\n\n @return the executable method\n"
+  }, {
+    "name" : "getMethodAnnotation",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerDescriptor#getMethodAnnotation",
+    "returnType" : "A",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ "A" ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Retrieves the configured handler annotation from the handler method, if present.\n\n @param <A> the annotation type\n @return the annotation instance, or {@code null} if not found\n"
+  }, {
+    "name" : "getTargetClass",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerDescriptor#getTargetClass",
+    "returnType" : "java.lang.Class<?>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " The target class that contains the handler method.\n\n @return the declaring class of the handler\n"
+  }, {
+    "name" : "isPassive",
+    "qualifiedName" : "io.fluxzero.common.handling.HandlerDescriptor#isPassive",
+    "returnType" : "boolean",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : " Indicates whether this handler operates in passive mode (i.e., results will not be published).\n\n @return {@code true} if passive; otherwise {@code false}\n"
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

@@ -1,0 +1,69 @@
+{
+  "package" : {
+    "name" : "constraints",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints",
+    "documentation" : null
+  },
+  "files" : [ {
+    "file" : "CreditCardNumber.json",
+    "name" : "CreditCardNumber",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "CreditCardNumber.List.json",
+    "name" : "CreditCardNumber.List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.CreditCardNumber$List",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Length.json",
+    "name" : "Length",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Length",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Length.List.json",
+    "name" : "Length.List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Length$List",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Range.json",
+    "name" : "Range",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "Range.List.json",
+    "name" : "Range.List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.Range$List",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "URL.json",
+    "name" : "URL",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "URL.List.json",
+    "name" : "URL.List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.URL$List",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "UUID.json",
+    "name" : "UUID",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "UUID.List.json",
+    "name" : "UUID.List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UUID$List",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "UniqueElements.json",
+    "name" : "UniqueElements",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements",
+    "kind" : "annotation_type"
+  }, {
+    "file" : "UniqueElements.List.json",
+    "name" : "UniqueElements.List",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.validation.constraints.UniqueElements$List",
+    "kind" : "annotation_type"
+  } ],
+  "subdirectories" : [ ]
+}

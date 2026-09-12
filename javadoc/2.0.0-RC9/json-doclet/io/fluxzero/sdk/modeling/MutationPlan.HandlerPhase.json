@@ -1,0 +1,231 @@
+{
+  "name" : "HandlerPhase",
+  "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase",
+  "packageName" : "io.fluxzero.sdk.modeling",
+  "kind" : "record",
+  "modifiers" : [ "final", "static" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "EMPTY",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase.EMPTY",
+    "type" : "io.fluxzero.sdk.modeling.MutationPlan.HandlerPhase",
+    "modifiers" : [ "final", "private", "static" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "afterAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase.afterAssertions",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "applies",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase.applies",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "beforeAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase.beforeAssertions",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "interceptors",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase.interceptors",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "HandlerPhase",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#HandlerPhase",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "HandlerPhase",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#HandlerPhase",
+    "modifiers" : [ ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "beforeAssertions",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterAssertions",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "applies",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "interceptors",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "afterAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#afterAssertions",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "applies",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#applies",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "beforeAssertions",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#beforeAssertions",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "interceptors",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#interceptors",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "select",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#select",
+    "returnType" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "modifiers" : [ "private", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "handlers",
+      "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "kind",
+      "type" : "io.fluxzero.sdk.modeling.EntityMetadata.HandlerKind",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "afterHandler",
+      "type" : "java.lang.Boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.modeling.MutationPlan$HandlerPhase#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "afterAssertions",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "applies",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "beforeAssertions",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "interceptors",
+    "type" : "java.util.List<io.fluxzero.sdk.modeling.MutationPlan.CompiledHandler>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}

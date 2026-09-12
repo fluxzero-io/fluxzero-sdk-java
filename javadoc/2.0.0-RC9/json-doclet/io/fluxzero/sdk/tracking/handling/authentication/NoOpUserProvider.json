@@ -1,0 +1,179 @@
+{
+  "name" : "NoOpUserProvider",
+  "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider",
+  "packageName" : "io.fluxzero.sdk.tracking.handling.authentication",
+  "kind" : "enum",
+  "modifiers" : [ "final", "public" ],
+  "annotations" : [ ],
+  "documentation" : null,
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Enum<io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider>",
+  "interfaces" : [ "io.fluxzero.sdk.tracking.handling.authentication.UserProvider" ],
+  "fields" : [ ],
+  "constructors" : [ {
+    "name" : "NoOpUserProvider",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#NoOpUserProvider",
+    "modifiers" : [ "private" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "addToMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#addToMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "user",
+      "type" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "ifAbsent",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "containsUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#containsUser",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "fromMessage",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#fromMessage",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "message",
+      "type" : "io.fluxzero.sdk.common.HasMessage",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getSystemUser",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#getSystemUser",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "getUserById",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#getUserById",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.User",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "userId",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "removeFromMetadata",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#removeFromMetadata",
+    "returnType" : "io.fluxzero.common.api.Metadata",
+    "modifiers" : [ "public" ],
+    "annotations" : [ {
+      "annotationType" : "java.lang.Override",
+      "values" : {}
+    } ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "metadata",
+      "type" : "io.fluxzero.common.api.Metadata",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "valueOf",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#valueOf",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "name",
+      "type" : "java.lang.String",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "values",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider#values",
+    "returnType" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider[]",
+    "modifiers" : [ "public", "static" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ {
+    "name" : "INSTANCE",
+    "qualifiedName" : "io.fluxzero.sdk.tracking.handling.authentication.NoOpUserProvider.INSTANCE",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

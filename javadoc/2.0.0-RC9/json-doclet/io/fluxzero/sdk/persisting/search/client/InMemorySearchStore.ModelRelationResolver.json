@@ -1,0 +1,42 @@
+{
+  "name" : "ModelRelationResolver",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelRelationResolver",
+  "packageName" : "io.fluxzero.sdk.persisting.search.client",
+  "kind" : "interface",
+  "modifiers" : [ "abstract", "public", "static" ],
+  "annotations" : [ {
+    "annotationType" : "java.lang.FunctionalInterface",
+    "values" : {}
+  } ],
+  "documentation" : " Resolves target model IDs from related matches at the current relationship boundary.\n",
+  "typeParameters" : [ ],
+  "superClass" : null,
+  "interfaces" : [ ],
+  "fields" : [ ],
+  "constructors" : [ ],
+  "methods" : [ {
+    "name" : "resolve",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.search.client.InMemorySearchStore$ModelRelationResolver#resolve",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "abstract", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "relatedModelIds",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "constraint",
+      "type" : "io.fluxzero.common.api.search.ModelRelationConstraint",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ ],
+  "nestedTypes" : [ ]
+}

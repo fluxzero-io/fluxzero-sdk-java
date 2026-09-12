@@ -1,0 +1,211 @@
+{
+  "name" : "Relations",
+  "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations",
+  "packageName" : "io.fluxzero.sdk.persisting.repository",
+  "kind" : "record",
+  "modifiers" : [ "final", "public", "static" ],
+  "annotations" : [ ],
+  "documentation" : "Coherent metadata for the requested direct relationship collections, including empty ones. ",
+  "typeParameters" : [ ],
+  "superClass" : "java.lang.Record",
+  "interfaces" : [ ],
+  "fields" : [ {
+    "name" : "boundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations.boundary",
+    "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "completeCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations.completeCollections",
+    "type" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "edges",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations.edges",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "historical",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations.historical",
+    "type" : "boolean",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  }, {
+    "name" : "models",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations.models",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.ModelNode>",
+    "modifiers" : [ "final", "private" ],
+    "annotations" : [ ],
+    "documentation" : null,
+    "constantValue" : null
+  } ],
+  "constructors" : [ {
+    "name" : "Relations",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#Relations",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "boundary",
+      "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "models",
+      "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.ModelNode>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "edges",
+      "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "completeCollections",
+      "type" : "java.util.Set<java.lang.String>",
+      "varArgs" : false,
+      "annotations" : [ ]
+    }, {
+      "name" : "historical",
+      "type" : "boolean",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "methods" : [ {
+    "name" : "boundary",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#boundary",
+    "returnType" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "completeCollections",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#completeCollections",
+    "returnType" : "java.util.Set<java.lang.String>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "edges",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#edges",
+    "returnType" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "equals",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#equals",
+    "returnType" : "boolean",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ {
+      "name" : "o",
+      "type" : "java.lang.Object",
+      "varArgs" : false,
+      "annotations" : [ ]
+    } ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "hashCode",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#hashCode",
+    "returnType" : "int",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "historical",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#historical",
+    "returnType" : "boolean",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "models",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#models",
+    "returnType" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.ModelNode>",
+    "modifiers" : [ "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  }, {
+    "name" : "toString",
+    "qualifiedName" : "io.fluxzero.sdk.persisting.repository.ModelGraphResolver$Relations#toString",
+    "returnType" : "java.lang.String",
+    "modifiers" : [ "final", "public" ],
+    "annotations" : [ ],
+    "typeParameters" : [ ],
+    "parameters" : [ ],
+    "thrownTypes" : [ ],
+    "varArgs" : false,
+    "documentation" : null
+  } ],
+  "enumConstants" : [ ],
+  "recordComponents" : [ {
+    "name" : "boundary",
+    "type" : "io.fluxzero.common.api.modeling.ModelReadBoundary",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "completeCollections",
+    "type" : "java.util.Set<java.lang.String>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "edges",
+    "type" : "java.util.List<io.fluxzero.common.api.modeling.ModelGraphEdge>",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "historical",
+    "type" : "boolean",
+    "annotations" : [ ],
+    "documentation" : null
+  }, {
+    "name" : "models",
+    "type" : "java.util.Map<java.lang.String,io.fluxzero.sdk.persisting.repository.ModelGraphResolver.ModelNode>",
+    "annotations" : [ ],
+    "documentation" : null
+  } ],
+  "nestedTypes" : [ ]
+}
