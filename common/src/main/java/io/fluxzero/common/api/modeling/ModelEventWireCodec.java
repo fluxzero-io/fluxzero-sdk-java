@@ -215,7 +215,11 @@ public final class ModelEventWireCodec {
                 .map(GetModelEventsResult.class::cast)
                 .anyMatch(result -> !result.isExactBoundary())
                 ? BOUNDARY_EVIDENCE_RESULT_VERSION : VERSION;
-        Writer output = new Writer(encodedResultSize(batch, version), MAX_VALUE_BYTES);
+        int size = encodedResultSize(batch, version);
+        if (size < 0) {
+            return null;
+        }
+        Writer output = new Writer(size, MAX_VALUE_BYTES);
         output.writeInt(magic);
         output.writeByte(version);
         output.writeInt(batch.getResults().size());
@@ -434,6 +438,11 @@ public final class ModelEventWireCodec {
                                 .substring(modelIdPrefix.length())) + 1L;
                 ModelHeadState head = stream.getHead();
                 if (head != null) {
+                    if (!stream.getModelId().equals(head.getModelId())) {
+                        // Compact v7/v9 imply head.modelId == stream.modelId. The ordinary transport preserves
+                        // both IDs for aliases and remains readable without a new compact wire version.
+                        return -1;
+                    }
                     size += (sharedModelType == null
                             ? BinaryWire.stringSize(head.getModelType())
                             : 0)

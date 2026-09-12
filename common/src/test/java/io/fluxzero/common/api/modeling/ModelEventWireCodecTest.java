@@ -39,6 +39,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelEventWireCodecTest {
 
     @Test
+    void aliasHeadsFallBackWithoutChangingTheCanonicalCompactFormat() throws Exception {
+        var canonical = new GetModelEventsResult(1L, 2L, List.of(), List.of(new ModelEventStream(
+                "canonical", new ModelHeadState("canonical", "Root", 0, 2, true, false), List.of())));
+        var alias = new GetModelEventsResult(2L, 2L, List.of(), List.of(new ModelEventStream(
+                "alias", canonical.getStreams().getFirst().getHead(), List.of())));
+        assertEquals(canonical, ModelEventWireCodec.tryDecode(ModelEventWireCodec.tryEncode(canonical)));
+        assertNull(ModelEventWireCodec.tryEncode(alias));
+        assertNull(ModelEventWireCodec.tryEncode(new ResultBatch(List.of(canonical, alias))));
+        assertNull(ModelEventWireCodec.tryEncode(new ResultBatch(List.of(alias, canonical))));
+    }
+
+    @Test
     void roundTripsRequestWithItsTransportIdentity() throws Exception {
         GetModelEvents request =
                 new GetModelEvents(
